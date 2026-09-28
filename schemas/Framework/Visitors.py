@@ -27,6 +27,7 @@ __all__ = [
     "OfRelation",
     "OfUnion",
     "OfIntersection",
+    "Visitable",
 ]
 
 Native = int | float | str | bool | bytes
@@ -75,14 +76,6 @@ class OfProperty(Protocol):
 
 class OfObject(Protocol):
     """An object: named properties plus adjacencies to relations."""
-
-    def identity(self) -> Hashable:
-        """In-memory identity, stable for the object's lifetime. Serializers map it 1:1 to a transaction symbol."""
-        ...
-
-    def schema_name(self) -> str:
-        """Registered name of the object's schema, carried by serialized references to this object."""
-        ...
 
     def properties(self, callback: Callable[[OfProperty], Any]) -> OfObject:
         """Calls `callback` once for each property that is present."""
@@ -149,11 +142,11 @@ class OfLink(Protocol):
 
     def name(self) -> str: ...
 
-    def target(self, callback: Callable[[OfObject], Any]) -> OfLink:
+    def target(self, callback: Callable[[Visitable], Any]) -> OfLink:
         """Calls `callback` with the linked object."""
         ...
 
-    def set(self, target: OfObject) -> OfLink: ...
+    def set(self, target: Visitable) -> OfLink: ...
 
 
 class OfRelation(Protocol):
@@ -180,3 +173,19 @@ class OfIntersection(Protocol):
     """A value satisfying several same-kind schemas at once."""
 
     def value(self, callback: Callable[[OfAny], Any]) -> OfIntersection: ...
+
+
+class Visitable(Protocol):
+    """An in-memory object that can be visited, e.g. a proxy. It is not a visitor itself."""
+
+    def identity(self) -> Hashable:
+        """In-memory identity, stable for the object's lifetime. Serializers map it 1:1 to a transaction symbol."""
+        ...
+
+    def schema_name(self) -> str:
+        """Registered name of the object's schema, carried by serialized references to this object."""
+        ...
+
+    def accept(self, visitor: OfObject) -> None:
+        """Writes this object's properties and adjacency entries into `visitor`."""
+        ...

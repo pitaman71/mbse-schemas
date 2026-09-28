@@ -160,7 +160,8 @@ Instances of a user schema follow the same pattern. With the dynamic (proxy) imp
 - Relation entries are added through the object builder's adjacency accessors, never through a relation builder
   (none is exposed to the caller). An accessor takes a `Spec` for the entry. The object fills its own link (`me`); the
   entry builder sets the other links and the entry properties. A link takes an existing object or a `Spec` that
-  builds a new one:
+  builds a new one; the lambda form requires the new object's schema to be
+  inferred unambiguously from the relation and link:
 
   ```python
   .addresses(lambda x: x.address(addr1).label('work'))
@@ -276,7 +277,16 @@ Expressions are serializable and therefore follow the `Expressions.X.Data` `Expr
   canonical entry order and deterministic symbol choice.
 - Is `Factories` an interface, with `Proxies` as its dynamic implementation and generated bindings as typed
   implementations of the same shape (`register`, `Builders.<Name>`)?
-- How `unique(...)` clauses are written in the relation builder.
+- Builder syntax proposed by the draft `Schemas.py`, to confirm:
+  - `unique` clauses: `.unique('parent', 'key')`, one call per clause.
+  - Singletons: `Schemas.OfObject.Builder().singleton('GlobalName')`.
+  - Unions: `.branches(lambda b: b.of(spec).when(predicate), ...)`, in declaration order.
+  - Intersections: `.of(spec, spec, ...)`.
+  - `validate()` on each `Schemas.OfX.Data` returns a list of problems (empty when valid).
+- `Schemas.OfAny.Data` is currently the union of the schema kinds' data (`OfNative`, `OfObject`, `OfUnion`,
+  `OfIntersection`). There is no separate "any value" kind yet.
+- Not yet drafted: the meta-schemas (`Schemas.OfX.Schema`), and schema builders implementing `Visitors.OfX` so that
+  schemas themselves serialize.
 - Reading an object's entries back (e.g. a contact's phones), and removing an entry through a builder.
 - Mixing implementations: may the same schema be used through both `Proxies` and generated bindings in one program, and
   may instances pass between them? Intended to be legal under controlled conditions, not yet specified.
@@ -316,7 +326,12 @@ Expressions are serializable and therefore follow the `Expressions.X.Data` `Expr
 - Transactions are flat; mutations may be nested.
 - "Sole source for `Visitors`" means client code obtains visitors via `Factories`; other classes may implement
   `Visitors`.
-- Builders and serializers implement `Visitors`; proxies do not. A proxy interface for traversal would be `Visitable`.
+- `clone()` copies the source's adjacency entries to the clone.
+- Building a new object inline through a link (`x.phone(lambda y: ...)`) requires an unambiguous inference of its
+  schema: exactly one registered object schema may declare an adjacency to that relation via that link; otherwise it
+  is an error. Pass an existing object instead when inference is ambiguous.
+- Builders and serializers implement `Visitors`; proxies do not. Proxies implement `Visitors.Visitable`: `identity()`,
+  `schema_name()`, and `accept(visitor)`, which writes the object's properties and adjacency entries into the visitor.
 - Schemas may be named or inline; inline (anonymous) sub-schemas are created with the lambda-builder notation.
 - `Schemas.OfAny.Builder` selects a kind via `as_<kind>` methods (e.g. `as_native`).
 - `Visitors.OfAny.as_<kind>` takes a callback that receives the kind's visitor and returns `self`; chained calls dispatch on

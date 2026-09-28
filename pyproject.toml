@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "schemas"
+version = "0.0.1"
+description = "Language-independent schema type algebra with an in-language DSL"
+readme = "Framework.md"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+include = ["schemas*"]
+namespaces = true

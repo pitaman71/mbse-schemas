@@ -71,7 +71,14 @@ def _schema_filling(relation: RelationSchema, link: str) -> str:
 
 
 class _Builders:
-    """`Builders.<Name>(optional instance)`; use `getattr(Builders, name)` for names that are not identifiers."""
+    """`Builders.<Name>(optional instance)`; use `getattr(Builders, name)` for names that are not identifiers.
+    `schema` and `name_of` are methods, so schemas registered under those names are reachable only through `schema()`."""
+
+    def schema(self, name: str) -> ObjectSchema:
+        return schema(name)
+
+    def name_of(self, schema: ObjectSchema | RelationSchema) -> str:
+        return name_of(schema)
 
     def __getattr__(self, name: str) -> Callable[..., _ObjectBuilder]:
         schema = _object_schema(name)

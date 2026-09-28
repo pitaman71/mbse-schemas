@@ -207,7 +207,7 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
 Both in-memory objects and mutations (see `Mutations`) are serializable.
 
 Over the wire, object content carries no schema. Association of an object with a schema is done dynamically, starting
-from the expected root schema, which is why deserializers such as `Plain.FromPlain(schema, ...)` take it as an
+from the expected root schema, which is why deserializers such as `Plain.FromPlain(builders)(schema, ...)` take it as an
 argument, and continuing through property types and union discriminator predicates. Links are untyped, so a serialized
 reference to a linked object carries that object's schema name alongside its symbol. Consequently, an object that is
 linked from another object must have a named (registered) schema.
@@ -227,7 +227,7 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
 
 - `Plain` : for each schema element `OfX`, `Plain.ToPlain.OfX` and `Plain.FromPlain.OfX` implement `Visitors.OfX` and
   convert between values and plain data (dicts, lists, strings, numbers, booleans, null). `Plain.ToPlain(schema, value)`
-  and `Plain.FromPlain(schema, plain)` dispatch on the schema's kind. `Schemas.OfNative` converts natives to forms plain
+  and `Plain.FromPlain(builders)(schema, plain)` dispatch on the schema's kind. `Schemas.OfNative` converts natives to forms plain
   data can hold (e.g. `bytes`), so text encodings never handle that themselves. An object's plain form includes its
   adjacencies; linked objects appear as transaction symbol references, not nested content. Deserializing a snapshot
   that references an object it does not contain is an error.
@@ -277,11 +277,10 @@ Expressions are serializable and therefore follow the `Expressions.X.Data` `Expr
   they are declared in the builder DSL.
 - Equality edge cases listed under Equality are proposals; confirm them. In particular, fixed width and signedness for
   numeric `OfNative` types conflicts with unbounded native types such as Python `int`.
-- Multi-object snapshots. The example proposes `Plain.ToPlain.Reachable(schema, value)` /
-  `Plain.FromPlain.Reachable(schema, plain)`: a value plus everything reachable through adjacencies.
-- `Plain.FromPlain` always builds proxies, since they are the only implementation so far. How should a caller choose
-  the target implementation (ties to "Mixing implementations")?
-- `Plain.ToPlain.Reachable` / `Plain.FromPlain.Reachable` are implemented in the draft `Plain.py`; confirm the names.
+- Multi-object snapshot naming: confirm `Plain.ToPlain.Reachable(schema, value)` /
+  `Plain.FromPlain(builders).Reachable(schema, plain)` (still marked PROPOSED in the example).
+- `Plain.ToPlain` still looks up the schemas of non-root objects in the `Proxies` registry. Should it also be
+  constructed with an implementation's registry, like `FromPlain`?
 - Snapshot determinism: must two serializations of the same state produce identical output? That would require a
   canonical entry order and deterministic symbol choice.
 - Is `Factories` an interface, with `Proxies` as its dynamic implementation and generated bindings as typed
@@ -354,13 +353,17 @@ Expressions are serializable and therefore follow the `Expressions.X.Data` `Expr
   Reading a property that is not set raises an error.
 - Instance setters take a `Spec`: `.street1('foo')` is equivalent to `.street1(lambda v: v.set('foo'))`.
 - A property is cleared with `.street2(lambda v: v.clear())`.
-- Serialization goes through one plain-data form, `Plain.ToPlain(schema, value)` / `Plain.FromPlain(schema, plain)`;
+- Serialization goes through one plain-data form, `Plain.ToPlain(schema, value)` / `Plain.FromPlain(builders)(schema, plain)`;
   JSON and YAML are thin text encodings of it.
 - `JSON.ToJSON(schema, value)` / `JSON.FromJSON(schema, json)` take the schema explicitly, dispatch on its kind
   (equivalent to `JSON.ToJSON.OfX(...)`), and produce/consume a snapshot.
 - Sub-structure arguments throughout the builder pattern are `Spec`s: a direct value, or a callable that takes and returns
   the corresponding builder (e.g. `of(...)` takes `Schemas.OfAny.Spec`; `as_native` takes `Schemas.OfNative.Spec`).
 - Both in-memory objects and mutations are serializable, so JSON/YAML cover both.
+- `Plain.FromPlain` is constructed with the builders of the implementation to build with, e.g.
+  `Plain.FromPlain(Proxies.Builders)(schema, plain)`.
+- Reachability is its own visitor, `Reachable.of(root)`, which returns the root and every object reachable through
+  adjacencies in first-reference order. `Plain.ToPlain.Reachable` uses it.
 - Over the wire, object content carries no schema. Association with a schema is dynamic, starting from the expected
-  root schema (hence `FromPlain(schema, ...)` takes it) and continuing through property types and union discriminator
+  root schema (hence `FromPlain(builders)(schema, ...)` takes it) and continuing through property types and union discriminator
   predicates. Serialized references to linked objects carry the object's schema name.

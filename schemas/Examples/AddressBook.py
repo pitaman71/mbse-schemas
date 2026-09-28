@@ -201,6 +201,6 @@ plain = Plain.ToPlain(IntlAddress, addr1)
 # PROPOSED: a snapshot of addr1 and every object reachable through adjacencies (alice, her phone and email), so all
 # symbol references resolve within the snapshot.
 graph = Plain.ToPlain.Reachable(IntlAddress, addr1)
-roundtrip = Plain.FromPlain.Reachable(IntlAddress, graph)
+roundtrip = Plain.FromPlain(Proxies.Builders).Reachable(IntlAddress, graph)
 assert roundtrip is not addr1
 assert Plain.ToPlain.Reachable(IntlAddress, roundtrip) == graph

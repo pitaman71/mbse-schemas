@@ -10,6 +10,7 @@ callable that takes and returns the corresponding builder.
 
 from __future__ import annotations
 
+import base64
 import copy
 import dataclasses
 from collections.abc import Callable
@@ -97,6 +98,22 @@ class _NativeData:
         if self.type not in NATIVE_TYPES:
             return [f"unsupported native type {self.type!r}"]
         return []
+
+    def to_plain(self, value: Native) -> int | float | str | bool:
+        """Converts a native value to plain data. `bytes` become base64 text."""
+        if type(value) is not self.type:
+            raise TypeError(f"expected {self.type.__name__}, got {type(value).__name__}")
+        return base64.b64encode(value).decode("ascii") if isinstance(value, bytes) else value
+
+    def from_plain(self, plain: object) -> Native:
+        """Converts plain data back to a native value. Distinct native types are never coerced into each other."""
+        if self.type is bytes:
+            if not isinstance(plain, str):
+                raise TypeError(f"expected base64 text for bytes, got {type(plain).__name__}")
+            return base64.b64decode(plain, validate=True)
+        if type(plain) is not self.type:
+            raise TypeError(f"expected {self.type.__name__}, got {type(plain).__name__}")
+        return plain
 
 
 class _NativeBuilder(_Builder[_NativeData]):

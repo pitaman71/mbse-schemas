@@ -231,6 +231,12 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
   data can hold (e.g. `bytes`), so text encodings never handle that themselves. An object's plain form includes its
   adjacencies; linked objects appear as transaction symbol references, not nested content. Deserializing a snapshot
   that references an object it does not contain is an error.
+  An object snapshot is `{"root": symbol, "objects": {symbol: object}}`. Each object maps property names to plain
+  values and adjacency names to lists of entries; an entry maps the other links to references and the entry properties
+  to plain values (the object's own link is implied). A reference is `{"$ref": symbol, "$schema": name}`. Symbols are
+  assigned in the order objects are first referenced. `Plain.ToPlain.OfObject` includes only the root, so its references
+  are unresolved; `Plain.ToPlain.Reachable` includes every object reachable through adjacencies. An entry appears under
+  each object it links; on deserialization the duplicate is elided.
 - `JSON` : for each schema element `OfX`, `JSON.ToJSON.OfX` implements `Visitors.OfX` and when called, serializes the data structure to a JSON representation. `JSON.FromJSON.OfX` implements `Visitors.OfX` and when called, deserializes the data structure from a JSON representation.
   Both take the schema explicitly: `JSON.ToJSON(schema, value)` and `JSON.FromJSON(schema, json)`. The top-level
   `JSON.ToJSON` / `JSON.FromJSON` dispatch on the schema's kind, e.g. `JSON.ToJSON(IntlAddress, addr1)` is equivalent to
@@ -273,6 +279,9 @@ Expressions are serializable and therefore follow the `Expressions.X.Data` `Expr
   numeric `OfNative` types conflicts with unbounded native types such as Python `int`.
 - Multi-object snapshots. The example proposes `Plain.ToPlain.Reachable(schema, value)` /
   `Plain.FromPlain.Reachable(schema, plain)`: a value plus everything reachable through adjacencies.
+- `Plain.FromPlain` always builds proxies, since they are the only implementation so far. How should a caller choose
+  the target implementation (ties to "Mixing implementations")?
+- `Plain.ToPlain.Reachable` / `Plain.FromPlain.Reachable` are implemented in the draft `Plain.py`; confirm the names.
 - Snapshot determinism: must two serializations of the same state produce identical output? That would require a
   canonical entry order and deterministic symbol choice.
 - Is `Factories` an interface, with `Proxies` as its dynamic implementation and generated bindings as typed

@@ -174,16 +174,20 @@ class _ObjectData:
             for entry in _relation_data(adjacency.relation).linking(adjacency.me, self):
                 visitor.adjacency(
                     adjacency_name,
-                    lambda a, entry=entry, me=adjacency.me: a.add(lambda e: _write_entry(e, entry, me)),
+                    lambda a, entry=entry, adj=adjacency: a.add(lambda e: _write_entry(e, entry, adj)),
                 )
 
 
-def _write_entry(visitor: Visitors.OfEntry, entry: _Entry, me: str) -> None:
-    for name, target in entry.links.items():
-        if name != me:
-            visitor.link(name, lambda k, target=target: k.set(target))
-    for name, value in entry.properties.items():
-        visitor.property(name, lambda p, value=value: p.value(lambda a: a.as_native(lambda n: n.set(value))))
+def _write_entry(visitor: Visitors.OfEntry, entry: _Entry, adjacency: Schemas.OfAdjacency.Data) -> None:
+    """Writes an entry's links and properties in the relation's declared order, whichever end built the entry."""
+    relation = adjacency.relation
+    for name in relation.links:
+        if name != adjacency.me:
+            visitor.link(name, lambda k, target=entry.links[name]: k.set(target))
+    for name in relation.properties:
+        if name in entry.properties:
+            value = entry.properties[name]
+            visitor.property(name, lambda p, value=value: p.value(lambda a: a.as_native(lambda n: n.set(value))))
 
 
 # --- Builders ---

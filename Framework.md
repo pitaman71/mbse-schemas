@@ -281,8 +281,13 @@ Expressions are serializable and therefore follow the `Expressions.X.Data` `Expr
   `Plain.FromPlain(builders).Reachable(schema, plain)` (still marked PROPOSED in the example).
 - `Plain.ToPlain` still looks up the schemas of non-root objects in the `Proxies` registry. Should it also be
   constructed with an implementation's registry, like `FromPlain`?
-- Snapshot determinism: must two serializations of the same state produce identical output? That would require a
-  canonical entry order and deterministic symbol choice.
+- Snapshot determinism: must two serializations of the same state produce identical output? Entries are now written
+  with links and properties in the relation's declared order, but symbols are numbered in first-reference order, and
+  entry order within an adjacency depends on history, so a round trip can renumber symbols (see the `FamilyTree` and
+  `University` examples, which compare snapshots up to renumbering). Full determinism would need a canonical entry
+  order.
+- Data validation: `unique(...)` clauses and native types are declared in schemas but not checked against data.
+  Builders accept a wrong native type (serialization rejects it); nothing yet checks uniqueness over entries.
 - Is `Factories` an interface, with `Proxies` as its dynamic implementation and generated bindings as typed
   implementations of the same shape (`register`, `Builders.<Name>`)?
 - Builder syntax proposed by the draft `Schemas.py`, to confirm:

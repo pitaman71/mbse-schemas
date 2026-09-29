@@ -125,7 +125,7 @@ Anonymous sub-schemas are created inline by passing a lambda that receives a bui
 `prop.name('street1').of(lambda t: t.as_native(str))`, where `t` is a `Schemas.OfAny.Builder`. The lambda only
 configures the builder; it is not part of the resulting schema, which stays serializable.
 
-Instances of a user schema follow the same pattern. With the dynamic (proxy) implementation (see `python3/mbse_schemas/Examples/AddressBook.py` and `typescript5/src/Examples/AddressBook.ts`):
+Instances of a user schema follow the same pattern. With the dynamic (proxy) implementation (see `python3/mbse/Schemas/Examples/AddressBook.py` and `typescript5/src/Examples/AddressBook.ts`):
 
 - `Proxies.register('Name', schema)` registers a schema under a global name. The name is a string, so it need not be a
   valid identifier in any host language (e.g. dotted or versioned names).
@@ -279,6 +279,7 @@ here:
 
 | Concept | Python | TypeScript |
 |---|---|---|
+| Importing the framework | `from mbse.Schemas.Framework import ...` (the `mbse` namespace package) | `import ... from "@mbse/schemas/Framework"` (the `@mbse` scope) |
 | Native types (`OfNative` tokens) | `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` |
 | Native values | `int`, `float`, `str`, `bool`, `bytes` | `bigint`, `number`, `string`, `boolean`, `Uint8Array` |
 | Plain mappings | `dict` | `Map<string, PlainData>` (order-preserving for every key) |

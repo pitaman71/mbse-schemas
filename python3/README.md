@@ -7,5 +7,5 @@ test plan is in [`tests/TestPlan.md`](tests/TestPlan.md). New to the framework? 
 ```sh
 uv sync --all-extras
 uv run pytest                                        # test notebooks and tutorials
-uv run python -m mbse_schemas.Examples.AddressBook   # an example
+uv run python -m mbse.Schemas.Examples.AddressBook   # an example
 ```

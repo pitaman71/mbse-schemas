@@ -2,8 +2,8 @@
 //
 // Nothing here builds instances; it exercises Schemas.OfX.Builder and Schemas.OfX.Data.validate().
 
-import { ValueError } from "../Framework/Errors.js";
-import { Schemas } from "../Framework/index.js";
+import { ValueError } from "@mbse/schemas/Framework/Errors";
+import { Schemas } from "@mbse/schemas/Framework";
 import { assert, raises } from "./_support.js";
 
 // --- Spec forms ---

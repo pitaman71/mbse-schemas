@@ -5,9 +5,9 @@
 
 import * as Y from "yaml";
 
-import { DecodeError } from "../Framework/Errors.js";
-import { JSON, Plain, Proxies, Schemas, Validators, YAML } from "../Framework/index.js";
-import type { Instance } from "../Framework/Proxies.js";
+import { DecodeError } from "@mbse/schemas/Framework/Errors";
+import { JSON, Plain, Proxies, Schemas, Validators, YAML } from "@mbse/schemas/Framework";
+import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { assert, equal, raises, same_graph } from "./_support.js";
 
 // --- Schemas ---

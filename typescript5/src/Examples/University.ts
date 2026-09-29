@@ -3,11 +3,11 @@
 // Covers a ternary relation (student, course, term) with ISO 8601 dates, entries distinguished by float / int / bool
 // values, an ambiguous link that refuses inline creation, the builder not validating native types, and round trips.
 
-import { ValueError } from "../Framework/Errors.js";
-import { Plain, Proxies, Reachable, Schemas, Validators } from "../Framework/index.js";
-import type { Instance } from "../Framework/Proxies.js";
-import { sortedStrings } from "../Framework/Repr.js";
-import type { OfEntry, Visitable } from "../Framework/Visitors.js";
+import { ValueError } from "@mbse/schemas/Framework/Errors";
+import { Plain, Proxies, Reachable, Schemas, Validators } from "@mbse/schemas/Framework";
+import type { Instance } from "@mbse/schemas/Framework/Proxies";
+import { sortedStrings } from "@mbse/schemas/Framework/Repr";
+import type { OfEntry, Visitable } from "@mbse/schemas/Framework/Visitors";
 import { assert, entries, raises, same_graph } from "./_support.js";
 
 function text(name: string) {

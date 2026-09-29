@@ -3,7 +3,7 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from mbse_schemas.Framework import Plain, Reachable
+from mbse.Schemas.Framework import Plain, Reachable
 
 
 def entries(schema, obj, adjacency):

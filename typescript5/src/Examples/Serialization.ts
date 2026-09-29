@@ -2,11 +2,11 @@
 //
 // Uses ISO 4217 currencies: a price list maps a product -> [currency] -> money.
 
-import { AttributeError, DecodeError, ValueError } from "../Framework/Errors.js";
-import { JSON, Plain, Proxies, Schemas, Validators } from "../Framework/index.js";
-import type { PlainData, PlainMap } from "../Framework/Plain.js";
-import type { Instance } from "../Framework/Proxies.js";
-import { sortedStrings } from "../Framework/Repr.js";
+import { AttributeError, DecodeError, ValueError } from "@mbse/schemas/Framework/Errors";
+import { JSON, Plain, Proxies, Schemas, Validators } from "@mbse/schemas/Framework";
+import type { PlainData, PlainMap } from "@mbse/schemas/Framework/Plain";
+import type { Instance } from "@mbse/schemas/Framework/Proxies";
+import { sortedStrings } from "@mbse/schemas/Framework/Repr";
 import { assert, entries, equal, map, raises } from "./_support.js";
 
 // --- Schemas ---

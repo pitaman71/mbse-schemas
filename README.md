@@ -22,10 +22,11 @@ description everywhere:
 - to generate idiomatic, performant interface bindings for many programming languages (planned)
 
 Two implementations exist, in Python and TypeScript. They have the same API and the same error messages, and they
-write byte-identical JSON. The TypeScript core runs in Node, in browsers and in Deno.
+write byte-identical JSON. The TypeScript core runs in Node, in browsers and in Deno. Python imports the framework
+from `mbse.Schemas.Framework`, TypeScript from `@mbse/schemas/Framework`.
 
 ```python
-from mbse_schemas.Framework import JSON, Proxies, Schemas, Validators
+from mbse.Schemas.Framework import JSON, Proxies, Schemas, Validators
 
 Contact = Schemas.OfObject.Builder().properties(lambda p: p.name('name').of(lambda t: t.as_native(str))).create()
 Address = Schemas.OfObject.Builder().properties(lambda p: p.name('street').of(lambda t: t.as_native(str))).create()
@@ -104,7 +105,7 @@ Python (3.11+, managed with [uv](https://docs.astral.sh/uv/)):
 cd python3
 uv sync --all-extras
 uv run pytest                                        # test suites and tutorials
-uv run python -m mbse_schemas.Examples.AddressBook   # an example
+uv run python -m mbse.Schemas.Examples.AddressBook   # an example
 ```
 
 TypeScript (Node 22 or later; tested on 22, 24 and 26). With [nvm](https://github.com/nvm-sh/nvm), `nvm use` picks
@@ -135,7 +136,7 @@ npx tsx src/Examples/AddressBook.ts                  # an example
 ```
 docs/               the design (FRAMEWORK.md), how values compare (EQUALITY.md), and how the two implementations
                     are kept equivalent (EQUIVALENCE.md)
-python3/            Python implementation: mbse_schemas/Framework, examples, tests (Jupyter notebooks), tutorials
+python3/            Python implementation: mbse/Schemas/Framework, examples, tests (Jupyter notebooks), tutorials
 typescript5/        TypeScript implementation: src/Framework, examples, tests and tutorials (notebooks; Deno kernel)
 conformance/        snapshots each implementation writes; each must read the other's
 ```

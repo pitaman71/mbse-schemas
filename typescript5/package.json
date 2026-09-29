@@ -1,9 +1,13 @@
 {
-  "name": "mbse-schemas",
+  "name": "@mbse/schemas",
   "version": "0.0.1",
   "description": "Language-independent schema type algebra with an in-language DSL (TypeScript implementation)",
   "type": "module",
   "private": true,
+  "exports": {
+    "./Framework": "./src/Framework/index.ts",
+    "./Framework/*": "./src/Framework/*.ts"
+  },
   "engines": {
     "node": ">=22"
   },

@@ -1,9 +1,9 @@
 // Helpers shared by the examples.
 
-import { Plain, Reachable } from "../Framework/index.js";
-import type { Instance } from "../Framework/Proxies.js";
-import type { PlainData, PlainMap } from "../Framework/Plain.js";
-import type { OfObject } from "../Framework/Schemas.js";
+import { Plain, Reachable } from "@mbse/schemas/Framework";
+import type { Instance } from "@mbse/schemas/Framework/Proxies";
+import type { PlainData, PlainMap } from "@mbse/schemas/Framework/Plain";
+import type { OfObject } from "@mbse/schemas/Framework/Schemas";
 
 /** Python's `assert`. */
 export function assert(condition: unknown, message = "assertion failed"): asserts condition {

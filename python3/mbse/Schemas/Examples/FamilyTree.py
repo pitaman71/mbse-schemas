@@ -3,8 +3,8 @@
 # Covers self-relations, several relations between the same pair of objects, multiple owners, cycles, a self-loop,
 # duplicate elision, entries that differ only by a property, entry removal, clone() copying entries, and round trips.
 
-from mbse_schemas.Framework import Schemas, Proxies, Plain, Reachable, Validators
-from mbse_schemas.Examples._support import entries, raises, same_graph
+from mbse.Schemas.Framework import Schemas, Proxies, Plain, Reachable, Validators
+from mbse.Schemas.Examples._support import entries, raises, same_graph
 
 # --- Schemas ---
 

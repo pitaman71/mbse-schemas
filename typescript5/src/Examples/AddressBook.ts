@@ -2,8 +2,8 @@
 //
 // Lines marked PROPOSED use syntax that FRAMEWORK.md does not define yet.
 
-import { AttributeError } from "../Framework/Errors.js";
-import { JSON, Plain, Proxies, Schemas } from "../Framework/index.js";
+import { AttributeError } from "@mbse/schemas/Framework/Errors";
+import { JSON, Plain, Proxies, Schemas } from "@mbse/schemas/Framework";
 import { assert, equal } from "./_support.js";
 
 // --- Schemas ---

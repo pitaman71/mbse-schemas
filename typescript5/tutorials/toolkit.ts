@@ -4,8 +4,8 @@
  * Each function is developed and explained in the case study named in its comment.
  */
 
-import { Proxies } from "../src/Framework/index.js";
-import type { OfAdjacency, OfEntry } from "../src/Framework/Visitors.js";
+import { Proxies } from "@mbse/schemas/Framework";
+import type { OfAdjacency, OfEntry } from "@mbse/schemas/Framework/Visitors";
 
 /** One entry, read into an object: each link's target and each property's value, by name. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

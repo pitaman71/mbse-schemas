@@ -1,7 +1,7 @@
 # Conformance corpus
 
 Each implementation builds the same corpus of schemas and objects, statement for statement
-(`python3/mbse_schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`), and commits its snapshots here as
+(`python3/mbse/Schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`), and commits its snapshots here as
 `<implementation>/<case>.json` (reachable snapshot, indent 2) and `<case>.yaml`.
 
 | Case | Covers |
@@ -22,6 +22,6 @@ The CONF test suite in each implementation checks that:
 Regenerate:
 
 ```sh
-(cd python3 && uv run python -m mbse_schemas.Conformance.write)
+(cd python3 && uv run python -m mbse.Schemas.Conformance.write)
 (cd typescript5 && npm run conformance)
 ```

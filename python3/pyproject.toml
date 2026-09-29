@@ -13,7 +13,7 @@ requires-python = ">=3.11"
 yaml = ["PyYAML>=6"]
 
 [tool.setuptools.packages.find]
-include = ["mbse_schemas*"]
+include = ["mbse*"]
 namespaces = true
 
 [dependency-groups]
@@ -31,7 +31,7 @@ testpaths = ["tests", "tutorials"]
 addopts = "--nbmake"
 
 [tool.coverage.run]
-source = ["mbse_schemas.Framework"]
+source = ["mbse.Schemas.Framework"]
 branch = true
 parallel = true
 patch = ["subprocess"]

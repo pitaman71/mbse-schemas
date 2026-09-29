@@ -3,7 +3,7 @@
  *
  * `build()` registers the corpus schemas and returns `{case: [root schema, root object]}`. Each implementation writes
  * its snapshots to `conformance/<implementation>/<case>.json` and `.yaml`, and checks them against every other
- * implementation's files (see the CONF test suite). Keep this module and `python3/mbse_schemas/Conformance/Corpus.py` in
+ * implementation's files (see the CONF test suite). Keep this module and `python3/mbse/Schemas/Conformance/Corpus.py` in
  * lockstep: same schemas, same names, same values, same order of statements.
  */
 

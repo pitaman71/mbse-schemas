@@ -33,7 +33,7 @@
 | Full code coverage in both | the coverage gates below |
 | The TypeScript core runs without Node (browsers, Deno) and still produces the identical corpus | `tsconfig.core.json`, `npm run portability` (see the TypeScript test plan) |
 
-The corpus (`python3/mbse_schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`) builds five cases
+The corpus (`python3/mbse/Schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`) builds five cases
 statement for statement: an address book, native edge values, a family with a cycle and a self-loop, a three-link
 relation, and strings that YAML readers misread. See `conformance/README.md`.
 
@@ -73,6 +73,7 @@ noticed.
 
 | Area | Python | TypeScript | Why | Cases |
 |---|---|---|---|---|
+| Import path | `mbse.Schemas.Framework`, in the `mbse` namespace package that related packages share | `@mbse/schemas/Framework`, in the `@mbse` scope | a module specifier is a path, not a dotted name; a scope is the nearest equivalent | all |
 | Native types | `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` as tokens | JavaScript's constructors are its runtime type objects | SCH-01..05 |
 | Integers | `int` | `bigint` | `number` cannot tell `1` from `1.0` and rounds above 2^53 | SCH-03, JSN-05, JSN-07 |
 | Plain mappings | `dict` | `Map<string, PlainData>` | object literals reorder integer-like keys and mishandle `__proto__` | SCH-11, PLN-02 |
@@ -158,7 +159,7 @@ When changing behavior:
 1. Change both implementations in the same commit, with the same names and the same messages.
 2. Add or change the test case in both suites under the same ID and position.
 3. If the change affects serialized data, update both `Corpus` modules identically and regenerate both corpora:
-   `uv run python -m mbse_schemas.Conformance.write` and `npm run conformance`. CONF-02 fails until the JSON matches.
+   `uv run python -m mbse.Schemas.Conformance.write` and `npm run conformance`. CONF-02 fails until the JSON matches.
 4. If a language forces a difference, add it to the table above and to both test plans, with the cases that assert
    it. Differences not listed here are bugs.
 5. Run both suites under their coverage gates, the TypeScript one on every supported Node version (`nvm use 22`,

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 
-from mbse_schemas.Framework import Proxies, Schemas
+from mbse.Schemas.Framework import Proxies, Schemas
 
 CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings"]
 

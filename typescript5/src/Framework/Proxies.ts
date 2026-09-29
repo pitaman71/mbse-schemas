@@ -16,7 +16,7 @@
 import { inspect } from "node:util";
 
 import { AttributeError, LookupError, NotImplementedError, ValueError } from "./Errors.js";
-import { repr } from "./Repr.js";
+import { repr, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfNative,
   OfObject as ObjectVisitor, OfProperty, OfUnion, Visitable } from "./Visitors.js";
@@ -112,8 +112,10 @@ export function nativeKey(value: unknown): string {
   if (typeof value === "bigint") return `int:${value}`;
   if (typeof value === "string") return `str:${value}`;
   if (typeof value === "boolean") return `bool:${value}`;
-  if (value instanceof Uint8Array) return `bytes:${Buffer.from(value).toString("hex")}`;
-  return `${typeof value}:${String(value)}`;
+  if (value instanceof Uint8Array && Object.getPrototypeOf(value) === Uint8Array.prototype) {
+    return `bytes:${Buffer.from(value).toString("hex")}`;
+  }
+  throw new TypeError(`an entry property must be a native value, got ${typeName(value)}`);
 }
 
 class Entry {
@@ -127,7 +129,7 @@ class Entry {
 }
 
 function byName(a: readonly [string, unknown], b: readonly [string, unknown]): number {
-  return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0;
+  return a[0] < b[0] ? -1 : 1; // names within an entry are unique
 }
 
 /** All entries of one relation. */
@@ -608,11 +610,11 @@ function makeObjectBuilder(schema: ObjectSchema, schemaName: string, instance?: 
 }
 
 export namespace OfObject {
+  /** The class of proxy instances: `value instanceof Proxies.OfObject.Data`, as Python's `isinstance`. */
+  export const Data = ObjectTarget;
   export type Data = Instance;
   export type Builder = DynamicBuilder;
-  export function isData(value: unknown): value is Instance {
-    return isInstance(value);
-  }
+  /** A builder for `schema` registered as `schemaName`, as `Builders[schemaName](instance)` returns. */
   export function Builder(schema: ObjectSchema, schemaName: string, instance?: Instance): DynamicBuilder {
     return makeObjectBuilder(schema, schemaName, instance);
   }

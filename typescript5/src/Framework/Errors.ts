@@ -24,8 +24,3 @@ export class KeyError extends LookupError {
 export class NotImplementedError extends Error {
   override name = "NotImplementedError";
 }
-
-/** A JavaScript binding needs `ImportError` only for optional dependencies; kept for parity with Python. */
-export class ImportError extends Error {
-  override name = "ImportError";
-}

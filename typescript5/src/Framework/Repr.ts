@@ -15,6 +15,15 @@ export const NATIVE_NAMES: ReadonlyMap<unknown, string> = new Map<unknown, strin
   [Uint8Array, "bytes"],
 ]);
 
+/** Python's names for the JavaScript classes that correspond to its built-in containers. */
+const CLASS_NAMES: ReadonlyMap<unknown, string> = new Map<unknown, string>([
+  ...NATIVE_NAMES,
+  [Array, "list"],
+  [Map, "dict"],
+  [Set, "set"],
+  [Object, "object"],
+]);
+
 /** Python's `type(value).__name__`, using the framework's names for native values. */
 export function typeName(value: unknown): string {
   if (value === null || value === undefined) return "NoneType";
@@ -29,23 +38,15 @@ export function typeName(value: unknown): string {
       return "bool";
     case "function":
       return "function";
-    case "symbol":
-      return "symbol";
   }
-  if (Array.isArray(value)) return "list";
-  if (value instanceof Map) return "dict";
-  if (value instanceof Set) return "set";
-  const constructor = (value as { constructor?: { name?: string } }).constructor;
-  if (constructor === Uint8Array) return "bytes";
-  return constructor?.name ?? "object";
+  const constructor = (value as { constructor?: unknown }).constructor;
+  return constructor === undefined ? "object" : tokenName(constructor);
 }
 
-/** The name of a native token (`BigInt` is 'int'), or the constructor's own name for anything else. */
+/** The name of a native token (`BigInt` is 'int'), Python's name for a built-in container class, or the class's own
+ * name. */
 export function tokenName(token: unknown): string {
-  const known = NATIVE_NAMES.get(token);
-  if (known !== undefined) return known;
-  if (token === null || token === undefined) return "NoneType";
-  return (token as { name?: string }).name ?? String(token);
+  return CLASS_NAMES.get(token) ?? (token as { name: string }).name;
 }
 
 /** Python's `float.__repr__`: the shortest round-tripping digits, scientific below 1e-4 and from 1e16. */
@@ -169,11 +170,9 @@ export function repr(value: unknown): string {
   if (value instanceof Map) return `{${[...value].map(([k, v]) => `${repr(k)}: ${repr(v)}`).join(", ")}}`;
   if (value instanceof Set) return value.size === 0 ? "set()" : `{${[...value].map(repr).join(", ")}}`;
   if (typeof value === "function") {
-    const name = NATIVE_NAMES.get(value) ?? (value as { name?: string }).name ?? "function";
-    return isClassLike(value) ? `<class '${name}'>` : `<function ${name || "<lambda>"}>`;
+    return isClassLike(value) ? `<class '${tokenName(value)}'>` : `<function ${value.name || "<lambda>"}>`;
   }
-  const constructor = (value as { constructor?: { name?: string } }).constructor;
-  return `<${constructor?.name ?? "object"} object>`;
+  return `<${typeName(value)} object>`;
 }
 
 /** True for classes and built-in constructors (which the DSL uses as tokens), false for ordinary callbacks. */

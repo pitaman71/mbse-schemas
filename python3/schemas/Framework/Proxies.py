@@ -93,6 +93,8 @@ Builders = _Builders()
 
 def _native_key(value: Native) -> tuple[str, object]:
     """Equality key per Framework.md: distinct native types never compare equal; floats compare by bit pattern."""
+    if type(value) not in (int, float, str, bool, bytes):
+        raise TypeError(f"an entry property must be a native value, got {type(value).__name__}")
     if isinstance(value, float):
         return ("float", value.hex())
     return (type(value).__name__, value)
@@ -405,6 +407,8 @@ class _ObjectBuilder:
         self._values: dict[str, Native] = {}
         self._entries: dict[str, list[_EntryBuilder]] = {}
         if instance is not None:
+            if not isinstance(instance, _ObjectData):
+                raise TypeError("a builder's source must be a proxy instance")
             if instance.schema_name() != schema_name:
                 raise TypeError(f"instance is a {instance.schema_name()!r}, not a {schema_name!r}")
             instance.accept(self)

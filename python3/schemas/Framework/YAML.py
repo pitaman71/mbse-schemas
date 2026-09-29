@@ -103,16 +103,29 @@ def _check_plain(value: Any, path: str = "$") -> None:
             _check_plain(item, f"{path}[{i}]")
         return
     if type(value) is dict:
-        for key, item in value.items():
-            if type(key) is not str:
-                raise ValueError(f"{path}: keys must be strings, got {type(key).__name__} {key!r}")
+        for key, item in value.items():  # the loader has already rejected keys that are not strings
             _check_plain(item, f"{path}.{key}")
         return
     raise ValueError(f"{path}: {type(value).__name__} is not plain data")
 
 
+def _check_dump(value: Any) -> None:
+    """PyYAML would also write bytes, sets and other objects (e.g. as !!binary); plain data holds none of them."""
+    if type(value) is list:
+        for item in value:
+            _check_dump(item)
+    elif type(value) is dict:
+        for key, item in value.items():
+            if type(key) is not str:
+                raise TypeError(f"keys must be str, not {type(key).__name__}")
+            _check_dump(item)
+    elif value is not None and type(value) not in (bool, int, float, str):
+        raise TypeError(f"cannot represent {type(value).__name__} as a YAML scalar")
+
+
 def dumps(plain: PlainData) -> str:
     """Encodes plain data as YAML, keeping key order."""
+    _check_dump(plain)
     yaml, _, Dumper = _yaml()
     return yaml.dump(plain, Dumper=Dumper, sort_keys=False, allow_unicode=True, default_flow_style=False)
 

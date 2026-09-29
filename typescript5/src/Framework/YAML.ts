@@ -17,7 +17,7 @@ import * as Y from "yaml";
 import { ValueError } from "./Errors.js";
 import { decodeBytes } from "./JSON.js";
 import * as Plain from "./Plain.js";
-import type { PlainData } from "./Plain.js";
+import type { PlainData, PlainMap } from "./Plain.js";
 import { pyFloat, repr, typeName } from "./Repr.js";
 import type * as Schemas from "./Schemas.js";
 import type { Native, Visitable } from "./Visitors.js";
@@ -55,8 +55,7 @@ function doubleQuoted(text: string): string {
     if (escape !== undefined) out += "\\" + escape;
     else if (isYamlPrintable(point)) out += String.fromCodePoint(point);
     else if (point < 0x100) out += "\\x" + point.toString(16).toUpperCase().padStart(2, "0");
-    else if (point < 0x10000) out += "\\u" + point.toString(16).toUpperCase().padStart(4, "0");
-    else out += "\\U" + point.toString(16).toUpperCase().padStart(8, "0");
+    else out += "\\u" + point.toString(16).toUpperCase().padStart(4, "0"); // every astral code point is printable
   }
   return out + '"';
 }
@@ -97,7 +96,8 @@ function inline(value: PlainData): string {
   return scalar(value);
 }
 
-function emit(value: PlainData, indent: number, lines: string[]): void {
+/** Emits a non-empty map or list in block style; scalars and empty containers are written inline by the caller. */
+function emit(value: PlainMap | PlainData[], indent: number, lines: string[]): void {
   const pad = " ".repeat(indent);
   if (value instanceof Map) {
     for (const [key, item] of value) {
@@ -115,20 +115,16 @@ function emit(value: PlainData, indent: number, lines: string[]): void {
     }
     return;
   }
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      if ((item instanceof Map || Array.isArray(item)) && !isEmptyContainer(item)) {
-        const nested: string[] = [];
-        emit(item, indent + 2, nested);
-        const first = (nested[0] as string).slice(indent + 2);
-        lines.push(`${pad}- ${first}`, ...nested.slice(1));
-      } else {
-        lines.push(`${pad}- ${inline(item)}`);
-      }
+  for (const item of value) {
+    if ((item instanceof Map || Array.isArray(item)) && !isEmptyContainer(item)) {
+      const nested: string[] = [];
+      emit(item as PlainMap | PlainData[], indent + 2, nested);
+      const first = (nested[0] as string).slice(indent + 2);
+      lines.push(`${pad}- ${first}`, ...nested.slice(1));
+    } else {
+      lines.push(`${pad}- ${inline(item)}`);
     }
-    return;
   }
-  lines.push(pad + scalar(value));
 }
 
 /** Encodes plain data as YAML, keeping key order. */
@@ -163,18 +159,13 @@ const OPTIONS = { version: "1.2", schema: "core", intAsBigInt: true, uniqueKeys:
 export function loads(input: string | Uint8Array): PlainData {
   const text = typeof input === "string" ? input : decodeBytes(input);
   const documents = Y.parseAllDocuments(text, OPTIONS);
-  if (!Array.isArray(documents)) return null; // an empty stream
   if (documents.length > 1) throw new ValueError("invalid YAML: expected a single document in the stream");
   const document = documents[0];
   if (document === undefined) return null;
   const problems = [...document.errors, ...document.warnings];
   if (problems.length > 0) throw new ValueError(`invalid YAML: ${(problems[0] as Error).message}`);
-  let plain: unknown;
-  try {
-    plain = document.toJS({ mapAsMap: true, maxAliasCount: 100 });
-  } catch (error) {
-    throw new ValueError(`invalid YAML: ${(error as Error).message}`);
-  }
+  // Aliases resolve to shared values, as in PyYAML, so there is no expansion to limit.
+  const plain: unknown = document.toJS({ mapAsMap: true, maxAliasCount: -1 });
   checkPlain(plain);
   return plain as PlainData;
 }

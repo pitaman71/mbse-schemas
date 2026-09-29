@@ -409,9 +409,8 @@ function restore(builders: Builders, schema: Schemas.OfObject.Data, plain: unkno
     const objectSchema = builders.schema(name);
     const builder = builderFor(builders, name);
     for (const [key, value] of obj) {
-      const propertyType = objectSchema.properties.get(key);
+      const propertyType = objectSchema.properties.get(key); // check() guarantees every other key is an adjacency
       if (propertyType !== undefined) setNative(builder, key, propertyType, value);
-      else if (!objectSchema.adjacencies.has(key)) throw new ValueError(`${repr(name)} has no property or adjacency ${repr(key)}`);
     }
     created.set(symbol, builder.create());
   }
@@ -445,14 +444,12 @@ function setNative(
 
 function fill(visitor: OfEntry, entry: PlainMap, adjacency: Schemas.OfAdjacency.Data, created: Map<string, unknown>): void {
   const relation = adjacency.relation as Schemas.OfRelation.Data;
-  for (const [key, value] of entry) {
-    if (relation.links.includes(key) && key !== adjacency.me) {
+  for (const [key, value] of entry) { // check() guarantees each key is another link or a property
+    if (relation.links.includes(key)) {
       const target = created.get((value as PlainMap).get(REF) as string) as Visitable;
       visitor.link(key, (k) => k.set(target));
-    } else if (relation.properties.has(key)) {
-      setNative(visitor, key, relation.properties.get(key) as Schemas.OfAny.Data, value);
     } else {
-      throw new ValueError(`entry has no link or property ${repr(key)}`);
+      setNative(visitor, key, relation.properties.get(key) as Schemas.OfAny.Data, value);
     }
   }
 }

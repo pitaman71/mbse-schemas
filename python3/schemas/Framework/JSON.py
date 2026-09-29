@@ -19,8 +19,21 @@ from .Plain import PlainData
 __all__ = ["ToJSON", "FromJSON", "dumps", "loads"]
 
 
+def _check_keys(value: Any) -> None:
+    """`json` would silently turn int, float, bool and None keys into strings; plain data only has string keys."""
+    if type(value) is list:
+        for item in value:
+            _check_keys(item)
+    elif type(value) is dict:
+        for key, item in value.items():
+            if type(key) is not str:
+                raise TypeError(f"keys must be str, not {type(key).__name__}")
+            _check_keys(item)
+
+
 def dumps(plain: PlainData, *, indent: int | None = None) -> str:
     """Encodes plain data as strict JSON, keeping key order."""
+    _check_keys(plain)
     return json.dumps(plain, ensure_ascii=False, allow_nan=False, indent=indent)
 
 
@@ -39,7 +52,13 @@ def _unique_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 def loads(text: str | bytes) -> PlainData:
     """Decodes strict JSON into plain data."""
-    return json.loads(text, parse_constant=_reject_constant, object_pairs_hook=_unique_keys)
+    try:
+        return json.loads(text, parse_constant=_reject_constant, object_pairs_hook=_unique_keys)
+    except ValueError as error:
+        # Python appends advice about sys.set_int_max_str_digits(); keep the language-neutral part.
+        if str(error).startswith("Exceeds the limit"):
+            raise ValueError(str(error).split(";")[0]) from error
+        raise
 
 
 class _ToJSON:

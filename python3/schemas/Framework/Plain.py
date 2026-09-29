@@ -348,10 +348,8 @@ def _restore(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData
         object_schema = builders.schema(names[symbol])
         builder = getattr(builders, names[symbol])()
         for key, value in obj.items():
-            if key in object_schema.properties:
+            if key in object_schema.properties:  # _check guarantees every other key is an adjacency
                 _set_native(builder, key, object_schema.properties[key], value)
-            elif key not in object_schema.adjacencies:
-                raise ValueError(f"{names[symbol]!r} has no property or adjacency {key!r}")
         created[symbol] = builder.create()
 
     for symbol, obj in objects.items():
@@ -380,14 +378,12 @@ def _fill(
     created: dict[str, Any],
 ) -> None:
     relation = adjacency.relation
-    for key, value in entry.items():
-        if key in relation.links and key != adjacency.me:
+    for key, value in entry.items():  # _check guarantees each key is another link or a property
+        if key in relation.links:
             target = created[value[REF]]
             visitor.link(key, lambda k: k.set(target))
-        elif key in relation.properties:
-            _set_native(visitor, key, relation.properties[key], value)
         else:
-            raise ValueError(f"entry has no link or property {key!r}")
+            _set_native(visitor, key, relation.properties[key], value)
 
 
 # --- Entry points ---

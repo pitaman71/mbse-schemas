@@ -16,16 +16,20 @@
 4. **Interchangeable data.** Each implementation reads the other's JSON and YAML back into the same graphs, which
    validate.
 5. **Same tests.** The same test suites and cases, with the same IDs in the same order and the same assertions.
+6. **Same coverage.** Each suite covers all of its implementation's framework code: every statement and branch in
+   Python, every statement, branch and function in TypeScript.
 
 ## How it is checked
 
 | Check | Where |
 |---|---|
-| Every test case exists in both implementations, same ID, same order (104 cases, 11 suites) | `python3/tests/*.ipynb`, `typescript5/tests/*.ipynb` |
+| Every test case exists in both implementations, same ID, same order (118 cases, 12 suites) | `python3/tests/*.ipynb`, `typescript5/tests/*.ipynb` |
 | Messages are byte-identical | cases that assert exact messages, e.g. SCH-12, SCH-13, PLN-11 (24 malformed snapshots), VAL-03, VAL-06 |
 | JSON is byte-identical; YAML and JSON are interchangeable | the CONF suite over the shared corpus in `conformance/` |
 | Each corpus is current | CONF-01 |
-| API conformance to the visitor protocols, on classes and on live instances | VIS-02, VIS-06 |
+| API conformance to the visitor protocols, on classes and on live instances | VIS-02, VIS-06, VIS-07 |
+| The text inside messages (`repr`, float `repr`, type names, sort order) is Python's | TXT-01..04 |
+| Full code coverage in both | the coverage gates below |
 
 The corpus (`python3/schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`) builds five cases
 statement for statement: an address book, native edge values, a family with a cycle and a self-loop, a three-link
@@ -37,6 +41,28 @@ Run everything:
 (cd python3 && uv sync --all-extras && uv run pytest)
 (cd typescript5 && npm install && npm test)
 ```
+
+## Coverage
+
+| | Python | TypeScript |
+|---|---|---|
+| Tool | coverage.py, branch mode, subprocesses measured (`[tool.coverage]` in `pyproject.toml`) | c8 (`.c8rc.json`, all files under `src/Framework`) |
+| Command | `uv run coverage run -m pytest && uv run coverage combine && uv run coverage report` | `npm run coverage` |
+| Gate | `fail_under = 100` | `--check-coverage --100` |
+| Result | 100% statements (1438), 100% branches (426) | 100% statements (3303), branches (1466), functions (460), lines |
+
+The counts differ because the tools count differently (V8 counts `??`, `?.` and each `case` as branches), not because
+the code differs. Coverage was made equal by the same means in both:
+
+- A gap in one implementation was closed by an assertion in the shared case, added to both suites (VIS-07, SCH-17,
+  PRX-16, PRX-17, PLN-14, PLN-15, VAL-13, JSN-09..11, YML-13, TXT-01..04). A gap never became a one-language test,
+  except for rows about JavaScript-only mechanics (probes, a prototype-less object), which are listed below.
+- Code that no input could reach was removed from both implementations: branches in `Plain` that `_check` already
+  excludes, a YAML key check the loader already makes, and in TypeScript helper methods, exports and emitter paths
+  nothing used.
+- No code is excluded with pragmas or ignore comments.
+
+Examples and the conformance writer are run by EX-01 and CONF-01 but are not part of the framework and not measured.
 
 ## Deliberate differences
 
@@ -61,6 +87,10 @@ noticed.
 | YAML formatting | PyYAML's layout | own block emitter; no line folding, no `...` after a top-level scalar | values are what must match | YML-04, YML-08, CONF-03 |
 | YAML dependency | optional extra, imported on first use | regular dependency | npm has no optional extras in the same sense | YML-11 |
 | Randomized tests | Hypothesis | fast-check, fixed seed | the respective standard tools | PROP-01..05 |
+| Decode errors for UTF-8/16 input | byte, position and reason | the same prefix (`'utf-8' codec can't decode`) without the detail | `TextDecoder` reports no position; UTF-32 is decoded by hand and matches exactly | JSN-09 |
+| Byte-like subclass named in errors | `bytearray` | `Buffer` | the nearest analogues | PRX-17 |
+| `Proxies.OfObject.Builder` | a class | a function returning the builder; `Proxies.OfObject.Data` is the class | builders are `Proxy` objects | PRX-16 |
+| Objects without a class | none | `Object.create(null)` is named `object` | JavaScript-only | TXT-03 |
 | Test runner | pytest + nbmake | `tests/run-notebooks.ts` | no maintained TypeScript kernel is required to run headless | all |
 
 `Framework.md` ("Language bindings") summarizes the same mapping for readers of the design.
@@ -74,6 +104,19 @@ Porting and cross-checking found two bugs in the Python implementation, both fix
 - **F15:** in Python `Validators`, an instance attribute shadowed the recorder's `adjacencies()` method. Found while
   porting; tested by VIS-06.
 
+Equalizing coverage found more differences, all fixed in the direction noted and tested in both:
+
+- Python's `JSON.dumps` and `YAML.dumps` accepted non-plain data (JSON turned `1` keys into `"1"`; YAML wrote tags);
+  both now refuse it with TypeScript's messages (JSN-10, YML-13).
+- Entry properties that are not native values were accepted by TypeScript, and by Python unless unhashable (then a bare
+  `unhashable type` error); both now raise `an entry property must be a native value, got X` (PRX-17).
+- Proxies accepted a non-proxy as a builder's source in Python; now refused in both (PRX-16).
+- Parse-error messages and positions differed in TypeScript for bad escapes, trailing commas, oversized integers and
+  UTF-32 input; they now match Python's `json` (JSN-09). Python's advice about `sys.set_int_max_str_digits()` is
+  dropped from its message, as it does not apply to TypeScript.
+- Classes named in TypeScript messages appeared as `Array`, `Map`, `Object`; they now appear as Python's `list`,
+  `dict`, `object`, e.g. `unsupported native type <class 'list'>` (SCH-12, TXT-01, TXT-03).
+
 ## Keeping them equivalent
 
 When changing behavior:
@@ -84,4 +127,5 @@ When changing behavior:
    `uv run python -m schemas.Conformance.write` and `npm run conformance`. CONF-02 fails until the JSON matches.
 4. If a language forces a difference, add it to the table above and to both test plans, with the cases that assert
    it. Differences not listed here are bugs.
-5. Run both suites.
+5. Run both suites under their coverage gates. A new gap is closed in both suites under the same ID, or by removing the
+   unreachable code from both.

@@ -20,7 +20,6 @@ export const NATIVE_TYPES: readonly NativeToken[] = [BigInt, Number, String, Boo
 /** Shallow-copies the builder's own containers; references to other schemas are kept, never copied. */
 function copyContainer<T>(value: T): T {
   if (value instanceof Map) return new Map(value) as T;
-  if (value instanceof Set) return new Set(value) as T;
   if (Array.isArray(value)) return [...value] as T;
   return value;
 }
@@ -29,9 +28,8 @@ function noArguments(method: string, args: unknown[]): void {
   if (args.length > 0) throw new TypeError(`${method}() takes no arguments (${args.length} given)`);
 }
 
-interface HasFields {
-  fields(): Record<string, unknown>;
-}
+/** Schema data classes: their own enumerable properties are their fields, like a Python dataclass's. */
+type HasFields = object;
 
 /** Shared builder mechanics. Subclasses add fluent accessors that edit `this.state`. */
 abstract class Builder<D extends HasFields> {
@@ -42,7 +40,7 @@ abstract class Builder<D extends HasFields> {
     this.source = instance;
     this.state = {};
     if (instance !== undefined) {
-      for (const [name, value] of Object.entries(instance.fields())) this.state[name] = copyContainer(value);
+      for (const [name, value] of Object.entries(instance)) this.state[name] = copyContainer(value);
     }
   }
 
@@ -128,9 +126,6 @@ class NativeData implements HasFields {
     this.type = type;
   }
 
-  fields(): Record<string, unknown> {
-    return { type: this.type };
-  }
 
   equals(other: unknown): boolean {
     return other instanceof NativeData && other.type === this.type;
@@ -215,9 +210,6 @@ class PropertyData implements HasFields {
     this.type = fields.type ?? null;
   }
 
-  fields(): Record<string, unknown> {
-    return { name: this.name, type: this.type };
-  }
 
   equals(other: unknown): boolean {
     return other === this;
@@ -273,9 +265,6 @@ class RelationData implements HasFields {
     this.uniques = fields.uniques ?? [];
   }
 
-  fields(): Record<string, unknown> {
-    return { links: this.links, properties: this.properties, uniques: this.uniques };
-  }
 
   equals(other: unknown): boolean {
     return other === this;
@@ -357,9 +346,6 @@ class AdjacencyData implements HasFields {
     this.me = fields.me ?? "";
   }
 
-  fields(): Record<string, unknown> {
-    return { name: this.name, relation: this.relation, me: this.me };
-  }
 
   equals(other: unknown): boolean {
     return other === this;
@@ -423,9 +409,6 @@ class ObjectData implements HasFields {
     this.singleton = fields.singleton ?? null;
   }
 
-  fields(): Record<string, unknown> {
-    return { properties: this.properties, adjacencies: this.adjacencies, singleton: this.singleton };
-  }
 
   equals(other: unknown): boolean {
     return other === this;
@@ -498,9 +481,6 @@ class BranchData implements HasFields {
     this.when = fields.when ?? null;
   }
 
-  fields(): Record<string, unknown> {
-    return { type: this.type, when: this.when };
-  }
 
   equals(other: unknown): boolean {
     return other === this;
@@ -535,9 +515,6 @@ class UnionData implements HasFields {
     this.branches = fields.branches ?? [];
   }
 
-  fields(): Record<string, unknown> {
-    return { branches: this.branches };
-  }
 
   equals(other: unknown): boolean {
     return other === this;
@@ -576,8 +553,6 @@ export namespace OfUnion {
   export type Data = UnionData;
   export const Builder = UnionBuilder;
   export type Builder = UnionBuilder;
-  export const Branch = BranchData;
-  export type Branch = BranchData;
   export type Spec = UnionData | ((builder: UnionBuilder) => UnionBuilder);
 
   export function resolve(spec: Spec | unknown): UnionData {
@@ -592,9 +567,6 @@ class IntersectionData implements HasFields {
     this.parts = fields.parts ?? [];
   }
 
-  fields(): Record<string, unknown> {
-    return { parts: this.parts };
-  }
 
   equals(other: unknown): boolean {
     return other === this;
@@ -723,7 +695,7 @@ class AnyBuilder {
     if (selected.constructor !== this.source.constructor) {
       throw new TypeError("update() cannot change the kind of the source schema");
     }
-    for (const [name, value] of Object.entries(selected.fields())) {
+    for (const [name, value] of Object.entries(selected)) {
       (this.source as unknown as Record<string, unknown>)[name] = copyContainer(value);
     }
     return this.source;
@@ -736,10 +708,6 @@ export namespace OfAny {
   export const Builder = AnyBuilder;
   export type Builder = AnyBuilder;
   export type Spec = AnyData | ((builder: AnyBuilder) => AnyBuilder);
-
-  export function isData(value: unknown): value is AnyData {
-    return isAnyData(value);
-  }
 
   export function resolve(spec: Spec | unknown): AnyData {
     if (isAnyData(spec)) return spec;

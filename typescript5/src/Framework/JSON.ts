@@ -122,8 +122,9 @@ class Parser {
     if (match !== null) {
       this.pos = NUMBER.lastIndex;
       if (match[1] === undefined && match[2] === undefined) {
-        if (match[0].replace("-", "").length > 4300) {
-          throw new ValueError("Exceeds the limit (4300 digits) for integer string conversion");
+        const digits = match[0].replace("-", "").length;
+        if (digits > 4300) {
+          throw new ValueError(`Exceeds the limit (4300 digits) for integer string conversion: value has ${digits} digits`);
         }
         return BigInt(match[0]);
       }
@@ -161,7 +162,7 @@ class Parser {
           continue;
         }
         const replacement = ESCAPES[escape];
-        if (replacement === undefined) return this.fail(`Invalid \\escape: ${repr(escape)}`, this.pos);
+        if (replacement === undefined) return this.fail("Invalid \\escape", this.pos);
         out += replacement;
         this.pos += 2;
         continue;
@@ -197,9 +198,9 @@ class Parser {
       const next = this.text[this.pos];
       if (next === "}") return this.pos++, out;
       if (next !== ",") return this.fail("Expecting ',' delimiter");
-      this.pos++;
+      const comma = this.pos++;
       this.skip();
-      if (this.text[this.pos] === "}") return this.fail("Illegal trailing comma before end of object");
+      if (this.text[this.pos] === "}") return this.fail("Illegal trailing comma before end of object", comma);
     }
   }
 
@@ -214,9 +215,9 @@ class Parser {
       const next = this.text[this.pos];
       if (next === "]") return this.pos++, out;
       if (next !== ",") return this.fail("Expecting ',' delimiter");
-      this.pos++;
+      const comma = this.pos++;
       this.skip();
-      if (this.text[this.pos] === "]") return this.fail("Illegal trailing comma before end of array");
+      if (this.text[this.pos] === "]") return this.fail("Illegal trailing comma before end of array", comma);
     }
   }
 }
@@ -237,44 +238,41 @@ function detectEncoding(bytes: Uint8Array): string {
   return "utf-8";
 }
 
-function decodeUtf32(bytes: Uint8Array, littleEndian: boolean): string {
-  if (bytes.length % 4 !== 0) throw new ValueError("'utf-32' codec can't decode bytes: truncated data");
+/** Decodes UTF-32 from `start`; errors name the codec and positions as Python's codecs do. */
+function decodeUtf32(bytes: Uint8Array, littleEndian: boolean, start: number): string {
+  const codec = littleEndian ? "utf-32-le" : "utf-32-be";
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let out = "";
-  for (let i = 0; i < bytes.length; i += 4) {
+  let i = start;
+  for (; i + 4 <= bytes.length; i += 4) {
     const point = view.getUint32(i, littleEndian);
-    if (point > 0x10ffff) throw new ValueError(`'utf-32' codec can't decode bytes in position ${i}-${i + 3}: code point not in range(0x110000)`);
+    if (point > 0x10ffff) {
+      throw new ValueError(`'${codec}' codec can't decode bytes in position ${i}-${i + 3}: code point not in range(0x110000)`);
+    }
     out += String.fromCodePoint(point);
   }
+  if (i + 1 === bytes.length) {
+    const byte = (bytes[i] as number).toString(16).padStart(2, "0");
+    throw new ValueError(`'${codec}' codec can't decode byte 0x${byte} in position ${i}: truncated data`);
+  }
+  if (i < bytes.length) throw new ValueError(`'${codec}' codec can't decode bytes in position ${i}-${bytes.length - 1}: truncated data`);
   return out;
 }
 
 export function decodeBytes(bytes: Uint8Array): string {
   const encoding = detectEncoding(bytes);
+  if (encoding === "utf-32") return decodeUtf32(bytes, bytes[0] === 0xff, 4);
+  if (encoding === "utf-32-be" || encoding === "utf-32-le") return decodeUtf32(bytes, encoding === "utf-32-le", 0);
+  // UTF-16 and UTF-8 errors keep Python's "'codec' codec can't decode" form; the details come from TextDecoder.
+  const [codec, label, stripBOM] =
+    encoding === "utf-16" ? (bytes[0] === 0xff ? ["utf-16-le", "utf-16le", true] : ["utf-16-be", "utf-16be", true])
+    : encoding === "utf-16-le" ? ["utf-16-le", "utf-16le", false]
+    : encoding === "utf-16-be" ? ["utf-16-be", "utf-16be", false]
+    : ["utf-8", "utf-8", encoding === "utf-8-sig"];
   try {
-    switch (encoding) {
-      case "utf-32": {
-        const little = bytes[0] === 0xff;
-        return decodeUtf32(bytes.subarray(4), little);
-      }
-      case "utf-32-be":
-        return decodeUtf32(bytes, false);
-      case "utf-32-le":
-        return decodeUtf32(bytes, true);
-      case "utf-16":
-        return new TextDecoder(bytes[0] === 0xff ? "utf-16le" : "utf-16be", { fatal: true }).decode(bytes);
-      case "utf-16-be":
-        return new TextDecoder("utf-16be", { fatal: true, ignoreBOM: true }).decode(bytes);
-      case "utf-16-le":
-        return new TextDecoder("utf-16le", { fatal: true, ignoreBOM: true }).decode(bytes);
-      case "utf-8-sig":
-        return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-      default:
-        return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
-    }
+    return new TextDecoder(label, { fatal: true, ignoreBOM: !stripBOM }).decode(bytes);
   } catch (error) {
-    if (error instanceof ValueError) throw error;
-    throw new ValueError(`'${encoding}' codec can't decode bytes: ${(error as Error).message}`);
+    throw new ValueError(`'${codec}' codec can't decode bytes: ${(error as Error).message}`);
   }
 }
 

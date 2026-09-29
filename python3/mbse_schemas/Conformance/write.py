@@ -1,4 +1,4 @@
-"""Writes this implementation's conformance snapshots: `python -m schemas.Conformance.write [directory]`.
+"""Writes this implementation's conformance snapshots: `python -m mbse_schemas.Conformance.write [directory]`.
 
 The default directory is `conformance/python3` at the repository root.
 """
@@ -8,8 +8,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from schemas.Conformance.Corpus import build
-from schemas.Framework import JSON, YAML
+from mbse_schemas.Conformance.Corpus import build
+from mbse_schemas.Framework import JSON, YAML
 
 DEFAULT = Path(__file__).resolve().parents[3] / "conformance" / "python3"
 

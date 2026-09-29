@@ -5,9 +5,9 @@
 import json
 import math
 
-from schemas.Framework import Schemas, Proxies, Plain, Validators
-from schemas.Framework.Errors import DecodeError
-from schemas.Examples._support import entries, raises
+from mbse_schemas.Framework import Schemas, Proxies, Plain, Validators
+from mbse_schemas.Framework.Errors import DecodeError
+from mbse_schemas.Examples._support import entries, raises
 
 # --- Schemas ---
 

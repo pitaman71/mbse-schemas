@@ -8,9 +8,9 @@ import math
 
 import yaml
 
-from schemas.Framework import JSON, YAML, Plain, Proxies, Schemas, Validators
-from schemas.Framework.Errors import DecodeError
-from schemas.Examples._support import raises, same_graph
+from mbse_schemas.Framework import JSON, YAML, Plain, Proxies, Schemas, Validators
+from mbse_schemas.Framework.Errors import DecodeError
+from mbse_schemas.Examples._support import raises, same_graph
 
 # --- Schemas ---
 

@@ -5,8 +5,8 @@
 
 import math
 
-from schemas.Framework import Schemas, Proxies, Plain, Reachable, Validators
-from schemas.Examples._support import entries, raises, same_graph
+from mbse_schemas.Framework import Schemas, Proxies, Plain, Reachable, Validators
+from mbse_schemas.Examples._support import entries, raises, same_graph
 
 
 def text(name):

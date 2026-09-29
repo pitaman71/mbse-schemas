@@ -2,7 +2,7 @@
 #
 # Lines marked PROPOSED use syntax that Framework.md does not define yet.
 
-from schemas.Framework import Schemas, Proxies, Plain, JSON
+from mbse_schemas.Framework import Schemas, Proxies, Plain, JSON
 
 # --- Schemas ---
 

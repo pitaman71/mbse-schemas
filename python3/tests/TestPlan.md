@@ -1,7 +1,7 @@
 # Test plan — python3
 
-Scope: everything implemented under `python3/schemas/Framework` (Schemas, Visitors, Proxies, Reachable, Plain, JSON,
-YAML, Validators), the examples under `python3/schemas/Examples`, and cross-implementation conformance with
+Scope: everything implemented under `python3/mbse_schemas/Framework` (Schemas, Visitors, Proxies, Reachable, Plain, JSON,
+YAML, Validators), the examples under `python3/mbse_schemas/Examples`, and cross-implementation conformance with
 `typescript5`. The design reference is `../../Framework.md`; the TypeScript test plan (`typescript5/tests/TestPlan.md`)
 mirrors this one case for case.
 
@@ -13,7 +13,7 @@ uv sync --all-extras          # project env with the yaml extra and the dev grou
 uv run pytest                 # runs every notebook under tests/ headless (nbmake)
 uv run pytest tests/05_Plain.ipynb
 uv run coverage run -m pytest && uv run coverage combine && uv run coverage report   # coverage gate: fails below 100%
-uv run python -m schemas.Conformance.write   # regenerate ../conformance/python3 after a deliberate change
+uv run python -m mbse_schemas.Conformance.write   # regenerate ../conformance/python3 after a deliberate change
 ```
 
 Notebooks are committed without outputs. Open them in an IDE or Jupyter with the project's `.venv` as the kernel to
@@ -82,7 +82,7 @@ Total: 119 cases, with the same IDs in the same order as the TypeScript suites.
 
 ## Code coverage
 
-The suites cover every statement and branch of `schemas/Framework` (coverage.py, branch mode, subprocesses included:
+The suites cover every statement and branch of `mbse_schemas/Framework` (coverage.py, branch mode, subprocesses included:
 see `[tool.coverage]` in `pyproject.toml`; `coverage report` fails below 100%). The TypeScript suites reach the same on
 `src/Framework` (statements, branches, functions), with the same cases: gaps were closed by adding assertions to the
 shared case in both languages, and code no test could reach was removed from both. See `../../EQUIVALENCE.md`.

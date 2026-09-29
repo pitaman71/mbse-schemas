@@ -151,7 +151,7 @@ Anonymous sub-schemas are created inline by passing a lambda that receives a bui
 `prop.name('street1').of(lambda t: t.as_native(str))`, where `t` is a `Schemas.OfAny.Builder`. The lambda only
 configures the builder; it is not part of the resulting schema, which stays serializable.
 
-Instances of a user schema follow the same pattern. With the dynamic (proxy) implementation (see `python3/schemas/Examples/AddressBook.py` and `typescript5/src/Examples/AddressBook.ts`):
+Instances of a user schema follow the same pattern. With the dynamic (proxy) implementation (see `python3/mbse_schemas/Examples/AddressBook.py` and `typescript5/src/Examples/AddressBook.ts`):
 
 - `Proxies.register('Name', schema)` registers a schema under a global name. The name is a string, so it need not be a
   valid identifier in any host language (e.g. dotted or versioned names).

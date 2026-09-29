@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-from schemas.Framework import Plain, Reachable
+from mbse_schemas.Framework import Plain, Reachable
 
 
 @contextmanager

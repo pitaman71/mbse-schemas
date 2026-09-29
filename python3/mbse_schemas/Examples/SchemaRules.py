@@ -2,8 +2,8 @@
 #
 # Nothing here builds instances; it exercises Schemas.OfX.Builder and Schemas.OfX.Data.validate().
 
-from schemas.Framework import Schemas
-from schemas.Examples._support import raises
+from mbse_schemas.Framework import Schemas
+from mbse_schemas.Examples._support import raises
 
 # --- Spec forms ---
 

@@ -6,6 +6,6 @@ in [`tests/TestPlan.md`](tests/TestPlan.md). New to the framework? Start with th
 
 ```sh
 uv sync --all-extras
-uv run pytest                                   # test notebooks and tutorials
-uv run python -m schemas.Examples.AddressBook   # an example
+uv run pytest                                        # test notebooks and tutorials
+uv run python -m mbse_schemas.Examples.AddressBook   # an example
 ```

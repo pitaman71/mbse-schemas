@@ -33,7 +33,7 @@
 | Full code coverage in both | the coverage gates below |
 | The TypeScript core runs without Node (browsers, Deno) and still produces the identical corpus | `tsconfig.core.json`, `npm run portability` (see the TypeScript test plan) |
 
-The corpus (`python3/schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`) builds five cases
+The corpus (`python3/mbse_schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`) builds five cases
 statement for statement: an address book, native edge values, a family with a cycle and a self-loop, a three-link
 relation, and strings that YAML readers misread. See `conformance/README.md`.
 
@@ -156,7 +156,7 @@ When changing behavior:
 1. Change both implementations in the same commit, with the same names and the same messages.
 2. Add or change the test case in both suites under the same ID and position.
 3. If the change affects serialized data, update both `Corpus` modules identically and regenerate both corpora:
-   `uv run python -m schemas.Conformance.write` and `npm run conformance`. CONF-02 fails until the JSON matches.
+   `uv run python -m mbse_schemas.Conformance.write` and `npm run conformance`. CONF-02 fails until the JSON matches.
 4. If a language forces a difference, add it to the table above and to both test plans, with the cases that assert
    it. Differences not listed here are bugs.
 5. Run both suites under their coverage gates, the TypeScript one on every supported Node version (`nvm use 22`,

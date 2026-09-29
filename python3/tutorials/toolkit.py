@@ -3,7 +3,7 @@
 Each function is developed and explained in the case study named in its docstring.
 """
 
-from schemas.Framework import Proxies
+from mbse_schemas.Framework import Proxies
 
 
 def entries(obj, adjacency):

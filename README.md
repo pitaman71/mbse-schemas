@@ -22,7 +22,7 @@ description everywhere:
 - to generate idiomatic, performant interface bindings for many programming languages (planned)
 
 ```python
-from schemas.Framework import JSON, Proxies, Schemas, Validators
+from mbse_schemas.Framework import JSON, Proxies, Schemas, Validators
 
 Contact = Schemas.OfObject.Builder().properties(lambda p: p.name('name').of(lambda t: t.as_native(str))).create()
 Address = Schemas.OfObject.Builder().properties(lambda p: p.name('street').of(lambda t: t.as_native(str))).create()
@@ -100,8 +100,8 @@ Python (3.11+, managed with [uv](https://docs.astral.sh/uv/)):
 ```sh
 cd python3
 uv sync --all-extras
-uv run pytest                                   # test suites and tutorials
-uv run python -m schemas.Examples.AddressBook   # an example
+uv run pytest                                        # test suites and tutorials
+uv run python -m mbse_schemas.Examples.AddressBook   # an example
 ```
 
 TypeScript (Node 22 or later; tested on 22, 24 and 26). With [nvm](https://github.com/nvm-sh/nvm), `nvm use` picks
@@ -111,9 +111,9 @@ the version in `.nvmrc`:
 cd typescript5
 nvm use
 npm install
-npm test                                        # type-check and run the test suites
-npm run portability                             # the core without Node: browser bundle + Deno smoke test
-npx tsx src/Examples/AddressBook.ts             # an example
+npm test                                             # type-check and run the test suites
+npm run portability                                  # the core without Node: browser bundle + Deno smoke test
+npx tsx src/Examples/AddressBook.ts                  # an example
 ```
 
 ## Documentation
@@ -131,7 +131,7 @@ npx tsx src/Examples/AddressBook.ts             # an example
 ```
 Framework.md        the design
 EQUIVALENCE.md      how the two implementations are kept equivalent
-python3/            Python implementation: schemas/Framework, examples, tests (Jupyter notebooks), tutorials
+python3/            Python implementation: mbse_schemas/Framework, examples, tests (Jupyter notebooks), tutorials
 typescript5/        TypeScript implementation: src/Framework, examples, tests and tutorials (notebooks; Deno kernel)
 conformance/        snapshots each implementation writes; each must read the other's
 ```

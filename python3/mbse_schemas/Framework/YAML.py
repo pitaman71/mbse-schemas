@@ -44,7 +44,7 @@ def _yaml() -> tuple[Any, type, type]:
     try:
         import yaml
     except ImportError as error:
-        raise ImportError("YAML support requires PyYAML: pip install 'schemas[yaml]'") from error
+        raise ImportError("YAML support requires PyYAML: pip install 'mbse-schemas[yaml]'") from error
 
     class Loader(yaml.SafeLoader):
         """Composes one document, recording each of the framework's own YAML problems with its position."""

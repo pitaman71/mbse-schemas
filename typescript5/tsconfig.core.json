@@ -1,0 +1,9 @@
+{
+  "//": "The platform-neutral core: no Node types, so any use of Node APIs (Buffer, node:*) fails to compile here. The Web APIs the core may use, which Node also provides, are declared in types/web.d.ts.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": []
+  },
+  "include": ["src/Framework/**/*.ts", "src/Conformance/Corpus.ts", "src/Conformance/Render.ts", "types/web.d.ts"]
+}

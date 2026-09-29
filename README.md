@@ -4,7 +4,8 @@ Describe structured data once, as data, and use that one description everywhere:
 and load them as JSON or YAML, to validate them, and (in time) to generate code for other languages.
 
 A schema is an ordinary value built with a small fluent DSL, not a class. Two implementations exist, in Python and
-TypeScript. They have the same API and the same error messages, and they write byte-identical JSON.
+TypeScript. They have the same API and the same error messages, and they write byte-identical JSON. The TypeScript
+core runs in Node, in browsers and in Deno.
 
 ```python
 from schemas.Framework import JSON, Proxies, Schemas, Validators
@@ -79,6 +80,7 @@ cd typescript5
 nvm use
 npm install
 npm test                                        # type-check and run the test suites
+npm run portability                             # the core without Node: browser bundle + Deno smoke test
 npx tsx src/Examples/AddressBook.ts             # an example
 ```
 

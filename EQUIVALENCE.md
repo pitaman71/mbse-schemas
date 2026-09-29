@@ -31,6 +31,7 @@
 | API conformance to the visitor protocols, on classes and on live instances | VIS-02, VIS-06, VIS-07 |
 | The text inside messages (`repr`, float `repr`, type names, sort order) is Python's | TXT-01..04 |
 | Full code coverage in both | the coverage gates below |
+| The TypeScript core runs without Node (browsers, Deno) and still produces the identical corpus | `tsconfig.core.json`, `npm run portability` (see the TypeScript test plan) |
 
 The corpus (`python3/schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`) builds five cases
 statement for statement: an address book, native edge values, a family with a cycle and a self-loop, a three-link
@@ -142,5 +143,5 @@ When changing behavior:
 4. If a language forces a difference, add it to the table above and to both test plans, with the cases that assert
    it. Differences not listed here are bugs.
 5. Run both suites under their coverage gates, the TypeScript one on every supported Node version (`nvm use 22`,
-   `24`, `26`). A new gap is closed in both suites under the same ID, or by removing the
+   `24`, `26`), and `npm run portability`. A new gap is closed in both suites under the same ID, or by removing the
    unreachable code from both.

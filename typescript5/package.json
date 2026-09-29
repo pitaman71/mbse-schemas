@@ -8,11 +8,12 @@
     "node": ">=22"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "tsx tests/run-notebooks.ts --typecheck",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.core.json",
+    "test": "tsc -p tsconfig.core.json && tsx tests/run-notebooks.ts --typecheck",
     "conformance": "tsx src/Conformance/write.ts",
     "example": "tsx",
-    "coverage": "c8 --check-coverage --100 tsx tests/run-notebooks.ts --typecheck"
+    "coverage": "tsc -p tsconfig.core.json && c8 --check-coverage --100 tsx tests/run-notebooks.ts --typecheck",
+    "portability": "tsc -p tsconfig.core.json && esbuild tests/portability/smoke.ts --bundle --platform=browser --format=esm --log-level=warning --outfile=tests/.build/portability.mjs && deno run --allow-read tests/.build/portability.mjs"
   },
   "dependencies": {
     "yaml": "^2.9.1"
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@types/node": "^22.20.4",
     "c8": "^11.0.0",
+    "esbuild": "^0.28.2",
     "fast-check": "^4.10.2",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"

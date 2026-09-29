@@ -10,6 +10,7 @@
  * Python's `==`: by value for `OfNative.Data`, by identity for the other kinds.
  */
 
+import { fromBase64, toBase64 } from "./Bytes.js";
 import { DecodeError, ValueError } from "./Errors.js";
 import type { PlainData } from "./Plain.js";
 import { isClassLike, NATIVE_NAMES, repr, sortedStrings, tokenName, Tuple, typeName } from "./Repr.js";
@@ -142,7 +143,7 @@ class NativeData implements HasFields {
     if (!isNativeOf(this.type, value)) {
       throw new TypeError(`expected ${tokenName(this.type)}, got ${typeName(value)}`);
     }
-    if (value instanceof Uint8Array) return Buffer.from(value).toString("base64");
+    if (value instanceof Uint8Array) return toBase64(value);
     if (typeof value === "number" && !Number.isFinite(value)) {
       return Number.isNaN(value) ? "NaN" : value > 0 ? "Infinity" : "-Infinity";
     }
@@ -155,7 +156,7 @@ class NativeData implements HasFields {
     if (this.type === Uint8Array) {
       if (typeof plain !== "string") throw new DecodeError(`expected base64 text for bytes, got ${typeName(plain)}`);
       if (!BASE64.test(plain)) throw new DecodeError("invalid base64 text");
-      return new Uint8Array(Buffer.from(plain, "base64"));
+      return fromBase64(plain);
     }
     if (this.type === Number && typeof plain === "string") {
       const value = NON_FINITE.get(plain);

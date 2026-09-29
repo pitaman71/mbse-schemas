@@ -14,6 +14,7 @@ npm install
 npm test                                  # type-checks everything, then runs every notebook under tests/ headless
 npx tsx tests/run-notebooks.ts tests/05_Plain.ipynb
 npm run coverage                          # npm test under c8; fails below 100% statements, branches, functions, lines
+npm run portability                       # the core without Node: browser bundle, then a smoke test under Deno
 npm run conformance                       # regenerate ../conformance/typescript5 after a deliberate change
 npx tsx src/Examples/AddressBook.ts       # an example
 ```
@@ -102,3 +103,17 @@ generated bindings.
 branches, functions and lines; the suites currently reach 100% on all four, as the Python suites do under coverage.py.
 Every gap was closed in the shared case in both languages, or by removing code no test could reach from both. See
 `../../EQUIVALENCE.md`.
+
+## Portability
+
+`src/Framework` (and the conformance corpus) is platform-neutral: it runs in Node, browsers and Deno. Three checks
+keep it so:
+
+- `tsconfig.core.json` compiles it with no Node types and only the ES library, plus the few Web APIs every runtime has
+  (`types/web.d.ts`: `TextDecoder`). Using `Buffer` or a `node:` module fails to compile. `npm test` runs this first.
+- `npm run portability` bundles `tests/portability/smoke.ts` for the browser with esbuild, which fails on any Node
+  built-in, and runs the bundle under Deno with Node's globals removed. The smoke test renders the conformance corpus
+  (byte-identical to the committed files, JSON also to Python's) and loads and validates every implementation's JSON
+  and YAML: 30 checks. It needs Deno on the PATH.
+- The notebooks, the test runner, the examples and `src/Conformance/write.ts` stay Node-only.
+

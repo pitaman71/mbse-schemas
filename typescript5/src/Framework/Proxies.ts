@@ -13,8 +13,8 @@
  * Relation entries live in one global table per relation. Adding an entry equal to an existing one is elided.
  */
 
-import { inspect } from "node:util";
 
+import { toHex } from "./Bytes.js";
 import { AttributeError, LookupError, NotImplementedError, ValueError } from "./Errors.js";
 import { repr, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
@@ -113,7 +113,7 @@ export function nativeKey(value: unknown): string {
   if (typeof value === "string") return `str:${value}`;
   if (typeof value === "boolean") return `bool:${value}`;
   if (value instanceof Uint8Array && Object.getPrototypeOf(value) === Uint8Array.prototype) {
-    return `bytes:${Buffer.from(value).toString("hex")}`;
+    return `bytes:${toHex(value)}`;
   }
   throw new TypeError(`an entry property must be a native value, got ${typeName(value)}`);
 }
@@ -163,6 +163,9 @@ function relationData(schema: RelationSchema): RelationData {
 // --- Instances ---
 
 let nextIdentity = 0;
+/** Node's `util.inspect.custom` symbol, by its registered name, so no Node module is imported. */
+const INSPECT = Symbol.for("nodejs.util.inspect.custom");
+
 const instanceTargets = new WeakMap<object, ObjectTarget>();
 
 function identityOf(instance: Instance): number {
@@ -200,7 +203,7 @@ class ObjectTarget {
     }
   }
 
-  [inspect.custom](): string {
+  [INSPECT](): string {
     // Node calls this with the proxy as `this` (whose names are schema properties), so read the target's own state.
     const t = instanceTargets.get(this as unknown as object) as ObjectTarget; // instances are only reached as proxies
     const values = [...t.values].map(([k, v]) => `${k}: ${repr(v)}`).join(", ");

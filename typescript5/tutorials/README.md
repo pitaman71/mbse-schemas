@@ -4,10 +4,10 @@ This tutorial teaches the framework by solving real problems, one per notebook. 
 before it. Each spends as much time on *why* the framework does something differently as on *how* to use it, because
 most of its choices (no arrays, no mandatory fields, no automatic validation, no type coercion) are unusual.
 
-It's written for TypeScript programmers who build applications with structured data: records, relationships, files
-and APIs. It's a port of the [Python tutorial](../../python3/tutorials/README.md), with the same case studies and the
-same reasoning. The code follows TypeScript idioms where the bindings differ, and the notebooks point those
-differences out. You don't need to have read the design document, [`../../Framework.md`](../../Framework.md), but it's
+It's written for TypeScript programmers who build applications with structured data: records, relationships, files and
+APIs. It's a port of the [Python tutorial](../../python3/tutorials/README.md), with the same case studies and the same
+reasoning. The code follows TypeScript idioms where the bindings differ, and the notebooks point those differences
+out. You don't need to have read the design document, [`../../docs/FRAMEWORK.md`](../../docs/FRAMEWORK.md), but it's
 the reference for everything here.
 
 ## Running the notebooks
@@ -48,4 +48,4 @@ can import them.
 
 Where the TypeScript binding differs from Python's (`BigInt` for integers, `.equals()`, `Map` for plain data,
 `(x: any)` on proxy callbacks, and so on), the notebooks say so as they go. The full list, with the reasons, is in
-[`EQUIVALENCE.md`](../../EQUIVALENCE.md) under "Deliberate differences" and "Tutorials".
+[`EQUIVALENCE.md`](../../docs/EQUIVALENCE.md) under "Deliberate differences" and "Tutorials".

@@ -92,7 +92,7 @@ Builders = _Builders()
 
 
 def _native_key(value: Native) -> tuple[str, object]:
-    """Equality key per Framework.md: distinct native types never compare equal; floats compare by bit pattern."""
+    """Equality key per EQUALITY.md: distinct native types never compare equal; floats compare by bit pattern."""
     if type(value) not in (int, float, str, bool, bytes):
         raise TypeError(f"an entry property must be a native value, got {type(value).__name__}")
     if isinstance(value, float):

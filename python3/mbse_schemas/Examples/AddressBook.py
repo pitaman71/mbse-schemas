@@ -1,6 +1,6 @@
 # Address book example
 #
-# Lines marked PROPOSED use syntax that Framework.md does not define yet.
+# Lines marked PROPOSED use syntax that FRAMEWORK.md does not define yet.
 
 from mbse_schemas.Framework import Schemas, Proxies, Plain, JSON
 

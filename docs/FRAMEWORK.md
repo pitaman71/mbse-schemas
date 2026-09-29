@@ -64,7 +64,7 @@ Relation data must live either on object adjacencies or in a global table, and t
 
 ### Cardinality
 
-A relation's entries form a set: adding an entry equal to an existing one (see Equality) is silently elided.
+A relation's entries form a set: adding an entry equal to an existing one (see `EQUALITY.md`) is silently elided.
 
 No cardinality is assumed by default. A relation declares cardinality with zero or more `unique(S)` clauses, where `S`
 is a set of its links and properties. `unique(S)` means that the links and properties not in `S`, taken together,
@@ -87,35 +87,9 @@ Uniqueness gives only an upper bound. Requiring at least one entry is a separate
 
 ### Equality
 
-Equality is defined by the schema, never by host-language `==`. It is used for keys, for `eq` / `ne` / `in` in expressions,
-and anywhere else values are compared. Two values are compared under a schema:
-
-- `OfNative` : defined by `Schemas.OfNative` as equality of the canonical wire form. Values of different native types are
-  never equal (`1`, `1.0` and `true` are distinct).
-- `OfObject` held as a property value : every schema-declared property is either absent in both or present and equal
-  in both. Properties not declared by the schema
-  (e.g. extra data held by a dynamic proxy) do not participate.
-- Linked objects in a relation entry : compared by identity, not structure.
-- `OfUnion` : same branch and equal under that branch's schema. The branch is the first whose predicate matches, in
-  declaration order.
-- `OfIntersection` : equal under every constituent schema.
-- `OfAny` : same runtime schema and equal under it.
-
-Because linked objects compare by identity and only relations can form cycles, structural equality always terminates.
-
-Every binding must provide a hash consistent with this equality, for enforcing keys. Hashes need not match across bindings.
-
-Ordering (`lt`, `le`, `gt`, `ge`) is not universal: it is defined only for ordered `OfNative` types.
-
-Proposed resolutions for edge cases (to confirm):
-
-- Floats compare by canonical bit pattern: all NaNs are canonicalized and equal each other, and `-0.0` differs from `0.0`.
-  This makes `eq` on floats differ from IEEE `==`.
-- `OfNative` numeric types must fully specify width and signedness, so equality is the same in every binding. A value
-  that does not fit its type is invalid, not unequal.
-- Strings compare by code point with no Unicode normalization.
-- Object identity holds only within one loaded graph. Objects from two separately loaded graphs can be matched through
-  their key in a singleton's directory; objects without one cannot be matched.
+Equality is defined by the schema, never by host-language `==`, and ordering only for ordered native types. See
+[`EQUALITY.md`](EQUALITY.md) for the rules, hashing, ordering, the `Comparison` module, and the edge cases still to
+confirm.
 
 ## Builder pattern
 
@@ -205,6 +179,10 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   of properties and entry properties, that every link is set and filled by an object whose schema declares an
   adjacency via that link, and `unique(...)` clauses over the entries seen. The validator is a visitor: objects write
   themselves into it through `accept`.
+
+- `Comparison` : for each schema element `OfX`, `Comparison.OfX` implements `Visitors.OfX`, records the value written
+  into it, and compares it with another recording: `a.compare(b)` returns -1, 0, 1, or `None` when incomparable. See
+  `EQUALITY.md`.
 
 ## Proxies
 
@@ -322,6 +300,7 @@ here:
 | Keyword arguments | `ToJSON(..., indent=2)` | options objects: `ToJSON(..., { indent: 2 })` |
 | Dynamic proxies | `__getattr__` | `Proxy`; JavaScript protocol probes (`then`, `toJSON`, symbols) are not schema lookups |
 | Object identity | `id(self)` | a counter, never reused |
+| Incomparable (`Comparison`) | `None` | `null` |
 | JSON | `json` with strict options | own reader and writer reproducing Python's output; ints and floats kept distinct |
 | YAML | PyYAML (optional extra), YAML 1.2 core loader | `yaml` package loader, own block emitter; the same quoting rules |
 
@@ -343,7 +322,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Core expression vocabulary above is a proposal; confirm the exact set.
 - Where constraints are attached to a schema (e.g. an `OfObject`- or `OfRelation`-level list of expressions) and how
   they are declared in the builder DSL.
-- Equality edge cases listed under Equality are proposals; confirm them. In particular, fixed width and signedness for
+- Equality edge cases listed in `EQUALITY.md` are proposals; confirm them. In particular, fixed width and signedness for
   numeric `OfNative` types conflicts with unbounded native types such as Python `int`.
 - Multi-object snapshot naming: confirm `Plain.ToPlain.Reachable(schema, value)` /
   `Plain.FromPlain(builders).Reachable(schema, plain)` (still marked PROPOSED in the example).
@@ -445,6 +424,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Implementations are equivalent: same API names and messages, byte-identical JSON, and a shared conformance corpus
   checked by each implementation's CONF suite (see Language bindings).
 - Data is validated by `Validators.Validate(registry)`, only when the caller asks; builders do not validate.
+- Values are compared by `Comparison.OfX` visitors, one per `Visitors.OfX`: `a.compare(b)` is -1, 0, 1, or `None`
+  when incomparable. Only `int`, `float`, `str` and `bytes` are ordered.
 - Decoding errors are normalized: every problem in decoded data raises `Errors.DecodeError` (a `ValueError`) with a
   one-line reason and a text or path location, identical across bindings except YAML syntax errors (see Decoding
   errors).

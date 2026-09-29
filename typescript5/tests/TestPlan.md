@@ -1,9 +1,10 @@
 # Test plan — typescript5
 
 Scope: everything under `typescript5/src/Framework` (Errors, Repr, Visitors, Schemas, Proxies, Reachable, Plain, JSON,
-YAML, Validators), the examples under `typescript5/src/Examples`, and cross-implementation conformance with `python3`.
-The design reference is `../../Framework.md`. This plan mirrors `python3/tests/TestPlan.md` case for case: the same
-suites, the same case IDs in the same order, the same assertions, except for the language differences listed below.
+YAML, Validators, Comparison), the examples under `typescript5/src/Examples`, and cross-implementation conformance
+with `python3`. The design reference is `../../docs/FRAMEWORK.md`. This plan mirrors `python3/tests/TestPlan.md` case
+for case: the same suites, the same case IDs in the same order, the same assertions, except for the language
+differences listed below.
 
 ## Running
 
@@ -28,7 +29,7 @@ TypeScript kernel (e.g. tslab or `deno jupyter`), which the test run does not.
 ## Conventions
 
 As in Python: one suite per notebook; a heading `XXX-NN · title` starts a case; *specified* cases state what
-Framework.md requires and *pinned* cases (headings say *Finding Fn (pinned)*) record current behavior on open
+FRAMEWORK.md requires and *pinned* cases (headings say *Finding Fn (pinned)*) record current behavior on open
 questions. `tests/support.ts` mirrors `tests/support.py` (`raises`, `entries`, `same_graph`, `Fake`, conformance
 checks) plus `equal` (Python's `==` on plain data) and `map` (a `Map` literal from an object literal). Randomized cases
 use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python).
@@ -49,8 +50,9 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `10_Examples.ipynb` | EX | 1 | every example exits cleanly in its own process |
 | `11_Conformance.ipynb` | CONF | 4 | as in Python, from this side |
 | `12_Text.ipynb` | TXT | 4 | `Repr` produces Python's text: `repr`, float `repr`, type names (plus one row for a prototype-less object), code-point order |
+| `13_Comparison.ipynb` | CMP | 12 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
 
-Total: 119 cases, with the same IDs in the same order as the Python suites.
+Total: 131 cases, with the same IDs in the same order as the Python suites.
 
 ## Language differences
 
@@ -76,6 +78,7 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | Byte-like subclasses | `bytearray` is not native (`got bytearray`) | `Buffer` is not native (`got Buffer`) | SCH-03, PRX-17 |
 | `Proxies.OfObject.Builder` | a class | a function returning the builder (`Proxies.OfObject.Data` is the class, so `instanceof` works) | PRX-16 |
 | Objects without a class | none | `Object.create(null)` is named `object` | TXT-03 |
+| Incomparable | `None` | `null` | CMP-01..12 |
 
 ## Findings
 
@@ -102,7 +105,7 @@ generated bindings.
 `npm run coverage` runs the suites under c8 (`.c8rc.json`: `src/Framework`, all files) and fails below 100% statements,
 branches, functions and lines; the suites currently reach 100% on all four, as the Python suites do under coverage.py.
 Every gap was closed in the shared case in both languages, or by removing code no test could reach from both. See
-`../../EQUIVALENCE.md`.
+`../../docs/EQUIVALENCE.md`.
 
 ## Portability
 

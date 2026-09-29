@@ -96,7 +96,7 @@ Schemas.OfObject.Builder(Money).relations(lambda adj: adj.name('priced').of(Pric
 for schema in (Product, Money, Prices):
     assert schema.validate() == [], schema.validate()
 
-# Pure ownership and a directory keyed within its parent, written as in Framework.md.
+# Pure ownership and a directory keyed within its parent, written as in FRAMEWORK.md.
 Ownership = Schemas.OfRelation.Builder().links('parent', 'child').unique('parent').create()
 Directory = (
     Schemas.OfRelation.Builder()

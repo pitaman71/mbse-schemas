@@ -124,23 +124,24 @@ npx tsx src/Examples/AddressBook.ts                  # an example
 | Read | For |
 |---|---|
 | [`python3/tutorials/`](python3/tutorials/README.md), [`typescript5/tutorials/`](typescript5/tutorials/README.md) | Nine case studies, from a contact card to evolving schemas, in Python and in TypeScript. Start here. |
-| [`Framework.md`](Framework.md) | The design: every element, rule and decision, plus the open questions |
-| [`EQUIVALENCE.md`](EQUIVALENCE.md) | What "equivalent implementations" means, how it's checked, and where the languages deliberately differ |
+| [`FRAMEWORK.md`](docs/FRAMEWORK.md) | The design: every element, rule and decision, plus the open questions |
+| [`EQUALITY.md`](docs/EQUALITY.md) | How values compare under a schema: equality, hashing, ordering, and the `Comparison` module |
+| [`EQUIVALENCE.md`](docs/EQUIVALENCE.md) | What "equivalent implementations" means, how it's checked, and where the languages deliberately differ |
 | [`python3/tests/TestPlan.md`](python3/tests/TestPlan.md), [`typescript5/tests/TestPlan.md`](typescript5/tests/TestPlan.md) | The test suites, the findings they produced, and what isn't testable yet |
 | [`conformance/`](conformance/README.md) | The shared corpus both implementations must read and write identically |
 
 ## Repository layout
 
 ```
-Framework.md        the design
-EQUIVALENCE.md      how the two implementations are kept equivalent
+docs/               the design (FRAMEWORK.md), how values compare (EQUALITY.md), and how the two implementations
+                    are kept equivalent (EQUIVALENCE.md)
 python3/            Python implementation: mbse_schemas/Framework, examples, tests (Jupyter notebooks), tutorials
 typescript5/        TypeScript implementation: src/Framework, examples, tests and tutorials (notebooks; Deno kernel)
 conformance/        snapshots each implementation writes; each must read the other's
 ```
 
-Tests are Jupyter notebooks, one suite per notebook. Both implementations have the same 119 cases under the same
-IDs, and both reach 100% code coverage (`uv run coverage ...` / `npm run coverage`; see `EQUIVALENCE.md`).
+Tests are Jupyter notebooks, one suite per notebook. Both implementations have the same 131 cases under the same
+IDs, and both reach 100% code coverage (`uv run coverage ...` / `npm run coverage`; see `docs/EQUIVALENCE.md`).
 
 ## Status
 
@@ -149,9 +150,10 @@ The core is implemented in both languages:
 - dynamic proxies;
 - reachability;
 - plain snapshots, JSON and YAML;
-- validation.
+- validation;
+- comparison under a schema.
 
-Designed but not built yet (see `Framework.md`):
+Designed but not built yet (see `docs/FRAMEWORK.md`):
 - expressions (union predicates and constraints such as "at least one");
 - mutations and transactions;
 - factories;

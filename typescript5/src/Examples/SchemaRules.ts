@@ -75,7 +75,7 @@ new Schemas.OfObject.Builder(Product).relations((adj) => adj.name("prices").of(P
 new Schemas.OfObject.Builder(Money).relations((adj) => adj.name("priced").of(Prices).me("price")).update();
 for (const schema of [Product, Money, Prices]) assert(schema.validate().length === 0, String(schema.validate()));
 
-// Pure ownership and a directory keyed within its parent, written as in Framework.md.
+// Pure ownership and a directory keyed within its parent, written as in FRAMEWORK.md.
 const Ownership = new Schemas.OfRelation.Builder().links("parent", "child").unique("parent").create();
 const Directory = new Schemas.OfRelation.Builder()
   .links("parent", "child")

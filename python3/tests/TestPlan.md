@@ -1,9 +1,9 @@
 # Test plan — python3
 
-Scope: everything implemented under `python3/mbse_schemas/Framework` (Schemas, Visitors, Proxies, Reachable, Plain, JSON,
-YAML, Validators), the examples under `python3/mbse_schemas/Examples`, and cross-implementation conformance with
-`typescript5`. The design reference is `../../Framework.md`; the TypeScript test plan (`typescript5/tests/TestPlan.md`)
-mirrors this one case for case.
+Scope: everything implemented under `python3/mbse_schemas/Framework` (Schemas, Visitors, Proxies, Reachable, Plain,
+JSON, YAML, Validators, Comparison), the examples under `python3/mbse_schemas/Examples`, and cross-implementation
+conformance with `typescript5`. The design reference is `../../docs/FRAMEWORK.md`; the TypeScript test plan
+(`typescript5/tests/TestPlan.md`) mirrors this one case for case.
 
 ## Running
 
@@ -25,9 +25,9 @@ read or step through them.
   case. A case fails by raising, so nbmake reports the first failing case.
 - Each notebook runs in a fresh kernel, so the global proxy registry starts empty; names are unique per notebook.
 - Two kinds of case:
-  - **Specified**: behavior Framework.md states. A failure is a bug.
-  - **Pinned**: current behavior where Framework.md is silent or a question is open. Headings say *Finding Fn
-    (pinned)*. A failure means behavior changed; update the test deliberately together with Framework.md.
+  - **Specified**: behavior FRAMEWORK.md states. A failure is a bug.
+  - **Pinned**: current behavior where FRAMEWORK.md is silent or a question is open. Headings say *Finding Fn
+    (pinned)*. A failure means behavior changed; update the test deliberately together with FRAMEWORK.md.
 - `tests/support.py` provides `raises`, `entries`, `same_graph`, a protocol conformance checker, and `Fake`: a
   hand-written `Visitable` independent of Proxies, used to test Plain, Reachable and Validators at the protocol level
   and to express data proxies cannot produce.
@@ -38,7 +38,7 @@ read or step through them.
 | Notebook | Suite | Cases | Focus |
 |---|---|---|---|
 | `01_Schemas.ipynb` | SCH | 17 | Native validity and equality; `Spec` resolution (types, callables, data, bad returns, bare classes); strict `to_plain`/`from_plain` in both directions incl. subclasses; strict base64; the three non-finite float strings; `OfAny.Builder` selection and create/clone/update; value kinds only in `OfAny`; finalization rules for every builder; container copies vs shared references; `OfObject`/`OfRelation`/`OfAdjacency`/`OfUnion`/`OfIntersection` validation matrices; union/intersection selection, untyped branches, identity equality, Spec errors naming what they got |
-| `02_Visitors.ipynb` | VIS | 7 | Protocol declarations; every implementation (Proxies, Plain, Reachable, Validators) conforms with matching arity; proxies are `Visitable`, not visitors; chaining returns `self`; unimplemented kinds raise; live instances conform (no attribute shadows a method); every protocol method of every implementation exercised, incl. empty adjacencies and absent properties |
+| `02_Visitors.ipynb` | VIS | 7 | Protocol declarations; every implementation (Proxies, Plain, Reachable, Validators, Comparison) conforms with matching arity; proxies are `Visitable`, not visitors; chaining returns `self`; unimplemented kinds raise; live instances conform (no attribute shadows a method); every protocol method of every implementation exercised, incl. empty adjacencies and absent properties |
 | `03_Proxies.ipynb` | PRX | 17 | Registry (duplicates, unknown names, relations, non-identifier names, lookups); read-only instances and unset properties; setter `Spec`s; reserved-name collisions; create/clone/update incl. builder reuse; no native validation in builders; entries seen from every end; set semantics (absent, -0.0, NaN, int vs bool); schema inference through links (ambiguous, none, unique); nested inline creation per finalize; removal and exact write-back; concurrent builders; clone of entries and self-loops; self-relations; the builder's visitor API; `Proxies.OfObject.Builder`/`Data` directly; entry properties must be native (bytes key entries like any native) |
 | `04_Reachable.ipynb` | RCH | 10 | Lone object; breadth-first first-reference order; cycles, self-loops, diamonds; multi-link entries and ignored properties; identity-based sameness; root first; 20,000-node chain without recursion; errors from `accept` propagate; collector refusals; components from every member |
 | `05_Plain.ipynb` | PLN | 16 | Native entry points; exact snapshot format; schema-ordered properties and relation-ordered entry fields; symbol order; single-object vs reachable scope; round trips without duplicated entries; edge values; symbol renumbering on round trip; root schema and type checks; serializing fakes; 26 malformed snapshots each rejected with an exact `DecodeError` path and reason; disagreeing ends; wrong value types as `DecodeError`s with paths; rejection builds nothing, and no builder is called before every value is decoded; only injected builders are used, and a registry's own errors propagate; non-native property schemas refused; per-kind JSON/YAML entry points |
@@ -49,10 +49,11 @@ read or step through them.
 | `10_Examples.ipynb` | EX | 1 | Every example module exits cleanly in its own process |
 | `11_Conformance.ipynb` | CONF | 4 | This implementation's corpus files are current; JSON is byte-identical to TypeScript's for every case; every implementation's YAML reads back to the same snapshot, also under YAML 1.1; every implementation's JSON and YAML deserialize with Python's builders to the same graphs and validate |
 | `12_Text.ipynb` | TXT | 4 | Messages are identical across implementations: `repr` of every native and container, float `repr`, type names, code-point string order |
+| `13_Comparison.ipynb` | CMP | 12 | Ordered natives (ints beyond 2^53, strings by code point without normalization, bytes lexicographically); floats by value with `-0.0` before `0.0` and NaNs equal only to NaNs; booleans equal or incomparable; absent values, exact native types, distinct native types; objects equal by declared properties, adjacencies excluded; links by identity; entries by links and properties, from either end; adjacencies as sets with equal entries elided; object-valued properties and mismatched kinds; reading recordings back through the protocols; unions and intersections refused |
 
-Total: 119 cases, with the same IDs in the same order as the TypeScript suites.
+Total: 131 cases, with the same IDs in the same order as the TypeScript suites.
 
-## Coverage of Framework.md
+## Coverage of FRAMEWORK.md
 
 | Requirement | Cases |
 |---|---|
@@ -64,6 +65,7 @@ Total: 119 cases, with the same IDs in the same order as the TypeScript suites.
 | Relations: named untyped links; no one-link relations; adjacencies via `me` | SCH-12, SCH-13, PRX-07, PRX-14 |
 | `unique(S)`: the rest determines `S` | SCH-13, VAL-06, VAL-07, VAL-08, VAL-11 |
 | Entries form a set; equal entries elided; schema equality (types distinct, floats by bit pattern) | PRX-08, PROP-05, VAL-07 |
+| Equality under a schema, and ordering only for ordered natives | CMP-01..12 |
 | Intersection conflicts are errors; union kinds and predicates | SCH-14, SCH-15 |
 | No relation builder for callers; entries through adjacencies | PRX-01, PRX-07 |
 | Inline link creation needs unambiguous schema inference | PRX-09 |
@@ -85,14 +87,14 @@ Total: 119 cases, with the same IDs in the same order as the TypeScript suites.
 The suites cover every statement and branch of `mbse_schemas/Framework` (coverage.py, branch mode, subprocesses included:
 see `[tool.coverage]` in `pyproject.toml`; `coverage report` fails below 100%). The TypeScript suites reach the same on
 `src/Framework` (statements, branches, functions), with the same cases: gaps were closed by adding assertions to the
-shared case in both languages, and code no test could reach was removed from both. See `../../EQUIVALENCE.md`.
+shared case in both languages, and code no test could reach was removed from both. See `../../docs/EQUIVALENCE.md`.
 
 ## Findings
 
 | ID | Finding | Status | Cases |
 |---|---|---|---|
 | F1 | YAML: strings containing NEL (`\x85`) came back with the NEL folded into a space; PyYAML wrote it raw inside single quotes | Fixed: strings with NEL/LS/PS are double-quoted | YML-03 |
-| F2 | Names that collide with binding members: `create` etc. cannot be set through the DSL; `_values` is shadowed by a proxy internal; `accept` by an instance method. `validate()` accepts all of them | Pinned; open question in Framework.md | SCH-16, PRX-04 |
+| F2 | Names that collide with binding members: `create` etc. cannot be set through the DSL; `_values` is shadowed by a proxy internal; `accept` by an instance method. `validate()` accepts all of them | Pinned; open question in FRAMEWORK.md | SCH-16, PRX-04 |
 | F3 | Malformed snapshots raised `AttributeError` or misleading messages ("unreferenced objects" for a missing link) | Fixed: shape checked up front, precise `ValueError`s | PLN-11 |
 | F4 | Two builders over one object: the last `update()` wins, silently dropping the other's entries | Pinned | PRX-12 |
 | F5 | Cloning an object with a self-loop links the clone to the original, not to itself | Pinned | PRX-13 |
@@ -107,7 +109,7 @@ shared case in both languages, and code no test could reach was removed from bot
 | F14 | YAML: `y`, `Y`, `n`, `N` were written unquoted; the YAML 1.1 specification makes them booleans (PyYAML's resolver omits them), so a spec-compliant 1.1 reader misread them. Found by CONF-03 against the TypeScript suite's 1.1 reader | Fixed: quoted | YML-02b, CONF-03 |
 | F15 | `Validators`: the recorder's `adjacencies` attribute shadowed its `adjacencies()` visitor method on every instance; VIS-02 checked classes only. Found while porting | Fixed: renamed the attribute | VIS-06 |
 
-## Not testable yet (specified in Framework.md, not implemented)
+## Not testable yet (specified in FRAMEWORK.md, not implemented)
 
 - Expressions (`Expressions.OfAny`, `OfLiteral`, `OfOperation`) and the core vocabulary; union predicates are
   placeholders.

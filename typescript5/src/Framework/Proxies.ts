@@ -102,7 +102,7 @@ export const Builders: {
 
 const floatView = new DataView(new ArrayBuffer(8));
 
-/** Equality key per Framework.md: distinct native types never compare equal; floats compare by bit pattern. */
+/** Equality key per EQUALITY.md: distinct native types never compare equal; floats compare by bit pattern. */
 export function nativeKey(value: unknown): string {
   if (typeof value === "number") {
     if (Number.isNaN(value)) return "float:nan";

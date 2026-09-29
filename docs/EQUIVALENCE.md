@@ -1,6 +1,6 @@
 # Equivalence of the implementations
 
-`python3/` and `typescript5/` implement the same framework (`Framework.md`). This document defines what
+`python3/` and `typescript5/` implement the same framework (`FRAMEWORK.md`). This document defines what
 "equivalent" means for them, how it is checked, where they deliberately differ, and how to keep them equivalent.
 
 ## What equivalent means
@@ -23,7 +23,7 @@
 
 | Check | Where |
 |---|---|
-| Every test case exists in both implementations, same ID, same order (119 cases, 12 suites) | `python3/tests/*.ipynb`, `typescript5/tests/*.ipynb` |
+| Every test case exists in both implementations, same ID, same order (131 cases, 13 suites) | `python3/tests/*.ipynb`, `typescript5/tests/*.ipynb` |
 | Messages are byte-identical | cases that assert exact messages, e.g. SCH-12, SCH-13, PLN-11 (26 malformed snapshots), VAL-03, VAL-06 |
 | Decoding errors: same class, reason and location | shared tables embedded verbatim in both suites: JSN-09 (62 JSON inputs), YML-06 (48 YAML inputs); PLN-11, PLN-12 (paths) |
 | JSON is byte-identical; YAML and JSON are interchangeable | the CONF suite over the shared corpus in `conformance/` |
@@ -51,7 +51,7 @@ Run everything:
 | Tool | coverage.py, branch mode, subprocesses measured (`[tool.coverage]` in `pyproject.toml`) | c8 (`.c8rc.json`, all files under `src/Framework`) |
 | Command | `uv run coverage run -m pytest && uv run coverage combine && uv run coverage report` | `npm run coverage` |
 | Gate | `fail_under = 100` | `--check-coverage --100` |
-| Result | 100% statements (1678), 100% branches (502) | 100% statements (3482), branches (1540), functions (475), lines |
+| Result | 100% statements (1900), 100% branches (562) | 100% statements (3918), branches (1738), functions (539), lines |
 
 The counts differ because the tools count differently (V8 counts `??`, `?.` and each `case` as branches), not because
 the code differs. Coverage was made equal by the same means in both:
@@ -95,10 +95,11 @@ noticed.
 | Byte-like subclass named in errors | `bytearray` | `Buffer` | the nearest analogues | PRX-17 |
 | `Proxies.OfObject.Builder` | a class | a function returning the builder; `Proxies.OfObject.Data` is the class | builders are `Proxy` objects | PRX-16 |
 | Objects without a class | none | `Object.create(null)` is named `object` | JavaScript-only | TXT-03 |
+| Incomparable (`Comparison`) | `None` | `null` | the respective "no value" | CMP-01..12 |
 | Typing of the proxy DSL | untyped, like all Python | proxy builders and instances are typed loosely (`any` by name), so callbacks given to them are annotated `(x: any)`; schema builders and visitor handles are fully typed | the names come from schemas at runtime; per-schema types are the job of generated bindings | all proxy cases |
 | Test runner | pytest + nbmake | `tests/run-notebooks.ts` | no maintained TypeScript kernel is required to run headless | all |
 
-`Framework.md` ("Language bindings") summarizes the same mapping for readers of the design.
+`FRAMEWORK.md` ("Language bindings") summarizes the same mapping for readers of the design.
 
 ## Tutorials
 
@@ -125,7 +126,7 @@ Porting and cross-checking found two bugs in the Python implementation, both fix
 - **F15:** in Python `Validators`, an instance attribute shadowed the recorder's `adjacencies()` method. Found while
   porting; tested by VIS-06.
 
-Normalizing decoding errors (see Framework.md, "Decoding errors") found more, all fixed and tested in both:
+Normalizing decoding errors (see FRAMEWORK.md, "Decoding errors") found more, all fixed and tested in both:
 
 - Python decoded JSON bytes with `surrogatepass`, accepting encoded lone surrogates that TypeScript's decoder
   rejected, and TypeScript's UTF-32 decoder accepted surrogate code points. Both now decode strictly (JSN-09).

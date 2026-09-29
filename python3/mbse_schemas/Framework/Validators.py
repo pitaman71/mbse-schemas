@@ -197,7 +197,7 @@ def _native_problem(schema: Schemas.OfAny.Data, value: Any) -> str | None:
 
 
 def _value_key(value: Any) -> Hashable:
-    """Equality key per Framework.md: distinct native types never compare equal; floats compare by bit pattern."""
+    """Equality key per EQUALITY.md: distinct native types never compare equal; floats compare by bit pattern."""
     if isinstance(value, float):
         return ("float", value.hex())
     return (type(value).__name__, value)

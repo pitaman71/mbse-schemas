@@ -33,7 +33,7 @@ export interface Location {
 }
 
 /** A problem in the data being decoded. `message` is `line L, column C: reason`, `$.path: reason`, or the reason alone
- * when there is no location. See Framework.md, "Decoding errors". */
+ * when there is no location. See FRAMEWORK.md, "Decoding errors". */
 export class DecodeError extends ValueError {
   override name = "DecodeError";
   readonly reason: string;

@@ -2,7 +2,7 @@
 
 Mistakes in the calling program raise Python's built-in exceptions. Problems in data being decoded raise
 `DecodeError`, which carries a one-line reason and, where known, a location: a line and column in text, or a path in
-plain data. See Framework.md, "Decoding errors".
+plain data. See FRAMEWORK.md, "Decoding errors".
 """
 
 from __future__ import annotations

@@ -1,5 +1,6 @@
-/** Schemas framework. See ../../../Framework.md for the design. */
+/** Schemas framework. See ../../../docs/FRAMEWORK.md for the design. */
 
+export * as Comparison from "./Comparison.js";
 export * as Errors from "./Errors.js";
 export * as JSON from "./JSON.js";
 export * as Plain from "./Plain.js";

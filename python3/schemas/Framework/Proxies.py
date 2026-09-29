@@ -168,8 +168,11 @@ class _ObjectData:
         return self._schema_name
 
     def accept(self, visitor: Visitors.OfObject) -> None:
-        for name, value in self._values.items():
-            visitor.property(name, lambda p, value=value: p.value(lambda a: a.as_native(lambda n: n.set(value))))
+        """Writes properties in the schema's declared order, then entries adjacency by adjacency."""
+        for name in self._schema.properties:
+            if name in self._values:
+                value = self._values[name]
+                visitor.property(name, lambda p, value=value: p.value(lambda a: a.as_native(lambda n: n.set(value))))
         for adjacency_name, adjacency in self._schema.adjacencies.items():
             for entry in _relation_data(adjacency.relation).linking(adjacency.me, self):
                 visitor.adjacency(

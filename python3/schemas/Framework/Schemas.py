@@ -80,10 +80,12 @@ def _resolve(spec: Any, data: type, builder: Callable[[], Any]) -> Any:
     """Resolves a `Spec`: an instance of `data` is used as is; a callable is given a new builder and must return it."""
     if isinstance(spec, data):
         return spec
+    if isinstance(spec, type):
+        raise TypeError(f"a class is not a Spec here; for a native type use lambda t: t.as_native({spec.__name__})")
     if callable(spec):
         built = spec(builder())
-        if built is None:
-            raise TypeError("a Spec callable must return its builder")
+        if built is None or not callable(getattr(built, "create", None)):
+            raise TypeError(f"a Spec callable must return its builder, got {built!r}")
         return built.create()
     raise TypeError(f"expected a schema or a callable taking its builder, got {spec!r}")
 

@@ -48,6 +48,10 @@ def _yaml() -> tuple[Any, type, type]:
             seen = set()
             for key_node, _ in node.value:
                 key = self.construct_object(key_node, deep=deep)
+                if not isinstance(key, str):
+                    raise yaml.constructor.ConstructorError(
+                        None, None, f"keys must be strings, got {type(key).__name__} {key!r}", key_node.start_mark
+                    )
                 if key in seen:
                     raise yaml.constructor.ConstructorError(None, None, f"duplicate key {key!r}", key_node.start_mark)
                 seen.add(key)
@@ -72,6 +76,14 @@ def _yaml() -> tuple[Any, type, type]:
     class Dumper(yaml.SafeDumper):
         def ignore_aliases(self, data: Any) -> bool:
             return True
+
+    def represent_str(dumper: Any, data: str) -> Any:
+        # PyYAML writes these line breaks raw inside single-quoted scalars, where a reader folds them into a space.
+        # Double-quoted style escapes them (e.g. NEL as \N).
+        style = '"' if any(c in data for c in "\x85\u2028\u2029") else None
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style=style)
+
+    Dumper.add_representer(str, represent_str)
 
     for tag, pattern, first in _CORE_RESOLVERS:
         Loader.add_implicit_resolver(tag, re.compile(pattern), first)

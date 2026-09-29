@@ -15,3 +15,16 @@ yaml = ["PyYAML>=6"]
 [tool.setuptools.packages.find]
 include = ["schemas*"]
 namespaces = true
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.168.3",
+    "ipykernel>=7.3.0",
+    "nbformat>=5.11.1",
+    "nbmake>=1.5.5",
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--nbmake"

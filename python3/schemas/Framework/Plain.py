@@ -265,31 +265,83 @@ class _Snapshot:
         return {"root": self._symbol(root), "objects": objects}
 
 
-def _restore(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
-    """Rebuilds objects from an object snapshot using `builders`. Every reference must resolve within the snapshot."""
-    if not isinstance(plain, dict) or not isinstance(plain.get("objects"), dict):
-        raise ValueError("expected an object snapshot: {'root': symbol, 'objects': {...}}")
-    root, objects = plain.get("root"), plain["objects"]
+def _is_ref(value: PlainData) -> bool:
+    return isinstance(value, dict) and set(value) == {REF, SCHEMA} and all(isinstance(v, str) for v in value.values())
+
+
+def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData) -> tuple[str, dict, dict[str, str]]:
+    """Checks a snapshot's shape against the schemas before anything is built. Returns (root, objects, schema names)."""
+    if not isinstance(schema, Schemas.OfObject.Data):
+        raise TypeError(f"the root schema must be an object schema, got {type(schema).__name__}")
+    if not isinstance(plain, dict) or set(plain) != {"root", "objects"} or not isinstance(plain["objects"], dict):
+        raise ValueError("expected an object snapshot: {'root': symbol, 'objects': {symbol: object}}")
+    root, objects = plain["root"], plain["objects"]
     if root not in objects:
         raise ValueError(f"root {root!r} is not in the snapshot")
+    for symbol, obj in objects.items():
+        if not isinstance(obj, dict):
+            raise ValueError(f"object {symbol!r} must be a mapping, got {type(obj).__name__}")
 
     names: dict[str, str] = {root: builders.name_of(schema)}
-    for obj in objects.values():
-        for value in obj.values():
+    for symbol, obj in objects.items():
+        for key, value in obj.items():
             if not isinstance(value, list):
                 continue
-            for entry in value:
-                for ref in entry.values():
-                    if not (isinstance(ref, dict) and REF in ref):
+            for i, entry in enumerate(value):
+                if not isinstance(entry, dict):
+                    raise ValueError(f"{symbol}.{key}[{i}]: an entry must be a mapping, got {type(entry).__name__}")
+                for name, ref in entry.items():
+                    if not isinstance(ref, dict):
                         continue
-                    symbol, name = ref[REF], ref.get(SCHEMA)
-                    if symbol not in objects:
-                        raise ValueError(f"unresolved reference {symbol!r}: the snapshot does not contain it")
-                    if names.setdefault(symbol, name) != name:
-                        raise ValueError(f"{symbol!r} is referenced as both {names[symbol]!r} and {name!r}")
+                    if not _is_ref(ref):
+                        raise ValueError(f"{symbol}.{key}[{i}].{name}: a reference is {{'$ref': symbol, '$schema': name}}")
+                    target, target_schema = ref[REF], ref[SCHEMA]
+                    if target not in objects:
+                        raise ValueError(f"unresolved reference {target!r}: the snapshot does not contain it")
+                    if names.setdefault(target, target_schema) != target_schema:
+                        raise ValueError(f"{target!r} is referenced as both {names[target]!r} and {target_schema!r}")
+    for symbol, obj in objects.items():
+        if symbol not in names:
+            continue
+        try:
+            object_schema = builders.schema(names[symbol])
+        except (AttributeError, LookupError, TypeError) as error:
+            raise ValueError(f"object {symbol!r}: no object schema registered as {names[symbol]!r}") from error
+        for key, value in obj.items():
+            if key in object_schema.adjacencies:
+                if not isinstance(value, list):
+                    raise ValueError(f"{symbol}.{key}: an adjacency must be a list of entries")
+                adjacency = object_schema.adjacencies[key]
+                relation = adjacency.relation
+                for i, entry in enumerate(value):
+                    for name, item in entry.items():
+                        if name == adjacency.me:
+                            raise ValueError(f"{symbol}.{key}[{i}]: {name!r} is this object's own link, which is implied")
+                        if name in relation.links:
+                            if not _is_ref(item):
+                                raise ValueError(f"{symbol}.{key}[{i}].{name}: a link must be a reference")
+                        elif name in relation.properties:
+                            if isinstance(item, (list, dict)):
+                                raise ValueError(f"{symbol}.{key}[{i}].{name}: a property must be a plain value")
+                        else:
+                            raise ValueError(f"{symbol}.{key}[{i}]: no link or property {name!r}")
+                    missing = [n for n in relation.links if n != adjacency.me and n not in entry]
+                    if missing:
+                        raise ValueError(f"{symbol}.{key}[{i}]: links {missing} are not set")
+            elif key in object_schema.properties:
+                if isinstance(value, (list, dict)):
+                    raise ValueError(f"{symbol}.{key}: a property must be a plain value")
+            else:
+                raise ValueError(f"{symbol}: {names[symbol]!r} has no property or adjacency {key!r}")
     unreached = set(objects) - set(names)
     if unreached:
-        raise ValueError(f"cannot infer schemas for unreferenced objects {sorted(unreached)}")
+        raise ValueError(f"cannot infer schemas for objects nothing references: {sorted(unreached)}")
+    return root, objects, names
+
+
+def _restore(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
+    """Rebuilds objects from an object snapshot using `builders`. Every reference must resolve within the snapshot."""
+    root, objects, names = _check(builders, schema, plain)
 
     created: dict[str, Any] = {}
     for symbol, obj in objects.items():

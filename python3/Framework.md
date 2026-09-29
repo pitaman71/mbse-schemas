@@ -282,6 +282,18 @@ Expressions are serializable and therefore follow the `Expressions.X.Data` `Expr
 
 ## Open questions
 
+Findings from the test plan (`tests/TestPlan.md`) that need a design decision:
+
+- Reserved names (F2): property and adjacency names that collide with binding members (e.g. `create`, `accept`, or
+  names starting with `_` in Python) cannot be set through the DSL or read as attributes, and `validate()` accepts
+  them. Should schemas reject names that any target language reserves, or should bindings rename them?
+- Concurrent builders (F4): two builders over the same object each hold a copy; the last `update()` wins and drops
+  entries the other added. Is that the intended semantics of `update()`?
+- Cloning self-loops (F5): `clone()` copies entries with the clone in place of the source, so a self-loop's clone
+  links back to the original rather than to itself. Intended?
+- Snapshots whose two ends disagree (F13) are accepted and restore the union of both ends' entries. Should
+  deserialization reject them instead of leaving it to validation?
+
 - `Factories.Directory` global singleton: namespacing/versioning of global names, collision policy, and isolation for tests.
 - Core expression vocabulary above is a proposal; confirm the exact set.
 - Where constraints are attached to a schema (e.g. an `OfObject`- or `OfRelation`-level list of expressions) and how

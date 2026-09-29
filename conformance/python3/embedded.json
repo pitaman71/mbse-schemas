@@ -1,0 +1,85 @@
+{
+  "root": "s0",
+  "objects": {
+    "s0": {
+      "title": "contacts",
+      "cards": [
+        {
+          "card": {
+            "$ref": "s1",
+            "$schema": "Card"
+          }
+        },
+        {
+          "card": {
+            "$ref": "s2",
+            "$schema": "Card"
+          }
+        },
+        {
+          "card": {
+            "$ref": "s3",
+            "$schema": "Card"
+          }
+        }
+      ]
+    },
+    "s1": {
+      "name": "Ann",
+      "home": {
+        "number": "+1 555 0100",
+        "label": "home"
+      },
+      "reach": {
+        "$branch": 1,
+        "$value": {
+          "address": "ann@example.com"
+        }
+      },
+      "ident": {
+        "$branch": 0,
+        "$value": 7
+      },
+      "decks": [
+        {
+          "deck": {
+            "$ref": "s0",
+            "$schema": "Deck"
+          }
+        }
+      ]
+    },
+    "s2": {
+      "name": "Bo",
+      "reach": {
+        "$branch": 0,
+        "$value": {
+          "number": "+44 20 7946 0000"
+        }
+      },
+      "ident": {
+        "$branch": 1,
+        "$value": "B-2"
+      },
+      "decks": [
+        {
+          "deck": {
+            "$ref": "s0",
+            "$schema": "Deck"
+          }
+        }
+      ]
+    },
+    "s3": {
+      "name": "Cy",
+      "decks": [
+        {
+          "deck": {
+            "$ref": "s0",
+            "$schema": "Deck"
+          }
+        }
+      ]
+    }
+  }
+}

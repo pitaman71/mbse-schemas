@@ -160,13 +160,18 @@ class OfRelation(Protocol):
 
 
 class OfUnion(Protocol):
-    """A value of one of several same-kind schemas, chosen by the first matching discriminator predicate."""
+    """A value of one of several same-kind schemas. When writing, `select(index)` chooses the branch the value is
+    written as, before `value(...)` writes it; the branch should be the first whose discriminator predicate holds."""
 
     def branch(self) -> int:
-        """Index of the branch the value belongs to."""
+        """Index of the branch the value is written as."""
         ...
 
-    def value(self, callback: Callable[[OfAny], Any]) -> OfUnion: ...
+    def select(self, index: int) -> OfUnion: ...
+
+    def value(self, callback: Callable[[OfAny], Any]) -> OfUnion:
+        """Calls `callback` with the value, under the selected branch's type."""
+        ...
 
 
 class OfIntersection(Protocol):

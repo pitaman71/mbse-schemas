@@ -216,7 +216,7 @@ class _RelationData:
             if unknown:
                 problems.append(f"unique({', '.join(sorted(unique))}) names unknown links or properties {sorted(unknown)}")
         for name, prop in self.properties.items():
-            problems += [f"property {name!r}: {p}" for p in _validate(prop)]
+            problems += [f"property {name!r}: {p}" for p in _validate(prop) + _embedded_problems(prop)]
         return problems
 
 
@@ -308,7 +308,7 @@ class _ObjectData:
         if clashes:
             problems.append(f"names used as both property and adjacency: {sorted(clashes)}")
         for name, prop in self.properties.items():
-            problems += [f"property {name!r}: {p}" for p in _validate(prop)]
+            problems += [f"property {name!r}: {p}" for p in _validate(prop) + _embedded_problems(prop)]
         for adjacency in self.adjacencies.values():
             problems += adjacency.validate()
         return problems
@@ -446,6 +446,16 @@ def _validate(schema: Any) -> list[str]:
     if not isinstance(schema, _KINDS):
         return [f"not a schema: {schema!r}"]
     return schema.validate()
+
+
+def _embedded_problems(schema: Any) -> list[str]:
+    """Problems with a property's schema as a value: an object held by a property is embedded, with no identity, so it
+    cannot have adjacencies; nor can the objects a union or intersection holds."""
+    if isinstance(schema, _ObjectData) and schema.adjacencies:
+        return ["an embedded object cannot have adjacencies"]
+    parts = [b.type for b in schema.branches] if isinstance(schema, _UnionData) else \
+        list(schema.parts) if isinstance(schema, _IntersectionData) else []
+    return sorted({problem for part in parts for problem in _embedded_problems(part)})
 
 
 class _AnyBuilder:

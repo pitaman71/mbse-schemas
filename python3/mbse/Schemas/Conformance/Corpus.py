@@ -12,7 +12,7 @@ import math
 
 from mbse.Schemas.Framework import Proxies, Schemas
 
-CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings"]
+CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded"]
 
 
 def _text(name, native=str):
@@ -68,12 +68,26 @@ def build():
     S.OfObject.Builder(Notebook).relations(lambda a: a.name("notes").of(Pages).me("notebook")).update()
     S.OfObject.Builder(Note).relations(lambda a: a.name("notebooks").of(Pages).me("note")).update()
 
+    # --- embedded: embedded objects, and union values of objects and of natives ---
+    CardPhone = S.OfObject.Builder().properties(_text("number"), _text("label")).create()
+    CardEmail = S.OfObject.Builder().properties(_text("address")).create()
+    Reach = S.OfUnion.Builder().branches(lambda b: b.of(CardPhone).when(("has", "number")),
+                                         lambda b: b.of(CardEmail).when(("has", "address"))).create()
+    Ident = S.OfUnion.Builder().branches(lambda b: b.of(lambda t: t.as_native(int)).when(("type", "int")),
+                                         lambda b: b.of(lambda t: t.as_native(str)).when(("type", "str"))).create()
+    Card = S.OfObject.Builder().properties(_text("name"), lambda p: p.name("home").of(CardPhone),
+                                           lambda p: p.name("reach").of(Reach), lambda p: p.name("ident").of(Ident)).create()
+    Holding = S.OfRelation.Builder().links("deck", "card").create()
+    Deck = S.OfObject.Builder().properties(_text("title")).relations(lambda a: a.name("cards").of(Holding).me("deck")).create()
+    S.OfObject.Builder(Card).relations(lambda a: a.name("decks").of(Holding).me("card")).update()
+
     for name, schema in [("Contact", Contact), ("Address", Address), ("Phone", Phone),
                          ("ContactAddresses", ContactAddresses), ("ContactPhones", ContactPhones),
                          ("Bag", Bag), ("Sample", Sample), ("Holds", Holds),
                          ("Person", Person), ("Parentage", Parentage), ("Mentorship", Mentorship),
                          ("Student", Student), ("Course", Course), ("Term", Term), ("Enrollment", Enrollment),
-                         ("Notebook", Notebook), ("Note", Note), ("Pages", Pages)]:
+                         ("Notebook", Notebook), ("Note", Note), ("Pages", Pages),
+                         ("Card", Card), ("Deck", Deck), ("Holding", Holding)]:
         Proxies.register(name, schema)
     B = Proxies.Builders
 
@@ -131,10 +145,21 @@ def build():
         note = B.Note().text(value).create()
         B.Notebook(notebook).notes(lambda x, note=note, page=page: x.note(note).page(page)).update()
 
+    deck = B.Deck().title("contacts").create()
+    cards = [
+        B.Card().name("Ann").home(lambda r: r.number("+1 555 0100").label("home"))
+        .reach(lambda u: u.of(CardEmail, lambda r: r.address("ann@example.com"))).ident(7).create(),
+        B.Card().name("Bo").reach(lambda u: u.of(CardPhone, lambda r: r.number("+44 20 7946 0000"))).ident("B-2").create(),
+        B.Card().name("Cy").create(),
+    ]
+    for card in cards:
+        B.Deck(deck).cards(lambda x, card=card: x.card(card)).update()
+
     return {
         "address_book": (Contact, alice),
         "natives": (Bag, bag),
         "family": (Person, ada),
         "enrollment": (Student, mia),
         "yaml_strings": (Notebook, notebook),
+        "embedded": (Deck, deck),
     }

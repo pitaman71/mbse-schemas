@@ -23,7 +23,7 @@
 
 | Check | Where |
 |---|---|
-| Every test case exists in both implementations, same ID, same order (132 cases, 13 suites) | `python3/tests/*.ipynb`, `typescript5/tests/*.ipynb` |
+| Every test case exists in both implementations, same ID, same order (139 cases, 14 suites) | `python3/tests/*.ipynb`, `typescript5/tests/*.ipynb` |
 | Messages are byte-identical | cases that assert exact messages, e.g. SCH-12, SCH-13, PLN-11 (26 malformed snapshots), VAL-03, VAL-06 |
 | Decoding errors: same class, reason and location | shared tables embedded verbatim in both suites: JSN-09 (62 JSON inputs), YML-06 (48 YAML inputs); PLN-11, PLN-12 (paths) |
 | JSON is byte-identical; YAML and JSON are interchangeable | the CONF suite over the shared corpus in `conformance/` |
@@ -33,9 +33,9 @@
 | Full code coverage in both | the coverage gates below |
 | The TypeScript core runs without Node (browsers, Deno) and still produces the identical corpus | `tsconfig.core.json`, `npm run portability` (see the TypeScript test plan) |
 
-The corpus (`python3/mbse/Schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`) builds five cases
+The corpus (`python3/mbse/Schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`) builds six cases
 statement for statement: an address book, native edge values, a family with a cycle and a self-loop, a three-link
-relation, and strings that YAML readers misread. See `conformance/README.md`.
+relation, strings that YAML readers misread, and embedded objects with union values. See `conformance/README.md`.
 
 Run everything:
 

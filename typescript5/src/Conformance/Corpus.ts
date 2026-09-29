@@ -10,7 +10,7 @@
 import { Proxies, Schemas } from "../Framework/index.js";
 import type { Instance } from "../Framework/Proxies.js";
 
-export const CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings"] as const;
+export const CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded"] as const;
 
 function text(name: string, native: unknown = String) {
   return (prop: Schemas.OfProperty.Builder) => prop.name(name).of((t) => t.as_native(native as never));
@@ -65,12 +65,26 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   new S.OfObject.Builder(Notebook).relations((a) => a.name("notes").of(Pages).me("notebook")).update();
   new S.OfObject.Builder(Note).relations((a) => a.name("notebooks").of(Pages).me("note")).update();
 
+  // --- embedded: embedded objects, and union values of objects and of natives ---
+  const CardPhone = new Schemas.OfObject.Builder().properties(text("number"), text("label")).create();
+  const CardEmail = new Schemas.OfObject.Builder().properties(text("address")).create();
+  const Reach = new Schemas.OfUnion.Builder().branches((b) => b.of(CardPhone).when(["has", "number"]),
+    (b) => b.of(CardEmail).when(["has", "address"])).create();
+  const Ident = new Schemas.OfUnion.Builder().branches((b) => b.of((t) => t.as_native(BigInt)).when(["type", "int"]),
+    (b) => b.of((t) => t.as_native(String)).when(["type", "str"])).create();
+  const Card = new Schemas.OfObject.Builder().properties(text("name"), (p) => p.name("home").of(CardPhone),
+    (p) => p.name("reach").of(Reach), (p) => p.name("ident").of(Ident)).create();
+  const Holding = new Schemas.OfRelation.Builder().links("deck", "card").create();
+  const Deck = new Schemas.OfObject.Builder().properties(text("title")).relations((a) => a.name("cards").of(Holding).me("deck")).create();
+  new Schemas.OfObject.Builder(Card).relations((a) => a.name("decks").of(Holding).me("card")).update();
+
   for (const [name, schema] of [["Contact", Contact], ["Address", Address], ["Phone", Phone],
     ["ContactAddresses", ContactAddresses], ["ContactPhones", ContactPhones],
     ["Bag", Bag], ["Sample", Sample], ["Holds", Holds],
     ["Person", Person], ["Parentage", Parentage], ["Mentorship", Mentorship],
     ["Student", Student], ["Course", Course], ["Term", Term], ["Enrollment", Enrollment],
-    ["Notebook", Notebook], ["Note", Note], ["Pages", Pages]] as const) {
+    ["Notebook", Notebook], ["Note", Note], ["Pages", Pages],
+    ["Card", Card], ["Deck", Deck], ["Holding", Holding]] as const) {
     Proxies.register(name, schema);
   }
   const B = Proxies.Builders;
@@ -131,11 +145,21 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
     B.Notebook(notebook).notes((x: any) => x.note(note).page(BigInt(page))).update();
   });
 
+  const deck = B.Deck().title("contacts").create();
+  const cards = [
+    B.Card().name("Ann").home((r: any) => r.number("+1 555 0100").label("home"))
+      .reach((u: any) => u.of(CardEmail, (r: any) => r.address("ann@example.com"))).ident(7n).create(),
+    B.Card().name("Bo").reach((u: any) => u.of(CardPhone, (r: any) => r.number("+44 20 7946 0000"))).ident("B-2").create(),
+    B.Card().name("Cy").create(),
+  ];
+  for (const card of cards) B.Deck(deck).cards((x: any) => x.card(card)).update();
+
   return new Map<string, [Schemas.OfObject.Data, Instance]>([
     ["address_book", [Contact, alice]],
     ["natives", [Bag, bag]],
     ["family", [Person, ada]],
     ["enrollment", [Student, mia]],
     ["yaml_strings", [Notebook, notebook]],
+    ["embedded", [Deck, deck]],
   ]);
 }

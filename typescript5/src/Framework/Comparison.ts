@@ -14,17 +14,18 @@
  * - `OfObject`: equal when every property its schema declares is absent in both or equal in both; otherwise
  *   incomparable. Adjacencies do not participate.
  * - `OfProperty` and `OfAny` compare their values; values of different kinds are incomparable.
+ * - `OfUnion`: equal when written as the same branch with equal values; otherwise incomparable.
  * - `OfLink`: equal when both link the same object (by identity); otherwise incomparable.
  * - `OfEntry`: equal when every link and property is equal; otherwise incomparable.
  * - `OfAdjacency`: its entries form a set, seen from one object (whose own link is implied), so adding an entry equal
  *   to one already there is elided. Equal when both hold equal entries; otherwise incomparable.
  *
- * Union and intersection values cannot be compared yet. `Visitors.OfRelation` has no implementation: it declares no
+ * Intersection values cannot be compared yet. `Visitors.OfRelation` has no implementation: it declares no
  * way to write entries into it.
  */
 
 import { AttributeError, KeyError, NotImplementedError, ValueError } from "./Errors.js";
-import { compareStrings, repr, tokenName, typeName } from "./Repr.js";
+import { compareStrings, repr, reprIndex, tokenName, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type * as Visitors from "./Visitors.js";
 import type { Callback, Native } from "./Visitors.js";
@@ -100,13 +101,14 @@ export class OfNative implements Visitors.OfNative {
 
 /** `Visitors.OfAny` recording a value of the kind its schema declares. */
 export class OfAny implements Visitors.OfAny {
-  private value: OfNative | OfObject | null = null;
+  private value: OfNative | OfObject | OfUnion | null = null;
 
   constructor(private readonly schema: Schemas.OfAny.Data) {}
 
   /** @internal */
   absent(): boolean {
-    return this.value === null || (this.value instanceof OfNative && !this.value.has());
+    if (this.value instanceof OfNative) return !this.value.has();
+    return this.value === null || (this.value instanceof OfUnion && this.value.absent());
   }
 
   as_native(callback: Callback<Visitors.OfNative>): OfAny {
@@ -123,8 +125,11 @@ export class OfAny implements Visitors.OfAny {
     return this;
   }
 
-  as_union(_callback: Callback<Visitors.OfUnion>): OfAny {
-    throw new NotImplementedError("union values cannot be compared yet");
+  as_union(callback: Callback<Visitors.OfUnion>): OfAny {
+    if (!(this.schema instanceof Schemas.OfUnion.Data)) throw new TypeError("the schema is not a union schema");
+    if (!(this.value instanceof OfUnion)) this.value = new OfUnion(this.schema);
+    callback(this.value);
+    return this;
   }
 
   as_intersection(_callback: Callback<Visitors.OfIntersection>): OfAny {
@@ -134,7 +139,49 @@ export class OfAny implements Visitors.OfAny {
   compare(other: OfAny): Result {
     if (this.absent() || other.absent()) return this.absent() && other.absent() ? 0 : null;
     if (this.value instanceof OfNative) return other.value instanceof OfNative ? this.value.compare(other.value) : null;
+    if (this.value instanceof OfUnion) return other.value instanceof OfUnion ? this.value.compare(other.value) : null;
     return other.value instanceof OfObject ? (this.value as OfObject).compare(other.value) : null;
+  }
+}
+
+/** `Visitors.OfUnion` recording the branch a union value is written as, and its value. */
+export class OfUnion implements Visitors.OfUnion {
+  private index: number | null = null;
+  private recorded: OfAny | null = null;
+
+  constructor(private readonly schema: Schemas.OfUnion.Data) {}
+
+  branch(): number {
+    if (this.index === null) throw new ValueError("no branch is selected");
+    return this.index;
+  }
+
+  select(index: number): OfUnion {
+    if (!Number.isInteger(index) || index < 0 || index >= this.schema.branches.length) {
+      throw new ValueError(`the union has no branch ${reprIndex(index)}`);
+    }
+    if (index !== this.index) {
+      this.index = index;
+      this.recorded = new OfAny((this.schema.branches[index] as { type: Schemas.OfAny.Data }).type);
+    }
+    return this;
+  }
+
+  value(callback: Callback<Visitors.OfAny>): OfUnion {
+    this.branch();
+    callback(this.recorded as OfAny);
+    return this;
+  }
+
+  /** @internal */
+  absent(): boolean {
+    return this.recorded === null || this.recorded.absent();
+  }
+
+  compare(other: OfUnion): Result {
+    if (this.absent() || other.absent()) return this.absent() && other.absent() ? 0 : null;
+    if (this.schema !== other.schema || this.index !== other.index) return null;
+    return (this.recorded as OfAny).compare(other.recorded as OfAny);
   }
 }
 

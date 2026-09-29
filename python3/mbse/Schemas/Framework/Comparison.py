@@ -12,13 +12,14 @@ record a value when constructed; an instance writes itself in through `Visitable
 - `OfObject`: equal when every property its schema declares is absent in both or equal in both; otherwise
   incomparable. Adjacencies do not participate.
 - `OfProperty` and `OfAny` compare their values; values of different kinds are incomparable.
+- `OfUnion`: equal when written as the same branch with equal values; otherwise incomparable.
 - `OfLink`: equal when both link the same object (by identity); otherwise incomparable.
 - `OfEntry`: equal when every link and property is equal; otherwise incomparable.
 - `OfAdjacency`: its entries form a set, seen from one object (whose own link is implied), so adding an entry equal
   to one already there is elided. Equal when both hold equal entries; otherwise incomparable.
 
-Union and intersection values cannot be compared yet. `Visitors.OfRelation` has no implementation: it declares no way
-to write entries into it.
+Intersection values cannot be compared yet. `Visitors.OfRelation` has no implementation: it declares no way to write
+entries into it.
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ from typing import Any
 from . import Schemas, Visitors
 from .Visitors import Native
 
-__all__ = ["Result", "OfAny", "OfNative", "OfProperty", "OfObject", "OfAdjacency", "OfEntry", "OfLink"]
+__all__ = ["Result", "OfAny", "OfNative", "OfProperty", "OfObject", "OfUnion", "OfAdjacency", "OfEntry", "OfLink"]
 
 Result = int | None
 """-1, 0 or 1 when ordered or equal; None when incomparable."""
@@ -97,10 +98,12 @@ class OfAny:
 
     def __init__(self, schema: Schemas.OfAny.Data):
         self._schema = schema
-        self._value: OfNative | OfObject | None = None
+        self._value: OfNative | OfObject | OfUnion | None = None
 
     def _absent(self) -> bool:
-        return self._value is None or (isinstance(self._value, OfNative) and not self._value.has())
+        if isinstance(self._value, OfNative):
+            return not self._value.has()
+        return self._value is None or (isinstance(self._value, OfUnion) and self._value._absent())
 
     def as_native(self, callback: Callable[[Visitors.OfNative], Any]) -> OfAny:
         if not isinstance(self._schema, Schemas.OfNative.Data):
@@ -119,7 +122,12 @@ class OfAny:
         return self
 
     def as_union(self, callback: Callable[[Visitors.OfUnion], Any]) -> OfAny:
-        raise NotImplementedError("union values cannot be compared yet")
+        if not isinstance(self._schema, Schemas.OfUnion.Data):
+            raise TypeError("the schema is not a union schema")
+        if not isinstance(self._value, OfUnion):
+            self._value = OfUnion(self._schema)
+        callback(self._value)
+        return self
 
     def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> OfAny:
         raise NotImplementedError("intersection values cannot be compared yet")
@@ -130,6 +138,42 @@ class OfAny:
         if type(self._value) is not type(other._value):
             return None
         return self._value.compare(other._value)  # type: ignore[arg-type, union-attr]
+
+
+class OfUnion:
+    """`Visitors.OfUnion` recording the branch a union value is written as, and its value."""
+
+    def __init__(self, schema: Schemas.OfUnion.Data):
+        self._schema = schema
+        self._index: int | None = None
+        self._value: OfAny | None = None
+
+    def branch(self) -> int:
+        if self._index is None:
+            raise ValueError("no branch is selected")
+        return self._index
+
+    def select(self, index: int) -> OfUnion:
+        if type(index) is not int or not 0 <= index < len(self._schema.branches):
+            raise ValueError(f"the union has no branch {index!r}")
+        if index != self._index:
+            self._index, self._value = index, OfAny(self._schema.branches[index].type)
+        return self
+
+    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> OfUnion:
+        self.branch()
+        callback(self._value)
+        return self
+
+    def _absent(self) -> bool:
+        return self._value is None or self._value._absent()
+
+    def compare(self, other: OfUnion) -> Result:
+        if self._absent() or other._absent():
+            return 0 if self._absent() and other._absent() else None
+        if self._schema is not other._schema or self._index != other._index:
+            return None
+        return self._value.compare(other._value)  # type: ignore[union-attr]
 
 
 class OfProperty:

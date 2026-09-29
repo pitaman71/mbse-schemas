@@ -12,6 +12,10 @@ The validator is a visitor: each object writes itself into a recorder through `V
   an adjacency to that relation via that link;
 - `unique(S)` clauses hold over the entries seen: entries that agree on everything outside `S` agree on `S`.
   Uniqueness is checked only over the entries reachable from what was validated.
+- an embedded object's properties are declared by its schema and hold values of their types, recursively;
+- a union value is written as one of the union's branches and holds a value of that branch's type. Given an evaluator
+  (`Validate(registry, evaluator)`: a callable taking a branch's predicate and a value, returning True, False or None
+  for unknown), it is also the first branch whose predicate is True.
 """
 
 from __future__ import annotations
@@ -37,7 +41,8 @@ class Registry(Protocol):
 
 
 class _Value:
-    """`Visitors.OfProperty` / `OfAny` / `OfNative` recording one value into a dict."""
+    """`Visitors.OfProperty` / `OfAny` / `OfNative` recording one value into a dict: a native, an embedded object (an
+    `_ObjectRecord`) or a union value (a `_UnionRecord`)."""
 
     def __init__(self, values: dict[str, Any], name: str):
         self._values, self._name = values, name
@@ -68,13 +73,42 @@ class _Value:
         return self
 
     def as_object(self, callback: Callable[[Visitors.OfObject], Any]) -> _Value:
-        raise NotImplementedError("object-valued properties cannot be validated yet")
+        record = self._values.get(self._name)
+        if not isinstance(record, _ObjectRecord):
+            record = self._values[self._name] = _ObjectRecord()
+        callback(record)
+        return self
 
     def as_union(self, callback: Callable[[Visitors.OfUnion], Any]) -> _Value:
-        raise NotImplementedError("union-valued properties cannot be validated yet")
+        record = self._values.get(self._name)
+        if not isinstance(record, _UnionRecord):
+            record = self._values[self._name] = _UnionRecord()
+        callback(record)
+        return self
 
     def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _Value:
         raise NotImplementedError("intersection-valued properties cannot be validated yet")
+
+
+class _UnionRecord:
+    """`Visitors.OfUnion` recording the branch a union value is written as, and the value."""
+
+    def __init__(self) -> None:
+        self.index: int | None = None
+        self.values: dict[str, Any] = {}
+
+    def branch(self) -> int:
+        if self.index is None:
+            raise ValueError("no branch is selected")
+        return self.index
+
+    def select(self, index: int) -> _UnionRecord:
+        self.index = index
+        return self
+
+    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _UnionRecord:
+        callback(_Value(self.values, "value"))
+        return self
 
 
 class _Link:
@@ -184,15 +218,42 @@ class _ObjectRecord:
         callback(_AdjacencyRecord(name, self.adjacency_entries.setdefault(name, [])))
         return self
 
+    def accept(self, visitor: Visitors.OfObject) -> None:
+        """Writes the recorded property values back, so a recorded embedded object can be read like any object."""
+        for name, value in self.values.items():
+            visitor.property(name, lambda p, value=value: p.value(lambda a: _replay(a, value)))
+
+
+def _replay(visitor: Visitors.OfAny, value: Any) -> None:
+    if isinstance(value, _UnionRecord):
+        visitor.as_union(lambda u: u.select(value.index).value(lambda v: _replay(v, value.values["value"])))
+    elif isinstance(value, _ObjectRecord):
+        visitor.as_object(lambda o: value.accept(o))
+    else:
+        visitor.as_native(lambda n: n.set(value))
+
 
 # --- Checks ---
 
 
+def _kind(value: Any) -> str:
+    if isinstance(value, _ObjectRecord):
+        return "an embedded object"
+    if isinstance(value, _UnionRecord):
+        return "a union value"
+    return type(value).__name__
+
+
+def _inner(value: Any) -> Any:
+    """The value a recorded property holds, as an evaluator reads it: a union value's value, recursively."""
+    return _inner(value.values.get("value")) if isinstance(value, _UnionRecord) else value
+
+
 def _native_problem(schema: Schemas.OfAny.Data, value: Any) -> str | None:
     if not isinstance(schema, Schemas.OfNative.Data):
-        return "only native values can be validated yet"
+        return "entry properties must be native"
     if type(value) is not schema.type:
-        return f"expected {schema.type.__name__}, got {type(value).__name__}"
+        return f"expected {schema.type.__name__}, got {_kind(value)}"
     return None
 
 
@@ -223,8 +284,8 @@ class _Entry:
 
 
 class _Check:
-    def __init__(self, registry: Registry):
-        self._registry = registry
+    def __init__(self, registry: Registry, evaluator: Callable[[Any, Any], bool | None] | None):
+        self._registry, self._evaluator = registry, evaluator
         self.problems: list[str] = []
         self._schemas_checked: set[int] = set()
         self._entries: dict[int, tuple[Schemas.OfRelation.Data, dict[Hashable, _Entry]]] = {}
@@ -243,9 +304,7 @@ class _Check:
             if name not in schema.properties:
                 self.problems.append(f"{label}.{name}: not a property of {value.schema_name()!r}")
                 continue
-            problem = _native_problem(schema.properties[name], item)
-            if problem:
-                self.problems.append(f"{label}.{name}: {problem}")
+            self.problems += self._value_problems(f"{label}.{name}", schema.properties[name], item)
         for name, entries in record.adjacency_entries.items():
             if name not in schema.adjacencies:
                 self.problems.append(f"{label}.{name}: not an adjacency of {value.schema_name()!r}")
@@ -253,6 +312,37 @@ class _Check:
             adjacency = schema.adjacencies[name]
             for i, entry in enumerate(entries):
                 self._entry(f"{label}.{name}[{i}]", adjacency, value, entry)
+
+    def _value_problems(self, label: str, schema: Schemas.OfAny.Data, item: Any) -> list[str]:
+        """Problems with a property's value: its kind and type, recursively, and a union value's branch."""
+        if isinstance(schema, Schemas.OfNative.Data):
+            return [] if type(item) is schema.type else [f"{label}: expected {schema.type.__name__}, got {_kind(item)}"]
+        if isinstance(schema, Schemas.OfObject.Data):
+            if not isinstance(item, _ObjectRecord):
+                return [f"{label}: expected an embedded object, got {_kind(item)}"]
+            problems = []
+            for name, value in item.values.items():
+                if name not in schema.properties:
+                    problems.append(f"{label}.{name}: not a property of the embedded object")
+                else:
+                    problems += self._value_problems(f"{label}.{name}", schema.properties[name], value)
+            return problems
+        if isinstance(schema, Schemas.OfUnion.Data):
+            if not isinstance(item, _UnionRecord):
+                return [f"{label}: expected a union value, got {_kind(item)}"]
+            if type(item.index) is not int or not 0 <= item.index < len(schema.branches):
+                return [f"{label}: the union has no branch {item.index!r}"]
+            problems = self._value_problems(label, schema.branches[item.index].type, item.values.get("value"))
+            if problems or self._evaluator is None:
+                return problems
+            value = _inner(item)
+            chosen = next((i for i, b in enumerate(schema.branches) if self._evaluator(b.when, value) is True), None)
+            if chosen is None:
+                return [f"{label}: no branch's predicate holds for the value"]
+            if chosen != item.index:
+                return [f"{label}: written as branch {item.index}, but the first branch whose predicate holds is {chosen}"]
+            return []
+        return [f"{label}: intersection values cannot be validated yet"]
 
     def _entry(
         self, label: str, adjacency: Schemas.OfAdjacency.Data, owner: Visitors.Visitable, entry: _EntryRecord
@@ -302,18 +392,20 @@ class _Check:
 
 def properties_of(value: Visitors.Visitable) -> dict[str, Any]:
     """The property values `value` writes when visited, by name; absent properties are left out. It reads through the
-    visitor protocols, so it works for any `Visitable`."""
+    visitor protocols, so it works for any `Visitable`. An embedded object is returned as an object whose `accept`
+    writes its properties, and a union value as the value it holds."""
     record = _ObjectRecord()
     value.accept(record)
-    return dict(record.values)
+    return {name: _inner(item) for name, item in record.values.items()}
 
 
 
 class Validate:
-    """Validates data against its schema. `Validate(registry)(schema, value)` dispatches on the schema's kind."""
+    """Validates data against its schema. `Validate(registry)(schema, value)` dispatches on the schema's kind. With an
+    `evaluator`, union values are also checked against their branches' predicates."""
 
-    def __init__(self, registry: Registry):
-        self._registry = registry
+    def __init__(self, registry: Registry, evaluator: Callable[[Any, Any], bool | None] | None = None):
+        self._registry, self._evaluator = registry, evaluator
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> list[str]:
         if isinstance(schema, Schemas.OfNative.Data):
@@ -339,7 +431,7 @@ class Validate:
         root = values[0]
         if self._registry.schema(root.schema_name()) is not schema:
             return [f"the value is a {root.schema_name()!r}, not an instance of the given schema"]
-        check = _Check(self._registry)
+        check = _Check(self._registry, self._evaluator)
         for i, value in enumerate(values):
             check.object(f"{value.schema_name()}#{i}", self._registry.schema(value.schema_name()), value)
         check.uniques()

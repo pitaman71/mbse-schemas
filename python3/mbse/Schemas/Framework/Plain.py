@@ -13,6 +13,11 @@ object content carries no schema, so references carry the schema name, and the r
 
 The serializers are visitors: a value writes itself into them through `Visitable.accept`. `FromPlain` is constructed
 with the builders to build with, e.g. `FromPlain(Proxies.Builders)`.
+
+An embedded object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties. A union
+value is written with the index of its branch, `{"$branch": index, "$value": value}`, and the value is read back under
+that branch's type. Whether the branch agrees with the branches' predicates is checked by `Validators`, given an
+evaluator.
 """
 
 from __future__ import annotations
@@ -30,6 +35,8 @@ PlainData = None | bool | int | float | str | list["PlainData"] | dict[str, "Pla
 
 REF = "$ref"
 SCHEMA = "$schema"
+BRANCH = "$branch"
+VALUE = "$value"
 
 
 # --- Writers: Visitors that write plain data ---
@@ -57,7 +64,7 @@ class _NativeWriter:
 
 
 class _AnyWriter:
-    """`Visitors.OfAny` writing one key of a plain dict. Only native values are supported so far."""
+    """`Visitors.OfAny` writing one key of a plain dict: a native, an embedded object (nested) or a union value."""
 
     def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfAny.Data):
         self._out, self._name, self._schema = out, name, schema
@@ -69,13 +76,51 @@ class _AnyWriter:
         return self
 
     def as_object(self, callback: Callable[[Visitors.OfObject], Any]) -> _AnyWriter:
-        raise NotImplementedError("object-valued properties are not supported by Plain yet")
+        if not isinstance(self._schema, Schemas.OfObject.Data):
+            raise TypeError(f"property {self._name!r} is not an object")
+        nested = self._out.get(self._name)
+        if not isinstance(nested, dict):
+            nested = self._out[self._name] = {}
+        callback(_ObjectWriter(nested, self._schema, lambda target: {}))
+        return self
 
     def as_union(self, callback: Callable[[Visitors.OfUnion], Any]) -> _AnyWriter:
-        raise NotImplementedError("union-valued properties are not supported by Plain yet")
+        if not isinstance(self._schema, Schemas.OfUnion.Data):
+            raise TypeError(f"property {self._name!r} is not a union")
+        callback(_UnionWriter(self._out, self._name, self._schema))
+        return self
 
     def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _AnyWriter:
         raise NotImplementedError("intersection-valued properties are not supported by Plain yet")
+
+
+class _UnionWriter:
+    """`Visitors.OfUnion` writing one key of a plain dict as `{"$branch": index, "$value": value}`."""
+
+    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfUnion.Data):
+        self._out, self._name, self._schema = out, name, schema
+        self._selected: int | None = None
+
+    def branch(self) -> int:
+        if self._selected is None:
+            raise ValueError("no branch is selected")
+        return self._selected
+
+    def select(self, index: int) -> _UnionWriter:
+        if type(index) is not int or not 0 <= index < len(self._schema.branches):
+            raise ValueError(f"the union has no branch {index!r}")
+        self._selected = index
+        return self
+
+    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _UnionWriter:
+        index = self.branch()
+        wrapper: dict[str, PlainData] = {BRANCH: index}
+        callback(_AnyWriter(wrapper, VALUE, self._schema.branches[index].type))
+        if VALUE in wrapper:
+            self._out[self._name] = wrapper
+        else:
+            self._out.pop(self._name, None)
+        return self
 
 
 class _PropertyWriter:
@@ -276,13 +321,54 @@ class _Link(NamedTuple):
     symbol: str
 
 
-def _decode(schema: Schemas.OfAny.Data, name: str, plain: PlainData, where: str) -> Native:
+class _Record(NamedTuple):
+    """A decoded embedded object; `accept` writes its properties into a builder."""
+
+    schema: Schemas.OfObject.Data
+    values: dict[str, Any]
+
+    def accept(self, visitor: Visitors.OfObject) -> None:
+        for name, value in self.values.items():
+            _set(visitor, name, value)
+
+
+class _Union(NamedTuple):
+    """A decoded union value and the index of its branch."""
+
+    index: int
+    value: Any
+
+
+def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple) -> Any:
+    """The value `plain` holds under `schema`, located at the path `where`."""
+    if isinstance(schema, Schemas.OfNative.Data):
+        try:
+            return schema.from_plain(plain)
+        except DecodeError as error:
+            raise error.at(path(*where)) from None
+    if isinstance(schema, Schemas.OfObject.Data):
+        if not isinstance(plain, dict):
+            raise DecodeError(f"an embedded object must be a mapping, got {type(plain).__name__}", path=path(*where))
+        values = {}
+        for key, item in plain.items():
+            if key not in schema.properties:
+                raise DecodeError(f"the embedded object has no property {key!r}", path=path(*where, key))
+            values[key] = _decode(schema.properties[key], item, (*where, key))
+        return _Record(schema, values)
+    if isinstance(schema, Schemas.OfUnion.Data):
+        if not isinstance(plain, dict) or set(plain) != {BRANCH, VALUE}:
+            raise DecodeError("a union value is {'$branch': index, '$value': value}", path=path(*where))
+        index = plain[BRANCH]
+        if type(index) is not int or not 0 <= index < len(schema.branches):
+            raise DecodeError(f"the union has no branch {index!r}", path=path(*where, BRANCH))
+        return _Union(index, _decode(schema.branches[index].type, plain[VALUE], (*where, VALUE)))
+    raise NotImplementedError("intersection values are not supported by Plain yet")
+
+
+def _decode_entry_property(schema: Schemas.OfAny.Data, name: str, plain: PlainData, where: tuple) -> Native:
     if not isinstance(schema, Schemas.OfNative.Data):
-        raise NotImplementedError(f"property {name!r}: only native values are supported by Plain yet")
-    try:
-        return schema.from_plain(plain)
-    except DecodeError as error:
-        raise error.at(where) from None
+        raise NotImplementedError(f"entry property {name!r}: entry properties must be native")
+    return _decode(schema, plain, where)
 
 
 # Per object symbol: its decoded property values, and per adjacency its entries, each mapping links to target symbols
@@ -358,7 +444,8 @@ def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData) 
                                 raise DecodeError("a link must be a reference", path=at)
                             row[name] = _Link(item[REF])
                         elif name in relation.properties:
-                            row[name] = _decode(relation.properties[name], name, item, at)
+                            row[name] = _decode_entry_property(
+                                relation.properties[name], name, item, ("objects", symbol, key, i, name))
                         else:
                             raise DecodeError(f"the relation has no link or property {name!r}", path=at)
                     missing = [n for n in relation.links if n != adjacency.me and n not in entry]
@@ -366,7 +453,7 @@ def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData) 
                         raise DecodeError(f"links {missing} are not set", path=path("objects", symbol, key, i))
                     rows.append(row)
             elif key in object_schema.properties:
-                properties[key] = _decode(object_schema.properties[key], key, value, where)
+                properties[key] = _decode(object_schema.properties[key], value, ("objects", symbol, key))
             else:
                 raise DecodeError(f"{names[symbol]!r} has no property or adjacency {key!r}", path=where)
         decoded[symbol] = (properties, adjacencies)
@@ -396,8 +483,18 @@ def _restore(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData
     return created[root]
 
 
-def _set(visitor: Any, name: str, value: Native) -> None:
-    visitor.property(name, lambda p: p.value(lambda a: a.as_native(lambda n: n.set(value))))
+def _set(visitor: Any, name: str, value: Any) -> None:
+    visitor.property(name, lambda p: p.value(lambda a: _write(a, value)))
+
+
+def _write(visitor: Visitors.OfAny, value: Any) -> None:
+    """Writes a decoded value: a native, an embedded object or a union value with its branch."""
+    if isinstance(value, _Union):
+        visitor.as_union(lambda u: u.select(value.index).value(lambda v: _write(v, value.value)))
+    elif isinstance(value, _Record):
+        visitor.as_object(lambda o: value.accept(o))
+    else:
+        visitor.as_native(lambda n: n.set(value))
 
 
 def _fill(visitor: Visitors.OfEntry, row: dict[str, Any], created: dict[str, Any]) -> None:

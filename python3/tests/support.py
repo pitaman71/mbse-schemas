@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-from mbse.Schemas.Framework import Plain, Reachable
+from mbse.Schemas.Framework import Plain, Reachable, Validators
 
 
 @contextmanager
@@ -140,3 +140,12 @@ def instance_problems(instance: Any, protocol: type) -> list[str]:
         for name in protocol_methods(protocol)
         if not callable(getattr(instance, name, None))
     ]
+
+
+def stub_evaluator(predicate: Any, value: Any) -> bool | None:
+    """A stand-in for an expression evaluator (mbse-expressions provides the real one), for union predicates written as
+    `("has", name)`, whether an object has the property, or `("type", name)`, whether a native has the type."""
+    kind, argument = predicate
+    if kind == "has":
+        return callable(getattr(value, "accept", None)) and argument in Validators.properties_of(value)
+    return type(value).__name__ == argument

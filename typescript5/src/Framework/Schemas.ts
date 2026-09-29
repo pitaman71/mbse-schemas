@@ -289,7 +289,7 @@ class RelationData implements HasFields {
       }
     }
     for (const [name, prop] of this.properties) {
-      problems.push(...validateSchema(prop).map((p) => `property ${repr(name)}: ${p}`));
+      problems.push(...[...validateSchema(prop), ...embeddedProblems(prop)].map((p) => `property ${repr(name)}: ${p}`));
     }
     return problems;
   }
@@ -423,7 +423,7 @@ class ObjectData implements HasFields {
       problems.push(`names used as both property and adjacency: ${repr(sortedStrings(clashes))}`);
     }
     for (const [name, prop] of this.properties) {
-      problems.push(...validateSchema(prop).map((p) => `property ${repr(name)}: ${p}`));
+      problems.push(...[...validateSchema(prop), ...embeddedProblems(prop)].map((p) => `property ${repr(name)}: ${p}`));
     }
     for (const adjacency of this.adjacencies.values()) problems.push(...adjacency.validate());
     return problems;
@@ -635,6 +635,15 @@ function kindOf(value: unknown): unknown {
 function validateSchema(schema: unknown): string[] {
   if (!isAnyData(schema)) return [`not a schema: ${repr(schema)}`];
   return schema.validate();
+}
+
+/** Problems with a property's schema as a value: an object held by a property is embedded, with no identity, so it
+ * cannot have adjacencies; nor can the objects a union or intersection holds. */
+function embeddedProblems(schema: unknown): string[] {
+  if (schema instanceof ObjectData && schema.adjacencies.size > 0) return ["an embedded object cannot have adjacencies"];
+  const parts = schema instanceof UnionData ? schema.branches.map((b) => b.type)
+    : schema instanceof IntersectionData ? [...schema.parts] : [];
+  return sortedStrings(new Set(parts.flatMap((part) => embeddedProblems(part))));
 }
 
 /** Selects a kind through `as_<kind>(spec)`. Finalizing yields that kind's data, not a wrapper. */

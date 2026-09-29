@@ -141,13 +141,14 @@ typescript5/        TypeScript implementation: src/Framework, examples, tests an
 conformance/        snapshots each implementation writes; each must read the other's
 ```
 
-Tests are Jupyter notebooks, one suite per notebook. Both implementations have the same 132 cases under the same
+Tests are Jupyter notebooks, one suite per notebook. Both implementations have the same 139 cases under the same
 IDs, and both reach 100% code coverage (`uv run coverage ...` / `npm run coverage`; see `docs/EQUIVALENCE.md`).
 
 ## Status
 
 The core is implemented in both languages:
 - schemas: objects, relations, unions and intersections;
+- embedded objects and union values (intersection values are not yet supported);
 - dynamic proxies;
 - reachability;
 - plain snapshots, JSON and YAML;
@@ -158,7 +159,7 @@ Expressions (for union predicates and constraints) and their evaluation are a se
 [mbse-expressions](https://github.com/pitaman71/mbse-expressions), which depends on this one.
 
 Designed but not built yet (see `docs/FRAMEWORK.md`):
-- union values, chosen by evaluating their discriminators (with an evaluator supplied by the caller);
+- intersection values;
 - constraints such as "at least one";
 - mutations and transactions;
 - factories;

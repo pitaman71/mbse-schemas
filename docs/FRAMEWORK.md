@@ -45,6 +45,12 @@ The schema elements include:
                      It is an error for the intersected schemas to conflict, e.g. two `OfObject`s declaring the same
                      property with different types.
 
+A property whose schema is an `OfObject` holds an *embedded object*: a read-only record of that schema's properties,
+with no identity and no adjacencies, copied by value and written nested in its owner's snapshot. An embedded object's
+schema must not declare adjacencies, however it is held (directly, through a union branch or an intersection part).
+A property whose schema is an `OfUnion` holds a value of one of its branches and records which branch it was written
+as; `Visitors.OfUnion.select(index)` chooses the branch before `value(...)` writes the value.
+
 Named references are handled entirely by relations with a property (or properties) for the index value.
 For example, a global ID directory is a relation linking a singleton directory object to each object, with the ID as a
 property of the entry.
@@ -177,7 +183,10 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   checks everything reachable from the root. It is constructed with a registry that looks schemas up by name (e.g.
   `Proxies.Builders`), and runs only when the caller asks. It checks the schemas' own `validate()`, exact native types
   of properties and entry properties, that every link is set and filled by an object whose schema declares an
-  adjacency via that link, and `unique(...)` clauses over the entries seen. The validator is a visitor: objects write
+  adjacency via that link, `unique(...)` clauses over the entries seen, embedded objects' properties recursively, and
+  that a union value's branch exists and holds a value of its type. `Validate(registry, evaluator)` also checks that
+  the branch is the first whose predicate holds; an evaluator takes a predicate and a value and returns true, false or
+  `None` for unknown. The validator is a visitor: objects write
   themselves into it through `accept`. `Validators.properties_of(value)` returns the property values any object writes when
   visited, for other modules and packages that read objects (e.g. mbse-expressions' evaluators).
 
@@ -195,7 +204,7 @@ Both in-memory objects and mutations (see `Mutations`) are serializable.
 
 Over the wire, object content carries no schema. Association of an object with a schema is done dynamically, starting
 from the expected root schema, which is why deserializers such as `Plain.FromPlain(builders)(schema, ...)` take it as an
-argument, and continuing through property types and union discriminator predicates. Links are untyped, so a serialized
+argument, and continuing through property types and the branch written with each union value. Links are untyped, so a serialized
 reference to a linked object carries that object's schema name alongside its symbol. Consequently, an object that is
 linked from another object must have a named (registered) schema.
 
@@ -210,6 +219,9 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
   one) and checkably so: a deserializer must reject a symbol assigned to two objects or an object assigned two symbols.
 - Symbols bind only to objects, never to values or entries.
 - Singletons are referenced by their global name and never need a symbol.
+- An embedded object is written nested, as a mapping of its properties. A union value is written as
+  `{"$branch": index, "$value": value}`, so decoding needs no evaluator; whether the branch agrees with the
+  predicates is for `Validators` to check.
 - Only a `create` mutation creates an object. A reference never creates one.
 
 - `Plain` : for each schema element `OfX`, `Plain.ToPlain.OfX` and `Plain.FromPlain.OfX` implement `Visitors.OfX` and
@@ -267,8 +279,9 @@ are ordinary objects with registered meta-schemas, so this package serializes, v
 others. See its `docs/EXPRESSIONS.md` for the expression kinds, the core vocabulary and evaluation.
 
 This package treats a predicate as opaque data: `Schemas.OfUnion` stores each branch's `when` without looking inside it.
-Anything here that must *evaluate* predicates (choosing a union value's branch, checking constraints) will take an
-evaluator from its caller rather than import one, so the dependency keeps pointing one way.
+Anything here that must *evaluate* predicates takes an evaluator from its caller rather than import one, so the
+dependency keeps pointing one way: `Validators.Validate(registry, evaluator)` checks union values against their
+branches' predicates. Serialization does not evaluate predicates, since union values carry their branch on the wire.
 
 ## Language bindings
 
@@ -354,6 +367,10 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - `OfValue` is not a base class; renamed `OfAny`.
 - Union discriminators are serializable expressions, not lambdas; the branch is the first matching predicate in
   declaration order.
+- Object-valued properties hold embedded objects: read-only values with no identity and no adjacencies, written
+  nested. Objects with identity are reached through relations.
+- A union value records its branch, and snapshots write it: `{"$branch": index, "$value": value}`. Deserializers need
+  no evaluator; `Validators.Validate(registry, evaluator)` checks the branch against the predicates.
 - `OfNative` wire conversion (including for literals in expressions) belongs to `Schemas.OfNative`.
 - Builder finalization is `create()` / `clone()` / `update()`; none validate.
 - Validation, including well-formedness, runs only when the caller invokes it.
@@ -422,5 +439,5 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Reachability is its own visitor, `Reachable.of(root)`, which returns the root and every object reachable through
   adjacencies in first-reference order. `Plain.ToPlain.Reachable` uses it.
 - Over the wire, object content carries no schema. Association with a schema is dynamic, starting from the expected
-  root schema (hence `FromPlain(builders)(schema, ...)` takes it) and continuing through property types and union discriminator
-  predicates. Serialized references to linked objects carry the object's schema name.
+  root schema (hence `FromPlain(builders)(schema, ...)` takes it) and continuing through property types and the
+  branch written with each union value. Serialized references to linked objects carry the object's schema name.

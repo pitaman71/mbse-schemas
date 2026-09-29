@@ -7,6 +7,12 @@ Builders (`Proxies.OfObject.Builder`) implement `Visitors.OfObject`, like every 
 
 Relation entries live in one global table per relation. Adding an entry equal to an existing one is elided.
 
+A property whose schema is an `OfObject` holds an embedded object: a read-only record with no identity
+(`Proxies.OfObject.Record`), read with attributes like an instance and set with a Spec, e.g.
+`.reach(lambda r: r.number('+44'))`. A property whose schema is an `OfUnion` holds a value of one of its branches, set
+directly (the first branch of the value's native type or record schema) or with `.reach(lambda u: u.of(Phone, spec))`.
+Proxies store which branch a union value was written as, and snapshots record it; checking it against the branches'
+predicates is the job of `Validators`, given an evaluator.
 """
 
 from __future__ import annotations
@@ -152,13 +158,8 @@ class _ObjectData:
         object.__setattr__(self, "_schema_name", schema_name)
         object.__setattr__(self, "_values", {})
 
-    def __getattr__(self, name: str) -> Native:
-        values = object.__getattribute__(self, "_values")
-        if name in values:
-            return values[name]
-        if name in object.__getattribute__(self, "_schema").properties:
-            raise AttributeError(f"property {name!r} is not set")
-        raise AttributeError(name)
+    def __getattr__(self, name: str) -> Any:
+        return _read(self, name)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("proxy properties are read-only; use a builder")
@@ -171,16 +172,71 @@ class _ObjectData:
 
     def accept(self, visitor: Visitors.OfObject) -> None:
         """Writes properties in the schema's declared order, then entries adjacency by adjacency."""
-        for name in self._schema.properties:
-            if name in self._values:
-                value = self._values[name]
-                visitor.property(name, lambda p, value=value: p.value(lambda a: a.as_native(lambda n: n.set(value))))
+        _write_properties(visitor, self._schema, self._values)
         for adjacency_name, adjacency in self._schema.adjacencies.items():
             for entry in _relation_data(adjacency.relation).linking(adjacency.me, self):
                 visitor.adjacency(
                     adjacency_name,
                     lambda a, entry=entry, adj=adjacency: a.add(lambda e: _write_entry(e, entry, adj)),
                 )
+
+
+def _read(value: Any, name: str) -> Any:
+    """A property of an instance or record, as an attribute: a union value reads as the value it holds."""
+    values = object.__getattribute__(value, "_values")
+    if name in values:
+        item = values[name]
+        return item.value if isinstance(item, _UnionValue) else item
+    if name in object.__getattribute__(value, "_schema").properties:
+        raise AttributeError(f"property {name!r} is not set")
+    raise AttributeError(name)
+
+
+def _write_properties(visitor: Any, schema: ObjectSchema, values: dict[str, Any]) -> None:
+    """Writes the values that are set, in the schema's declared order."""
+    for name in schema.properties:
+        if name in values:
+            visitor.property(name, lambda p, value=values[name]: p.value(lambda a: _write_value(a, value)))
+
+
+def _write_value(visitor: Visitors.OfAny, value: Any) -> None:
+    """Writes a native, an embedded object or a union value into a `Visitors.OfAny`."""
+    if isinstance(value, _UnionValue):
+        visitor.as_union(lambda u: u.select(value.index).value(lambda v: _write_value(v, value.value)))
+    elif isinstance(value, _RecordData):
+        visitor.as_object(lambda o: value.accept(o))
+    else:
+        visitor.as_native(lambda n: n.set(value))
+
+
+class _UnionValue:
+    """A union property's value, with the index of the branch it was written as."""
+
+    __slots__ = ("index", "value")
+
+    def __init__(self, index: int, value: Any):
+        self.index, self.value = index, value
+
+
+class _RecordData:
+    """An embedded object: the value of a property whose schema is an `OfObject`. It has no identity and no
+    adjacencies; its properties are read-only attributes, and reading one that is not set raises AttributeError."""
+
+    __slots__ = ("_schema", "_values")
+
+    def __init__(self, schema: ObjectSchema, values: dict[str, Any]):
+        object.__setattr__(self, "_schema", schema)
+        object.__setattr__(self, "_values", dict(values))
+
+    def __getattr__(self, name: str) -> Any:
+        return _read(self, name)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("embedded objects are read-only; use a builder")
+
+    def accept(self, visitor: Visitors.OfObject) -> None:
+        """Writes the properties in the schema's declared order."""
+        _write_properties(visitor, self._schema, self._values)
 
 
 def _write_entry(visitor: Visitors.OfEntry, entry: _Entry, adjacency: Schemas.OfAdjacency.Data) -> None:
@@ -222,30 +278,41 @@ class _NativeSlot:
 
 
 class _AnySlot:
-    """`Visitors.OfAny` over one key of a value dict. Only native values are supported so far."""
+    """`Visitors.OfAny` over one key of a value dict, holding a value of `schema` (an entry property's schema is not
+    given: entry properties are native)."""
 
-    def __init__(self, values: dict[str, Native], name: str):
-        self._values, self._name = values, name
+    def __init__(self, values: dict[str, Any], name: str, schema: Any = None):
+        self._values, self._name, self._schema = values, name, schema
 
     def as_native(self, callback: Callable[[Visitors.OfNative], Any]) -> _AnySlot:
         callback(_NativeSlot(self._values, self._name))
         return self
 
     def as_object(self, callback: Callable[[Visitors.OfObject], Any]) -> _AnySlot:
-        raise NotImplementedError("object-valued properties are not supported by proxies yet")
+        """Builds an embedded object, starting from the one already set, if any."""
+        if not isinstance(self._schema, Schemas.OfObject.Data):
+            raise TypeError(f"property {self._name!r} does not hold an object")
+        current = self._values.get(self._name)
+        builder = _RecordBuilder(self._schema, current if isinstance(current, _RecordData) else None)
+        callback(builder)
+        self._values[self._name] = builder.build()
+        return self
 
     def as_union(self, callback: Callable[[Visitors.OfUnion], Any]) -> _AnySlot:
-        raise NotImplementedError("union-valued properties are not supported by proxies yet")
+        if not isinstance(self._schema, Schemas.OfUnion.Data):
+            raise TypeError(f"property {self._name!r} does not hold a union")
+        callback(_UnionSlot(self._values, self._name, self._schema))
+        return self
 
     def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _AnySlot:
         raise NotImplementedError("intersection-valued properties are not supported by proxies yet")
 
 
 class _PropertySlot:
-    """`Visitors.OfProperty` over one key of a value dict."""
+    """`Visitors.OfProperty` over one key of a value dict, holding a value of `schema`."""
 
-    def __init__(self, values: dict[str, Native], name: str):
-        self._values, self._name = values, name
+    def __init__(self, values: dict[str, Any], name: str, schema: Any = None):
+        self._values, self._name, self._schema = values, name, schema
 
     def name(self) -> str:
         return self._name
@@ -254,7 +321,7 @@ class _PropertySlot:
         return self._name in self._values
 
     def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _PropertySlot:
-        callback(_AnySlot(self._values, self._name))
+        callback(_AnySlot(self._values, self._name, self._schema))
         return self
 
     def clear(self) -> _PropertySlot:
@@ -262,15 +329,129 @@ class _PropertySlot:
         return self
 
 
-def _setter(visitor: Any, name: str) -> Callable[[Any], Any]:
-    """DSL setter: `.name(value)` or `.name(lambda v: v.set(value))`, where `v` is a `Visitors.OfNative`."""
+def _setter(visitor: Any, name: str, schema: Any = None) -> Callable[[Any], Any]:
+    """DSL setter for a property of `schema`: `.name(value)`, or `.name(Spec)` where the Spec receives the value's
+    builder: a `Visitors.OfNative` (`v.set(...)`), an embedded object's builder, or a union's `Visitors.OfUnion`."""
 
     def setter(spec: Any) -> Any:
-        on_native = spec if callable(spec) else (lambda n: n.set(spec))
-        visitor.property(name, lambda p: p.value(lambda a: a.as_native(on_native)))
+        visitor.property(name, lambda p: p.value(lambda a: _apply(a, name, schema, spec)))
         return visitor
 
     return setter
+
+
+def _apply(visitor: Visitors.OfAny, name: str, schema: Any, spec: Any) -> None:
+    """Writes `spec` (a value, or a callable taking the value's builder) as a value of `schema`."""
+    if isinstance(schema, Schemas.OfObject.Data):
+        if callable(spec):
+            visitor.as_object(spec)
+        elif isinstance(spec, _RecordData):
+            visitor.as_object(lambda o: spec.accept(o))
+        else:
+            raise TypeError(f"property {name!r} takes an embedded object or a Spec, got {type(spec).__name__}")
+    elif isinstance(schema, Schemas.OfUnion.Data):
+        if callable(spec):
+            visitor.as_union(spec)
+        else:
+            index = _branch_of(schema, spec)
+            visitor.as_union(lambda u: u.select(index).value(lambda v: _write_value(v, spec)))
+    else:
+        visitor.as_native(spec if callable(spec) else (lambda n: n.set(spec)))
+
+
+def _branch_of(schema: Schemas.OfUnion.Data, value: Any) -> int:
+    """The first branch that can hold `value`: of its record's schema, or of its native type."""
+    for i, branch in enumerate(schema.branches):
+        if isinstance(value, _RecordData):
+            if branch.type is object.__getattribute__(value, "_schema"):
+                return i
+        elif isinstance(branch.type, Schemas.OfNative.Data) and branch.type.type is type(value):
+            return i
+    kind = "an embedded object" if isinstance(value, _RecordData) else f"a {type(value).__name__}"
+    raise TypeError(f"no branch of the union holds {kind}")
+
+
+class _UnionSlot:
+    """`Visitors.OfUnion` over one key of a value dict. `select(index)` chooses the branch the value is written as,
+    before `value(...)` writes it. DSL: `.of(schema, spec)` selects the first branch of `schema` and writes `spec`."""
+
+    def __init__(self, values: dict[str, Any], name: str, schema: Schemas.OfUnion.Data):
+        self._values, self._name, self._schema = values, name, schema
+        current = values.get(name)
+        self._selected: int | None = current.index if isinstance(current, _UnionValue) else None
+
+    def branch(self) -> int:
+        current = self._values.get(self._name)
+        if not isinstance(current, _UnionValue):
+            raise AttributeError(f"property {self._name!r} is not set")
+        return current.index
+
+    def select(self, index: int) -> _UnionSlot:
+        if type(index) is not int or not 0 <= index < len(self._schema.branches):
+            raise ValueError(f"the union has no branch {index!r}")
+        self._selected = index
+        return self
+
+    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _UnionSlot:
+        if self._selected is None:
+            raise ValueError("select a branch before writing the union's value")
+        current = self._values.get(self._name)
+        inner = {} if not isinstance(current, _UnionValue) or current.index != self._selected else {"value": current.value}
+        callback(_AnySlot(inner, "value", self._schema.branches[self._selected].type))
+        if "value" in inner:
+            self._values[self._name] = _UnionValue(self._selected, inner["value"])
+        else:
+            self._values.pop(self._name, None)
+        return self
+
+    def of(self, schema: Any, spec: Any) -> _UnionSlot:
+        for i, branch in enumerate(self._schema.branches):
+            if branch.type is schema:
+                return self.select(i).value(lambda v: _apply(v, self._name, schema, spec))
+        raise ValueError("no branch of the union has that schema")
+
+
+class _RecordBuilder:
+    """`Visitors.OfObject` for building an embedded object, starting from `source` if given. DSL: `.<property>(value
+    or Spec)`. An embedded object has no adjacencies."""
+
+    def __init__(self, schema: ObjectSchema, source: _RecordData | None = None):
+        self._schema = schema
+        self._values: dict[str, Any] = {} if source is None else dict(object.__getattribute__(source, "_values"))
+
+    def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _RecordBuilder:
+        for name in [n for n in self._schema.properties if n in self._values]:
+            callback(_PropertySlot(self._values, name, self._schema.properties[name]))
+        return self
+
+    def has(self, name: str) -> bool:
+        return name in self._values
+
+    def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _RecordBuilder:
+        if name not in self._schema.properties:
+            raise AttributeError(f"{name!r} is not a property of the embedded object")
+        callback(_PropertySlot(self._values, name, self._schema.properties[name]))
+        return self
+
+    def clear(self, name: str) -> _RecordBuilder:
+        self._values.pop(name, None)
+        return self
+
+    def adjacencies(self, callback: Callable[[Visitors.OfAdjacency], Any]) -> _RecordBuilder:
+        return self
+
+    def adjacency(self, name: str, callback: Callable[[Visitors.OfAdjacency], Any]) -> _RecordBuilder:
+        raise AttributeError(f"an embedded object has no adjacencies, got {name!r}")
+
+    def __getattr__(self, name: str) -> Callable[[Any], _RecordBuilder]:
+        if name.startswith("_"):
+            raise AttributeError(name)
+        if name in self._schema.properties:
+            return _setter(self, name, self._schema.properties[name])
+        raise AttributeError(f"{name!r} is not a property of the embedded object")
+
+    def build(self) -> _RecordData:
+        return _RecordData(self._schema, self._values)
 
 
 class _LinkSlot:
@@ -415,7 +596,7 @@ class _ObjectBuilder:
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _ObjectBuilder:
         for name in list(self._values):
-            callback(_PropertySlot(self._values, name))
+            callback(_PropertySlot(self._values, name, self._schema.properties[name]))
         return self
 
     def has(self, name: str) -> bool:
@@ -424,7 +605,7 @@ class _ObjectBuilder:
     def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _ObjectBuilder:
         if name not in self._schema.properties:
             raise AttributeError(f"{name!r} is not a property of {self._schema_name!r}")
-        callback(_PropertySlot(self._values, name))
+        callback(_PropertySlot(self._values, name, self._schema.properties[name]))
         return self
 
     def clear(self, name: str) -> _ObjectBuilder:
@@ -446,7 +627,7 @@ class _ObjectBuilder:
         if name.startswith("_"):
             raise AttributeError(name)
         if name in self._schema.properties:
-            return _setter(self, name)
+            return _setter(self, name, self._schema.properties[name])
         if name in self._schema.adjacencies:
 
             def adder(spec: Callable[[Visitors.OfEntry], Any]) -> _ObjectBuilder:
@@ -487,6 +668,7 @@ class _ObjectBuilder:
 class OfObject:
     Data = _ObjectData
     Builder = _ObjectBuilder
+    Record = _RecordData
 
 
 class OfRelation:

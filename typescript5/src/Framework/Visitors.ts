@@ -120,10 +120,13 @@ export interface OfRelation {
   entries(callback: Callback<OfEntry>): OfRelation;
 }
 
-/** A value of one of several same-kind schemas, chosen by the first matching discriminator predicate. */
+/** A value of one of several same-kind schemas. When writing, `select(index)` chooses the branch the value is written
+ * as, before `value(...)` writes it; the branch should be the first whose discriminator predicate holds. */
 export interface OfUnion {
-  /** Index of the branch the value belongs to. */
+  /** Index of the branch the value is written as. */
   branch(): number;
+  select(index: number): OfUnion;
+  /** Calls `callback` with the value, under the selected branch's type. */
   value(callback: Callback<OfAny>): OfUnion;
 }
 
@@ -152,7 +155,7 @@ export const PROTOCOL_METHODS = {
   OfEntry: ["links", "link", "properties", "has", "property", "clear"],
   OfLink: ["name", "target", "set"],
   OfRelation: ["links", "entries"],
-  OfUnion: ["branch", "value"],
+  OfUnion: ["branch", "select", "value"],
   OfIntersection: ["value"],
   Visitable: ["identity", "schema_name", "accept"],
 } as const satisfies Record<string, readonly string[]>;

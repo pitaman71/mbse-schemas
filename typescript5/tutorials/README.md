@@ -22,7 +22,8 @@ npm install                   # the framework's one dependency, yaml
 ```
 
 Then open the notebooks in VS Code (Jupyter extension) or JupyterLab and pick the **Deno** kernel. Each notebook runs
-top to bottom in a fresh kernel and starts with an empty schema registry.
+top to bottom in a fresh kernel and starts with a schema registry that holds only the built-in `Expressions.*`
+meta-schemas.
 
 `npm test` also runs every tutorial headless under Node, alongside the test suites, which keeps them in step with the
 code.

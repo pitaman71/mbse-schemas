@@ -2,6 +2,8 @@
 
 export * as Comparison from "./Comparison.js";
 export * as Errors from "./Errors.js";
+export * as Evaluators from "./Evaluators.js";
+export * as Expressions from "./Expressions.js";
 export * as JSON from "./JSON.js";
 export * as Plain from "./Plain.js";
 export * as Proxies from "./Proxies.js";

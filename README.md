@@ -140,7 +140,7 @@ typescript5/        TypeScript implementation: src/Framework, examples, tests an
 conformance/        snapshots each implementation writes; each must read the other's
 ```
 
-Tests are Jupyter notebooks, one suite per notebook. Both implementations have the same 131 cases under the same
+Tests are Jupyter notebooks, one suite per notebook. Both implementations have the same 148 cases under the same
 IDs, and both reach 100% code coverage (`uv run coverage ...` / `npm run coverage`; see `docs/EQUIVALENCE.md`).
 
 ## Status
@@ -151,13 +151,17 @@ The core is implemented in both languages:
 - reachability;
 - plain snapshots, JSON and YAML;
 - validation;
-- comparison under a schema.
+- comparison under a schema;
+- expressions: literals, operations, variables and lets, with builders and meta-schemas (so they serialize like any
+  data), written with method-chained terms;
+- evaluation of expressions (`Evaluators`), with three-valued logic.
 
 Designed but not built yet (see `docs/FRAMEWORK.md`):
-- expressions (union predicates and constraints such as "at least one");
+- the collection operations (`count`, `in`, `all`, `any`), which constraints such as "at least one" need;
+- union values, chosen by evaluating their discriminators;
 - mutations and transactions;
 - factories;
 - implicit singletons;
 - object deletion;
-- meta-schemas;
+- meta-schemas for schemas themselves;
 - generated bindings.

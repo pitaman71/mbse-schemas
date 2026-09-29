@@ -350,7 +350,7 @@ class OfObject:
 @dataclass(eq=False)
 class _BranchData:
     type: Any = None  # OfAny.Data
-    when: Any = None  # Expressions.OfAny.Data, once Expressions exists
+    when: Any = None  # Expressions.OfAny.Data (not imported: Expressions depends on Schemas)
 
 
 class _BranchBuilder(_Builder[_BranchData]):

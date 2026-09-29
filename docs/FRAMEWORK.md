@@ -180,6 +180,9 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   adjacency via that link, and `unique(...)` clauses over the entries seen. The validator is a visitor: objects write
   themselves into it through `accept`.
 
+- `Evaluators` : for each expression kind `OfX`, `Evaluators.OfX(expression, scope)` computes an expression's value.
+  See Expressions.
+
 - `Comparison` : for each schema element `OfX`, `Comparison.OfX` implements `Visitors.OfX`, records the value written
   into it, and compares it with another recording: `a.compare(b)` returns -1, 0, 1, or `None` when incomparable. See
   `EQUALITY.md`.
@@ -260,27 +263,72 @@ Mistakes in the calling program keep their usual classes, e.g. a root schema tha
 
 ## Expressions
 
-- `Expressions.OfAny` : generic expression
-- `Expressions.OfLiteral` : literal expression in native-language format; conversion to and from the over-the-wire format is the
-  responsibility of `Schemas.OfNative`
-- `Expressions.OfOperation` : function call over an initially open function vocabulary with string names
+- `Expressions.OfAny` : any expression
+- `Expressions.OfLiteral` : a native value; conversion to and from the over-the-wire format is the responsibility of
+  `Schemas.OfNative`
+- `Expressions.OfOperation` : a named operation applied to ordered arguments, over an open vocabulary of string names
+- `Expressions.OfVariable` : the value bound to a name
+- `Expressions.OfLet` : binds a name to the value of one expression within another, its body; nest lets for several
+  names
 
 Every binding must implement a core vocabulary of operations. The core vocabulary is chosen so that any core expression
 can also be interpreted as a constraint (e.g. by a solver or as a SystemVerilog constraint): operations are pure,
 deterministic, and total, with no side effects or unbounded iteration.
 
-- Literals and property/path access
-- Comparison: `eq`, `ne`, `lt`, `le`, `gt`, `ge`
-- Boolean: `and`, `or`, `not`, `implies`
-- Kind/type test: `is`
-- Presence test: `has` (whether an optional property is present)
-- Arithmetic: `add`, `sub`, `mul`, `neg`
-- Collections: `count`, `in`, and bounded quantifiers `all` / `any` over an object's adjacency entries
+| Group | Operations (arguments) |
+|---|---|
+| Access | `get(object, name)`: a property's value, unknown if absent; `has(object, name)`: whether it is present |
+| Comparison | `eq`, `ne`, `lt`, `le`, `gt`, `ge` (2) |
+| Boolean | `and`, `or`, `implies` (2), `not` (1) |
+| Arithmetic | `add`, `sub`, `mul` (2), `neg` (1) |
+| Collections (not built yet) | `count`, `in`, and bounded quantifiers `all` / `any` over an object's adjacency entries |
 
-Union discriminator predicates must use only the core vocabulary. Operation names outside it are extensions that a binding may
-or may not support.
+Union discriminator predicates must use only the core vocabulary. Operation names outside it are extensions that a
+binding may or may not support. A union is discriminated by a tag property compared with a fixed value, e.g.
+`eq(get(this, 'kind'), 'cat')`, where `this` is the value tested.
 
-Expressions are serializable and therefore follow the `Expressions.X.Data` `Expressions.X.Schema` `Expressions.X.Builder` format.
+Evaluation is the concern of `Evaluators`: `Evaluators.OfAny(expression, scope)` binds the variables in `scope` and
+returns a native value, an object, or unknown (`None`), and `Evaluators.OfLiteral`, `OfOperation`, `OfVariable` and
+`OfLet` evaluate one kind, each accepting that kind's `Spec`:
+
+- Three-valued logic: an absent property is unknown, and comparisons with unknown or incomparable values are unknown.
+  `and`, `or`, `not` and `implies` follow Kleene's logic (`False and unknown` is `False`); the second operand is
+  evaluated only when the first does not decide.
+- No coercion. Comparisons follow `EQUALITY.md`: natives of one type by value, objects by identity; values of different
+  types are incomparable (`lt(1, 1.5)` is unknown), and only `int`, `float`, `str` and `bytes` are ordered. Arithmetic
+  takes numbers of one type (`add(1, 1.5)` is an error).
+- Unknown operations, wrong numbers of arguments, unbound variables and wrong operand types raise.
+
+`validate(bound=(), core=False)` reports statically what evaluation would raise: missing names and values, non-native
+literals, cycles (shared sub-expressions are not cycles), wrong numbers of arguments to core operations, variables not
+bound by an enclosing let or in `bound`, and, with `core`, operations outside the core vocabulary.
+
+Expressions are serializable and therefore follow the `Expressions.X.Data` `Expressions.X.Schema` `Expressions.X.Builder`
+format:
+
+- `Data` is `Visitable`. Builders follow the builder pattern (`create()` / `clone()` / `update()`, none validate) and
+  implement `Visitors.OfObject`, which is how `Expressions.Builders` rebuilds expressions from snapshots.
+- The meta-schemas are ordinary object schemas. Each declares `kind`, a tag with a fixed value (`literal`, `operation`,
+  `variable`, `let`); `OfAny.Schema` is their union, discriminated by `eq(get(this, 'kind'), ...)`. A literal's schema
+  declares one optional property per native type (`int`, `float`, `str`, `bool`, `bytes`), of which a literal sets
+  exactly one. Operations, variables and lets declare `name`. Operations and lets declare the adjacency `arguments` to
+  `Expressions.Arguments`, a relation linking a `parent` to an `argument` with an `index` and `unique(argument)`; a
+  let's value is its argument 0 and its body its argument 1. Every kind declares `used_by`, the same relation seen from
+  the argument, which the arguments imply: data never writes it, and builders ignore it.
+- The meta-schemas are registered with `Proxies` as `Expressions.OfLiteral`, `Expressions.OfOperation`,
+  `Expressions.OfVariable`, `Expressions.OfLet` and `Expressions.Arguments`, so snapshots, validation and comparison
+  work on expressions as on any objects. Proxies can build them too (as proxies), which then also write `used_by`.
+
+`Term`s write expressions with methods; they build data and evaluate nothing. `.name` reads a property (`get`), and
+methods build the operations: `.eq(x)` ... `.ge(x)`, `.and_(x)`, `.or_(x)`, `.not_()`, `.implies(x)`, `.add(x)`,
+`.sub(x)`, `.mul(x)`, `.neg()`, `.has(name)`, `.get(name)`. `variable(name)`, `literal(value)`, `let_(name, value,
+body)` and `operation(name, *arguments)` start terms, and a term is accepted wherever an `Expressions.OfAny.Spec` is:
+
+```python
+this = Expressions.variable('this')
+adult = this.age.ge(18).and_(this.has('email'))
+Evaluators.OfAny(adult, {'this': ann})   # True, False, or None when age is absent
+```
 
 ## Language bindings
 
@@ -300,7 +348,7 @@ here:
 | Keyword arguments | `ToJSON(..., indent=2)` | options objects: `ToJSON(..., { indent: 2 })` |
 | Dynamic proxies | `__getattr__` | `Proxy`; JavaScript protocol probes (`then`, `toJSON`, symbols) are not schema lookups |
 | Object identity | `id(self)` | a counter, never reused |
-| Incomparable (`Comparison`) | `None` | `null` |
+| Incomparable (`Comparison`), unknown (`Evaluators`) | `None` | `null` |
 | JSON | `json` with strict options | own reader and writer reproducing Python's output; ints and floats kept distinct |
 | YAML | PyYAML (optional extra), YAML 1.2 core loader | `yaml` package loader, own block emitter; the same quoting rules |
 
@@ -319,7 +367,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   deserialization reject them instead of leaving it to validation?
 
 - `Factories.Directory` global singleton: namespacing/versioning of global names, collision policy, and isolation for tests.
-- Core expression vocabulary above is a proposal; confirm the exact set.
+- Core expression vocabulary above is a proposal; confirm the exact set, and specify the collection operations
+  (`count`, `in`, `all`, `any`).
 - Where constraints are attached to a schema (e.g. an `OfObject`- or `OfRelation`-level list of expressions) and how
   they are declared in the builder DSL.
 - Equality edge cases listed in `EQUALITY.md` are proposals; confirm them. In particular, fixed width and signedness for
@@ -367,6 +416,14 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Union discriminators are serializable expressions, not lambdas; the branch is the first matching predicate in
   declaration order.
 - `OfNative` wire conversion (including for `Expressions.OfLiteral`) belongs to `Schemas.OfNative`.
+- Expressions are `Expressions.OfAny`, `OfLiteral`, `OfOperation`, `OfVariable` and `OfLet`, each with `Data`,
+  `Builder`, `Spec` and a meta-schema `Schema` that is an ordinary registered object schema tagged by `kind`. Arguments
+  are an ordered relation (`index`, `unique(argument)`); a literal's schema has one property per native type.
+- There is no `is` operation: unions discriminate by a tag property compared with a fixed value.
+- Evaluation is its own module, `Evaluators`, with one entry point per expression kind (`Evaluators.OfAny`, ...).
+- Evaluation is three-valued (Kleene), never coerces, and reads properties with `get(object, name)`; variables are
+  bound by `OfLet` or by the caller's scope. `Term`s write expressions with methods only (no operator overloading), so
+  both bindings read the same.
 - Builder finalization is `create()` / `clone()` / `update()`; none validate.
 - Validation, including well-formedness, runs only when the caller invokes it.
 - `Schemas.OfX.Schema` is the meta-schema for `Schemas.OfX.Data`.

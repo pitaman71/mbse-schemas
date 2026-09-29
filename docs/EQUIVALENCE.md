@@ -23,7 +23,7 @@
 
 | Check | Where |
 |---|---|
-| Every test case exists in both implementations, same ID, same order (131 cases, 13 suites) | `python3/tests/*.ipynb`, `typescript5/tests/*.ipynb` |
+| Every test case exists in both implementations, same ID, same order (148 cases, 15 suites) | `python3/tests/*.ipynb`, `typescript5/tests/*.ipynb` |
 | Messages are byte-identical | cases that assert exact messages, e.g. SCH-12, SCH-13, PLN-11 (26 malformed snapshots), VAL-03, VAL-06 |
 | Decoding errors: same class, reason and location | shared tables embedded verbatim in both suites: JSN-09 (62 JSON inputs), YML-06 (48 YAML inputs); PLN-11, PLN-12 (paths) |
 | JSON is byte-identical; YAML and JSON are interchangeable | the CONF suite over the shared corpus in `conformance/` |
@@ -33,9 +33,9 @@
 | Full code coverage in both | the coverage gates below |
 | The TypeScript core runs without Node (browsers, Deno) and still produces the identical corpus | `tsconfig.core.json`, `npm run portability` (see the TypeScript test plan) |
 
-The corpus (`python3/mbse_schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`) builds five cases
+The corpus (`python3/mbse_schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`) builds six cases
 statement for statement: an address book, native edge values, a family with a cycle and a self-loop, a three-link
-relation, and strings that YAML readers misread. See `conformance/README.md`.
+relation, strings that YAML readers misread, and an expression. See `conformance/README.md`.
 
 Run everything:
 
@@ -51,7 +51,7 @@ Run everything:
 | Tool | coverage.py, branch mode, subprocesses measured (`[tool.coverage]` in `pyproject.toml`) | c8 (`.c8rc.json`, all files under `src/Framework`) |
 | Command | `uv run coverage run -m pytest && uv run coverage combine && uv run coverage report` | `npm run coverage` |
 | Gate | `fail_under = 100` | `--check-coverage --100` |
-| Result | 100% statements (1900), 100% branches (562) | 100% statements (3918), branches (1738), functions (539), lines |
+| Result | 100% statements (2563), 100% branches (782) | 100% statements (5073), branches (2255), functions (713), lines |
 
 The counts differ because the tools count differently (V8 counts `??`, `?.` and each `case` as branches), not because
 the code differs. Coverage was made equal by the same means in both:
@@ -95,7 +95,9 @@ noticed.
 | Byte-like subclass named in errors | `bytearray` | `Buffer` | the nearest analogues | PRX-17 |
 | `Proxies.OfObject.Builder` | a class | a function returning the builder; `Proxies.OfObject.Data` is the class | builders are `Proxy` objects | PRX-16 |
 | Objects without a class | none | `Object.create(null)` is named `object` | JavaScript-only | TXT-03 |
-| Incomparable (`Comparison`) | `None` | `null` | the respective "no value" | CMP-01..12 |
+| Incomparable (`Comparison`), unknown (`Evaluators`) | `None` | `null` | the respective "no value" | CMP-01..12, EVL-01..06 |
+| Evaluation scope and validation options | `Evaluators.OfAny(e, {"this": x})`, `validate(bound={"this"}, core=True)` | `Evaluators.OfAny(e, { this: x })`, `validate({ bound: ["this"], core: true })` | no keyword arguments; object literals are the idiom | EXP-10, EVL-01, EVL-04, EVL-06 |
+| Names on a `Term` that are not properties | names starting with `_` (Python's own probes) | `then`, `toJSON` and symbols (JavaScript's own probes) | each language probes objects with its own names | EXP-11 |
 | Typing of the proxy DSL | untyped, like all Python | proxy builders and instances are typed loosely (`any` by name), so callbacks given to them are annotated `(x: any)`; schema builders and visitor handles are fully typed | the names come from schemas at runtime; per-schema types are the job of generated bindings | all proxy cases |
 | Test runner | pytest + nbmake | `tests/run-notebooks.ts` | no maintained TypeScript kernel is required to run headless | all |
 

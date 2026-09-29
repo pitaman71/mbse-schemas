@@ -11,6 +11,7 @@ Each implementation builds the same corpus of schemas and objects, statement for
 | `family` | a relation between objects of the same schema, a cycle, a self-loop |
 | `enrollment` | a three-link relation with int, float and bool entry properties |
 | `yaml_strings` | strings that YAML readers misread, Unicode line breaks, long text |
+| `expression` | an expression through its tagged meta-schemas: every kind and literal type, a let, shared variables, an extension operation; rebuilt with `Expressions.Builders` |
 
 The CONF test suite in each implementation checks that:
 

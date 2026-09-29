@@ -236,7 +236,8 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
 - `Plain` : for each schema element `OfX`, `Plain.ToPlain.OfX` and `Plain.FromPlain.OfX` implement `Visitors.OfX` and
   convert between values and plain data (dicts, lists, strings, numbers, booleans, null). `Plain.ToPlain(schema, value)`
   and `Plain.FromPlain(builders)(schema, plain)` dispatch on the schema's kind. `Schemas.OfNative` converts natives to forms plain
-  data can hold (e.g. `bytes`), so text encodings never handle that themselves. An object's plain form includes its
+  data can hold (`bytes` as base64 text; non-finite floats as the strings `NaN`, `Infinity`, `-Infinity`), so text
+  encodings never handle that themselves. An object's plain form includes its
   adjacencies; linked objects appear as transaction symbol references, not nested content. Deserializing a snapshot
   that references an object it does not contain is an error.
   An object snapshot is `{"root": symbol, "objects": {symbol: object}}`. Each object maps property names to plain
@@ -245,12 +246,14 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
   assigned in the order objects are first referenced. `Plain.ToPlain.OfObject` includes only the root, so its references
   are unresolved; `Plain.ToPlain.Reachable` includes every object reachable through adjacencies. An entry appears under
   each object it links; on deserialization the duplicate is elided.
-- `JSON` : for each schema element `OfX`, `JSON.ToJSON.OfX` implements `Visitors.OfX` and when called, serializes the data structure to a JSON representation. `JSON.FromJSON.OfX` implements `Visitors.OfX` and when called, deserializes the data structure from a JSON representation.
-  Both take the schema explicitly: `JSON.ToJSON(schema, value)` and `JSON.FromJSON(schema, json)`. The top-level
-  `JSON.ToJSON` / `JSON.FromJSON` dispatch on the schema's kind, e.g. `JSON.ToJSON(IntlAddress, addr1)` is equivalent to
-  `JSON.ToJSON.OfObject(IntlAddress, addr1)`. Serializing a value this way produces a snapshot, not a transaction.
-  An object's serialized form includes its adjacencies; linked objects appear as symbol references, not nested content.
-- `YAML` : similar to JSON
+- `JSON` : `JSON.ToJSON(schema, value)` returns JSON text and `JSON.FromJSON(builders)(schema, text)` rebuilds values;
+  both mirror `Plain` (`.OfNative`, `.OfObject`, `.Reachable`). Output is strict JSON (RFC 8259) with key order kept;
+  input with NaN / Infinity literals or duplicate keys is rejected.
+- `YAML` : `YAML.ToYAML` / `YAML.FromYAML(builders)`, mirroring `JSON`. Requires PyYAML (the `yaml` extra), imported
+  only when used. Loading follows the YAML 1.2 core schema rather than PyYAML's YAML 1.1 defaults: only `true` /
+  `false` are booleans, `010` is ten, `1:30` and unquoted dates are strings. Duplicate keys, multiple documents,
+  non-string keys and non-plain values (e.g. `!!binary`, `!!set`) are rejected. Dumping quotes any string a YAML 1.1
+  or 1.2 reader would misread and never emits aliases.
 - JSON and YAML are thin text encodings of `Plain` data.
 
 ## Expressions
@@ -367,9 +370,12 @@ Expressions are serializable and therefore follow the `Expressions.X.Data` `Expr
   Reading a property that is not set raises an error.
 - Instance setters take a `Spec`: `.street1('foo')` is equivalent to `.street1(lambda v: v.set('foo'))`.
 - A property is cleared with `.street2(lambda v: v.clear())`.
+- JSON and YAML are implemented as `JSON.ToJSON` / `JSON.FromJSON(builders)` and `YAML.ToYAML` /
+  `YAML.FromYAML(builders)`; YAML loads with the YAML 1.2 core schema.
+- Non-finite floats are plain strings `NaN`, `Infinity`, `-Infinity`, so JSON output stays strict.
 - Serialization goes through one plain-data form, `Plain.ToPlain(schema, value)` / `Plain.FromPlain(builders)(schema, plain)`;
   JSON and YAML are thin text encodings of it.
-- `JSON.ToJSON(schema, value)` / `JSON.FromJSON(schema, json)` take the schema explicitly, dispatch on its kind
+- `JSON.ToJSON(schema, value)` / `JSON.FromJSON(builders)(schema, text)` take the schema explicitly, dispatch on its kind
   (equivalent to `JSON.ToJSON.OfX(...)`), and produce/consume a snapshot.
 - Sub-structure arguments throughout the builder pattern are `Spec`s: a direct value, or a callable that takes and returns
   the corresponding builder (e.g. `of(...)` takes `Schemas.OfAny.Spec`; `as_native` takes `Schemas.OfNative.Spec`).

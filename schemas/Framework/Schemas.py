@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import copy
 import dataclasses
+import math
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar
@@ -100,10 +101,15 @@ class _NativeData:
         return []
 
     def to_plain(self, value: Native) -> int | float | str | bool:
-        """Converts a native value to plain data. `bytes` become base64 text."""
+        """Converts a native value to plain data that every text encoding can hold: `bytes` become base64 text, and
+        non-finite floats become the strings 'NaN', 'Infinity' and '-Infinity'."""
         if type(value) is not self.type:
             raise TypeError(f"expected {self.type.__name__}, got {type(value).__name__}")
-        return base64.b64encode(value).decode("ascii") if isinstance(value, bytes) else value
+        if isinstance(value, bytes):
+            return base64.b64encode(value).decode("ascii")
+        if isinstance(value, float) and not math.isfinite(value):
+            return "NaN" if math.isnan(value) else "Infinity" if value > 0 else "-Infinity"
+        return value
 
     def from_plain(self, plain: object) -> Native:
         """Converts plain data back to a native value. Distinct native types are never coerced into each other."""
@@ -111,9 +117,16 @@ class _NativeData:
             if not isinstance(plain, str):
                 raise TypeError(f"expected base64 text for bytes, got {type(plain).__name__}")
             return base64.b64decode(plain, validate=True)
+        if self.type is float and isinstance(plain, str):
+            if plain not in _NON_FINITE:
+                raise ValueError(f"expected a float or one of {sorted(_NON_FINITE)}, got {plain!r}")
+            return _NON_FINITE[plain]
         if type(plain) is not self.type:
             raise TypeError(f"expected {self.type.__name__}, got {type(plain).__name__}")
         return plain
+
+
+_NON_FINITE = {"NaN": math.nan, "Infinity": math.inf, "-Infinity": -math.inf}
 
 
 class _NativeBuilder(_Builder[_NativeData]):

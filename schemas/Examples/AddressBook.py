@@ -2,7 +2,7 @@
 #
 # Lines marked PROPOSED use syntax that Framework.md does not define yet.
 
-from schemas.Framework import Schemas, Proxies, Plain
+from schemas.Framework import Schemas, Proxies, Plain, JSON
 
 # --- Schemas ---
 
@@ -204,3 +204,9 @@ graph = Plain.ToPlain.Reachable(IntlAddress, addr1)
 roundtrip = Plain.FromPlain(Proxies.Builders).Reachable(IntlAddress, graph)
 assert roundtrip is not addr1
 assert Plain.ToPlain.Reachable(IntlAddress, roundtrip) == graph
+
+# The same snapshot as JSON text, and back.
+text = JSON.ToJSON.Reachable(IntlAddress, addr1, indent=2)
+from_json = JSON.FromJSON(Proxies.Builders).Reachable(IntlAddress, text)
+assert from_json is not addr1 and from_json.street1 == addr1.street1
+assert JSON.loads(text) == graph

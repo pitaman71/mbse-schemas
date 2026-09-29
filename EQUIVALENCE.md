@@ -141,5 +141,6 @@ When changing behavior:
    `uv run python -m schemas.Conformance.write` and `npm run conformance`. CONF-02 fails until the JSON matches.
 4. If a language forces a difference, add it to the table above and to both test plans, with the cases that assert
    it. Differences not listed here are bugs.
-5. Run both suites under their coverage gates. A new gap is closed in both suites under the same ID, or by removing the
+5. Run both suites under their coverage gates, the TypeScript one on every supported Node version (`nvm use 22`,
+   `24`, `26`). A new gap is closed in both suites under the same ID, or by removing the
    unreachable code from both.

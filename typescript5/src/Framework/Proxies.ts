@@ -201,8 +201,10 @@ class ObjectTarget {
   }
 
   [inspect.custom](): string {
-    const values = [...this.values].map(([k, v]) => `${k}: ${repr(v)}`).join(", ");
-    return `<${this.schemaName} proxy #${this.id}${values ? " " + values : ""}>`;
+    // Node calls this with the proxy as `this` (whose names are schema properties), so read the target's own state.
+    const t = instanceTargets.get(this as unknown as object) as ObjectTarget; // instances are only reached as proxies
+    const values = [...t.values].map(([k, v]) => `${k}: ${repr(v)}`).join(", ");
+    return `<${t.schemaName} proxy #${t.id}${values ? " " + values : ""}>`;
   }
 }
 

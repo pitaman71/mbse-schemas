@@ -9,6 +9,7 @@ suites, the same case IDs in the same order, the same assertions, except for the
 
 ```sh
 cd typescript5
+nvm use                                   # Node 24 from ../.nvmrc; package.json requires >= 22
 npm install
 npm test                                  # type-checks everything, then runs every notebook under tests/ headless
 npx tsx tests/run-notebooks.ts tests/05_Plain.ipynb
@@ -37,7 +38,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 |---|---|---|---|
 | `01_Schemas.ipynb` | SCH | 17 | as in Python; native tokens are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` |
 | `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length` |
-| `03_Proxies.ipynb` | PRX | 17 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances and the registry |
+| `03_Proxies.ipynb` | PRX | 17 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances and the registry, and `util.inspect` of instances and builders |
 | `04_Reachable.ipynb` | RCH | 10 | as in Python |
 | `05_Plain.ipynb` | PLN | 16 | as in Python; the same 26 malformed snapshots with byte-identical `DecodeError` paths and reasons |
 | `06_JSON.ipynb` | JSN | 11 | as in Python, including Python's exact output format; the 62-row JSN-09 table of `DecodeError`s is shared verbatim and matches exactly |
@@ -80,6 +81,14 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 The findings F1–F15 are shared with Python (see `python3/tests/TestPlan.md`). F1 (NEL) and F14 (single-letter YAML
 1.1 booleans) never occurred here: the TypeScript YAML emitter was written with both rules. F15 (a shadowed recorder
 method) was the Python bug found while porting; VIS-06 checks it in both implementations.
+
+The supported Node versions (22, 24, 26 at the time of writing) are each run through `npm run coverage`: tests and
+coverage must pass on every one, since coverage that happens incidentally can differ between versions. Doing so found
+one TypeScript-only bug:
+
+| ID | Finding | Status | Cases |
+|---|---|---|---|
+| F16 | Inspecting an instance (`console.log`, `util.inspect`) threw `AttributeError: values` on Node 22, which calls the inspect hook with the proxy as `this`; later versions only reached the hook incidentally | Fixed: the hook reads the target's state | PRX-02 |
 
 ## Not testable yet
 

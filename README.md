@@ -1,12 +1,15 @@
 # mbse-schemas
 
-`mbse-schemas` takes the graph-shaped modeling of
-[ORMs](https://en.wikipedia.org/wiki/Object%E2%80%93relational_mapping) and
-[MBSE](https://en.wikipedia.org/wiki/Model-based_systems_engineering) and packages it as a small, portable library.
-Objects link through relationships whose entries carry their own properties, like UML association classes or join
-tables with columns, and cardinality is declared. That one schema value drives in-memory objects, JSON and YAML,
-validation and, eventually, generated bindings for languages from Python and TypeScript to C++ and SystemVerilog. You
-don't need a database, a modeling editor or a separate IDL compiler.
+`mbse-schemas` takes the graph-shaped modeling of [ORMs][orm] and [MBSE][mbse] and packages it as a portable library.
+
+A schema is an ordinary value built with a fluent DSL, not a class. Objects link through relationships whose entries
+carry their own properties, like UML association classes or join tables with columns, and cardinality is declared.
+That one schema value drives in-memory objects, JSON and YAML, validation and, eventually, generated bindings for
+languages from Python and TypeScript to C++ and SystemVerilog. You don't need a database, a modeling editor or a
+separate IDL compiler.
+
+[orm]: https://en.wikipedia.org/wiki/Object%E2%80%93relational_mapping
+[mbse]: https://en.wikipedia.org/wiki/Model-based_systems_engineering
 
 ## A quick look
 
@@ -18,8 +21,8 @@ description everywhere:
 - to validate them
 - to generate idiomatic, performant interface bindings for many programming languages (planned)
 
-A schema is an ordinary value built with a small fluent DSL, not a class. Two implementations exist, in Python and TypeScript. They have the same API and the same error messages, and they write byte-identical JSON. The TypeScript
-core runs in Node, in browsers and in Deno.
+Two implementations exist, in Python and TypeScript. They have the same API and the same error messages, and they
+write byte-identical JSON. The TypeScript core runs in Node, in browsers and in Deno.
 
 ```python
 from mbse_schemas.Framework import JSON, Proxies, Schemas, Validators

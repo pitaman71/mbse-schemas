@@ -1,0 +1,602 @@
+root: s0
+objects:
+  s0:
+    title: tricky
+    notes:
+    - note:
+        $ref: s1
+        $schema: Note
+      page: 0
+    - note:
+        $ref: s2
+        $schema: Note
+      page: 1
+    - note:
+        $ref: s3
+        $schema: Note
+      page: 2
+    - note:
+        $ref: s4
+        $schema: Note
+      page: 3
+    - note:
+        $ref: s5
+        $schema: Note
+      page: 4
+    - note:
+        $ref: s6
+        $schema: Note
+      page: 5
+    - note:
+        $ref: s7
+        $schema: Note
+      page: 6
+    - note:
+        $ref: s8
+        $schema: Note
+      page: 7
+    - note:
+        $ref: s9
+        $schema: Note
+      page: 8
+    - note:
+        $ref: s10
+        $schema: Note
+      page: 9
+    - note:
+        $ref: s11
+        $schema: Note
+      page: 10
+    - note:
+        $ref: s12
+        $schema: Note
+      page: 11
+    - note:
+        $ref: s13
+        $schema: Note
+      page: 12
+    - note:
+        $ref: s14
+        $schema: Note
+      page: 13
+    - note:
+        $ref: s15
+        $schema: Note
+      page: 14
+    - note:
+        $ref: s16
+        $schema: Note
+      page: 15
+    - note:
+        $ref: s17
+        $schema: Note
+      page: 16
+    - note:
+        $ref: s18
+        $schema: Note
+      page: 17
+    - note:
+        $ref: s19
+        $schema: Note
+      page: 18
+    - note:
+        $ref: s20
+        $schema: Note
+      page: 19
+    - note:
+        $ref: s21
+        $schema: Note
+      page: 20
+    - note:
+        $ref: s22
+        $schema: Note
+      page: 21
+    - note:
+        $ref: s23
+        $schema: Note
+      page: 22
+    - note:
+        $ref: s24
+        $schema: Note
+      page: 23
+    - note:
+        $ref: s25
+        $schema: Note
+      page: 24
+    - note:
+        $ref: s26
+        $schema: Note
+      page: 25
+    - note:
+        $ref: s27
+        $schema: Note
+      page: 26
+    - note:
+        $ref: s28
+        $schema: Note
+      page: 27
+    - note:
+        $ref: s29
+        $schema: Note
+      page: 28
+    - note:
+        $ref: s30
+        $schema: Note
+      page: 29
+    - note:
+        $ref: s31
+        $schema: Note
+      page: 30
+    - note:
+        $ref: s32
+        $schema: Note
+      page: 31
+    - note:
+        $ref: s33
+        $schema: Note
+      page: 32
+    - note:
+        $ref: s34
+        $schema: Note
+      page: 33
+    - note:
+        $ref: s35
+        $schema: Note
+      page: 34
+    - note:
+        $ref: s36
+        $schema: Note
+      page: 35
+    - note:
+        $ref: s37
+        $schema: Note
+      page: 36
+    - note:
+        $ref: s38
+        $schema: Note
+      page: 37
+    - note:
+        $ref: s39
+        $schema: Note
+      page: 38
+    - note:
+        $ref: s40
+        $schema: Note
+      page: 39
+    - note:
+        $ref: s41
+        $schema: Note
+      page: 40
+    - note:
+        $ref: s42
+        $schema: Note
+      page: 41
+    - note:
+        $ref: s43
+        $schema: Note
+      page: 42
+    - note:
+        $ref: s44
+        $schema: Note
+      page: 43
+    - note:
+        $ref: s45
+        $schema: Note
+      page: 44
+    - note:
+        $ref: s46
+        $schema: Note
+      page: 45
+    - note:
+        $ref: s47
+        $schema: Note
+      page: 46
+    - note:
+        $ref: s48
+        $schema: Note
+      page: 47
+    - note:
+        $ref: s49
+        $schema: Note
+      page: 48
+    - note:
+        $ref: s50
+        $schema: Note
+      page: 49
+    - note:
+        $ref: s51
+        $schema: Note
+      page: 50
+    - note:
+        $ref: s52
+        $schema: Note
+      page: 51
+    - note:
+        $ref: s53
+        $schema: Note
+      page: 52
+    - note:
+        $ref: s54
+        $schema: Note
+      page: 53
+  s1:
+    text: 'yes'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 0
+  s2:
+    text: 'No'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 1
+  s3:
+    text: 'on'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 2
+  s4:
+    text: 'OFF'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 3
+  s5:
+    text: 'y'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 4
+  s6:
+    text: 'true'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 5
+  s7:
+    text: 'null'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 6
+  s8:
+    text: '~'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 7
+  s9:
+    text: ''
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 8
+  s10:
+    text: '010'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 9
+  s11:
+    text: '0o17'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 10
+  s12:
+    text: '0x1F'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 11
+  s13:
+    text: '1e3'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 12
+  s14:
+    text: '1_000'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 13
+  s15:
+    text: '1:30'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 14
+  s16:
+    text: '2026-09-01'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 15
+  s17:
+    text: '.inf'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 16
+  s18:
+    text: '.nan'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 17
+  s19:
+    text: NaN
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 18
+  s20:
+    text: Infinity
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 19
+  s21:
+    text: '-0.0'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 20
+  s22:
+    text: '+1'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 21
+  s23:
+    text: ' lead'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 22
+  s24:
+    text: 'trail '
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 23
+  s25:
+    text: 'a: b'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 24
+  s26:
+    text: '- dash'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 25
+  s27:
+    text: '#hash'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 26
+  s28:
+    text: 'x #y'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 27
+  s29:
+    text: '"dq"'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 28
+  s30:
+    text: '''sq'''
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 29
+  s31:
+    text: '@at'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 30
+  s32:
+    text: '`tick'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 31
+  s33:
+    text: '%pct'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 32
+  s34:
+    text: '!bang'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 33
+  s35:
+    text: '&amp'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 34
+  s36:
+    text: '*star'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 35
+  s37:
+    text: '|'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 36
+  s38:
+    text: '>'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 37
+  s39:
+    text: '{}'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 38
+  s40:
+    text: '[]'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 39
+  s41:
+    text: ','
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 40
+  s42:
+    text: '?'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 41
+  s43:
+    text: '<<'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 42
+  s44:
+    text: '---'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 43
+  s45:
+    text: '...'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 44
+  s46:
+    text: 'a
+
+      b'
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 45
+  s47:
+    text: "\t"
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 46
+  s48:
+    text: "\0"
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 47
+  s49:
+    text: "\a\x7F\x9B"
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 48
+  s50:
+    text: "\uFEFFbom"
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 49
+  s51:
+    text: "a\Nb"
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 50
+  s52:
+    text: "a\Lb"
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 51
+  s53:
+    text: 日本語 🚀
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 52
+  s54:
+    text: 'word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word '
+    notebooks:
+    - notebook:
+        $ref: s0
+        $schema: Notebook
+      page: 53

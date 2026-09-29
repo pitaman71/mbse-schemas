@@ -1,0 +1,55 @@
+root: s0
+objects:
+  s0:
+    given_name: Alice
+    family_name: Liddell
+    birth_date: '1852-05-04'
+    addresses:
+    - address:
+        $ref: s1
+        $schema: Address
+      label: home
+    phones:
+    - phone:
+        $ref: s2
+        $schema: Phone
+      label: mobile
+    - phone:
+        $ref: s3
+        $schema: Phone
+      label: work
+  s1:
+    street1: '10 Downing Street'
+    locality: London
+    postal_code: SW1A 2AA
+    country_code: GB
+    contacts:
+    - contact:
+        $ref: s0
+        $schema: Contact
+      label: home
+    - contact:
+        $ref: s4
+        $schema: Contact
+      label: home
+  s2:
+    number: '+447700900123'
+    contacts:
+    - contact:
+        $ref: s0
+        $schema: Contact
+      label: mobile
+  s3:
+    number: '+14155550100'
+    contacts:
+    - contact:
+        $ref: s0
+        $schema: Contact
+      label: work
+  s4:
+    given_name: Bob
+    addresses:
+    - address:
+        $ref: s1
+        $schema: Address
+      label: home

@@ -1,7 +1,9 @@
 # Test plan — python3
 
 Scope: everything implemented under `python3/schemas/Framework` (Schemas, Visitors, Proxies, Reachable, Plain, JSON,
-YAML, Validators) and the examples under `python3/schemas/Examples`. The design reference is `Framework.md`.
+YAML, Validators), the examples under `python3/schemas/Examples`, and cross-implementation conformance with
+`typescript5`. The design reference is `../../Framework.md`; the TypeScript test plan (`typescript5/tests/TestPlan.md`)
+mirrors this one case for case.
 
 ## Running
 
@@ -10,6 +12,7 @@ cd python3
 uv sync --all-extras          # project env with the yaml extra and the dev group (pytest, nbmake, hypothesis, ipykernel)
 uv run pytest                 # runs every notebook under tests/ headless (nbmake)
 uv run pytest tests/05_Plain.ipynb
+uv run python -m schemas.Conformance.write   # regenerate ../conformance/python3 after a deliberate change
 ```
 
 Notebooks are committed without outputs. Open them in an IDE or Jupyter with the project's `.venv` as the kernel to
@@ -34,17 +37,18 @@ read or step through them.
 | Notebook | Suite | Cases | Focus |
 |---|---|---|---|
 | `01_Schemas.ipynb` | SCH | 16 | Native validity and equality; `Spec` resolution (types, callables, data, bad returns, bare classes); strict `to_plain`/`from_plain` in both directions incl. subclasses; strict base64; the three non-finite float strings; `OfAny.Builder` selection and create/clone/update; value kinds only in `OfAny`; finalization rules for every builder; container copies vs shared references; `OfObject`/`OfRelation`/`OfAdjacency`/`OfUnion`/`OfIntersection` validation matrices |
-| `02_Visitors.ipynb` | VIS | 5 | Protocol declarations; every implementation (Proxies, Plain, Reachable, Validators) conforms with matching arity; proxies are `Visitable`, not visitors; chaining returns `self`; unimplemented kinds raise |
+| `02_Visitors.ipynb` | VIS | 6 | Protocol declarations; every implementation (Proxies, Plain, Reachable, Validators) conforms with matching arity; proxies are `Visitable`, not visitors; chaining returns `self`; unimplemented kinds raise; live instances conform (no attribute shadows a method) |
 | `03_Proxies.ipynb` | PRX | 15 | Registry (duplicates, unknown names, relations, non-identifier names, lookups); read-only instances and unset properties; setter `Spec`s; reserved-name collisions; create/clone/update incl. builder reuse; no native validation in builders; entries seen from every end; set semantics (absent, -0.0, NaN, int vs bool); schema inference through links (ambiguous, none, unique); nested inline creation per finalize; removal and exact write-back; concurrent builders; clone of entries and self-loops; self-relations; the builder's visitor API |
 | `04_Reachable.ipynb` | RCH | 10 | Lone object; breadth-first first-reference order; cycles, self-loops, diamonds; multi-link entries and ignored properties; identity-based sameness; root first; 20,000-node chain without recursion; errors from `accept` propagate; collector refusals; components from every member |
 | `05_Plain.ipynb` | PLN | 15 | Native entry points; exact snapshot format; schema-ordered properties and relation-ordered entry fields; symbol order; single-object vs reachable scope; round trips without duplicated entries; edge values; symbol renumbering on round trip; root schema and type checks; serializing fakes; 24 malformed snapshots each rejected with a precise message; disagreeing ends; type errors; rejection builds nothing; only injected builders are used |
 | `06_JSON.ipynb` | JSN | 8 | No NaN/Infinity output; rejection of constants, duplicate keys and syntax errors; str/UTF-8/16/32/BOM inputs; key order, non-ASCII, indentation; integers of any size, exact floats, every string; lone surrogates; top-level natives; agreement with Plain and graph round trips |
-| `07_YAML.ipynb` | YML | 11 | YAML 1.2 core scalar resolution (54 forms); 55 misreadable strings read back by our loader and stock YAML 1.1; Unicode line breaks; long and whitespace-heavy strings; numeric fidelity and non-finite floats; rejection (duplicates, documents, key types, tags, syntax); accepted anchors/aliases, merge key as plain key, empty documents; no aliases on output; hand-written snapshots; agreement with Plain; behavior without PyYAML |
+| `07_YAML.ipynb` | YML | 12 | YAML 1.2 core scalar resolution (54 forms); 55 misreadable strings read back by our loader and stock YAML 1.1; YAML 1.1 single-letter booleans quoted; Unicode line breaks; long and whitespace-heavy strings; numeric fidelity and non-finite floats; rejection (duplicates, documents, key types, tags, syntax); accepted anchors/aliases, merge key as plain key, empty documents; no aliases on output; hand-written snapshots; agreement with Plain; behavior without PyYAML |
 | `08_Validators.ipynb` | VAL | 12 | Natives; valid data; property types with paths; entry property types, unknown names, missing links, wrong-schema targets; checks on reached objects; `unique` semantics incl. absent, -0.0, NaN; clauses over links, empty, and everything; schema problems once; root schema mismatch; component-scoped uniqueness; validation changes nothing |
 | `09_Properties.ipynb` | PROP | 5 | For all natives: exact round trip through Plain, JSON, YAML; lone surrogates; mismatched types always rejected. For random graphs (1–6 nodes, 0–10 entries, random optional values incl. NaN, -0.0, surrogates, bytes): validity, reachability equals the independently computed component, snapshot scope, round trips through all three encodings. Entry-set cardinality equals distinct entries under schema equality |
 | `10_Examples.ipynb` | EX | 1 | Every example module exits cleanly in its own process |
+| `11_Conformance.ipynb` | CONF | 4 | This implementation's corpus files are current; JSON is byte-identical to TypeScript's for every case; every implementation's YAML reads back to the same snapshot, also under YAML 1.1; every implementation's JSON and YAML deserialize with Python's builders to the same graphs and validate |
 
-Total: 98 cases.
+Total: 104 cases, with the same IDs in the same order as the TypeScript suites.
 
 ## Coverage of Framework.md
 
@@ -71,6 +75,7 @@ Total: 98 cases.
 | Strict JSON | JSN-01..03 |
 | YAML 1.2 loading, safe dumping, rejection rules | YML-01..08 |
 | Validation only on request, with the documented checks | VAL-01..12, PRX-06 |
+| Language independence: identical snapshots and interchangeable text across implementations | CONF-01..04 |
 
 ## Findings
 
@@ -89,6 +94,8 @@ Total: 98 cases.
 | F11 | YAML keys that are collections (`? [a]`) crashed with `TypeError` | Fixed: rejected as non-string keys | YML-06 |
 | F12 | `identity()` is `id(self)`: objects not alive at the same time may share an identity | Pinned; safe for serialization, which compares live objects only | PRX-02 |
 | F13 | Snapshots whose two ends disagree are accepted and restore the union of entries | Pinned; validation is the place to catch it | PLN-11b |
+| F14 | YAML: `y`, `Y`, `n`, `N` were written unquoted; the YAML 1.1 specification makes them booleans (PyYAML's resolver omits them), so a spec-compliant 1.1 reader misread them. Found by CONF-03 against the TypeScript suite's 1.1 reader | Fixed: quoted | YML-02b, CONF-03 |
+| F15 | `Validators`: the recorder's `adjacencies` attribute shadowed its `adjacencies()` visitor method on every instance; VIS-02 checked classes only. Found while porting | Fixed: renamed the attribute | VIS-06 |
 
 ## Not testable yet (specified in Framework.md, not implemented)
 

@@ -31,3 +31,6 @@ dist/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# TypeScript test build output
+typescript5/tests/.build/

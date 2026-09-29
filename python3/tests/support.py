@@ -131,3 +131,12 @@ def conformance_problems(implementation: type, protocol: type) -> list[str]:
                 f"{implementation.__name__}.{name}{actual} does not match {protocol.__name__}.{name}{expected}"
             )
     return problems
+
+
+def instance_problems(instance: Any, protocol: type) -> list[str]:
+    """The conformance check on a live instance: catches instance attributes that shadow protocol methods."""
+    return [
+        f"{type(instance).__name__} instance: {protocol.__name__}.{name} is not callable"
+        for name in protocol_methods(protocol)
+        if not callable(getattr(instance, name, None))
+    ]

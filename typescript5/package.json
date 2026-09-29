@@ -1,0 +1,25 @@
+{
+  "name": "schemas",
+  "version": "0.0.1",
+  "description": "Language-independent schema type algebra with an in-language DSL (TypeScript implementation)",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx tests/run-notebooks.ts --typecheck",
+    "conformance": "tsx src/Conformance/write.ts",
+    "example": "tsx"
+  },
+  "dependencies": {
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "fast-check": "^4.10.2",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}

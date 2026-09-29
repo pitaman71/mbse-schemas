@@ -151,7 +151,7 @@ Anonymous sub-schemas are created inline by passing a lambda that receives a bui
 `prop.name('street1').of(lambda t: t.as_native(str))`, where `t` is a `Schemas.OfAny.Builder`. The lambda only
 configures the builder; it is not part of the resulting schema, which stays serializable.
 
-Instances of a user schema follow the same pattern. With the dynamic (proxy) implementation (see `schemas/Examples/AddressBook.py`):
+Instances of a user schema follow the same pattern. With the dynamic (proxy) implementation (see `python3/schemas/Examples/AddressBook.py` and `typescript5/src/Examples/AddressBook.ts`):
 
 - `Proxies.register('Name', schema)` registers a schema under a global name. The name is a string, so it need not be a
   valid identifier in any host language (e.g. dotted or versioned names).
@@ -280,13 +280,34 @@ or may not support.
 
 Expressions are serializable and therefore follow the `Expressions.X.Data` `Expressions.X.Schema` `Expressions.X.Builder` format.
 
+## Language bindings
+
+Two implementations exist: `python3/` and `typescript5/`. Their APIs use the same names (snake_case included), the
+same error classes and messages, and produce byte-identical JSON; a shared conformance corpus (`conformance/`) checks
+that each reads the other's JSON and YAML back to the same graphs. Where a language forces a difference, it is fixed
+here:
+
+| Concept | Python | TypeScript |
+|---|---|---|
+| Native types (`OfNative` tokens) | `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` |
+| Native values | `int`, `float`, `str`, `bool`, `bytes` | `bigint`, `number`, `string`, `boolean`, `Uint8Array` |
+| Plain mappings | `dict` | `Map<string, PlainData>` (order-preserving for every key) |
+| Schema data equality | `==` | `.equals()` |
+| Errors | built-in `TypeError`, `ValueError`, `AttributeError`, `KeyError`, `LookupError`, `NotImplementedError` | built-in `TypeError`; the others exported from `Errors`, with the same names |
+| Callable entry points | `Plain.ToPlain(...)`, `Plain.FromPlain(builders)(...)` (objects with `__call__`) | functions with the per-kind forms attached |
+| Keyword arguments | `ToJSON(..., indent=2)` | options objects: `ToJSON(..., { indent: 2 })` |
+| Dynamic proxies | `__getattr__` | `Proxy`; JavaScript protocol probes (`then`, `toJSON`, symbols) are not schema lookups |
+| Object identity | `id(self)` | a counter, never reused |
+| JSON | `json` with strict options | own reader and writer reproducing Python's output; ints and floats kept distinct |
+| YAML | PyYAML (optional extra), YAML 1.2 core loader | `yaml` package loader, own block emitter; the same quoting rules |
+
 ## Open questions
 
-Findings from the test plan (`tests/TestPlan.md`) that need a design decision:
+Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/TestPlan.md`) that need a design decision:
 
 - Reserved names (F2): property and adjacency names that collide with binding members (e.g. `create`, `accept`, or
-  names starting with `_` in Python) cannot be set through the DSL or read as attributes, and `validate()` accepts
-  them. Should schemas reject names that any target language reserves, or should bindings rename them?
+  names starting with `_` in Python; `constructor`, `toString`, `then` in JavaScript) cannot be set through the DSL or
+  read as attributes in some bindings, and `validate()` accepts them. Should schemas reject names that any target language reserves, or should bindings rename them?
 - Concurrent builders (F4): two builders over the same object each hold a copy; the last `update()` wins and drops
   entries the other added. Is that the intended semantics of `update()`?
 - Cloning self-loops (F5): `clone()` copies entries with the clone in place of the source, so a self-loop's clone
@@ -392,6 +413,8 @@ Findings from the test plan (`tests/TestPlan.md`) that need a design decision:
 - Sub-structure arguments throughout the builder pattern are `Spec`s: a direct value, or a callable that takes and returns
   the corresponding builder (e.g. `of(...)` takes `Schemas.OfAny.Spec`; `as_native` takes `Schemas.OfNative.Spec`).
 - Both in-memory objects and mutations are serializable, so JSON/YAML cover both.
+- Implementations are equivalent: same API names and messages, byte-identical JSON, and a shared conformance corpus
+  checked by each implementation's CONF suite (see Language bindings).
 - Data is validated by `Validators.Validate(registry)`, only when the caller asks; builders do not validate.
 - `Plain.FromPlain` is constructed with the builders of the implementation to build with, e.g.
   `Plain.FromPlain(Proxies.Builders)(schema, plain)`.

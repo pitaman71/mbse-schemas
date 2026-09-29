@@ -1,0 +1,33 @@
+root: s0
+objects:
+  s0:
+    given_name: Ada
+    birth_date: '1815-12-10'
+    children:
+    - child:
+        $ref: s1
+        $schema: Person
+      kind: biological
+    mentees:
+    - mentee:
+        $ref: s1
+        $schema: Person
+    mentors:
+    - mentor:
+        $ref: s1
+        $schema: Person
+  s1:
+    given_name: Bob
+    parents:
+    - parent:
+        $ref: s0
+        $schema: Person
+      kind: biological
+    mentees:
+    - mentee:
+        $ref: s0
+        $schema: Person
+    mentors:
+    - mentor:
+        $ref: s0
+        $schema: Person

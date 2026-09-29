@@ -1,0 +1,139 @@
+{
+  "root": "s0",
+  "objects": {
+    "s0": {
+      "name": "Mia",
+      "enrollments": [
+        {
+          "course": {
+            "$ref": "s1",
+            "$schema": "Course"
+          },
+          "term": {
+            "$ref": "s2",
+            "$schema": "Term"
+          },
+          "credits": 4,
+          "score": 3.75,
+          "audit": false
+        },
+        {
+          "course": {
+            "$ref": "s3",
+            "$schema": "Course"
+          },
+          "term": {
+            "$ref": "s2",
+            "$schema": "Term"
+          },
+          "credits": 3,
+          "score": -0.0
+        }
+      ]
+    },
+    "s1": {
+      "code": "CS101",
+      "enrollments": [
+        {
+          "student": {
+            "$ref": "s0",
+            "$schema": "Student"
+          },
+          "term": {
+            "$ref": "s2",
+            "$schema": "Term"
+          },
+          "credits": 4,
+          "score": 3.75,
+          "audit": false
+        },
+        {
+          "student": {
+            "$ref": "s4",
+            "$schema": "Student"
+          },
+          "term": {
+            "$ref": "s2",
+            "$schema": "Term"
+          },
+          "audit": true
+        }
+      ]
+    },
+    "s2": {
+      "code": "2026-FA",
+      "starts": "2026-09-01",
+      "enrollments": [
+        {
+          "student": {
+            "$ref": "s0",
+            "$schema": "Student"
+          },
+          "course": {
+            "$ref": "s1",
+            "$schema": "Course"
+          },
+          "credits": 4,
+          "score": 3.75,
+          "audit": false
+        },
+        {
+          "student": {
+            "$ref": "s0",
+            "$schema": "Student"
+          },
+          "course": {
+            "$ref": "s3",
+            "$schema": "Course"
+          },
+          "credits": 3,
+          "score": -0.0
+        },
+        {
+          "student": {
+            "$ref": "s4",
+            "$schema": "Student"
+          },
+          "course": {
+            "$ref": "s1",
+            "$schema": "Course"
+          },
+          "audit": true
+        }
+      ]
+    },
+    "s3": {
+      "code": "MA201",
+      "enrollments": [
+        {
+          "student": {
+            "$ref": "s0",
+            "$schema": "Student"
+          },
+          "term": {
+            "$ref": "s2",
+            "$schema": "Term"
+          },
+          "credits": 3,
+          "score": -0.0
+        }
+      ]
+    },
+    "s4": {
+      "name": "Noah",
+      "enrollments": [
+        {
+          "course": {
+            "$ref": "s1",
+            "$schema": "Course"
+          },
+          "term": {
+            "$ref": "s2",
+            "$schema": "Term"
+          },
+          "audit": true
+        }
+      ]
+    }
+  }
+}

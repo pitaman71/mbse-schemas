@@ -89,6 +89,8 @@ def _yaml() -> tuple[Any, type, type]:
         Loader.add_implicit_resolver(tag, re.compile(pattern), first)
         # The dumper keeps PyYAML's YAML 1.1 resolvers and adds the 1.2 ones, so a string either would misread is quoted.
         Dumper.add_implicit_resolver(tag, re.compile(pattern), first)
+    # The YAML 1.1 specification also makes y / Y / n / N booleans, which PyYAML's own resolver omits; quote them too.
+    Dumper.add_implicit_resolver("tag:yaml.org,2002:bool", re.compile(r"^(?:y|Y|n|N)$"), list("yYnN"))
 
     return yaml, Loader, Dumper
 

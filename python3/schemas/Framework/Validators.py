@@ -157,7 +157,7 @@ class _ObjectRecord:
 
     def __init__(self) -> None:
         self.values: dict[str, Any] = {}
-        self.adjacencies: dict[str, list[_EntryRecord]] = {}
+        self.adjacency_entries: dict[str, list[_EntryRecord]] = {}
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _ObjectRecord:
         for name in list(self.values):
@@ -176,12 +176,12 @@ class _ObjectRecord:
         return self
 
     def adjacencies(self, callback: Callable[[Visitors.OfAdjacency], Any]) -> _ObjectRecord:
-        for name in self.adjacencies:
-            callback(_AdjacencyRecord(name, self.adjacencies[name]))
+        for name in self.adjacency_entries:
+            callback(_AdjacencyRecord(name, self.adjacency_entries[name]))
         return self
 
     def adjacency(self, name: str, callback: Callable[[Visitors.OfAdjacency], Any]) -> _ObjectRecord:
-        callback(_AdjacencyRecord(name, self.adjacencies.setdefault(name, [])))
+        callback(_AdjacencyRecord(name, self.adjacency_entries.setdefault(name, [])))
         return self
 
 
@@ -246,7 +246,7 @@ class _Check:
             problem = _native_problem(schema.properties[name], item)
             if problem:
                 self.problems.append(f"{label}.{name}: {problem}")
-        for name, entries in record.adjacencies.items():
+        for name, entries in record.adjacency_entries.items():
             if name not in schema.adjacencies:
                 self.problems.append(f"{label}.{name}: not an adjacency of {value.schema_name()!r}")
                 continue

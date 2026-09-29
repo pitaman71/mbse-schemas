@@ -149,11 +149,10 @@ def _read(name: str, target: Any, property_name: Any) -> Any:
         return None
     if not _is_object(target):
         raise TypeError(f"{name} expects an object, got {_type_name(target)}")
-    record = Validators._ObjectRecord()
-    target.accept(record)
+    values = Validators.properties_of(target)
     if name == "has":
-        return property_name in record.values
-    return record.values.get(property_name)
+        return property_name in values
+    return values.get(property_name)
 
 
 def _compare(a: Native, b: Native) -> Comparison.Result:

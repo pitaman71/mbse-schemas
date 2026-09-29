@@ -152,10 +152,9 @@ function read(name: string, target: unknown, propertyName: unknown): unknown {
   }
   if (target === null) return null;
   if (!isObject(target)) throw new TypeError(`${name} expects an object, got ${typeName(target)}`);
-  const record = new Validators._ObjectRecord();
-  target.accept(record);
-  if (name === "has") return record.values.has(propertyName);
-  return record.values.get(propertyName) ?? null;
+  const values = Validators.properties_of(target);
+  if (name === "has") return values.has(propertyName);
+  return values.get(propertyName) ?? null;
 }
 
 function compare(a: Native, b: Native): Comparison.Result {

@@ -22,7 +22,7 @@ from typing import Any, Protocol
 from . import Reachable, Schemas, Visitors
 from .Visitors import Native
 
-__all__ = ["Registry", "Validate"]
+__all__ = ["Registry", "Validate", "properties_of"]
 
 
 class Registry(Protocol):
@@ -297,7 +297,16 @@ class _Check:
                         break
 
 
-# --- Entry point ---
+# --- Entry points ---
+
+
+def properties_of(value: Visitors.Visitable) -> dict[str, Any]:
+    """The property values `value` writes when visited, by name; absent properties are left out. It reads through the
+    visitor protocols, so it works for any `Visitable`."""
+    record = _ObjectRecord()
+    value.accept(record)
+    return dict(record.values)
+
 
 
 class Validate:

@@ -140,7 +140,7 @@ typescript5/        TypeScript implementation: src/Framework, examples, tests an
 conformance/        snapshots each implementation writes; each must read the other's
 ```
 
-Tests are Jupyter notebooks, one suite per notebook. Both implementations have the same 149 cases under the same
+Tests are Jupyter notebooks, one suite per notebook. Both implementations have the same 150 cases under the same
 IDs, and both reach 100% code coverage (`uv run coverage ...` / `npm run coverage`; see `docs/EQUIVALENCE.md`).
 
 ## Status

@@ -178,7 +178,8 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   `Proxies.Builders`), and runs only when the caller asks. It checks the schemas' own `validate()`, exact native types
   of properties and entry properties, that every link is set and filled by an object whose schema declares an
   adjacency via that link, and `unique(...)` clauses over the entries seen. The validator is a visitor: objects write
-  themselves into it through `accept`.
+  themselves into it through `accept`. `Validators.properties_of(value)` returns the property values any object writes when
+  visited, for other modules and packages that read objects (e.g. `Evaluators`).
 
 - `Evaluators` : for each expression kind `OfX`, `Evaluators.OfX(expression, scope)` computes an expression's value.
   See Expressions.

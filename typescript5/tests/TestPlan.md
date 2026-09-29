@@ -45,7 +45,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `05_Plain.ipynb` | PLN | 16 | as in Python; the same 26 malformed snapshots with byte-identical `DecodeError` paths and reasons |
 | `06_JSON.ipynb` | JSN | 11 | as in Python, including Python's exact output format; the 62-row JSN-09 table of `DecodeError`s is shared verbatim and matches exactly |
 | `07_YAML.ipynb` | YML | 14 | as in Python; the `yaml` package in YAML 1.1 mode is the "stock 1.1 reader"; the shared YML-06 table matches exactly, syntax errors (YML-06b) carry the `yaml` package's reasons |
-| `08_Validators.ipynb` | VAL | 13 | as in Python, with byte-identical problem messages |
+| `08_Validators.ipynb` | VAL | 14 | as in Python, with byte-identical problem messages |
 | `09_Properties.ipynb` | PROP | 5 | as in Python, with fast-check |
 | `10_Examples.ipynb` | EX | 1 | every example exits cleanly in its own process |
 | `11_Conformance.ipynb` | CONF | 4 | as in Python, from this side |
@@ -54,7 +54,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `14_Expressions.ipynb` | EXP | 12 | as in Python; validation options are an object literal, and a term's probes are JavaScript's (`then`, `toJSON`, symbols); EXP-12 asserts there is no `from_` |
 | `15_Evaluators.ipynb` | EVL | 6 | as in Python; evaluation scopes are object literals |
 
-Total: 149 cases, with the same IDs in the same order as the Python suites.
+Total: 150 cases, with the same IDs in the same order as the Python suites.
 
 ## Language differences
 
@@ -82,6 +82,7 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | Objects without a class | none | `Object.create(null)` is named `object` | TXT-03 |
 | Incomparable, unknown | `None` | `null` | CMP-01..12, EVL-01..06 |
 | Evaluation scope, validation options | `{"this": x}`, keywords | `{ this: x }`, an options object | EXP-10, EVL-01, EVL-04, EVL-06 |
+| Message text helpers | built in | `Repr` exported | TXT-01..04 |
 | Expressions from functions | `Expressions.from_` | none | EXP-12 |
 | A term's non-property names | `_`-prefixed | `then`, `toJSON`, symbols | EXP-11 |
 

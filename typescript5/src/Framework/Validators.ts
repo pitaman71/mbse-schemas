@@ -321,6 +321,14 @@ class Check {
 
 // --- Entry point ---
 
+/** The property values `value` writes when visited, by name; absent properties are left out. It reads through the
+ * visitor protocols, so it works for any `Visitable`. */
+export function properties_of(value: Visitable): Map<string, unknown> {
+  const record = new _ObjectRecord();
+  value.accept(record);
+  return new Map(record.values);
+}
+
 export interface ValidateCall {
   (schema: unknown, value: unknown): string[];
   OfNative(schema: Schemas.OfNative.Data, value: unknown): string[];

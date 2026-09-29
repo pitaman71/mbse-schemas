@@ -2,7 +2,7 @@
 #
 # Nothing here builds instances; it exercises Schemas.OfX.Builder and Schemas.OfX.Data.validate().
 
-from mbse_schemas.Framework import Schemas
+from mbse_schemas.Framework import Expressions, Schemas
 from mbse_schemas.Examples._support import raises
 
 # --- Spec forms ---
@@ -155,7 +155,8 @@ assert Registry.singleton == 'iso3166.Registry' and Registry.validate() == []
 
 # --- Unions and intersections (schema level) ---
 #
-# Discriminator predicates are serializable expressions; Expressions is not implemented yet, so these are placeholders.
+# Discriminator predicates are serializable expressions, here read from lambdas; `this` is the value being tested.
+# Choosing a branch by evaluating them is not built yet.
 
 Phone = Schemas.OfObject.Builder().properties(lambda prop: prop.name('number').of(Text)).create()
 Email = Schemas.OfObject.Builder().properties(lambda prop: prop.name('address').of(Text)).create()
@@ -163,8 +164,8 @@ Email = Schemas.OfObject.Builder().properties(lambda prop: prop.name('address').
 ContactMethod = (
     Schemas.OfUnion.Builder()
     .branches(
-        lambda b: b.of(Phone).when(('has', 'number')),
-        lambda b: b.of(Email).when(('has', 'address')),
+        lambda b: b.of(Phone).when(Expressions.from_(lambda this: this.number is not None).data),
+        lambda b: b.of(Email).when(Expressions.from_(lambda this: this.address is not None).data),
     )
     .create()
 )

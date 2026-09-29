@@ -1,4 +1,4 @@
-# schemas (TypeScript)
+# mbse-schemas (TypeScript)
 
 TypeScript implementation of the schemas framework, equivalent to `../python3`. The core (`src/Framework`) uses no
 Node APIs, so it runs in Node, browsers and Deno. New to the framework? Start with the tutorial,

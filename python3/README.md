@@ -1,4 +1,4 @@
-# schemas (Python)
+# mbse-schemas (Python)
 
 Python implementation of the schemas framework. The design is in [`../Framework.md`](../Framework.md); the test plan is
 in [`tests/TestPlan.md`](tests/TestPlan.md). New to the framework? Start with the tutorial,

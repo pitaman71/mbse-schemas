@@ -1,5 +1,5 @@
 {
-  "name": "schemas",
+  "name": "mbse-schemas",
   "version": "0.0.1",
   "description": "Language-independent schema type algebra with an in-language DSL (TypeScript implementation)",
   "type": "module",

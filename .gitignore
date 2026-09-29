@@ -1,7 +1,30 @@
+# OS and editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Python (python3/)
 __pycache__/
 *.py[cod]
 *.egg-info/
-build/
-dist/
 .venv/
 venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# TypeScript (typescript5/)
+node_modules/
+*.tsbuildinfo
+coverage/
+.npm/
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Build output (both)
+build/
+dist/

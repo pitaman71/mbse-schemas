@@ -3,7 +3,7 @@
 # Covers self-relations, several relations between the same pair of objects, multiple owners, cycles, a self-loop,
 # duplicate elision, entries that differ only by a property, entry removal, clone() copying entries, and round trips.
 
-from schemas.Framework import Schemas, Proxies, Plain, Reachable
+from schemas.Framework import Schemas, Proxies, Plain, Reachable, Validators
 from schemas.Examples._support import entries, raises, same_graph
 
 # --- Schemas ---
@@ -141,6 +141,11 @@ with raises(ValueError):
     Builders.Person().parents(lambda x: x.kind('biological')).create()  # the 'parent' link is never set
 with raises(TypeError):
     Builders.Person().parents(x=ada)  # an adjacency takes an entry Spec
+
+# --- Validation ---
+
+# Cycles, a self-loop, and several relations between the same people are all valid.
+assert Validators.Validate(Proxies.Builders).Reachable(Person, ada) == []
 
 # --- Round trips, from any root ---
 

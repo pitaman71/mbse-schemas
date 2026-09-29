@@ -5,7 +5,7 @@
 
 import math
 
-from schemas.Framework import Schemas, Proxies, Plain, Reachable
+from schemas.Framework import Schemas, Proxies, Plain, Reachable, Validators
 from schemas.Examples._support import entries, raises, same_graph
 
 
@@ -135,6 +135,27 @@ with raises(TypeError):
 with raises(TypeError):
     Plain.ToPlain.Reachable(Term, fall)
 
+# Validation reports it, only when asked, with a path to the value.
+validate = Validators.Validate(Proxies.Builders)
+assert validate(Student, zoe) == [
+    'Student#0.enrollments[1].credits: expected int, got bool',
+    # Her two enrollments also share (student, course, term), which Enrollment's unique(...) clause forbids.
+    "unique(audit, credits, score) violated: entries agreeing on ['course', 'student', 'term'] differ on "
+    "['audit', 'credits', 'score']",
+]
+
+# Noah's three enrollments share (student, course, term), which Enrollment's unique(...) clause says determine the rest.
+assert any(p.startswith('unique(audit, credits, score) violated') for p in validate(Student, noah))
+
+# A linked object must have a schema that fills that link: here a Student is linked as a course.
+Builders.Student(noah).enrollments(lambda x: x.course(mia).term(fall)).update()
+assert any("a 'Student' cannot fill link 'course'" in p for p in validate(Student, noah))
+Builders.Student(noah).adjacency(
+    'enrollments', lambda a: a.entries(lambda e: e.link('course', lambda k: k.target(
+        lambda t: a.remove(e) if t is mia else None)))
+).update()
+assert not any('cannot fill' in p for p in validate(Student, noah))
+
 # Remove the bad entry so the rest of the example can serialize.
 Builders.Student(zoe).adjacency(
     'enrollments', lambda a: a.entries(lambda e: a.remove(e) if type(credits_of(e)) is bool else None)
@@ -171,6 +192,10 @@ for root, schema in [(fall, Term), (mia, Student), (noah, Student)]:
     graph = Plain.ToPlain.Reachable(schema, root)
     restored = Plain.FromPlain(Proxies.Builders).Reachable(schema, graph)
     assert restored is not root and same_graph(Plain.ToPlain.Reachable(schema, restored), graph)
+
+# Apart from Noah's duplicate enrollments, the whole component is valid.
+problems = validate.Reachable(Term, fall)
+assert len(problems) == 1 and problems[0].startswith('unique('), problems
 
 # -0.0 keeps its sign through a round trip.
 scores = [e.get('score') for e in entries(Student, noah, 'enrollments')]

@@ -198,6 +198,14 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   The vocabulary for each kind is the obvious set for that kind (e.g. creating and deleting an `OfObject`, setting its
   properties, adding and removing `OfRelation` entries).
 
+- `Validators` : `Validators.Validate(registry)(schema, value)` checks data against its schema and returns a list of
+  problems, each with a path (e.g. `Student#0.enrollments[1].credits: expected int, got bool`). `.Reachable(schema, root)`
+  checks everything reachable from the root. It is constructed with a registry that looks schemas up by name (e.g.
+  `Proxies.Builders`), and runs only when the caller asks. It checks the schemas' own `validate()`, exact native types
+  of properties and entry properties, that every link is set and filled by an object whose schema declares an
+  adjacency via that link, and `unique(...)` clauses over the entries seen. The validator is a visitor: objects write
+  themselves into it through `accept`.
+
 ## Proxies
 
 - `Proxies` : for each schema element `OfX`, `Proxies.OfX.Data` defines how the schema can be stored in memory as schema-independent types, and `Proxies.OfX.Builder`, like every builder, implements `Visitors.OfX`. Proxies themselves do not implement `Visitors`; if they have an interface for traversal, it is `Visitable` (a proxy accepts a visitor), not `Visitor`. `Proxies.OfX.Builder.validate` can be used to check the current state of the configured item. Validation is never implicit: it runs only when the caller invokes it.
@@ -286,8 +294,9 @@ Expressions are serializable and therefore follow the `Expressions.X.Data` `Expr
   entry order within an adjacency depends on history, so a round trip can renumber symbols (see the `FamilyTree` and
   `University` examples, which compare snapshots up to renumbering). Full determinism would need a canonical entry
   order.
-- Data validation: `unique(...)` clauses and native types are declared in schemas but not checked against data.
-  Builders accept a wrong native type (serialization rejects it); nothing yet checks uniqueness over entries.
+- Uniqueness is global to a relation, but `Validators.Validate(...).Reachable` checks it only over the entries
+  reachable from what was validated. Entries in another component that share only property values can go unchecked.
+  Is a relation-wide check needed?
 - Is `Factories` an interface, with `Proxies` as its dynamic implementation and generated bindings as typed
   implementations of the same shape (`register`, `Builders.<Name>`)?
 - Builder syntax proposed by the draft `Schemas.py`, to confirm:
@@ -365,6 +374,7 @@ Expressions are serializable and therefore follow the `Expressions.X.Data` `Expr
 - Sub-structure arguments throughout the builder pattern are `Spec`s: a direct value, or a callable that takes and returns
   the corresponding builder (e.g. `of(...)` takes `Schemas.OfAny.Spec`; `as_native` takes `Schemas.OfNative.Spec`).
 - Both in-memory objects and mutations are serializable, so JSON/YAML cover both.
+- Data is validated by `Validators.Validate(registry)`, only when the caller asks; builders do not validate.
 - `Plain.FromPlain` is constructed with the builders of the implementation to build with, e.g.
   `Plain.FromPlain(Proxies.Builders)(schema, plain)`.
 - Reachability is its own visitor, `Reachable.of(root)`, which returns the root and every object reachable through

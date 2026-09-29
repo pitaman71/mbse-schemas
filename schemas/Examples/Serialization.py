@@ -5,7 +5,7 @@
 import json
 import math
 
-from schemas.Framework import Schemas, Proxies, Plain
+from schemas.Framework import Schemas, Proxies, Plain, Validators
 from schemas.Examples._support import entries, raises
 
 # --- Schemas ---
@@ -122,6 +122,12 @@ assert sloppy.count == '3'
 with raises(TypeError):
     Plain.ToPlain(Sample, sloppy)
 
+# Validation reports it without serializing.
+validate = Validators.Validate(Proxies.Builders)
+assert validate(Sample, sloppy) == ['Sample#0.count: expected int, got str']
+assert validate(Sample, edge) == [] and validate(Sample, blank) == []
+assert validate(Schemas.OfNative.Data(int), True) == ['expected int, got bool']
+
 # --- A map: product -> [currency] -> money ---
 
 jpy = getattr(Builders, 'iso4217.Currency')().code('JPY').numeric('392').minor_units(0).create()
@@ -143,6 +149,21 @@ schemas_named = {ref['$schema'] for obj in graph['objects'].values() for v in ob
 assert schemas_named == {'Product', 'Money', 'iso4217.Currency'}
 again = from_plain.Reachable(Product, json.loads(json.dumps(graph)))
 assert {e['currency']: e['price'].amount for e in entries(Product, again, 'prices')} == by_currency
+
+assert validate.Reachable(Product, widget) == []
+
+# unique('price') on Prices: (product, currency) determine the price. A second JPY price breaks it.
+gadget = (
+    Builders.Product()
+    .sku('G-1')
+    .prices(lambda x: x.price(lambda m: m.amount(900)).currency('JPY'))
+    .prices(lambda x: x.price(lambda m: m.amount(950)).currency('JPY'))
+    .create()
+)
+assert validate(Product, gadget) == ['unique(price) violated: entries agreeing on [\'currency\', \'product\'] differ on [\'price\']']
+
+# The root must be an instance of the schema given.
+assert validate(Currency, widget) != []
 
 # --- Malformed snapshots are rejected ---
 

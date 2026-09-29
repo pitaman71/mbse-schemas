@@ -256,6 +256,30 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
   or 1.2 reader would misread and never emits aliases.
 - JSON and YAML are thin text encodings of `Plain` data.
 
+### Decoding errors
+
+Every problem in the data being decoded raises `Errors.DecodeError`, a subclass of `ValueError`. This covers
+`JSON.loads`, `YAML.loads`, `Plain.FromPlain`, `JSON.FromJSON`, `YAML.FromYAML` and `Schemas.OfNative.Data.from_plain`.
+Mistakes in the calling program keep their usual classes, e.g. a root schema that is not an object schema raises
+`TypeError`.
+
+- `reason` is one line of text with no location in it.
+- The location is `line` and `column` for text (1-based, counted in code points), or `path` for plain data, e.g.
+  `$.objects.s0.addresses[1].label`. Keys that are not identifiers are written in brackets, as JSON strings:
+  `$.objects["my key"]`. A problem may have no location, e.g. undecodable bytes.
+- The message is `line 3, column 7: reason`, or `$.path: reason`, or just the reason.
+- If text has several problems, the first in the text is reported. A snapshot is checked in a fixed order that every
+  binding follows: its shape, then the references (inferring each object's schema), then each object's keys and
+  values in snapshot order, and last any object nothing references.
+- Nothing is built when a `DecodeError` is raised: a snapshot's shape, references and native values are all checked
+  before any builder is called.
+- Reasons and locations are identical in every binding, with one exception. For YAML syntax errors (and for
+  constructs that one parser accepts and another rejects), the reason text and location come from each binding's
+  parser. The framework's own YAML rules are identical: one document, string keys, no duplicate keys, no tags except
+  `!`, `!!str`, `!!seq` and `!!map`, and no undefined aliases.
+- Bytes are decoded as UTF-8, UTF-16 or UTF-32, detected as JSON specifies (RFC 8259 and its predecessors) for both
+  JSON and YAML input. Undecodable bytes give `input is not valid <encoding>`.
+
 ## Expressions
 
 - `Expressions.OfAny` : generic expression
@@ -293,7 +317,7 @@ here:
 | Native values | `int`, `float`, `str`, `bool`, `bytes` | `bigint`, `number`, `string`, `boolean`, `Uint8Array` |
 | Plain mappings | `dict` | `Map<string, PlainData>` (order-preserving for every key) |
 | Schema data equality | `==` | `.equals()` |
-| Errors | built-in `TypeError`, `ValueError`, `AttributeError`, `KeyError`, `LookupError`, `NotImplementedError` | built-in `TypeError`; the others exported from `Errors`, with the same names |
+| Errors | built-in `TypeError`, `ValueError`, `AttributeError`, `KeyError`, `LookupError`, `NotImplementedError`; `Errors.DecodeError` | built-in `TypeError`; the others and `DecodeError` exported from `Errors`, with the same names |
 | Callable entry points | `Plain.ToPlain(...)`, `Plain.FromPlain(builders)(...)` (objects with `__call__`) | functions with the per-kind forms attached |
 | Keyword arguments | `ToJSON(..., indent=2)` | options objects: `ToJSON(..., { indent: 2 })` |
 | Dynamic proxies | `__getattr__` | `Proxy`; JavaScript protocol probes (`then`, `toJSON`, symbols) are not schema lookups |
@@ -350,6 +374,11 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   may instances pass between them? Intended to be legal under controlled conditions, not yet specified.
 - Is "an owned child must be part of an ownership chain rooted in an object with a directory entry" still a
   well-formedness rule under symbol-based serialization?
+- Labeling objects outside snapshots: tools other than serializers (diffs, audit logs, debug dumps) have only
+  `identity()`, an opaque in-memory value (`id(self)` in Python), to name an object. Snapshots label objects with
+  symbols, but those are internal to a serialization. Should the framework expose a reusable, stable labeling, for
+  example the symbol numbering `Plain.ToPlain.Reachable` would assign, or a symbol table tools can share? Seen in the
+  tutorial's audit-log diff (`python3/tutorials/08_Tools_For_Every_Schema.ipynb`), which prints a raw object id.
 
 ### Resolved
 
@@ -416,6 +445,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Implementations are equivalent: same API names and messages, byte-identical JSON, and a shared conformance corpus
   checked by each implementation's CONF suite (see Language bindings).
 - Data is validated by `Validators.Validate(registry)`, only when the caller asks; builders do not validate.
+- Decoding errors are normalized: every problem in decoded data raises `Errors.DecodeError` (a `ValueError`) with a
+  one-line reason and a text or path location, identical across bindings except YAML syntax errors (see Decoding
+  errors).
 - `Plain.FromPlain` is constructed with the builders of the implementation to build with, e.g.
   `Plain.FromPlain(Proxies.Builders)(schema, plain)`.
 - Reachability is its own visitor, `Reachable.of(root)`, which returns the root and every object reachable through

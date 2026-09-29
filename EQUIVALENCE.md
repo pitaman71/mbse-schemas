@@ -23,8 +23,9 @@
 
 | Check | Where |
 |---|---|
-| Every test case exists in both implementations, same ID, same order (118 cases, 12 suites) | `python3/tests/*.ipynb`, `typescript5/tests/*.ipynb` |
-| Messages are byte-identical | cases that assert exact messages, e.g. SCH-12, SCH-13, PLN-11 (24 malformed snapshots), VAL-03, VAL-06 |
+| Every test case exists in both implementations, same ID, same order (119 cases, 12 suites) | `python3/tests/*.ipynb`, `typescript5/tests/*.ipynb` |
+| Messages are byte-identical | cases that assert exact messages, e.g. SCH-12, SCH-13, PLN-11 (26 malformed snapshots), VAL-03, VAL-06 |
+| Decoding errors: same class, reason and location | shared tables embedded verbatim in both suites: JSN-09 (62 JSON inputs), YML-06 (48 YAML inputs); PLN-11, PLN-12 (paths) |
 | JSON is byte-identical; YAML and JSON are interchangeable | the CONF suite over the shared corpus in `conformance/` |
 | Each corpus is current | CONF-01 |
 | API conformance to the visitor protocols, on classes and on live instances | VIS-02, VIS-06, VIS-07 |
@@ -49,7 +50,7 @@ Run everything:
 | Tool | coverage.py, branch mode, subprocesses measured (`[tool.coverage]` in `pyproject.toml`) | c8 (`.c8rc.json`, all files under `src/Framework`) |
 | Command | `uv run coverage run -m pytest && uv run coverage combine && uv run coverage report` | `npm run coverage` |
 | Gate | `fail_under = 100` | `--check-coverage --100` |
-| Result | 100% statements (1438), 100% branches (426) | 100% statements (3303), branches (1466), functions (460), lines |
+| Result | 100% statements (1678), 100% branches (502) | 100% statements (3482), branches (1540), functions (475), lines |
 
 The counts differ because the tools count differently (V8 counts `??`, `?.` and each `case` as branches), not because
 the code differs. Coverage was made equal by the same means in both:
@@ -87,7 +88,9 @@ noticed.
 | YAML formatting | PyYAML's layout | own block emitter; no line folding, no `...` after a top-level scalar | values are what must match | YML-04, YML-08, CONF-03 |
 | YAML dependency | optional extra, imported on first use | regular dependency | npm has no optional extras in the same sense | YML-11 |
 | Randomized tests | Hypothesis | fast-check, fixed seed | the respective standard tools | PROP-01..05 |
-| Decode errors for UTF-8/16 input | byte, position and reason | the same prefix (`'utf-8' codec can't decode`) without the detail | `TextDecoder` reports no position; UTF-32 is decoded by hand and matches exactly | JSN-09 |
+| YAML syntax errors | PyYAML's reason and position | the `yaml` package's reason and position | two parsers; the framework's own YAML rules are identical (YML-06) | YML-06b |
+| YAML the parsers disagree on | e.g. a document after `...` without `---` is a syntax error | the same input is two documents | YAML 1.1 and 1.2 parsers; both reject it, differently | YML-06b |
+| Reading JSON | `json` reads valid input; the reference parser (`JSON._Parser`) reads input `json` rejects, to report the problem | the reference parser reads all input | speed in Python; JSN-09 checks the reference parser reads valid input exactly as `json` | JSN-09 |
 | Byte-like subclass named in errors | `bytearray` | `Buffer` | the nearest analogues | PRX-17 |
 | `Proxies.OfObject.Builder` | a class | a function returning the builder; `Proxies.OfObject.Data` is the class | builders are `Proxy` objects | PRX-16 |
 | Objects without a class | none | `Object.create(null)` is named `object` | JavaScript-only | TXT-03 |
@@ -103,6 +106,17 @@ Porting and cross-checking found two bugs in the Python implementation, both fix
   Found by CONF-03 reading Python's YAML with a spec-compliant 1.1 reader; tested by YML-02b.
 - **F15:** in Python `Validators`, an instance attribute shadowed the recorder's `adjacencies()` method. Found while
   porting; tested by VIS-06.
+
+Normalizing decoding errors (see Framework.md, "Decoding errors") found more, all fixed and tested in both:
+
+- Python decoded JSON bytes with `surrogatepass`, accepting encoded lone surrogates that TypeScript's decoder
+  rejected, and TypeScript's UTF-32 decoder accepted surrogate code points. Both now decode strictly (JSN-09).
+- TypeScript's YAML parser accepted control characters that PyYAML rejects; both now reject them with PyYAML's
+  message (YML-06).
+- `FromPlain` converted native values while building, so a bad value in a later object left earlier objects built.
+  Values are now decoded while checking, before any builder is called (PLN-14).
+- A duplicate key written as an alias was located at the anchor in Python and at the alias in TypeScript; both now
+  locate keys where they are written (YML-06).
 
 Equalizing coverage found more differences, all fixed in the direction noted and tested in both:
 

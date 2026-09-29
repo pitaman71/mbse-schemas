@@ -19,7 +19,7 @@
  * constructed with the builders to build with, e.g. `FromPlain(Proxies.Builders)`.
  */
 
-import { AttributeError, KeyError, LookupError, NotImplementedError, ValueError } from "./Errors.js";
+import { AttributeError, DecodeError, KeyError, LookupError, NotImplementedError, path } from "./Errors.js";
 import * as Proxies from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
 import { repr, sortedStrings, typeName } from "./Repr.js";
@@ -298,48 +298,76 @@ function isRef(value: unknown): value is PlainMap {
     [...value.values()].every((v) => typeof v === "string");
 }
 
-function isContainer(value: unknown): boolean {
-  return Array.isArray(value) || value instanceof Map;
+/** A decoded link: the symbol of the target object. */
+class Link {
+  constructor(readonly symbol: string) {}
 }
 
-/** Checks a snapshot's shape against the schemas before anything is built. Returns (root, objects, schema names). */
-function check(builders: Builders, schema: unknown, plain: unknown): [string, Map<string, PlainMap>, Map<string, string>] {
+function decode(schema: Schemas.OfAny.Data, name: string, plain: unknown, where: string): Native {
+  if (!(schema instanceof Schemas.OfNative.Data)) {
+    throw new NotImplementedError(`property ${repr(name)}: only native values are supported by Plain yet`);
+  }
+  try {
+    return schema.from_plain(plain);
+  } catch (error) {
+    throw (error as DecodeError).at(where); // from_plain throws only DecodeError
+  }
+}
+
+/** Per object symbol: its decoded property values, and per adjacency its entries, each mapping links to `Link`s and
+ * properties to decoded values. */
+type Decoded = Map<string, [Map<string, Native>, Map<string, Map<string, Native | Link>[]>]>;
+
+/** Checks a snapshot against the schemas and decodes its values before anything is built. Returns the root symbol,
+ * each object's schema name, and the decoded objects. Problems in the snapshot throw `DecodeError`. */
+function check(builders: Builders, schema: unknown, plain: unknown): [string, Map<string, string>, Decoded] {
   if (!(schema instanceof Schemas.OfObject.Data)) {
     throw new TypeError(`the root schema must be an object schema, got ${schemaTypeName(schema)}`);
   }
   if (!(plain instanceof Map) || plain.size !== 2 || !plain.has("root") || !(plain.get("objects") instanceof Map)) {
-    throw new ValueError("expected an object snapshot: {'root': symbol, 'objects': {symbol: object}}");
+    throw new DecodeError("expected an object snapshot: {'root': symbol, 'objects': {symbol: object}}", { path: "$" });
   }
-  const root = plain.get("root") as string;
-  const objects = plain.get("objects") as Map<string, PlainMap>;
-  if (!objects.has(root)) throw new ValueError(`root ${repr(root)} is not in the snapshot`);
+  const root: unknown = plain.get("root");
+  const objects = plain.get("objects") as Map<string, unknown>;
+  if (typeof root !== "string" || !objects.has(root)) {
+    throw new DecodeError(`root ${repr(root)} is not in the snapshot's objects`, { path: "$.root" });
+  }
   for (const [symbol, obj] of objects) {
-    if (!(obj instanceof Map)) throw new ValueError(`object ${repr(symbol)} must be a mapping, got ${typeName(obj)}`);
+    if (!(obj instanceof Map)) {
+      throw new DecodeError(`an object must be a mapping, got ${typeName(obj)}`, { path: path("objects", symbol) });
+    }
   }
 
+  // Pass 1: infer each object's schema from the references to it.
   const names = new Map<string, string>([[root, builders.name_of(schema)]]);
-  for (const [symbol, obj] of objects) {
+  for (const [symbol, obj] of objects as Map<string, PlainMap>) {
     for (const [key, value] of obj) {
       if (!Array.isArray(value)) continue;
       value.forEach((entry, i) => {
         if (!(entry instanceof Map)) {
-          throw new ValueError(`${symbol}.${key}[${i}]: an entry must be a mapping, got ${typeName(entry)}`);
+          throw new DecodeError(`an entry must be a mapping, got ${typeName(entry)}`, { path: path("objects", symbol, key, i) });
         }
         for (const [name, ref] of entry) {
           if (!(ref instanceof Map)) continue;
-          if (!isRef(ref)) throw new ValueError(`${symbol}.${key}[${i}].${name}: a reference is {'$ref': symbol, '$schema': name}`);
+          const where = path("objects", symbol, key, i, name);
+          if (!isRef(ref)) throw new DecodeError("a reference is {'$ref': symbol, '$schema': name}", { path: where });
           const target = ref.get(REF) as string;
           const targetSchema = ref.get(SCHEMA) as string;
-          if (!objects.has(target)) throw new ValueError(`unresolved reference ${repr(target)}: the snapshot does not contain it`);
+          if (!objects.has(target)) {
+            throw new DecodeError(`unresolved reference ${repr(target)}: the snapshot does not contain it`, { path: where });
+          }
           if (!names.has(target)) names.set(target, targetSchema);
           if (names.get(target) !== targetSchema) {
-            throw new ValueError(`${repr(target)} is referenced as both ${repr(names.get(target))} and ${repr(targetSchema)}`);
+            throw new DecodeError(`${repr(target)} is referenced as both ${repr(names.get(target))} and ${repr(targetSchema)}`, { path: where });
           }
         }
       });
     }
   }
-  for (const [symbol, obj] of objects) {
+
+  // Pass 2: check every key against the schemas and decode the values.
+  const decoded: Decoded = new Map();
+  for (const [symbol, obj] of objects as Map<string, PlainMap>) {
     const name = names.get(symbol);
     if (name === undefined) continue;
     let objectSchema: Schemas.OfObject.Data;
@@ -347,43 +375,57 @@ function check(builders: Builders, schema: unknown, plain: unknown): [string, Ma
       objectSchema = builders.schema(name);
     } catch (error) {
       if (error instanceof AttributeError || error instanceof LookupError || error instanceof TypeError) {
-        throw new ValueError(`object ${repr(symbol)}: no object schema registered as ${repr(name)}`, { cause: error });
+        throw new DecodeError(`no object schema registered as ${repr(name)}`, { path: path("objects", symbol) });
       }
       throw error;
     }
+    const properties = new Map<string, Native>();
+    const adjacencies = new Map<string, Map<string, Native | Link>[]>();
     for (const [key, value] of obj) {
+      const where = path("objects", symbol, key);
       const adjacency = objectSchema.adjacencies.get(key);
+      const propertyType = objectSchema.properties.get(key);
       if (adjacency !== undefined) {
-        if (!Array.isArray(value)) throw new ValueError(`${symbol}.${key}: an adjacency must be a list of entries`);
+        if (!Array.isArray(value)) throw new DecodeError("an adjacency must be a list of entries", { path: where });
         const relation = adjacency.relation as Schemas.OfRelation.Data;
+        const rows: Map<string, Native | Link>[] = [];
+        adjacencies.set(key, rows);
         value.forEach((entry, i) => {
+          const row = new Map<string, Native | Link>();
           for (const [entryName, item] of entry as PlainMap) {
+            const at = path("objects", symbol, key, i, entryName);
+            const entryType = relation.properties.get(entryName);
             if (entryName === adjacency.me) {
-              throw new ValueError(`${symbol}.${key}[${i}]: ${repr(entryName)} is this object's own link, which is implied`);
+              throw new DecodeError(`${repr(entryName)} is this object's own link, which is implied`, { path: at });
             }
             if (relation.links.includes(entryName)) {
-              if (!isRef(item)) throw new ValueError(`${symbol}.${key}[${i}].${entryName}: a link must be a reference`);
-            } else if (relation.properties.has(entryName)) {
-              if (isContainer(item)) throw new ValueError(`${symbol}.${key}[${i}].${entryName}: a property must be a plain value`);
+              if (!isRef(item)) throw new DecodeError("a link must be a reference", { path: at });
+              row.set(entryName, new Link(item.get(REF) as string));
+            } else if (entryType !== undefined) {
+              row.set(entryName, decode(entryType, entryName, item, at));
             } else {
-              throw new ValueError(`${symbol}.${key}[${i}]: no link or property ${repr(entryName)}`);
+              throw new DecodeError(`the relation has no link or property ${repr(entryName)}`, { path: at });
             }
           }
           const missing = relation.links.filter((n) => n !== adjacency.me && !(entry as PlainMap).has(n));
-          if (missing.length > 0) throw new ValueError(`${symbol}.${key}[${i}]: links ${repr(missing)} are not set`);
+          if (missing.length > 0) {
+            throw new DecodeError(`links ${repr(missing)} are not set`, { path: path("objects", symbol, key, i) });
+          }
+          rows.push(row);
         });
-      } else if (objectSchema.properties.has(key)) {
-        if (isContainer(value)) throw new ValueError(`${symbol}.${key}: a property must be a plain value`);
+      } else if (propertyType !== undefined) {
+        properties.set(key, decode(propertyType, key, value, where));
       } else {
-        throw new ValueError(`${symbol}: ${repr(name)} has no property or adjacency ${repr(key)}`);
+        throw new DecodeError(`${repr(name)} has no property or adjacency ${repr(key)}`, { path: where });
       }
     }
+    decoded.set(symbol, [properties, adjacencies]);
   }
-  const unreached = [...objects.keys()].filter((symbol) => !names.has(symbol));
+  const unreached = sortedStrings([...objects.keys()].filter((symbol) => !names.has(symbol)));
   if (unreached.length > 0) {
-    throw new ValueError(`cannot infer schemas for objects nothing references: ${repr(sortedStrings(unreached))}`);
+    throw new DecodeError("nothing references this object, so its schema is unknown", { path: path("objects", unreached[0] as string) });
   }
-  return [root, objects, names];
+  return [root, names, decoded];
 }
 
 type BuilderLike = {
@@ -401,55 +443,36 @@ function builderFor(builders: Builders, name: string, instance?: unknown): Build
 
 /** Rebuilds objects from an object snapshot using `builders`. Every reference must resolve within the snapshot. */
 function restore(builders: Builders, schema: Schemas.OfObject.Data, plain: unknown): unknown {
-  const [root, objects, names] = check(builders, schema, plain);
+  const [root, names, decoded] = check(builders, schema, plain);
 
   const created = new Map<string, unknown>();
-  for (const [symbol, obj] of objects) {
-    const name = names.get(symbol) as string;
-    const objectSchema = builders.schema(name);
-    const builder = builderFor(builders, name);
-    for (const [key, value] of obj) {
-      const propertyType = objectSchema.properties.get(key); // check() guarantees every other key is an adjacency
-      if (propertyType !== undefined) setNative(builder, key, propertyType, value);
-    }
+  for (const [symbol, [properties]] of decoded) {
+    const builder = builderFor(builders, names.get(symbol) as string);
+    for (const [key, value] of properties) set(builder, key, value);
     created.set(symbol, builder.create());
   }
 
-  for (const [symbol, obj] of objects) {
-    const name = names.get(symbol) as string;
-    const objectSchema = builders.schema(name);
-    const builder = builderFor(builders, name, created.get(symbol));
-    for (const [key, entries] of obj) {
-      const adjacency = objectSchema.adjacencies.get(key);
-      if (adjacency === undefined) continue;
-      for (const entry of entries as PlainMap[]) builder.adjacency(key, (a) => a.add((x) => fill(x, entry, adjacency, created)));
+  for (const [symbol, [, adjacencies]] of decoded) {
+    const builder = builderFor(builders, names.get(symbol) as string, created.get(symbol));
+    for (const [key, rows] of adjacencies) {
+      for (const row of rows) builder.adjacency(key, (a) => a.add((x) => fill(x, row, created)));
     }
     builder.update();
   }
   return created.get(root);
 }
 
-function setNative(
-  visitor: { property(name: string, callback: Callback<OfProperty>): unknown },
-  name: string,
-  schema: Schemas.OfAny.Data,
-  plain: PlainData | undefined,
-): void {
-  if (!(schema instanceof Schemas.OfNative.Data)) {
-    throw new NotImplementedError(`property ${repr(name)}: only native values are supported by Plain yet`);
-  }
-  const value = schema.from_plain(plain);
+function set(visitor: { property(name: string, callback: Callback<OfProperty>): unknown }, name: string, value: Native): void {
   visitor.property(name, (p) => p.value((a) => a.as_native((n) => n.set(value))));
 }
 
-function fill(visitor: OfEntry, entry: PlainMap, adjacency: Schemas.OfAdjacency.Data, created: Map<string, unknown>): void {
-  const relation = adjacency.relation as Schemas.OfRelation.Data;
-  for (const [key, value] of entry) { // check() guarantees each key is another link or a property
-    if (relation.links.includes(key)) {
-      const target = created.get((value as PlainMap).get(REF) as string) as Visitable;
+function fill(visitor: OfEntry, row: Map<string, Native | Link>, created: Map<string, unknown>): void {
+  for (const [key, value] of row) { // links map to target symbols; properties to decoded values
+    if (value instanceof Link) {
+      const target = created.get(value.symbol) as Visitable;
       visitor.link(key, (k) => k.set(target));
     } else {
-      setNative(visitor, key, relation.properties.get(key) as Schemas.OfAny.Data, value);
+      set(visitor, key, value);
     }
   }
 }
@@ -490,7 +513,13 @@ export interface FromPlainCall {
 /** Deserializes plain data, building objects with the given implementation's builders, e.g.
  * `FromPlain(Proxies.Builders)(schema, plain)`. Calling it dispatches on the schema's kind. */
 export function FromPlain(builders: Builders): FromPlainCall {
-  const OfNative = (schema: Schemas.OfNative.Data, plain: unknown): Native => schema.from_plain(plain);
+  const OfNative = (schema: Schemas.OfNative.Data, plain: unknown): Native => {
+    try {
+      return schema.from_plain(plain);
+    } catch (error) {
+      throw (error as DecodeError).at("$"); // from_plain throws only DecodeError
+    }
+  };
   const OfObject = (schema: Schemas.OfObject.Data, plain: unknown): unknown => restore(builders, schema, plain);
   const call = (schema: unknown, plain: unknown): unknown => {
     if (schema instanceof Schemas.OfNative.Data) return OfNative(schema, plain);

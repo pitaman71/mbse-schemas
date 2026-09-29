@@ -9,6 +9,7 @@ import math
 import yaml
 
 from schemas.Framework import JSON, YAML, Plain, Proxies, Schemas, Validators
+from schemas.Framework.Errors import DecodeError
 from schemas.Examples._support import raises, same_graph
 
 # --- Schemas ---
@@ -124,7 +125,7 @@ assert (reading.observed, reading.quality, reading.value, reading.valid, reading
     '2026-09-28T12:00:00Z', 10, math.inf, True, '1:30')
 
 # 'yes' is a string in YAML 1.2, so it is not accepted for a bool.
-with raises(TypeError):
+with raises(DecodeError):
     from_yaml(Reading, "root: s0\nobjects:\n  s0:\n    valid: yes\n")
 
 # --- Malformed text is rejected ---
@@ -133,7 +134,7 @@ for bad in ['{"root": "s0", "objects": {"s0": {"value": NaN}}}',  # NaN literal:
             '{"root": "s0", "root": "s1", "objects": {}}',  # duplicate key
             '{"root": "s0", "objects": ',  # truncated
             '{"root": "s0", "objects": {"s0": {"value": "nan"}}}']:  # only 'NaN', 'Infinity', '-Infinity'
-    with raises(ValueError):
+    with raises(DecodeError):
         from_json(Reading, bad)
 
 for bad in ['root: s0\nroot: s1\nobjects: {}',  # duplicate key
@@ -141,7 +142,7 @@ for bad in ['root: s0\nroot: s1\nobjects: {}',  # duplicate key
             '1: x',  # non-string key
             '---\nroot: s0\n---\nroot: s1',  # two documents
             'root: [unclosed']:
-    with raises(ValueError):
+    with raises(DecodeError):
         from_yaml(Reading, bad)
 
 # --- A graph through each encoding ---
@@ -163,9 +164,9 @@ for text, decode in [(JSON.ToJSON.Reachable(Station, lyon), from_json.Reachable)
     assert validate.Reachable(Station, restored) == []
 
 # A single-object snapshot leaves references unresolved, in any encoding.
-with raises(ValueError):
+with raises(DecodeError):
     from_json(Station, JSON.ToJSON(Station, lyon))
-with raises(ValueError):
+with raises(DecodeError):
     from_yaml(Station, YAML.ToYAML(Station, lyon))
 
 print('TextEncodings: all checks passed')

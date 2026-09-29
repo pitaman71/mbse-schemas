@@ -10,7 +10,7 @@
  * Python's `==`: by value for `OfNative.Data`, by identity for the other kinds.
  */
 
-import { ValueError } from "./Errors.js";
+import { DecodeError, ValueError } from "./Errors.js";
 import type { PlainData } from "./Plain.js";
 import { isClassLike, NATIVE_NAMES, repr, sortedStrings, tokenName, Tuple, typeName } from "./Repr.js";
 import type { Native, NativeToken } from "./Visitors.js";
@@ -149,21 +149,22 @@ class NativeData implements HasFields {
     return value as PlainData;
   }
 
-  /** Converts plain data back to a native value. Distinct native types are never coerced into each other. */
+  /** Converts plain data back to a native value. Distinct native types are never coerced into each other.
+   * Plain data that does not hold such a value throws `Errors.DecodeError`. */
   from_plain(plain: unknown): Native {
     if (this.type === Uint8Array) {
-      if (typeof plain !== "string") throw new TypeError(`expected base64 text for bytes, got ${typeName(plain)}`);
-      if (!BASE64.test(plain)) throw new ValueError(`invalid base64 text ${repr(plain)}`);
+      if (typeof plain !== "string") throw new DecodeError(`expected base64 text for bytes, got ${typeName(plain)}`);
+      if (!BASE64.test(plain)) throw new DecodeError("invalid base64 text");
       return new Uint8Array(Buffer.from(plain, "base64"));
     }
     if (this.type === Number && typeof plain === "string") {
       const value = NON_FINITE.get(plain);
       if (value === undefined) {
-        throw new ValueError(`expected a float or one of ${repr(sortedStrings(NON_FINITE.keys()))}, got ${repr(plain)}`);
+        throw new DecodeError(`expected a float or one of ${repr(sortedStrings(NON_FINITE.keys()))}, got ${repr(plain)}`);
       }
       return value;
     }
-    if (!isNativeOf(this.type, plain)) throw new TypeError(`expected ${tokenName(this.type)}, got ${typeName(plain)}`);
+    if (!isNativeOf(this.type, plain)) throw new DecodeError(`expected ${tokenName(this.type)}, got ${typeName(plain)}`);
     return plain as Native;
   }
 }

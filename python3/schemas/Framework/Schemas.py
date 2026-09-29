@@ -11,6 +11,7 @@ callable that takes and returns the corresponding builder.
 from __future__ import annotations
 
 import base64
+import binascii
 import copy
 import dataclasses
 import math
@@ -18,6 +19,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar
 
+from .Errors import DecodeError
 from .Visitors import Native
 
 __all__ = [
@@ -114,17 +116,21 @@ class _NativeData:
         return value
 
     def from_plain(self, plain: object) -> Native:
-        """Converts plain data back to a native value. Distinct native types are never coerced into each other."""
+        """Converts plain data back to a native value. Distinct native types are never coerced into each other.
+        Plain data that does not hold such a value raises `Errors.DecodeError`."""
         if self.type is bytes:
             if not isinstance(plain, str):
-                raise TypeError(f"expected base64 text for bytes, got {type(plain).__name__}")
-            return base64.b64decode(plain, validate=True)
+                raise DecodeError(f"expected base64 text for bytes, got {type(plain).__name__}")
+            try:
+                return base64.b64decode(plain, validate=True)
+            except binascii.Error:
+                raise DecodeError("invalid base64 text") from None
         if self.type is float and isinstance(plain, str):
             if plain not in _NON_FINITE:
-                raise ValueError(f"expected a float or one of {sorted(_NON_FINITE)}, got {plain!r}")
+                raise DecodeError(f"expected a float or one of {sorted(_NON_FINITE)}, got {plain!r}")
             return _NON_FINITE[plain]
         if type(plain) is not self.type:
-            raise TypeError(f"expected {self.type.__name__}, got {type(plain).__name__}")
+            raise DecodeError(f"expected {self.type.__name__}, got {type(plain).__name__}")
         return plain
 
 

@@ -39,16 +39,16 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length` |
 | `03_Proxies.ipynb` | PRX | 17 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances and the registry |
 | `04_Reachable.ipynb` | RCH | 10 | as in Python |
-| `05_Plain.ipynb` | PLN | 16 | as in Python; the same 24 malformed snapshots with byte-identical messages |
-| `06_JSON.ipynb` | JSN | 11 | as in Python, including Python's exact output format and error messages (the 47-row JSN-09 table is shared verbatim; codec errors match by prefix) |
-| `07_YAML.ipynb` | YML | 13 | as in Python; the `yaml` package in YAML 1.1 mode is the "stock 1.1 reader" |
+| `05_Plain.ipynb` | PLN | 16 | as in Python; the same 26 malformed snapshots with byte-identical `DecodeError` paths and reasons |
+| `06_JSON.ipynb` | JSN | 11 | as in Python, including Python's exact output format; the 62-row JSN-09 table of `DecodeError`s is shared verbatim and matches exactly |
+| `07_YAML.ipynb` | YML | 14 | as in Python; the `yaml` package in YAML 1.1 mode is the "stock 1.1 reader"; the shared YML-06 table matches exactly, syntax errors (YML-06b) carry the `yaml` package's reasons |
 | `08_Validators.ipynb` | VAL | 13 | as in Python, with byte-identical problem messages |
 | `09_Properties.ipynb` | PROP | 5 | as in Python, with fast-check |
 | `10_Examples.ipynb` | EX | 1 | every example exits cleanly in its own process |
 | `11_Conformance.ipynb` | CONF | 4 | as in Python, from this side |
 | `12_Text.ipynb` | TXT | 4 | `Repr` produces Python's text: `repr`, float `repr`, type names (plus one row for a prototype-less object), code-point order |
 
-Total: 118 cases, with the same IDs in the same order as the Python suites.
+Total: 119 cases, with the same IDs in the same order as the Python suites.
 
 ## Language differences
 
@@ -69,7 +69,8 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | YAML text | PyYAML's layout (folds long lines, `...` after a top-level scalar) | own block emitter (no folding, no end marker); values are identical | YML-04, YML-08, CONF-03 |
 | YAML dependency | optional extra, imported on first use | regular dependency | YML-11 |
 | Recursion | Python's recursion limit | no fixed limit; the traversal is iterative in both | RCH-07 |
-| Decode errors | `UnicodeDecodeError` detail (byte, position, reason) for UTF-8/16 | the same prefix (`'utf-8' codec can't decode`); `TextDecoder` gives no detail. UTF-32 matches exactly | JSN-09 |
+| YAML syntax errors | PyYAML's reason and position | the `yaml` package's reason and position; the framework's own rules match exactly (YML-06) | YML-06b |
+| Reading JSON | `json` for valid input, the reference parser to report problems | the reference parser for all input | JSN-09 |
 | Byte-like subclasses | `bytearray` is not native (`got bytearray`) | `Buffer` is not native (`got Buffer`) | SCH-03, PRX-17 |
 | `Proxies.OfObject.Builder` | a class | a function returning the builder (`Proxies.OfObject.Data` is the class, so `instanceof` works) | PRX-16 |
 | Objects without a class | none | `Object.create(null)` is named `object` | TXT-03 |

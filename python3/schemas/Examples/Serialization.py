@@ -6,6 +6,7 @@ import json
 import math
 
 from schemas.Framework import Schemas, Proxies, Plain, Validators
+from schemas.Framework.Errors import DecodeError
 from schemas.Examples._support import entries, raises
 
 # --- Schemas ---
@@ -106,14 +107,15 @@ assert Plain.FromPlain(Proxies.Builders).OfNative(Schemas.OfNative.Data(int), 7)
 
 # --- Strict native types ---
 
-# Distinct native types are never coerced into each other, in either direction.
+# Distinct native types are never coerced into each other, in either direction. Reading a wrong type is a problem in
+# the data: a DecodeError (a ValueError) located by a path, here the root.
 from_plain = Plain.FromPlain(Proxies.Builders)
 for native, bad in [(int, True), (int, 1.0), (int, '1'), (float, 1), (bool, 0), (str, b'x'), (str, None)]:
-    with raises(TypeError):
+    with raises(DecodeError):
         from_plain(Schemas.OfNative.Data(native), bad)
-with raises(TypeError):
+with raises(DecodeError):
     from_plain(Schemas.OfNative.Data(bytes), b'raw')  # bytes arrive as base64 text
-with raises(ValueError):
+with raises(DecodeError):
     from_plain(Schemas.OfNative.Data(bytes), 'not base64!')
 
 # The builder does not validate; the serializer does.
@@ -189,11 +191,11 @@ bad_snapshots = [
     mutated(lambda s: s['objects'][root]['prices'][0].__setitem__('discount', 5)),  # not a link or property
 ]
 for snapshot in bad_snapshots:
-    with raises(ValueError):
+    with raises(DecodeError):
         from_plain.Reachable(Product, snapshot)
 
 # A single-object snapshot leaves references unresolved, so it cannot be deserialized on its own.
-with raises(ValueError):
+with raises(DecodeError):
     from_plain(Product, Plain.ToPlain(Product, widget))
 
 # The root must be an instance of the schema given.

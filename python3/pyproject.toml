@@ -27,7 +27,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "tutorials"]
 addopts = "--nbmake"
 
 [tool.coverage.run]

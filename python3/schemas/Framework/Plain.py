@@ -18,9 +18,10 @@ with the builders to build with, e.g. `FromPlain(Proxies.Builders)`.
 from __future__ import annotations
 
 from collections.abc import Callable, Hashable
-from typing import Any, Protocol
+from typing import Any, NamedTuple, Protocol
 
 from . import Proxies, Reachable, Schemas, Visitors
+from .Errors import DecodeError, path
 from .Visitors import Native
 
 __all__ = ["PlainData", "Builders", "ToPlain", "FromPlain"]
@@ -269,19 +270,41 @@ def _is_ref(value: PlainData) -> bool:
     return isinstance(value, dict) and set(value) == {REF, SCHEMA} and all(isinstance(v, str) for v in value.values())
 
 
-def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData) -> tuple[str, dict, dict[str, str]]:
-    """Checks a snapshot's shape against the schemas before anything is built. Returns (root, objects, schema names)."""
+class _Link(NamedTuple):
+    """A decoded link: the symbol of the target object."""
+
+    symbol: str
+
+
+def _decode(schema: Schemas.OfAny.Data, name: str, plain: PlainData, where: str) -> Native:
+    if not isinstance(schema, Schemas.OfNative.Data):
+        raise NotImplementedError(f"property {name!r}: only native values are supported by Plain yet")
+    try:
+        return schema.from_plain(plain)
+    except DecodeError as error:
+        raise error.at(where) from None
+
+
+# Per object symbol: its decoded property values, and per adjacency its entries, each mapping links to target symbols
+# and properties to decoded values.
+_Decoded = dict[str, tuple[dict[str, Native], dict[str, list[dict[str, Any]]]]]
+
+
+def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData) -> tuple[str, dict[str, str], _Decoded]:
+    """Checks a snapshot against the schemas and decodes its values before anything is built. Returns the root symbol,
+    each object's schema name, and the decoded objects. Problems in the snapshot raise `DecodeError`."""
     if not isinstance(schema, Schemas.OfObject.Data):
         raise TypeError(f"the root schema must be an object schema, got {type(schema).__name__}")
     if not isinstance(plain, dict) or set(plain) != {"root", "objects"} or not isinstance(plain["objects"], dict):
-        raise ValueError("expected an object snapshot: {'root': symbol, 'objects': {symbol: object}}")
+        raise DecodeError("expected an object snapshot: {'root': symbol, 'objects': {symbol: object}}", path="$")
     root, objects = plain["root"], plain["objects"]
-    if root not in objects:
-        raise ValueError(f"root {root!r} is not in the snapshot")
+    if not isinstance(root, str) or root not in objects:
+        raise DecodeError(f"root {root!r} is not in the snapshot's objects", path="$.root")
     for symbol, obj in objects.items():
         if not isinstance(obj, dict):
-            raise ValueError(f"object {symbol!r} must be a mapping, got {type(obj).__name__}")
+            raise DecodeError(f"an object must be a mapping, got {type(obj).__name__}", path=path("objects", symbol))
 
+    # Pass 1: infer each object's schema from the references to it.
     names: dict[str, str] = {root: builders.name_of(schema)}
     for symbol, obj in objects.items():
         for key, value in obj.items():
@@ -289,101 +312,100 @@ def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData) 
                 continue
             for i, entry in enumerate(value):
                 if not isinstance(entry, dict):
-                    raise ValueError(f"{symbol}.{key}[{i}]: an entry must be a mapping, got {type(entry).__name__}")
+                    raise DecodeError(
+                        f"an entry must be a mapping, got {type(entry).__name__}", path=path("objects", symbol, key, i)
+                    )
                 for name, ref in entry.items():
                     if not isinstance(ref, dict):
                         continue
+                    where = path("objects", symbol, key, i, name)
                     if not _is_ref(ref):
-                        raise ValueError(f"{symbol}.{key}[{i}].{name}: a reference is {{'$ref': symbol, '$schema': name}}")
+                        raise DecodeError("a reference is {'$ref': symbol, '$schema': name}", path=where)
                     target, target_schema = ref[REF], ref[SCHEMA]
                     if target not in objects:
-                        raise ValueError(f"unresolved reference {target!r}: the snapshot does not contain it")
+                        raise DecodeError(f"unresolved reference {target!r}: the snapshot does not contain it", path=where)
                     if names.setdefault(target, target_schema) != target_schema:
-                        raise ValueError(f"{target!r} is referenced as both {names[target]!r} and {target_schema!r}")
+                        raise DecodeError(
+                            f"{target!r} is referenced as both {names[target]!r} and {target_schema!r}", path=where
+                        )
+    # Pass 2: check every key against the schemas and decode the values.
+    decoded: _Decoded = {}
     for symbol, obj in objects.items():
         if symbol not in names:
             continue
         try:
             object_schema = builders.schema(names[symbol])
-        except (AttributeError, LookupError, TypeError) as error:
-            raise ValueError(f"object {symbol!r}: no object schema registered as {names[symbol]!r}") from error
+        except (AttributeError, LookupError, TypeError):
+            raise DecodeError(f"no object schema registered as {names[symbol]!r}", path=path("objects", symbol)) from None
+        properties: dict[str, Native] = {}
+        adjacencies: dict[str, list[dict[str, Any]]] = {}
         for key, value in obj.items():
+            where = path("objects", symbol, key)
             if key in object_schema.adjacencies:
                 if not isinstance(value, list):
-                    raise ValueError(f"{symbol}.{key}: an adjacency must be a list of entries")
+                    raise DecodeError("an adjacency must be a list of entries", path=where)
                 adjacency = object_schema.adjacencies[key]
                 relation = adjacency.relation
+                rows = adjacencies[key] = []
                 for i, entry in enumerate(value):
+                    row: dict[str, Any] = {}
                     for name, item in entry.items():
+                        at = path("objects", symbol, key, i, name)
                         if name == adjacency.me:
-                            raise ValueError(f"{symbol}.{key}[{i}]: {name!r} is this object's own link, which is implied")
+                            raise DecodeError(f"{name!r} is this object's own link, which is implied", path=at)
                         if name in relation.links:
                             if not _is_ref(item):
-                                raise ValueError(f"{symbol}.{key}[{i}].{name}: a link must be a reference")
+                                raise DecodeError("a link must be a reference", path=at)
+                            row[name] = _Link(item[REF])
                         elif name in relation.properties:
-                            if isinstance(item, (list, dict)):
-                                raise ValueError(f"{symbol}.{key}[{i}].{name}: a property must be a plain value")
+                            row[name] = _decode(relation.properties[name], name, item, at)
                         else:
-                            raise ValueError(f"{symbol}.{key}[{i}]: no link or property {name!r}")
+                            raise DecodeError(f"the relation has no link or property {name!r}", path=at)
                     missing = [n for n in relation.links if n != adjacency.me and n not in entry]
                     if missing:
-                        raise ValueError(f"{symbol}.{key}[{i}]: links {missing} are not set")
+                        raise DecodeError(f"links {missing} are not set", path=path("objects", symbol, key, i))
+                    rows.append(row)
             elif key in object_schema.properties:
-                if isinstance(value, (list, dict)):
-                    raise ValueError(f"{symbol}.{key}: a property must be a plain value")
+                properties[key] = _decode(object_schema.properties[key], key, value, where)
             else:
-                raise ValueError(f"{symbol}: {names[symbol]!r} has no property or adjacency {key!r}")
-    unreached = set(objects) - set(names)
+                raise DecodeError(f"{names[symbol]!r} has no property or adjacency {key!r}", path=where)
+        decoded[symbol] = (properties, adjacencies)
+    unreached = sorted(set(objects) - set(names))
     if unreached:
-        raise ValueError(f"cannot infer schemas for objects nothing references: {sorted(unreached)}")
-    return root, objects, names
+        raise DecodeError("nothing references this object, so its schema is unknown", path=path("objects", unreached[0]))
+    return root, names, decoded
 
 
 def _restore(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
     """Rebuilds objects from an object snapshot using `builders`. Every reference must resolve within the snapshot."""
-    root, objects, names = _check(builders, schema, plain)
+    root, names, decoded = _check(builders, schema, plain)
 
     created: dict[str, Any] = {}
-    for symbol, obj in objects.items():
-        object_schema = builders.schema(names[symbol])
+    for symbol, (properties, _) in decoded.items():
         builder = getattr(builders, names[symbol])()
-        for key, value in obj.items():
-            if key in object_schema.properties:  # _check guarantees every other key is an adjacency
-                _set_native(builder, key, object_schema.properties[key], value)
+        for key, value in properties.items():
+            _set(builder, key, value)
         created[symbol] = builder.create()
 
-    for symbol, obj in objects.items():
-        object_schema = builders.schema(names[symbol])
+    for symbol, (_, adjacencies) in decoded.items():
         builder = getattr(builders, names[symbol])(created[symbol])
-        for key, entries in obj.items():
-            if key in object_schema.adjacencies:
-                adjacency = object_schema.adjacencies[key]
-                for entry in entries:
-                    builder.adjacency(key, lambda a, e=entry, adj=adjacency: a.add(lambda x: _fill(x, e, adj, created)))
+        for key, rows in adjacencies.items():
+            for row in rows:
+                builder.adjacency(key, lambda a, r=row: a.add(lambda x: _fill(x, r, created)))
         builder.update()
     return created[root]
 
 
-def _set_native(visitor: Any, name: str, schema: Schemas.OfAny.Data, plain: PlainData) -> None:
-    if not isinstance(schema, Schemas.OfNative.Data):
-        raise NotImplementedError(f"property {name!r}: only native values are supported by Plain yet")
-    value = schema.from_plain(plain)
+def _set(visitor: Any, name: str, value: Native) -> None:
     visitor.property(name, lambda p: p.value(lambda a: a.as_native(lambda n: n.set(value))))
 
 
-def _fill(
-    visitor: Visitors.OfEntry,
-    entry: dict[str, PlainData],
-    adjacency: Schemas.OfAdjacency.Data,
-    created: dict[str, Any],
-) -> None:
-    relation = adjacency.relation
-    for key, value in entry.items():  # _check guarantees each key is another link or a property
-        if key in relation.links:
-            target = created[value[REF]]
-            visitor.link(key, lambda k: k.set(target))
+def _fill(visitor: Visitors.OfEntry, row: dict[str, Any], created: dict[str, Any]) -> None:
+    for key, value in row.items():  # links map to target symbols; properties to decoded values
+        if isinstance(value, _Link):
+            visitor.link(key, lambda k, target=created[value.symbol]: k.set(target))
         else:
-            _set_native(visitor, key, relation.properties[key], value)
+            _set(visitor, key, value)
 
 
 # --- Entry points ---
@@ -430,7 +452,10 @@ class FromPlain:
 
     @staticmethod
     def OfNative(schema: Schemas.OfNative.Data, plain: PlainData) -> Native:
-        return schema.from_plain(plain)
+        try:
+            return schema.from_plain(plain)
+        except DecodeError as error:
+            raise error.at("$") from None
 
     def OfObject(self, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
         return _restore(self._builders, schema, plain)

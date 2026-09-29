@@ -10,10 +10,11 @@
  *
  * `dumps` writes exactly what Python's `json.dumps(..., ensure_ascii=False, allow_nan=False)` writes, so both
  * implementations produce byte-identical JSON. `loads` keeps integers (`bigint`) apart from floats (`number`), which
- * `JSON.parse` cannot, and follows Python's `json.loads` for encodings and error messages.
+ * `JSON.parse` cannot. Its parser is the reference parser shared with the Python binding: both accept the same input,
+ * and input problems throw `Errors.DecodeError` with the same reason, line and column (counted in code points).
  */
 
-import { ValueError } from "./Errors.js";
+import { DecodeError, jsonString, ValueError } from "./Errors.js";
 import * as Plain from "./Plain.js";
 import type { PlainData, PlainMap } from "./Plain.js";
 import { pyFloat, repr, typeName } from "./Repr.js";
@@ -26,23 +27,7 @@ export interface DumpOptions {
 
 // --- Writing ---
 
-function encodeString(text: string): string {
-  let out = '"';
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i] as string;
-    const code = text.charCodeAt(i);
-    if (char === '"') out += '\\"';
-    else if (char === "\\") out += "\\\\";
-    else if (char === "\n") out += "\\n";
-    else if (char === "\r") out += "\\r";
-    else if (char === "\t") out += "\\t";
-    else if (char === "\b") out += "\\b";
-    else if (char === "\f") out += "\\f";
-    else if (code < 0x20) out += "\\u" + code.toString(16).padStart(4, "0");
-    else out += char;
-  }
-  return out + '"';
-}
+const encodeString = jsonString;
 
 function encode(value: unknown, indent: number | null, level: number): string {
   if (value === null) return "null";
@@ -77,17 +62,17 @@ export function dumps(plain: PlainData, options: DumpOptions = {}): string {
 
 // --- Reading ---
 
-class JSONDecodeError extends ValueError {
-  override name = "JSONDecodeError";
-
-  constructor(message: string, text: string, pos: number) {
-    const line = text.slice(0, pos).split("\n").length;
-    const column = pos - text.lastIndexOf("\n", pos - 1);
-    super(`${message}: line ${line} column ${column} (char ${pos})`);
-  }
+/** The line and column of UTF-16 offset `pos`: lines split at `\n`, columns count code points from 1. */
+function lineColumn(text: string, pos: number): { line: number; column: number } {
+  const lineStart = text.lastIndexOf("\n", pos - 1) + 1;
+  let line = 1;
+  for (let i = text.indexOf("\n"); i !== -1 && i < pos; i = text.indexOf("\n", i + 1)) line++;
+  return { line, column: [...text.slice(lineStart, pos)].length + 1 };
 }
 
-const NUMBER = /-?(?:0|[1-9]\d*)(\.\d+)?([eE][-+]?\d+)?/y;
+export const INT_DIGITS_LIMIT = 4300; // as Python's int() from text
+
+const NUMBER = /-?(?:0|[1-9][0-9]*)(\.[0-9]+)?([eE][-+]?[0-9]+)?/y;
 const WHITESPACE = /[ \t\n\r]*/y;
 const ESCAPES: Record<string, string> = { '"': '"', "\\": "\\", "/": "/", b: "\b", f: "\f", n: "\n", r: "\r", t: "\t" };
 
@@ -96,8 +81,8 @@ class Parser {
 
   constructor(private readonly text: string) {}
 
-  fail(message: string, pos: number = this.pos): never {
-    throw new JSONDecodeError(message, this.text, pos);
+  fail(reason: string, pos: number = this.pos): never {
+    throw new DecodeError(reason, lineColumn(this.text, pos));
   }
 
   skip(): void {
@@ -115,22 +100,19 @@ class Parser {
     if (this.text.startsWith("true", this.pos)) return (this.pos += 4), true;
     if (this.text.startsWith("false", this.pos)) return (this.pos += 5), false;
     for (const constant of ["NaN", "Infinity", "-Infinity"]) {
-      if (this.text.startsWith(constant, this.pos)) throw new ValueError(`${constant} is not valid JSON`);
+      if (this.text.startsWith(constant, this.pos)) this.fail(`${constant} is not valid JSON`);
     }
     NUMBER.lastIndex = this.pos;
     const match = NUMBER.exec(this.text);
-    if (match !== null) {
+    if (match === null) return this.fail("expecting a value");
+    if (match[1] === undefined && match[2] === undefined) {
+      const digits = match[0].replace("-", "").length;
+      if (digits > INT_DIGITS_LIMIT) this.fail(`an integer has ${digits} digits, more than the limit of ${INT_DIGITS_LIMIT}`);
       this.pos = NUMBER.lastIndex;
-      if (match[1] === undefined && match[2] === undefined) {
-        const digits = match[0].replace("-", "").length;
-        if (digits > 4300) {
-          throw new ValueError(`Exceeds the limit (4300 digits) for integer string conversion: value has ${digits} digits`);
-        }
-        return BigInt(match[0]);
-      }
-      return Number(match[0]);
+      return BigInt(match[0]);
     }
-    return this.fail("Expecting value");
+    this.pos = NUMBER.lastIndex;
+    return Number(match[0]);
   }
 
   string(): string {
@@ -139,14 +121,14 @@ class Parser {
     let out = "";
     for (;;) {
       const char = this.text[this.pos];
-      if (char === undefined) return this.fail("Unterminated string starting at", start);
+      if (char === undefined) return this.fail("unterminated string", start);
       if (char === '"') {
         this.pos++;
         return out;
       }
       if (char === "\\") {
         const escape = this.text[this.pos + 1];
-        if (escape === undefined) return this.fail("Unterminated string starting at", start);
+        if (escape === undefined) return this.fail("unterminated string", start);
         if (escape === "u") {
           const unit = this.hex4(this.pos + 2);
           this.pos += 6;
@@ -162,12 +144,12 @@ class Parser {
           continue;
         }
         const replacement = ESCAPES[escape];
-        if (replacement === undefined) return this.fail("Invalid \\escape", this.pos);
+        if (replacement === undefined) return this.fail("invalid escape");
         out += replacement;
         this.pos += 2;
         continue;
       }
-      if (char.charCodeAt(0) < 0x20) return this.fail("Invalid control character at", this.pos);
+      if (char.charCodeAt(0) < 0x20) return this.fail("invalid control character in a string");
       out += char;
       this.pos++;
     }
@@ -175,7 +157,7 @@ class Parser {
 
   hex4(at: number): number {
     const digits = this.text.slice(at, at + 4);
-    if (!/^[0-9a-fA-F]{4}$/.test(digits)) this.fail("Invalid \\uXXXX escape", at - 1);
+    if (!/^[0-9a-fA-F]{4}$/.test(digits)) this.fail("invalid \\uXXXX escape", at - 1);
     return parseInt(digits, 16);
   }
 
@@ -185,22 +167,22 @@ class Parser {
     this.skip();
     if (this.text[this.pos] === "}") return this.pos++, out;
     for (;;) {
-      if (this.text[this.pos] !== '"') return this.fail("Expecting property name enclosed in double quotes");
+      if (this.text[this.pos] !== '"') return this.fail("expecting a property name in double quotes");
+      const start = this.pos;
       const key = this.string();
+      if (out.has(key)) this.fail(`duplicate key ${repr(key)}`, start);
       this.skip();
-      if (this.text[this.pos] !== ":") return this.fail("Expecting ':' delimiter");
+      if (this.text[this.pos] !== ":") return this.fail("expecting ':'");
       this.pos++;
       this.skip();
-      const value = this.value();
-      if (out.has(key)) throw new ValueError(`duplicate key ${repr(key)}`);
-      out.set(key, value);
+      out.set(key, this.value());
       this.skip();
       const next = this.text[this.pos];
       if (next === "}") return this.pos++, out;
-      if (next !== ",") return this.fail("Expecting ',' delimiter");
+      if (next !== ",") return this.fail("expecting ',' or '}'");
       const comma = this.pos++;
       this.skip();
-      if (this.text[this.pos] === "}") return this.fail("Illegal trailing comma before end of object", comma);
+      if (this.text[this.pos] === "}") return this.fail("trailing comma before '}'", comma);
     }
   }
 
@@ -214,10 +196,10 @@ class Parser {
       this.skip();
       const next = this.text[this.pos];
       if (next === "]") return this.pos++, out;
-      if (next !== ",") return this.fail("Expecting ',' delimiter");
+      if (next !== ",") return this.fail("expecting ',' or ']'");
       const comma = this.pos++;
       this.skip();
-      if (this.text[this.pos] === "]") return this.fail("Illegal trailing comma before end of array", comma);
+      if (this.text[this.pos] === "]") return this.fail("trailing comma before ']'", comma);
     }
   }
 }
@@ -238,55 +220,50 @@ function detectEncoding(bytes: Uint8Array): string {
   return "utf-8";
 }
 
-/** Decodes UTF-32 from `start`; errors name the codec and positions as Python's codecs do. */
-function decodeUtf32(bytes: Uint8Array, littleEndian: boolean, start: number): string {
-  const codec = littleEndian ? "utf-32-le" : "utf-32-be";
+/** Decodes UTF-32 from `start`, or returns null if the bytes are not valid UTF-32 (TextDecoder has no UTF-32). */
+function decodeUtf32(bytes: Uint8Array, littleEndian: boolean, start: number): string | null {
+  if ((bytes.length - start) % 4 !== 0) return null;
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let out = "";
-  let i = start;
-  for (; i + 4 <= bytes.length; i += 4) {
+  for (let i = start; i < bytes.length; i += 4) {
     const point = view.getUint32(i, littleEndian);
-    if (point > 0x10ffff) {
-      throw new ValueError(`'${codec}' codec can't decode bytes in position ${i}-${i + 3}: code point not in range(0x110000)`);
-    }
+    if (point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff)) return null;
     out += String.fromCodePoint(point);
   }
-  if (i + 1 === bytes.length) {
-    const byte = (bytes[i] as number).toString(16).padStart(2, "0");
-    throw new ValueError(`'${codec}' codec can't decode byte 0x${byte} in position ${i}: truncated data`);
-  }
-  if (i < bytes.length) throw new ValueError(`'${codec}' codec can't decode bytes in position ${i}-${bytes.length - 1}: truncated data`);
   return out;
 }
 
+/** Decodes UTF-8, UTF-16 or UTF-32, detected as JSON specifies (a BOM, or the pattern of zero bytes). */
 export function decodeBytes(bytes: Uint8Array): string {
   const encoding = detectEncoding(bytes);
-  if (encoding === "utf-32") return decodeUtf32(bytes, bytes[0] === 0xff, 4);
-  if (encoding === "utf-32-be" || encoding === "utf-32-le") return decodeUtf32(bytes, encoding === "utf-32-le", 0);
-  // UTF-16 and UTF-8 errors keep Python's "'codec' codec can't decode" form; the details come from TextDecoder.
-  const [codec, label, stripBOM] =
-    encoding === "utf-16" ? (bytes[0] === 0xff ? ["utf-16-le", "utf-16le", true] : ["utf-16-be", "utf-16be", true])
-    : encoding === "utf-16-le" ? ["utf-16-le", "utf-16le", false]
-    : encoding === "utf-16-be" ? ["utf-16-be", "utf-16be", false]
-    : ["utf-8", "utf-8", encoding === "utf-8-sig"];
-  try {
-    return new TextDecoder(label, { fatal: true, ignoreBOM: !stripBOM }).decode(bytes);
-  } catch (error) {
-    throw new ValueError(`'${codec}' codec can't decode bytes: ${(error as Error).message}`);
+  let text: string | null;
+  if (encoding === "utf-32") text = decodeUtf32(bytes, bytes[0] === 0xff, 4);
+  else if (encoding === "utf-32-be" || encoding === "utf-32-le") text = decodeUtf32(bytes, encoding === "utf-32-le", 0);
+  else {
+    const [label, stripBOM] =
+      encoding === "utf-16" ? [bytes[0] === 0xff ? "utf-16le" : "utf-16be", true]
+      : encoding === "utf-16-le" ? ["utf-16le", false]
+      : encoding === "utf-16-be" ? ["utf-16be", false]
+      : ["utf-8", encoding === "utf-8-sig"];
+    try {
+      text = new TextDecoder(label, { fatal: true, ignoreBOM: !stripBOM }).decode(bytes);
+    } catch {
+      text = null;
+    }
   }
+  if (text === null) throw new DecodeError(`input is not valid ${encoding}`);
+  return text;
 }
 
 /** Decodes strict JSON into plain data. */
 export function loads(input: string | Uint8Array): PlainData {
   const text = typeof input === "string" ? input : decodeBytes(input);
-  if (typeof input === "string" && text.startsWith("﻿")) {
-    throw new JSONDecodeError("Unexpected UTF-8 BOM (decode using utf-8-sig)", text, 0);
-  }
   const parser = new Parser(text);
+  if (text.startsWith("\ufeff")) parser.fail("unexpected byte order mark");
   parser.skip();
   const value = parser.value();
   parser.skip();
-  if (parser.pos !== text.length) parser.fail("Extra data");
+  if (parser.pos !== text.length) parser.fail("unexpected data after the value");
   return value;
 }
 

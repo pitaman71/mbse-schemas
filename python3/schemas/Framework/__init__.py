@@ -1,6 +1,6 @@
 """Schemas framework. See Framework.md for the design."""
 
-from . import JSON, YAML, Plain, Proxies, Reachable, Schemas, Validators, Visitors
+from . import JSON, YAML, Errors, Plain, Proxies, Reachable, Schemas, Validators, Visitors
 
-__all__ = ["Schemas", "Visitors", "Proxies", "Reachable", "Validators", "Plain", "JSON", "YAML"]
+__all__ = ["Errors", "Schemas", "Visitors", "Proxies", "Reachable", "Validators", "Plain", "JSON", "YAML"]
 

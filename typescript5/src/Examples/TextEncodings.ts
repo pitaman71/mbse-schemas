@@ -5,7 +5,7 @@
 
 import * as Y from "yaml";
 
-import { ValueError } from "../Framework/Errors.js";
+import { DecodeError } from "../Framework/Errors.js";
 import { JSON, Plain, Proxies, Schemas, Validators, YAML } from "../Framework/index.js";
 import type { Instance } from "../Framework/Proxies.js";
 import { assert, equal, raises, same_graph } from "./_support.js";
@@ -120,7 +120,7 @@ assert(reading.observed === "2026-09-28T12:00:00Z" && reading.quality === 10n &&
   reading.valid === true && reading.note === "1:30");
 
 // 'yes' is a string in YAML 1.2, so it is not accepted for a bool.
-raises(TypeError, () => from_yaml(Reading, "root: s0\nobjects:\n  s0:\n    valid: yes\n"));
+raises(DecodeError, () => from_yaml(Reading, "root: s0\nobjects:\n  s0:\n    valid: yes\n"));
 
 // --- Malformed text is rejected ---
 
@@ -128,7 +128,7 @@ for (const bad of ['{"root": "s0", "objects": {"s0": {"value": NaN}}}', // NaN l
   '{"root": "s0", "root": "s1", "objects": {}}', // duplicate key
   '{"root": "s0", "objects": ', // truncated
   '{"root": "s0", "objects": {"s0": {"value": "nan"}}}']) { // only 'NaN', 'Infinity', '-Infinity'
-  raises(ValueError, () => from_json(Reading, bad));
+  raises(DecodeError, () => from_json(Reading, bad));
 }
 
 for (const bad of ["root: s0\nroot: s1\nobjects: {}", // duplicate key
@@ -136,7 +136,7 @@ for (const bad of ["root: s0\nroot: s1\nobjects: {}", // duplicate key
   "1: x", // non-string key
   "---\nroot: s0\n---\nroot: s1", // two documents
   "root: [unclosed"]) {
-  raises(ValueError, () => from_yaml(Reading, bad));
+  raises(DecodeError, () => from_yaml(Reading, bad));
 }
 
 // --- A graph through each encoding ---
@@ -157,7 +157,7 @@ for (const [encoded, decode] of [[JSON.ToJSON.Reachable(Station, lyon), from_jso
 }
 
 // A single-object snapshot leaves references unresolved, in any encoding.
-raises(ValueError, () => from_json(Station, JSON.ToJSON(Station, lyon)));
-raises(ValueError, () => from_yaml(Station, YAML.ToYAML(Station, lyon)));
+raises(DecodeError, () => from_json(Station, JSON.ToJSON(Station, lyon)));
+raises(DecodeError, () => from_yaml(Station, YAML.ToYAML(Station, lyon)));
 
 console.log("TextEncodings: all checks passed");

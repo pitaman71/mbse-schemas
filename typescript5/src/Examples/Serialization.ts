@@ -2,7 +2,7 @@
 //
 // Uses ISO 4217 currencies: a price list maps a product -> [currency] -> money.
 
-import { AttributeError, ValueError } from "../Framework/Errors.js";
+import { AttributeError, DecodeError, ValueError } from "../Framework/Errors.js";
 import { JSON, Plain, Proxies, Schemas, Validators } from "../Framework/index.js";
 import type { PlainData, PlainMap } from "../Framework/Plain.js";
 import type { Instance } from "../Framework/Proxies.js";
@@ -98,14 +98,15 @@ assert(Plain.FromPlain(Proxies.Builders).OfNative(new Schemas.OfNative.Data(BigI
 
 // --- Strict native types ---
 
-// Distinct native types are never coerced into each other, in either direction.
+// Distinct native types are never coerced into each other, in either direction. Reading a wrong type is a problem in
+// the data: a DecodeError (a ValueError) located by a path, here the root.
 const from_plain = Plain.FromPlain(Proxies.Builders);
 for (const [native, bad] of [[BigInt, true], [BigInt, 1.0], [BigInt, "1"], [Number, 1n], [Boolean, 0n], [String, bytes(0x78)],
   [String, null]] as const) {
-  raises(TypeError, () => from_plain(new Schemas.OfNative.Data(native), bad));
+  raises(DecodeError, () => from_plain(new Schemas.OfNative.Data(native), bad));
 }
-raises(TypeError, () => from_plain(bytesSchema, new TextEncoder().encode("raw"))); // bytes arrive as base64 text
-raises(ValueError, () => from_plain(bytesSchema, "not base64!"));
+raises(DecodeError, () => from_plain(bytesSchema, new TextEncoder().encode("raw"))); // bytes arrive as base64 text
+raises(DecodeError, () => from_plain(bytesSchema, "not base64!"));
 
 // The builder does not validate; the serializer does.
 const sloppy = Builders.Sample().count("3").create();
@@ -178,10 +179,10 @@ const badSnapshots: PlainData[] = [
   mutated((s) => (objectsIn(s).get(root) as PlainMap).set("colour", "red")), // not a property or adjacency
   mutated((s) => (pricesOf(s)[0] as PlainMap).set("discount", 5n)), // not a link or property
 ];
-for (const snapshot of badSnapshots) raises(ValueError, () => from_plain.Reachable(Product, snapshot));
+for (const snapshot of badSnapshots) raises(DecodeError, () => from_plain.Reachable(Product, snapshot));
 
 // A single-object snapshot leaves references unresolved, so it cannot be deserialized on its own.
-raises(ValueError, () => from_plain(Product, Plain.ToPlain(Product, widget)));
+raises(DecodeError, () => from_plain(Product, Plain.ToPlain(Product, widget)));
 
 // The root must be an instance of the schema given.
 raises(TypeError, () => Plain.ToPlain(Currency, widget));

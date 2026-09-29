@@ -23,7 +23,7 @@
 
 | Check | Where |
 |---|---|
-| Every test case exists in both implementations, same ID, same order (148 cases, 15 suites) | `python3/tests/*.ipynb`, `typescript5/tests/*.ipynb` |
+| Every test case exists in both implementations, same ID, same order (149 cases, 15 suites) | `python3/tests/*.ipynb`, `typescript5/tests/*.ipynb` |
 | Messages are byte-identical | cases that assert exact messages, e.g. SCH-12, SCH-13, PLN-11 (26 malformed snapshots), VAL-03, VAL-06 |
 | Decoding errors: same class, reason and location | shared tables embedded verbatim in both suites: JSN-09 (62 JSON inputs), YML-06 (48 YAML inputs); PLN-11, PLN-12 (paths) |
 | JSON is byte-identical; YAML and JSON are interchangeable | the CONF suite over the shared corpus in `conformance/` |
@@ -51,7 +51,7 @@ Run everything:
 | Tool | coverage.py, branch mode, subprocesses measured (`[tool.coverage]` in `pyproject.toml`) | c8 (`.c8rc.json`, all files under `src/Framework`) |
 | Command | `uv run coverage run -m pytest && uv run coverage combine && uv run coverage report` | `npm run coverage` |
 | Gate | `fail_under = 100` | `--check-coverage --100` |
-| Result | 100% statements (2563), 100% branches (782) | 100% statements (5073), branches (2255), functions (713), lines |
+| Result | 100% statements (2686), 100% branches (850) | 100% statements (5073), branches (2255), functions (713), lines |
 
 The counts differ because the tools count differently (V8 counts `??`, `?.` and each `case` as branches), not because
 the code differs. Coverage was made equal by the same means in both:
@@ -97,6 +97,7 @@ noticed.
 | Objects without a class | none | `Object.create(null)` is named `object` | JavaScript-only | TXT-03 |
 | Incomparable (`Comparison`), unknown (`Evaluators`) | `None` | `null` | the respective "no value" | CMP-01..12, EVL-01..06 |
 | Evaluation scope and validation options | `Evaluators.OfAny(e, {"this": x})`, `validate(bound={"this"}, core=True)` | `Evaluators.OfAny(e, { this: x })`, `validate({ bound: ["this"], core: true })` | no keyword arguments; object literals are the idiom | EXP-10, EVL-01, EVL-04, EVL-06 |
+| Expressions from functions | `Expressions.from_(lambda this: this.age >= 18)` reads the function's source with `ast` | none; EXP-12 asserts `from_` is absent | a JavaScript function has no Python source to read; `Term`s write the same expressions in both | EXP-12 |
 | Names on a `Term` that are not properties | names starting with `_` (Python's own probes) | `then`, `toJSON` and symbols (JavaScript's own probes) | each language probes objects with its own names | EXP-11 |
 | Typing of the proxy DSL | untyped, like all Python | proxy builders and instances are typed loosely (`any` by name), so callbacks given to them are annotated `(x: any)`; schema builders and visitor handles are fully typed | the names come from schemas at runtime; per-schema types are the job of generated bindings | all proxy cases |
 | Test runner | pytest + nbmake | `tests/run-notebooks.ts` | no maintained TypeScript kernel is required to run headless | all |
@@ -105,7 +106,7 @@ noticed.
 
 ## Tutorials
 
-`python3/tutorials/` and `typescript5/tutorials/` are the same nine case studies: the same problems, the same
+`python3/tutorials/` and `typescript5/tutorials/` are the same ten case studies: the same problems, the same
 reasoning, in the same order, with the same outputs wherever the bindings agree (every error and validation message
 does). They differ only where the table above does, and the TypeScript notebooks point each difference out. Both are
 run as tests (`uv run pytest`, `npm test`), and both are committed with outputs: Python's from its kernel, TypeScript's
@@ -116,6 +117,8 @@ Two conventions are specific to the TypeScript notebooks, not to the binding:
 - The framework's `JSON` module is imported as `Json`. In a notebook, a top-level `JSON` import shadows the global
   `JSON`, which Deno's kernel itself uses.
 - Examples use `Proxies.Builders` directly and annotate DSL callbacks `(x: any)`, per the table above.
+- Case study 10 writes expressions with terms throughout. The Python notebook writes its main body with lambdas read by
+  `Expressions.from_`, and shows terms and builders in an appendix; the expressions, and their JSON, are the same.
 
 When a case study changes, change both, and rerun both notebooks to refresh their outputs.
 

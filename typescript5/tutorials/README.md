@@ -1,4 +1,4 @@
-# Tutorial: the schemas framework in nine case studies (TypeScript)
+# Tutorial: the schemas framework in ten case studies (TypeScript)
 
 This tutorial teaches the framework by solving real problems, one per notebook. Each case study builds on the ones
 before it. Each spends as much time on *why* the framework does something differently as on *how* to use it, because
@@ -44,9 +44,12 @@ can import them.
 | 7 | [JSON and YAML](07_JSON_And_YAML.ipynb) | An API in JSON and a hand-edited YAML config | Strict JSON with exact integers; the Norway problem; YAML 1.2 loading; no type coercion |
 | 8 | [Tools for every schema](08_Tools_For_Every_Schema.ipynb) | Audit logs and docs without per-type code | Walking schemas as data; writing a visitor; `accept` |
 | 9 | [When requirements change](09_When_Requirements_Change.ipynb) | New fields, v2 schemas, unique IDs, variants | Evolving schemas; versioned names; directories; unions and intersections; what isn't built yet |
+| 10 | [Rules as data](10_Rules_As_Data.ipynb) | Eligibility rules stored, sent, and applied the same way by TypeScript and Python | Expressions written with terms; evaluating with three-valued logic and no coercion; saving and loading; traversing for analysis and for substitution; builders (appendix) |
 
 ## Differences from the Python tutorial
 
 Where the TypeScript binding differs from Python's (`BigInt` for integers, `.equals()`, `Map` for plain data,
-`(x: any)` on proxy callbacks, and so on), the notebooks say so as they go. The full list, with the reasons, is in
-[`EQUIVALENCE.md`](../../docs/EQUIVALENCE.md) under "Deliberate differences" and "Tutorials".
+`(x: any)` on proxy callbacks, and so on), the notebooks say so as they go. Case study 10 writes expressions with terms
+throughout, where the Python tutorial reads them from lambdas with `Expressions.from_`, which has no TypeScript
+counterpart. The full list, with the reasons, is in [`EQUIVALENCE.md`](../../docs/EQUIVALENCE.md) under "Deliberate
+differences" and "Tutorials".

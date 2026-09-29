@@ -28,11 +28,15 @@ The meta-schemas are registered with `Proxies` as 'Expressions.OfLiteral', 'Expr
 rebuilds `Data` from snapshots, e.g. `JSON.FromJSON(Expressions.Builders).Reachable(Expressions.OfLet.Schema, text)`.
 `Data` is `Visitable`; builders implement `Visitors.OfObject`.
 
-`Term`s write expressions with methods: `variable('this').age.ge(18)` is `ge(get(this, 'age'), 18)`.
+`Term`s write expressions with methods: `variable('this').age.ge(18)` is `ge(get(this, 'age'), 18)`. `from_` reads one
+from a Python function's source instead: `from_(lambda this: this.age >= 18)` is the same expression.
 """
 
 from __future__ import annotations
 
+import ast
+import inspect
+import linecache
 from collections.abc import Callable, Hashable, Iterable
 from dataclasses import dataclass
 from typing import Any, ClassVar
@@ -42,7 +46,7 @@ from .Visitors import Native
 
 __all__ = [
     "OfAny", "OfLiteral", "OfOperation", "OfVariable", "OfLet", "Arguments", "Builders", "Term", "CORE",
-    "variable", "literal", "let_", "operation",
+    "variable", "literal", "let_", "operation", "from_",
     "LITERAL", "OPERATION", "VARIABLE", "LET", "ARGUMENTS",
 ]
 
@@ -788,6 +792,177 @@ def let_(name: str, value: OfAny.Spec, body: OfAny.Spec) -> Term:
 def operation(name: str, *arguments: OfAny.Spec) -> Term:
     """The operation `name` applied to `arguments`; for operations outside the core, or without a method."""
     return Term(_OperationData(name, tuple(OfAny.resolve(argument) for argument in arguments)))
+
+
+# --- From Python functions ---
+
+
+_COMPARISONS: dict[type, str] = {
+    ast.Eq: "eq", ast.NotEq: "ne", ast.Lt: "lt", ast.LtE: "le", ast.Gt: "gt", ast.GtE: "ge",
+}
+_ARITHMETIC: dict[type, str] = {ast.Add: "add", ast.Sub: "sub", ast.Mult: "mul"}
+_FUNCTIONS = (ast.Lambda, ast.FunctionDef)
+
+
+def from_(function: Callable[..., Any]) -> Term:
+    """The expression a Python function computes, read from its source: a lambda, or a `def` whose body is one `return`
+    (after an optional docstring). Each parameter becomes a variable of the same name, e.g. `from_(lambda this:
+    this.age >= 18)` is `ge(get(this, 'age'), 18)`.
+
+    - `x.name` and `getattr(x, 'name')` are `get`; `hasattr(x, 'name')` is `has`; `x.name is None` is
+      `not(has(x, 'name'))` and `x.name is not None` is `has(x, 'name')`.
+    - `==`, `!=`, `<`, `<=`, `>`, `>=` are the comparisons (a chain `a < b < c` is `and(lt(a, b), lt(b, c))`); `and`,
+      `or`, `not` are the logic operations; `+`, `-`, `*` and unary `-` are `add`, `sub`, `mul` and `neg`.
+    - `(lambda name: body)(value)` is a let.
+    - Other names are read when `from_` runs, from the function's closure and globals: a native value becomes a literal,
+      and a `Term` or expression is used as it is.
+
+    The expression is evaluated by `Evaluators`, with three-valued logic and no coercion, not by Python's rules: for
+    example, `1 == 1.0` is True in Python but unknown as an expression. Anything else raises `ValueError`.
+    """
+    code = getattr(function, "__code__", None)
+    if code is None:
+        raise TypeError(f"expected a Python function, got {_type_name(function)}")
+    node = _function_node(code)
+    captured = inspect.getclosurevars(function)
+    names = {**captured.builtins, **captured.globals, **captured.nonlocals}
+    return Term(_convert(_body(node), {name: _VariableData(name) for name in _parameters(node)}, names))
+
+
+def _function_node(code: Any) -> ast.Lambda | ast.FunctionDef:
+    """The lambda or `def` in the source that compiled to `code`: the innermost one whose span holds every instruction
+    of `code`, none of them inside the body of a function nested in it."""
+    try:
+        tree = ast.parse("".join(linecache.getlines(code.co_filename)))
+    except SyntaxError:
+        raise ValueError("the function's source is not available") from None
+    positions = [  # (start line, start column, end line, end column), without zero-width ones such as RESUME's
+        (p[0], p[2], p[1], p[3]) for p in code.co_positions() if None not in p and (p[0], p[2]) != (p[1], p[3])
+    ]
+    for node in sorted((n for n in ast.walk(tree) if isinstance(n, _FUNCTIONS)), key=_span, reverse=True):
+        start, end = _span(node)
+        nested = [_span(_body(n)) for n in ast.walk(node) if n is not node and isinstance(n, _FUNCTIONS)]
+        if positions and all(start <= (l1, c1) and (l2, c2) <= end for l1, c1, l2, c2 in positions) and not any(
+            s <= (l1, c1) and (l2, c2) <= e for l1, c1, l2, c2 in positions for s, e in nested
+        ):
+            return node
+    raise ValueError("the function's source is not available")
+
+
+def _span(node: ast.AST) -> tuple[tuple[int, int], tuple[int, int]]:
+    return (node.lineno, node.col_offset), (node.end_lineno, node.end_col_offset)  # type: ignore[attr-defined]
+
+
+def _body(node: ast.Lambda | ast.FunctionDef) -> ast.expr:
+    if isinstance(node, ast.Lambda):
+        return node.body
+    statements = node.body[1:] if ast.get_docstring(node) is not None else node.body
+    if len(statements) != 1 or not isinstance(statements[0], ast.Return) or statements[0].value is None:
+        raise ValueError(f"the body of {node.name!r} must be a single return statement")
+    return statements[0].value
+
+
+def _parameters(node: ast.Lambda | ast.FunctionDef) -> list[str]:
+    arguments = node.args
+    if arguments.vararg or arguments.kwarg or arguments.kwonlyargs or arguments.defaults or arguments.posonlyargs:
+        raise ValueError("only plain positional parameters can become variables")
+    return [argument.arg for argument in arguments.args]
+
+
+def _unsupported(node: ast.AST, reason: str = "not supported in an expression") -> ValueError:
+    return ValueError(f"cannot convert {ast.unparse(node)!r}: {reason}")
+
+
+def _convert(node: ast.expr, bound: dict[str, _VariableData], names: dict[str, Any]) -> Any:
+    """The expression data for `node`. `bound` maps the variables in scope to their data, one per name, so each is
+    written once; `names` holds the other names it can read."""
+
+    def convert(child: ast.expr) -> Any:
+        return _convert(child, bound, names)
+
+    def operation(name: str, *children: ast.expr) -> _OperationData:
+        return _OperationData(name, tuple(convert(child) for child in children))
+
+    if isinstance(node, ast.Constant):
+        if _native_name(node.value) is None:
+            raise _unsupported(node, "only native constants are literals")
+        return _LiteralData(node.value)
+    if isinstance(node, ast.Name):
+        if node.id in bound:
+            return bound[node.id]
+        if node.id not in names:
+            raise _unsupported(node, "the name is not defined")
+        value = names[node.id]
+        if isinstance(value, Term):
+            return value.data
+        if isinstance(value, _KINDS) or _native_name(value) is not None:
+            return OfAny.resolve(value)
+        raise _unsupported(node, f"a {_type_name(value)} is not a native value or an expression")
+    if isinstance(node, ast.Attribute):
+        return _OperationData("get", (convert(node.value), _LiteralData(node.attr)))
+    if isinstance(node, ast.BoolOp):
+        name = "and" if isinstance(node.op, ast.And) else "or"
+        result = convert(node.values[0])
+        for value in node.values[1:]:
+            result = _OperationData(name, (result, convert(value)))
+        return result
+    if isinstance(node, ast.UnaryOp):
+        if isinstance(node.op, ast.Not):
+            return operation("not", node.operand)
+        if isinstance(node.op, ast.USub):
+            return operation("neg", node.operand)
+        if isinstance(node.op, ast.UAdd):
+            return convert(node.operand)
+        raise _unsupported(node)
+    if isinstance(node, ast.BinOp):
+        if type(node.op) not in _ARITHMETIC:
+            raise _unsupported(node)
+        return operation(_ARITHMETIC[type(node.op)], node.left, node.right)
+    if isinstance(node, ast.Compare):
+        return _compare(node, convert)
+    if isinstance(node, ast.Call):
+        return _call(node, bound, names)
+    raise _unsupported(node)
+
+
+def _compare(node: ast.Compare, convert: Callable[[ast.expr], Any]) -> Any:
+    if len(node.ops) == 1 and isinstance(node.ops[0], (ast.Is, ast.IsNot)):
+        right = node.comparators[0]
+        if not (isinstance(right, ast.Constant) and right.value is None and isinstance(node.left, ast.Attribute)):
+            raise _unsupported(node, "'is' only tests whether a property is None")
+        has = _OperationData("has", (convert(node.left.value), _LiteralData(node.left.attr)))
+        return _OperationData("not", (has,)) if isinstance(node.ops[0], ast.Is) else has
+    pairs = []
+    left = convert(node.left)
+    for op, comparator in zip(node.ops, node.comparators):
+        if type(op) not in _COMPARISONS:
+            raise _unsupported(node)
+        right = convert(comparator)
+        pairs.append(_OperationData(_COMPARISONS[type(op)], (left, right)))
+        left = right
+    result = pairs[0]
+    for pair in pairs[1:]:
+        result = _OperationData("and", (result, pair))
+    return result
+
+
+def _call(node: ast.Call, bound: dict[str, _VariableData], names: dict[str, Any]) -> Any:
+    if node.keywords:
+        raise _unsupported(node)
+    function, arguments = node.func, node.args
+    if isinstance(function, ast.Lambda):
+        parameters = _parameters(function)
+        if len(parameters) != 1 or len(arguments) != 1:
+            raise _unsupported(node, "a let binds one name")
+        value = _convert(arguments[0], bound, names)
+        inner = {**bound, parameters[0]: _VariableData(parameters[0])}
+        return _LetData(parameters[0], value, _convert(function.body, inner, names))
+    if isinstance(function, ast.Name) and function.id in ("hasattr", "getattr") and function.id not in bound:
+        if len(arguments) != 2 or not (isinstance(arguments[1], ast.Constant) and type(arguments[1].value) is str):
+            raise _unsupported(node, f"{function.id} takes an object and a property name")
+        name = "has" if function.id == "hasattr" else "get"
+        return _OperationData(name, (_convert(arguments[0], bound, names), _LiteralData(arguments[1].value)))
+    raise _unsupported(node)
 
 
 # --- Meta-schemas ---

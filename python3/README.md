@@ -2,7 +2,7 @@
 
 Python implementation of the schemas framework. The design is in [`../docs/FRAMEWORK.md`](../docs/FRAMEWORK.md); the
 test plan is in [`tests/TestPlan.md`](tests/TestPlan.md). New to the framework? Start with the tutorial,
-[`tutorials/README.md`](tutorials/README.md): nine case studies, from a contact card to evolving schemas.
+[`tutorials/README.md`](tutorials/README.md): ten case studies, from a contact card to rules as data.
 
 ```sh
 uv sync --all-extras

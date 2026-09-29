@@ -51,10 +51,10 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `11_Conformance.ipynb` | CONF | 4 | as in Python, from this side |
 | `12_Text.ipynb` | TXT | 4 | `Repr` produces Python's text: `repr`, float `repr`, type names (plus one row for a prototype-less object), code-point order |
 | `13_Comparison.ipynb` | CMP | 12 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
-| `14_Expressions.ipynb` | EXP | 11 | as in Python; validation options are an object literal, and a term's probes are JavaScript's (`then`, `toJSON`, symbols) |
+| `14_Expressions.ipynb` | EXP | 12 | as in Python; validation options are an object literal, and a term's probes are JavaScript's (`then`, `toJSON`, symbols); EXP-12 asserts there is no `from_` |
 | `15_Evaluators.ipynb` | EVL | 6 | as in Python; evaluation scopes are object literals |
 
-Total: 148 cases, with the same IDs in the same order as the Python suites.
+Total: 149 cases, with the same IDs in the same order as the Python suites.
 
 ## Language differences
 
@@ -82,6 +82,7 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | Objects without a class | none | `Object.create(null)` is named `object` | TXT-03 |
 | Incomparable, unknown | `None` | `null` | CMP-01..12, EVL-01..06 |
 | Evaluation scope, validation options | `{"this": x}`, keywords | `{ this: x }`, an options object | EXP-10, EVL-01, EVL-04, EVL-06 |
+| Expressions from functions | `Expressions.from_` | none | EXP-12 |
 | A term's non-property names | `_`-prefixed | `then`, `toJSON`, symbols | EXP-11 |
 
 ## Findings

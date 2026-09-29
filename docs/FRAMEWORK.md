@@ -330,6 +330,17 @@ adult = this.age.ge(18).and_(this.has('email'))
 Evaluators.OfAny(adult, {'this': ann})   # True, False, or None when age is absent
 ```
 
+In Python, `Expressions.from_(function)` reads the same expression from a function's source (a lambda, or a `def` whose
+body is one `return`); each parameter becomes a variable. `.name` and `getattr` are `get`, `hasattr` is `has`,
+`x.name is None` / `is not None` test presence, comparisons (including chains), `and` / `or` / `not`, `+` / `-` / `*`
+and unary `-` map to the core operations, and `(lambda name: body)(value)` is a let. Other names are read from the
+function's closure and globals when `from_` runs. The result follows the expression's rules, not Python's: `1 == 1.0`
+is unknown. TypeScript has no counterpart, since a JavaScript function has no Python source to read.
+
+```python
+adult = Expressions.from_(lambda this: this.age >= 18 and this.email is not None)
+```
+
 ## Language bindings
 
 Two implementations exist: `python3/` and `typescript5/`. Their APIs use the same names (snake_case included), the
@@ -420,6 +431,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   `Builder`, `Spec` and a meta-schema `Schema` that is an ordinary registered object schema tagged by `kind`. Arguments
   are an ordered relation (`index`, `unique(argument)`); a literal's schema has one property per native type.
 - There is no `is` operation: unions discriminate by a tag property compared with a fixed value.
+- `Expressions.from_` (Python only) reads an expression from a function's source with `ast`.
 - Evaluation is its own module, `Evaluators`, with one entry point per expression kind (`Evaluators.OfAny`, ...).
 - Evaluation is three-valued (Kleene), never coerces, and reads properties with `get(object, name)`; variables are
   bound by `OfLet` or by the caller's scope. `Term`s write expressions with methods only (no operator overloading), so

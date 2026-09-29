@@ -4,21 +4,22 @@ A schema is an ordinary value built with a small fluent DSL, not a class. Two im
 TypeScript. They have the same API and the same error messages, and they write byte-identical JSON. The TypeScript
 core runs in Node, in browsers and in Deno.
 
-`schemas` takes the graph-shaped modeling of ORMs and MBSE and packages it as a small, portable library. Objects link
-through relationships whose entries carry their own properties, like UML association classes or join tables with
-columns, and cardinality is declared. A schema is a plain value that you build in your own language, and that one
-value drives in-memory objects, JSON and YAML, validation and, eventually, generated bindings for languages from
-Python and TypeScript to C++ and SystemVerilog. You don't need a database, a modeling editor or a separate IDL
-compiler.
+`schemas` takes the graph-shaped modeling of [ORMs](https://en.wikipedia.org/wiki/Object%E2%80%93relational_mapping)
+and [MBSE](https://en.wikipedia.org/wiki/Model-based_systems_engineering) and packages it as a small, portable
+library. Objects link through relationships whose entries carry their own properties, like UML association classes or
+join tables with columns, and cardinality is declared. That one schema value drives in-memory objects, JSON and YAML,
+validation and, eventually, generated bindings for languages from Python and TypeScript to C++ and SystemVerilog. You
+don't need a database, a modeling editor or a separate IDL compiler.
 
 ## A quick look
 
-With this framework, the types for structured data can be represented in a clear "Single Source of Truth" form, as data, and use that one description everywhere: 
+With this framework, you describe structured data once, as data, in a single source of truth, and use that one
+description everywhere:
 
 - to build and edit objects
 - to save and load them as JSON or YAML
-- to validate them, and (in time)
-- to generate idiomatic and performant interface bindings for a variety of programming languages
+- to validate them
+- to generate idiomatic, performant interface bindings for many programming languages (planned)
 
 ```python
 from schemas.Framework import JSON, Proxies, Schemas, Validators
@@ -72,7 +73,7 @@ tools.
   of typed elements with associations, multiplicities and constraints, and they generate code from it. The shape is
   right, but the toolchains are heavy, tied to particular platforms and editors, and rarely something you would embed
   in an ordinary program.
-  
+
 ## What makes it different
 
 - **Schemas are values.** You can inspect them, compare them and generate from them, in any language.

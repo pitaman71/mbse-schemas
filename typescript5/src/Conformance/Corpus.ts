@@ -7,16 +7,16 @@
  * lockstep: same schemas, same names, same values, same order of statements.
  */
 
-import { Expressions, Proxies, Schemas } from "../Framework/index.js";
-import type { Visitable } from "../Framework/Visitors.js";
+import { Proxies, Schemas } from "../Framework/index.js";
+import type { Instance } from "../Framework/Proxies.js";
 
-export const CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "expression"] as const;
+export const CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings"] as const;
 
 function text(name: string, native: unknown = String) {
   return (prop: Schemas.OfProperty.Builder) => prop.name(name).of((t) => t.as_native(native as never));
 }
 
-export function build(): Map<string, [Schemas.OfObject.Data, Visitable]> {
+export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   const S = Schemas;
 
   // --- address_book ---
@@ -131,19 +131,11 @@ export function build(): Map<string, [Schemas.OfObject.Data, Visitable]> {
     B.Notebook(notebook).notes((x: any) => x.note(note).page(BigInt(page))).update();
   });
 
-  // --- expression: every kind and literal type, shared sub-expressions, each operation once ---
-  const E = Expressions;
-  const [self, age] = [E.variable("this"), E.variable("age")];
-  const expression = E.let_("age", self.age, age.ge(18n).and_(
-    age.lt(65.5).or_(self.has("email").not_())
-      .implies(E.operation("in", "x", new Uint8Array([0x00, 0xff]), true)))).data;
-
-  return new Map<string, [Schemas.OfObject.Data, Visitable]>([
+  return new Map<string, [Schemas.OfObject.Data, Instance]>([
     ["address_book", [Contact, alice]],
     ["natives", [Bag, bag]],
     ["family", [Person, ada]],
     ["enrollment", [Student, mia]],
     ["yaml_strings", [Notebook, notebook]],
-    ["expression", [E.OfLet.Schema, expression]],
   ]);
 }

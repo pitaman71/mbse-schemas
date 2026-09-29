@@ -350,7 +350,7 @@ class OfObject:
 @dataclass(eq=False)
 class _BranchData:
     type: Any = None  # OfAny.Data
-    when: Any = None  # Expressions.OfAny.Data (not imported: Expressions depends on Schemas)
+    when: Any = None  # an expression, from the mbse-expressions package; opaque here
 
 
 class _BranchBuilder(_Builder[_BranchData]):

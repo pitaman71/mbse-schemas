@@ -123,7 +123,7 @@ npx tsx src/Examples/AddressBook.ts                  # an example
 
 | Read | For |
 |---|---|
-| [`python3/tutorials/`](python3/tutorials/README.md), [`typescript5/tutorials/`](typescript5/tutorials/README.md) | Ten case studies, from a contact card to rules as data, in Python and in TypeScript. Start here. |
+| [`python3/tutorials/`](python3/tutorials/README.md), [`typescript5/tutorials/`](typescript5/tutorials/README.md) | Nine case studies, from a contact card to evolving schemas, in Python and in TypeScript. Start here. |
 | [`FRAMEWORK.md`](docs/FRAMEWORK.md) | The design: every element, rule and decision, plus the open questions |
 | [`EQUALITY.md`](docs/EQUALITY.md) | How values compare under a schema: equality, hashing, ordering, and the `Comparison` module |
 | [`EQUIVALENCE.md`](docs/EQUIVALENCE.md) | What "equivalent implementations" means, how it's checked, and where the languages deliberately differ |
@@ -140,7 +140,7 @@ typescript5/        TypeScript implementation: src/Framework, examples, tests an
 conformance/        snapshots each implementation writes; each must read the other's
 ```
 
-Tests are Jupyter notebooks, one suite per notebook. Both implementations have the same 150 cases under the same
+Tests are Jupyter notebooks, one suite per notebook. Both implementations have the same 132 cases under the same
 IDs, and both reach 100% code coverage (`uv run coverage ...` / `npm run coverage`; see `docs/EQUIVALENCE.md`).
 
 ## Status
@@ -151,14 +151,14 @@ The core is implemented in both languages:
 - reachability;
 - plain snapshots, JSON and YAML;
 - validation;
-- comparison under a schema;
-- expressions: literals, operations, variables and lets, with builders and meta-schemas (so they serialize like any
-  data), written with method-chained terms, or in Python read from a lambda (`Expressions.from_`);
-- evaluation of expressions (`Evaluators`), with three-valued logic.
+- comparison under a schema.
+
+Expressions (for union predicates and constraints) and their evaluation are a separate package,
+[mbse-expressions](https://github.com/pitaman71/mbse-expressions), which depends on this one.
 
 Designed but not built yet (see `docs/FRAMEWORK.md`):
-- the collection operations (`count`, `in`, `all`, `any`), which constraints such as "at least one" need;
-- union values, chosen by evaluating their discriminators;
+- union values, chosen by evaluating their discriminators (with an evaluator supplied by the caller);
+- constraints such as "at least one";
 - mutations and transactions;
 - factories;
 - implicit singletons;

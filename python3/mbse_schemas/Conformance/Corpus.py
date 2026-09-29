@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import math
 
-from mbse_schemas.Framework import Expressions, Proxies, Schemas
+from mbse_schemas.Framework import Proxies, Schemas
 
-CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "expression"]
+CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings"]
 
 
 def _text(name, native=str):
@@ -131,17 +131,10 @@ def build():
         note = B.Note().text(value).create()
         B.Notebook(notebook).notes(lambda x, note=note, page=page: x.note(note).page(page)).update()
 
-    # --- expression: every kind and literal type, shared sub-expressions, each operation once ---
-    E = Expressions
-    this, age = E.variable("this"), E.variable("age")
-    expression = E.let_("age", this.age, age.ge(18).and_(
-        age.lt(65.5).or_(this.has("email").not_()).implies(E.operation("in", "x", b"\x00\xff", True)))).data
-
     return {
         "address_book": (Contact, alice),
         "natives": (Bag, bag),
         "family": (Person, ada),
         "enrollment": (Student, mia),
         "yaml_strings": (Notebook, notebook),
-        "expression": (E.OfLet.Schema, expression),
     }

@@ -3,7 +3,7 @@
 // Nothing here builds instances; it exercises Schemas.OfX.Builder and Schemas.OfX.Data.validate().
 
 import { ValueError } from "../Framework/Errors.js";
-import { Expressions, Schemas } from "../Framework/index.js";
+import { Schemas } from "../Framework/index.js";
 import { assert, raises } from "./_support.js";
 
 // --- Spec forms ---
@@ -127,17 +127,16 @@ assert(Registry.singleton === "iso3166.Registry" && Registry.validate().length =
 
 // --- Unions and intersections (schema level) ---
 //
-// Discriminator predicates are serializable expressions, here written with terms; `this` is the value being tested.
-// Choosing a branch by evaluating them is not built yet.
+// Discriminator predicates are serializable expressions, from the separate mbse-expressions package; these are
+// placeholders.
 
 const Phone = new Schemas.OfObject.Builder().properties((prop) => prop.name("number").of(Text)).create();
 const Email = new Schemas.OfObject.Builder().properties((prop) => prop.name("address").of(Text)).create();
 
-const self = Expressions.variable("this");
 const ContactMethod = new Schemas.OfUnion.Builder()
   .branches(
-    (b) => b.of(Phone).when(self.has("number").data),
-    (b) => b.of(Email).when(self.has("address").data),
+    (b) => b.of(Phone).when(["has", "number"]),
+    (b) => b.of(Email).when(["has", "address"]),
   )
   .create();
 assert(ContactMethod.validate().length === 0);

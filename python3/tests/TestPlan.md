@@ -1,9 +1,9 @@
 # Test plan — python3
 
 Scope: everything implemented under `python3/mbse_schemas/Framework` (Schemas, Visitors, Proxies, Reachable, Plain,
-JSON, YAML, Validators, Comparison, Expressions, Evaluators), the examples under `python3/mbse_schemas/Examples`, and
-cross-implementation conformance with `typescript5`. The design reference is `../../docs/FRAMEWORK.md`; the TypeScript
-test plan (`typescript5/tests/TestPlan.md`) mirrors this one case for case.
+JSON, YAML, Validators, Comparison), the examples under `python3/mbse_schemas/Examples`, and cross-implementation
+conformance with `typescript5`. The design reference is `../../docs/FRAMEWORK.md`; the TypeScript test plan
+(`typescript5/tests/TestPlan.md`) mirrors this one case for case.
 
 ## Running
 
@@ -38,7 +38,7 @@ read or step through them.
 | Notebook | Suite | Cases | Focus |
 |---|---|---|---|
 | `01_Schemas.ipynb` | SCH | 17 | Native validity and equality; `Spec` resolution (types, callables, data, bad returns, bare classes); strict `to_plain`/`from_plain` in both directions incl. subclasses; strict base64; the three non-finite float strings; `OfAny.Builder` selection and create/clone/update; value kinds only in `OfAny`; finalization rules for every builder; container copies vs shared references; `OfObject`/`OfRelation`/`OfAdjacency`/`OfUnion`/`OfIntersection` validation matrices; union/intersection selection, untyped branches, identity equality, Spec errors naming what they got |
-| `02_Visitors.ipynb` | VIS | 7 | Protocol declarations; every implementation (Proxies, Plain, Reachable, Validators, Comparison, Expressions) conforms with matching arity; proxies are `Visitable`, not visitors; chaining returns `self`; unimplemented kinds raise; live instances conform (no attribute shadows a method); every protocol method of every implementation exercised, incl. empty adjacencies and absent properties |
+| `02_Visitors.ipynb` | VIS | 7 | Protocol declarations; every implementation (Proxies, Plain, Reachable, Validators, Comparison) conforms with matching arity; proxies are `Visitable`, not visitors; chaining returns `self`; unimplemented kinds raise; live instances conform (no attribute shadows a method); every protocol method of every implementation exercised, incl. empty adjacencies and absent properties |
 | `03_Proxies.ipynb` | PRX | 17 | Registry (duplicates, unknown names, relations, non-identifier names, lookups); read-only instances and unset properties; setter `Spec`s; reserved-name collisions; create/clone/update incl. builder reuse; no native validation in builders; entries seen from every end; set semantics (absent, -0.0, NaN, int vs bool); schema inference through links (ambiguous, none, unique); nested inline creation per finalize; removal and exact write-back; concurrent builders; clone of entries and self-loops; self-relations; the builder's visitor API; `Proxies.OfObject.Builder`/`Data` directly; entry properties must be native (bytes key entries like any native) |
 | `04_Reachable.ipynb` | RCH | 10 | Lone object; breadth-first first-reference order; cycles, self-loops, diamonds; multi-link entries and ignored properties; identity-based sameness; root first; 20,000-node chain without recursion; errors from `accept` propagate; collector refusals; components from every member |
 | `05_Plain.ipynb` | PLN | 16 | Native entry points; exact snapshot format; schema-ordered properties and relation-ordered entry fields; symbol order; single-object vs reachable scope; round trips without duplicated entries; edge values; symbol renumbering on round trip; root schema and type checks; serializing fakes; 26 malformed snapshots each rejected with an exact `DecodeError` path and reason; disagreeing ends; wrong value types as `DecodeError`s with paths; rejection builds nothing, and no builder is called before every value is decoded; only injected builders are used, and a registry's own errors propagate; non-native property schemas refused; per-kind JSON/YAML entry points |
@@ -50,10 +50,8 @@ read or step through them.
 | `11_Conformance.ipynb` | CONF | 4 | This implementation's corpus files are current; JSON is byte-identical to TypeScript's for every case; every implementation's YAML reads back to the same snapshot, also under YAML 1.1; every implementation's JSON and YAML deserialize with Python's builders to the same graphs and validate |
 | `12_Text.ipynb` | TXT | 4 | Messages are identical across implementations: `repr` of every native and container, float `repr`, type names, code-point string order |
 | `13_Comparison.ipynb` | CMP | 12 | Ordered natives (ints beyond 2^53, strings by code point without normalization, bytes lexicographically); floats by value with `-0.0` before `0.0` and NaNs equal only to NaNs; booleans equal or incomparable; absent values, exact native types, distinct native types; objects equal by declared properties, adjacencies excluded; links by identity; entries by links and properties, from either end; adjacencies as sets with equal entries elided; object-valued properties and mismatched kinds; reading recordings back through the protocols; unions and intersections refused |
-| `14_Expressions.ipynb` | EXP | 12 | Literals of every native type; operations with ordered arguments; variables and lets (scoping, bound names); `validate()` problems with paths, cycles vs shared sub-expressions, arities, unbound variables, `core`; create/clone/update and `OfAny` kind selection; Spec errors; the tagged meta-schemas and their registration; round trips through Plain, JSON and YAML rebuilding `Data`, exact JSON, wrong tags; proxy-built snapshots with implied `used_by`; validation and comparison through the meta-schemas; builders through the visitor protocols; terms; `from_` reading lambdas and defs (chains, lets, closures, two lambdas on one line) and its refusals |
-| `15_Evaluators.ipynb` | EVL | 6 | Evaluating literals, variables, lets, `get` and `has`; comparisons (three-valued, no coercion, NaN, -0.0, objects by identity); Kleene logic with short-circuiting; arithmetic in one type; evaluation errors vs `validate()`; the union's tag discriminators; one entry point per kind, accepting that kind's Specs |
 
-Total: 150 cases, with the same IDs in the same order as the TypeScript suites.
+Total: 132 cases, with the same IDs in the same order as the TypeScript suites.
 
 ## Coverage of FRAMEWORK.md
 
@@ -68,8 +66,6 @@ Total: 150 cases, with the same IDs in the same order as the TypeScript suites.
 | `unique(S)`: the rest determines `S` | SCH-13, VAL-06, VAL-07, VAL-08, VAL-11 |
 | Entries form a set; equal entries elided; schema equality (types distinct, floats by bit pattern) | PRX-08, PROP-05, VAL-07 |
 | Equality under a schema, and ordering only for ordered natives | CMP-01..12 |
-| Expressions: `Data` / `Builder` / `Spec` / `Schema`; serializable through their meta-schemas | EXP-01..11, CONF-01..04 |
-| Evaluation: three-valued, no coercion, core vocabulary; `validate()` checks; tag discriminators | EVL-01..06 |
 | Intersection conflicts are errors; union kinds and predicates | SCH-14, SCH-15 |
 | No relation builder for callers; entries through adjacencies | PRX-01, PRX-07 |
 | Inline link creation needs unambiguous schema inference | PRX-09 |
@@ -115,7 +111,7 @@ shared case in both languages, and code no test could reach was removed from bot
 
 ## Not testable yet (specified in FRAMEWORK.md, not implemented)
 
-- The collection operations (`count`, `in`, `all`, `any`), and choosing union branches by their predicates.
+- Union values: choosing a branch evaluates its predicate, an expression from the separate mbse-expressions package.
 - Mutations, transactions, symbol bindings and mutation serialization.
 - `Factories` and `Factories.Directory`.
 - Singletons existing implicitly (only the schema declaration exists).

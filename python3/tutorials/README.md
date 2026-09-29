@@ -1,4 +1,4 @@
-# Tutorial: the schemas framework in ten case studies
+# Tutorial: the schemas framework in nine case studies
 
 This tutorial teaches the framework by solving real problems, one per notebook. Each case study builds on the ones
 before it. Each spends as much time on *why* the framework does something differently as on *how* to use it, because
@@ -17,12 +17,15 @@ uv sync --all-extras                 # the project environment, with PyYAML (use
 uv run --with jupyterlab jupyter lab tutorials/   # or open them in VS Code with the project's .venv as the kernel
 ```
 
-Each notebook runs top to bottom in a fresh kernel and starts with a schema registry that holds only the built-in
-`Expressions.*` meta-schemas. The notebooks are committed with their outputs, so you can also just read them. `uv run
-pytest tutorials` executes them all as tests, which keeps them in step with the code.
+Each notebook runs top to bottom in a fresh kernel and starts with an empty schema registry. The notebooks are
+committed with their outputs, so you can also just read them. `uv run pytest tutorials` executes them all as tests,
+which keeps them in step with the code.
 
 `toolkit.py` holds the two small helpers the case studies build (`entries` and `remove_entries`), so later notebooks
 can import them.
+
+Expressions, which union predicates are made of, live in the separate
+[mbse-expressions](https://github.com/pitaman71/mbse-expressions) package, whose tutorial continues this one.
 
 ## The case studies
 
@@ -37,7 +40,6 @@ can import them.
 | 7 | [JSON and YAML](07_JSON_And_YAML.ipynb) | An API in JSON and a hand-edited YAML config | Strict JSON; the Norway problem; YAML 1.2 loading; no type coercion |
 | 8 | [Tools for every schema](08_Tools_For_Every_Schema.ipynb) | Audit logs and docs without per-class code | Walking schemas as data; writing a visitor; `accept` |
 | 9 | [When requirements change](09_When_Requirements_Change.ipynb) | New fields, v2 schemas, unique IDs, variants | Evolving schemas; versioned names; directories; unions and intersections; what isn't built yet |
-| 10 | [Rules as data](10_Rules_As_Data.ipynb) | Eligibility rules stored, sent, and applied the same way by Python and TypeScript | Expressions from lambdas (`Expressions.from_`); evaluating with three-valued logic and no coercion; saving and loading; traversing for analysis and for substitution; methods and builders (appendix) |
 
 ## The ideas at a glance
 
@@ -52,4 +54,3 @@ can import them.
 | `to_dict` per class, nested | One flat snapshot shape with symbols and schema-named references | Shared objects once, cycles safe, kinds preserved | 6 |
 | Lenient parsing | Exact types, strict JSON, YAML 1.2 | The same text means the same thing in every language | 6, 7 |
 | Reflection over classes | Visitors: objects write themselves into any tool | One protocol for serializers, validators and your tools | 2, 8 |
-| Rules as functions | Rules as expressions: data with a schema, evaluated by `Evaluators` | Stored, sent and evaluated the same way by every program; unknown is an answer | 10 |

@@ -1,10 +1,10 @@
 # Test plan — typescript5
 
 Scope: everything under `typescript5/src/Framework` (Errors, Repr, Visitors, Schemas, Proxies, Reachable, Plain, JSON,
-YAML, Validators, Comparison, Expressions, Evaluators), the examples under `typescript5/src/Examples`, and
-cross-implementation conformance with `python3`. The design reference is `../../docs/FRAMEWORK.md`. This plan mirrors
-`python3/tests/TestPlan.md` case for case: the same suites, the same case IDs in the same order, the same assertions,
-except for the language differences listed below.
+YAML, Validators, Comparison), the examples under `typescript5/src/Examples`, and cross-implementation conformance
+with `python3`. The design reference is `../../docs/FRAMEWORK.md`. This plan mirrors `python3/tests/TestPlan.md` case
+for case: the same suites, the same case IDs in the same order, the same assertions, except for the language
+differences listed below.
 
 ## Running
 
@@ -51,10 +51,8 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `11_Conformance.ipynb` | CONF | 4 | as in Python, from this side |
 | `12_Text.ipynb` | TXT | 4 | `Repr` produces Python's text: `repr`, float `repr`, type names (plus one row for a prototype-less object), code-point order |
 | `13_Comparison.ipynb` | CMP | 12 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
-| `14_Expressions.ipynb` | EXP | 12 | as in Python; validation options are an object literal, and a term's probes are JavaScript's (`then`, `toJSON`, symbols); EXP-12 asserts there is no `from_` |
-| `15_Evaluators.ipynb` | EVL | 6 | as in Python; evaluation scopes are object literals |
 
-Total: 150 cases, with the same IDs in the same order as the Python suites.
+Total: 132 cases, with the same IDs in the same order as the Python suites.
 
 ## Language differences
 
@@ -80,11 +78,8 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | Byte-like subclasses | `bytearray` is not native (`got bytearray`) | `Buffer` is not native (`got Buffer`) | SCH-03, PRX-17 |
 | `Proxies.OfObject.Builder` | a class | a function returning the builder (`Proxies.OfObject.Data` is the class, so `instanceof` works) | PRX-16 |
 | Objects without a class | none | `Object.create(null)` is named `object` | TXT-03 |
-| Incomparable, unknown | `None` | `null` | CMP-01..12, EVL-01..06 |
-| Evaluation scope, validation options | `{"this": x}`, keywords | `{ this: x }`, an options object | EXP-10, EVL-01, EVL-04, EVL-06 |
+| Incomparable | `None` | `null` | CMP-01..12 |
 | Message text helpers | built in | `Repr` exported | TXT-01..04 |
-| Expressions from functions | `Expressions.from_` | none | EXP-12 |
-| A term's non-property names | `_`-prefixed | `then`, `toJSON`, symbols | EXP-11 |
 
 ## Findings
 
@@ -102,7 +97,7 @@ one TypeScript-only bug:
 
 ## Not testable yet
 
-The same as in Python: the collection operations and union branch selection, Mutations and transactions, Factories, implicit singletons, deletion,
+The same as in Python: union values, Mutations and transactions, Factories, implicit singletons, deletion,
 meta-schemas and schema serialization, object- / union- / intersection-valued properties, an "any value" kind,
 generated bindings.
 

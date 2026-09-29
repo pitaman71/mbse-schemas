@@ -1,11 +1,24 @@
 # schemas
 
-Describe structured data once, as data, and use that one description everywhere: to build and edit objects, to save
-and load them as JSON or YAML, to validate them, and (in time) to generate code for other languages.
-
 A schema is an ordinary value built with a small fluent DSL, not a class. Two implementations exist, in Python and
 TypeScript. They have the same API and the same error messages, and they write byte-identical JSON. The TypeScript
 core runs in Node, in browsers and in Deno.
+
+`schemas` takes the graph-shaped modeling of ORMs and MBSE and packages it as a small, portable library. Objects link
+through relationships whose entries carry their own properties, like UML association classes or join tables with
+columns, and cardinality is declared. A schema is a plain value that you build in your own language, and that one
+value drives in-memory objects, JSON and YAML, validation and, eventually, generated bindings for languages from
+Python and TypeScript to C++ and SystemVerilog. You don't need a database, a modeling editor or a separate IDL
+compiler.
+
+## A quick look
+
+With this framework, the types for structured data can be represented in a clear "Single Source of Truth" form, as data, and use that one description everywhere: 
+
+- to build and edit objects
+- to save and load them as JSON or YAML
+- to validate them, and (in time)
+- to generate idiomatic and performant interface bindings for a variety of programming languages
 
 ```python
 from schemas.Framework import JSON, Proxies, Schemas, Validators
@@ -42,6 +55,24 @@ assert Validators.Validate(Proxies.Builders).Reachable(Contact, copy) == []
                            "s1": {"street": "10 Downing Street", "residents": [{"contact": {"$ref": "s0", "$schema": "Contact"}, "label": "home"}]}}}
 ```
 
+## Why another schema language?
+
+Most programs that handle structured data describe it several times: as classes in the application, as tables or
+documents in storage, as a JSON Schema or OpenAPI spec at the API boundary, and again in hand-written validation. Over
+time the copies stop matching. Existing tools each handle one of these descriptions well and leave the rest to other
+tools.
+
+- **ORMs** start from the database. They make relationships first-class: foreign keys, join tables, inverse
+  navigation and object identity. But the schema lives in one language's classes and takes its shape from the
+  relational store. Serialization, validation and other languages need separate tools.
+- **Serialization schemas** (JSON Schema, Protocol Buffers, Avro, Pydantic-style models) start from the wire. They
+  are portable and validate documents well, but they describe *trees* of lists and nested records. Shared objects,
+  inverse relationships and cycles have to be encoded by hand as IDs and joined back together in application code.
+- **MBSE and metamodeling tools** (SysML, UML, EMF/Ecore) start from the model. They describe a system as a *graph*
+  of typed elements with associations, multiplicities and constraints, and they generate code from it. The shape is
+  right, but the toolchains are heavy, tied to particular platforms and editors, and rarely something you would embed
+  in an ordinary program.
+  
 ## What makes it different
 
 - **Schemas are values.** You can inspect them, compare them and generate from them, in any language.
@@ -88,7 +119,7 @@ npx tsx src/Examples/AddressBook.ts             # an example
 
 | Read | For |
 |---|---|
-| [`python3/tutorials/`](python3/tutorials/README.md) | Nine case studies, from a contact card to evolving schemas. Start here. |
+| [`python3/tutorials/`](python3/tutorials/README.md), [`typescript5/tutorials/`](typescript5/tutorials/README.md) | Nine case studies, from a contact card to evolving schemas, in Python and in TypeScript. Start here. |
 | [`Framework.md`](Framework.md) | The design: every element, rule and decision, plus the open questions |
 | [`EQUIVALENCE.md`](EQUIVALENCE.md) | What "equivalent implementations" means, how it's checked, and where the languages deliberately differ |
 | [`python3/tests/TestPlan.md`](python3/tests/TestPlan.md), [`typescript5/tests/TestPlan.md`](typescript5/tests/TestPlan.md) | The test suites, the findings they produced, and what isn't testable yet |
@@ -100,7 +131,7 @@ npx tsx src/Examples/AddressBook.ts             # an example
 Framework.md        the design
 EQUIVALENCE.md      how the two implementations are kept equivalent
 python3/            Python implementation: schemas/Framework, examples, tests (Jupyter notebooks), tutorials
-typescript5/        TypeScript implementation: src/Framework, examples, tests (notebooks run by tests/run-notebooks.ts)
+typescript5/        TypeScript implementation: src/Framework, examples, tests and tutorials (notebooks; Deno kernel)
 conformance/        snapshots each implementation writes; each must read the other's
 ```
 

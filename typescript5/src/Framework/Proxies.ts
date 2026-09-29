@@ -165,6 +165,8 @@ function relationData(schema: RelationSchema): RelationData {
 let nextIdentity = 0;
 /** Node's `util.inspect.custom` symbol, by its registered name, so no Node module is imported. */
 const INSPECT = Symbol.for("nodejs.util.inspect.custom");
+/** The Jupyter display protocol's symbol, as Deno's kernel uses it. */
+const JUPYTER_DISPLAY = Symbol.for("Jupyter.display");
 
 const instanceTargets = new WeakMap<object, ObjectTarget>();
 
@@ -208,6 +210,11 @@ class ObjectTarget {
     const t = instanceTargets.get(this as unknown as object) as ObjectTarget; // instances are only reached as proxies
     const values = [...t.values].map(([k, v]) => `${k}: ${repr(v)}`).join(", ");
     return `<${t.schemaName} proxy #${t.id}${values ? " " + values : ""}>`;
+  }
+
+  /** Jupyter kernels (e.g. Deno's) display a cell's value with this, before probing it for other formats. */
+  [JUPYTER_DISPLAY](): Record<string, string> {
+    return { "text/plain": this[INSPECT]() };
   }
 }
 

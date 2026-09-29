@@ -11,7 +11,7 @@ suites, the same case IDs in the same order, the same assertions, except for the
 cd typescript5
 nvm use                                   # Node 24 from ../.nvmrc; package.json requires >= 22
 npm install
-npm test                                  # type-checks everything, then runs every notebook under tests/ headless
+npm test                                  # type-checks everything, then runs every notebook under tests/ and tutorials/ headless
 npx tsx tests/run-notebooks.ts tests/05_Plain.ipynb
 npm run coverage                          # npm test under c8; fails below 100% statements, branches, functions, lines
 npm run portability                       # the core without Node: browser bundle, then a smoke test under Deno
@@ -39,7 +39,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 |---|---|---|---|
 | `01_Schemas.ipynb` | SCH | 17 | as in Python; native tokens are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` |
 | `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length` |
-| `03_Proxies.ipynb` | PRX | 17 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances and the registry, and `util.inspect` of instances and builders |
+| `03_Proxies.ipynb` | PRX | 17 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances and the registry, `util.inspect` of instances and builders, and the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel) |
 | `04_Reachable.ipynb` | RCH | 10 | as in Python |
 | `05_Plain.ipynb` | PLN | 16 | as in Python; the same 26 malformed snapshots with byte-identical `DecodeError` paths and reasons |
 | `06_JSON.ipynb` | JSN | 11 | as in Python, including Python's exact output format; the 62-row JSN-09 table of `DecodeError`s is shared verbatim and matches exactly |

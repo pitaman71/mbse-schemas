@@ -5,7 +5,7 @@ before it. Each spends as much time on *why* the framework does something differ
 most of its choices (no lists, no mandatory fields, no automatic validation, no type coercion) are unusual.
 
 It's written for Python programmers who build applications with structured data: records, relationships, files and
-APIs. You don't need to have read the design document, [`../../Framework.md`](../../Framework.md), but it's the
+APIs. A TypeScript port with the same case studies is in [`../../typescript5/tutorials/`](../../typescript5/tutorials/README.md). You don't need to have read the design document, [`../../Framework.md`](../../Framework.md), but it's the
 reference for everything here.
 
 ## Running the notebooks

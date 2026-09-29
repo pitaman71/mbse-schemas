@@ -7,12 +7,14 @@
  *
  *   tsx tests/run-notebooks.ts [--typecheck] [notebook ...]
  *
+ * With no notebooks named, it runs every notebook in tests/ and tutorials/.
+ *
  * `--typecheck` also type-checks every notebook with the project's tsconfig before running anything.
  */
 
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -29,10 +31,12 @@ function sourceOf(cell: Cell): string {
   return Array.isArray(cell.source) ? cell.source.join("") : cell.source;
 }
 
-/** Import specifiers are written relative to tests/; the generated module lives one level deeper, in tests/.build. */
-function relocate(source: string): string {
-  return source.replace(/(from\s+|import\s*\(\s*)(["'])(\.\.?\/)/g, (_m, lead: string, quote: string, rel: string) =>
-    `${lead}${quote}${rel === "./" ? "../" : "../../"}`);
+/** Import specifiers are written relative to the notebook's folder; the generated module lives in tests/.build. */
+function relocate(source: string, folder: string): string {
+  return source.replace(/(from\s+|import\s*\(\s*)(["'])(\.\.?\/[^"']*)\2/g, (_m, lead: string, quote: string, spec: string) => {
+    const moved = relative(build, resolve(folder, spec)).split(sep).join("/");
+    return `${lead}${quote}${moved.startsWith(".") ? moved : "./" + moved}${quote}`;
+  });
 }
 
 /** One module per notebook: every code cell in order, each preceded by a marker naming its test case. */
@@ -51,7 +55,7 @@ function generate(notebook: string): string {
       if (match) current = match[1] as string;
       continue;
     }
-    parts.push(`(globalThis as any).__case = ${JSON.stringify(current)};`, relocate(source), "");
+    parts.push(`(globalThis as any).__case = ${JSON.stringify(current)};`, relocate(source, dirname(resolve(notebook))), "");
   }
   parts.push("export {};");
   const target = join(build, basename(notebook, ".ipynb") + ".ts");
@@ -71,7 +75,8 @@ const typecheck = args.includes("--typecheck");
 const requested = args.filter((a) => !a.startsWith("--"));
 const notebooks = requested.length > 0
   ? requested.map((n) => resolve(n))
-  : readdirSync(here).filter((n) => n.endsWith(".ipynb")).sort().map((n) => join(here, n));
+  : [here, join(here, "../tutorials")].flatMap((folder) =>
+      readdirSync(folder).filter((n) => n.endsWith(".ipynb")).sort().map((n) => join(folder, n)));
 
 rmSync(build, { recursive: true, force: true });
 mkdirSync(build, { recursive: true });

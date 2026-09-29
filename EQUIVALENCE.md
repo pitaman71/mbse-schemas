@@ -95,9 +95,26 @@ noticed.
 | Byte-like subclass named in errors | `bytearray` | `Buffer` | the nearest analogues | PRX-17 |
 | `Proxies.OfObject.Builder` | a class | a function returning the builder; `Proxies.OfObject.Data` is the class | builders are `Proxy` objects | PRX-16 |
 | Objects without a class | none | `Object.create(null)` is named `object` | JavaScript-only | TXT-03 |
+| Typing of the proxy DSL | untyped, like all Python | proxy builders and instances are typed loosely (`any` by name), so callbacks given to them are annotated `(x: any)`; schema builders and visitor handles are fully typed | the names come from schemas at runtime; per-schema types are the job of generated bindings | all proxy cases |
 | Test runner | pytest + nbmake | `tests/run-notebooks.ts` | no maintained TypeScript kernel is required to run headless | all |
 
 `Framework.md` ("Language bindings") summarizes the same mapping for readers of the design.
+
+## Tutorials
+
+`python3/tutorials/` and `typescript5/tutorials/` are the same nine case studies: the same problems, the same
+reasoning, in the same order, with the same outputs wherever the bindings agree (every error and validation message
+does). They differ only where the table above does, and the TypeScript notebooks point each difference out. Both are
+run as tests (`uv run pytest`, `npm test`), and both are committed with outputs: Python's from its kernel, TypeScript's
+from Deno's Jupyter kernel.
+
+Two conventions are specific to the TypeScript notebooks, not to the binding:
+
+- The framework's `JSON` module is imported as `Json`. In a notebook, a top-level `JSON` import shadows the global
+  `JSON`, which Deno's kernel itself uses.
+- Examples use `Proxies.Builders` directly and annotate DSL callbacks `(x: any)`, per the table above.
+
+When a case study changes, change both, and rerun both notebooks to refresh their outputs.
 
 ## What the port found
 

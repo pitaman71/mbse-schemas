@@ -241,6 +241,9 @@ def _kind(value: Any) -> str:
 def _native_problem(schema: Schemas.OfAny.Data, value: Any) -> str | None:
     if not isinstance(schema, Schemas.OfNative.Data):
         return "entry properties must be native"
+    if schema.type is None:  # an unsupported type is the schema's own problem, reported by its validate()
+        token = schema.token
+        return f"{token} has no type in this implementation" if isinstance(token, Schemas.OfNative.Token) else None
     if type(value) is not schema.type:
         return f"expected {schema.type.__name__}, got {_kind(value)}"
     return None
@@ -306,7 +309,8 @@ class _Check:
         """Problems with a property's value: its kind and type, recursively, and that a union value holds one branch
         and an intersection value every part."""
         if isinstance(schema, Schemas.OfNative.Data):
-            return [] if type(item) is schema.type else [f"{label}: expected {schema.type.__name__}, got {_kind(item)}"]
+            problem = _native_problem(schema, item)
+            return [f"{label}: {problem}"] if problem else []
         kind = _KINDS[type(schema)]
         noun, owner, member = _RECORDS[kind]
         if not isinstance(item, _ObjectRecord) or item.kind != kind:

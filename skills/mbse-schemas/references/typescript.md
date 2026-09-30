@@ -64,6 +64,7 @@ if (Validators.Validate(B).Reachable(Component, copy).length > 0) throw new Erro
 new S.OfObject.Builder().properties(spec, ...).relations(spec, ...).singleton("Name").create();
 new S.OfObject.Builder(existing).relations(...).update();   // add adjacencies once the relations exist
 new S.OfRelation.Builder().links("a", "b").properties(spec, ...).unique("a").create();
+S.OfNative.resolve((n) => n.token("ccpp", "int32_t").bits(32n));   // any format's token; a width in bits or bytes
 new S.OfUnion.Builder().branches((b) => b.name("phone").of(spec), ...).create();
 new S.OfIntersection.Builder().parts((p) => p.name("stamp").of(spec), ...).create();
 Proxies.register("Name", schema); const B = Proxies.Builders;

@@ -49,7 +49,8 @@ assert Validators.Validate(B).Reachable(Component, copy) == []
 
 ```python fragment
 # Schemas: values built with fluent builders. A Spec is a schema or a callable taking a builder.
-S.OfNative.Data(int)                                        # natives: int, float, str, bool, bytes
+S.OfNative.Data(int)                                        # natives: int, float, str, bool, bytes (basic tokens)
+S.OfNative.resolve(lambda n: n.token("ccpp", "int32_t").bits(32))   # any format's token; a width in bits or bytes
 S.OfObject.Builder().properties(spec, ...).relations(spec, ...).singleton("Name").create()
 S.OfObject.Builder(existing).relations(...).update()        # add adjacencies once the relations exist
 S.OfRelation.Builder().links("a", "b").properties(spec, ...).unique("a").create()

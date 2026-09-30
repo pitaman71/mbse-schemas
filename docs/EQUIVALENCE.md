@@ -75,7 +75,9 @@ noticed.
 | Area | Python | TypeScript | Why | Cases |
 |---|---|---|---|---|
 | Import path | `mbse.Schemas.Framework`, in the `mbse` namespace package that related packages share | `@mbse/schemas/Framework`, in the `@mbse` scope | a module specifier is a path, not a dotted name; a scope is the nearest equivalent | all |
-| Native types | `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` as tokens | JavaScript's constructors are its runtime type objects | SCH-01..05 |
+| Native host types | `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` | JavaScript's constructors are its runtime type objects | SCH-01..05 |
+| Own token format | `python3` tokens are read | `typescript5` tokens are read | each implementation reads `basic` tokens and its own language's | SCH-18 |
+| Native widths | `int` | `bigint`, as every int in the data model | a width becomes data once schemas serialize | SCH-18 |
 | Integers | `int` | `bigint` | `number` cannot tell `1` from `1.0` and rounds above 2^53 | SCH-03, JSN-05, JSN-07 |
 | Plain mappings | `dict` | `Map<string, PlainData>` | object literals reorder integer-like keys and mishandle `__proto__` | SCH-11, PLN-02 |
 | Schema data equality | `==` | `.equals()` | no operator overloading | SCH-01, SCH-15 |

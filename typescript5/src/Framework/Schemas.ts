@@ -120,29 +120,85 @@ export function isNativeOf(token: unknown, value: unknown): boolean {
   return value !== null && value !== undefined && (value as { constructor?: unknown }).constructor === token;
 }
 
-class NativeData implements HasFields {
-  type: unknown;
+export const BASIC = "basic";
+export const TYPESCRIPT5 = "typescript5";
+const OWN_TYPES: ReadonlyMap<string, NativeToken> = new Map<string, NativeToken>(
+  NATIVE_TYPES.map((host) => [(host as { name: string }).name, host]));
+const BASIC_TYPES: ReadonlyMap<string, NativeToken> = new Map(NATIVE_TYPES.map((host) => [tokenName(host), host]));
 
-  constructor(type: unknown = null) {
-    this.type = type;
-  }
-
+/** A native type, named in a format: `basic`, the neutral vocabulary (`bool`, `int`, `float`, `str`, `bytes`), a
+ * language's (`python3`, `typescript5`, `ccpp`, ...), or any other. */
+class TokenClass {
+  constructor(readonly format: string = BASIC, readonly name: string = "") {}
 
   equals(other: unknown): boolean {
-    return other instanceof NativeData && other.type === this.type;
+    return other instanceof TokenClass && other.format === this.format && other.name === this.name;
+  }
+
+  toString(): string {
+    return `the ${this.format} type ${repr(this.name)}`;
+  }
+}
+
+/** The widths a native may have: in bits or in bytes. */
+export interface Widths {
+  bits?: bigint | null;
+  bytes?: bigint | null;
+}
+
+/** A native type: a token, and optionally a width in bits or in bytes. A host type given in place of the token
+ * (`new OfNative.Data(BigInt)`) is shorthand for the `basic` token of the same name. */
+class NativeData implements HasFields {
+  token: unknown;
+  bits: bigint | null;
+  bytes: bigint | null;
+
+  constructor(token: unknown = null, widths: Widths = {}) {
+    this.token = NATIVE_NAMES.has(token) ? new TokenClass(BASIC, NATIVE_NAMES.get(token) as string) : token;
+    this.bits = widths.bits ?? null;
+    this.bytes = widths.bytes ?? null;
+  }
+
+  /** The host type the token maps to, or null when this implementation cannot read the token. */
+  get type(): NativeToken | null {
+    if (!(this.token instanceof TokenClass)) return null;
+    const hosts = this.token.format === BASIC ? BASIC_TYPES : this.token.format === TYPESCRIPT5 ? OWN_TYPES : null;
+    return hosts?.get(this.token.name) ?? null;
+  }
+
+  /** The host type the token maps to; throws TypeError when this implementation cannot read the token. */
+  host(): NativeToken {
+    const host = this.type;
+    if (host === null) throw new TypeError(`${String(this.token)} has no type in this implementation`);
+    return host;
+  }
+
+  equals(other: unknown): boolean {
+    return other instanceof NativeData && other.bits === this.bits && other.bytes === this.bytes
+      && (this.token instanceof TokenClass ? this.token.equals(other.token) : other.token === this.token);
   }
 
   validate(): string[] {
-    if (!NATIVE_TYPES.includes(this.type as NativeToken)) return [`unsupported native type ${repr(this.type)}`];
-    return [];
+    const problems: string[] = [];
+    const token = this.token;
+    if (!(token instanceof TokenClass)) problems.push(`unsupported native type ${repr(token)}`);
+    else if (typeof token.format !== "string" || token.format === "" || typeof token.name !== "string" || token.name === "") {
+      problems.push("a token needs a format and a name");
+    } else if (token.format === BASIC && this.type === null) problems.push(`basic has no type ${repr(token.name)}`);
+    for (const [unit, width] of [["bits", this.bits], ["bytes", this.bytes]] as const) {
+      if (width !== null && (typeof width !== "bigint" || width < 1n)) {
+        problems.push(`a width in ${unit} must be a positive int, got ${repr(width)}`);
+      }
+    }
+    if (this.bits !== null && this.bytes !== null) problems.push("a width is in bits or in bytes, not both");
+    return problems;
   }
 
   /** Converts a native value to plain data that every text encoding can hold: `bytes` become base64 text, and
    * non-finite floats become the strings 'NaN', 'Infinity' and '-Infinity'. */
   to_plain(value: unknown): PlainData {
-    if (!isNativeOf(this.type, value)) {
-      throw new TypeError(`expected ${tokenName(this.type)}, got ${typeName(value)}`);
-    }
+    const host = this.host();
+    if (!isNativeOf(host, value)) throw new TypeError(`expected ${tokenName(host)}, got ${typeName(value)}`);
     if (value instanceof Uint8Array) return toBase64(value);
     if (typeof value === "number" && !Number.isFinite(value)) {
       return Number.isNaN(value) ? "NaN" : value > 0 ? "Infinity" : "-Infinity";
@@ -151,32 +207,52 @@ class NativeData implements HasFields {
   }
 
   /** Converts plain data back to a native value. Distinct native types are never coerced into each other.
-   * Plain data that does not hold such a value throws `Errors.DecodeError`. */
+   * Plain data that does not hold such a value, or a token this implementation cannot read, throws
+   * `Errors.DecodeError`. */
   from_plain(plain: unknown): Native {
-    if (this.type === Uint8Array) {
+    const host = this.type;
+    if (host === null) throw new DecodeError(`${String(this.token)} has no type in this implementation`);
+    if (host === Uint8Array) {
       if (typeof plain !== "string") throw new DecodeError(`expected base64 text for bytes, got ${typeName(plain)}`);
       if (!BASE64.test(plain)) throw new DecodeError("invalid base64 text");
       return fromBase64(plain);
     }
-    if (this.type === Number && typeof plain === "string") {
+    if (host === Number && typeof plain === "string") {
       const value = NON_FINITE.get(plain);
       if (value === undefined) {
         throw new DecodeError(`expected a float or one of ${repr(sortedStrings(NON_FINITE.keys()))}, got ${repr(plain)}`);
       }
       return value;
     }
-    if (!isNativeOf(this.type, plain)) throw new DecodeError(`expected ${tokenName(this.type)}, got ${typeName(plain)}`);
+    if (!isNativeOf(host, plain)) throw new DecodeError(`expected ${tokenName(host)}, got ${typeName(plain)}`);
     return plain as Native;
   }
 }
 
 class NativeBuilder extends Builder<NativeData> {
   protected make(fields: Record<string, unknown>): NativeData {
-    return new NativeData(fields["type"] ?? null);
+    return new NativeData(fields["token"] ?? null, { bits: fields["bits"] as bigint | null, bytes: fields["bytes"] as bigint | null });
   }
 
+  /** A host type: shorthand for the `basic` token of the same name. */
   type(native: unknown): NativeBuilder {
-    this.state["type"] = native;
+    this.state["token"] = new NativeData(native).token;
+    return this;
+  }
+
+  /** A token in any format, e.g. `.token("ccpp", "int32_t")`. */
+  token(format: string, name: string): NativeBuilder {
+    this.state["token"] = new TokenClass(format, name);
+    return this;
+  }
+
+  bits(width: bigint): NativeBuilder {
+    this.state["bits"] = width;
+    return this;
+  }
+
+  bytes(width: bigint): NativeBuilder {
+    this.state["bytes"] = width;
     return this;
   }
 }
@@ -191,6 +267,8 @@ export namespace OfNative {
   export type Data = NativeData;
   export const Builder = NativeBuilder;
   export type Builder = NativeBuilder;
+  export const Token = TokenClass;
+  export type Token = TokenClass;
   export type Spec = NativeToken | NativeData | ((builder: NativeBuilder) => NativeBuilder);
 
   export function resolve(spec: (builder: NativeBuilder) => NativeBuilder): NativeData;

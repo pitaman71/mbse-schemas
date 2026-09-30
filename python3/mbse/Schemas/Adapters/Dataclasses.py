@@ -297,7 +297,7 @@ FromDataclass = _FromDataclass()
 def _type_annotation(prop: str, schema: Any) -> ast.expr:
     """An expression tree for the type of a property's values."""
     if isinstance(schema, Schemas.OfNative.Data):
-        return _load(schema.type.__name__)
+        return _load(schema.host().__name__)
     noun = ("a union value" if isinstance(schema, Schemas.OfUnion.Data) else
             "an intersection value" if isinstance(schema, Schemas.OfIntersection.Data) else "an embedded object")
     raise TypeError(f"property {prop!r} holds {noun}; nested dataclasses are handled separately")
@@ -324,9 +324,9 @@ def _container_annotation(adjacency: Schemas.OfAdjacency.Data, objects: Mapping[
     if more or relation.uniques != (frozenset({other}),) or not isinstance(key_schema, Schemas.OfNative.Data):
         raise TypeError(f"adjacency {adjacency.name!r}: only one native property and unique({other!r}) have a "
                         "container form")
-    if key == _INDEX and key_schema.type is int:
+    if key == _INDEX and key_schema.host() is int:
         return ast.Subscript(value=_load("list"), slice=element, ctx=ast.Load())
-    return ast.Subscript(value=_load("dict"), slice=ast.Tuple(elts=[_load(key_schema.type.__name__), element],
+    return ast.Subscript(value=_load("dict"), slice=ast.Tuple(elts=[_load(key_schema.host().__name__), element],
                          ctx=ast.Load()), ctx=ast.Load())
 
 

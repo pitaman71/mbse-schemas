@@ -80,9 +80,8 @@ export class OfNative implements Visitors.OfNative {
   }
 
   set(value: Native): OfNative {
-    if (!Schemas.isNativeOf(this.schema.type, value)) {
-      throw new TypeError(`expected ${tokenName(this.schema.type)}, got ${typeName(value)}`);
-    }
+    const host = this.schema.host();
+    if (!Schemas.isNativeOf(host, value)) throw new TypeError(`expected ${tokenName(host)}, got ${typeName(value)}`);
     this.value = [value];
     return this;
   }

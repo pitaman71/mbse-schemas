@@ -80,8 +80,9 @@ class OfNative:
         return self._value[0]
 
     def set(self, value: Native) -> OfNative:
-        if type(value) is not self._schema.type:
-            raise TypeError(f"expected {self._schema.type.__name__}, got {type(value).__name__}")
+        host = self._schema.host()
+        if type(value) is not host:
+            raise TypeError(f"expected {host.__name__}, got {type(value).__name__}")
         self._value = (value,)
         return self
 

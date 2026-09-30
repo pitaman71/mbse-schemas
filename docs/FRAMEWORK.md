@@ -16,7 +16,8 @@ proxies as the in-memory representation.
 The schema elements include:
 
 - `OfAny` : a value of any type
-- `OfNative` : a native value in the current programming language. For example in Python `int`, `float`, `string`, `bool`, `bytes`.
+- `OfNative` : a native value, whose type is a token `{format, name}` (see Native types below), with an optional width in
+               bits or bytes. In Python the host types are `int`, `float`, `str`, `bool` and `bytes`.
                Conversion between the native format and the over-the-wire format is the responsibility of `Schemas.OfNative`.
 - `OfObject` : named properties list where each property has type described by `OfAny`. An `OfObject` schema may declare
                a singleton global name; that single instance is created implicitly, must always exist, and is referenced
@@ -127,8 +128,10 @@ a direct value or a callable that takes and returns the corresponding builder. F
 
 - A property's `of(...)` takes a `Schemas.OfAny.Spec`: either a `Schemas.OfAny.Data` or a
   `Callable[[Schemas.OfAny.Builder], Schemas.OfAny.Builder]`.
-- `as_native` takes a `Schemas.OfNative.Spec`: either one of the supported native types directly (e.g. `str`) or a
-  `Callable[[Schemas.OfNative.Builder], Schemas.OfNative.Builder]`.
+- `as_native` takes a `Schemas.OfNative.Spec`: either one of the supported native types directly (e.g. `str`, the
+  `basic` token `str`) or a `Callable[[Schemas.OfNative.Builder], Schemas.OfNative.Builder]`, whose builder sets a
+  host type (`.type(int)`), a token in any format (`.token('ccpp', 'int32_t')`) and a width (`.bits(32)`,
+  `.bytes(4)`).
 
 Anonymous sub-schemas are created inline by passing a lambda that receives a builder, e.g.
 `prop.name('street1').of(lambda t: t.as_native(str))`, where `t` is a `Schemas.OfAny.Builder`. The lambda only
@@ -309,13 +312,11 @@ These replace the earlier design, in which a union's branches were chosen by pre
   does (`std::variant` or RTTI in C++, a tagged union in SystemVerilog, a discriminated union in TypeScript); the
   unpacked form above is the neutral one.
 
-## Meta-schemas
+## Native types
 
-Designed, not yet implemented. Schemas are data: each schema kind's data has a meta-schema, `Schemas.OfX.Schema`, so
-schemas are written, read, validated and compared like any other objects, and a snapshot can hold schemas and the
-values they describe side by side.
+Native types and their widths are implemented; the meta-schemas that write them over the wire are designed below.
 
-- **Native types are tokens, `{format, name}`.** A format is a language or a neutral vocabulary; `basic` is the
+- **Native types are tokens, `{format, name}`** (`Schemas.OfNative.Token`). A format is a language or a neutral vocabulary; `basic` is the
   neutral one, with the names `bool`, `int`, `float`, `str` and `bytes` (the names of mbse-expressions' Basic
   dialect). `{format: 'python3', name: 'int'}` and `{format: 'typescript5', name: 'BigInt'}` are the host types of the
   two implementations, and other formats name other languages' types (`{format: 'ccpp', name: 'int32_t'}`). An
@@ -327,10 +328,20 @@ values they describe side by side.
   here has. A host type given to the builder (`as_native(int)` in Python, `as_native(BigInt)` in TypeScript) is
   shorthand for the `basic` token it corresponds to, `{format: 'basic', name: 'int'}`; a token in another format is
   given explicitly. Values are converted through the host type the token maps to, so a schema whose token this
-  implementation cannot read describes values it cannot convert.
-- **A native may have a width**, in bits (`bits`) or in bytes (`bytes`), at most one of them. The width is size only:
-  how the bits are interpreted (signedness, encoding, float format, text encoding), and so whether a value fits, is
-  not the schema's. mbse-expressions' value domains interpret it.
+  implementation cannot read describes values it cannot convert. `OfNative.Data.type` is that host type, or none,
+  and `host()` raises `TypeError` for a token this implementation cannot read ("the ccpp type 'int32_t' has no type in
+  this implementation"); converting a value raises the same, and validating one reports it. The token itself is
+  valid: `validate()` reports only a token without a format or a name, or a `basic` name that Basic lacks.
+- **A native may have a width**, in bits (`bits`) or in bytes (`bytes`), at most one of them, a positive int. The width
+  is size only: how the bits are interpreted (signedness, encoding, float format, text encoding), and so whether a
+  value fits, is not the schema's, and values are not checked against it. mbse-expressions' value domains interpret it.
+
+## Meta-schemas
+
+Designed, not yet implemented. Schemas are data: each schema kind's data has a meta-schema, `Schemas.OfX.Schema`, so
+schemas are written, read, validated and compared like any other objects, and a snapshot can hold schemas and the
+values they describe side by side. Native types are written as their tokens and widths (see Native types).
+
 - **Meta-schemas are defined in code and registered by name** (`Schemas.OfNative`, `Schemas.OfObject`, ...), never read
   from data. They refer to each other and to themselves through those names: a property's type is a schema of any
   kind, the union of the kinds' meta-schemas. The auxiliary data (properties, adjacencies, a union's branches) are
@@ -362,7 +373,9 @@ it is fixed here:
 | Concept | Python | TypeScript |
 |---|---|---|
 | Importing the framework | `from mbse.Schemas.Framework import ...` (the `mbse` namespace package) | `import ... from "@mbse/schemas/Framework"` (the `@mbse` scope) |
-| Native types (`OfNative` tokens) | `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` |
+| Native host types (for `basic` tokens) | `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` |
+| Own token format | `python3` | `typescript5` |
+| Native widths | `int` | `bigint` |
 | Native values | `int`, `float`, `str`, `bool`, `bytes` | `bigint`, `number`, `string`, `boolean`, `Uint8Array` |
 | Plain mappings | `dict` | `Map<string, PlainData>` (order-preserving for every key) |
 | Schema data equality | `==` | `.equals()` |

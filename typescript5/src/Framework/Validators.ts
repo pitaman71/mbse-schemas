@@ -259,6 +259,9 @@ export function _kind(value: unknown): string {
 
 function nativeProblem(schema: Schemas.OfAny.Data, value: unknown): string | null {
   if (!(schema instanceof Schemas.OfNative.Data)) return "entry properties must be native";
+  if (schema.type === null) { // an unsupported type is the schema's own problem, reported by its validate()
+    return schema.token instanceof Schemas.OfNative.Token ? `${String(schema.token)} has no type in this implementation` : null;
+  }
   if (!Schemas.isNativeOf(schema.type, value)) return `expected ${tokenName(schema.type)}, got ${_kind(value)}`;
   return null;
 }
@@ -297,7 +300,8 @@ class Check {
    * intersection value every part. */
   private valueProblems(label: string, schema: Schemas.OfAny.Data, item: unknown): string[] {
     if (schema instanceof Schemas.OfNative.Data) {
-      return Schemas.isNativeOf(schema.type, item) ? [] : [`${label}: expected ${tokenName(schema.type)}, got ${_kind(item)}`];
+      const problem = nativeProblem(schema, item);
+      return problem === null ? [] : [`${label}: ${problem}`];
     }
     const expected = recordKind(schema);
     const [what, owner, member] = RECORDS[expected];

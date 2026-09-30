@@ -95,20 +95,72 @@ def _resolve(spec: Any, data: type, builder: Callable[[], Any]) -> Any:
 # --- OfNative ---
 
 
-@dataclass
+BASIC, PYTHON3 = "basic", "python3"
+_BASIC_NAMES = {bool: "bool", int: "int", float: "float", str: "str", bytes: "bytes"}
+
+
+@dataclass(frozen=True)
+class _Token:
+    """A native type, named in a format: `basic`, the neutral vocabulary (`bool`, `int`, `float`, `str`, `bytes`), a
+    language's (`python3`, `typescript5`, `ccpp`, ...), or any other."""
+
+    format: str = BASIC
+    name: str = ""
+
+    def __str__(self) -> str:
+        return f"the {self.format} type {self.name!r}"
+
+
+_HOSTS = {_Token(fmt, name): host for host, name in _BASIC_NAMES.items() for fmt in (BASIC, PYTHON3)}
+"""The host types of the tokens this implementation reads: the `basic` ones, and its own format's."""
+
+
+@dataclass(init=False)
 class _NativeData:
-    type: type[Native] | None = None
+    """A native type: a token, and optionally a width in bits or in bytes. A host type given in place of the token
+    (`OfNative.Data(int)`) is shorthand for the `basic` token of the same name."""
+
+    token: Any
+    bits: int | None
+    bytes: int | None
+
+    def __init__(self, token: Any = None, bits: int | None = None, bytes: int | None = None):
+        self.token = _Token(BASIC, _BASIC_NAMES[token]) if isinstance(token, type) and token in _BASIC_NAMES else token
+        self.bits, self.bytes = bits, bytes
+
+    @property
+    def type(self) -> type[Native] | None:
+        """The host type the token maps to, or None when this implementation cannot read the token."""
+        return _HOSTS.get(self.token) if isinstance(self.token, _Token) else None
+
+    def host(self) -> type[Native]:
+        """The host type the token maps to; raises TypeError when this implementation cannot read the token."""
+        if self.type is None:
+            raise TypeError(f"{self.token} has no type in this implementation")
+        return self.type
 
     def validate(self) -> list[str]:
-        if self.type not in NATIVE_TYPES:
-            return [f"unsupported native type {self.type!r}"]
-        return []
+        problems = []
+        if not isinstance(self.token, _Token):
+            problems.append(f"unsupported native type {self.token!r}")
+        elif not (isinstance(self.token.format, str) and self.token.format and isinstance(self.token.name, str)
+                  and self.token.name):
+            problems.append("a token needs a format and a name")
+        elif self.token.format == BASIC and self.type is None:
+            problems.append(f"basic has no type {self.token.name!r}")
+        for unit, width in (("bits", self.bits), ("bytes", self.bytes)):
+            if width is not None and (type(width) is not int or width < 1):
+                problems.append(f"a width in {unit} must be a positive int, got {width!r}")
+        if self.bits is not None and self.bytes is not None:
+            problems.append("a width is in bits or in bytes, not both")
+        return problems
 
     def to_plain(self, value: Native) -> int | float | str | bool:
         """Converts a native value to plain data that every text encoding can hold: `bytes` become base64 text, and
         non-finite floats become the strings 'NaN', 'Infinity' and '-Infinity'."""
-        if type(value) is not self.type:
-            raise TypeError(f"expected {self.type.__name__}, got {type(value).__name__}")
+        host = self.host()
+        if type(value) is not host:
+            raise TypeError(f"expected {host.__name__}, got {type(value).__name__}")
         if isinstance(value, bytes):
             return base64.b64encode(value).decode("ascii")
         if isinstance(value, float) and not math.isfinite(value):
@@ -117,20 +169,24 @@ class _NativeData:
 
     def from_plain(self, plain: object) -> Native:
         """Converts plain data back to a native value. Distinct native types are never coerced into each other.
-        Plain data that does not hold such a value raises `Errors.DecodeError`."""
-        if self.type is bytes:
+        Plain data that does not hold such a value, or a token this implementation cannot read, raises
+        `Errors.DecodeError`."""
+        host = self.type
+        if host is None:
+            raise DecodeError(f"{self.token} has no type in this implementation")
+        if host is bytes:
             if not isinstance(plain, str):
                 raise DecodeError(f"expected base64 text for bytes, got {type(plain).__name__}")
             try:
                 return base64.b64decode(plain, validate=True)
             except binascii.Error:
                 raise DecodeError("invalid base64 text") from None
-        if self.type is float and isinstance(plain, str):
+        if host is float and isinstance(plain, str):
             if plain not in _NON_FINITE:
                 raise DecodeError(f"expected a float or one of {sorted(_NON_FINITE)}, got {plain!r}")
             return _NON_FINITE[plain]
-        if type(plain) is not self.type:
-            raise DecodeError(f"expected {self.type.__name__}, got {type(plain).__name__}")
+        if type(plain) is not host:
+            raise DecodeError(f"expected {host.__name__}, got {type(plain).__name__}")
         return plain
 
 
@@ -141,7 +197,21 @@ class _NativeBuilder(_Builder[_NativeData]):
     _data = _NativeData
 
     def type(self, native: type[Native]) -> _NativeBuilder:
-        self._fields["type"] = native
+        """A host type: shorthand for the `basic` token of the same name."""
+        self._fields["token"] = _NativeData(native).token
+        return self
+
+    def token(self, format: str, name: str) -> _NativeBuilder:
+        """A token in any format, e.g. `.token('ccpp', 'int32_t')`."""
+        self._fields["token"] = _Token(format, name)
+        return self
+
+    def bits(self, width: int) -> _NativeBuilder:
+        self._fields["bits"] = width
+        return self
+
+    def bytes(self, width: int) -> _NativeBuilder:
+        self._fields["bytes"] = width
         return self
 
 
@@ -150,6 +220,7 @@ class OfNative:
 
     Data = _NativeData
     Builder = _NativeBuilder
+    Token = _Token
     Spec = type | Callable[[_NativeBuilder], _NativeBuilder]
 
     @staticmethod

@@ -23,7 +23,7 @@
 
 | Check | Where |
 |---|---|
-| Every test case exists in both implementations, same ID, same order (143 cases, 15 suites) | `python3/tests/*.ipynb`, `typescript5/tests/*.ipynb` |
+| Every test case exists in both implementations, same ID, same order | `python3/tests/*.ipynb`, `typescript5/tests/*.ipynb` |
 | Messages are byte-identical | cases that assert exact messages, e.g. SCH-12, SCH-13, PLN-11 (26 malformed snapshots), VAL-03, VAL-06 |
 | Decoding errors: same class, reason and location | shared tables embedded verbatim in both suites: JSN-09 (62 JSON inputs), YML-06 (48 YAML inputs); PLN-11, PLN-12 (paths) |
 | JSON is byte-identical; YAML and JSON are interchangeable | the CONF suite over the shared corpus in `conformance/` |
@@ -51,10 +51,11 @@ Run everything:
 | Tool | coverage.py, branch mode, subprocesses measured (`[tool.coverage]` in `pyproject.toml`) | c8 (`.c8rc.json`, all files under `src/Framework`) |
 | Command | `uv run coverage run -m pytest && uv run coverage combine && uv run coverage report` | `npm run coverage` |
 | Gate | `fail_under = 100` | `--check-coverage --100` |
-| Result | 100% statements (1904), 100% branches (562) | 100% statements (3927), branches (1739), functions (540), lines |
+| Required | 100% of statements and branches | 100% of statements, branches, functions and lines |
 
-The counts differ because the tools count differently (V8 counts `??`, `?.` and each `case` as branches), not because
-the code differs. Coverage was made equal by the same means in both:
+The commands print the counts. They differ between the languages because the tools count differently (V8 counts
+`??`, `?.` and each `case` as branches), not because the code differs. Coverage was made equal by the same means in
+both:
 
 - A gap in one implementation was closed by an assertion in the shared case, added to both suites (VIS-07, SCH-17,
   PRX-16, PRX-17, PLN-14, PLN-15, VAL-13, JSN-09..11, YML-13, TXT-01..04). A gap never became a one-language test,

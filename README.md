@@ -143,7 +143,7 @@ conformance/        snapshots each implementation writes; each must read the oth
 skills/             the agent skill (SKILL.md plus per-task references); skills/sync.sh copies it into both packages
 ```
 
-Tests are Jupyter notebooks, one suite per notebook. Both implementations have the same 143 cases under the same
+Tests are Jupyter notebooks, one suite per notebook. Both implementations have the same cases under the same
 IDs, and both reach 100% code coverage (`uv run coverage ...` / `npm run coverage`; see `docs/EQUIVALENCE.md`).
 
 ## Status

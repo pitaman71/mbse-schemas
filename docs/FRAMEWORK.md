@@ -49,7 +49,11 @@ A property whose schema is an `OfObject` holds an *embedded object*: a read-only
 with no identity and no adjacencies, copied by value and written nested in its owner's snapshot. An embedded object's
 schema must not declare adjacencies, however it is held (directly, through a union branch or an intersection part).
 A property whose schema is an `OfUnion` holds a value of one of its branches and records which branch it was written
-as; `Visitors.OfUnion.select(index)` chooses the branch before `value(...)` writes the value.
+as; `Visitors.OfUnion.select(index)` chooses the branch before `value(...)` writes the value. A property whose schema
+is an `OfIntersection` holds one value of the intersection's *merged* schema, `Schemas.OfIntersection.Data.merged()`:
+the native parts' schema, or an object schema declaring every property of the object parts, in order (nested
+intersections are merged first). An intersection that is not valid has no values; intersections of unions are not
+supported yet.
 
 Named references are handled entirely by relations with a property (or properties) for the index value.
 For example, a global ID directory is a relation linking a singleton directory object to each object, with the ID as a
@@ -183,8 +187,9 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   checks everything reachable from the root. It is constructed with a registry that looks schemas up by name (e.g.
   `Proxies.Builders`), and runs only when the caller asks. It checks the schemas' own `validate()`, exact native types
   of properties and entry properties, that every link is set and filled by an object whose schema declares an
-  adjacency via that link, `unique(...)` clauses over the entries seen, embedded objects' properties recursively, and
-  that a union value's branch exists and holds a value of its type. `Validate(registry, evaluator)` also checks that
+  adjacency via that link, `unique(...)` clauses over the entries seen, embedded objects' properties recursively,
+  that a union value's branch exists and holds a value of its type, and that an intersection value holds a value of
+  the merged schema. `Validate(registry, evaluator)` also checks that
   the branch is the first whose predicate holds; an evaluator takes a predicate and a value and returns true, false or
   `None` for unknown. The validator is a visitor: objects write
   themselves into it through `accept`. `Validators.properties_of(value)` returns the property values any object writes when
@@ -219,7 +224,8 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
   one) and checkably so: a deserializer must reject a symbol assigned to two objects or an object assigned two symbols.
 - Symbols bind only to objects, never to values or entries.
 - Singletons are referenced by their global name and never need a symbol.
-- An embedded object is written nested, as a mapping of its properties. A union value is written as
+- An embedded object is written nested, as a mapping of its properties. An intersection value is written as a value
+  of the merged schema, with no wrapper. A union value is written as
   `{"$branch": index, "$value": value}`, so decoding needs no evaluator; whether the branch agrees with the
   predicates is for `Validators` to check.
 - Only a `create` mutation creates an object. A reference never creates one.
@@ -371,6 +377,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   nested. Objects with identity are reached through relations.
 - A union value records its branch, and snapshots write it: `{"$branch": index, "$value": value}`. Deserializers need
   no evaluator; `Validators.Validate(registry, evaluator)` checks the branch against the predicates.
+- An intersection-valued property holds one value of the merged schema, not one value per part; it is written with
+  no wrapper. Intersections as registered object schemas (objects with identity composed from aspects) are a later
+  step.
 - `OfNative` wire conversion (including for literals in expressions) belongs to `Schemas.OfNative`.
 - Builder finalization is `create()` / `clone()` / `update()`; none validate.
 - Validation, including well-formedness, runs only when the caller invokes it.

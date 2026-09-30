@@ -15,13 +15,13 @@
  *   incomparable. Adjacencies do not participate.
  * - `OfProperty` and `OfAny` compare their values; values of different kinds are incomparable.
  * - `OfUnion`: equal when written as the same branch with equal values; otherwise incomparable.
+ * - `OfIntersection`: equal when the values are equal under the intersection's merged schema; otherwise incomparable.
  * - `OfLink`: equal when both link the same object (by identity); otherwise incomparable.
  * - `OfEntry`: equal when every link and property is equal; otherwise incomparable.
  * - `OfAdjacency`: its entries form a set, seen from one object (whose own link is implied), so adding an entry equal
  *   to one already there is elided. Equal when both hold equal entries; otherwise incomparable.
  *
- * Intersection values cannot be compared yet. `Visitors.OfRelation` has no implementation: it declares no
- * way to write entries into it.
+ * `Visitors.OfRelation` has no implementation: it declares no way to write entries into it.
  */
 
 import { AttributeError, KeyError, NotImplementedError, ValueError } from "./Errors.js";
@@ -101,14 +101,15 @@ export class OfNative implements Visitors.OfNative {
 
 /** `Visitors.OfAny` recording a value of the kind its schema declares. */
 export class OfAny implements Visitors.OfAny {
-  private value: OfNative | OfObject | OfUnion | null = null;
+  private value: OfNative | OfObject | OfUnion | OfIntersection | null = null;
 
   constructor(private readonly schema: Schemas.OfAny.Data) {}
 
   /** @internal */
   absent(): boolean {
     if (this.value instanceof OfNative) return !this.value.has();
-    return this.value === null || (this.value instanceof OfUnion && this.value.absent());
+    return this.value === null
+      || ((this.value instanceof OfUnion || this.value instanceof OfIntersection) && this.value.absent());
   }
 
   as_native(callback: Callback<Visitors.OfNative>): OfAny {
@@ -132,15 +133,44 @@ export class OfAny implements Visitors.OfAny {
     return this;
   }
 
-  as_intersection(_callback: Callback<Visitors.OfIntersection>): OfAny {
-    throw new NotImplementedError("intersection values cannot be compared yet");
+  as_intersection(callback: Callback<Visitors.OfIntersection>): OfAny {
+    if (!(this.schema instanceof Schemas.OfIntersection.Data)) throw new TypeError("the schema is not an intersection schema");
+    if (!(this.value instanceof OfIntersection)) this.value = new OfIntersection(this.schema);
+    callback(this.value);
+    return this;
   }
 
   compare(other: OfAny): Result {
     if (this.absent() || other.absent()) return this.absent() && other.absent() ? 0 : null;
     if (this.value instanceof OfNative) return other.value instanceof OfNative ? this.value.compare(other.value) : null;
     if (this.value instanceof OfUnion) return other.value instanceof OfUnion ? this.value.compare(other.value) : null;
+    if (this.value instanceof OfIntersection) {
+      return other.value instanceof OfIntersection ? this.value.compare(other.value) : null;
+    }
     return other.value instanceof OfObject ? (this.value as OfObject).compare(other.value) : null;
+  }
+}
+
+/** `Visitors.OfIntersection` recording a value of the intersection's merged schema. */
+export class OfIntersection implements Visitors.OfIntersection {
+  private recorded: OfAny | null = null;
+
+  constructor(private readonly schema: Schemas.OfIntersection.Data) {}
+
+  value(callback: Callback<Visitors.OfAny>): OfIntersection {
+    if (this.recorded === null) this.recorded = new OfAny(this.schema.merged());
+    callback(this.recorded);
+    return this;
+  }
+
+  absent(): boolean {
+    return this.recorded === null || this.recorded.absent();
+  }
+
+  compare(other: OfIntersection): Result {
+    if (this.absent() || other.absent()) return this.absent() && other.absent() ? 0 : null;
+    if (this.schema !== other.schema) return null;
+    return (this.recorded as OfAny).compare(other.recorded as OfAny);
   }
 }
 

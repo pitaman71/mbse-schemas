@@ -11,7 +11,7 @@
  */
 
 import { fromBase64, toBase64 } from "./Bytes.js";
-import { DecodeError, ValueError } from "./Errors.js";
+import { DecodeError, NotImplementedError, ValueError } from "./Errors.js";
 import type { PlainData } from "./Plain.js";
 import { isClassLike, NATIVE_NAMES, repr, sortedStrings, tokenName, Tuple, typeName } from "./Repr.js";
 import type { Native, NativeToken } from "./Visitors.js";
@@ -578,6 +578,9 @@ class IntersectionData implements HasFields {
     const problems: string[] = [];
     if (this.parts.length < 2) problems.push("an intersection needs at least two parts");
     if (new Set(this.parts.map(kindOf)).size > 1) problems.push("intersection parts must all be the same kind");
+    if (new Set(this.parts.filter((p) => p instanceof NativeData).map((p) => (p as NativeData).type)).size > 1) {
+      problems.push("native parts must all have the same type");
+    }
     const seen = new Map<string, AnyData>();
     for (const part of this.parts) {
       const properties = part instanceof ObjectData ? part.properties : new Map<string, AnyData>();
@@ -591,7 +594,33 @@ class IntersectionData implements HasFields {
     }
     return problems;
   }
+
+  /** The schema of the values the intersection holds: its native parts' schema, or an object schema declaring every
+   * property of its object parts, in order. Nested intersections are merged first. The same schema is returned until
+   * a part's declarations change. Throws ValueError when the intersection is not valid, and NotImplementedError for
+   * intersections of unions. */
+  merged(): NativeData | ObjectData {
+    const parts = this.parts.map((p) => (p instanceof IntersectionData ? p.merged() : p));
+    const problems = new IntersectionData({ parts }).validate();
+    if (problems.length > 0) throw new ValueError(`the intersection is not valid: ${problems[0]}`);
+    if (parts[0] instanceof UnionData) throw new NotImplementedError("intersections of unions are not supported yet");
+    if (parts[0] instanceof NativeData) return parts[0];
+    const signature = (parts as ObjectData[]).flatMap((p) => [p, ...[...p.properties].flat()]);
+    let cached = MERGED.get(this);
+    if (cached === undefined || cached.signature.length !== signature.length
+      || cached.signature.some((item, i) => item !== signature[i])) {
+      const properties = new Map<string, AnyData>();
+      for (const part of parts as ObjectData[]) {
+        for (const [name, prop] of part.properties) if (!properties.has(name)) properties.set(name, prop);
+      }
+      cached = { signature, merged: new ObjectData({ properties }) };
+      MERGED.set(this, cached);
+    }
+    return cached.merged;
+  }
 }
+
+const MERGED = new WeakMap<IntersectionData, { signature: unknown[]; merged: ObjectData }>();
 
 class IntersectionBuilder extends Builder<IntersectionData> {
   protected make(fields: Record<string, unknown>): IntersectionData {

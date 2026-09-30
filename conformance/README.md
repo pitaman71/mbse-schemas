@@ -11,7 +11,7 @@ Each implementation builds the same corpus of schemas and objects, statement for
 | `family` | a relation between objects of the same schema, a cycle, a self-loop |
 | `enrollment` | a three-link relation with int, float and bool entry properties |
 | `yaml_strings` | strings that YAML readers misread, Unicode line breaks, long text |
-| `embedded` | embedded objects, union values of object and native branches (`$branch`/`$value`) |
+| `embedded` | embedded objects, union values of object and native branches (`$branch`/`$value`), an intersection value |
 
 The CONF test suite in each implementation checks that:
 

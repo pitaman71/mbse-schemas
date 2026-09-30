@@ -15,7 +15,8 @@ The validator is a visitor: each object writes itself into a recorder through `V
 - an embedded object's properties are declared by its schema and hold values of their types, recursively;
 - a union value is written as one of the union's branches and holds a value of that branch's type. Given an evaluator
   (`Validate(registry, evaluator)`: a callable taking a branch's predicate and a value, returning True, False or None
-  for unknown), it is also the first branch whose predicate is True.
+  for unknown), it is also the first branch whose predicate is True;
+- an intersection value holds a value of the intersection's merged schema (`Schemas.OfIntersection.Data.merged()`).
 """
 
 from __future__ import annotations
@@ -87,7 +88,11 @@ class _Value:
         return self
 
     def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _Value:
-        raise NotImplementedError("intersection-valued properties cannot be validated yet")
+        record = self._values.get(self._name)
+        if not isinstance(record, _IntersectionRecord):
+            record = self._values[self._name] = _IntersectionRecord()
+        callback(record)
+        return self
 
 
 class _UnionRecord:
@@ -107,6 +112,17 @@ class _UnionRecord:
         return self
 
     def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _UnionRecord:
+        callback(_Value(self.values, "value"))
+        return self
+
+
+class _IntersectionRecord:
+    """`Visitors.OfIntersection` recording an intersection value."""
+
+    def __init__(self) -> None:
+        self.values: dict[str, Any] = {}
+
+    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _IntersectionRecord:
         callback(_Value(self.values, "value"))
         return self
 
@@ -227,6 +243,8 @@ class _ObjectRecord:
 def _replay(visitor: Visitors.OfAny, value: Any) -> None:
     if isinstance(value, _UnionRecord):
         visitor.as_union(lambda u: u.select(value.index).value(lambda v: _replay(v, value.values["value"])))
+    elif isinstance(value, _IntersectionRecord):
+        visitor.as_intersection(lambda i: i.value(lambda v: _replay(v, value.values["value"])))
     elif isinstance(value, _ObjectRecord):
         visitor.as_object(lambda o: value.accept(o))
     else:
@@ -241,12 +259,15 @@ def _kind(value: Any) -> str:
         return "an embedded object"
     if isinstance(value, _UnionRecord):
         return "a union value"
+    if isinstance(value, _IntersectionRecord):
+        return "an intersection value"
     return type(value).__name__
 
 
 def _inner(value: Any) -> Any:
-    """The value a recorded property holds, as an evaluator reads it: a union value's value, recursively."""
-    return _inner(value.values.get("value")) if isinstance(value, _UnionRecord) else value
+    """The value a recorded property holds, as an evaluator reads it: a union or intersection value's value,
+    recursively."""
+    return _inner(value.values.get("value")) if isinstance(value, (_UnionRecord, _IntersectionRecord)) else value
 
 
 def _native_problem(schema: Schemas.OfAny.Data, value: Any) -> str | None:
@@ -314,7 +335,8 @@ class _Check:
                 self._entry(f"{label}.{name}[{i}]", adjacency, value, entry)
 
     def _value_problems(self, label: str, schema: Schemas.OfAny.Data, item: Any) -> list[str]:
-        """Problems with a property's value: its kind and type, recursively, and a union value's branch."""
+        """Problems with a property's value: its kind and type, recursively, a union value's branch, and an intersection
+        value's merged schema."""
         if isinstance(schema, Schemas.OfNative.Data):
             return [] if type(item) is schema.type else [f"{label}: expected {schema.type.__name__}, got {_kind(item)}"]
         if isinstance(schema, Schemas.OfObject.Data):
@@ -342,7 +364,13 @@ class _Check:
             if chosen != item.index:
                 return [f"{label}: written as branch {item.index}, but the first branch whose predicate holds is {chosen}"]
             return []
-        return [f"{label}: intersection values cannot be validated yet"]
+        if not isinstance(item, _IntersectionRecord):
+            return [f"{label}: expected an intersection value, got {_kind(item)}"]
+        try:
+            merged = schema.merged()
+        except (ValueError, NotImplementedError) as error:
+            return [f"{label}: {error}"]
+        return self._value_problems(label, merged, item.values.get("value"))
 
     def _entry(
         self, label: str, adjacency: Schemas.OfAdjacency.Data, owner: Visitors.Visitable, entry: _EntryRecord

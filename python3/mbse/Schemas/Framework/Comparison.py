@@ -13,12 +13,13 @@ record a value when constructed; an instance writes itself in through `Visitable
   incomparable. Adjacencies do not participate.
 - `OfProperty` and `OfAny` compare their values; values of different kinds are incomparable.
 - `OfUnion`: equal when written as the same branch with equal values; otherwise incomparable.
+- `OfIntersection`: equal when the values are equal under the intersection's merged schema; otherwise incomparable.
 - `OfLink`: equal when both link the same object (by identity); otherwise incomparable.
 - `OfEntry`: equal when every link and property is equal; otherwise incomparable.
 - `OfAdjacency`: its entries form a set, seen from one object (whose own link is implied), so adding an entry equal
   to one already there is elided. Equal when both hold equal entries; otherwise incomparable.
 
-Intersection values cannot be compared yet. `Visitors.OfRelation` has no implementation: it declares no way to write
+`Visitors.OfRelation` has no implementation: it declares no way to write
 entries into it.
 """
 
@@ -31,7 +32,10 @@ from typing import Any
 from . import Schemas, Visitors
 from .Visitors import Native
 
-__all__ = ["Result", "OfAny", "OfNative", "OfProperty", "OfObject", "OfUnion", "OfAdjacency", "OfEntry", "OfLink"]
+__all__ = [
+    "Result", "OfAny", "OfNative", "OfProperty", "OfObject", "OfUnion", "OfIntersection", "OfAdjacency", "OfEntry",
+    "OfLink",
+]
 
 Result = int | None
 """-1, 0 or 1 when ordered or equal; None when incomparable."""
@@ -98,12 +102,12 @@ class OfAny:
 
     def __init__(self, schema: Schemas.OfAny.Data):
         self._schema = schema
-        self._value: OfNative | OfObject | OfUnion | None = None
+        self._value: OfNative | OfObject | OfUnion | OfIntersection | None = None
 
     def _absent(self) -> bool:
         if isinstance(self._value, OfNative):
             return not self._value.has()
-        return self._value is None or (isinstance(self._value, OfUnion) and self._value._absent())
+        return self._value is None or (isinstance(self._value, (OfUnion, OfIntersection)) and self._value._absent())
 
     def as_native(self, callback: Callable[[Visitors.OfNative], Any]) -> OfAny:
         if not isinstance(self._schema, Schemas.OfNative.Data):
@@ -130,7 +134,12 @@ class OfAny:
         return self
 
     def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> OfAny:
-        raise NotImplementedError("intersection values cannot be compared yet")
+        if not isinstance(self._schema, Schemas.OfIntersection.Data):
+            raise TypeError("the schema is not an intersection schema")
+        if not isinstance(self._value, OfIntersection):
+            self._value = OfIntersection(self._schema)
+        callback(self._value)
+        return self
 
     def compare(self, other: OfAny) -> Result:
         if self._absent() or other._absent():
@@ -172,6 +181,30 @@ class OfUnion:
         if self._absent() or other._absent():
             return 0 if self._absent() and other._absent() else None
         if self._schema is not other._schema or self._index != other._index:
+            return None
+        return self._value.compare(other._value)  # type: ignore[union-attr]
+
+
+class OfIntersection:
+    """`Visitors.OfIntersection` recording a value of the intersection's merged schema."""
+
+    def __init__(self, schema: Schemas.OfIntersection.Data):
+        self._schema = schema
+        self._value: OfAny | None = None
+
+    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> OfIntersection:
+        if self._value is None:
+            self._value = OfAny(self._schema.merged())
+        callback(self._value)
+        return self
+
+    def _absent(self) -> bool:
+        return self._value is None or self._value._absent()
+
+    def compare(self, other: OfIntersection) -> Result:
+        if self._absent() or other._absent():
+            return 0 if self._absent() and other._absent() else None
+        if self._schema is not other._schema:
             return None
         return self._value.compare(other._value)  # type: ignore[union-attr]
 

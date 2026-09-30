@@ -17,7 +17,7 @@ with the builders to build with, e.g. `FromPlain(Proxies.Builders)`.
 An embedded object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties. A union
 value is written with the index of its branch, `{"$branch": index, "$value": value}`, and the value is read back under
 that branch's type. Whether the branch agrees with the branches' predicates is checked by `Validators`, given an
-evaluator.
+evaluator. An intersection value is written as a value of the intersection's merged schema, with no wrapper.
 """
 
 from __future__ import annotations
@@ -64,7 +64,8 @@ class _NativeWriter:
 
 
 class _AnyWriter:
-    """`Visitors.OfAny` writing one key of a plain dict: a native, an embedded object (nested) or a union value."""
+    """`Visitors.OfAny` writing one key of a plain dict: a native, an embedded object (nested), a union value or an
+    intersection value."""
 
     def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfAny.Data):
         self._out, self._name, self._schema = out, name, schema
@@ -91,7 +92,21 @@ class _AnyWriter:
         return self
 
     def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _AnyWriter:
-        raise NotImplementedError("intersection-valued properties are not supported by Plain yet")
+        if not isinstance(self._schema, Schemas.OfIntersection.Data):
+            raise TypeError(f"property {self._name!r} is not an intersection")
+        callback(_IntersectionWriter(self._out, self._name, self._schema))
+        return self
+
+
+class _IntersectionWriter:
+    """`Visitors.OfIntersection` writing one key of a plain dict as a value of the merged schema."""
+
+    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfIntersection.Data):
+        self._out, self._name, self._schema = out, name, schema
+
+    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _IntersectionWriter:
+        callback(_AnyWriter(self._out, self._name, self._schema.merged()))
+        return self
 
 
 class _UnionWriter:
@@ -339,6 +354,12 @@ class _Union(NamedTuple):
     value: Any
 
 
+class _Intersection(NamedTuple):
+    """A decoded intersection value."""
+
+    value: Any
+
+
 def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple) -> Any:
     """The value `plain` holds under `schema`, located at the path `where`."""
     if isinstance(schema, Schemas.OfNative.Data):
@@ -362,7 +383,7 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple) -> Any:
         if type(index) is not int or not 0 <= index < len(schema.branches):
             raise DecodeError(f"the union has no branch {index!r}", path=path(*where, BRANCH))
         return _Union(index, _decode(schema.branches[index].type, plain[VALUE], (*where, VALUE)))
-    raise NotImplementedError("intersection values are not supported by Plain yet")
+    return _Intersection(_decode(schema.merged(), plain, where))
 
 
 def _decode_entry_property(schema: Schemas.OfAny.Data, name: str, plain: PlainData, where: tuple) -> Native:
@@ -488,9 +509,11 @@ def _set(visitor: Any, name: str, value: Any) -> None:
 
 
 def _write(visitor: Visitors.OfAny, value: Any) -> None:
-    """Writes a decoded value: a native, an embedded object or a union value with its branch."""
+    """Writes a decoded value: a native, an embedded object, a union value with its branch or an intersection value."""
     if isinstance(value, _Union):
         visitor.as_union(lambda u: u.select(value.index).value(lambda v: _write(v, value.value)))
+    elif isinstance(value, _Intersection):
+        visitor.as_intersection(lambda i: i.value(lambda v: _write(v, value.value)))
     elif isinstance(value, _Record):
         visitor.as_object(lambda o: value.accept(o))
     else:

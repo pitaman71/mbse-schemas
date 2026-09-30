@@ -16,7 +16,8 @@
  * - an embedded object's properties are declared by its schema and hold values of their types, recursively;
  * - a union value is written as one of the union's branches and holds a value of that branch's type. Given an
  *   evaluator (`Validate(registry, evaluator)`: a function taking a branch's predicate and a value, returning true,
- *   false or null for unknown), it is also the first branch whose predicate is true.
+ *   false or null for unknown), it is also the first branch whose predicate is true;
+ * - an intersection value holds a value of the intersection's merged schema (`Schemas.OfIntersection.Data.merged()`).
  */
 
 import { NotImplementedError, ValueError } from "./Errors.js";
@@ -90,8 +91,21 @@ export class _Value implements OfProperty, OfAny, OfNative {
     return this;
   }
 
-  as_intersection(_callback: Callback<OfIntersection>): _Value {
-    throw new NotImplementedError("intersection-valued properties cannot be validated yet");
+  as_intersection(callback: Callback<OfIntersection>): _Value {
+    let record = this.values.get(this.slotName);
+    if (!(record instanceof _IntersectionRecord)) this.values.set(this.slotName, (record = new _IntersectionRecord()));
+    callback(record as _IntersectionRecord);
+    return this;
+  }
+}
+
+/** `Visitors.OfIntersection` recording an intersection value. */
+export class _IntersectionRecord implements OfIntersection {
+  readonly values = new Map<string, unknown>();
+
+  value(callback: Callback<OfAny>): _IntersectionRecord {
+    callback(new _Value(this.values, "value"));
+    return this;
   }
 }
 
@@ -244,6 +258,8 @@ export class _ObjectRecord implements OfObject {
 function replay(visitor: OfAny, value: unknown): void {
   if (value instanceof _UnionRecord) {
     visitor.as_union((u) => u.select(value.index as number).value((v) => replay(v, value.values.get("value"))));
+  } else if (value instanceof _IntersectionRecord) {
+    visitor.as_intersection((i) => i.value((v) => replay(v, value.values.get("value"))));
   } else if (value instanceof _ObjectRecord) {
     visitor.as_object((o) => value.accept(o));
   } else {
@@ -256,12 +272,14 @@ function replay(visitor: OfAny, value: unknown): void {
 function kind(value: unknown): string {
   if (value instanceof _ObjectRecord) return "an embedded object";
   if (value instanceof _UnionRecord) return "a union value";
+  if (value instanceof _IntersectionRecord) return "an intersection value";
   return typeName(value);
 }
 
-/** The value a recorded property holds, as an evaluator reads it: a union value's value, recursively. */
+/** The value a recorded property holds, as an evaluator reads it: a union or intersection value's value,
+ * recursively. */
 function inner(value: unknown): unknown {
-  return value instanceof _UnionRecord ? inner(value.values.get("value")) : value;
+  return value instanceof _UnionRecord || value instanceof _IntersectionRecord ? inner(value.values.get("value")) : value;
 }
 
 function nativeProblem(schema: Schemas.OfAny.Data, value: unknown): string | null {
@@ -330,7 +348,14 @@ class Check {
       if (chosen !== index) return [`${label}: written as branch ${index}, but the first branch whose predicate holds is ${chosen}`];
       return [];
     }
-    return [`${label}: intersection values cannot be validated yet`];
+    if (!(item instanceof _IntersectionRecord)) return [`${label}: expected an intersection value, got ${kind(item)}`];
+    let merged: Schemas.OfAny.Data;
+    try {
+      merged = (schema as Schemas.OfIntersection.Data).merged();
+    } catch (error) {
+      return [`${label}: ${(error as Error).message}`]; // ValueError or NotImplementedError
+    }
+    return this.valueProblems(label, merged, item.values.get("value"));
   }
 
   object(label: string, schema: Schemas.OfObject.Data, value: Visitable): void {

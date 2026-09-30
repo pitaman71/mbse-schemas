@@ -12,7 +12,8 @@ A property whose schema is an `OfObject` holds an embedded object: a read-only r
 `.reach(lambda r: r.number('+44'))`. A property whose schema is an `OfUnion` holds a value of one of its branches, set
 directly (the first branch of the value's native type or record schema) or with `.reach(lambda u: u.of(Phone, spec))`.
 Proxies store which branch a union value was written as, and snapshots record it; checking it against the branches'
-predicates is the job of `Validators`, given an evaluator.
+predicates is the job of `Validators`, given an evaluator. A property whose schema is an `OfIntersection` holds one
+value of the intersection's merged schema (`Schemas.OfIntersection.Data.merged()`), set like a value of that schema.
 """
 
 from __future__ import annotations
@@ -182,11 +183,12 @@ class _ObjectData:
 
 
 def _read(value: Any, name: str) -> Any:
-    """A property of an instance or record, as an attribute: a union value reads as the value it holds."""
+    """A property of an instance or record, as an attribute: a union or intersection value reads as the value it
+    holds."""
     values = object.__getattribute__(value, "_values")
     if name in values:
         item = values[name]
-        return item.value if isinstance(item, _UnionValue) else item
+        return item.value if isinstance(item, (_UnionValue, _IntersectionValue)) else item
     if name in object.__getattribute__(value, "_schema").properties:
         raise AttributeError(f"property {name!r} is not set")
     raise AttributeError(name)
@@ -200,9 +202,11 @@ def _write_properties(visitor: Any, schema: ObjectSchema, values: dict[str, Any]
 
 
 def _write_value(visitor: Visitors.OfAny, value: Any) -> None:
-    """Writes a native, an embedded object or a union value into a `Visitors.OfAny`."""
+    """Writes a native, an embedded object, a union value or an intersection value into a `Visitors.OfAny`."""
     if isinstance(value, _UnionValue):
         visitor.as_union(lambda u: u.select(value.index).value(lambda v: _write_value(v, value.value)))
+    elif isinstance(value, _IntersectionValue):
+        visitor.as_intersection(lambda i: i.value(lambda v: _write_value(v, value.value)))
     elif isinstance(value, _RecordData):
         visitor.as_object(lambda o: value.accept(o))
     else:
@@ -216,6 +220,15 @@ class _UnionValue:
 
     def __init__(self, index: int, value: Any):
         self.index, self.value = index, value
+
+
+class _IntersectionValue:
+    """An intersection property's value: a value of the intersection's merged schema."""
+
+    __slots__ = ("value",)
+
+    def __init__(self, value: Any):
+        self.value = value
 
 
 class _RecordData:
@@ -305,7 +318,10 @@ class _AnySlot:
         return self
 
     def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _AnySlot:
-        raise NotImplementedError("intersection-valued properties are not supported by proxies yet")
+        if not isinstance(self._schema, Schemas.OfIntersection.Data):
+            raise TypeError(f"property {self._name!r} does not hold an intersection")
+        callback(_IntersectionSlot(self._values, self._name, self._schema))
+        return self
 
 
 class _PropertySlot:
@@ -331,7 +347,8 @@ class _PropertySlot:
 
 def _setter(visitor: Any, name: str, schema: Any = None) -> Callable[[Any], Any]:
     """DSL setter for a property of `schema`: `.name(value)`, or `.name(Spec)` where the Spec receives the value's
-    builder: a `Visitors.OfNative` (`v.set(...)`), an embedded object's builder, or a union's `Visitors.OfUnion`."""
+    builder: a `Visitors.OfNative` (`v.set(...)`), an embedded object's builder, or a union's `Visitors.OfUnion`. An
+    intersection's value is set like a value of its merged schema."""
 
     def setter(spec: Any) -> Any:
         visitor.property(name, lambda p: p.value(lambda a: _apply(a, name, schema, spec)))
@@ -355,6 +372,9 @@ def _apply(visitor: Visitors.OfAny, name: str, schema: Any, spec: Any) -> None:
         else:
             index = _branch_of(schema, spec)
             visitor.as_union(lambda u: u.select(index).value(lambda v: _write_value(v, spec)))
+    elif isinstance(schema, Schemas.OfIntersection.Data):
+        merged = schema.merged()
+        visitor.as_intersection(lambda i: i.value(lambda v: _apply(v, name, merged, spec)))
     else:
         visitor.as_native(spec if callable(spec) else (lambda n: n.set(spec)))
 
@@ -409,6 +429,23 @@ class _UnionSlot:
             if branch.type is schema:
                 return self.select(i).value(lambda v: _apply(v, self._name, schema, spec))
         raise ValueError("no branch of the union has that schema")
+
+
+class _IntersectionSlot:
+    """`Visitors.OfIntersection` over one key of a value dict: `value(...)` writes a value of the merged schema."""
+
+    def __init__(self, values: dict[str, Any], name: str, schema: Schemas.OfIntersection.Data):
+        self._values, self._name, self._schema = values, name, schema
+
+    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _IntersectionSlot:
+        current = self._values.get(self._name)
+        inner = {"value": current.value} if isinstance(current, _IntersectionValue) else {}
+        callback(_AnySlot(inner, "value", self._schema.merged()))
+        if "value" in inner:
+            self._values[self._name] = _IntersectionValue(inner["value"])
+        else:
+            self._values.pop(self._name, None)
+        return self
 
 
 class _RecordBuilder:

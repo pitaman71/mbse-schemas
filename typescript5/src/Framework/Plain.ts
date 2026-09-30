@@ -21,7 +21,8 @@
  * An embedded object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties. A
  * union value is written with the index of its branch, `{"$branch": index, "$value": value}`, and the value is read
  * back under that branch's type. Whether the branch agrees with the branches' predicates is checked by `Validators`,
- * given an evaluator.
+ * given an evaluator. An intersection value is written as a value of the intersection's merged schema, with no
+ * wrapper.
  */
 
 import { AttributeError, DecodeError, KeyError, LookupError, NotImplementedError, path, ValueError } from "./Errors.js";
@@ -97,8 +98,23 @@ export class _AnyWriter implements OfAny {
     return this;
   }
 
-  as_intersection(_callback: Callback<OfIntersection>): _AnyWriter {
-    throw new NotImplementedError("intersection-valued properties are not supported by Plain yet");
+  as_intersection(callback: Callback<OfIntersection>): _AnyWriter {
+    if (!(this.schema instanceof Schemas.OfIntersection.Data)) {
+      throw new TypeError(`property ${repr(this.slotName)} is not an intersection`);
+    }
+    callback(new _IntersectionWriter(this.out, this.slotName, this.schema));
+    return this;
+  }
+}
+
+/** `Visitors.OfIntersection` writing one key of a plain map as a value of the merged schema. */
+export class _IntersectionWriter implements OfIntersection {
+  constructor(private readonly out: PlainMap, private readonly slotName: string,
+    private readonly schema: Schemas.OfIntersection.Data) {}
+
+  value(callback: Callback<OfAny>): _IntersectionWriter {
+    callback(new _AnyWriter(this.out, this.slotName, this.schema.merged()));
+    return this;
   }
 }
 
@@ -354,6 +370,11 @@ class DecodedRecord {
   }
 }
 
+/** A decoded intersection value. */
+class DecodedIntersection {
+  constructor(readonly value: unknown) {}
+}
+
 /** A decoded union value and the index of its branch. */
 class DecodedUnion {
   constructor(readonly index: number, readonly value: unknown) {}
@@ -395,7 +416,7 @@ function decode(schema: Schemas.OfAny.Data, plain: unknown, where: Where): unkno
     const type = (schema.branches[Number(index)] as { type: Schemas.OfAny.Data }).type;
     return new DecodedUnion(Number(index), decode(type, plain.get(VALUE), [...where, VALUE]));
   }
-  throw new NotImplementedError("intersection values are not supported by Plain yet");
+  return new DecodedIntersection(decode(schema.merged(), plain, where));
 }
 
 function decodeEntryProperty(schema: Schemas.OfAny.Data, name: string, plain: unknown, where: Where): Native {
@@ -561,6 +582,8 @@ function set(visitor: { property(name: string, callback: Callback<OfProperty>): 
 function write(visitor: OfAny, value: unknown): void {
   if (value instanceof DecodedUnion) {
     visitor.as_union((u) => u.select(value.index).value((v) => write(v, value.value)));
+  } else if (value instanceof DecodedIntersection) {
+    visitor.as_intersection((i) => i.value((v) => write(v, value.value)));
   } else if (value instanceof DecodedRecord) {
     visitor.as_object((o) => value.accept(o));
   } else {

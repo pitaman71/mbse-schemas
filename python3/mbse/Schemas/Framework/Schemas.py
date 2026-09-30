@@ -15,6 +15,7 @@ import binascii
 import copy
 import dataclasses
 import math
+import weakref
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar
@@ -410,6 +411,8 @@ class _IntersectionData:
             problems.append("an intersection needs at least two parts")
         if len({type(p) for p in self.parts}) > 1:
             problems.append("intersection parts must all be the same kind")
+        if len({p.type for p in self.parts if isinstance(p, _NativeData)}) > 1:
+            problems.append("native parts must all have the same type")
         seen: dict[str, Any] = {}
         for part in self.parts:
             for name, prop in getattr(part, "properties", {}).items():
@@ -417,6 +420,32 @@ class _IntersectionData:
                     problems.append(f"property {name!r} is declared with conflicting types")
                 seen.setdefault(name, prop)
         return problems
+
+    def merged(self) -> _NativeData | _ObjectData:
+        """The schema of the values the intersection holds: its native parts' schema, or an object schema declaring
+        every property of its object parts, in order. Nested intersections are merged first. The same schema is
+        returned until a part's declarations change. Raises ValueError when the intersection is not valid, and
+        NotImplementedError for intersections of unions."""
+        parts = tuple(p.merged() if isinstance(p, _IntersectionData) else p for p in self.parts)
+        problems = _IntersectionData(parts).validate()
+        if problems:
+            raise ValueError(f"the intersection is not valid: {problems[0]}")
+        if isinstance(parts[0], _UnionData):
+            raise NotImplementedError("intersections of unions are not supported yet")
+        if isinstance(parts[0], _NativeData):
+            return parts[0]
+        signature = tuple((id(p), *((n, id(t)) for n, t in p.properties.items())) for p in parts)
+        cached = _MERGED.get(self)
+        if cached is None or cached[0] != signature:
+            properties: dict[str, Any] = {}
+            for part in parts:
+                for name, prop in part.properties.items():
+                    properties.setdefault(name, prop)
+            cached = _MERGED[self] = (signature, _ObjectData(properties))
+        return cached[1]
+
+
+_MERGED: weakref.WeakKeyDictionary[_IntersectionData, tuple[tuple, _ObjectData]] = weakref.WeakKeyDictionary()
 
 
 class _IntersectionBuilder(_Builder[_IntersectionData]):

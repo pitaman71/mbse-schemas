@@ -51,9 +51,9 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `11_Conformance.ipynb` | CONF | 4 | as in Python, from this side |
 | `12_Text.ipynb` | TXT | 4 | `Repr` produces Python's text: `repr`, float `repr`, type names (plus one row for a prototype-less object), code-point order |
 | `13_Comparison.ipynb` | CMP | 12 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
-| `14_Embedded.ipynb` | EMB | 7 | as in Python; union predicates are arrays, and branch indexes in snapshots are `bigint`s |
+| `14_Embedded.ipynb` | EMB | 8 | as in Python; union predicates are arrays, and branch indexes in snapshots are `bigint`s |
 
-Total: 139 cases, with the same IDs in the same order as the Python suites.
+Total: 140 cases, with the same IDs in the same order as the Python suites.
 
 ## Language differences
 
@@ -99,7 +99,7 @@ one TypeScript-only bug:
 ## Not testable yet
 
 The same as in Python: Mutations and transactions, Factories, implicit singletons, deletion,
-meta-schemas and schema serialization, intersection-valued properties, an "any value" kind,
+meta-schemas and schema serialization, intersections of unions, an "any value" kind,
 generated bindings.
 
 ## Code coverage

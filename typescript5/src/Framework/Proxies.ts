@@ -17,7 +17,8 @@
  * `.reach((r) => r.number("+44"))`. A property whose schema is an `OfUnion` holds a value of one of its branches, set
  * directly (the first branch of the value's native type or record schema) or with `.reach((u) => u.of(Phone, spec))`.
  * Proxies store which branch a union value was written as, and snapshots record it; checking it against the branches'
- * predicates is the job of `Validators`, given an evaluator.
+ * predicates is the job of `Validators`, given an evaluator. A property whose schema is an `OfIntersection` holds one
+ * value of the intersection's merged schema (`Schemas.OfIntersection.Data.merged()`), set like a value of that schema.
  */
 
 
@@ -251,7 +252,7 @@ function makeInstance(schema: ObjectSchema, schemaName: string): Instance {
 function read(t: { values: Map<string, unknown>; schema: ObjectSchema }, prop: string, receiver: unknown): unknown {
   if (t.values.has(prop)) {
     const item = t.values.get(prop);
-    return item instanceof UnionValue ? item.value : item;
+    return item instanceof UnionValue || item instanceof IntersectionValue ? item.value : item;
   }
   if (t.schema.properties.has(prop)) throw new AttributeError(`property ${repr(prop)} is not set`);
   if (PROBES.has(prop)) return Reflect.get(t, prop, receiver);
@@ -270,15 +271,22 @@ function writeProperties(visitor: PropertyHolder, schema: ObjectSchema, values: 
   }
 }
 
-/** Writes a native, an embedded object or a union value into a `Visitors.OfAny`. */
+/** Writes a native, an embedded object, a union value or an intersection value into a `Visitors.OfAny`. */
 function writeValue(visitor: OfAny, value: unknown): void {
   if (value instanceof UnionValue) {
     visitor.as_union((u) => u.select(value.index).value((v) => writeValue(v, value.value)));
+  } else if (value instanceof IntersectionValue) {
+    visitor.as_intersection((i) => i.value((v) => writeValue(v, value.value)));
   } else if (isRecord(value)) {
     visitor.as_object((o) => value.accept(o));
   } else {
     visitor.as_native((n) => n.set(value as Native));
   }
+}
+
+/** An intersection property's value: a value of the intersection's merged schema. */
+class IntersectionValue {
+  constructor(readonly value: unknown) {}
 }
 
 /** A union property's value, with the index of the branch it was written as. */
@@ -404,8 +412,12 @@ export class _AnySlot implements OfAny {
     return this;
   }
 
-  as_intersection(_callback: Callback<OfIntersection>): _AnySlot {
-    throw new NotImplementedError("intersection-valued properties are not supported by proxies yet");
+  as_intersection(callback: Callback<OfIntersection>): _AnySlot {
+    if (!(this.schema instanceof Schemas.OfIntersection.Data)) {
+      throw new TypeError(`property ${repr(this.slotName)} does not hold an intersection`);
+    }
+    callback(new _IntersectionSlot(this.values, this.slotName, this.schema));
+    return this;
   }
 }
 
@@ -455,6 +467,9 @@ function apply(visitor: OfAny, name: string, schema: unknown, spec: unknown): vo
       const index = branchOf(schema, spec);
       visitor.as_union((u) => u.select(index).value((v) => writeValue(v, spec)));
     }
+  } else if (schema instanceof Schemas.OfIntersection.Data) {
+    const merged = schema.merged();
+    visitor.as_intersection((i) => i.value((v) => apply(v, name, merged, spec)));
   } else {
     visitor.as_native(typeof spec === "function" ? (spec as Callback<OfNative>) : (n) => n.set(spec as Native));
   }
@@ -512,6 +527,22 @@ export class _UnionSlot implements OfUnion {
     const index = this.schema.branches.findIndex((branch) => branch.type === schema);
     if (index < 0) throw new ValueError("no branch of the union has that schema");
     return this.select(index).value((v) => apply(v, this.slotName, schema, spec));
+  }
+}
+
+/** `Visitors.OfIntersection` over one key of a value map: `value(...)` writes a value of the merged schema. */
+export class _IntersectionSlot implements OfIntersection {
+  constructor(private readonly values: Map<string, unknown>, private readonly slotName: string,
+    private readonly schema: Schemas.OfIntersection.Data) {}
+
+  value(callback: Callback<OfAny>): _IntersectionSlot {
+    const current = this.values.get(this.slotName);
+    const inner = new Map<string, unknown>();
+    if (current instanceof IntersectionValue) inner.set("value", current.value);
+    callback(new _AnySlot(inner, "value", this.schema.merged()));
+    if (inner.has("value")) this.values.set(this.slotName, new IntersectionValue(inner.get("value")));
+    else this.values.delete(this.slotName);
+    return this;
   }
 }
 
@@ -875,4 +906,4 @@ export namespace OfRelation {
 
 /** Internal classes, exposed for protocol conformance tests. */
 export const _internals = { ObjectTarget, ObjectBuilderTarget, RecordBuilderTarget, _EntryBuilder, _AdjacencySlot, _LinkSlot,
-  _PropertySlot, _AnySlot, _NativeSlot, _UnionSlot };
+  _PropertySlot, _AnySlot, _NativeSlot, _UnionSlot, _IntersectionSlot };

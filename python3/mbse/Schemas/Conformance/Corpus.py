@@ -68,15 +68,19 @@ def build():
     S.OfObject.Builder(Notebook).relations(lambda a: a.name("notes").of(Pages).me("notebook")).update()
     S.OfObject.Builder(Note).relations(lambda a: a.name("notebooks").of(Pages).me("note")).update()
 
-    # --- embedded: embedded objects, and union values of objects and of natives ---
+    # --- embedded: embedded objects, union values of objects and of natives, and an intersection value ---
     CardPhone = S.OfObject.Builder().properties(_text("number"), _text("label")).create()
     CardEmail = S.OfObject.Builder().properties(_text("address")).create()
     Reach = S.OfUnion.Builder().branches(lambda b: b.of(CardPhone).when(("has", "number")),
                                          lambda b: b.of(CardEmail).when(("has", "address"))).create()
     Ident = S.OfUnion.Builder().branches(lambda b: b.of(lambda t: t.as_native(int)).when(("type", "int")),
                                          lambda b: b.of(lambda t: t.as_native(str)).when(("type", "str"))).create()
+    CardStamp = S.OfObject.Builder().properties(_text("updated")).create()
+    CardAudit = S.OfObject.Builder().properties(_text("by"), _text("updated")).create()
+    CardMeta = S.OfIntersection.Builder().of(CardStamp, CardAudit).create()
     Card = S.OfObject.Builder().properties(_text("name"), lambda p: p.name("home").of(CardPhone),
-                                           lambda p: p.name("reach").of(Reach), lambda p: p.name("ident").of(Ident)).create()
+                                           lambda p: p.name("reach").of(Reach), lambda p: p.name("ident").of(Ident),
+                                           lambda p: p.name("meta").of(CardMeta)).create()
     Holding = S.OfRelation.Builder().links("deck", "card").create()
     Deck = S.OfObject.Builder().properties(_text("title")).relations(lambda a: a.name("cards").of(Holding).me("deck")).create()
     S.OfObject.Builder(Card).relations(lambda a: a.name("decks").of(Holding).me("card")).update()
@@ -149,7 +153,8 @@ def build():
     cards = [
         B.Card().name("Ann").home(lambda r: r.number("+1 555 0100").label("home"))
         .reach(lambda u: u.of(CardEmail, lambda r: r.address("ann@example.com"))).ident(7).create(),
-        B.Card().name("Bo").reach(lambda u: u.of(CardPhone, lambda r: r.number("+44 20 7946 0000"))).ident("B-2").create(),
+        B.Card().name("Bo").reach(lambda u: u.of(CardPhone, lambda r: r.number("+44 20 7946 0000"))).ident("B-2")
+        .meta(lambda r: r.updated("2026-09-29").by("ann")).create(),
         B.Card().name("Cy").create(),
     ]
     for card in cards:

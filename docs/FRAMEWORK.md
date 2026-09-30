@@ -288,9 +288,62 @@ Mistakes in the calling program keep their usual classes, e.g. a root schema tha
 - Bytes are decoded as UTF-8, UTF-16 or UTF-32, detected as JSON specifies (RFC 8259 and its predecessors) for both
   JSON and YAML input. Undecodable bytes give `input is not valid <encoding>`.
 
+## Unions and intersections by name
+
+Designed, not yet implemented. It supersedes the resolved decisions on branch predicates, `$branch` and merged
+intersection values.
+
+- **Every union branch and every intersection part has a name.** Names are required, unique within their union or
+  intersection, and are property names, subject to the same rules (see reserved names under Open questions).
+- **Unpacked, a union is an object with exactly one of its variants present, and an intersection an object with all of
+  its parts present.** This holds in proxies and over the wire (`Plain`, `JSON`, `YAML`): a union value is written
+  `{"circle": {"radius": 2}}`, and an intersection value `{"Named": {"name": "a"}, "Dated": {"date": "..."}}`. A proxy
+  reads a variant as a property (`shape.circle`) and a part the same way (`x.Named.name`); it may also offer an
+  intersection's properties flattened (`x.name`), for the names that one part declares or that every part declaring
+  them declares with the same type. The wire form is always per part.
+- **There are no predicates.** A branch's `when` is dropped: which variant a value holds is data, so decoding and
+  validation need no evaluator. Constraints (planned) may still relate a value's properties.
+- **Branches are identified by name, not position**, so reordering a union's branches leaves stored data valid.
+- **Parts no longer merge.** A property that two parts declare appears under each part, so parts with conflicting
+  declarations are no longer an error, and an intersection of unions is a value like any other.
+- **Packed forms are the bindings'.** A generated binding may represent a union or intersection the way its language
+  does (`std::variant` or RTTI in C++, a tagged union in SystemVerilog, a discriminated union in TypeScript); the
+  unpacked form above is the neutral one.
+
+## Meta-schemas
+
+Designed, not yet implemented. Schemas are data: each schema kind's data has a meta-schema, `Schemas.OfX.Schema`, so
+schemas are written, read, validated and compared like any other objects, and a snapshot can hold schemas and the
+values they describe side by side.
+
+- **Native types are tokens, `{format, name}`.** A format is a language or a neutral vocabulary; `basic` is the
+  neutral one, with the names `bool`, `int`, `float`, `str` and `bytes` (the names of mbse-expressions' Basic
+  dialect). `{format: 'python3', name: 'int'}` and `{format: 'typescript5', name: 'BigInt'}` are the host types of the
+  two implementations, and other formats name other languages' types (`{format: 'ccpp', name: 'int32_t'}`). An
+  implementation reads `basic` tokens and its own format's; a token in any other format fails to decode
+  (`Errors.DecodeError`). Responsible code keeps Basic on one side or both: it holds `basic` tokens in memory, or
+  writes them over the wire. Snapshots written that way are byte-identical across implementations, and the conformance
+  corpora use only `basic`; a token in a language's format is a deliberate choice to be read by that language only.
+- **`OfNative.Data` holds its token**, in memory as on the wire, so a schema can name a type that no implementation
+  here has. A host type given to the builder (`as_native(int)` in Python, `as_native(BigInt)` in TypeScript) is
+  shorthand for the `basic` token it corresponds to, `{format: 'basic', name: 'int'}`; a token in another format is
+  given explicitly. Values are converted through the host type the token maps to, so a schema whose token this
+  implementation cannot read describes values it cannot convert.
+- **A native may have a width**, in bits (`bits`) or in bytes (`bytes`), at most one of them. The width is size only:
+  how the bits are interpreted (signedness, encoding, float format, text encoding), and so whether a value fits, is
+  not the schema's. mbse-expressions' value domains interpret it.
+- **Meta-schemas are defined in code and registered by name** (`Schemas.OfNative`, `Schemas.OfObject`, ...), never read
+  from data. They refer to each other and to themselves through those names: a property's type is a schema of any
+  kind, the union of the kinds' meta-schemas. The auxiliary data (properties, adjacencies, a union's branches) are
+  embedded objects of their owner's meta-schema.
+- **A registered schema is referred to by its global name; an unregistered one is written inline**, nested where it
+  is used, as an embedded object.
+- **Schema builders implement `Visitors.OfX`**, so `Plain.FromPlain` rebuilds schemas as it rebuilds any object.
+
 ## Expressions
 
-Union discriminator predicates, and later constraints, are serializable expressions. Expressions are a separate
+Union discriminator predicates (to be dropped: see Unions and intersections by name), and later constraints, are
+serializable expressions. Expressions are a separate
 package, [mbse-expressions](https://github.com/pitaman71/mbse-expressions), which depends on this one: its expressions
 are ordinary objects with registered meta-schemas, so this package serializes, validates and compares them like any
 others. See its `docs/EXPRESSIONS.md` for the expression kinds, the core vocabulary and evaluation.
@@ -342,8 +395,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - `Factories.Directory` global singleton: namespacing/versioning of global names, collision policy, and isolation for tests.
 - Where constraints are attached to a schema (e.g. an `OfObject`- or `OfRelation`-level list of expressions) and how
   they are declared in the builder DSL.
-- Equality edge cases listed in `EQUALITY.md` are proposals; confirm them. In particular, fixed width and signedness for
-  numeric `OfNative` types conflicts with unbounded native types such as Python `int`.
+- Equality edge cases listed in `EQUALITY.md` are proposals; confirm them.
 - Multi-object snapshot naming: confirm `Plain.ToPlain.Reachable(schema, value)` /
   `Plain.FromPlain(builders).Reachable(schema, plain)` (still marked PROPOSED in the example).
 - `Plain.ToPlain` still looks up the schemas of non-root objects in the `Proxies` registry. Should it also be
@@ -366,8 +418,6 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - `validate()` on each `Schemas.OfX.Data` returns a list of problems (empty when valid).
 - `Schemas.OfAny.Data` is currently the union of the schema kinds' data (`OfNative`, `OfObject`, `OfUnion`,
   `OfIntersection`). There is no separate "any value" kind yet.
-- Not yet drafted: the meta-schemas (`Schemas.OfX.Schema`), and schema builders implementing `Visitors.OfX` so that
-  schemas themselves serialize.
 - Reading an object's entries back (e.g. a contact's phones), and removing an entry through a builder.
 - Mixing implementations: may the same schema be used through both `Proxies` and generated bindings in one program, and
   may instances pass between them? Intended to be legal under controlled conditions, not yet specified.

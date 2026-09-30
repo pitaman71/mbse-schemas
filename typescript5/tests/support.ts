@@ -1,11 +1,10 @@
 /** Shared helpers for the test notebooks. Each notebook runs in its own process, so registries start empty. */
 
-import { Plain, Reachable, Validators } from "@mbse/schemas/Framework";
+import { Plain, Reachable } from "@mbse/schemas/Framework";
 import type { PlainData, PlainMap } from "@mbse/schemas/Framework/Plain";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import type { OfObject } from "@mbse/schemas/Framework/Schemas";
 import type { Callback, OfObject as ObjectVisitor, Visitable } from "@mbse/schemas/Framework/Visitors";
-import { typeName } from "@mbse/schemas/Framework/Repr";
 
 /** Python's `assert`. */
 export function assert(condition: unknown, message = "assertion failed"): asserts condition {
@@ -172,8 +171,8 @@ export const PROTOCOLS: Record<string, Record<string, number>> = {
   OfEntry: { links: 1, link: 2, properties: 1, has: 1, property: 2, clear: 1 },
   OfLink: { name: 0, target: 1, set: 1 },
   OfRelation: { links: 1, entries: 1 },
-  OfUnion: { branch: 0, select: 1, value: 1 },
-  OfIntersection: { value: 1 },
+  OfUnion: { properties: 1, has: 1, property: 2, clear: 1 },
+  OfIntersection: { properties: 1, has: 1, property: 2, clear: 1 },
   Visitable: { identity: 0, schema_name: 0, accept: 1 },
 };
 
@@ -199,14 +198,3 @@ export function instance_problems(instance: object, protocol: string): string[] 
 }
 
 export type { Callback, Instance };
-
-/** A stand-in for an expression evaluator (mbse-expressions provides the real one), for union predicates written as
- * `["has", name]`, whether an object has the property, or `["type", name]`, whether a native has the type. */
-export function stub_evaluator(predicate: unknown, value: unknown): boolean | null {
-  const [kind, argument] = predicate as [string, string];
-  if (kind === "has") {
-    return typeof (value as { accept?: unknown } | null)?.accept === "function"
-      && Validators.properties_of(value as Visitable).has(argument);
-  }
-  return typeName(value) === argument;
-}

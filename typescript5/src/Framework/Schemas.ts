@@ -11,7 +11,7 @@
  */
 
 import { fromBase64, toBase64 } from "./Bytes.js";
-import { DecodeError, NotImplementedError, ValueError } from "./Errors.js";
+import { DecodeError, ValueError } from "./Errors.js";
 import type { PlainData } from "./Plain.js";
 import { isClassLike, NATIVE_NAMES, repr, sortedStrings, tokenName, Tuple, typeName } from "./Repr.js";
 import type { Native, NativeToken } from "./Visitors.js";
@@ -474,13 +474,14 @@ export namespace OfObject {
 
 // --- OfUnion / OfIntersection ---
 
-class BranchData implements HasFields {
+/** A named member of a union (a branch) or of an intersection (a part). */
+class MemberData implements HasFields {
+  name: string;
   type: AnyData | null;
-  when: unknown;
 
-  constructor(fields: { type?: AnyData | null; when?: unknown } = {}) {
+  constructor(fields: { name?: string; type?: AnyData | null } = {}) {
+    this.name = fields.name ?? "";
     this.type = fields.type ?? null;
-    this.when = fields.when ?? null;
   }
 
 
@@ -489,47 +490,67 @@ class BranchData implements HasFields {
   }
 }
 
-class BranchBuilder extends Builder<BranchData> {
-  protected make(fields: Record<string, unknown>): BranchData {
-    return new BranchData(fields as ConstructorParameters<typeof BranchData>[0]);
+class MemberBuilder extends Builder<MemberData> {
+  protected make(fields: Record<string, unknown>): MemberData {
+    return new MemberData(fields as ConstructorParameters<typeof MemberData>[0]);
   }
 
-  of(spec: OfAny.Spec): BranchBuilder {
+  name(name: string): MemberBuilder {
+    this.state["name"] = name;
+    return this;
+  }
+
+  of(spec: OfAny.Spec): MemberBuilder {
     this.state["type"] = OfAny.resolve(spec);
     return this;
   }
-
-  /** Discriminator predicate, a serializable expression. */
-  when(predicate: unknown): BranchBuilder {
-    this.state["when"] = predicate;
-    return this;
-  }
 }
 
-function isBranchData(value: unknown): value is BranchData {
-  return value instanceof BranchData;
+function isMemberData(value: unknown): value is MemberData {
+  return value instanceof MemberData;
+}
+
+/** Problems with a union's branches (`aKind` 'a union', `member` 'branch') or an intersection's parts. */
+function memberProblems(aKind: string, member: string, plural: string, members: readonly MemberData[]): string[] {
+  const kind = aKind.split(" ")[1];
+  const problems: string[] = [];
+  if (members.length < 2) problems.push(`${aKind} needs at least two ${plural}`);
+  if (new Set(members.map((m) => kindOf(m.type))).size > 1) problems.push(`${kind} ${plural} must all be the same kind`);
+  const seen = new Set<string>();
+  members.forEach((m, i) => {
+    if (typeof m.name !== "string" || m.name === "") problems.push(`${member} ${i} has no name`);
+    else if (seen.has(m.name)) problems.push(`${member} name ${repr(m.name)} is used more than once`);
+    seen.add(m.name);
+  });
+  return problems;
+}
+
+function members(specs: readonly ((builder: MemberBuilder) => MemberBuilder)[]): MemberData[] {
+  return specs.map((spec) => resolveSpec(spec, isMemberData, () => new MemberBuilder()));
+}
+
+function byName(members: readonly MemberData[]): Map<string, AnyData> {
+  return new Map(members.map((m) => [m.name, m.type as AnyData]));
 }
 
 class UnionData implements HasFields {
-  branches: readonly BranchData[];
+  branches: readonly MemberData[];
 
-  constructor(fields: { branches?: readonly BranchData[] } = {}) {
+  constructor(fields: { branches?: readonly MemberData[] } = {}) {
     this.branches = fields.branches ?? [];
   }
 
+  /** The branches by name: a union value is an object holding exactly one of them. */
+  get properties(): Map<string, AnyData> {
+    return byName(this.branches);
+  }
 
   equals(other: unknown): boolean {
     return other === this;
   }
 
   validate(): string[] {
-    const problems: string[] = [];
-    if (this.branches.length < 2) problems.push("a union needs at least two branches");
-    if (new Set(this.branches.map((b) => kindOf(b.type))).size > 1) problems.push("union branches must all be the same kind");
-    this.branches.forEach((b, i) => {
-      if (b.when === null || b.when === undefined) problems.push(`branch ${i} has no discriminator predicate`);
-    });
-    return problems;
+    return memberProblems("a union", "branch", "branches", this.branches);
   }
 }
 
@@ -538,10 +559,9 @@ class UnionBuilder extends Builder<UnionData> {
     return new UnionData(fields as ConstructorParameters<typeof UnionData>[0]);
   }
 
-  /** Branches in declaration order; the first whose predicate matches is chosen. */
-  branches(...specs: ((builder: BranchBuilder) => BranchBuilder)[]): UnionBuilder {
-    const added = specs.map((spec) => resolveSpec(spec, isBranchData, () => new BranchBuilder()));
-    this.state["branches"] = [...((this.state["branches"] as BranchData[] | undefined) ?? []), ...added];
+  /** Named branches, e.g. `.branches((b) => b.name("phone").of(Phone), ...)`. */
+  branches(...specs: ((builder: MemberBuilder) => MemberBuilder)[]): UnionBuilder {
+    this.state["branches"] = [...((this.state["branches"] as MemberData[] | undefined) ?? []), ...members(specs)];
     return this;
   }
 }
@@ -556,6 +576,8 @@ export namespace OfUnion {
   export const Builder = UnionBuilder;
   export type Builder = UnionBuilder;
   export type Spec = UnionData | ((builder: UnionBuilder) => UnionBuilder);
+  export const Branch = MemberData;
+  export type Branch = MemberData;
 
   export function resolve(spec: Spec | unknown): UnionData {
     return resolveSpec(spec, isUnionData, () => new UnionBuilder());
@@ -563,72 +585,34 @@ export namespace OfUnion {
 }
 
 class IntersectionData implements HasFields {
-  parts: readonly AnyData[];
+  parts: readonly MemberData[];
 
-  constructor(fields: { parts?: readonly AnyData[] } = {}) {
+  constructor(fields: { parts?: readonly MemberData[] } = {}) {
     this.parts = fields.parts ?? [];
   }
 
+  /** The parts by name: an intersection value is an object holding every one of them. */
+  get properties(): Map<string, AnyData> {
+    return byName(this.parts);
+  }
 
   equals(other: unknown): boolean {
     return other === this;
   }
 
   validate(): string[] {
-    const problems: string[] = [];
-    if (this.parts.length < 2) problems.push("an intersection needs at least two parts");
-    if (new Set(this.parts.map(kindOf)).size > 1) problems.push("intersection parts must all be the same kind");
-    if (new Set(this.parts.filter((p) => p instanceof NativeData).map((p) => (p as NativeData).type)).size > 1) {
-      problems.push("native parts must all have the same type");
-    }
-    const seen = new Map<string, AnyData>();
-    for (const part of this.parts) {
-      const properties = part instanceof ObjectData ? part.properties : new Map<string, AnyData>();
-      for (const [name, prop] of properties) {
-        const earlier = seen.get(name);
-        if (earlier !== undefined && !earlier.equals(prop)) {
-          problems.push(`property ${repr(name)} is declared with conflicting types`);
-        }
-        if (!seen.has(name)) seen.set(name, prop);
-      }
-    }
-    return problems;
-  }
-
-  /** The schema of the values the intersection holds: its native parts' schema, or an object schema declaring every
-   * property of its object parts, in order. Nested intersections are merged first. The same schema is returned until
-   * a part's declarations change. Throws ValueError when the intersection is not valid, and NotImplementedError for
-   * intersections of unions. */
-  merged(): NativeData | ObjectData {
-    const parts = this.parts.map((p) => (p instanceof IntersectionData ? p.merged() : p));
-    const problems = new IntersectionData({ parts }).validate();
-    if (problems.length > 0) throw new ValueError(`the intersection is not valid: ${problems[0]}`);
-    if (parts[0] instanceof UnionData) throw new NotImplementedError("intersections of unions are not supported yet");
-    if (parts[0] instanceof NativeData) return parts[0];
-    const signature = (parts as ObjectData[]).flatMap((p) => [p, ...[...p.properties].flat()]);
-    let cached = MERGED.get(this);
-    if (cached === undefined || cached.signature.length !== signature.length
-      || cached.signature.some((item, i) => item !== signature[i])) {
-      const properties = new Map<string, AnyData>();
-      for (const part of parts as ObjectData[]) {
-        for (const [name, prop] of part.properties) if (!properties.has(name)) properties.set(name, prop);
-      }
-      cached = { signature, merged: new ObjectData({ properties }) };
-      MERGED.set(this, cached);
-    }
-    return cached.merged;
+    return memberProblems("an intersection", "part", "parts", this.parts);
   }
 }
-
-const MERGED = new WeakMap<IntersectionData, { signature: unknown[]; merged: ObjectData }>();
 
 class IntersectionBuilder extends Builder<IntersectionData> {
   protected make(fields: Record<string, unknown>): IntersectionData {
     return new IntersectionData(fields as ConstructorParameters<typeof IntersectionData>[0]);
   }
 
-  of(...specs: OfAny.Spec[]): IntersectionBuilder {
-    this.state["parts"] = [...((this.state["parts"] as AnyData[] | undefined) ?? []), ...specs.map((s) => OfAny.resolve(s))];
+  /** Named parts, e.g. `.parts((p) => p.name("stamp").of(Stamp), ...)`. */
+  parts(...specs: ((builder: MemberBuilder) => MemberBuilder)[]): IntersectionBuilder {
+    this.state["parts"] = [...((this.state["parts"] as MemberData[] | undefined) ?? []), ...members(specs)];
     return this;
   }
 }
@@ -643,6 +627,8 @@ export namespace OfIntersection {
   export const Builder = IntersectionBuilder;
   export type Builder = IntersectionBuilder;
   export type Spec = IntersectionData | ((builder: IntersectionBuilder) => IntersectionBuilder);
+  export const Part = MemberData;
+  export type Part = MemberData;
 
   export function resolve(spec: Spec | unknown): IntersectionData {
     return resolveSpec(spec, isIntersectionData, () => new IntersectionBuilder());
@@ -670,8 +656,7 @@ function validateSchema(schema: unknown): string[] {
  * cannot have adjacencies; nor can the objects a union or intersection holds. */
 function embeddedProblems(schema: unknown): string[] {
   if (schema instanceof ObjectData && schema.adjacencies.size > 0) return ["an embedded object cannot have adjacencies"];
-  const parts = schema instanceof UnionData ? schema.branches.map((b) => b.type)
-    : schema instanceof IntersectionData ? [...schema.parts] : [];
+  const parts = schema instanceof UnionData || schema instanceof IntersectionData ? [...schema.properties.values()] : [];
   return sortedStrings(new Set(parts.flatMap((part) => embeddedProblems(part))));
 }
 

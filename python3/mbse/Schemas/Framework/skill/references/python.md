@@ -53,8 +53,8 @@ S.OfNative.Data(int)                                        # natives: int, floa
 S.OfObject.Builder().properties(spec, ...).relations(spec, ...).singleton("Name").create()
 S.OfObject.Builder(existing).relations(...).update()        # add adjacencies once the relations exist
 S.OfRelation.Builder().links("a", "b").properties(spec, ...).unique("a").create()
-S.OfUnion.Builder().branches(lambda b: b.of(spec).when(predicate), ...).create()
-S.OfIntersection.Builder().of(spec, spec).create()
+S.OfUnion.Builder().branches(lambda b: b.name("phone").of(spec), ...).create()
+S.OfIntersection.Builder().parts(lambda p: p.name("stamp").of(spec), ...).create()
 schema.validate()                                           # the schema's own problems, [] when valid
 
 # Proxies: register object and relation schemas, then build through Proxies.Builders.
@@ -63,14 +63,14 @@ B.Name().prop(value).embedded(lambda r: r.x(1)).adjacency_name(lambda e: e.link(
 B.Name(obj).prop(v).update()                                # change obj; .clone() makes a changed copy instead
 B.Name(obj).clear("prop").update()
 obj.prop                                                    # AttributeError when unset
-B.Name().union_prop(lambda u: u.of(BranchSchema, spec))     # or pass a value: its kind picks the branch
+B.Name().union_prop(lambda u: u.phone(spec))                # a branch by name; obj.union_prop.phone reads it
 B.Name(obj).property("p", lambda p: ...).adjacency("a", lambda a: a.entries(...))  # visitor protocol, any name
 
 # Everything else works for any schema.
 Reachable.of(root)                                          # root and everything reachable, in first-reference order
 Plain.ToPlain(schema, obj); Plain.ToPlain.Reachable(schema, root); Plain.FromPlain(B)(schema, plain)
 JSON.ToJSON(...), JSON.FromJSON(B)(...); YAML.ToYAML(...), YAML.FromYAML(B)(...)   # same shapes as Plain
-Validators.Validate(B)(schema, obj); Validators.Validate(B).Reachable(schema, root); Validators.Validate(B, evaluator)
+Validators.Validate(B)(schema, obj); Validators.Validate(B).Reachable(schema, root)
 Validators.properties_of(obj)                               # {name: value} of the properties that are set
 Comparison.OfObject(schema, a).compare(Comparison.OfObject(schema, b))   # -1, 0, 1, or None if incomparable
 

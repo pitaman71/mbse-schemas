@@ -14,17 +14,15 @@
  * - `unique(S)` clauses hold over the entries seen: entries that agree on everything outside `S` agree on `S`.
  *   Uniqueness is checked only over the entries reachable from what was validated.
  * - an embedded object's properties are declared by its schema and hold values of their types, recursively;
- * - a union value is written as one of the union's branches and holds a value of that branch's type. Given an
- *   evaluator (`Validate(registry, evaluator)`: a function taking a branch's predicate and a value, returning true,
- *   false or null for unknown), it is also the first branch whose predicate is true;
- * - an intersection value holds a value of the intersection's merged schema (`Schemas.OfIntersection.Data.merged()`).
+ * - a union value holds exactly one of the union's branches, with a value of that branch's type;
+ * - an intersection value holds every one of the intersection's parts, each with a value of that part's type.
  */
 
-import { NotImplementedError, ValueError } from "./Errors.js";
+import { NotImplementedError } from "./Errors.js";
 import { schemaTypeName } from "./Plain.js";
 import { nativeKey } from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
-import { repr, reprIndex, sortedStrings, tokenName, typeName } from "./Repr.js";
+import { repr, sortedStrings, tokenName, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfNative, OfObject, OfProperty,
   OfUnion, Visitable } from "./Visitors.js";
@@ -37,11 +35,8 @@ export interface Registry {
 
 // --- Recorders: Visitors that capture what an object writes into them ---
 
-/** A union branch's predicate evaluator: true, false, or null when unknown. */
-export type Evaluator = (predicate: unknown, value: unknown) => boolean | null;
-
-/** `Visitors.OfProperty` / `OfAny` / `OfNative` recording one value into a map: a native, an embedded object (an
- * `_ObjectRecord`) or a union value (a `_UnionRecord`). */
+/** `Visitors.OfProperty` / `OfAny` / `OfNative` recording one value into a map: a native, or an embedded object, a
+ * union value or an intersection value (an `_ObjectRecord` of that kind). */
 export class _Value implements OfProperty, OfAny, OfNative {
   constructor(private readonly values: Map<string, unknown>, private readonly slotName: string) {}
 
@@ -78,54 +73,23 @@ export class _Value implements OfProperty, OfAny, OfNative {
   }
 
   as_object(callback: Callback<OfObject>): _Value {
-    let record = this.values.get(this.slotName);
-    if (!(record instanceof _ObjectRecord)) this.values.set(this.slotName, (record = new _ObjectRecord()));
-    callback(record as _ObjectRecord);
-    return this;
+    return this.record("object", callback);
   }
 
   as_union(callback: Callback<OfUnion>): _Value {
-    let record = this.values.get(this.slotName);
-    if (!(record instanceof _UnionRecord)) this.values.set(this.slotName, (record = new _UnionRecord()));
-    callback(record as _UnionRecord);
-    return this;
+    return this.record("union", callback as unknown as Callback<OfObject>);
   }
 
   as_intersection(callback: Callback<OfIntersection>): _Value {
+    return this.record("intersection", callback as unknown as Callback<OfObject>);
+  }
+
+  private record(recordKind: Kind, callback: Callback<OfObject>): _Value {
     let record = this.values.get(this.slotName);
-    if (!(record instanceof _IntersectionRecord)) this.values.set(this.slotName, (record = new _IntersectionRecord()));
-    callback(record as _IntersectionRecord);
-    return this;
-  }
-}
-
-/** `Visitors.OfIntersection` recording an intersection value. */
-export class _IntersectionRecord implements OfIntersection {
-  readonly values = new Map<string, unknown>();
-
-  value(callback: Callback<OfAny>): _IntersectionRecord {
-    callback(new _Value(this.values, "value"));
-    return this;
-  }
-}
-
-/** `Visitors.OfUnion` recording the branch a union value is written as, and the value. */
-export class _UnionRecord implements OfUnion {
-  index: unknown = null;
-  readonly values = new Map<string, unknown>();
-
-  branch(): number {
-    if (this.index === null) throw new ValueError("no branch is selected");
-    return this.index as number;
-  }
-
-  select(index: number): _UnionRecord {
-    this.index = index;
-    return this;
-  }
-
-  value(callback: Callback<OfAny>): _UnionRecord {
-    callback(new _Value(this.values, "value"));
+    if (!(record instanceof _ObjectRecord) || record.kind !== recordKind) {
+      this.values.set(this.slotName, (record = new _ObjectRecord(recordKind)));
+    }
+    callback(record as _ObjectRecord);
     return this;
   }
 }
@@ -213,10 +177,16 @@ export class _AdjacencyRecord implements OfAdjacency {
   }
 }
 
-/** `Visitors.OfObject` recording an object's property values and adjacency entries. */
+type Kind = "object" | "union" | "intersection";
+
+/** `Visitors.OfObject` recording an object's property values and adjacency entries; also `Visitors.OfUnion` and
+ * `Visitors.OfIntersection` recording a union or intersection value (its branches or parts are its properties). It
+ * records every property written, so that a union value written with two branches can be reported. */
 export class _ObjectRecord implements OfObject {
   readonly values = new Map<string, unknown>();
   readonly adjacencyEntries = new Map<string, _EntryRecord[]>();
+
+  constructor(readonly kind: Kind = "object") {}
 
   properties(callback: Callback<OfProperty>): _ObjectRecord {
     for (const name of [...this.values.keys()]) callback(new _Value(this.values, name));
@@ -256,10 +226,10 @@ export class _ObjectRecord implements OfObject {
 }
 
 function replay(visitor: OfAny, value: unknown): void {
-  if (value instanceof _UnionRecord) {
-    visitor.as_union((u) => u.select(value.index as number).value((v) => replay(v, value.values.get("value"))));
-  } else if (value instanceof _IntersectionRecord) {
-    visitor.as_intersection((i) => i.value((v) => replay(v, value.values.get("value"))));
+  if (value instanceof _ObjectRecord && value.kind === "union") {
+    visitor.as_union((u) => value.accept(u as unknown as OfObject));
+  } else if (value instanceof _ObjectRecord && value.kind === "intersection") {
+    visitor.as_intersection((i) => value.accept(i as unknown as OfObject));
   } else if (value instanceof _ObjectRecord) {
     visitor.as_object((o) => value.accept(o));
   } else {
@@ -269,22 +239,27 @@ function replay(visitor: OfAny, value: unknown): void {
 
 // --- Checks ---
 
-function kind(value: unknown): string {
-  if (value instanceof _ObjectRecord) return "an embedded object";
-  if (value instanceof _UnionRecord) return "a union value";
-  if (value instanceof _IntersectionRecord) return "an intersection value";
-  return typeName(value);
+/** For messages, per record kind: a value of it, its schema, and what its properties are. */
+const RECORDS: Record<Kind, [string, string, string]> = {
+  object: ["an embedded object", "the embedded object", "property"],
+  union: ["a union value", "the union", "branch"],
+  intersection: ["an intersection value", "the intersection", "part"],
+};
+
+function recordKind(schema: Schemas.OfAny.Data): Kind {
+  if (schema instanceof Schemas.OfUnion.Data) return "union";
+  if (schema instanceof Schemas.OfIntersection.Data) return "intersection";
+  return "object";
 }
 
-/** The value a recorded property holds, as an evaluator reads it: a union or intersection value's value,
- * recursively. */
-function inner(value: unknown): unknown {
-  return value instanceof _UnionRecord || value instanceof _IntersectionRecord ? inner(value.values.get("value")) : value;
+export function _kind(value: unknown): string {
+  if (value instanceof _ObjectRecord) return RECORDS[value.kind][0];
+  return typeName(value);
 }
 
 function nativeProblem(schema: Schemas.OfAny.Data, value: unknown): string | null {
   if (!(schema instanceof Schemas.OfNative.Data)) return "entry properties must be native";
-  if (!Schemas.isNativeOf(schema.type, value)) return `expected ${tokenName(schema.type)}, got ${kind(value)}`;
+  if (!Schemas.isNativeOf(schema.type, value)) return `expected ${tokenName(schema.type)}, got ${_kind(value)}`;
   return null;
 }
 
@@ -310,7 +285,7 @@ class Check {
   private readonly schemasChecked = new Set<unknown>();
   private readonly entries = new Map<Schemas.OfRelation.Data, Map<string, Entry>>();
 
-  constructor(private readonly registry: Registry, private readonly evaluator: Evaluator | null) {}
+  constructor(private readonly registry: Registry) {}
 
   private schema(label: string, schema: { validate(): string[] }): void {
     if (this.schemasChecked.has(schema)) return;
@@ -318,44 +293,28 @@ class Check {
     this.problems.push(...schema.validate().map((problem) => `schema ${label}: ${problem}`));
   }
 
-  /** Problems with a property's value: its kind and type, recursively, and a union value's branch. */
+  /** Problems with a property's value: its kind and type, recursively, and that a union value holds one branch and an
+   * intersection value every part. */
   private valueProblems(label: string, schema: Schemas.OfAny.Data, item: unknown): string[] {
     if (schema instanceof Schemas.OfNative.Data) {
-      return Schemas.isNativeOf(schema.type, item) ? [] : [`${label}: expected ${tokenName(schema.type)}, got ${kind(item)}`];
+      return Schemas.isNativeOf(schema.type, item) ? [] : [`${label}: expected ${tokenName(schema.type)}, got ${_kind(item)}`];
     }
-    if (schema instanceof Schemas.OfObject.Data) {
-      if (!(item instanceof _ObjectRecord)) return [`${label}: expected an embedded object, got ${kind(item)}`];
-      const problems: string[] = [];
-      for (const [name, value] of item.values) {
-        const type = schema.properties.get(name);
-        if (type === undefined) problems.push(`${label}.${name}: not a property of the embedded object`);
-        else problems.push(...this.valueProblems(`${label}.${name}`, type, value));
-      }
-      return problems;
+    const expected = recordKind(schema);
+    const [what, owner, member] = RECORDS[expected];
+    if (!(item instanceof _ObjectRecord) || item.kind !== expected) return [`${label}: expected ${what}, got ${_kind(item)}`];
+    const record = schema as Schemas.OfObject.Data | Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
+    const problems: string[] = [];
+    for (const [name, value] of item.values) {
+      const type = record.properties.get(name);
+      if (type === undefined) problems.push(`${label}.${name}: not a ${member} of ${owner}`);
+      else problems.push(...this.valueProblems(`${label}.${name}`, type, value));
     }
-    if (schema instanceof Schemas.OfUnion.Data) {
-      if (!(item instanceof _UnionRecord)) return [`${label}: expected a union value, got ${kind(item)}`];
-      const index = item.index;
-      if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= schema.branches.length) {
-        return [`${label}: the union has no branch ${reprIndex(index)}`];
-      }
-      const branch = schema.branches[index] as { type: Schemas.OfAny.Data };
-      const problems = this.valueProblems(label, branch.type, item.values.get("value"));
-      if (problems.length > 0 || this.evaluator === null) return problems;
-      const value = inner(item);
-      const chosen = schema.branches.findIndex((b) => (this.evaluator as Evaluator)(b.when, value) === true);
-      if (chosen < 0) return [`${label}: no branch's predicate holds for the value`];
-      if (chosen !== index) return [`${label}: written as branch ${index}, but the first branch whose predicate holds is ${chosen}`];
-      return [];
+    if (expected === "union" && item.values.size !== 1) {
+      problems.push(`${label}: a union value holds exactly one branch, got ${item.values.size}`);
     }
-    if (!(item instanceof _IntersectionRecord)) return [`${label}: expected an intersection value, got ${kind(item)}`];
-    let merged: Schemas.OfAny.Data;
-    try {
-      merged = (schema as Schemas.OfIntersection.Data).merged();
-    } catch (error) {
-      return [`${label}: ${(error as Error).message}`]; // ValueError or NotImplementedError
-    }
-    return this.valueProblems(label, merged, item.values.get("value"));
+    const missing = expected === "intersection" ? [...record.properties.keys()].filter((name) => !item.values.has(name)) : [];
+    if (missing.length > 0) problems.push(`${label}: parts ${repr(missing)} are not set`);
+    return problems;
   }
 
   object(label: string, schema: Schemas.OfObject.Data, value: Visitable): void {
@@ -440,12 +399,12 @@ class Check {
 // --- Entry point ---
 
 /** The property values `value` writes when visited, by name; absent properties are left out. It reads through the
- * visitor protocols, so it works for any `Visitable`. An embedded object is returned as an object whose `accept`
- * writes its properties, and a union value as the value it holds. */
+ * visitor protocols, so it works for any `Visitable`. An embedded object, a union value or an intersection value is
+ * returned as an object whose `accept` writes its properties (a union's branch, an intersection's parts). */
 export function properties_of(value: Visitable | { accept(visitor: OfObject): void }): Map<string, unknown> {
   const record = new _ObjectRecord();
   value.accept(record);
-  return new Map([...record.values].map(([name, item]) => [name, inner(item)]));
+  return new Map(record.values);
 }
 
 export interface ValidateCall {
@@ -455,15 +414,14 @@ export interface ValidateCall {
   Reachable(schema: Schemas.OfObject.Data, root: Visitable): string[];
 }
 
-/** Validates data against its schema. `Validate(registry)(schema, value)` dispatches on the schema's kind. With an
- * `evaluator`, union values are also checked against their branches' predicates. */
-export function Validate(registry: Registry, evaluator: Evaluator | null = null): ValidateCall {
+/** Validates data against its schema. `Validate(registry)(schema, value)` dispatches on the schema's kind. */
+export function Validate(registry: Registry): ValidateCall {
   const run = (schema: Schemas.OfObject.Data, values: Visitable[]): string[] => {
     const root = values[0] as Visitable;
     if (registry.schema(root.schema_name()) !== schema) {
       return [`the value is a ${repr(root.schema_name())}, not an instance of the given schema`];
     }
-    const check = new Check(registry, evaluator);
+    const check = new Check(registry);
     values.forEach((value, i) => check.object(`${value.schema_name()}#${i}`, registry.schema(value.schema_name()), value));
     check.uniques();
     return check.problems;

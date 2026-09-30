@@ -153,11 +153,6 @@ export class Tuple {
   constructor(readonly items: readonly unknown[]) {}
 }
 
-/** Python's `repr()` of an index: a whole `number` stands for an int here, so it is written without a fraction. */
-export function reprIndex(value: unknown): string {
-  return typeof value === "number" && Number.isInteger(value) ? String(value) : repr(value);
-}
-
 /** Python's `repr()` for the values that appear in messages. */
 export function repr(value: unknown): string {
   if (value === null || value === undefined) return "None";

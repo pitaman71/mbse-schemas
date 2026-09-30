@@ -18,12 +18,10 @@ objects:
       number: '+1 555 0100'
       label: home
     reach:
-      $branch: 1
-      $value:
+      email:
         address: 'ann@example.com'
     ident:
-      $branch: 0
-      $value: 7
+      number: 7
     decks:
     - deck:
         $ref: s0
@@ -31,15 +29,16 @@ objects:
   s2:
     name: Bo
     reach:
-      $branch: 0
-      $value:
+      phone:
         number: '+44 20 7946 0000'
     ident:
-      $branch: 1
-      $value: B-2
+      code: B-2
     meta:
-      updated: '2026-09-29'
-      by: ann
+      stamp:
+        updated: '2026-09-29'
+      audit:
+        by: ann
+        updated: '2026-09-29'
     decks:
     - deck:
         $ref: s0

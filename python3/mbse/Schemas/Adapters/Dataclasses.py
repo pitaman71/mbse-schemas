@@ -13,8 +13,7 @@ translate several at once, by name. Both directions go through `ast` trees and n
 Only types are translated, one flat class to one object schema:
 
 - Fields map to properties, in order, including inherited fields. Field types map to native schemas: `int`, `float`,
-  `str`, `bool` and `bytes`. A union of natives in a schema becomes an `X | Y` annotation, and an intersection
-  becomes its merged schema.
+  `str`, `bool` and `bytes`.
 - A container of dataclasses maps to an adjacency. The field `addresses: set[Address]` of `Contact` becomes the
   relation `ContactAddresses` with links `owner` and `item`, the adjacency `addresses` of `Contact` via `owner`, and the
   adjacency `contact_addresses` of `Address` via `item`. `list[Address]` adds the property `index: int` and
@@ -26,9 +25,9 @@ Only types are translated, one flat class to one object schema:
   which types may fill it.
 - Defaults and mandatoriness are not translated: `FromDataclass` ignores field defaults, and `ToDataclass` writes
   fields without defaults.
-- Anything else raises `TypeError`: other collections, containers of natives, a union in a dataclass field (it has no
-  predicates to choose its branch), and nested dataclasses and other type definitions (embedded objects, in a schema),
-  which are handled separately.
+- Anything else raises `TypeError`: other collections, containers of natives, a union in a dataclass field (it does
+  not name its branches), and nested dataclasses and other type definitions (embedded objects, and union and
+  intersection values, in a schema), which are handled separately.
 """
 
 from __future__ import annotations
@@ -186,13 +185,13 @@ class _Reader:
                 self._container(owner, field, _CONTAINERS[outer], outer, node.slice)
                 return
             if outer in ("Optional", "Union"):
-                raise TypeError(f"field {field!r}: a union needs a predicate per branch; unions are not translated")
+                raise TypeError(f"field {field!r}: a union needs a name per branch; unions are not translated")
             if outer in _COLLECTIONS:
                 raise TypeError(f"field {field!r}: {outer} is not translated; container fields are list, set or dict "
                                 "of dataclasses")
             raise TypeError(f"field {field!r}: {outer or 'this generic type'} is not translated")
         if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
-            raise TypeError(f"field {field!r}: a union needs a predicate per branch; unions are not translated")
+            raise TypeError(f"field {field!r}: a union needs a name per branch; unions are not translated")
         name = _name(node)
         if name in _NATIVES:
             self.objects[owner].properties[field] = Schemas.OfNative.Data(_NATIVES[name])
@@ -299,11 +298,9 @@ def _type_annotation(prop: str, schema: Any) -> ast.expr:
     """An expression tree for the type of a property's values."""
     if isinstance(schema, Schemas.OfNative.Data):
         return _load(schema.type.__name__)
-    if isinstance(schema, Schemas.OfUnion.Data):
-        return _either([_type_annotation(prop, branch.type) for branch in schema.branches])
-    if isinstance(schema, Schemas.OfIntersection.Data):
-        return _type_annotation(prop, schema.merged())
-    raise TypeError(f"property {prop!r} holds an embedded object; nested dataclasses are handled separately")
+    noun = ("a union value" if isinstance(schema, Schemas.OfUnion.Data) else
+            "an intersection value" if isinstance(schema, Schemas.OfIntersection.Data) else "an embedded object")
+    raise TypeError(f"property {prop!r} holds {noun}; nested dataclasses are handled separately")
 
 
 def _container_annotation(adjacency: Schemas.OfAdjacency.Data, objects: Mapping[str, Schemas.OfObject.Data]

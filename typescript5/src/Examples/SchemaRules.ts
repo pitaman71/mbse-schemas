@@ -127,45 +127,41 @@ assert(Registry.singleton === "iso3166.Registry" && Registry.validate().length =
 
 // --- Unions and intersections (schema level) ---
 //
-// Discriminator predicates are serializable expressions, from the separate mbse-expressions package; these are
-// placeholders.
+// A union's branches and an intersection's parts are named: a union value holds exactly one branch, by name, and an
+// intersection value every part.
 
 const Phone = new Schemas.OfObject.Builder().properties((prop) => prop.name("number").of(Text)).create();
 const Email = new Schemas.OfObject.Builder().properties((prop) => prop.name("address").of(Text)).create();
 
 const ContactMethod = new Schemas.OfUnion.Builder()
-  .branches(
-    (b) => b.of(Phone).when(["has", "number"]),
-    (b) => b.of(Email).when(["has", "address"]),
-  )
+  .branches((b) => b.name("phone").of(Phone), (b) => b.name("email").of(Email))
   .create();
 assert(ContactMethod.validate().length === 0);
 
-const MissingPredicate = new Schemas.OfUnion.Builder().branches((b) => b.of(Phone), (b) => b.of(Email)).create();
-assert(MissingPredicate.validate().some((p) => p.includes("no discriminator")));
+const Unnamed = new Schemas.OfUnion.Builder().branches((b) => b.of(Phone), (b) => b.name("email").of(Email)).create();
+assert(Unnamed.validate().some((p) => p.includes("has no name")));
+
+const SameName = new Schemas.OfUnion.Builder().branches((b) => b.name("m").of(Phone), (b) => b.name("m").of(Email)).create();
+assert(SameName.validate().some((p) => p.includes("more than once")));
 
 const MixedKinds = new Schemas.OfUnion.Builder()
-  .branches((b) => b.of(Phone).when(["has", "number"]), (b) => b.of(Text).when(["is", "str"]))
+  .branches((b) => b.name("phone").of(Phone), (b) => b.name("text").of(Text))
   .create();
 assert(MixedKinds.validate().some((p) => p.includes("same kind")));
 
-const SingleBranch = new Schemas.OfUnion.Builder().branches((b) => b.of(Phone).when(["has", "number"])).create();
+const SingleBranch = new Schemas.OfUnion.Builder().branches((b) => b.name("phone").of(Phone)).create();
 assert(SingleBranch.validate().some((p) => p.includes("at least two")));
 
-// Intersections combine same-kind schemas; the same property with the same type is fine, different types conflict.
+// Intersections combine same-kind schemas as named parts. Each part keeps its own properties, so two parts may
+// declare the same property, even with different types.
 const Timestamped = new Schemas.OfObject.Builder().properties((prop) => prop.name("updated").of(Text)).create();
-const Audited = new Schemas.OfObject.Builder()
-  .properties(
-    (prop) => prop.name("updated").of((t) => t.as_native(String)), // equal to Text, not the same object
-    (prop) => prop.name("updated_by").of(Text),
-  )
-  .create();
-assert(new Schemas.OfIntersection.Builder().of(Timestamped, Audited).create().validate().length === 0);
-
 const EpochStamped = new Schemas.OfObject.Builder().properties((prop) => prop.name("updated").of((t) => t.as_native(BigInt))).create();
-const Conflicting = new Schemas.OfIntersection.Builder().of(Timestamped, EpochStamped).create();
-assert(Conflicting.validate().some((p) => p.includes("conflicting")));
+const Stamps = new Schemas.OfIntersection.Builder()
+  .parts((p) => p.name("text").of(Timestamped), (p) => p.name("epoch").of(EpochStamped))
+  .create();
+assert(Stamps.validate().length === 0);
 
-assert(new Schemas.OfIntersection.Builder().of(Timestamped, Text).create().validate().length > 0); // mixed kinds
+assert(new Schemas.OfIntersection.Builder().parts(
+  (p) => p.name("stamp").of(Timestamped), (p) => p.name("text").of(Text)).create().validate().length > 0); // mixed kinds
 
 console.log("SchemaRules: all checks passed");

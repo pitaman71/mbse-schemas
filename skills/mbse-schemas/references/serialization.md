@@ -9,7 +9,7 @@ and TypeScript write byte-identical JSON, and each reads the other's.
 {"root": "s0", "objects": {
   "s0": {"name": "cpu", "ports": [{"port": {"$ref": "s1", "$schema": "Port"}}]},
   "s1": {"name": "irq", "signal": {"width": 1, "unit": "bit"},
-         "reach": {"$branch": 0, "$value": {"number": "1"}},
+         "reach": {"phone": {"number": "1"}},
          "owner": [{"owner": {"$ref": "s0", "$schema": "Component"}}]}}}
 ```
 
@@ -17,8 +17,8 @@ and TypeScript write byte-identical JSON, and each reads the other's.
   objects link to it, and cycles need no special handling.
 - An object maps property names to values, and adjacency names to lists of entries. An entry holds the other links
   as references `{"$ref": symbol, "$schema": name}` and its own properties. The object's own link is implied.
-- An embedded object is a nested mapping. A union value is `{"$branch": index, "$value": value}`. An intersection
-  value is its merged value, with no wrapper.
+- An embedded object is a nested mapping. Union and intersection values are nested mappings keyed by branch or part
+  name: a union value has exactly one key, and an intersection value one per part.
 - Object content carries no schema. The root schema is passed to the decoder, and references carry schema names, so a
   linked object's schema must be registered.
 

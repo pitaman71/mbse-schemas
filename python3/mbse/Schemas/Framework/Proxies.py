@@ -9,11 +9,10 @@ Relation entries live in one global table per relation. Adding an entry equal to
 
 A property whose schema is an `OfObject` holds an embedded object: a read-only record with no identity
 (`Proxies.OfObject.Record`), read with attributes like an instance and set with a Spec, e.g.
-`.reach(lambda r: r.number('+44'))`. A property whose schema is an `OfUnion` holds a value of one of its branches, set
-directly (the first branch of the value's native type or record schema) or with `.reach(lambda u: u.of(Phone, spec))`.
-Proxies store which branch a union value was written as, and snapshots record it; checking it against the branches'
-predicates is the job of `Validators`, given an evaluator. A property whose schema is an `OfIntersection` holds one
-value of the intersection's merged schema (`Schemas.OfIntersection.Data.merged()`), set like a value of that schema.
+`.reach(lambda r: r.number('+44'))`. Union and intersection values are records too, whose properties are the union's
+branches or the intersection's parts, by name: `.reach(lambda u: u.phone(lambda p: p.number('+44')))` sets the branch
+`phone`, read back as `card.reach.phone.number`, and setting one branch clears any other. An intersection value holds
+each of its parts, set and read the same way (`card.meta.stamp.updated`).
 """
 
 from __future__ import annotations
@@ -183,12 +182,10 @@ class _ObjectData:
 
 
 def _read(value: Any, name: str) -> Any:
-    """A property of an instance or record, as an attribute: a union or intersection value reads as the value it
-    holds."""
+    """A property of an instance or record, as an attribute."""
     values = object.__getattribute__(value, "_values")
     if name in values:
-        item = values[name]
-        return item.value if isinstance(item, (_UnionValue, _IntersectionValue)) else item
+        return values[name]
     if name in object.__getattribute__(value, "_schema").properties:
         raise AttributeError(f"property {name!r} is not set")
     raise AttributeError(name)
@@ -203,41 +200,33 @@ def _write_properties(visitor: Any, schema: ObjectSchema, values: dict[str, Any]
 
 def _write_value(visitor: Visitors.OfAny, value: Any) -> None:
     """Writes a native, an embedded object, a union value or an intersection value into a `Visitors.OfAny`."""
-    if isinstance(value, _UnionValue):
-        visitor.as_union(lambda u: u.select(value.index).value(lambda v: _write_value(v, value.value)))
-    elif isinstance(value, _IntersectionValue):
-        visitor.as_intersection(lambda i: i.value(lambda v: _write_value(v, value.value)))
-    elif isinstance(value, _RecordData):
-        visitor.as_object(lambda o: value.accept(o))
+    if isinstance(value, _RecordData):
+        _write_record(visitor, object.__getattribute__(value, "_schema"), lambda r: value.accept(r))
     else:
         visitor.as_native(lambda n: n.set(value))
 
 
-class _UnionValue:
-    """A union property's value, with the index of the branch it was written as."""
+def _noun(schema: Any) -> str:
+    """What a record of `schema` is, for messages."""
+    if isinstance(schema, Schemas.OfUnion.Data):
+        return "union value"
+    if isinstance(schema, Schemas.OfIntersection.Data):
+        return "intersection value"
+    return "embedded object"
 
-    __slots__ = ("index", "value")
 
-    def __init__(self, index: int, value: Any):
-        self.index, self.value = index, value
-
-
-class _IntersectionValue:
-    """An intersection property's value: a value of the intersection's merged schema."""
-
-    __slots__ = ("value",)
-
-    def __init__(self, value: Any):
-        self.value = value
+def _a(noun: str) -> str:
+    return f"a {noun}" if noun == "union value" else f"an {noun}"
 
 
 class _RecordData:
-    """An embedded object: the value of a property whose schema is an `OfObject`. It has no identity and no
-    adjacencies; its properties are read-only attributes, and reading one that is not set raises AttributeError."""
+    """An embedded object: the value of a property whose schema is an `OfObject`, or a union or intersection value,
+    whose properties are the branches or parts. It has no identity and no adjacencies; its properties are read-only
+    attributes, and reading one that is not set raises AttributeError."""
 
     __slots__ = ("_schema", "_values")
 
-    def __init__(self, schema: ObjectSchema, values: dict[str, Any]):
+    def __init__(self, schema: Any, values: dict[str, Any]):
         object.__setattr__(self, "_schema", schema)
         object.__setattr__(self, "_values", dict(values))
 
@@ -245,7 +234,7 @@ class _RecordData:
         return _read(self, name)
 
     def __setattr__(self, name: str, value: object) -> None:
-        raise AttributeError("embedded objects are read-only; use a builder")
+        raise AttributeError(f"{_noun(self._schema)}s are read-only; use a builder")
 
     def accept(self, visitor: Visitors.OfObject) -> None:
         """Writes the properties in the schema's declared order."""
@@ -303,24 +292,26 @@ class _AnySlot:
 
     def as_object(self, callback: Callable[[Visitors.OfObject], Any]) -> _AnySlot:
         """Builds an embedded object, starting from the one already set, if any."""
-        if not isinstance(self._schema, Schemas.OfObject.Data):
-            raise TypeError(f"property {self._name!r} does not hold an object")
+        return self._record(Schemas.OfObject.Data, "an object", callback)
+
+    def as_union(self, callback: Callable[[Visitors.OfUnion], Any]) -> _AnySlot:
+        """Builds a union value, starting from the one already set, if any."""
+        return self._record(Schemas.OfUnion.Data, "a union", callback)
+
+    def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _AnySlot:
+        """Builds an intersection value, starting from the one already set, if any."""
+        return self._record(Schemas.OfIntersection.Data, "an intersection", callback)
+
+    def _record(self, kind: type, noun: str, callback: Callable[[Any], Any]) -> _AnySlot:
+        if not isinstance(self._schema, kind):
+            raise TypeError(f"property {self._name!r} does not hold {noun}")
         current = self._values.get(self._name)
         builder = _RecordBuilder(self._schema, current if isinstance(current, _RecordData) else None)
         callback(builder)
-        self._values[self._name] = builder.build()
-        return self
-
-    def as_union(self, callback: Callable[[Visitors.OfUnion], Any]) -> _AnySlot:
-        if not isinstance(self._schema, Schemas.OfUnion.Data):
-            raise TypeError(f"property {self._name!r} does not hold a union")
-        callback(_UnionSlot(self._values, self._name, self._schema))
-        return self
-
-    def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _AnySlot:
-        if not isinstance(self._schema, Schemas.OfIntersection.Data):
-            raise TypeError(f"property {self._name!r} does not hold an intersection")
-        callback(_IntersectionSlot(self._values, self._name, self._schema))
+        if isinstance(self._schema, Schemas.OfUnion.Data) and not builder._values:
+            self._values.pop(self._name, None)  # a union value without a branch is no value
+        else:
+            self._values[self._name] = builder.build()
         return self
 
 
@@ -347,8 +338,8 @@ class _PropertySlot:
 
 def _setter(visitor: Any, name: str, schema: Any = None) -> Callable[[Any], Any]:
     """DSL setter for a property of `schema`: `.name(value)`, or `.name(Spec)` where the Spec receives the value's
-    builder: a `Visitors.OfNative` (`v.set(...)`), an embedded object's builder, or a union's `Visitors.OfUnion`. An
-    intersection's value is set like a value of its merged schema."""
+    builder: a `Visitors.OfNative` (`v.set(...)`), or the builder of an embedded object, a union value or an intersection
+    value."""
 
     def setter(spec: Any) -> Any:
         visitor.property(name, lambda p: p.value(lambda a: _apply(a, name, schema, spec)))
@@ -359,102 +350,37 @@ def _setter(visitor: Any, name: str, schema: Any = None) -> Callable[[Any], Any]
 
 def _apply(visitor: Visitors.OfAny, name: str, schema: Any, spec: Any) -> None:
     """Writes `spec` (a value, or a callable taking the value's builder) as a value of `schema`."""
-    if isinstance(schema, Schemas.OfObject.Data):
+    if isinstance(schema, (Schemas.OfObject.Data, Schemas.OfUnion.Data, Schemas.OfIntersection.Data)):
         if callable(spec):
-            visitor.as_object(spec)
+            _write_record(visitor, schema, spec)
         elif isinstance(spec, _RecordData):
-            visitor.as_object(lambda o: spec.accept(o))
+            _write_record(visitor, schema, lambda r: spec.accept(r))
         else:
-            raise TypeError(f"property {name!r} takes an embedded object or a Spec, got {type(spec).__name__}")
-    elif isinstance(schema, Schemas.OfUnion.Data):
-        if callable(spec):
-            visitor.as_union(spec)
-        else:
-            index = _branch_of(schema, spec)
-            visitor.as_union(lambda u: u.select(index).value(lambda v: _write_value(v, spec)))
-    elif isinstance(schema, Schemas.OfIntersection.Data):
-        merged = schema.merged()
-        visitor.as_intersection(lambda i: i.value(lambda v: _apply(v, name, merged, spec)))
+            raise TypeError(f"property {name!r} takes {_a(_noun(schema))} or a Spec, got {type(spec).__name__}")
     else:
         visitor.as_native(spec if callable(spec) else (lambda n: n.set(spec)))
 
 
-def _branch_of(schema: Schemas.OfUnion.Data, value: Any) -> int:
-    """The first branch that can hold `value`: of its record's schema, or of its native type."""
-    for i, branch in enumerate(schema.branches):
-        if isinstance(value, _RecordData):
-            if branch.type is object.__getattribute__(value, "_schema"):
-                return i
-        elif isinstance(branch.type, Schemas.OfNative.Data) and branch.type.type is type(value):
-            return i
-    kind = "an embedded object" if isinstance(value, _RecordData) else f"a {type(value).__name__}"
-    raise TypeError(f"no branch of the union holds {kind}")
-
-
-class _UnionSlot:
-    """`Visitors.OfUnion` over one key of a value dict. `select(index)` chooses the branch the value is written as,
-    before `value(...)` writes it. DSL: `.of(schema, spec)` selects the first branch of `schema` and writes `spec`."""
-
-    def __init__(self, values: dict[str, Any], name: str, schema: Schemas.OfUnion.Data):
-        self._values, self._name, self._schema = values, name, schema
-        current = values.get(name)
-        self._selected: int | None = current.index if isinstance(current, _UnionValue) else None
-
-    def branch(self) -> int:
-        current = self._values.get(self._name)
-        if not isinstance(current, _UnionValue):
-            raise AttributeError(f"property {self._name!r} is not set")
-        return current.index
-
-    def select(self, index: int) -> _UnionSlot:
-        if type(index) is not int or not 0 <= index < len(self._schema.branches):
-            raise ValueError(f"the union has no branch {index!r}")
-        self._selected = index
-        return self
-
-    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _UnionSlot:
-        if self._selected is None:
-            raise ValueError("select a branch before writing the union's value")
-        current = self._values.get(self._name)
-        inner = {} if not isinstance(current, _UnionValue) or current.index != self._selected else {"value": current.value}
-        callback(_AnySlot(inner, "value", self._schema.branches[self._selected].type))
-        if "value" in inner:
-            self._values[self._name] = _UnionValue(self._selected, inner["value"])
-        else:
-            self._values.pop(self._name, None)
-        return self
-
-    def of(self, schema: Any, spec: Any) -> _UnionSlot:
-        for i, branch in enumerate(self._schema.branches):
-            if branch.type is schema:
-                return self.select(i).value(lambda v: _apply(v, self._name, schema, spec))
-        raise ValueError("no branch of the union has that schema")
-
-
-class _IntersectionSlot:
-    """`Visitors.OfIntersection` over one key of a value dict: `value(...)` writes a value of the merged schema."""
-
-    def __init__(self, values: dict[str, Any], name: str, schema: Schemas.OfIntersection.Data):
-        self._values, self._name, self._schema = values, name, schema
-
-    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _IntersectionSlot:
-        current = self._values.get(self._name)
-        inner = {"value": current.value} if isinstance(current, _IntersectionValue) else {}
-        callback(_AnySlot(inner, "value", self._schema.merged()))
-        if "value" in inner:
-            self._values[self._name] = _IntersectionValue(inner["value"])
-        else:
-            self._values.pop(self._name, None)
-        return self
+def _write_record(visitor: Visitors.OfAny, schema: Any, callback: Callable[[Any], Any]) -> None:
+    if isinstance(schema, Schemas.OfUnion.Data):
+        visitor.as_union(callback)
+    elif isinstance(schema, Schemas.OfIntersection.Data):
+        visitor.as_intersection(callback)
+    else:
+        visitor.as_object(callback)
 
 
 class _RecordBuilder:
-    """`Visitors.OfObject` for building an embedded object, starting from `source` if given. DSL: `.<property>(value
-    or Spec)`. An embedded object has no adjacencies."""
+    """`Visitors.OfObject` for building an embedded object, starting from `source` if given; also `Visitors.OfUnion`
+    and `Visitors.OfIntersection` for a union or intersection value, whose properties are the branches or parts. DSL:
+    `.<property>(value or Spec)`. A record has no adjacencies, and writing a union's branch clears any other."""
 
-    def __init__(self, schema: ObjectSchema, source: _RecordData | None = None):
+    def __init__(self, schema: Any, source: _RecordData | None = None):
         self._schema = schema
         self._values: dict[str, Any] = {} if source is None else dict(object.__getattribute__(source, "_values"))
+        self._member = ("branch of the union" if isinstance(schema, Schemas.OfUnion.Data) else
+                        "part of the intersection" if isinstance(schema, Schemas.OfIntersection.Data) else
+                        "property of the embedded object")
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _RecordBuilder:
         for name in [n for n in self._schema.properties if n in self._values]:
@@ -466,7 +392,10 @@ class _RecordBuilder:
 
     def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _RecordBuilder:
         if name not in self._schema.properties:
-            raise AttributeError(f"{name!r} is not a property of the embedded object")
+            raise AttributeError(f"{name!r} is not a {self._member}")
+        if isinstance(self._schema, Schemas.OfUnion.Data):
+            for other in [n for n in self._values if n != name]:
+                del self._values[other]
         callback(_PropertySlot(self._values, name, self._schema.properties[name]))
         return self
 
@@ -478,14 +407,14 @@ class _RecordBuilder:
         return self
 
     def adjacency(self, name: str, callback: Callable[[Visitors.OfAdjacency], Any]) -> _RecordBuilder:
-        raise AttributeError(f"an embedded object has no adjacencies, got {name!r}")
+        raise AttributeError(f"{_a(_noun(self._schema))} has no adjacencies, got {name!r}")
 
     def __getattr__(self, name: str) -> Callable[[Any], _RecordBuilder]:
         if name.startswith("_"):
             raise AttributeError(name)
         if name in self._schema.properties:
             return _setter(self, name, self._schema.properties[name])
-        raise AttributeError(f"{name!r} is not a property of the embedded object")
+        raise AttributeError(f"{name!r} is not a {self._member}")
 
     def build(self) -> _RecordData:
         return _RecordData(self._schema, self._values)

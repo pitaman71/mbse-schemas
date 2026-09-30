@@ -151,7 +151,7 @@ IDs, and both reach 100% code coverage (`uv run coverage ...` / `npm run coverag
 
 The core is implemented in both languages:
 - schemas: objects, relations, unions and intersections;
-- embedded objects, union values and intersection values (intersections of unions are not yet supported);
+- embedded objects, union values and intersection values, keyed by branch and part names;
 - dynamic proxies;
 - reachability;
 - plain snapshots, JSON and YAML;
@@ -159,13 +159,12 @@ The core is implemented in both languages:
 - comparison under a schema;
 - in Python, translation between dataclasses and object schemas (`mbse.Schemas.Adapters.Dataclasses`).
 
-Expressions (for union predicates and constraints) and their evaluation are a separate package,
+Expressions (for constraints) and their evaluation are a separate package,
 [mbse-expressions](https://github.com/pitaman71/mbse-expressions), which depends on this one. Generated bindings
 (typed code per schema) will be separate repositories too, one per target language (e.g. mbse-cpp, mbse-python,
 mbse-typescript, mbse-systemverilog), each depending on this one.
 
 Designed but not built yet (see `docs/FRAMEWORK.md`):
-- intersections of unions;
 - constraints such as "at least one";
 - mutations and transactions;
 - factories;

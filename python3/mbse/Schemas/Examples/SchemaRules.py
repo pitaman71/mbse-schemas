@@ -155,51 +155,47 @@ assert Registry.singleton == 'iso3166.Registry' and Registry.validate() == []
 
 # --- Unions and intersections (schema level) ---
 #
-# Discriminator predicates are serializable expressions, from the separate mbse-expressions package; these are
-# placeholders.
+# A union's branches and an intersection's parts are named: a union value holds exactly one branch, by name, and an
+# intersection value every part.
 
 Phone = Schemas.OfObject.Builder().properties(lambda prop: prop.name('number').of(Text)).create()
 Email = Schemas.OfObject.Builder().properties(lambda prop: prop.name('address').of(Text)).create()
 
 ContactMethod = (
     Schemas.OfUnion.Builder()
-    .branches(
-        lambda b: b.of(Phone).when(('has', 'number')),
-        lambda b: b.of(Email).when(('has', 'address')),
-    )
+    .branches(lambda b: b.name('phone').of(Phone), lambda b: b.name('email').of(Email))
     .create()
 )
 assert ContactMethod.validate() == []
 
-MissingPredicate = Schemas.OfUnion.Builder().branches(lambda b: b.of(Phone), lambda b: b.of(Email)).create()
-assert any('no discriminator' in p for p in MissingPredicate.validate())
+Unnamed = Schemas.OfUnion.Builder().branches(lambda b: b.of(Phone), lambda b: b.name('email').of(Email)).create()
+assert any('has no name' in p for p in Unnamed.validate())
+
+SameName = Schemas.OfUnion.Builder().branches(lambda b: b.name('m').of(Phone), lambda b: b.name('m').of(Email)).create()
+assert any('more than once' in p for p in SameName.validate())
 
 MixedKinds = (
     Schemas.OfUnion.Builder()
-    .branches(lambda b: b.of(Phone).when(('has', 'number')), lambda b: b.of(Text).when(('is', 'str')))
+    .branches(lambda b: b.name('phone').of(Phone), lambda b: b.name('text').of(Text))
     .create()
 )
 assert any('same kind' in p for p in MixedKinds.validate())
 
-SingleBranch = Schemas.OfUnion.Builder().branches(lambda b: b.of(Phone).when(('has', 'number'))).create()
+SingleBranch = Schemas.OfUnion.Builder().branches(lambda b: b.name('phone').of(Phone)).create()
 assert any('at least two' in p for p in SingleBranch.validate())
 
-# Intersections combine same-kind schemas; the same property with the same type is fine, different types conflict.
+# Intersections combine same-kind schemas as named parts. Each part keeps its own properties, so two parts may
+# declare the same property, even with different types.
 Timestamped = Schemas.OfObject.Builder().properties(lambda prop: prop.name('updated').of(Text)).create()
-Audited = (
-    Schemas.OfObject.Builder()
-    .properties(
-        lambda prop: prop.name('updated').of(lambda t: t.as_native(str)),  # equal to Text, not the same object
-        lambda prop: prop.name('updated_by').of(Text),
-    )
+EpochStamped = Schemas.OfObject.Builder().properties(lambda prop: prop.name('updated').of(lambda t: t.as_native(int))).create()
+Stamps = (
+    Schemas.OfIntersection.Builder()
+    .parts(lambda p: p.name('text').of(Timestamped), lambda p: p.name('epoch').of(EpochStamped))
     .create()
 )
-assert Schemas.OfIntersection.Builder().of(Timestamped, Audited).create().validate() == []
+assert Stamps.validate() == []
 
-EpochStamped = Schemas.OfObject.Builder().properties(lambda prop: prop.name('updated').of(lambda t: t.as_native(int))).create()
-Conflicting = Schemas.OfIntersection.Builder().of(Timestamped, EpochStamped).create()
-assert any('conflicting' in p for p in Conflicting.validate())
-
-assert Schemas.OfIntersection.Builder().of(Timestamped, Text).create().validate()  # mixed kinds
+assert Schemas.OfIntersection.Builder().parts(
+    lambda p: p.name('stamp').of(Timestamped), lambda p: p.name('text').of(Text)).create().validate()  # mixed kinds
 
 print('SchemaRules: all checks passed')

@@ -46,7 +46,7 @@ npm run portability                         # the core without Node (browser bun
 
 ## Related repositories
 
-- [mbse-expressions](https://github.com/pitaman71/mbse-expressions): expressions (union predicates, constraints) and
-  their evaluators. It depends on this repository as a git submodule.
+- [mbse-expressions](https://github.com/pitaman71/mbse-expressions): expressions (constraints) and their
+  evaluators. It depends on this repository as a git submodule.
 - Generated bindings will live in one repository per target language (e.g. mbse-cpp, mbse-python, mbse-typescript,
   mbse-systemverilog), each depending on this one.

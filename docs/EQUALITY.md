@@ -13,9 +13,8 @@ and anywhere else values are compared. Two values are compared under a schema:
 - `OfObject` held as a property value : every schema-declared property is either absent in both or present and equal
   in both. Properties not declared by the schema (e.g. extra data held by a dynamic proxy) do not participate.
 - Linked objects in a relation entry : compared by identity, not structure.
-- `OfUnion` : same branch and equal under that branch's schema. The branch is the one the value records (written as
-  `$branch` in snapshots), which validation checks is the first whose predicate matches, in declaration order.
-- `OfIntersection` : equal under every constituent schema, i.e. under the intersection's merged schema.
+- `OfUnion` : the same branch, by name, and equal under that branch's schema.
+- `OfIntersection` : every part, by name, either absent in both or present and equal in both, under that part's schema.
 - `OfAny` : same runtime schema and equal under it.
 
 Because linked objects compare by identity and only relations can form cycles, structural equality always terminates.
@@ -36,8 +35,8 @@ written into it, e.g. `Comparison.OfObject(schema, instance)`, which the instanc
 and `bytes`: floats by value with `-0.0` before `0.0`, NaNs equal to each other and incomparable with other floats.
 Booleans, objects, entries and adjacencies are equal or incomparable. Absent equals absent and is incomparable with
 anything present. An adjacency compares its entries as a set, seen from its object. Embedded objects compare by their
-properties; union values are equal when written as the same branch with equal values, and otherwise incomparable.
-Intersection values compare under the intersection's merged schema.
+properties; union values are equal when they hold the same branch with equal values, and otherwise incomparable.
+Intersection values compare part by part, as embedded objects compare property by property.
 
 ## Proposed resolutions (to confirm)
 

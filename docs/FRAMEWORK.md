@@ -39,21 +39,20 @@ The schema elements include:
                   `Schemas.OfObject.Builder(existing).relations(...).update()`.
 - `OfEntry` : describes the contents of entries which must include the links
               and may include properties
-- `OfUnion` : of two or more OfX schemas (must be the same kind) that can be discriminated by a predicate which must be provided
-              as a serializable expression (see `Expressions`).
-- `OfIntersection` : of two or more OfX schemas (must be the same kind). Used to implement object and aspect oriented structures.
-                     It is an error for the intersected schemas to conflict, e.g. two `OfObject`s declaring the same
-                     property with different types.
+- `OfUnion` : of two or more named branches, each an OfX schema (all of the same kind). A value holds exactly one
+              branch, by name (see Unions and intersections by name).
+- `OfIntersection` : of two or more named parts, each an OfX schema (all of the same kind). Used to implement object and
+                     aspect oriented structures. A value holds every part, by name; parts do not merge, so two parts may
+                     declare the same property, even with different types.
 
 A property whose schema is an `OfObject` holds an *embedded object*: a read-only record of that schema's properties,
 with no identity and no adjacencies, copied by value and written nested in its owner's snapshot. An embedded object's
 schema must not declare adjacencies, however it is held (directly, through a union branch or an intersection part).
-A property whose schema is an `OfUnion` holds a value of one of its branches and records which branch it was written
-as; `Visitors.OfUnion.select(index)` chooses the branch before `value(...)` writes the value. A property whose schema
-is an `OfIntersection` holds one value of the intersection's *merged* schema, `Schemas.OfIntersection.Data.merged()`:
-the native parts' schema, or an object schema declaring every property of the object parts, in order (nested
-intersections are merged first). An intersection that is not valid has no values; intersections of unions are not
-supported yet.
+A property whose schema is an `OfUnion` holds a union value: a record whose properties are the union's branches, holding
+exactly one of them. A property whose schema is an `OfIntersection` holds an intersection value: a record whose
+properties are the intersection's parts, holding each of them. `Visitors.OfUnion` and `Visitors.OfIntersection` read
+and write them like an embedded object's properties (`properties`, `has`, `property`, `clear`), and writing a union's
+branch clears any other.
 
 Named references are handled entirely by relations with a property (or properties) for the index value.
 For example, a global ID directory is a relation linking a singleton directory object to each object, with the ID as a
@@ -188,10 +187,8 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   `Proxies.Builders`), and runs only when the caller asks. It checks the schemas' own `validate()`, exact native types
   of properties and entry properties, that every link is set and filled by an object whose schema declares an
   adjacency via that link, `unique(...)` clauses over the entries seen, embedded objects' properties recursively,
-  that a union value's branch exists and holds a value of its type, and that an intersection value holds a value of
-  the merged schema. `Validate(registry, evaluator)` also checks that
-  the branch is the first whose predicate holds; an evaluator takes a predicate and a value and returns true, false or
-  `None` for unknown. The validator is a visitor: objects write
+  that a union value holds exactly one of its branches and an intersection value every one of its parts, each with a
+  value of its type. The validator is a visitor: objects write
   themselves into it through `accept`. `Validators.properties_of(value)` returns the property values any object writes when
   visited, for other modules and packages that read objects (e.g. mbse-expressions' evaluators).
 
@@ -235,10 +232,10 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
   one) and checkably so: a deserializer must reject a symbol assigned to two objects or an object assigned two symbols.
 - Symbols bind only to objects, never to values or entries.
 - Singletons are referenced by their global name and never need a symbol.
-- An embedded object is written nested, as a mapping of its properties. An intersection value is written as a value
-  of the merged schema, with no wrapper. A union value is written as
-  `{"$branch": index, "$value": value}`, so decoding needs no evaluator; whether the branch agrees with the
-  predicates is for `Validators` to check.
+- An embedded object is written nested, as a mapping of its properties. Union and intersection values are written the
+  same way, keyed by branch or part name: a union value `{"phone": {"number": "1"}}` has exactly one key, and decoding
+  rejects any other count; an intersection value `{"stamp": {...}, "audit": {...}}` has a key per part, and a missing
+  part is for `Validators` to report.
 - Only a `create` mutation creates an object. A reference never creates one.
 
 - `Plain` : for each schema element `OfX`, `Plain.ToPlain.OfX` and `Plain.FromPlain.OfX` implement `Visitors.OfX` and
@@ -290,17 +287,19 @@ Mistakes in the calling program keep their usual classes, e.g. a root schema tha
 
 ## Unions and intersections by name
 
-Designed, not yet implemented. It supersedes the resolved decisions on branch predicates, `$branch` and merged
-intersection values.
+These replace the earlier design, in which a union's branches were chosen by predicates and written as
+`{"$branch": index, "$value": value}`, and an intersection's parts merged into one value.
 
 - **Every union branch and every intersection part has a name.** Names are required, unique within their union or
   intersection, and are property names, subject to the same rules (see reserved names under Open questions).
 - **Unpacked, a union is an object with exactly one of its variants present, and an intersection an object with all of
   its parts present.** This holds in proxies and over the wire (`Plain`, `JSON`, `YAML`): a union value is written
   `{"circle": {"radius": 2}}`, and an intersection value `{"Named": {"name": "a"}, "Dated": {"date": "..."}}`. A proxy
-  reads a variant as a property (`shape.circle`) and a part the same way (`x.Named.name`); it may also offer an
+  reads a variant as a property (`shape.circle`) and a part the same way (`x.Named.name`). A proxy may later offer an
   intersection's properties flattened (`x.name`), for the names that one part declares or that every part declaring
-  them declares with the same type. The wire form is always per part.
+  them declares with the same type; none does yet. The wire form is always per part.
+- **A union value without a branch is no value.** Clearing a union's only branch clears the property, and a writer
+  leaves out a union value written with no branch.
 - **There are no predicates.** A branch's `when` is dropped: which variant a value holds is data, so decoding and
   validation need no evaluator. Constraints (planned) may still relate a value's properties.
 - **Branches are identified by name, not position**, so reordering a union's branches leaves stored data valid.
@@ -342,16 +341,14 @@ values they describe side by side.
 
 ## Expressions
 
-Union discriminator predicates (to be dropped: see Unions and intersections by name), and later constraints, are
-serializable expressions. Expressions are a separate
+Constraints, planned, are serializable expressions. Expressions are a separate
 package, [mbse-expressions](https://github.com/pitaman71/mbse-expressions), which depends on this one: its expressions
 are ordinary objects with registered meta-schemas, so this package serializes, validates and compares them like any
 others. See its `docs/EXPRESSIONS.md` for the expression kinds, the core vocabulary and evaluation.
 
-This package treats a predicate as opaque data: `Schemas.OfUnion` stores each branch's `when` without looking inside it.
-Anything here that must *evaluate* predicates takes an evaluator from its caller rather than import one, so the
-dependency keeps pointing one way: `Validators.Validate(registry, evaluator)` checks union values against their
-branches' predicates. Serialization does not evaluate predicates, since union values carry their branch on the wire.
+Nothing in this package evaluates expressions: a union value names its branch, so neither decoding nor validation needs
+an evaluator. Anything here that comes to evaluate constraints will take an evaluator from its caller rather than
+import one, so the dependency keeps pointing one way.
 
 ## Language bindings
 
@@ -413,8 +410,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Builder syntax proposed by the draft `Schemas.py`, to confirm:
   - `unique` clauses: `.unique('parent', 'key')`, one call per clause.
   - Singletons: `Schemas.OfObject.Builder().singleton('GlobalName')`.
-  - Unions: `.branches(lambda b: b.of(spec).when(predicate), ...)`, in declaration order.
-  - Intersections: `.of(spec, spec, ...)`.
+  - Unions: `.branches(lambda b: b.name('phone').of(spec), ...)`, in declaration order.
+  - Intersections: `.parts(lambda p: p.name('stamp').of(spec), ...)`.
   - `validate()` on each `Schemas.OfX.Data` returns a list of problems (empty when valid).
 - `Schemas.OfAny.Data` is currently the union of the schema kinds' data (`OfNative`, `OfObject`, `OfUnion`,
   `OfIntersection`). There is no separate "any value" kind yet.
@@ -434,20 +431,15 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Nothing is mandatory except as specified by a constraint: properties are optional by default, and mandatory
   participation in a relation is expressed as a constraint (directory membership is required by well-formedness).
 - `OfValue` is not a base class; renamed `OfAny`.
-- Union discriminators are serializable expressions, not lambdas; the branch is the first matching predicate in
-  declaration order.
 - Object-valued properties hold embedded objects: read-only values with no identity and no adjacencies, written
   nested. Objects with identity are reached through relations.
-- A union value records its branch, and snapshots write it: `{"$branch": index, "$value": value}`. Deserializers need
-  no evaluator; `Validators.Validate(registry, evaluator)` checks the branch against the predicates.
-- An intersection-valued property holds one value of the merged schema, not one value per part; it is written with
-  no wrapper. Intersections as registered object schemas (objects with identity composed from aspects) are a later
-  step.
+- Union branches and intersection parts are named, and their values are records keyed by those names, in proxies and
+  over the wire; there are no branch predicates (see Unions and intersections by name). Intersections as registered
+  object schemas (objects with identity composed from aspects) are a later step.
 - `OfNative` wire conversion (including for literals in expressions) belongs to `Schemas.OfNative`.
 - Builder finalization is `create()` / `clone()` / `update()`; none validate.
 - Validation, including well-formedness, runs only when the caller invokes it.
 - `Schemas.OfX.Schema` is the meta-schema for `Schemas.OfX.Data`.
-- Conflicting `OfIntersection` constituents are an error.
 - Mutations apply to anything with a schema; one vocabulary per schema kind.
 - A map `a -> [key] -> b` is a relation with links `a`, `b` and property `key`; named references work the same way.
 - A relation must not merge a relation and an object: one-link relations whose entries carry data are not legal.

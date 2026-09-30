@@ -14,10 +14,10 @@ object content carries no schema, so references carry the schema name, and the r
 The serializers are visitors: a value writes itself into them through `Visitable.accept`. `FromPlain` is constructed
 with the builders to build with, e.g. `FromPlain(Proxies.Builders)`.
 
-An embedded object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties. A union
-value is written with the index of its branch, `{"$branch": index, "$value": value}`, and the value is read back under
-that branch's type. Whether the branch agrees with the branches' predicates is checked by `Validators`, given an
-evaluator. An intersection value is written as a value of the intersection's merged schema, with no wrapper.
+An embedded object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties. Union
+and intersection values are written the same way, with the union's branches or the intersection's parts as the
+properties: a union value `{"phone": {"number": "+44"}}` holds exactly one branch, and an intersection value
+`{"stamp": {...}, "audit": {...}}` each of its parts.
 """
 
 from __future__ import annotations
@@ -35,8 +35,6 @@ PlainData = None | bool | int | float | str | list["PlainData"] | dict[str, "Pla
 
 REF = "$ref"
 SCHEMA = "$schema"
-BRANCH = "$branch"
-VALUE = "$value"
 
 
 # --- Writers: Visitors that write plain data ---
@@ -77,64 +75,25 @@ class _AnyWriter:
         return self
 
     def as_object(self, callback: Callable[[Visitors.OfObject], Any]) -> _AnyWriter:
-        if not isinstance(self._schema, Schemas.OfObject.Data):
-            raise TypeError(f"property {self._name!r} is not an object")
+        return self._record(Schemas.OfObject.Data, "an object", callback)
+
+    def as_union(self, callback: Callable[[Visitors.OfUnion], Any]) -> _AnyWriter:
+        return self._record(Schemas.OfUnion.Data, "a union", callback)
+
+    def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _AnyWriter:
+        return self._record(Schemas.OfIntersection.Data, "an intersection", callback)
+
+    def _record(self, kind: type, noun: str, callback: Callable[[Any], Any]) -> _AnyWriter:
+        """Writes an embedded object, a union value or an intersection value, nested as a mapping."""
+        if not isinstance(self._schema, kind):
+            raise TypeError(f"property {self._name!r} is not {noun}")
         nested = self._out.get(self._name)
         if not isinstance(nested, dict):
             nested = self._out[self._name] = {}
-        callback(_ObjectWriter(nested, self._schema, lambda target: {}))
-        return self
-
-    def as_union(self, callback: Callable[[Visitors.OfUnion], Any]) -> _AnyWriter:
-        if not isinstance(self._schema, Schemas.OfUnion.Data):
-            raise TypeError(f"property {self._name!r} is not a union")
-        callback(_UnionWriter(self._out, self._name, self._schema))
-        return self
-
-    def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _AnyWriter:
-        if not isinstance(self._schema, Schemas.OfIntersection.Data):
-            raise TypeError(f"property {self._name!r} is not an intersection")
-        callback(_IntersectionWriter(self._out, self._name, self._schema))
-        return self
-
-
-class _IntersectionWriter:
-    """`Visitors.OfIntersection` writing one key of a plain dict as a value of the merged schema."""
-
-    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfIntersection.Data):
-        self._out, self._name, self._schema = out, name, schema
-
-    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _IntersectionWriter:
-        callback(_AnyWriter(self._out, self._name, self._schema.merged()))
-        return self
-
-
-class _UnionWriter:
-    """`Visitors.OfUnion` writing one key of a plain dict as `{"$branch": index, "$value": value}`."""
-
-    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfUnion.Data):
-        self._out, self._name, self._schema = out, name, schema
-        self._selected: int | None = None
-
-    def branch(self) -> int:
-        if self._selected is None:
-            raise ValueError("no branch is selected")
-        return self._selected
-
-    def select(self, index: int) -> _UnionWriter:
-        if type(index) is not int or not 0 <= index < len(self._schema.branches):
-            raise ValueError(f"the union has no branch {index!r}")
-        self._selected = index
-        return self
-
-    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _UnionWriter:
-        index = self.branch()
-        wrapper: dict[str, PlainData] = {BRANCH: index}
-        callback(_AnyWriter(wrapper, VALUE, self._schema.branches[index].type))
-        if VALUE in wrapper:
-            self._out[self._name] = wrapper
-        else:
-            self._out.pop(self._name, None)
+        callback(_ObjectWriter(nested, self._schema, lambda target: {}) if isinstance(self._schema, Schemas.OfObject.Data)
+                 else _RecordWriter(nested, self._schema))
+        if isinstance(self._schema, Schemas.OfUnion.Data) and not nested:
+            del self._out[self._name]  # a union value without a branch is no value
         return self
 
 
@@ -248,13 +207,14 @@ class _AdjacencyWriter:
         raise NotImplementedError("a plain writer does not remove entries")
 
 
-class _ObjectWriter:
-    """`Visitors.OfObject` writing one plain object."""
+class _RecordWriter:
+    """`Visitors.OfUnion` and `Visitors.OfIntersection` writing a union or intersection value, whose properties are the
+    branches or parts; the base of `_ObjectWriter`. Writing a union's branch clears any other."""
 
-    def __init__(self, out: dict[str, PlainData], schema: Schemas.OfObject.Data, ref: Ref):
-        self._out, self._schema, self._ref = out, schema, ref
+    def __init__(self, out: dict[str, PlainData], schema: Any):
+        self._out, self._schema = out, schema
 
-    def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _ObjectWriter:
+    def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> Any:
         for name, schema in self._schema.properties.items():
             if name in self._out:
                 callback(_PropertyWriter(self._out, name, schema))
@@ -263,13 +223,25 @@ class _ObjectWriter:
     def has(self, name: str) -> bool:
         return name in self._out
 
-    def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _ObjectWriter:
-        callback(_PropertyWriter(self._out, name, _property_schema(self._schema.properties, name)))
+    def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> Any:
+        schema = _property_schema(self._schema.properties, name)
+        if isinstance(self._schema, Schemas.OfUnion.Data):
+            for other in [n for n in self._out if n != name]:
+                del self._out[other]
+        callback(_PropertyWriter(self._out, name, schema))
         return self
 
-    def clear(self, name: str) -> _ObjectWriter:
+    def clear(self, name: str) -> Any:
         self._out.pop(name, None)
         return self
+
+
+class _ObjectWriter(_RecordWriter):
+    """`Visitors.OfObject` writing one plain object."""
+
+    def __init__(self, out: dict[str, PlainData], schema: Schemas.OfObject.Data, ref: Ref):
+        super().__init__(out, schema)
+        self._ref = ref
 
     def adjacencies(self, callback: Callable[[Visitors.OfAdjacency], Any]) -> _ObjectWriter:
         for name in self._schema.adjacencies:
@@ -337,27 +309,14 @@ class _Link(NamedTuple):
 
 
 class _Record(NamedTuple):
-    """A decoded embedded object; `accept` writes its properties into a builder."""
+    """A decoded embedded object, union value or intersection value; `accept` writes its properties into a builder."""
 
-    schema: Schemas.OfObject.Data
+    schema: Any
     values: dict[str, Any]
 
     def accept(self, visitor: Visitors.OfObject) -> None:
         for name, value in self.values.items():
             _set(visitor, name, value)
-
-
-class _Union(NamedTuple):
-    """A decoded union value and the index of its branch."""
-
-    index: int
-    value: Any
-
-
-class _Intersection(NamedTuple):
-    """A decoded intersection value."""
-
-    value: Any
 
 
 def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple) -> Any:
@@ -367,23 +326,25 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple) -> Any:
             return schema.from_plain(plain)
         except DecodeError as error:
             raise error.at(path(*where)) from None
-    if isinstance(schema, Schemas.OfObject.Data):
-        if not isinstance(plain, dict):
-            raise DecodeError(f"an embedded object must be a mapping, got {type(plain).__name__}", path=path(*where))
-        values = {}
-        for key, item in plain.items():
-            if key not in schema.properties:
-                raise DecodeError(f"the embedded object has no property {key!r}", path=path(*where, key))
-            values[key] = _decode(schema.properties[key], item, (*where, key))
-        return _Record(schema, values)
-    if isinstance(schema, Schemas.OfUnion.Data):
-        if not isinstance(plain, dict) or set(plain) != {BRANCH, VALUE}:
-            raise DecodeError("a union value is {'$branch': index, '$value': value}", path=path(*where))
-        index = plain[BRANCH]
-        if type(index) is not int or not 0 <= index < len(schema.branches):
-            raise DecodeError(f"the union has no branch {index!r}", path=path(*where, BRANCH))
-        return _Union(index, _decode(schema.branches[index].type, plain[VALUE], (*where, VALUE)))
-    return _Intersection(_decode(schema.merged(), plain, where))
+    noun, owner, member = _RECORDS[type(schema)]
+    if not isinstance(plain, dict):
+        raise DecodeError(f"{noun} must be a mapping, got {type(plain).__name__}", path=path(*where))
+    values = {}
+    for key, item in plain.items():
+        if key not in schema.properties:
+            raise DecodeError(f"{owner} has no {member} {key!r}", path=path(*where, key))
+        values[key] = _decode(schema.properties[key], item, (*where, key))
+    if isinstance(schema, Schemas.OfUnion.Data) and len(values) != 1:
+        raise DecodeError(f"a union value holds exactly one branch, got {len(values)}", path=path(*where))
+    return _Record(schema, values)
+
+
+# For messages, per record kind: a value of it, its schema, and what its properties are.
+_RECORDS = {
+    Schemas.OfObject.Data: ("an embedded object", "the embedded object", "property"),
+    Schemas.OfUnion.Data: ("a union value", "the union", "branch"),
+    Schemas.OfIntersection.Data: ("an intersection value", "the intersection", "part"),
+}
 
 
 def _decode_entry_property(schema: Schemas.OfAny.Data, name: str, plain: PlainData, where: tuple) -> Native:
@@ -509,13 +470,14 @@ def _set(visitor: Any, name: str, value: Any) -> None:
 
 
 def _write(visitor: Visitors.OfAny, value: Any) -> None:
-    """Writes a decoded value: a native, an embedded object, a union value with its branch or an intersection value."""
-    if isinstance(value, _Union):
-        visitor.as_union(lambda u: u.select(value.index).value(lambda v: _write(v, value.value)))
-    elif isinstance(value, _Intersection):
-        visitor.as_intersection(lambda i: i.value(lambda v: _write(v, value.value)))
-    elif isinstance(value, _Record):
-        visitor.as_object(lambda o: value.accept(o))
+    """Writes a decoded value: a native, or an embedded object, union value or intersection value."""
+    if isinstance(value, _Record):
+        if isinstance(value.schema, Schemas.OfUnion.Data):
+            visitor.as_union(lambda u: value.accept(u))
+        elif isinstance(value.schema, Schemas.OfIntersection.Data):
+            visitor.as_intersection(lambda i: value.accept(i))
+        else:
+            visitor.as_object(lambda o: value.accept(o))
     else:
         visitor.as_native(lambda n: n.set(value))
 

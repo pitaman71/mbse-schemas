@@ -14,17 +14,16 @@
  *
  * A property whose schema is an `OfObject` holds an embedded object: a read-only record with no identity
  * (`Proxies.OfObject.Record`), read with attributes like an instance and set with a Spec, e.g.
- * `.reach((r) => r.number("+44"))`. A property whose schema is an `OfUnion` holds a value of one of its branches, set
- * directly (the first branch of the value's native type or record schema) or with `.reach((u) => u.of(Phone, spec))`.
- * Proxies store which branch a union value was written as, and snapshots record it; checking it against the branches'
- * predicates is the job of `Validators`, given an evaluator. A property whose schema is an `OfIntersection` holds one
- * value of the intersection's merged schema (`Schemas.OfIntersection.Data.merged()`), set like a value of that schema.
+ * `.reach((r) => r.number("+44"))`. Union and intersection values are records too, whose properties are the union's
+ * branches or the intersection's parts, by name: `.reach((u) => u.phone((p) => p.number("+44")))` sets the branch
+ * `phone`, read back as `card.reach.phone.number`, and setting one branch clears any other. An intersection value holds
+ * each of its parts, set and read the same way (`card.meta.stamp.updated`).
  */
 
 
 import { toHex } from "./Bytes.js";
 import { AttributeError, LookupError, NotImplementedError, ValueError } from "./Errors.js";
-import { repr, reprIndex, typeName } from "./Repr.js";
+import { repr, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfNative,
   OfObject as ObjectVisitor, OfProperty, OfUnion, Visitable } from "./Visitors.js";
@@ -248,12 +247,9 @@ function makeInstance(schema: ObjectSchema, schemaName: string): Instance {
   return proxy;
 }
 
-/** A property of an instance or record, as an attribute: a union value reads as the value it holds. */
-function read(t: { values: Map<string, unknown>; schema: ObjectSchema }, prop: string, receiver: unknown): unknown {
-  if (t.values.has(prop)) {
-    const item = t.values.get(prop);
-    return item instanceof UnionValue || item instanceof IntersectionValue ? item.value : item;
-  }
+/** A property of an instance or record, as an attribute. */
+function read(t: { values: Map<string, unknown>; schema: RecordSchema }, prop: string, receiver: unknown): unknown {
+  if (t.values.has(prop)) return t.values.get(prop);
   if (t.schema.properties.has(prop)) throw new AttributeError(`property ${repr(prop)} is not set`);
   if (PROBES.has(prop)) return Reflect.get(t, prop, receiver);
   throw new AttributeError(prop);
@@ -262,7 +258,7 @@ function read(t: { values: Map<string, unknown>; schema: ObjectSchema }, prop: s
 type PropertyHolder = { property(name: string, callback: Callback<OfProperty>): unknown };
 
 /** Writes the values that are set, in the schema's declared order. */
-function writeProperties(visitor: PropertyHolder, schema: ObjectSchema, values: Map<string, unknown>): void {
+function writeProperties(visitor: PropertyHolder, schema: RecordSchema, values: Map<string, unknown>): void {
   for (const name of schema.properties.keys()) {
     if (values.has(name)) {
       const value = values.get(name);
@@ -273,25 +269,29 @@ function writeProperties(visitor: PropertyHolder, schema: ObjectSchema, values: 
 
 /** Writes a native, an embedded object, a union value or an intersection value into a `Visitors.OfAny`. */
 function writeValue(visitor: OfAny, value: unknown): void {
-  if (value instanceof UnionValue) {
-    visitor.as_union((u) => u.select(value.index).value((v) => writeValue(v, value.value)));
-  } else if (value instanceof IntersectionValue) {
-    visitor.as_intersection((i) => i.value((v) => writeValue(v, value.value)));
-  } else if (isRecord(value)) {
-    visitor.as_object((o) => value.accept(o));
-  } else {
-    visitor.as_native((n) => n.set(value as Native));
-  }
+  if (isRecord(value)) writeRecord(visitor, (recordTargets.get(value) as RecordTarget).schema, (r) => value.accept(r));
+  else visitor.as_native((n) => n.set(value as Native));
 }
 
-/** An intersection property's value: a value of the intersection's merged schema. */
-class IntersectionValue {
-  constructor(readonly value: unknown) {}
+function writeRecord(visitor: OfAny, schema: RecordSchema, callback: Callback<ObjectVisitor>): void {
+  if (schema instanceof Schemas.OfUnion.Data) visitor.as_union(callback as unknown as Callback<OfUnion>);
+  else if (schema instanceof Schemas.OfIntersection.Data) visitor.as_intersection(callback as unknown as Callback<OfIntersection>);
+  else visitor.as_object(callback);
 }
 
-/** A union property's value, with the index of the branch it was written as. */
-class UnionValue {
-  constructor(readonly index: number, readonly value: unknown) {}
+/** The schema of a record: an embedded object's, or a union's or intersection's, whose properties are its branches or
+ * parts. */
+type RecordSchema = ObjectSchema | Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
+
+/** What a record of `schema` is, for messages. */
+function noun(schema: RecordSchema): string {
+  if (schema instanceof Schemas.OfUnion.Data) return "union value";
+  if (schema instanceof Schemas.OfIntersection.Data) return "intersection value";
+  return "embedded object";
+}
+
+function withArticle(noun: string): string {
+  return noun === "union value" ? `a ${noun}` : `an ${noun}`;
 }
 
 /** An embedded object as seen by callers: properties readable by name, and `accept`. */
@@ -300,10 +300,11 @@ export type EmbeddedObject = { accept(visitor: ObjectVisitor): void; readonly [n
 
 const recordTargets = new WeakMap<object, RecordTarget>();
 
-/** The state behind an embedded object: the value of a property whose schema is an `OfObject`. It has no identity and
- * no adjacencies; its properties are read-only attributes, and reading one that is not set throws AttributeError. */
+/** The state behind an embedded object: the value of a property whose schema is an `OfObject`, or a union or
+ * intersection value, whose properties are the branches or parts. It has no identity and no adjacencies; its
+ * properties are read-only attributes, and reading one that is not set throws AttributeError. */
 class RecordTarget {
-  constructor(readonly schema: ObjectSchema, readonly values: Map<string, unknown>) {}
+  constructor(readonly schema: RecordSchema, readonly values: Map<string, unknown>) {}
 
   /** Writes the properties in the schema's declared order. */
   accept(visitor: ObjectVisitor): void {
@@ -311,10 +312,10 @@ class RecordTarget {
   }
 }
 
-function makeRecord(schema: ObjectSchema, values: Map<string, unknown>): EmbeddedObject {
+function makeRecord(schema: RecordSchema, values: Map<string, unknown>): EmbeddedObject {
   const target = new RecordTarget(schema, new Map(values));
   const readOnly = (): never => {
-    throw new AttributeError("embedded objects are read-only; use a builder");
+    throw new AttributeError(`${noun(schema)}s are read-only; use a builder`);
   };
   const proxy = new Proxy(target, {
     get(t, prop, receiver) {
@@ -394,29 +395,31 @@ export class _AnySlot implements OfAny {
 
   /** Builds an embedded object, starting from the one already set, if any. */
   as_object(callback: Callback<ObjectVisitor>): _AnySlot {
-    if (!(this.schema instanceof Schemas.OfObject.Data)) {
-      throw new TypeError(`property ${repr(this.slotName)} does not hold an object`);
-    }
+    return this.record(Schemas.OfObject.Data, "an object", callback);
+  }
+
+  /** Builds a union value, starting from the one already set, if any. */
+  as_union(callback: Callback<OfUnion>): _AnySlot {
+    return this.record(Schemas.OfUnion.Data, "a union", callback as unknown as Callback<ObjectVisitor>);
+  }
+
+  /** Builds an intersection value, starting from the one already set, if any. */
+  as_intersection(callback: Callback<OfIntersection>): _AnySlot {
+    return this.record(Schemas.OfIntersection.Data, "an intersection", callback as unknown as Callback<ObjectVisitor>);
+  }
+
+  private record(kind: abstract new (...args: never[]) => RecordSchema, what: string,
+    callback: Callback<ObjectVisitor>): _AnySlot {
+    if (!(this.schema instanceof kind)) throw new TypeError(`property ${repr(this.slotName)} does not hold ${what}`);
     const current = this.values.get(this.slotName);
     const builder = makeRecordBuilder(this.schema, isRecord(current) ? current : undefined);
     callback(builder);
-    this.values.set(this.slotName, (recordBuilderTargets.get(builder) as RecordBuilderTarget).build());
-    return this;
-  }
-
-  as_union(callback: Callback<OfUnion>): _AnySlot {
-    if (!(this.schema instanceof Schemas.OfUnion.Data)) {
-      throw new TypeError(`property ${repr(this.slotName)} does not hold a union`);
+    const target = recordBuilderTargets.get(builder) as RecordBuilderTarget;
+    if (this.schema instanceof Schemas.OfUnion.Data && target.values.size === 0) {
+      this.values.delete(this.slotName); // a union value without a branch is no value
+    } else {
+      this.values.set(this.slotName, target.build());
     }
-    callback(new _UnionSlot(this.values, this.slotName, this.schema));
-    return this;
-  }
-
-  as_intersection(callback: Callback<OfIntersection>): _AnySlot {
-    if (!(this.schema instanceof Schemas.OfIntersection.Data)) {
-      throw new TypeError(`property ${repr(this.slotName)} does not hold an intersection`);
-    }
-    callback(new _IntersectionSlot(this.values, this.slotName, this.schema));
     return this;
   }
 }
@@ -446,7 +449,7 @@ export class _PropertySlot implements OfProperty {
 }
 
 /** DSL setter for a property of `schema`: `.name(value)`, or `.name(Spec)` where the Spec receives the value's builder:
- * a `Visitors.OfNative` (`v.set(...)`), an embedded object's builder, or a union's `Visitors.OfUnion`. */
+ * a `Visitors.OfNative` (`v.set(...)`), or the builder of an embedded object, a union value or an intersection value. */
 function setter<V extends PropertyHolder>(visitor: V, self: unknown, name: string, schema: unknown = null) {
   return (spec: unknown): unknown => {
     visitor.property(name, (p) => p.value((a) => apply(a, name, schema, spec)));
@@ -456,107 +459,31 @@ function setter<V extends PropertyHolder>(visitor: V, self: unknown, name: strin
 
 /** Writes `spec` (a value, or a callable taking the value's builder) as a value of `schema`. */
 function apply(visitor: OfAny, name: string, schema: unknown, spec: unknown): void {
-  if (schema instanceof Schemas.OfObject.Data) {
-    if (typeof spec === "function") visitor.as_object(spec as Callback<ObjectVisitor>);
-    else if (isRecord(spec)) visitor.as_object((o) => spec.accept(o));
-    else throw new TypeError(`property ${repr(name)} takes an embedded object or a Spec, got ${typeName(spec)}`);
-  } else if (schema instanceof Schemas.OfUnion.Data) {
-    if (typeof spec === "function") {
-      visitor.as_union(spec as Callback<OfUnion>);
-    } else {
-      const index = branchOf(schema, spec);
-      visitor.as_union((u) => u.select(index).value((v) => writeValue(v, spec)));
-    }
-  } else if (schema instanceof Schemas.OfIntersection.Data) {
-    const merged = schema.merged();
-    visitor.as_intersection((i) => i.value((v) => apply(v, name, merged, spec)));
+  if (schema instanceof Schemas.OfObject.Data || schema instanceof Schemas.OfUnion.Data
+    || schema instanceof Schemas.OfIntersection.Data) {
+    if (typeof spec === "function") writeRecord(visitor, schema, spec as Callback<ObjectVisitor>);
+    else if (isRecord(spec)) writeRecord(visitor, schema, (r) => spec.accept(r));
+    else throw new TypeError(`property ${repr(name)} takes ${withArticle(noun(schema))} or a Spec, got ${typeName(spec)}`);
   } else {
     visitor.as_native(typeof spec === "function" ? (spec as Callback<OfNative>) : (n) => n.set(spec as Native));
-  }
-}
-
-/** The first branch that can hold `value`: of its record's schema, or of its native type. */
-function branchOf(schema: Schemas.OfUnion.Data, value: unknown): number {
-  const record = isRecord(value) ? (recordTargets.get(value) as RecordTarget) : undefined;
-  const index = schema.branches.findIndex((branch) => (record !== undefined ? branch.type === record.schema
-    : branch.type instanceof Schemas.OfNative.Data && Schemas.isNativeOf(branch.type.type, value)));
-  if (index < 0) {
-    throw new TypeError(`no branch of the union holds ${record !== undefined ? "an embedded object" : `a ${typeName(value)}`}`);
-  }
-  return index;
-}
-
-/** `Visitors.OfUnion` over one key of a value map. `select(index)` chooses the branch the value is written as, before
- * `value(...)` writes it. DSL: `.of(schema, spec)` selects the first branch of `schema` and writes `spec`. */
-export class _UnionSlot implements OfUnion {
-  private selected: number | null;
-
-  constructor(private readonly values: Map<string, unknown>, private readonly slotName: string,
-    private readonly schema: Schemas.OfUnion.Data) {
-    const current = values.get(slotName);
-    this.selected = current instanceof UnionValue ? current.index : null;
-  }
-
-  branch(): number {
-    const current = this.values.get(this.slotName);
-    if (!(current instanceof UnionValue)) throw new AttributeError(`property ${repr(this.slotName)} is not set`);
-    return current.index;
-  }
-
-  select(index: number): _UnionSlot {
-    if (!Number.isInteger(index) || index < 0 || index >= this.schema.branches.length) {
-      throw new ValueError(`the union has no branch ${reprIndex(index)}`);
-    }
-    this.selected = index;
-    return this;
-  }
-
-  value(callback: Callback<OfAny>): _UnionSlot {
-    const selected = this.selected;
-    if (selected === null) throw new ValueError("select a branch before writing the union's value");
-    const current = this.values.get(this.slotName);
-    const inner = new Map<string, unknown>();
-    if (current instanceof UnionValue && current.index === selected) inner.set("value", current.value);
-    callback(new _AnySlot(inner, "value", this.schema.branches[selected]?.type));
-    if (inner.has("value")) this.values.set(this.slotName, new UnionValue(selected, inner.get("value")));
-    else this.values.delete(this.slotName);
-    return this;
-  }
-
-  of(schema: unknown, spec: unknown): _UnionSlot {
-    const index = this.schema.branches.findIndex((branch) => branch.type === schema);
-    if (index < 0) throw new ValueError("no branch of the union has that schema");
-    return this.select(index).value((v) => apply(v, this.slotName, schema, spec));
-  }
-}
-
-/** `Visitors.OfIntersection` over one key of a value map: `value(...)` writes a value of the merged schema. */
-export class _IntersectionSlot implements OfIntersection {
-  constructor(private readonly values: Map<string, unknown>, private readonly slotName: string,
-    private readonly schema: Schemas.OfIntersection.Data) {}
-
-  value(callback: Callback<OfAny>): _IntersectionSlot {
-    const current = this.values.get(this.slotName);
-    const inner = new Map<string, unknown>();
-    if (current instanceof IntersectionValue) inner.set("value", current.value);
-    callback(new _AnySlot(inner, "value", this.schema.merged()));
-    if (inner.has("value")) this.values.set(this.slotName, new IntersectionValue(inner.get("value")));
-    else this.values.delete(this.slotName);
-    return this;
   }
 }
 
 const RECORD_BUILDER_METHODS = new Set(["properties", "has", "property", "clear", "adjacencies", "adjacency"]);
 const recordBuilderTargets = new WeakMap<object, RecordBuilderTarget>();
 
-/** `Visitors.OfObject` for building an embedded object, starting from `source` if given. DSL: `.<property>(value or
- * Spec)`. An embedded object has no adjacencies. */
+/** `Visitors.OfObject` for building an embedded object, starting from `source` if given; also `Visitors.OfUnion` and
+ * `Visitors.OfIntersection` for a union or intersection value, whose properties are the branches or parts. DSL:
+ * `.<property>(value or Spec)`. A record has no adjacencies, and writing a union's branch clears any other. */
 export class RecordBuilderTarget implements ObjectVisitor {
   readonly values: Map<string, unknown>;
+  readonly member: string;
   proxy!: ObjectVisitor;
 
-  constructor(readonly schema: ObjectSchema, source?: EmbeddedObject) {
+  constructor(readonly schema: RecordSchema, source?: EmbeddedObject) {
     this.values = new Map(source === undefined ? [] : (recordTargets.get(source) as RecordTarget).values);
+    this.member = schema instanceof Schemas.OfUnion.Data ? "branch of the union"
+      : schema instanceof Schemas.OfIntersection.Data ? "part of the intersection" : "property of the embedded object";
   }
 
   properties(callback: Callback<OfProperty>): ObjectVisitor {
@@ -572,7 +499,10 @@ export class RecordBuilderTarget implements ObjectVisitor {
 
   property(name: string, callback: Callback<OfProperty>): ObjectVisitor {
     const schema = this.schema.properties.get(name);
-    if (schema === undefined) throw new AttributeError(`${repr(name)} is not a property of the embedded object`);
+    if (schema === undefined) throw new AttributeError(`${repr(name)} is not a ${this.member}`);
+    if (this.schema instanceof Schemas.OfUnion.Data) {
+      for (const other of [...this.values.keys()]) if (other !== name) this.values.delete(other);
+    }
     callback(new _PropertySlot(this.values, name, schema));
     return this.proxy;
   }
@@ -587,7 +517,7 @@ export class RecordBuilderTarget implements ObjectVisitor {
   }
 
   adjacency(name: string, _callback: Callback<OfAdjacency>): ObjectVisitor {
-    throw new AttributeError(`an embedded object has no adjacencies, got ${repr(name)}`);
+    throw new AttributeError(`${withArticle(noun(this.schema))} has no adjacencies, got ${repr(name)}`);
   }
 
   build(): EmbeddedObject {
@@ -595,7 +525,7 @@ export class RecordBuilderTarget implements ObjectVisitor {
   }
 }
 
-function makeRecordBuilder(schema: ObjectSchema, source?: EmbeddedObject): ObjectVisitor {
+function makeRecordBuilder(schema: RecordSchema, source?: EmbeddedObject): ObjectVisitor {
   const target = new RecordBuilderTarget(schema, source);
   const proxy = new Proxy(target, {
     get(t, prop, receiver) {
@@ -604,7 +534,7 @@ function makeRecordBuilder(schema: ObjectSchema, source?: EmbeddedObject): Objec
       const schema = t.schema.properties.get(prop);
       if (schema !== undefined) return setter(t, t.proxy, prop, schema);
       if (PROBES.has(prop)) return Reflect.get(t, prop, receiver);
-      throw new AttributeError(`${repr(prop)} is not a property of the embedded object`);
+      throw new AttributeError(`${repr(prop)} is not a ${t.member}`);
     },
   }) as unknown as ObjectVisitor;
   target.proxy = proxy;
@@ -906,4 +836,4 @@ export namespace OfRelation {
 
 /** Internal classes, exposed for protocol conformance tests. */
 export const _internals = { ObjectTarget, ObjectBuilderTarget, RecordBuilderTarget, _EntryBuilder, _AdjacencySlot, _LinkSlot,
-  _PropertySlot, _AnySlot, _NativeSlot, _UnionSlot, _IntersectionSlot };
+  _PropertySlot, _AnySlot, _NativeSlot };

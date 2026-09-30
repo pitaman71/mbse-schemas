@@ -120,19 +120,26 @@ export interface OfRelation {
   entries(callback: Callback<OfEntry>): OfRelation;
 }
 
-/** A value of one of several same-kind schemas. When writing, `select(index)` chooses the branch the value is written
- * as, before `value(...)` writes it; the branch should be the first whose discriminator predicate holds. */
+/** A union value: an object whose properties are the union's branches, by name, and which holds exactly one of them.
+ * Writing a branch clears any other. */
 export interface OfUnion {
-  /** Index of the branch the value is written as. */
-  branch(): number;
-  select(index: number): OfUnion;
-  /** Calls `callback` with the value, under the selected branch's type. */
-  value(callback: Callback<OfAny>): OfUnion;
+  /** Calls `callback` for the branch that is present, if any. */
+  properties(callback: Callback<OfProperty>): OfUnion;
+  has(name: string): boolean;
+  /** Calls `callback` with the named branch, present or not. */
+  property(name: string, callback: Callback<OfProperty>): OfUnion;
+  clear(name: string): OfUnion;
 }
 
-/** A value satisfying several same-kind schemas at once. */
+/** An intersection value: an object whose properties are the intersection's parts, by name, and which holds every one
+ * of them. */
 export interface OfIntersection {
-  value(callback: Callback<OfAny>): OfIntersection;
+  /** Calls `callback` once for each part that is present. */
+  properties(callback: Callback<OfProperty>): OfIntersection;
+  has(name: string): boolean;
+  /** Calls `callback` with the named part, present or not. */
+  property(name: string, callback: Callback<OfProperty>): OfIntersection;
+  clear(name: string): OfIntersection;
 }
 
 /** An in-memory object that can be visited, e.g. a proxy. It is not a visitor itself. */
@@ -155,7 +162,7 @@ export const PROTOCOL_METHODS = {
   OfEntry: ["links", "link", "properties", "has", "property", "clear"],
   OfLink: ["name", "target", "set"],
   OfRelation: ["links", "entries"],
-  OfUnion: ["branch", "select", "value"],
-  OfIntersection: ["value"],
+  OfUnion: ["properties", "has", "property", "clear"],
+  OfIntersection: ["properties", "has", "property", "clear"],
   Visitable: ["identity", "schema_name", "accept"],
 } as const satisfies Record<string, readonly string[]>;

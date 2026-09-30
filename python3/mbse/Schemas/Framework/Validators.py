@@ -13,16 +13,14 @@ The validator is a visitor: each object writes itself into a recorder through `V
 - `unique(S)` clauses hold over the entries seen: entries that agree on everything outside `S` agree on `S`.
   Uniqueness is checked only over the entries reachable from what was validated.
 - an embedded object's properties are declared by its schema and hold values of their types, recursively;
-- a union value is written as one of the union's branches and holds a value of that branch's type. Given an evaluator
-  (`Validate(registry, evaluator)`: a callable taking a branch's predicate and a value, returning True, False or None
-  for unknown), it is also the first branch whose predicate is True;
-- an intersection value holds a value of the intersection's merged schema (`Schemas.OfIntersection.Data.merged()`).
+- a union value holds exactly one of the union's branches, with a value of that branch's type;
+- an intersection value holds every one of the intersection's parts, each with a value of that part's type.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Hashable
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from . import Reachable, Schemas, Visitors
 from .Visitors import Native
@@ -42,8 +40,8 @@ class Registry(Protocol):
 
 
 class _Value:
-    """`Visitors.OfProperty` / `OfAny` / `OfNative` recording one value into a dict: a native, an embedded object (an
-    `_ObjectRecord`) or a union value (a `_UnionRecord`)."""
+    """`Visitors.OfProperty` / `OfAny` / `OfNative` recording one value into a dict: a native, or an embedded object, a
+    union value or an intersection value (an `_ObjectRecord` of that kind)."""
 
     def __init__(self, values: dict[str, Any], name: str):
         self._values, self._name = values, name
@@ -74,56 +72,19 @@ class _Value:
         return self
 
     def as_object(self, callback: Callable[[Visitors.OfObject], Any]) -> _Value:
-        record = self._values.get(self._name)
-        if not isinstance(record, _ObjectRecord):
-            record = self._values[self._name] = _ObjectRecord()
-        callback(record)
-        return self
+        return self._record("object", callback)
 
     def as_union(self, callback: Callable[[Visitors.OfUnion], Any]) -> _Value:
-        record = self._values.get(self._name)
-        if not isinstance(record, _UnionRecord):
-            record = self._values[self._name] = _UnionRecord()
-        callback(record)
-        return self
+        return self._record("union", callback)
 
     def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _Value:
+        return self._record("intersection", callback)
+
+    def _record(self, kind: _Kind, callback: Callable[[Any], Any]) -> _Value:
         record = self._values.get(self._name)
-        if not isinstance(record, _IntersectionRecord):
-            record = self._values[self._name] = _IntersectionRecord()
+        if not isinstance(record, _ObjectRecord) or record.kind != kind:
+            record = self._values[self._name] = _ObjectRecord(kind)
         callback(record)
-        return self
-
-
-class _UnionRecord:
-    """`Visitors.OfUnion` recording the branch a union value is written as, and the value."""
-
-    def __init__(self) -> None:
-        self.index: int | None = None
-        self.values: dict[str, Any] = {}
-
-    def branch(self) -> int:
-        if self.index is None:
-            raise ValueError("no branch is selected")
-        return self.index
-
-    def select(self, index: int) -> _UnionRecord:
-        self.index = index
-        return self
-
-    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _UnionRecord:
-        callback(_Value(self.values, "value"))
-        return self
-
-
-class _IntersectionRecord:
-    """`Visitors.OfIntersection` recording an intersection value."""
-
-    def __init__(self) -> None:
-        self.values: dict[str, Any] = {}
-
-    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _IntersectionRecord:
-        callback(_Value(self.values, "value"))
         return self
 
 
@@ -202,10 +163,16 @@ class _AdjacencyRecord:
         return self
 
 
-class _ObjectRecord:
-    """`Visitors.OfObject` recording an object's property values and adjacency entries."""
+_Kind = Literal["object", "union", "intersection"]
 
-    def __init__(self) -> None:
+
+class _ObjectRecord:
+    """`Visitors.OfObject` recording an object's property values and adjacency entries; also `Visitors.OfUnion` and
+    `Visitors.OfIntersection` recording a union or intersection value (its branches or parts are its properties). It
+    records every property written, so that a union value written with two branches can be reported."""
+
+    def __init__(self, kind: _Kind = "object") -> None:
+        self.kind = kind
         self.values: dict[str, Any] = {}
         self.adjacency_entries: dict[str, list[_EntryRecord]] = {}
 
@@ -241,10 +208,10 @@ class _ObjectRecord:
 
 
 def _replay(visitor: Visitors.OfAny, value: Any) -> None:
-    if isinstance(value, _UnionRecord):
-        visitor.as_union(lambda u: u.select(value.index).value(lambda v: _replay(v, value.values["value"])))
-    elif isinstance(value, _IntersectionRecord):
-        visitor.as_intersection(lambda i: i.value(lambda v: _replay(v, value.values["value"])))
+    if isinstance(value, _ObjectRecord) and value.kind == "union":
+        visitor.as_union(lambda u: value.accept(u))
+    elif isinstance(value, _ObjectRecord) and value.kind == "intersection":
+        visitor.as_intersection(lambda i: value.accept(i))
     elif isinstance(value, _ObjectRecord):
         visitor.as_object(lambda o: value.accept(o))
     else:
@@ -254,20 +221,21 @@ def _replay(visitor: Visitors.OfAny, value: Any) -> None:
 # --- Checks ---
 
 
+# For messages, per record kind: a value of it, its schema, and what its properties are.
+_RECORDS: dict[str, tuple[str, str, str]] = {
+    "object": ("an embedded object", "the embedded object", "property"),
+    "union": ("a union value", "the union", "branch"),
+    "intersection": ("an intersection value", "the intersection", "part"),
+}
+_KINDS: dict[type, _Kind] = {
+    Schemas.OfObject.Data: "object", Schemas.OfUnion.Data: "union", Schemas.OfIntersection.Data: "intersection",
+}
+
+
 def _kind(value: Any) -> str:
     if isinstance(value, _ObjectRecord):
-        return "an embedded object"
-    if isinstance(value, _UnionRecord):
-        return "a union value"
-    if isinstance(value, _IntersectionRecord):
-        return "an intersection value"
+        return _RECORDS[value.kind][0]
     return type(value).__name__
-
-
-def _inner(value: Any) -> Any:
-    """The value a recorded property holds, as an evaluator reads it: a union or intersection value's value,
-    recursively."""
-    return _inner(value.values.get("value")) if isinstance(value, (_UnionRecord, _IntersectionRecord)) else value
 
 
 def _native_problem(schema: Schemas.OfAny.Data, value: Any) -> str | None:
@@ -305,8 +273,8 @@ class _Entry:
 
 
 class _Check:
-    def __init__(self, registry: Registry, evaluator: Callable[[Any, Any], bool | None] | None):
-        self._registry, self._evaluator = registry, evaluator
+    def __init__(self, registry: Registry):
+        self._registry = registry
         self.problems: list[str] = []
         self._schemas_checked: set[int] = set()
         self._entries: dict[int, tuple[Schemas.OfRelation.Data, dict[Hashable, _Entry]]] = {}
@@ -335,42 +303,26 @@ class _Check:
                 self._entry(f"{label}.{name}[{i}]", adjacency, value, entry)
 
     def _value_problems(self, label: str, schema: Schemas.OfAny.Data, item: Any) -> list[str]:
-        """Problems with a property's value: its kind and type, recursively, a union value's branch, and an intersection
-        value's merged schema."""
+        """Problems with a property's value: its kind and type, recursively, and that a union value holds one branch
+        and an intersection value every part."""
         if isinstance(schema, Schemas.OfNative.Data):
             return [] if type(item) is schema.type else [f"{label}: expected {schema.type.__name__}, got {_kind(item)}"]
-        if isinstance(schema, Schemas.OfObject.Data):
-            if not isinstance(item, _ObjectRecord):
-                return [f"{label}: expected an embedded object, got {_kind(item)}"]
-            problems = []
-            for name, value in item.values.items():
-                if name not in schema.properties:
-                    problems.append(f"{label}.{name}: not a property of the embedded object")
-                else:
-                    problems += self._value_problems(f"{label}.{name}", schema.properties[name], value)
-            return problems
-        if isinstance(schema, Schemas.OfUnion.Data):
-            if not isinstance(item, _UnionRecord):
-                return [f"{label}: expected a union value, got {_kind(item)}"]
-            if type(item.index) is not int or not 0 <= item.index < len(schema.branches):
-                return [f"{label}: the union has no branch {item.index!r}"]
-            problems = self._value_problems(label, schema.branches[item.index].type, item.values.get("value"))
-            if problems or self._evaluator is None:
-                return problems
-            value = _inner(item)
-            chosen = next((i for i, b in enumerate(schema.branches) if self._evaluator(b.when, value) is True), None)
-            if chosen is None:
-                return [f"{label}: no branch's predicate holds for the value"]
-            if chosen != item.index:
-                return [f"{label}: written as branch {item.index}, but the first branch whose predicate holds is {chosen}"]
-            return []
-        if not isinstance(item, _IntersectionRecord):
-            return [f"{label}: expected an intersection value, got {_kind(item)}"]
-        try:
-            merged = schema.merged()
-        except (ValueError, NotImplementedError) as error:
-            return [f"{label}: {error}"]
-        return self._value_problems(label, merged, item.values.get("value"))
+        kind = _KINDS[type(schema)]
+        noun, owner, member = _RECORDS[kind]
+        if not isinstance(item, _ObjectRecord) or item.kind != kind:
+            return [f"{label}: expected {noun}, got {_kind(item)}"]
+        problems = []
+        for name, value in item.values.items():
+            if name not in schema.properties:
+                problems.append(f"{label}.{name}: not a {member} of {owner}")
+            else:
+                problems += self._value_problems(f"{label}.{name}", schema.properties[name], value)
+        if kind == "union" and len(item.values) != 1:
+            problems.append(f"{label}: a union value holds exactly one branch, got {len(item.values)}")
+        missing = [name for name in schema.properties if name not in item.values] if kind == "intersection" else []
+        if missing:
+            problems.append(f"{label}: parts {missing} are not set")
+        return problems
 
     def _entry(
         self, label: str, adjacency: Schemas.OfAdjacency.Data, owner: Visitors.Visitable, entry: _EntryRecord
@@ -420,20 +372,19 @@ class _Check:
 
 def properties_of(value: Visitors.Visitable) -> dict[str, Any]:
     """The property values `value` writes when visited, by name; absent properties are left out. It reads through the
-    visitor protocols, so it works for any `Visitable`. An embedded object is returned as an object whose `accept`
-    writes its properties, and a union value as the value it holds."""
+    visitor protocols, so it works for any `Visitable`. An embedded object, a union value or an intersection value is
+    returned as an object whose `accept` writes its properties (a union's branch, an intersection's parts)."""
     record = _ObjectRecord()
     value.accept(record)
-    return {name: _inner(item) for name, item in record.values.items()}
+    return dict(record.values)
 
 
 
 class Validate:
-    """Validates data against its schema. `Validate(registry)(schema, value)` dispatches on the schema's kind. With an
-    `evaluator`, union values are also checked against their branches' predicates."""
+    """Validates data against its schema. `Validate(registry)(schema, value)` dispatches on the schema's kind."""
 
-    def __init__(self, registry: Registry, evaluator: Callable[[Any, Any], bool | None] | None = None):
-        self._registry, self._evaluator = registry, evaluator
+    def __init__(self, registry: Registry):
+        self._registry = registry
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> list[str]:
         if isinstance(schema, Schemas.OfNative.Data):
@@ -459,7 +410,7 @@ class Validate:
         root = values[0]
         if self._registry.schema(root.schema_name()) is not schema:
             return [f"the value is a {root.schema_name()!r}, not an instance of the given schema"]
-        check = _Check(self._registry, self._evaluator)
+        check = _Check(self._registry)
         for i, value in enumerate(values):
             check.object(f"{value.schema_name()}#{i}", self._registry.schema(value.schema_name()), value)
         check.uniques()

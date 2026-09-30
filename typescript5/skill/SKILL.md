@@ -42,7 +42,7 @@ simpler.
 | Write Python: a complete example, API cheat sheet, traps | [references/python.md](references/python.md) |
 | Write TypeScript: the same example, the differences from Python | [references/typescript.md](references/typescript.md) |
 | Save, load or exchange data: the snapshot format and strict decoding | [references/serialization.md](references/serialization.md) |
-| Union predicates and constraints (expressions and evaluators) | the separate [mbse-expressions](https://github.com/pitaman71/mbse-expressions) package |
+| Constraints (expressions and evaluators) | the separate [mbse-expressions](https://github.com/pitaman71/mbse-expressions) package |
 
 Deeper material is in the repository: `docs/FRAMEWORK.md` holds every rule and open question, and nine tutorial case
 studies explain the reasoning. The references link to the exact notebook or section you need. Links use

@@ -12,8 +12,8 @@ record a value when constructed; an instance writes itself in through `Visitable
 - `OfObject`: equal when every property its schema declares is absent in both or equal in both; otherwise
   incomparable. Adjacencies do not participate.
 - `OfProperty` and `OfAny` compare their values; values of different kinds are incomparable.
-- `OfUnion`: equal when written as the same branch with equal values; otherwise incomparable.
-- `OfIntersection`: equal when the values are equal under the intersection's merged schema; otherwise incomparable.
+- `OfUnion`: equal when both hold the same branch with equal values; otherwise incomparable.
+- `OfIntersection`: equal when every part is absent in both or equal in both; otherwise incomparable.
 - `OfLink`: equal when both link the same object (by identity); otherwise incomparable.
 - `OfEntry`: equal when every link and property is equal; otherwise incomparable.
 - `OfAdjacency`: its entries form a set, seen from one object (whose own link is implied), so adding an entry equal
@@ -149,64 +149,52 @@ class OfAny:
         return self._value.compare(other._value)  # type: ignore[arg-type, union-attr]
 
 
-class OfUnion:
-    """`Visitors.OfUnion` recording the branch a union value is written as, and its value."""
+class _Members:
+    """A union or intersection value, recorded as the `OfProperty`s of its branches or parts."""
 
-    def __init__(self, schema: Schemas.OfUnion.Data):
+    def __init__(self, schema: Schemas.OfUnion.Data | Schemas.OfIntersection.Data):
         self._schema = schema
-        self._index: int | None = None
-        self._value: OfAny | None = None
+        self._properties = _Properties(schema.properties)
 
-    def branch(self) -> int:
-        if self._index is None:
-            raise ValueError("no branch is selected")
-        return self._index
-
-    def select(self, index: int) -> OfUnion:
-        if type(index) is not int or not 0 <= index < len(self._schema.branches):
-            raise ValueError(f"the union has no branch {index!r}")
-        if index != self._index:
-            self._index, self._value = index, OfAny(self._schema.branches[index].type)
+    def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> Any:
+        self._properties.each(callback)
         return self
 
-    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> OfUnion:
-        self.branch()
-        callback(self._value)
+    def has(self, name: str) -> bool:
+        return self._properties.has(name)
+
+    def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> Any:
+        self._properties.one(name, callback)
+        return self
+
+    def clear(self, name: str) -> Any:
+        self._properties.clear(name)
         return self
 
     def _absent(self) -> bool:
-        return self._value is None or self._value._absent()
+        return not any(self._properties.has(name) for name in self._schema.properties)
 
-    def compare(self, other: OfUnion) -> Result:
-        if self._absent() or other._absent():
-            return 0 if self._absent() and other._absent() else None
-        if self._schema is not other._schema or self._index != other._index:
-            return None
-        return self._value.compare(other._value)  # type: ignore[union-attr]
-
-
-class OfIntersection:
-    """`Visitors.OfIntersection` recording a value of the intersection's merged schema."""
-
-    def __init__(self, schema: Schemas.OfIntersection.Data):
-        self._schema = schema
-        self._value: OfAny | None = None
-
-    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> OfIntersection:
-        if self._value is None:
-            self._value = OfAny(self._schema.merged())
-        callback(self._value)
-        return self
-
-    def _absent(self) -> bool:
-        return self._value is None or self._value._absent()
-
-    def compare(self, other: OfIntersection) -> Result:
-        if self._absent() or other._absent():
-            return 0 if self._absent() and other._absent() else None
+    def compare(self, other: _Members) -> Result:
         if self._schema is not other._schema:
             return None
-        return self._value.compare(other._value)  # type: ignore[union-attr]
+        return _all_equal(self._properties.compare(other._properties))
+
+
+class OfUnion(_Members):
+    """`Visitors.OfUnion` recording a union value: the branch it holds, and its value. Writing a branch clears any
+    other."""
+
+    def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> OfUnion:
+        if name in self._schema.properties:
+            for other in self._schema.properties:
+                if other != name:
+                    self._properties.clear(other)
+        self._properties.one(name, callback)
+        return self
+
+
+class OfIntersection(_Members):
+    """`Visitors.OfIntersection` recording an intersection value: its parts, and their values."""
 
 
 class OfProperty:

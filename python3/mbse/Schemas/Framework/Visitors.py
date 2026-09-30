@@ -160,24 +160,37 @@ class OfRelation(Protocol):
 
 
 class OfUnion(Protocol):
-    """A value of one of several same-kind schemas. When writing, `select(index)` chooses the branch the value is
-    written as, before `value(...)` writes it; the branch should be the first whose discriminator predicate holds."""
+    """A union value: an object whose properties are the union's branches, by name, and which holds exactly one of them.
+    Writing a branch clears any other."""
 
-    def branch(self) -> int:
-        """Index of the branch the value is written as."""
+    def properties(self, callback: Callable[[OfProperty], Any]) -> OfUnion:
+        """Calls `callback` for the branch that is present, if any."""
         ...
 
-    def select(self, index: int) -> OfUnion: ...
+    def has(self, name: str) -> bool: ...
 
-    def value(self, callback: Callable[[OfAny], Any]) -> OfUnion:
-        """Calls `callback` with the value, under the selected branch's type."""
+    def property(self, name: str, callback: Callable[[OfProperty], Any]) -> OfUnion:
+        """Calls `callback` with the named branch, present or not."""
         ...
+
+    def clear(self, name: str) -> OfUnion: ...
 
 
 class OfIntersection(Protocol):
-    """A value satisfying several same-kind schemas at once."""
+    """An intersection value: an object whose properties are the intersection's parts, by name, and which holds every
+    one of them."""
 
-    def value(self, callback: Callable[[OfAny], Any]) -> OfIntersection: ...
+    def properties(self, callback: Callable[[OfProperty], Any]) -> OfIntersection:
+        """Calls `callback` once for each part that is present."""
+        ...
+
+    def has(self, name: str) -> bool: ...
+
+    def property(self, name: str, callback: Callable[[OfProperty], Any]) -> OfIntersection:
+        """Calls `callback` with the named part, present or not."""
+        ...
+
+    def clear(self, name: str) -> OfIntersection: ...
 
 
 class Visitable(Protocol):

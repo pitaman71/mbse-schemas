@@ -68,13 +68,14 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   // --- embedded: embedded objects, union values of objects and of natives, and an intersection value ---
   const CardPhone = new Schemas.OfObject.Builder().properties(text("number"), text("label")).create();
   const CardEmail = new Schemas.OfObject.Builder().properties(text("address")).create();
-  const Reach = new Schemas.OfUnion.Builder().branches((b) => b.of(CardPhone).when(["has", "number"]),
-    (b) => b.of(CardEmail).when(["has", "address"])).create();
-  const Ident = new Schemas.OfUnion.Builder().branches((b) => b.of((t) => t.as_native(BigInt)).when(["type", "int"]),
-    (b) => b.of((t) => t.as_native(String)).when(["type", "str"])).create();
+  const Reach = new Schemas.OfUnion.Builder().branches((b) => b.name("phone").of(CardPhone),
+    (b) => b.name("email").of(CardEmail)).create();
+  const Ident = new Schemas.OfUnion.Builder().branches((b) => b.name("number").of((t) => t.as_native(BigInt)),
+    (b) => b.name("code").of((t) => t.as_native(String))).create();
   const CardStamp = new Schemas.OfObject.Builder().properties(text("updated")).create();
   const CardAudit = new Schemas.OfObject.Builder().properties(text("by"), text("updated")).create();
-  const CardMeta = new Schemas.OfIntersection.Builder().of(CardStamp, CardAudit).create();
+  const CardMeta = new Schemas.OfIntersection.Builder().parts((p) => p.name("stamp").of(CardStamp),
+    (p) => p.name("audit").of(CardAudit)).create();
   const Card = new Schemas.OfObject.Builder().properties(text("name"), (p) => p.name("home").of(CardPhone),
     (p) => p.name("reach").of(Reach), (p) => p.name("ident").of(Ident), (p) => p.name("meta").of(CardMeta)).create();
   const Holding = new Schemas.OfRelation.Builder().links("deck", "card").create();
@@ -151,9 +152,11 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   const deck = B.Deck().title("contacts").create();
   const cards = [
     B.Card().name("Ann").home((r: any) => r.number("+1 555 0100").label("home"))
-      .reach((u: any) => u.of(CardEmail, (r: any) => r.address("ann@example.com"))).ident(7n).create(),
-    B.Card().name("Bo").reach((u: any) => u.of(CardPhone, (r: any) => r.number("+44 20 7946 0000"))).ident("B-2")
-      .meta((r: any) => r.updated("2026-09-29").by("ann")).create(),
+      .reach((u: any) => u.email((r: any) => r.address("ann@example.com"))).ident((u: any) => u.number(7n)).create(),
+    B.Card().name("Bo").reach((u: any) => u.phone((r: any) => r.number("+44 20 7946 0000")))
+      .ident((u: any) => u.code("B-2"))
+      .meta((i: any) => i.stamp((r: any) => r.updated("2026-09-29")).audit((r: any) => r.updated("2026-09-29").by("ann")))
+      .create(),
     B.Card().name("Cy").create(),
   ];
   for (const card of cards) B.Deck(deck).cards((x: any) => x.card(card)).update();

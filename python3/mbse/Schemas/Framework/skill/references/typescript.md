@@ -64,13 +64,13 @@ if (Validators.Validate(B).Reachable(Component, copy).length > 0) throw new Erro
 new S.OfObject.Builder().properties(spec, ...).relations(spec, ...).singleton("Name").create();
 new S.OfObject.Builder(existing).relations(...).update();   // add adjacencies once the relations exist
 new S.OfRelation.Builder().links("a", "b").properties(spec, ...).unique("a").create();
-new S.OfUnion.Builder().branches((b) => b.of(spec).when(predicate), ...).create();
-new S.OfIntersection.Builder().of(spec, spec).create();
+new S.OfUnion.Builder().branches((b) => b.name("phone").of(spec), ...).create();
+new S.OfIntersection.Builder().parts((p) => p.name("stamp").of(spec), ...).create();
 Proxies.register("Name", schema); const B = Proxies.Builders;
 B.Name().prop(value).adjacencyName((e: any) => e.link(obj).entryProp(v)).create();
 B.Name(obj).prop(v).update();                              // .clone() makes a changed copy instead
 JSON.ToJSON.Reachable(schema, root); JSON.FromJSON(B).Reachable(schema, text);
-Validators.Validate(B)(schema, obj); Validators.Validate(B, evaluator).Reachable(schema, root);
+Validators.Validate(B)(schema, obj); Validators.Validate(B).Reachable(schema, root);
 new Comparison.OfObject(schema, a).compare(new Comparison.OfObject(schema, b));   // -1, 0, 1 or null
 ```
 

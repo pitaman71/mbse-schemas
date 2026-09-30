@@ -15,7 +15,6 @@ import binascii
 import copy
 import dataclasses
 import math
-import weakref
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar
@@ -349,45 +348,66 @@ class OfObject:
 
 
 @dataclass(eq=False)
-class _BranchData:
+class _MemberData:
+    """A named member of a union (a branch) or of an intersection (a part)."""
+
+    name: str = ""
     type: Any = None  # OfAny.Data
-    when: Any = None  # an expression, from the mbse-expressions package; opaque here
 
 
-class _BranchBuilder(_Builder[_BranchData]):
-    _data = _BranchData
+class _MemberBuilder(_Builder[_MemberData]):
+    _data = _MemberData
 
-    def of(self, spec: OfAny.Spec) -> _BranchBuilder:
+    def name(self, name: str) -> _MemberBuilder:
+        self._fields["name"] = name
+        return self
+
+    def of(self, spec: OfAny.Spec) -> _MemberBuilder:
         self._fields["type"] = OfAny.resolve(spec)
         return self
 
-    def when(self, predicate: Any) -> _BranchBuilder:
-        """Discriminator predicate, a serializable expression."""
-        self._fields["when"] = predicate
-        return self
+
+def _member_problems(a_kind: str, member: str, plural: str, members: tuple[_MemberData, ...]) -> list[str]:
+    """Problems with a union's branches (`a_kind` 'a union', `member` 'branch') or an intersection's parts."""
+    kind = a_kind.split(" ")[1]
+    problems = []
+    if len(members) < 2:
+        problems.append(f"{a_kind} needs at least two {plural}")
+    if len({type(m.type) for m in members}) > 1:
+        problems.append(f"{kind} {plural} must all be the same kind")
+    seen: set[str] = set()
+    for i, m in enumerate(members):
+        if not isinstance(m.name, str) or not m.name:
+            problems.append(f"{member} {i} has no name")
+        elif m.name in seen:
+            problems.append(f"{member} name {m.name!r} is used more than once")
+        seen.add(m.name)
+    return problems
+
+
+def _members(specs: tuple[Callable[[_MemberBuilder], _MemberBuilder], ...]) -> tuple[_MemberData, ...]:
+    return tuple(_resolve(spec, _MemberData, _MemberBuilder) for spec in specs)
 
 
 @dataclass(eq=False)
 class _UnionData:
-    branches: tuple[_BranchData, ...] = ()
+    branches: tuple[_MemberData, ...] = ()
+
+    @property
+    def properties(self) -> dict[str, Any]:
+        """The branches by name: a union value is an object holding exactly one of them."""
+        return {branch.name: branch.type for branch in self.branches}
 
     def validate(self) -> list[str]:
-        problems = []
-        if len(self.branches) < 2:
-            problems.append("a union needs at least two branches")
-        if len({type(b.type) for b in self.branches}) > 1:
-            problems.append("union branches must all be the same kind")
-        problems += [f"branch {i} has no discriminator predicate" for i, b in enumerate(self.branches) if b.when is None]
-        return problems
+        return _member_problems("a union", "branch", "branches", self.branches)
 
 
 class _UnionBuilder(_Builder[_UnionData]):
     _data = _UnionData
 
-    def branches(self, *specs: Callable[[_BranchBuilder], _BranchBuilder]) -> _UnionBuilder:
-        """Branches in declaration order; the first whose predicate matches is chosen."""
-        new = tuple(_resolve(spec, _BranchData, _BranchBuilder) for spec in specs)
-        self._fields["branches"] = (*self._fields.get("branches", ()), *new)
+    def branches(self, *specs: Callable[[_MemberBuilder], _MemberBuilder]) -> _UnionBuilder:
+        """Named branches, e.g. `.branches(lambda b: b.name('phone').of(Phone), ...)`."""
+        self._fields["branches"] = (*self._fields.get("branches", ()), *_members(specs))
         return self
 
 
@@ -395,6 +415,7 @@ class OfUnion:
     Data = _UnionData
     Builder = _UnionBuilder
     Spec = _UnionData | Callable[[_UnionBuilder], _UnionBuilder]
+    Branch = _MemberData
 
     @staticmethod
     def resolve(spec: OfUnion.Spec) -> _UnionData:
@@ -403,56 +424,23 @@ class OfUnion:
 
 @dataclass(eq=False)
 class _IntersectionData:
-    parts: tuple[Any, ...] = ()  # OfAny.Data
+    parts: tuple[_MemberData, ...] = ()
+
+    @property
+    def properties(self) -> dict[str, Any]:
+        """The parts by name: an intersection value is an object holding every one of them."""
+        return {part.name: part.type for part in self.parts}
 
     def validate(self) -> list[str]:
-        problems = []
-        if len(self.parts) < 2:
-            problems.append("an intersection needs at least two parts")
-        if len({type(p) for p in self.parts}) > 1:
-            problems.append("intersection parts must all be the same kind")
-        if len({p.type for p in self.parts if isinstance(p, _NativeData)}) > 1:
-            problems.append("native parts must all have the same type")
-        seen: dict[str, Any] = {}
-        for part in self.parts:
-            for name, prop in getattr(part, "properties", {}).items():
-                if name in seen and seen[name] != prop:
-                    problems.append(f"property {name!r} is declared with conflicting types")
-                seen.setdefault(name, prop)
-        return problems
-
-    def merged(self) -> _NativeData | _ObjectData:
-        """The schema of the values the intersection holds: its native parts' schema, or an object schema declaring
-        every property of its object parts, in order. Nested intersections are merged first. The same schema is
-        returned until a part's declarations change. Raises ValueError when the intersection is not valid, and
-        NotImplementedError for intersections of unions."""
-        parts = tuple(p.merged() if isinstance(p, _IntersectionData) else p for p in self.parts)
-        problems = _IntersectionData(parts).validate()
-        if problems:
-            raise ValueError(f"the intersection is not valid: {problems[0]}")
-        if isinstance(parts[0], _UnionData):
-            raise NotImplementedError("intersections of unions are not supported yet")
-        if isinstance(parts[0], _NativeData):
-            return parts[0]
-        signature = tuple((id(p), *((n, id(t)) for n, t in p.properties.items())) for p in parts)
-        cached = _MERGED.get(self)
-        if cached is None or cached[0] != signature:
-            properties: dict[str, Any] = {}
-            for part in parts:
-                for name, prop in part.properties.items():
-                    properties.setdefault(name, prop)
-            cached = _MERGED[self] = (signature, _ObjectData(properties))
-        return cached[1]
-
-
-_MERGED: weakref.WeakKeyDictionary[_IntersectionData, tuple[tuple, _ObjectData]] = weakref.WeakKeyDictionary()
+        return _member_problems("an intersection", "part", "parts", self.parts)
 
 
 class _IntersectionBuilder(_Builder[_IntersectionData]):
     _data = _IntersectionData
 
-    def of(self, *specs: OfAny.Spec) -> _IntersectionBuilder:
-        self._fields["parts"] = (*self._fields.get("parts", ()), *(OfAny.resolve(s) for s in specs))
+    def parts(self, *specs: Callable[[_MemberBuilder], _MemberBuilder]) -> _IntersectionBuilder:
+        """Named parts, e.g. `.parts(lambda p: p.name('stamp').of(Stamp), ...)`."""
+        self._fields["parts"] = (*self._fields.get("parts", ()), *_members(specs))
         return self
 
 
@@ -460,6 +448,7 @@ class OfIntersection:
     Data = _IntersectionData
     Builder = _IntersectionBuilder
     Spec = _IntersectionData | Callable[[_IntersectionBuilder], _IntersectionBuilder]
+    Part = _MemberData
 
     @staticmethod
     def resolve(spec: OfIntersection.Spec) -> _IntersectionData:
@@ -482,8 +471,7 @@ def _embedded_problems(schema: Any) -> list[str]:
     cannot have adjacencies; nor can the objects a union or intersection holds."""
     if isinstance(schema, _ObjectData) and schema.adjacencies:
         return ["an embedded object cannot have adjacencies"]
-    parts = [b.type for b in schema.branches] if isinstance(schema, _UnionData) else \
-        list(schema.parts) if isinstance(schema, _IntersectionData) else []
+    parts = list(schema.properties.values()) if isinstance(schema, (_UnionData, _IntersectionData)) else []
     return sorted({problem for part in parts for problem in _embedded_problems(part)})
 
 

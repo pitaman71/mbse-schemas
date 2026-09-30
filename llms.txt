@@ -22,4 +22,4 @@ Every collection is a relation (there are no list-valued properties), nothing is
 - [Tutorial, TypeScript](https://github.com/pitaman71/mbse-schemas/blob/main/typescript5/tutorials/README.md): the same case studies
 - [EQUIVALENCE.md](https://github.com/pitaman71/mbse-schemas/blob/main/docs/EQUIVALENCE.md): how the two implementations are kept identical
 - [AGENTS.md](https://github.com/pitaman71/mbse-schemas/blob/main/AGENTS.md): for agents changing this repository
-- [mbse-expressions](https://github.com/pitaman71/mbse-expressions): expressions for union predicates and constraints
+- [mbse-expressions](https://github.com/pitaman71/mbse-expressions): expressions for constraints

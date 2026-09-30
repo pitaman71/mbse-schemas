@@ -30,7 +30,7 @@ code.
 `toolkit.ts` holds the two small helpers the case studies build (`entries` and `remove_entries`), so later notebooks
 can import them.
 
-Expressions, which union predicates are made of, live in the separate
+Expressions, which constraints will be made of, live in the separate
 [mbse-expressions](https://github.com/pitaman71/mbse-expressions) package, whose tutorial continues this one.
 
 ## The case studies

@@ -18,17 +18,16 @@
  * The serializers are visitors: a value writes itself into them through `Visitable.accept`. `FromPlain` is
  * constructed with the builders to build with, e.g. `FromPlain(Proxies.Builders)`.
  *
- * An embedded object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties. A
- * union value is written with the index of its branch, `{"$branch": index, "$value": value}`, and the value is read
- * back under that branch's type. Whether the branch agrees with the branches' predicates is checked by `Validators`,
- * given an evaluator. An intersection value is written as a value of the intersection's merged schema, with no
- * wrapper.
+ * An embedded object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties.
+ * Union and intersection values are written the same way, with the union's branches or the intersection's parts as
+ * the properties: a union value `{"phone": {"number": "+44"}}` holds exactly one branch, and an intersection value
+ * `{"stamp": {...}, "audit": {...}}` each of its parts.
  */
 
-import { AttributeError, DecodeError, KeyError, LookupError, NotImplementedError, path, ValueError } from "./Errors.js";
+import { AttributeError, DecodeError, KeyError, LookupError, NotImplementedError, path } from "./Errors.js";
 import * as Proxies from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
-import { repr, reprIndex, sortedStrings, typeName } from "./Repr.js";
+import { repr, sortedStrings, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfNative, OfObject, OfProperty,
   OfUnion, Visitable } from "./Visitors.js";
@@ -38,8 +37,6 @@ export type PlainMap = Map<string, PlainData>;
 
 export const REF = "$ref";
 export const SCHEMA = "$schema";
-export const BRANCH = "$branch";
-export const VALUE = "$value";
 
 /** The Python class name of a schema's data (`_ObjectData`, ...), so messages match the Python implementation. */
 export function schemaTypeName(schema: unknown): string {
@@ -85,67 +82,34 @@ export class _AnyWriter implements OfAny {
   }
 
   as_object(callback: Callback<OfObject>): _AnyWriter {
-    if (!(this.schema instanceof Schemas.OfObject.Data)) throw new TypeError(`property ${repr(this.slotName)} is not an object`);
-    let nested = this.out.get(this.slotName);
-    if (!(nested instanceof Map)) this.out.set(this.slotName, (nested = new Map()));
-    callback(new _ObjectWriter(nested, this.schema, () => new Map()));
-    return this;
+    return this.record(Schemas.OfObject.Data, "an object", callback);
   }
 
   as_union(callback: Callback<OfUnion>): _AnyWriter {
-    if (!(this.schema instanceof Schemas.OfUnion.Data)) throw new TypeError(`property ${repr(this.slotName)} is not a union`);
-    callback(new _UnionWriter(this.out, this.slotName, this.schema));
-    return this;
+    return this.record(Schemas.OfUnion.Data, "a union", callback as unknown as Callback<OfObject>);
   }
 
   as_intersection(callback: Callback<OfIntersection>): _AnyWriter {
-    if (!(this.schema instanceof Schemas.OfIntersection.Data)) {
-      throw new TypeError(`property ${repr(this.slotName)} is not an intersection`);
+    return this.record(Schemas.OfIntersection.Data, "an intersection", callback as unknown as Callback<OfObject>);
+  }
+
+  /** Writes an embedded object, a union value or an intersection value, nested as a mapping. */
+  private record(kind: abstract new (...args: never[]) => RecordSchema, what: string, callback: Callback<OfObject>): _AnyWriter {
+    if (!(this.schema instanceof kind)) throw new TypeError(`property ${repr(this.slotName)} is not ${what}`);
+    let nested = this.out.get(this.slotName);
+    if (!(nested instanceof Map)) this.out.set(this.slotName, (nested = new Map()));
+    callback(this.schema instanceof Schemas.OfObject.Data ? new _ObjectWriter(nested, this.schema, () => new Map())
+      : new _RecordWriter(nested, this.schema) as unknown as OfObject);
+    if (this.schema instanceof Schemas.OfUnion.Data && nested.size === 0) {
+      this.out.delete(this.slotName); // a union value without a branch is no value
     }
-    callback(new _IntersectionWriter(this.out, this.slotName, this.schema));
     return this;
   }
 }
 
-/** `Visitors.OfIntersection` writing one key of a plain map as a value of the merged schema. */
-export class _IntersectionWriter implements OfIntersection {
-  constructor(private readonly out: PlainMap, private readonly slotName: string,
-    private readonly schema: Schemas.OfIntersection.Data) {}
-
-  value(callback: Callback<OfAny>): _IntersectionWriter {
-    callback(new _AnyWriter(this.out, this.slotName, this.schema.merged()));
-    return this;
-  }
-}
-
-/** `Visitors.OfUnion` writing one key of a plain map as `{"$branch": index, "$value": value}`. */
-export class _UnionWriter implements OfUnion {
-  private selected: number | null = null;
-
-  constructor(private readonly out: PlainMap, private readonly slotName: string, private readonly schema: Schemas.OfUnion.Data) {}
-
-  branch(): number {
-    if (this.selected === null) throw new ValueError("no branch is selected");
-    return this.selected;
-  }
-
-  select(index: number): _UnionWriter {
-    if (!Number.isInteger(index) || index < 0 || index >= this.schema.branches.length) {
-      throw new ValueError(`the union has no branch ${reprIndex(index)}`);
-    }
-    this.selected = index;
-    return this;
-  }
-
-  value(callback: Callback<OfAny>): _UnionWriter {
-    const index = this.branch();
-    const wrapper: PlainMap = new Map<string, PlainData>([[BRANCH, BigInt(index)]]);
-    callback(new _AnyWriter(wrapper, VALUE, (this.schema.branches[index] as { type: Schemas.OfAny.Data }).type));
-    if (wrapper.has(VALUE)) this.out.set(this.slotName, wrapper);
-    else this.out.delete(this.slotName);
-    return this;
-  }
-}
+/** The schema of a record: an embedded object's, or a union's or intersection's, whose properties are its branches or
+ * parts. */
+type RecordSchema = Schemas.OfObject.Data | Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
 
 /** `Visitors.OfProperty` writing one key of a plain map. */
 export class _PropertyWriter implements OfProperty {
@@ -275,10 +239,12 @@ export class _AdjacencyWriter implements OfAdjacency {
 }
 
 /** `Visitors.OfObject` writing one plain object. */
-export class _ObjectWriter implements OfObject {
-  constructor(private readonly out: PlainMap, private readonly schema: Schemas.OfObject.Data, private readonly ref: Ref) {}
+/** `Visitors.OfUnion` and `Visitors.OfIntersection` writing a union or intersection value, whose properties are the
+ * branches or parts; the base of `_ObjectWriter`. Writing a union's branch clears any other. */
+export class _RecordWriter implements OfUnion, OfIntersection {
+  constructor(protected readonly out: PlainMap, protected readonly schema: RecordSchema) {}
 
-  properties(callback: Callback<OfProperty>): _ObjectWriter {
+  properties(callback: Callback<OfProperty>): this {
     for (const [name, schema] of this.schema.properties) {
       if (this.out.has(name)) callback(new _PropertyWriter(this.out, name, schema));
     }
@@ -289,14 +255,25 @@ export class _ObjectWriter implements OfObject {
     return this.out.has(name);
   }
 
-  property(name: string, callback: Callback<OfProperty>): _ObjectWriter {
-    callback(new _PropertyWriter(this.out, name, propertySchema(this.schema.properties, name)));
+  property(name: string, callback: Callback<OfProperty>): this {
+    const schema = propertySchema(this.schema.properties, name);
+    if (this.schema instanceof Schemas.OfUnion.Data) {
+      for (const other of [...this.out.keys()]) if (other !== name) this.out.delete(other);
+    }
+    callback(new _PropertyWriter(this.out, name, schema));
     return this;
   }
 
-  clear(name: string): _ObjectWriter {
+  clear(name: string): this {
     this.out.delete(name);
     return this;
+  }
+}
+
+/** `Visitors.OfObject` writing one plain object. */
+export class _ObjectWriter extends _RecordWriter implements OfObject {
+  constructor(out: PlainMap, protected override readonly schema: Schemas.OfObject.Data, private readonly ref: Ref) {
+    super(out, schema);
   }
 
   adjacencies(callback: Callback<OfAdjacency>): _ObjectWriter {
@@ -361,23 +338,13 @@ class Link {
   constructor(readonly symbol: string) {}
 }
 
-/** A decoded embedded object; `accept` writes its properties into a builder. */
+/** A decoded embedded object, union value or intersection value; `accept` writes its properties into a builder. */
 class DecodedRecord {
-  constructor(readonly schema: Schemas.OfObject.Data, readonly values: Map<string, unknown>) {}
+  constructor(readonly schema: RecordSchema, readonly values: Map<string, unknown>) {}
 
   accept(visitor: OfObject): void {
     for (const [name, value] of this.values) set(visitor, name, value);
   }
-}
-
-/** A decoded intersection value. */
-class DecodedIntersection {
-  constructor(readonly value: unknown) {}
-}
-
-/** A decoded union value and the index of its branch. */
-class DecodedUnion {
-  constructor(readonly index: number, readonly value: unknown) {}
 }
 
 type Where = (string | number)[];
@@ -391,32 +358,26 @@ function decode(schema: Schemas.OfAny.Data, plain: unknown, where: Where): unkno
       throw (error as DecodeError).at(path(...where)); // from_plain throws only DecodeError
     }
   }
-  if (schema instanceof Schemas.OfObject.Data) {
-    if (!(plain instanceof Map)) {
-      throw new DecodeError(`an embedded object must be a mapping, got ${typeName(plain)}`, { path: path(...where) });
-    }
-    const values = new Map<string, unknown>();
-    for (const [key, item] of plain as PlainMap) {
-      const type = schema.properties.get(key);
-      if (type === undefined) {
-        throw new DecodeError(`the embedded object has no property ${repr(key)}`, { path: path(...where, key) });
-      }
-      values.set(key, decode(type, item, [...where, key]));
-    }
-    return new DecodedRecord(schema, values);
+  const [what, owner, member] = recordNames(schema as RecordSchema);
+  if (!(plain instanceof Map)) throw new DecodeError(`${what} must be a mapping, got ${typeName(plain)}`, { path: path(...where) });
+  const record = schema as RecordSchema;
+  const values = new Map<string, unknown>();
+  for (const [key, item] of plain as PlainMap) {
+    const type = record.properties.get(key);
+    if (type === undefined) throw new DecodeError(`${owner} has no ${member} ${repr(key)}`, { path: path(...where, key) });
+    values.set(key, decode(type, item, [...where, key]));
   }
-  if (schema instanceof Schemas.OfUnion.Data) {
-    if (!(plain instanceof Map) || plain.size !== 2 || !plain.has(BRANCH) || !plain.has(VALUE)) {
-      throw new DecodeError("a union value is {'$branch': index, '$value': value}", { path: path(...where) });
-    }
-    const index: unknown = plain.get(BRANCH);
-    if (typeof index !== "bigint" || index < 0n || index >= BigInt(schema.branches.length)) {
-      throw new DecodeError(`the union has no branch ${repr(index)}`, { path: path(...where, BRANCH) });
-    }
-    const type = (schema.branches[Number(index)] as { type: Schemas.OfAny.Data }).type;
-    return new DecodedUnion(Number(index), decode(type, plain.get(VALUE), [...where, VALUE]));
+  if (record instanceof Schemas.OfUnion.Data && values.size !== 1) {
+    throw new DecodeError(`a union value holds exactly one branch, got ${values.size}`, { path: path(...where) });
   }
-  return new DecodedIntersection(decode(schema.merged(), plain, where));
+  return new DecodedRecord(record, values);
+}
+
+/** For messages, per record kind: a value of it, its schema, and what its properties are. */
+function recordNames(schema: RecordSchema): [string, string, string] {
+  if (schema instanceof Schemas.OfUnion.Data) return ["a union value", "the union", "branch"];
+  if (schema instanceof Schemas.OfIntersection.Data) return ["an intersection value", "the intersection", "part"];
+  return ["an embedded object", "the embedded object", "property"];
 }
 
 function decodeEntryProperty(schema: Schemas.OfAny.Data, name: string, plain: unknown, where: Where): Native {
@@ -578,12 +539,12 @@ function set(visitor: { property(name: string, callback: Callback<OfProperty>): 
   visitor.property(name, (p) => p.value((a) => write(a, value)));
 }
 
-/** Writes a decoded value: a native, an embedded object or a union value with its branch. */
+/** Writes a decoded value: a native, or an embedded object, union value or intersection value. */
 function write(visitor: OfAny, value: unknown): void {
-  if (value instanceof DecodedUnion) {
-    visitor.as_union((u) => u.select(value.index).value((v) => write(v, value.value)));
-  } else if (value instanceof DecodedIntersection) {
-    visitor.as_intersection((i) => i.value((v) => write(v, value.value)));
+  if (value instanceof DecodedRecord && value.schema instanceof Schemas.OfUnion.Data) {
+    visitor.as_union((u) => value.accept(u as unknown as OfObject));
+  } else if (value instanceof DecodedRecord && value.schema instanceof Schemas.OfIntersection.Data) {
+    visitor.as_intersection((i) => value.accept(i as unknown as OfObject));
   } else if (value instanceof DecodedRecord) {
     visitor.as_object((o) => value.accept(o));
   } else {

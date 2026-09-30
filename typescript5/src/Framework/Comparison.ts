@@ -14,8 +14,8 @@
  * - `OfObject`: equal when every property its schema declares is absent in both or equal in both; otherwise
  *   incomparable. Adjacencies do not participate.
  * - `OfProperty` and `OfAny` compare their values; values of different kinds are incomparable.
- * - `OfUnion`: equal when written as the same branch with equal values; otherwise incomparable.
- * - `OfIntersection`: equal when the values are equal under the intersection's merged schema; otherwise incomparable.
+ * - `OfUnion`: equal when both hold the same branch with equal values; otherwise incomparable.
+ * - `OfIntersection`: equal when every part is absent in both or equal in both; otherwise incomparable.
  * - `OfLink`: equal when both link the same object (by identity); otherwise incomparable.
  * - `OfEntry`: equal when every link and property is equal; otherwise incomparable.
  * - `OfAdjacency`: its entries form a set, seen from one object (whose own link is implied), so adding an entry equal
@@ -24,8 +24,8 @@
  * `Visitors.OfRelation` has no implementation: it declares no way to write entries into it.
  */
 
-import { AttributeError, KeyError, NotImplementedError, ValueError } from "./Errors.js";
-import { compareStrings, repr, reprIndex, tokenName, typeName } from "./Repr.js";
+import { AttributeError, KeyError, ValueError } from "./Errors.js";
+import { compareStrings, repr, tokenName, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type * as Visitors from "./Visitors.js";
 import type { Callback, Native } from "./Visitors.js";
@@ -151,67 +151,62 @@ export class OfAny implements Visitors.OfAny {
   }
 }
 
-/** `Visitors.OfIntersection` recording a value of the intersection's merged schema. */
-export class OfIntersection implements Visitors.OfIntersection {
-  private recorded: OfAny | null = null;
+/** A union or intersection value, recorded as the `OfProperty`s of its branches or parts. */
+abstract class Members {
+  protected readonly recorded: Properties;
 
-  constructor(private readonly schema: Schemas.OfIntersection.Data) {}
+  constructor(protected readonly schema: Schemas.OfUnion.Data | Schemas.OfIntersection.Data) {
+    this.recorded = new Properties(schema.properties);
+  }
 
-  value(callback: Callback<Visitors.OfAny>): OfIntersection {
-    if (this.recorded === null) this.recorded = new OfAny(this.schema.merged());
-    callback(this.recorded);
+  properties(callback: Callback<Visitors.OfProperty>): this {
+    this.recorded.each(callback);
     return this;
   }
 
-  absent(): boolean {
-    return this.recorded === null || this.recorded.absent();
+  has(name: string): boolean {
+    return this.recorded.has(name);
   }
 
-  compare(other: OfIntersection): Result {
-    if (this.absent() || other.absent()) return this.absent() && other.absent() ? 0 : null;
-    if (this.schema !== other.schema) return null;
-    return (this.recorded as OfAny).compare(other.recorded as OfAny);
-  }
-}
-
-/** `Visitors.OfUnion` recording the branch a union value is written as, and its value. */
-export class OfUnion implements Visitors.OfUnion {
-  private index: number | null = null;
-  private recorded: OfAny | null = null;
-
-  constructor(private readonly schema: Schemas.OfUnion.Data) {}
-
-  branch(): number {
-    if (this.index === null) throw new ValueError("no branch is selected");
-    return this.index;
-  }
-
-  select(index: number): OfUnion {
-    if (!Number.isInteger(index) || index < 0 || index >= this.schema.branches.length) {
-      throw new ValueError(`the union has no branch ${reprIndex(index)}`);
-    }
-    if (index !== this.index) {
-      this.index = index;
-      this.recorded = new OfAny((this.schema.branches[index] as { type: Schemas.OfAny.Data }).type);
-    }
+  property(name: string, callback: Callback<Visitors.OfProperty>): this {
+    this.recorded.one(name, callback);
     return this;
   }
 
-  value(callback: Callback<Visitors.OfAny>): OfUnion {
-    this.branch();
-    callback(this.recorded as OfAny);
+  clear(name: string): this {
+    this.recorded.clear(name);
     return this;
   }
 
   /** @internal */
   absent(): boolean {
-    return this.recorded === null || this.recorded.absent();
+    return ![...this.schema.properties.keys()].some((name) => this.recorded.has(name));
   }
 
-  compare(other: OfUnion): Result {
-    if (this.absent() || other.absent()) return this.absent() && other.absent() ? 0 : null;
-    if (this.schema !== other.schema || this.index !== other.index) return null;
-    return (this.recorded as OfAny).compare(other.recorded as OfAny);
+  compare(other: Members): Result {
+    if (this.schema !== other.schema) return null;
+    return allEqual(this.recorded.compare(other.recorded));
+  }
+}
+
+/** `Visitors.OfUnion` recording a union value: the branch it holds, and its value. Writing a branch clears any other. */
+export class OfUnion extends Members implements Visitors.OfUnion {
+  constructor(schema: Schemas.OfUnion.Data) {
+    super(schema);
+  }
+
+  override property(name: string, callback: Callback<Visitors.OfProperty>): this {
+    const names = [...this.schema.properties.keys()];
+    if (names.includes(name)) for (const other of names) if (other !== name) this.recorded.clear(other);
+    this.recorded.one(name, callback);
+    return this;
+  }
+}
+
+/** `Visitors.OfIntersection` recording an intersection value: its parts, and their values. */
+export class OfIntersection extends Members implements Visitors.OfIntersection {
+  constructor(schema: Schemas.OfIntersection.Data) {
+    super(schema);
   }
 }
 

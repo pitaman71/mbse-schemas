@@ -71,13 +71,14 @@ def build():
     # --- embedded: embedded objects, union values of objects and of natives, and an intersection value ---
     CardPhone = S.OfObject.Builder().properties(_text("number"), _text("label")).create()
     CardEmail = S.OfObject.Builder().properties(_text("address")).create()
-    Reach = S.OfUnion.Builder().branches(lambda b: b.of(CardPhone).when(("has", "number")),
-                                         lambda b: b.of(CardEmail).when(("has", "address"))).create()
-    Ident = S.OfUnion.Builder().branches(lambda b: b.of(lambda t: t.as_native(int)).when(("type", "int")),
-                                         lambda b: b.of(lambda t: t.as_native(str)).when(("type", "str"))).create()
+    Reach = S.OfUnion.Builder().branches(lambda b: b.name("phone").of(CardPhone),
+                                         lambda b: b.name("email").of(CardEmail)).create()
+    Ident = S.OfUnion.Builder().branches(lambda b: b.name("number").of(lambda t: t.as_native(int)),
+                                         lambda b: b.name("code").of(lambda t: t.as_native(str))).create()
     CardStamp = S.OfObject.Builder().properties(_text("updated")).create()
     CardAudit = S.OfObject.Builder().properties(_text("by"), _text("updated")).create()
-    CardMeta = S.OfIntersection.Builder().of(CardStamp, CardAudit).create()
+    CardMeta = S.OfIntersection.Builder().parts(lambda p: p.name("stamp").of(CardStamp),
+                                                lambda p: p.name("audit").of(CardAudit)).create()
     Card = S.OfObject.Builder().properties(_text("name"), lambda p: p.name("home").of(CardPhone),
                                            lambda p: p.name("reach").of(Reach), lambda p: p.name("ident").of(Ident),
                                            lambda p: p.name("meta").of(CardMeta)).create()
@@ -152,9 +153,11 @@ def build():
     deck = B.Deck().title("contacts").create()
     cards = [
         B.Card().name("Ann").home(lambda r: r.number("+1 555 0100").label("home"))
-        .reach(lambda u: u.of(CardEmail, lambda r: r.address("ann@example.com"))).ident(7).create(),
-        B.Card().name("Bo").reach(lambda u: u.of(CardPhone, lambda r: r.number("+44 20 7946 0000"))).ident("B-2")
-        .meta(lambda r: r.updated("2026-09-29").by("ann")).create(),
+        .reach(lambda u: u.email(lambda r: r.address("ann@example.com"))).ident(lambda u: u.number(7)).create(),
+        B.Card().name("Bo").reach(lambda u: u.phone(lambda r: r.number("+44 20 7946 0000")))
+        .ident(lambda u: u.code("B-2"))
+        .meta(lambda i: i.stamp(lambda r: r.updated("2026-09-29")).audit(lambda r: r.updated("2026-09-29").by("ann")))
+        .create(),
         B.Card().name("Cy").create(),
     ]
     for card in cards:

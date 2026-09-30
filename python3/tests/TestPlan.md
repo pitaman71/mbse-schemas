@@ -122,4 +122,4 @@ shared case in both languages, and code no test could reach was removed from bot
 - Meta-schemas (`Schemas.OfX.Schema`) and schema builders implementing `Visitors` (serializing schemas).
 - Intersections of unions (VIS-05 and EMB-08 pin the refusals).
 - An "any value" `OfAny` kind.
-- Generated bindings and mixing implementations.
+- Mixing implementations (proxies and generated bindings, which will live in separate repositories, one per target language).

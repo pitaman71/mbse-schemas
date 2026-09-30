@@ -100,7 +100,7 @@ one TypeScript-only bug:
 
 The same as in Python: Mutations and transactions, Factories, implicit singletons, deletion,
 meta-schemas and schema serialization, intersections of unions, an "any value" kind,
-generated bindings.
+mixing implementations (generated bindings will live in separate repositories, one per target language).
 
 ## Code coverage
 

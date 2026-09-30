@@ -293,8 +293,10 @@ branches' predicates. Serialization does not evaluate predicates, since union va
 
 Two implementations exist: `python3/` and `typescript5/`. Their APIs use the same names (snake_case included), the
 same error classes and messages, and produce byte-identical JSON; a shared conformance corpus (`conformance/`) checks
-that each reads the other's JSON and YAML back to the same graphs. Where a language forces a difference, it is fixed
-here:
+that each reads the other's JSON and YAML back to the same graphs. Generated bindings (typed code per schema) will
+live in separate repositories, one per target language (e.g. mbse-cpp, mbse-python, mbse-typescript,
+mbse-systemverilog), each depending on this one as mbse-expressions does. Where a language forces a difference,
+it is fixed here:
 
 | Concept | Python | TypeScript |
 |---|---|---|

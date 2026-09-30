@@ -137,7 +137,8 @@ npx tsx src/Examples/AddressBook.ts                  # an example
 ```
 docs/               the design (FRAMEWORK.md), how values compare (EQUALITY.md), and how the two implementations
                     are kept equivalent (EQUIVALENCE.md)
-python3/            Python implementation: mbse/Schemas/Framework, examples, tests (Jupyter notebooks), tutorials
+python3/            Python implementation: mbse/Schemas/Framework, Adapters (Python only), examples, tests (Jupyter
+                    notebooks), tutorials
 typescript5/        TypeScript implementation: src/Framework, examples, tests and tutorials (notebooks; Deno kernel)
 conformance/        snapshots each implementation writes; each must read the other's
 skills/             the agent skill (SKILL.md plus per-task references); skills/sync.sh copies it into both packages
@@ -155,7 +156,8 @@ The core is implemented in both languages:
 - reachability;
 - plain snapshots, JSON and YAML;
 - validation;
-- comparison under a schema.
+- comparison under a schema;
+- in Python, translation between dataclasses and object schemas (`mbse.Schemas.Adapters.Dataclasses`).
 
 Expressions (for union predicates and constraints) and their evaluation are a separate package,
 [mbse-expressions](https://github.com/pitaman71/mbse-expressions), which depends on this one. Generated bindings

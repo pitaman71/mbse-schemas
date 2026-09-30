@@ -73,6 +73,12 @@ JSON.ToJSON(...), JSON.FromJSON(B)(...); YAML.ToYAML(...), YAML.FromYAML(B)(...)
 Validators.Validate(B)(schema, obj); Validators.Validate(B).Reachable(schema, root); Validators.Validate(B, evaluator)
 Validators.properties_of(obj)                               # {name: value} of the properties that are set
 Comparison.OfObject(schema, a).compare(Comparison.OfObject(schema, b))   # -1, 0, 1, or None if incomparable
+
+# Dataclasses: native fields are properties; set/list/dict of dataclasses are relations. Defaults, mandatoriness and
+# nesting are not translated.
+from mbse.Schemas.Adapters.Dataclasses import FromDataclass, ToDataclass
+FromDataclass.model(Contact)       # {"Contact": ..., "Address": ..., "ContactAddresses": ...}, ready to register
+ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromDataclass(cls), ToDataclass(schema, name)
 ```
 
 ## Traps

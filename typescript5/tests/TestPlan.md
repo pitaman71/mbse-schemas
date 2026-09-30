@@ -54,7 +54,8 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `14_Embedded.ipynb` | EMB | 8 | as in Python; union predicates are arrays, and branch indexes in snapshots are `bigint`s |
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
 
-Total: 143 cases, with the same IDs in the same order as the Python suites.
+Total: 143 cases, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
+adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences
 

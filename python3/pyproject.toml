@@ -35,7 +35,7 @@ testpaths = ["tests", "tutorials"]
 addopts = "--nbmake"
 
 [tool.coverage.run]
-source = ["mbse.Schemas.Framework"]
+source = ["mbse.Schemas.Framework", "mbse.Schemas.Adapters"]
 branch = true
 parallel = true
 patch = ["subprocess"]

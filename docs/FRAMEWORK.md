@@ -199,6 +199,17 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   into it, and compares it with another recording: `a.compare(b)` returns -1, 0, 1, or `None` when incomparable. See
   `EQUALITY.md`.
 
+- `Adapters` : translate between a language's own type declarations and schemas, so they are specific to each
+  language. Python has `Adapters.Dataclasses`: `FromDataclass(cls)` returns the `OfObject` a dataclass describes and
+  `ToDataclass(schema, name)` returns a new dataclass, both through `ast` trees rather than source text;
+  `FromDataclass.model(*classes)` and `ToDataclass.model(schemas)` translate several at once. Only types are
+  translated. Native fields are properties. A container of dataclasses (`set[X]`, `list[X]`, `dict[K, X]`) is a
+  relation with links `owner` and `item`, plus `index: int` or `key: K` with `unique(item)` for lists and dicts: the
+  owner's adjacency is the field, and each element class gets an adjacency via `item`. Adjacencies declare which
+  object schemas may fill a link, so writing a class finds a container's element type by reverse lookup, and writes
+  fields only for adjacencies via a relation's first link. Defaults, mandatoriness and nested classes (embedded
+  objects) are left out or refused.
+
 ## Proxies
 
 - `Proxies` : for each schema element `OfX`, `Proxies.OfX.Data` defines how the schema can be stored in memory as schema-independent types, and `Proxies.OfX.Builder`, like every builder, implements `Visitors.OfX`. Proxies themselves do not implement `Visitors`; if they have an interface for traversal, it is `Visitable` (a proxy accepts a visitor), not `Visitor`. `Proxies.OfX.Builder.validate` can be used to check the current state of the configured item. Validation is never implicit: it runs only when the caller invokes it.

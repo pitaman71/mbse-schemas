@@ -130,6 +130,7 @@ npx tsx src/Examples/AddressBook.ts                  # an example
 | [`EQUIVALENCE.md`](docs/EQUIVALENCE.md) | What "equivalent implementations" means, how it's checked, and where the languages deliberately differ |
 | [`python3/tests/TestPlan.md`](python3/tests/TestPlan.md), [`typescript5/tests/TestPlan.md`](typescript5/tests/TestPlan.md) | The test suites, the findings they produced, and what isn't testable yet |
 | [`conformance/`](conformance/README.md) | The shared corpus both implementations must read and write identically |
+| [`AGENTS.md`](AGENTS.md), [`skills/mbse-schemas/`](skills/mbse-schemas/SKILL.md), [`llms.txt`](llms.txt) | Guidance for AI agents, layered so each loads only what its task needs. The skill also ships inside both packages |
 
 ## Repository layout
 
@@ -139,9 +140,10 @@ docs/               the design (FRAMEWORK.md), how values compare (EQUALITY.md),
 python3/            Python implementation: mbse/Schemas/Framework, examples, tests (Jupyter notebooks), tutorials
 typescript5/        TypeScript implementation: src/Framework, examples, tests and tutorials (notebooks; Deno kernel)
 conformance/        snapshots each implementation writes; each must read the other's
+skills/             the agent skill (SKILL.md plus per-task references); skills/sync.sh copies it into both packages
 ```
 
-Tests are Jupyter notebooks, one suite per notebook. Both implementations have the same 140 cases under the same
+Tests are Jupyter notebooks, one suite per notebook. Both implementations have the same 143 cases under the same
 IDs, and both reach 100% code coverage (`uv run coverage ...` / `npm run coverage`; see `docs/EQUIVALENCE.md`).
 
 ## Status

@@ -52,8 +52,9 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `12_Text.ipynb` | TXT | 4 | `Repr` produces Python's text: `repr`, float `repr`, type names (plus one row for a prototype-less object), code-point order |
 | `13_Comparison.ipynb` | CMP | 12 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
 | `14_Embedded.ipynb` | EMB | 8 | as in Python; union predicates are arrays, and branch indexes in snapshots are `bigint`s |
+| `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
 
-Total: 140 cases, with the same IDs in the same order as the Python suites.
+Total: 143 cases, with the same IDs in the same order as the Python suites.
 
 ## Language differences
 

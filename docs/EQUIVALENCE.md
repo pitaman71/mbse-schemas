@@ -23,7 +23,7 @@
 
 | Check | Where |
 |---|---|
-| Every test case exists in both implementations, same ID, same order (140 cases, 14 suites) | `python3/tests/*.ipynb`, `typescript5/tests/*.ipynb` |
+| Every test case exists in both implementations, same ID, same order (143 cases, 15 suites) | `python3/tests/*.ipynb`, `typescript5/tests/*.ipynb` |
 | Messages are byte-identical | cases that assert exact messages, e.g. SCH-12, SCH-13, PLN-11 (26 malformed snapshots), VAL-03, VAL-06 |
 | Decoding errors: same class, reason and location | shared tables embedded verbatim in both suites: JSN-09 (62 JSON inputs), YML-06 (48 YAML inputs); PLN-11, PLN-12 (paths) |
 | JSON is byte-identical; YAML and JSON are interchangeable | the CONF suite over the shared corpus in `conformance/` |

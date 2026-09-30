@@ -1,0 +1,50 @@
+---
+name: mbse-schemas
+description: Model structured data and interfaces once, as a neutral, language-independent schema (objects, relations with properties, unions, intersections), then build, serialize (JSON/YAML), validate and compare instances in Python or TypeScript. Use when formalizing an interface or data model (MBSE/SysML blocks and associations, interface control documents, API or data-exchange models, types shared across languages), or when writing code that imports mbse.Schemas.Framework or @mbse/schemas/Framework.
+---
+
+# mbse-schemas
+
+A schema here is an ordinary value, not a class. It is a semantically normalized formalization of an interface: every
+collection is a relation, nothing is implicit, and one schema means the same thing in every language. Python
+(`mbse.Schemas.Framework`) and TypeScript (`@mbse/schemas/Framework`) implement the same API, and they write
+byte-identical JSON.
+
+## When to use it
+
+- You need one description of an interface or data model that several programs, languages or tools must agree on.
+- The data is a graph: shared objects, relationships with their own attributes, inverse navigation, cycles.
+- You are formalizing an MBSE model (blocks, ports, associations, multiplicities, variants) outside a modeling tool.
+
+It is a poor fit for one-off, tree-shaped DTOs used by a single program, where a plain dataclass or interface is
+simpler.
+
+## Rules that prevent most mistakes
+
+1. **No list-valued properties.** Every collection is an `OfRelation`, and its entries link objects and may carry
+   properties. Each object sees a relation through one of its links (an *adjacency*, declared with `.me(link)`).
+2. **Identity or value.** A thing with identity is an object linked through a relation. A value without identity is
+   an *embedded object*, a property whose schema is an `OfObject`, and it cannot have adjacencies.
+3. **Nothing is mandatory, and absent is not null.** Reading an unset property raises `AttributeError`. Cardinality
+   is `unique(...)` on a relation. "At least one" constraints are not implemented yet.
+4. **Validation runs only when asked:** `Validators.Validate(registry)(schema, value)`, or `.Reachable(...)` for a
+   whole graph. It returns every problem, each with a path. Schemas have their own `.validate()`.
+5. **Native types are exact, never coerced.** `int`, `float`, `bool`, `str` and `bytes` are distinct. In TypeScript,
+   `int` is `bigint`.
+6. **Objects are read-only.** Change them through a builder that ends with `create()`, `clone()` or `update()`.
+   Linked objects need registered schemas: `Proxies.register(name, schema)`, then `Proxies.Builders.<Name>(...)`.
+
+## Load the reference for your task
+
+| Task | Read |
+|---|---|
+| Decide how to model something: MBSE, UML, ORM or JSON Schema concepts mapped to schema elements | [references/modeling.md](references/modeling.md) |
+| Write Python: a complete example, API cheat sheet, traps | [references/python.md](references/python.md) |
+| Write TypeScript: the same example, the differences from Python | [references/typescript.md](references/typescript.md) |
+| Save, load or exchange data: the snapshot format and strict decoding | [references/serialization.md](references/serialization.md) |
+| Union predicates and constraints (expressions and evaluators) | the separate [mbse-expressions](https://github.com/pitaman71/mbse-expressions) package |
+
+Deeper material is in the repository: `docs/FRAMEWORK.md` holds every rule and open question, and nine tutorial case
+studies explain the reasoning. The references link to the exact notebook or section you need. Links use
+`https://github.com/pitaman71/mbse-schemas/blob/main/<path>`; in a checkout, `<path>` is relative to the repository
+root.

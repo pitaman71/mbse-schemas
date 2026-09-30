@@ -1,0 +1,51 @@
+# Guide for AI agents
+
+mbse-schemas formalizes interfaces and data models as neutral, language-independent schemas: objects, relations
+whose entries carry properties, unions and intersections. The same schema drives in-memory objects, JSON and YAML,
+validation and comparison. It targets model-based systems engineering (MBSE) and any interface that several
+programs, languages or tools must agree on. Two equivalent implementations exist: `python3/` and `typescript5/`.
+
+## Start here
+
+| You want to | Read |
+|---|---|
+| Use the library, or model something with it | [skills/mbse-schemas/SKILL.md](skills/mbse-schemas/SKILL.md), a skill. It loads its references only as needed |
+| Understand a design rule or an open question | [docs/FRAMEWORK.md](docs/FRAMEWORK.md), by section |
+| Change the framework | this file, then [docs/EQUIVALENCE.md, Keeping them equivalent](docs/EQUIVALENCE.md#keeping-them-equivalent) |
+| Find or add a test case | [python3/tests/TestPlan.md](python3/tests/TestPlan.md) (TypeScript's plan lists only its differences) |
+
+## Invariants when changing code
+
+- **The two implementations are equivalent.** Change both in the same commit, with the same names, the same error
+  classes and byte-identical messages. JSON output must be byte-identical: regenerate the corpora and let CONF-02
+  compare them. A difference not listed in `docs/EQUIVALENCE.md` is a bug.
+- **Tests are Jupyter notebooks**, one suite per notebook, with the same case IDs in the same order in both
+  languages. Each case is a markdown cell `## ID · title` followed by one code cell. Notebooks are JSON written with
+  `indent=1`, `sort_keys=True` and `ensure_ascii=False`.
+- **Coverage is 100%** in both languages, statements and branches. Close a gap with an assertion in the shared case,
+  in both suites.
+- **The skill is packaged with each implementation.** After editing `skills/mbse-schemas/`, run `skills/sync.sh`;
+  SKL-01 fails until the copies match. Every fenced block tagged `python` or `typescript` in the skill is a complete
+  program that SKL-02 runs; tag fragments `python fragment` or `typescript fragment`.
+- **Behavior is decided in `docs/FRAMEWORK.md`.** Record new decisions under Resolved, and put what stays undecided
+  under Open questions.
+
+## Commands
+
+```sh
+cd python3 && uv sync --all-extras          # Python: use uv, never pip
+uv run coverage run -m pytest && uv run coverage combine && uv run coverage report
+uv run python -m mbse.Schemas.Conformance.write
+
+cd typescript5 && nvm use && npm install    # TypeScript: Node 22, 24 and 26 are supported
+npm run coverage                            # type-checks, runs every notebook, gates at 100%
+npm run conformance
+npm run portability                         # the core without Node (browser bundle + Deno)
+```
+
+## Related repositories
+
+- [mbse-expressions](https://github.com/pitaman71/mbse-expressions): expressions (union predicates, constraints) and
+  their evaluators. It depends on this repository as a git submodule.
+- Generated bindings will live in one repository per target language (e.g. mbse-cpp, mbse-python, mbse-typescript,
+  mbse-systemverilog), each depending on this one.

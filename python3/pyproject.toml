@@ -5,7 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mbse-schemas"
 version = "0.0.1"
-description = "Language-independent schema type algebra with an in-language DSL"
+description = "Neutral, language-independent schemas for interfaces and MBSE models: objects, relations, unions and intersections, with JSON/YAML and validation"
+keywords = ["schema", "mbse", "sysml", "interface", "data model", "orm", "serialization", "validation", "json", "yaml"]
 readme = "README.md"
 requires-python = ">=3.11"
 
@@ -15,6 +16,9 @@ yaml = ["PyYAML>=6"]
 [tool.setuptools.packages.find]
 include = ["mbse*"]
 namespaces = true
+
+[tool.setuptools.package-data]
+"mbse.Schemas.Framework" = ["skill/*.md", "skill/references/*.md"]
 
 [dependency-groups]
 dev = [

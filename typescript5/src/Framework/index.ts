@@ -10,6 +10,7 @@
  * https://github.com/pitaman71/mbse-schemas.
  */
 
+export * as Bindings from "./Bindings.js";
 export * as Comparison from "./Comparison.js";
 export * as Errors from "./Errors.js";
 export * as JSON from "./JSON.js";

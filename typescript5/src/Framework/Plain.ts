@@ -1047,3 +1047,6 @@ export function FromPlain(builders: Builders): FromPlainCall {
   };
   return Object.assign(call, { OfNative, OfObject, Reachable: OfObject });
 }
+
+/** For `Bindings`: a value's decoded form from its plain form, writing a decoded value, and a symbol for none. */
+export { decode as _decode, unlinked as _unlinked, write as _write };

@@ -55,6 +55,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
 | `17_Lists.ipynb` | LST | 15 | as in Python; a list reads as a frozen array and a keyed list as a `Map`-shaped `Proxies.OfIndexed.Map`; float keys that must keep `-0.0` are given as pairs |
 | `18_Modules.ipynb` | MOD | 4 | as in Python; schemas are given as a Map or a record, and read back as a Map |
+| `19_Bindings.ipynb` | BND | 4 | as in Python; a binding's options are an object with `fixed` a `Map`, states, entries and registries hold `Map`s, and an unknown builder name is `undefined` |
 
 Total: 166 cases, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).

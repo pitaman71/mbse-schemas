@@ -225,6 +225,32 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
 
 - `Proxies` : for each schema element `OfX`, `Proxies.OfX.Data` defines how the schema can be stored in memory as schema-independent types, and `Proxies.OfX.Builder`, like every builder, implements `Visitors.OfX`. Proxies themselves do not implement `Visitors`; if they have an interface for traversal, it is `Visitable` (a proxy accepts a visitor), not `Visitor`. `Proxies.OfX.Builder.validate` can be used to check the current state of the configured item. Validation is never implicit: it runs only when the caller invokes it.
 
+## Typed bindings
+
+`Proxies` gives any registered schema dynamic instances; `Bindings` gives a program's own classes, written or generated
+in its language, the same part in the framework: their instances are `Visitable`, they have builders that implement
+`Visitors.OfObject`, and a registry rebuilds them from snapshots. It is the core the generated bindings (mbse-python,
+mbse-typescript, ...) will share, and mbse-expressions' expressions are its first user.
+
+- **A binding pairs a reference object schema with a class.** `Bindings.Binding(schema, read, make)` is the schema, the
+  source of truth, with two functions: `read(instance)` gives an instance's `State`, and `make(state)` builds an
+  instance from one; `assign(instance, state)` writes a state into an existing instance, for `update()`.
+- **A state is the instance's data in the schema's terms**: each property's value, natives as natives and other values
+  (value objects, unions, lists) in their plain form; and each adjacency's entries, each an `Entry` of its links (the
+  linked instances) and its properties. The class keeps its own fields; the binding's two functions translate.
+- **Everything else is generic.** `Bindings.accept(binding, instance, visitor)` writes an instance through the
+  visitor protocols, so the class's `accept` is one line; `Bindings.Builder(binding, instance)` is a
+  `Visitors.OfObject` over a state, with every value kind the schema declares (natives checked by type, value objects,
+  unions and lists through plain data), `create()`, `clone()` and `update()`; and `Bindings.Registry` gives
+  `Plain.FromPlain` the builders by schema name. A class's own builder derives from `Bindings.Builder` for its DSL.
+- **A binding may declare what the schema cannot**: `fixed` properties, whose value is the class's (a tag, such as an
+  expression's `kind`), so that writing another raises; `exclusive` groups of properties, of which a state holds at
+  most one, so that writing one clears the others (a literal's value, under the property named after its native type);
+  and `implied` adjacencies, whose entries the other ends imply, so that the builder ignores entries added to them.
+- **Absent is no value.** A state has no key for an absent property, and a builder drops the keys a class's `read`
+  gives without a value (None, null); an entry property without a value is not written. A fixed property is compared
+  by value, bytes included, and type-checked first, as every native is.
+
 ## Serialization
 
 Both in-memory objects and mutations (see `Mutations`) are serializable.
@@ -604,6 +630,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   object schemas (objects with identity composed from aspects) are a later step.
 - `OfNative` wire conversion (including for literals in expressions) belongs to `Schemas.OfNative`.
 - Builder finalization is `create()` / `clone()` / `update()`; none validate.
+- A program's own classes take part through `Bindings`: a binding pairs a reference object schema with `read`, `make`
+  and `assign`, and the framework gives the rest (`accept`, builders, a registry), so classes and proxies are
+  interchangeable wherever a `Visitable` and its builders are expected (see Typed bindings).
 - Validation, including well-formedness, runs only when the caller invokes it.
 - `Schemas.OfX.Schema` is the meta-schema for `Schemas.OfX.Data`; a module of schemas is an object of
   `Schemas.Module.Schema`, translated by `Modules` (see Meta-schemas).

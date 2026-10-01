@@ -295,14 +295,19 @@ an object can be composed of parts that take part in relations (a component's po
 terms replace "embedded object" and "object" throughout once implemented.
 
 - **Every object has an identity**, and any object can be linked by relations. What distinguishes the two kinds is
-  ownership.
+  ownership, and the schema says which kind it describes: `Schemas.OfObject.Builder().ref()` marks a *reference object
+  schema*; an object schema without it is a *value object schema*. A singleton's schema is a reference object schema.
 - **A reference object** stands on its own: a snapshot writes it once among its `objects`, under its symbol. A
-  snapshot's root is a reference object.
-- **A value object** is held by a property whose schema is an `OfObject`, and belongs to that one owner, a reference
-  object or another value object. Union and intersection values are value objects, and so are the objects they hold.
+  snapshot's root is a reference object, and `Proxies.Builders.<Name>()` makes only reference objects. A reference
+  object schema is never a property's type, directly or as a union's branch or an intersection's part held by a
+  property, nor an entry property's: `validate()` reports it ("a reference object schema cannot be a property's
+  type"). Reference objects are reached through relations only.
+- **A value object** is held by a property whose schema is a value object schema, and belongs to that one owner, a
+  reference object or another value object. Union and intersection values are value objects, and so are the objects they hold.
   `Visitable.owner()` gives a value object's owner, and None for a reference object.
 - **A value object may have adjacencies**, and its entries link it like any object. The rule "an embedded object cannot
-  have adjacencies" is dropped. A linked object's schema must be registered, whichever its kind.
+  have adjacencies" is dropped. A value object's schema follows from its owner's, so a value object schema needs no
+  registration, and a link to a value object carries no `$schema`: `{"$ref": "s3"}`.
 - **Ownership is exclusive and deep.** Editing a value object through its owner's builder keeps its identity. Setting
   it into another owner, or `clone()` of its owner, copies it with a new identity, with the entries among the copied
   objects (re-linked to the copies) and a copy of each entry that links them to objects outside. Clearing the property,
@@ -310,8 +315,7 @@ terms replace "embedded object" and "object" throughout once implemented.
 - **Entry properties may be value objects, never reference objects.** Such a value object is owned by its entry.
 - **Value objects are written nested**, inside their owner, with their adjacencies nested in them as a reference
   object's are. A value object that something links to carries its symbol, `"home": {"$id": "s3", "number": "1"}`,
-  and is referred to as any object is, `{"$ref": "s3", "$schema": "Phone"}`; one that nothing links to is written as
-  embedded objects are now. Symbols are assigned in first-reference order, value objects and reference objects alike.
+  and is referred to by it, `{"$ref": "s3"}`; one that nothing links to is written as embedded objects are now. Symbols are assigned in first-reference order, value objects and reference objects alike.
 - **Reachability goes through value objects**: their entries are followed as a reference object's are, and an object
   reached that is a value object brings in the reference object that owns it, which is where it is written.
 - **Decoding** rebuilds a value object through its owner's builder, and finds it again to link it with
@@ -374,16 +378,21 @@ Native types and their widths are implemented; the meta-schemas that write them 
 ## Meta-schemas
 
 Designed, not yet implemented. Schemas are data: each schema kind's data has a meta-schema, `Schemas.OfX.Schema`, so
-schemas are written, read, validated and compared like any other objects, and a snapshot can hold schemas and the
-values they describe side by side. Native types are written as their tokens and widths (see Native types).
+schemas are written, read, validated and compared like any other objects. Native types are written as their tokens
+and widths (see Native types).
 
+- **A module holds named schemas.** `Schemas.Module` is a reference object schema: a set of named schemas, one per
+  entry of its `schemas` relation, whose properties are the `name` and the `schema`, a value object. A snapshot of
+  schemas is a snapshot of a module.
+- **Within a module, schemas are value objects, nested inline.** An object schema's properties and adjacencies, a
+  union's branches and an intersection's parts are relations of the schema's value object, written nested in it.
+- **A property's type is an inline schema or a name**: a union with the branches `inline` (a value object of any
+  schema kind) and `named` (a string, resolved within the module, then in the registry). Shared and recursive schemas
+  refer to each other by name; a relation that an adjacency names is named the same way.
 - **Meta-schemas are defined in code and registered by name** (`Schemas.OfNative`, `Schemas.OfObject`, ...), never read
-  from data. They refer to each other and to themselves through those names: a property's type is a schema of any
-  kind, the union of the kinds' meta-schemas. The auxiliary data (properties, adjacencies, a union's branches) are
-  embedded objects of their owner's meta-schema.
-- **A registered schema is referred to by its global name; an unregistered one is written inline**, nested where it
-  is used, as an embedded object.
-- **Schema builders implement `Visitors.OfX`**, so `Plain.FromPlain` rebuilds schemas as it rebuilds any object.
+  from data, and their builders implement `Visitors.OfX`, so `Plain.FromPlain` rebuilds schemas as it rebuilds any
+  objects. They are separate from the DSL builders, whose methods (`properties(*specs)`) would clash with the visitor
+  protocols (`properties(callback)`).
 
 ## Expressions
 

@@ -1,0 +1,49 @@
+root: s0
+objects:
+  s0:
+    name: rack
+    tags:
+    - ''
+    - 日本語 🚀
+    - a
+    blobs:
+    - ''
+    - AP8=
+    grid:
+    - - 1
+      - -1180591620717411303424
+    - []
+    - - 0
+    readings:
+    - value: -0.0
+    - note: 'off'
+    - value: Infinity
+    sockets:
+    - $id: s2
+      name: in
+      cables:
+      - sink:
+          $ref: s3
+      - sink:
+          $ref: s1
+          $schema: Panel
+      plugs:
+      - source:
+          $ref: s4
+    - $id: s3
+      name: out
+      plugs:
+      - source:
+          $ref: s2
+    banks:
+    - []
+    - - $id: s4
+        name: spare
+        cables:
+        - sink:
+            $ref: s2
+  s1:
+    name: mains
+    plugs:
+    - source:
+        $ref: s2

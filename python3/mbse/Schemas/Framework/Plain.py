@@ -17,7 +17,7 @@ with the builders to build with, e.g. `FromPlain(Proxies.Builders)`.
 A value object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties. Union
 and intersection values are written the same way, with the union's branches or the intersection's parts as the
 properties: a union value `{"phone": {"number": "+44"}}` holds exactly one branch, and an intersection value
-`{"stamp": {...}, "audit": {...}}` each of its parts.
+`{"stamp": {...}, "audit": {...}}` each of its parts. A list is written as an array of its items.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from __future__ import annotations
 from collections.abc import Callable, Hashable
 from typing import Any, NamedTuple, Protocol
 
-from . import Proxies, Reachable, Schemas, Visitors
+from . import Errors, Proxies, Reachable, Schemas, Visitors
 from .Errors import DecodeError, path
 from .Visitors import Native
 
@@ -93,6 +93,15 @@ class _AnyWriter:
     def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _AnyWriter:
         return self._record(Schemas.OfIntersection.Data, "an intersection", callback)
 
+    def as_indexed(self, callback: Callable[[Visitors.OfIndexed], Any]) -> _AnyWriter:
+        if not isinstance(self._schema, Schemas.OfIndexed.Data):
+            raise TypeError(f"property {self._name!r} is not a list")
+        items = self._out.get(self._name)
+        if not isinstance(items, list):
+            items = self._out[self._name] = []
+        callback(_ListWriter(items, self._name, self._schema, self._ref, self._symbol))
+        return self
+
     def _record(self, kind: type, noun: str, callback: Callable[[Any], Any]) -> _AnyWriter:
         """Writes a value object, a union value or an intersection value, nested as a mapping."""
         if not isinstance(self._schema, kind):
@@ -104,6 +113,40 @@ class _AnyWriter:
                  else _RecordWriter(nested, self._schema, self._ref, self._symbol))
         if isinstance(self._schema, Schemas.OfUnion.Data) and not nested:
             del self._out[self._name]  # a union value without a branch is no value
+        return self
+
+
+class _ListWriter:
+    """`Visitors.OfIndexed` writing a plain list, the value of the property `name`; an item written with no value is left
+    out."""
+
+    def __init__(self, out: list[PlainData], name: str, schema: Schemas.OfIndexed.Data, ref: Ref, symbol: Symbol):
+        self._out, self._name, self._schema, self._ref, self._symbol = out, name, schema, ref, symbol
+
+    def items(self, callback: Callable[[Visitors.OfAny], Any]) -> _ListWriter:
+        for index in range(len(self._out)):
+            self.item(index, callback)
+        return self
+
+    def item(self, index: int, callback: Callable[[Visitors.OfAny], Any]) -> _ListWriter:
+        held = {self._name: Errors.item(self._out, index)}
+        callback(_AnyWriter(held, self._name, self._schema.item, self._ref, self._symbol))
+        self._out[index:index + 1] = held.values()
+        return self
+
+    def append(self, callback: Callable[[Visitors.OfAny], Any]) -> _ListWriter:
+        held: dict[str, PlainData] = {}
+        callback(_AnyWriter(held, self._name, self._schema.item, self._ref, self._symbol))
+        self._out.extend(held.values())
+        return self
+
+    def remove(self, index: int) -> _ListWriter:
+        Errors.item(self._out, index)
+        del self._out[index]
+        return self
+
+    def clear(self) -> _ListWriter:
+        self._out.clear()
         return self
 
 
@@ -360,12 +403,16 @@ Rows = dict[str, list[dict[str, Any]]]
 """Per adjacency, its decoded entries: each maps links to `_Link`s and properties to decoded values."""
 
 
+Steps = tuple[tuple[str | int, type], ...]
+"""The way from a reference object to a value object in it: each step a property name, or an index in a list, and the
+kind of the value found there."""
+
+
 class _Found(NamedTuple):
-    """Where decoding found a value object: its reference object's symbol, and the steps from it, each a property name
-    and the kind of the value it holds."""
+    """Where decoding found a value object: its reference object's symbol, and the steps from it."""
 
     owner: str
-    steps: tuple[tuple[str, type], ...]
+    steps: Steps
 
 
 class _Context:
@@ -376,13 +423,19 @@ class _Context:
 
 
 def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context: _Context | None = None,
-            steps: tuple[tuple[str, type], ...] = ()) -> Any:
-    """The value `plain` holds under `schema`, located at the path `where`."""
+            steps: Steps = ()) -> Any:
+    """The value `plain` holds under `schema`, located at the path `where`: a native, a `_Record`, or a list of the
+    items' values."""
     if isinstance(schema, Schemas.OfNative.Data):
         try:
             return schema.from_plain(plain)
         except DecodeError as error:
             raise error.at(path(*where)) from None
+    if isinstance(schema, Schemas.OfIndexed.Data):
+        if not isinstance(plain, list):
+            raise DecodeError(f"a list must be an array, got {type(plain).__name__}", path=path(*where))
+        return [_decode(schema.item, item, (*where, i), context, (*steps, (i, type(schema.item))))
+                for i, item in enumerate(plain)]
     noun, owner, member = _RECORDS[type(schema)]
     if not isinstance(plain, dict):
         raise DecodeError(f"{noun} must be a mapping, got {type(plain).__name__}", path=path(*where))
@@ -406,7 +459,7 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context:
     return _Record(schema, values)
 
 
-def _identify(symbol: PlainData, context: _Context, steps: tuple[tuple[str, type], ...], where: tuple) -> None:
+def _identify(symbol: PlainData, context: _Context, steps: Steps, where: tuple) -> None:
     if not isinstance(symbol, str):
         raise DecodeError(f"a symbol must be a string, got {type(symbol).__name__}", path=path(*where))
     if symbol in context.ids:
@@ -434,6 +487,8 @@ def _decode_rows(adjacency: Schemas.OfAdjacency.Data, value: PlainData, where: t
     relation = adjacency.relation
     rows = []
     for i, entry in enumerate(value):
+        if not isinstance(entry, dict):
+            raise DecodeError(f"an entry must be a mapping, got {type(entry).__name__}", path=path(*where, key, i))
         row: dict[str, Any] = {}
         for name, item in entry.items():
             at = path(*where, key, i, name)
@@ -455,25 +510,16 @@ def _decode_rows(adjacency: Schemas.OfAdjacency.Data, value: PlainData, where: t
 
 
 def _references(value: PlainData, where: tuple, found: Callable[[dict[str, Any], tuple], None]) -> None:
-    """Finds the references in the entries of an object and of the value objects nested in it: a list is always an
-    adjacency, since plain values hold no lists."""
-    if isinstance(value, dict):
-        for key, item in value.items():
+    """Finds the references among the values of an object, at any depth: in its entries, and in the value objects and
+    lists nested in it. A mapping with a `$ref` key is a reference; nothing else is."""
+    if isinstance(value, dict) and REF in value:
+        if not _is_ref(value):
+            raise DecodeError("a reference is {'$ref': symbol, '$schema': name}, or {'$ref': symbol} to a value object",
+                              path=path(*where))
+        found(value, where)
+    elif isinstance(value, (dict, list)):
+        for key, item in value.items() if isinstance(value, dict) else enumerate(value):
             _references(item, (*where, key), found)
-        return
-    if not isinstance(value, list):
-        return
-    for i, entry in enumerate(value):
-        if not isinstance(entry, dict):
-            raise DecodeError(f"an entry must be a mapping, got {type(entry).__name__}", path=path(*where, i))
-        for name, ref in entry.items():
-            if isinstance(ref, dict) and REF not in ref:  # an entry property's value object
-                _references(ref, (*where, i, name), found)
-            elif isinstance(ref, dict):
-                if not _is_ref(ref):
-                    raise DecodeError("a reference is {'$ref': symbol, '$schema': name}, or {'$ref': symbol} to a value object",
-                                      path=path(*where, i, name))
-                found(ref, (*where, i, name))
 
 
 # Per reference object symbol: its decoded property values and its entries.
@@ -520,7 +566,9 @@ def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData
                 raise DecodeError(f"a schema name must be a string, got {type(own).__name__}",
                                   path=path("objects", symbol, SCHEMA))
             found({REF: symbol, SCHEMA: own}, ("objects", symbol, SCHEMA))
-        _references({k: v for k, v in obj.items() if k != SCHEMA}, ("objects", symbol), found)
+        for key, value in obj.items():
+            if key != SCHEMA:
+                _references(value, ("objects", symbol, key), found)
     # Pass 2: check every key against the schemas and decode the values.
     decoded: _Decoded = {}
     ids: dict[str, _Found] = {symbol: _Found(symbol, ()) for symbol in objects}
@@ -577,8 +625,8 @@ def _restore(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData
             return created[symbol]
         found = ids[symbol]
         target = created[found.owner]
-        for name, _ in found.steps:
-            target = builders.member(target, name)
+        for key, _ in found.steps:
+            target = target[key] if isinstance(key, int) else builders.member(target, key)
         return target
 
     nested: dict[str, list[tuple[_Found, Rows]]] = {}
@@ -601,15 +649,22 @@ def _add_rows(visitor: Visitors.OfObject, rows: Rows, resolve: Callable[[str], A
             visitor.adjacency(key, lambda a, r=row: a.add(lambda x: _fill(x, r, resolve)))
 
 
-def _within(visitor: Any, steps: tuple[tuple[str, type], ...], then: Callable[[Any], None]) -> None:
+def _within(visitor: Any, steps: Steps, then: Callable[[Any], None]) -> None:
     """Calls `then` with the builder of the value object at `steps` from `visitor`, editing each value on the way."""
     if not steps:
         then(visitor)
         return
-    (name, kind), rest = steps[0], steps[1:]
+    (key, kind), rest = steps[0], steps[1:]
     select = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
-              Schemas.OfIntersection.Data: "as_intersection"}[kind]
-    visitor.property(name, lambda p: p.value(lambda a: getattr(a, select)(lambda v: _within(v, rest, then))))
+              Schemas.OfIntersection.Data: "as_intersection", Schemas.OfIndexed.Data: "as_indexed"}[kind]
+
+    def into(a: Visitors.OfAny) -> None:
+        getattr(a, select)(lambda v: _within(v, rest, then))
+
+    if isinstance(key, int):
+        visitor.item(key, into)
+    else:
+        visitor.property(key, lambda p: p.value(into))
 
 
 def _set(visitor: Any, name: str, value: Any) -> None:
@@ -617,8 +672,10 @@ def _set(visitor: Any, name: str, value: Any) -> None:
 
 
 def _write(visitor: Visitors.OfAny, value: Any) -> None:
-    """Writes a decoded value: a native, or a value object, union value or intersection value."""
-    if isinstance(value, _Record):
+    """Writes a decoded value: a native, a value object, union value or intersection value, or a list."""
+    if isinstance(value, list):
+        visitor.as_indexed(lambda items: _write_items(items, value))
+    elif isinstance(value, _Record):
         if isinstance(value.schema, Schemas.OfUnion.Data):
             visitor.as_union(lambda u: value.accept(u))
         elif isinstance(value.schema, Schemas.OfIntersection.Data):
@@ -627,6 +684,11 @@ def _write(visitor: Visitors.OfAny, value: Any) -> None:
             visitor.as_object(lambda o: value.accept(o))
     else:
         visitor.as_native(lambda n: n.set(value))
+
+
+def _write_items(visitor: Visitors.OfIndexed, items: list[Any]) -> None:
+    for item in items:
+        visitor.append(lambda a, item=item: _write(a, item))
 
 
 def _fill(visitor: Visitors.OfEntry, row: dict[str, Any], resolve: Callable[[str], Any]) -> None:

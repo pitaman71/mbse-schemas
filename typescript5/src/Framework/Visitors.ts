@@ -49,6 +49,7 @@ export interface OfAny {
   as_object(callback: Callback<OfObject>): OfAny;
   as_union(callback: Callback<OfUnion>): OfAny;
   as_intersection(callback: Callback<OfIntersection>): OfAny;
+  as_indexed(callback: Callback<OfIndexed>): OfAny;
 }
 
 /** A native value. Reading an absent value raises. */
@@ -145,6 +146,20 @@ export interface OfIntersection {
   clear(name: string): OfIntersection;
 }
 
+/** A list: its items, in order, each a value of the list's item schema. An item written with no value is left out. */
+export interface OfIndexed {
+  /** Calls `callback` once for each item, in order. */
+  items(callback: Callback<OfAny>): OfIndexed;
+  /** Calls `callback` with the item at `index`; raises LookupError for an index the list does not have. */
+  item(index: number, callback: Callback<OfAny>): OfIndexed;
+  /** Appends the item `callback` writes. */
+  append(callback: Callback<OfAny>): OfIndexed;
+  /** Removes the item at `index`; raises LookupError for an index the list does not have. */
+  remove(index: number): OfIndexed;
+  /** Removes every item. */
+  clear(): OfIndexed;
+}
+
 /** An in-memory object that can be visited, e.g. a proxy. It is not a visitor itself. */
 export interface Visitable {
   /** In-memory identity, stable for the object's lifetime. Serializers map it 1:1 to a transaction symbol. */
@@ -160,7 +175,7 @@ export interface Visitable {
 
 /** Method names each protocol declares, for runtime conformance checks (TypeScript interfaces vanish at runtime). */
 export const PROTOCOL_METHODS = {
-  OfAny: ["as_native", "as_object", "as_union", "as_intersection"],
+  OfAny: ["as_native", "as_object", "as_union", "as_intersection", "as_indexed"],
   OfNative: ["has", "get", "set", "clear"],
   OfProperty: ["name", "has", "value", "clear"],
   OfObject: ["properties", "has", "property", "clear", "adjacencies", "adjacency", "identify"],
@@ -170,5 +185,6 @@ export const PROTOCOL_METHODS = {
   OfRelation: ["links", "entries"],
   OfUnion: ["properties", "has", "property", "clear"],
   OfIntersection: ["properties", "has", "property", "clear"],
+  OfIndexed: ["items", "item", "append", "remove", "clear"],
   Visitable: ["identity", "schema_name", "owner", "accept"],
 } as const satisfies Record<string, readonly string[]>;

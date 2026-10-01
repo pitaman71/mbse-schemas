@@ -17,6 +17,7 @@ and anywhere else values are compared. Two values are compared under a schema:
   objects compared, by its path from them.
 - `OfUnion` : the same branch, by name, and equal under that branch's schema.
 - `OfIntersection` : every part, by name, either absent in both or present and equal in both, under that part's schema.
+- `OfIndexed` : the same number of items, each equal to the item at the same position under the item schema.
 - `OfAny` : same runtime schema and equal under it.
 
 Because linked objects compare by identity and only relations can form cycles, structural equality always terminates.
@@ -27,7 +28,8 @@ Every binding must provide a hash consistent with this equality, for enforcing k
 
 ## Ordering
 
-Ordering (`lt`, `le`, `gt`, `ge`) is not universal: it is defined only for ordered `OfNative` types.
+Ordering (`lt`, `le`, `gt`, `ge`) is not universal: it is defined only for ordered `OfNative` types, and for lists
+of them, lexicographically.
 
 ## Comparison
 
@@ -38,7 +40,8 @@ and `bytes`: floats by value with `-0.0` before `0.0`, NaNs equal to each other 
 Booleans, objects, entries and adjacencies are equal or incomparable. Absent equals absent and is incomparable with
 anything present. An adjacency compares its entries as a set, seen from its object. Value objects
 compare by their properties and entries, links among them by path; union values are equal when they hold the same branch with equal values, and otherwise incomparable.
-Intersection values compare part by part, as value objects compare property by property.
+Intersection values compare part by part, as value objects compare property by property. Lists compare item by item:
+the first pair not equal decides, and a list that is a prefix of another is less.
 
 ## Proposed resolutions (to confirm)
 

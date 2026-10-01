@@ -14,7 +14,8 @@ The validator is a visitor: each object writes itself into a recorder through `V
   Uniqueness is checked only over the entries reachable from what was validated.
 - a value object's properties are declared by its schema and hold values of their types, recursively;
 - a union value holds exactly one of the union's branches, with a value of that branch's type;
-- an intersection value holds every one of the intersection's parts, each with a value of that part's type.
+- an intersection value holds every one of the intersection's parts, each with a value of that part's type;
+- each item of a list is a value of the list's item schema.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from __future__ import annotations
 from collections.abc import Callable, Hashable
 from typing import Any, Literal, Protocol
 
-from . import Reachable, Schemas, Visitors
+from . import Errors, Reachable, Schemas, Visitors
 from .Visitors import Native
 
 __all__ = ["Registry", "Validate", "properties_of"]
@@ -80,11 +81,51 @@ class _Value:
     def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _Value:
         return self._record("intersection", callback)
 
+    def as_indexed(self, callback: Callable[[Visitors.OfIndexed], Any]) -> _Value:
+        record = self._values.get(self._name)
+        if not isinstance(record, _ListRecord):
+            record = self._values[self._name] = _ListRecord()
+        callback(record)
+        return self
+
     def _record(self, kind: _Kind, callback: Callable[[Any], Any]) -> _Value:
         record = self._values.get(self._name)
         if not isinstance(record, _ObjectRecord) or record.kind != kind:
             record = self._values[self._name] = _ObjectRecord(kind)
         callback(record)
+        return self
+
+
+class _ListRecord:
+    """`Visitors.OfIndexed` recording a list's items, in order; an item written with no value is left out."""
+
+    def __init__(self) -> None:
+        self.values: list[Any] = []
+
+    def items(self, callback: Callable[[Visitors.OfAny], Any]) -> _ListRecord:
+        for index in range(len(self.values)):
+            self.item(index, callback)
+        return self
+
+    def item(self, index: int, callback: Callable[[Visitors.OfAny], Any]) -> _ListRecord:
+        held = {"": Errors.item(self.values, index)}
+        callback(_Value(held, ""))
+        self.values[index:index + 1] = held.values()
+        return self
+
+    def append(self, callback: Callable[[Visitors.OfAny], Any]) -> _ListRecord:
+        held: dict[str, Any] = {}
+        callback(_Value(held, ""))
+        self.values.extend(held.values())
+        return self
+
+    def remove(self, index: int) -> _ListRecord:
+        Errors.item(self.values, index)
+        del self.values[index]
+        return self
+
+    def clear(self) -> _ListRecord:
+        self.values.clear()
         return self
 
 
@@ -213,7 +254,9 @@ class _ObjectRecord:
 
 
 def _replay(visitor: Visitors.OfAny, value: Any) -> None:
-    if isinstance(value, _ObjectRecord) and value.kind == "union":
+    if isinstance(value, _ListRecord):
+        visitor.as_indexed(lambda items: _replay_items(items, value.values))
+    elif isinstance(value, _ObjectRecord) and value.kind == "union":
         visitor.as_union(lambda u: value.accept(u))
     elif isinstance(value, _ObjectRecord) and value.kind == "intersection":
         visitor.as_intersection(lambda i: value.accept(i))
@@ -221,6 +264,11 @@ def _replay(visitor: Visitors.OfAny, value: Any) -> None:
         visitor.as_object(lambda o: value.accept(o))
     else:
         visitor.as_native(lambda n: n.set(value))
+
+
+def _replay_items(visitor: Visitors.OfIndexed, values: list[Any]) -> None:
+    for value in values:
+        visitor.append(lambda a, value=value: _replay(a, value))
 
 
 # --- Checks ---
@@ -240,7 +288,7 @@ _KINDS: dict[type, _Kind] = {
 def _kind(value: Any) -> str:
     if isinstance(value, _ObjectRecord):
         return _RECORDS[value.kind][0]
-    return type(value).__name__
+    return "a list" if isinstance(value, _ListRecord) else type(value).__name__
 
 
 def _native_problem(schema: Schemas.OfNative.Data, value: Any) -> str | None:
@@ -266,6 +314,8 @@ def _value_key(value: Any) -> Hashable:
     object by its properties."""
     if isinstance(value, _ObjectRecord):
         return ("object", tuple(sorted((name, _value_key(v)) for name, v in value.values.items())))
+    if isinstance(value, _ListRecord):
+        return ("list", tuple(_value_key(v) for v in value.values))
     if isinstance(value, float):
         return ("float", value.hex())
     return (type(value).__name__, value)
@@ -328,6 +378,11 @@ class _Check:
         if isinstance(schema, Schemas.OfNative.Data):
             problem = _native_problem(schema, item)
             return [f"{label}: {problem}"] if problem else []
+        if isinstance(schema, Schemas.OfIndexed.Data):
+            if not isinstance(item, _ListRecord):
+                return [f"{label}: expected a list, got {_kind(item)}"]
+            return [problem for i, value in enumerate(item.values)
+                    for problem in self._value_problems(f"{label}[{i}]", schema.item, value)]
         kind = _KINDS[type(schema)]
         noun, owner, member = _RECORDS[kind]
         if not isinstance(item, _ObjectRecord) or item.kind != kind:
@@ -420,7 +475,8 @@ class _Check:
 def properties_of(value: Visitors.Visitable) -> dict[str, Any]:
     """The property values `value` writes when visited, by name; absent properties are left out. It reads through the
     visitor protocols, so it works for any `Visitable`. A value object, a union value or an intersection value is
-    returned as an object whose `accept` writes its properties (a union's branch, an intersection's parts)."""
+    returned as an object whose `accept` writes its properties (a union's branch, an intersection's parts), and a list
+    as an object whose `values` are its items, read the same way."""
     record = _ObjectRecord()
     value.accept(record)
     return dict(record.values)

@@ -33,9 +33,9 @@
 | Full code coverage in both | the coverage gates below |
 | The TypeScript core runs without Node (browsers, Deno) and still produces the identical corpus | `tsconfig.core.json`, `npm run portability` (see the TypeScript test plan) |
 
-The corpus (`python3/mbse/Schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`) builds six cases
+The corpus (`python3/mbse/Schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`) builds seven cases
 statement for statement: an address book, native edge values, a family with a cycle and a self-loop, a three-link
-relation, strings that YAML readers misread, and value objects with union and intersection values. See `conformance/README.md`.
+relation, strings that YAML readers misread, value objects with union and intersection values, and lists. See `conformance/README.md`.
 
 Run everything:
 
@@ -80,7 +80,8 @@ noticed.
 | Native widths | `int` | `bigint`, as every int in the data model | a width becomes data once schemas serialize | SCH-18 |
 | Integers | `int` | `bigint` | `number` cannot tell `1` from `1.0` and rounds above 2^53 | SCH-03, JSN-05, JSN-07 |
 | Plain mappings | `dict` | `Map<string, PlainData>` | object literals reorder integer-like keys and mishandle `__proto__` | SCH-11, PLN-02 |
-| Schema data equality | `==` | `.equals()` | no operator overloading | SCH-01, SCH-15 |
+| Schema data equality | `==` | `.equals()` | no operator overloading | SCH-01, SCH-15, LST-01 |
+| Lists in proxies | a `tuple`; a setter takes a `list` or a `tuple` | a frozen array; a setter takes an array | the read-only sequences of each language | LST-02 |
 | Errors | built-in exceptions | built-in `TypeError`; `ValueError`, `AttributeError`, `KeyError`, `LookupError`, `NotImplementedError` from `Errors` | JavaScript lacks the others | throughout |
 | Callable entry points | objects with `__call__` | functions with the per-kind forms attached | no callable instances | PLN-01 |
 | Keyword arguments | `indent=2` | `{ indent: 2 }` | no keyword arguments | JSN-04 |

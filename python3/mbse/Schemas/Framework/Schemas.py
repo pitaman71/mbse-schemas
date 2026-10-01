@@ -31,6 +31,7 @@ __all__ = [
     "OfRelation",
     "OfUnion",
     "OfIntersection",
+    "OfIndexed",
 ]
 
 NATIVE_TYPES: tuple[type[Native], ...] = (int, float, str, bool, bytes)
@@ -297,8 +298,7 @@ def _entry_value_problems(schema: Any) -> list[str]:
     value objects would be too, and nothing could link them once."""
     if isinstance(schema, _ObjectData) and schema.adjacencies:
         return ["a value object held by an entry cannot have adjacencies"]
-    members = list(schema.properties.values()) if isinstance(schema, (_ObjectData, _UnionData, _IntersectionData)) else []
-    return sorted({problem for member in members for problem in _entry_value_problems(member)})
+    return sorted({problem for member in _members_of(schema) for problem in _entry_value_problems(member)})
 
 
 class _RelationBuilder(_Builder[_RelationData]):
@@ -547,9 +547,43 @@ class OfIntersection:
         return _resolve(spec, _IntersectionData, _IntersectionBuilder)
 
 
+# --- OfIndexed ---
+
+
+@dataclass(eq=False)
+class _IndexedData:
+    """A list: ordered items, each a value of the item schema."""
+
+    item: Any = None  # OfAny.Data
+
+    def validate(self) -> list[str]:
+        return [f"item: {problem}" for problem in _validate(self.item)]
+
+
+class _IndexedBuilder(_Builder[_IndexedData]):
+    _data = _IndexedData
+
+    def of(self, spec: OfAny.Spec) -> _IndexedBuilder:
+        """The schema of every item."""
+        self._fields["item"] = OfAny.resolve(spec)
+        return self
+
+
+class OfIndexed:
+    """A list of items of one schema, held by a property; its items belong to the property's owner."""
+
+    Data = _IndexedData
+    Builder = _IndexedBuilder
+    Spec = _IndexedData | Callable[[_IndexedBuilder], _IndexedBuilder]
+
+    @staticmethod
+    def resolve(spec: OfIndexed.Spec) -> _IndexedData:
+        return _resolve(spec, _IndexedData, _IndexedBuilder)
+
+
 # --- OfAny ---
 
-_KINDS = (_NativeData, _ObjectData, _UnionData, _IntersectionData)
+_KINDS = (_NativeData, _ObjectData, _UnionData, _IntersectionData, _IndexedData)
 
 
 def _validate(schema: Any) -> list[str]:
@@ -558,13 +592,20 @@ def _validate(schema: Any) -> list[str]:
     return schema.validate()
 
 
+def _members_of(schema: Any) -> list[Any]:
+    """The schemas of the values a value of `schema` holds: a value object's properties, a union's branches, an
+    intersection's parts, a list's item."""
+    if isinstance(schema, _IndexedData):
+        return [schema.item]
+    return list(schema.properties.values()) if isinstance(schema, (_ObjectData, _UnionData, _IntersectionData)) else []
+
+
 def _embedded_problems(schema: Any) -> list[str]:
     """Problems with a property's schema as a value: an object held by a property is a value object, so its schema is
-    not a reference object schema; nor are the schemas of the objects a union or intersection holds."""
-    if isinstance(schema, _ObjectData) and schema.ref:
-        return ["a reference object schema cannot be a property's type"]
-    parts = list(schema.properties.values()) if isinstance(schema, (_UnionData, _IntersectionData)) else []
-    return sorted({problem for part in parts for problem in _embedded_problems(part)})
+    not a reference object schema; nor are the schemas of the objects a union, an intersection or a list holds."""
+    if isinstance(schema, _ObjectData):
+        return ["a reference object schema cannot be a property's type"] if schema.ref else []
+    return sorted({problem for member in _members_of(schema) for problem in _embedded_problems(member)})
 
 
 class _AnyBuilder:
@@ -588,6 +629,10 @@ class _AnyBuilder:
 
     def as_intersection(self, spec: OfIntersection.Spec) -> _AnyBuilder:
         self._selected = OfIntersection.resolve(spec)
+        return self
+
+    def as_indexed(self, spec: OfIndexed.Spec) -> _AnyBuilder:
+        self._selected = OfIndexed.resolve(spec)
         return self
 
     def _require_selected(self) -> OfAny.Data:
@@ -619,7 +664,7 @@ class _AnyBuilder:
 class OfAny:
     """Where a schema of any kind is expected. `OfAny.Data` is any schema kind's data."""
 
-    Data = _NativeData | _ObjectData | _UnionData | _IntersectionData
+    Data = _NativeData | _ObjectData | _UnionData | _IntersectionData | _IndexedData
     Builder = _AnyBuilder
     Spec = Data | Callable[[_AnyBuilder], _AnyBuilder]
 

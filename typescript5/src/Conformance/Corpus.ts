@@ -10,10 +10,14 @@
 import { Proxies, Schemas } from "../Framework/index.js";
 import type { Instance } from "../Framework/Proxies.js";
 
-export const CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded"] as const;
+export const CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded", "lists"] as const;
 
 function text(name: string, native: unknown = String) {
   return (prop: Schemas.OfProperty.Builder) => prop.name(name).of((t) => t.as_native(native as never));
+}
+
+function list(spec: Schemas.OfAny.Spec) {
+  return (t: Schemas.OfAny.Builder) => t.as_indexed((i) => i.of(spec));
 }
 
 export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
@@ -86,6 +90,22 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   new Schemas.OfObject.Builder(Card).relations((a) => a.name("decks").of(Holding).me("card")).update();
   const Hub = new Schemas.OfObject.Builder().ref().properties(text("name")).relations((a) => a.name("phones").of(Line).me("hub")).create();
 
+  // --- lists: of natives, of lists, of union values and of value objects, which link each other and a reference
+  // object ---
+  const Cable = new Schemas.OfRelation.Builder().links("source", "sink").create();
+  const Socket = new Schemas.OfObject.Builder().properties(text("name")).relations(
+    (a) => a.name("cables").of(Cable).me("source"), (a) => a.name("plugs").of(Cable).me("sink")).create();
+  const Reading = new Schemas.OfUnion.Builder().branches((b) => b.name("value").of((t) => t.as_native(Number)),
+    (b) => b.name("note").of((t) => t.as_native(String))).create();
+  const Board = new Schemas.OfObject.Builder().ref().properties(
+    text("name"), (p) => p.name("tags").of(list((t) => t.as_native(String))),
+    (p) => p.name("blobs").of(list((t) => t.as_native(Uint8Array))),
+    (p) => p.name("grid").of(list(list((t) => t.as_native(BigInt)))),
+    (p) => p.name("readings").of(list(Reading)), (p) => p.name("sockets").of(list(Socket)),
+    (p) => p.name("banks").of(list(list(Socket)))).create();
+  const Panel = new Schemas.OfObject.Builder().ref().properties(text("name")).relations(
+    (a) => a.name("plugs").of(Cable).me("sink")).create();
+
   for (const [name, schema] of [["Contact", Contact], ["Address", Address], ["Phone", Phone],
     ["ContactAddresses", ContactAddresses], ["ContactPhones", ContactPhones],
     ["Bag", Bag], ["Sample", Sample], ["Holds", Holds],
@@ -93,7 +113,7 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
     ["Student", Student], ["Course", Course], ["Term", Term], ["Enrollment", Enrollment],
     ["Notebook", Notebook], ["Note", Note], ["Pages", Pages],
     ["Card", Card], ["Deck", Deck], ["Holding", Holding],
-    ["Hub", Hub], ["Line", Line]] as const) {
+    ["Hub", Hub], ["Line", Line], ["Board", Board], ["Panel", Panel], ["Cable", Cable]] as const) {
     Proxies.register(name, schema);
   }
   const B = Proxies.Builders;
@@ -168,6 +188,17 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   const di = B.Card().name("Di").home((r: any) => r.number("+33 1 00 00 00 00")).create();
   B.Hub().name("switchboard").phones((x: any) => x.phone((cards[0] as any).home)).phones((x: any) => x.phone(di.home)).create();
 
+  const panel = B.Panel().name("mains").create();
+  const board = B.Board().name("rack").tags(["", "日本語 🚀", "a"]).blobs([new Uint8Array(), new Uint8Array([0, 255])])
+    .grid([[1n, -(2n ** 70n)], [], [0n]])
+    .readings([(u: any) => u.value(-0.0), (u: any) => u.note("off"), (u: any) => u.value(Infinity)])
+    .sockets([(o: any) => o.name("in"), (o: any) => o.name("out")]).banks([[], [(o: any) => o.name("spare")]])
+    .create();
+  B.Board(board).sockets((items: any) => items.item(0, (v: any) => v.as_object(
+    (o: any) => o.cables((x: any) => x.sink(board.sockets[1])).cables((x: any) => x.sink(panel))))).banks(
+    (rows: any) => rows.item(1, (v: any) => v.as_indexed((row: any) => row.item(0, (w: any) => w.as_object(
+      (o: any) => o.cables((x: any) => x.sink(board.sockets[0]))))))).update();
+
   return new Map<string, [Schemas.OfObject.Data, Instance]>([
     ["address_book", [Contact, alice]],
     ["natives", [Bag, bag]],
@@ -175,5 +206,6 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
     ["enrollment", [Student, mia]],
     ["yaml_strings", [Notebook, notebook]],
     ["embedded", [Deck, deck]],
+    ["lists", [Board, board]],
   ]);
 }

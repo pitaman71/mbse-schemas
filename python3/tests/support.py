@@ -51,6 +51,13 @@ def entries(schema: Any, obj: Any, adjacency: str) -> list[dict[str, Any]]:
     return [{k: resolve(v) for k, v in e.items()} for e in graph["objects"][graph["root"]].get(adjacency, [])]
 
 
+def is_adjacency(value: Any) -> bool:
+    """Whether a snapshot's list is an adjacency: each of its entries links something, while a list a property holds
+    never has a reference at its top level."""
+    return isinstance(value, list) and bool(value) and all(
+        isinstance(e, dict) and any(isinstance(v, dict) and "$ref" in v for v in e.values()) for e in value)
+
+
 def same_graph(a: dict, b: dict) -> bool:
     """Snapshot equality up to symbol numbering and entry order. Objects are identified by their own property values,
     which must be distinct within each graph, and value objects by their owner's and the path to them."""
@@ -58,7 +65,9 @@ def same_graph(a: dict, b: dict) -> bool:
     def content(value: Any) -> Any:
         """A value without the symbols and entries in it."""
         if isinstance(value, dict):
-            return sorted((k, content(v)) for k, v in value.items() if k != "$id" and not isinstance(v, list))
+            return sorted((k, content(v)) for k, v in value.items() if k != "$id" and not is_adjacency(v))
+        if isinstance(value, list):
+            return [content(v) for v in value]
         return value
 
     def canonical(graph: dict) -> tuple:
@@ -67,22 +76,26 @@ def same_graph(a: dict, b: dict) -> bool:
         assert len(set(labels.values())) == len(labels), "objects must have distinct property values"
         holders: list[tuple[str, dict]] = []  # every object and value object, by label
 
-        def visit(label: str, mapping: dict) -> None:
-            holders.append((label, mapping))
-            for key, value in mapping.items():
-                if isinstance(value, dict) and key != "$schema":
-                    if "$id" in value:
-                        labels[value["$id"]] = f"{label}.{key}"
-                    visit(f"{label}.{key}", value)
+        def visit(label: str, value: Any) -> None:
+            if isinstance(value, list):
+                for i, item in enumerate(value):
+                    visit(f"{label}[{i}]", item)
+            elif isinstance(value, dict):
+                holders.append((label, value))
+                if "$id" in value:
+                    labels[value["$id"]] = label
+                for key, item in value.items():
+                    if key != "$schema" and not is_adjacency(item):
+                        visit(f"{label}.{key}", item)
 
         for symbol, obj in objects.items():
             visit(labels[symbol], obj)
 
         def entry(e: dict) -> str:
-            return repr(sorted((k, labels[v["$ref"]] if isinstance(v, dict) else v) for k, v in e.items()))
+            return repr(sorted((k, labels[v["$ref"]] if isinstance(v, dict) and "$ref" in v else v) for k, v in e.items()))
 
         return labels[graph["root"]], {
-            label: {k: sorted(map(entry, v)) for k, v in mapping.items() if isinstance(v, list)} for label, mapping in holders
+            label: {k: sorted(map(entry, v)) for k, v in mapping.items() if is_adjacency(v)} for label, mapping in holders
         }
 
     return canonical(a) == canonical(b)

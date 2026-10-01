@@ -6,7 +6,7 @@ How to express an interface or data model with the schema elements. The same mod
 
 | Concept (SysML / UML / ORM / JSON Schema) | Element |
 |---|---|
-| Block, class, entity, table row: anything with identity | registered `OfObject` |
+| Block, class, entity, table row: anything with identity | registered `OfObject` marked `.ref()` |
 | Primitive attribute, value property | `OfNative` property |
 | Structured value without identity (UML datatype, SysML value type with parts, ICD signal description) | value object: a property whose schema is an `OfObject` |
 | Association, reference property, pointer, foreign key | `OfRelation` linking the objects, with an adjacency on each side |
@@ -15,12 +15,12 @@ How to express an interface or data model with the schema elements. The same mod
 | Multiplicity upper bound (0..1) | a `unique(...)` clause |
 | Multiplicity lower bound (1, 1..*) | not expressible yet: constraints are planned |
 | Qualified association, map, dictionary | relation with a key property: `.unique("owner", "key")` |
-| Ordered list | relation with an index property: `.links("owner", "item").properties(index).unique("owner", "index")` |
-| List of primitives (tags, aliases) | objects holding the value, linked by a relation. Links always join objects |
+| Ordered list of values or parts (tags, a union's branches, a component's ports) | `OfIndexed` property: `t.as_indexed(lambda i: i.of(spec))`, its items natives or value objects |
+| Ordered list of shared objects | relation with an index property: `.links("owner", "item").properties(index).unique("owner", "index")` |
 | Tagged union, variant, `oneOf`, `xsd:choice` | `OfUnion`: named, same-kind branches; a value holds exactly one |
 | Mixin, aspect, `allOf` | `OfIntersection`: named, same-kind parts; a value holds every one. Supported for property values. Objects with identity composed from aspects are not yet |
 | Singleton, global registry | `OfObject.Builder().singleton("Name")`, usually with a directory relation |
-| Port and connector | ports as objects owned by a component; connectors as a relation between ports, carrying the connection's properties |
+| Port and connector | ports as a list of value objects in their component; connectors as a relation between ports, carrying the connection's properties |
 | Enumeration of literals | a native (e.g. `str`); restricting its values needs constraints, which are planned |
 
 ## Decisions
@@ -30,6 +30,10 @@ by several owners, navigated back from, part of a cycle, or referred to by ident
 and never held by a property. Otherwise use a value object: a property holds it, it is copied by
 value and written nested. A value object has an identity too, and may have adjacencies: a component's ports, say, as
 value objects linked by connectors.
+
+**List or relation?** A list belongs to its owner: its items are copied and removed with it, kept in order, and may
+repeat. Use a relation to link objects that stand on their own, for maps and keyed lookup, and wherever `unique(...)`
+applies.
 
 **A relation must link objects.** A one-link relation whose entries carry the data (a contact's phone numbers as
 entries holding `number`) is not legal. Make the data an object and link it to its owner.

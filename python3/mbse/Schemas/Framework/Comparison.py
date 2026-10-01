@@ -15,6 +15,8 @@ record a value when constructed; an instance writes itself in through `Visitable
 - `OfProperty` and `OfAny` compare their values; values of different kinds are incomparable.
 - `OfUnion`: equal when both hold the same branch with equal values; otherwise incomparable.
 - `OfIntersection`: equal when every part is absent in both or equal in both; otherwise incomparable.
+- `OfIndexed`: item by item, under the item schema: the first pair that is not equal decides, and a list that is a
+  prefix of the other is less. Lists of ordered natives so order lexicographically.
 - `OfLink`: equal when both link the same object (by identity), or, within two recordings, value objects at the same
   path from their roots (`home`, `reach.phone`); otherwise incomparable.
 - `OfEntry`: equal when every link and property is equal; otherwise incomparable.
@@ -31,12 +33,12 @@ import math
 from collections.abc import Callable, Hashable
 from typing import Any
 
-from . import Schemas, Visitors
+from . import Errors, Schemas, Visitors
 from .Visitors import Native
 
 __all__ = [
-    "Result", "OfAny", "OfNative", "OfProperty", "OfObject", "OfUnion", "OfIntersection", "OfAdjacency", "OfEntry",
-    "OfLink",
+    "Result", "OfAny", "OfNative", "OfProperty", "OfObject", "OfUnion", "OfIntersection", "OfIndexed", "OfAdjacency",
+    "OfEntry", "OfLink",
 ]
 
 Result = int | None
@@ -100,20 +102,24 @@ class OfNative:
         return _natives(self._value[0], other._value[0])
 
 
+Path = tuple[str | int, ...]
+"""The way from a recorded root to a value in it: property names, and indexes in lists."""
+
+
 class _Paths:
-    """Where the value objects recorded under one root are: the path of property names from the root to each, by
-    identity, so that links to them compare by where they are rather than by which object they are."""
+    """Where the value objects recorded under one root are: the path from the root to each, by identity, so that links
+    to them compare by where they are rather than by which object they are."""
 
     def __init__(self) -> None:
-        self.paths: dict[Hashable, tuple[str, ...]] = {}
+        self.paths: dict[Hashable, Path] = {}
 
 
 class OfAny:
     """`Visitors.OfAny` recording a value of the kind its schema declares."""
 
-    def __init__(self, schema: Schemas.OfAny.Data, paths: _Paths | None = None, path: tuple[str, ...] = ()):
+    def __init__(self, schema: Schemas.OfAny.Data, paths: _Paths | None = None, path: Path = ()):
         self._schema, self._paths, self._path = schema, paths, path
-        self._value: OfNative | OfObject | OfUnion | OfIntersection | None = None
+        self._value: OfNative | OfObject | OfUnion | OfIntersection | OfIndexed | None = None
 
     def _absent(self) -> bool:
         if isinstance(self._value, OfNative):
@@ -152,6 +158,14 @@ class OfAny:
         callback(self._value)
         return self
 
+    def as_indexed(self, callback: Callable[[Visitors.OfIndexed], Any]) -> OfAny:
+        if not isinstance(self._schema, Schemas.OfIndexed.Data):
+            raise TypeError("the schema is not a list schema")
+        if not isinstance(self._value, OfIndexed):
+            self._value = OfIndexed(self._schema, self._paths, self._path)
+        callback(self._value)
+        return self
+
     def compare(self, other: OfAny) -> Result:
         if self._absent() or other._absent():
             return 0 if self._absent() and other._absent() else None
@@ -164,7 +178,7 @@ class _Members:
     """A union or intersection value, recorded as the `OfProperty`s of its branches or parts."""
 
     def __init__(self, schema: Schemas.OfUnion.Data | Schemas.OfIntersection.Data, paths: _Paths | None = None,
-                 path: tuple[str, ...] = ()):
+                 path: Path = ()):
         self._schema = schema
         self._properties = _Properties(schema.properties, paths, path)
 
@@ -209,10 +223,52 @@ class OfIntersection(_Members):
     """`Visitors.OfIntersection` recording an intersection value: its parts, and their values."""
 
 
+class OfIndexed:
+    """`Visitors.OfIndexed` recording a list: its items, in order, each an `OfAny` of the item schema. An item written
+    with no value is left out."""
+
+    def __init__(self, schema: Schemas.OfIndexed.Data, paths: _Paths | None = None, path: Path = ()):
+        self._schema, self._paths, self._path = schema, paths, path
+        self._items: list[OfAny] = []
+
+    def items(self, callback: Callable[[Visitors.OfAny], Any]) -> OfIndexed:
+        for item in list(self._items):
+            callback(item)
+        return self
+
+    def item(self, index: int, callback: Callable[[Visitors.OfAny], Any]) -> OfIndexed:
+        callback(Errors.item(self._items, index))
+        return self
+
+    def append(self, callback: Callable[[Visitors.OfAny], Any]) -> OfIndexed:
+        item = OfAny(self._schema.item, self._paths, (*self._path, len(self._items)))
+        callback(item)
+        self._items.extend([] if item._absent() else [item])
+        return self
+
+    def remove(self, index: int) -> OfIndexed:
+        Errors.item(self._items, index)
+        del self._items[index]
+        return self
+
+    def clear(self) -> OfIndexed:
+        self._items = []
+        return self
+
+    def compare(self, other: OfIndexed) -> Result:
+        if self._schema is not other._schema:
+            return None
+        for mine, theirs in zip(self._items, other._items):
+            result = mine.compare(theirs)
+            if result != 0:
+                return result
+        return _sign(len(self._items), len(other._items))
+
+
 class OfProperty:
     """`Visitors.OfProperty` recording one named property's value."""
 
-    def __init__(self, name: str, schema: Schemas.OfAny.Data, paths: _Paths | None = None, path: tuple[str, ...] = ()):
+    def __init__(self, name: str, schema: Schemas.OfAny.Data, paths: _Paths | None = None, path: Path = ()):
         self._name, self._schema, self._paths, self._path = name, schema, paths, path
         self._value = OfAny(schema, paths, path)
 
@@ -237,7 +293,7 @@ class OfProperty:
 class _Properties:
     """Named properties declared by a schema, recorded as `OfProperty`s."""
 
-    def __init__(self, schemas: dict[str, Schemas.OfAny.Data], paths: _Paths | None = None, path: tuple[str, ...] = ()):
+    def __init__(self, schemas: dict[str, Schemas.OfAny.Data], paths: _Paths | None = None, path: Path = ()):
         self._schemas, self._paths, self._path = schemas, paths, path
         self._slots: dict[str, OfProperty] = {}
 
@@ -270,7 +326,7 @@ class OfObject:
     itself in through `accept`. A value object (`value`) compares its adjacencies too."""
 
     def __init__(self, schema: Schemas.OfObject.Data, instance: Visitors.Visitable | None = None, *,
-                 paths: _Paths | None = None, path: tuple[str, ...] = (), value: bool = False):
+                 paths: _Paths | None = None, path: Path = (), value: bool = False):
         self._schema, self._path, self._value = schema, path, value
         self._paths = _Paths() if paths is None else paths
         self._properties = _Properties(schema.properties, self._paths, path)
@@ -423,7 +479,7 @@ class OfLink:
         self._target = (target,)
         return self
 
-    def _where(self) -> tuple[str, ...] | None:
+    def _where(self) -> Path | None:
         """The path to the linked value object within its recording, if it is one recorded there."""
         return None if self._paths is None else self._paths.paths.get(self._target[0].identity())
 

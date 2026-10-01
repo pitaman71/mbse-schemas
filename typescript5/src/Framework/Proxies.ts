@@ -18,14 +18,18 @@
  * branches or the intersection's parts, by name: `.reach((u) => u.phone((p) => p.number("+44")))` sets the branch
  * `phone`, read back as `card.reach.phone.number`, and setting one branch clears any other. An intersection value holds
  * each of its parts, set and read the same way (`card.meta.stamp.updated`).
+ *
+ * A property whose schema is an `OfIndexed` holds a list, read as a frozen array and set with an array of items, each a
+ * value, a value object or an item's Spec (`.tags(["a", "b"])`), or with a Spec that receives the list's builder, a
+ * `Visitors.OfIndexed` starting from the items set. The value objects in a list belong to the list's owner.
  */
 
 
 import { toHex } from "./Bytes.js";
-import { AttributeError, LookupError, NotImplementedError, ValueError } from "./Errors.js";
+import { AttributeError, item, LookupError, NotImplementedError, ValueError } from "./Errors.js";
 import { repr, sortedStrings, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
-import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfNative,
+import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIndexed, OfIntersection, OfLink, OfNative,
   OfObject as ObjectVisitor, OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
 type ObjectSchema = Schemas.OfObject.Data;
@@ -136,6 +140,7 @@ export function nativeKey(value: unknown): string {
     const values = sortedStrings(state.values.keys()).map((name) => [name, nativeKey(state.values.get(name))]);
     return `object:${schemaId(state.schema)}:${JSON.stringify(values)}`;
   }
+  if (Array.isArray(value)) return `list:${JSON.stringify(value.map((item) => nativeKey(item)))}`;
   if (typeof value === "number") {
     if (Number.isNaN(value)) return "float:nan";
     floatView.setFloat64(0, value);
@@ -147,7 +152,7 @@ export function nativeKey(value: unknown): string {
   if (value instanceof Uint8Array && Object.getPrototypeOf(value) === Uint8Array.prototype) {
     return `bytes:${toHex(value)}`;
   }
-  throw new TypeError(`an entry property must be a native value or a value object, got ${typeName(value)}`);
+  throw new TypeError(`an entry property must be a native value, a list or a value object, got ${typeName(value)}`);
 }
 
 class Entry {
@@ -304,10 +309,20 @@ function writeProperties(visitor: PropertyHolder, schema: RecordSchema, values: 
   }
 }
 
-/** Writes a native, a value object, a union value or an intersection value into a `Visitors.OfAny`. */
+/** Writes a native, a value object, a union value, an intersection value or a list into a `Visitors.OfAny`. */
 function writeValue(visitor: OfAny, value: unknown): void {
   if (isRecord(value)) writeRecord(visitor, (recordTargets.get(value) as RecordTarget).schema, (r) => value.accept(r));
+  else if (Array.isArray(value)) visitor.as_indexed((items) => writeItems(items, value));
   else visitor.as_native((n) => n.set(value as Native));
+}
+
+function writeItems(visitor: OfIndexed, items: readonly unknown[]): void {
+  for (const value of items) visitor.append((a) => writeValue(a, value));
+}
+
+/** A list as proxies hold it: a frozen array. */
+function frozen(items: unknown[]): readonly unknown[] {
+  return Object.freeze(items);
 }
 
 function writeRecord(visitor: OfAny, schema: RecordSchema, callback: Callback<ObjectVisitor>): void {
@@ -408,9 +423,20 @@ function stateOf(record: ValueObject): RecordTarget {
 
 type Mapping = Map<unknown, unknown>;
 
+/** What a list's item replaces in the list `old`: the value object it is or edits, or the list at its position. */
+function counterpart(old: unknown, index: number, value: unknown): unknown {
+  const olds: readonly unknown[] = Array.isArray(old) ? old : [];
+  if (Array.isArray(value)) return index < olds.length ? olds[index] : null;
+  return olds.find((o) => o === value || (isRecord(value) && stateOf(value).source === o)) ?? null;
+}
+
 /** Prepares `value` to be placed where `old` was: a value object owned elsewhere is copied, and `mapping` records, for
- * each value object copied or edited, the one that takes its place, so that the entries among them link those. */
+ * each value object copied or edited, the one that takes its place, so that the entries among them link those. A
+ * list's items are staged each in place of what it replaces. */
 function stage(old: unknown, value: unknown, mapping: Mapping): unknown {
+  if (Array.isArray(value) && value !== old) {
+    return frozen(value.map((item, i) => stage(counterpart(old, i, item), item, mapping)));
+  }
   if (!isRecord(value) || value === old) return value;
   let state = stateOf(value);
   if (state.source !== null && state.source === old) { // an edit of `old`, which keeps its identity
@@ -441,8 +467,12 @@ function copy(record: ValueObject): ValueObject {
   return (recordBuilderTargets.get(builder) as RecordBuilderTarget).build();
 }
 
-/** Places a staged value: an edit is merged into `old`, and a value object built for it is adopted by `owner`. */
+/** Places a staged value: an edit is merged into `old`, and a value object built for it is adopted by `owner`, as are
+ * those in a list. */
 function finish(owner: Visitable, old: unknown, value: unknown, mapping: Mapping): unknown {
+  if (Array.isArray(value) && value !== old) {
+    return frozen(value.map((item, i) => finish(owner, counterpart(old, i, item), item, mapping)));
+  }
   if (!isRecord(value) || value === old) return value;
   const state = stateOf(value);
   if (state.source !== null && state.source === old) {
@@ -475,7 +505,7 @@ function merge(old: ValueObject, edit: ValueObject, mapping: Mapping): void {
   const target = stateOf(old);
   const values = new Map<string, unknown>();
   for (const [name, value] of stateOf(edit).values) values.set(name, finish(old, target.values.get(name), value, mapping));
-  for (const [name, value] of target.values) if (values.get(name) !== value) remove(value);
+  drop([...target.values.values()], [...values.values()]);
   target.values.clear();
   for (const [name, value] of values) target.values.set(name, value);
   if (target.schema instanceof Schemas.OfObject.Data) {
@@ -492,14 +522,29 @@ function merge(old: ValueObject, edit: ValueObject, mapping: Mapping): void {
 function settle(owner: Visitable, old: Map<string, unknown>, values: Map<string, unknown>, mapping: Mapping): Map<string, unknown> {
   const staged = new Map([...values].map(([name, value]) => [name, stage(old.get(name), value, mapping)] as const));
   const placed = new Map([...staged].map(([name, value]) => [name, finish(owner, old.get(name), value, mapping)] as const));
-  for (const [name, value] of old) if (placed.get(name) !== value) remove(value);
+  drop([...old.values()], [...placed.values()]);
   return placed;
 }
 
+/** The value objects that `values` hold directly, those in lists included. */
+function records(values: readonly unknown[]): ValueObject[] {
+  const found: ValueObject[] = [];
+  for (const value of values) {
+    if (Array.isArray(value)) found.push(...records(value));
+    else if (isRecord(value)) found.push(value);
+  }
+  return found;
+}
+
+/** Removes the value objects held among the values `before` and no longer among those `after`. */
+function drop(before: readonly unknown[], after: readonly unknown[]): void {
+  const kept = new Set(records(after));
+  for (const record of records(before)) if (!kept.has(record)) remove(record);
+}
+
 /** Removes a value object no longer held: the value objects it holds, and every entry linking it. */
-function remove(value: unknown): void {
-  if (!isRecord(value)) return;
-  for (const held of stateOf(value).values.values()) remove(held);
+function remove(value: ValueObject): void {
+  for (const held of records([...stateOf(value).values.values()])) remove(held);
   for (const relation of relations.values()) relation.discard_target(value);
 }
 
@@ -575,6 +620,16 @@ export class _AnySlot implements OfAny {
     return this.record(Schemas.OfIntersection.Data, "an intersection", callback as unknown as Callback<ObjectVisitor>);
   }
 
+  /** Builds a list, starting from the items already set, if any. */
+  as_indexed(callback: Callback<OfIndexed>): _AnySlot {
+    if (!(this.schema instanceof Schemas.OfIndexed.Data)) throw new TypeError(`property ${repr(this.slotName)} does not hold a list`);
+    const current = this.values.get(this.slotName);
+    const builder = new _ListBuilder(this.slotName, this.schema, Array.isArray(current) ? current : []);
+    callback(builder);
+    this.values.set(this.slotName, frozen(builder.held));
+    return this;
+  }
+
   private record(kind: abstract new (...args: never[]) => RecordSchema, what: string,
     callback: Callback<ObjectVisitor>): _AnySlot {
     if (!(this.schema instanceof kind)) throw new TypeError(`property ${repr(this.slotName)} does not hold ${what}`);
@@ -587,6 +642,46 @@ export class _AnySlot implements OfAny {
     } else {
       this.values.set(this.slotName, target.build());
     }
+    return this;
+  }
+}
+
+/** `Visitors.OfIndexed` building the list a property holds, starting from `items`. Each item is written through an
+ * `_AnySlot`; an item written with no value is left out. */
+export class _ListBuilder implements OfIndexed {
+  readonly held: unknown[];
+
+  constructor(private readonly slotName: string, private readonly schema: Schemas.OfIndexed.Data, items: readonly unknown[]) {
+    this.held = [...items];
+  }
+
+  items(callback: Callback<OfAny>): _ListBuilder {
+    for (let index = 0, count = this.held.length; index < count; index++) this.item(index, callback);
+    return this;
+  }
+
+  item(index: number, callback: Callback<OfAny>): _ListBuilder {
+    const slot = new Map([[this.slotName, item(this.held, index)]]);
+    callback(new _AnySlot(slot, this.slotName, this.schema.item));
+    this.held.splice(index, 1, ...slot.values());
+    return this;
+  }
+
+  append(callback: Callback<OfAny>): _ListBuilder {
+    const slot = new Map<string, unknown>();
+    callback(new _AnySlot(slot, this.slotName, this.schema.item));
+    this.held.push(...slot.values());
+    return this;
+  }
+
+  remove(index: number): _ListBuilder {
+    item(this.held, index);
+    this.held.splice(index, 1);
+    return this;
+  }
+
+  clear(): _ListBuilder {
+    this.held.length = 0;
     return this;
   }
 }
@@ -626,9 +721,14 @@ function setter<V extends PropertyHolder>(visitor: V, self: unknown, name: strin
   };
 }
 
-/** Writes `spec` (a value, or a callable taking the value's builder) as a value of `schema`. */
+/** Writes `spec` (a value, or a callable taking the value's builder) as a value of `schema`. An array given for a list
+ * replaces its items, each written the same way under the item schema. */
 function apply(visitor: OfAny, name: string, schema: unknown, spec: unknown): void {
-  if (schema instanceof Schemas.OfObject.Data || schema instanceof Schemas.OfUnion.Data
+  if (schema instanceof Schemas.OfIndexed.Data) {
+    if (typeof spec === "function") visitor.as_indexed(spec as Callback<OfIndexed>);
+    else if (Array.isArray(spec)) visitor.as_indexed((items) => applyItems(items.clear(), name, schema.item, spec));
+    else throw new TypeError(`property ${repr(name)} takes a list or a Spec, got ${typeName(spec)}`);
+  } else if (schema instanceof Schemas.OfObject.Data || schema instanceof Schemas.OfUnion.Data
     || schema instanceof Schemas.OfIntersection.Data) {
     if (typeof spec === "function") writeRecord(visitor, schema, spec as Callback<ObjectVisitor>);
     else if (isRecord(spec)) writeRecord(visitor, schema, (r) => spec.accept(r));
@@ -636,6 +736,10 @@ function apply(visitor: OfAny, name: string, schema: unknown, spec: unknown): vo
   } else {
     visitor.as_native(typeof spec === "function" ? (spec as Callback<OfNative>) : (n) => n.set(spec as Native));
   }
+}
+
+function applyItems(visitor: OfIndexed, name: string, schema: unknown, specs: readonly unknown[]): void {
+  for (const spec of specs) visitor.append((a) => apply(a, name, schema, spec));
 }
 
 const RECORD_BUILDER_METHODS = new Set(["properties", "has", "property", "clear", "adjacencies", "adjacency", "identify"]);
@@ -1074,4 +1178,4 @@ export namespace OfRelation {
 
 /** Internal classes, exposed for protocol conformance tests. */
 export const _internals = { ObjectTarget, ObjectBuilderTarget, RecordBuilderTarget, _EntryBuilder, _AdjacencySlot, _LinkSlot,
-  _PropertySlot, _AnySlot, _NativeSlot };
+  _PropertySlot, _AnySlot, _NativeSlot, _ListBuilder };

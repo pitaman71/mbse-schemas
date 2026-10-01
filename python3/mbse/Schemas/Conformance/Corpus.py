@@ -12,11 +12,15 @@ import math
 
 from mbse.Schemas.Framework import Proxies, Schemas
 
-CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded"]
+CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded", "lists"]
 
 
 def _text(name, native=str):
     return lambda prop: prop.name(name).of(lambda t: t.as_native(native))
+
+
+def _list(spec):
+    return lambda t: t.as_indexed(lambda i: i.of(spec))
 
 
 def build():
@@ -90,6 +94,22 @@ def build():
     S.OfObject.Builder(Card).relations(lambda a: a.name("decks").of(Holding).me("card")).update()
     Hub = S.OfObject.Builder().ref().properties(_text("name")).relations(lambda a: a.name("phones").of(Line).me("hub")).create()
 
+    # --- lists: of natives, of lists, of union values and of value objects, which link each other and a reference
+    # object ---
+    Cable = S.OfRelation.Builder().links("source", "sink").create()
+    Socket = S.OfObject.Builder().properties(_text("name")).relations(
+        lambda a: a.name("cables").of(Cable).me("source"), lambda a: a.name("plugs").of(Cable).me("sink")).create()
+    Reading = S.OfUnion.Builder().branches(lambda b: b.name("value").of(lambda t: t.as_native(float)),
+                                           lambda b: b.name("note").of(lambda t: t.as_native(str))).create()
+    Board = S.OfObject.Builder().ref().properties(
+        _text("name"), lambda p: p.name("tags").of(_list(lambda t: t.as_native(str))),
+        lambda p: p.name("blobs").of(_list(lambda t: t.as_native(bytes))),
+        lambda p: p.name("grid").of(_list(_list(lambda t: t.as_native(int)))),
+        lambda p: p.name("readings").of(_list(Reading)), lambda p: p.name("sockets").of(_list(Socket)),
+        lambda p: p.name("banks").of(_list(_list(Socket)))).create()
+    Panel = S.OfObject.Builder().ref().properties(_text("name")).relations(
+        lambda a: a.name("plugs").of(Cable).me("sink")).create()
+
     for name, schema in [("Contact", Contact), ("Address", Address), ("Phone", Phone),
                          ("ContactAddresses", ContactAddresses), ("ContactPhones", ContactPhones),
                          ("Bag", Bag), ("Sample", Sample), ("Holds", Holds),
@@ -97,7 +117,7 @@ def build():
                          ("Student", Student), ("Course", Course), ("Term", Term), ("Enrollment", Enrollment),
                          ("Notebook", Notebook), ("Note", Note), ("Pages", Pages),
                          ("Card", Card), ("Deck", Deck), ("Holding", Holding),
-                         ("Hub", Hub), ("Line", Line)]:
+                         ("Hub", Hub), ("Line", Line), ("Board", Board), ("Panel", Panel), ("Cable", Cable)]:
         Proxies.register(name, schema)
     B = Proxies.Builders
 
@@ -170,6 +190,16 @@ def build():
     di = B.Card().name("Di").home(lambda r: r.number("+33 1 00 00 00 00")).create()
     B.Hub().name("switchboard").phones(lambda x: x.phone(cards[0].home)).phones(lambda x: x.phone(di.home)).create()
 
+    panel = B.Panel().name("mains").create()
+    board = (B.Board().name("rack").tags(["", "日本語 🚀", "a"]).blobs([b"", b"\x00\xff"]).grid([[1, -(2**70)], [], [0]])
+             .readings([lambda u: u.value(-0.0), lambda u: u.note("off"), lambda u: u.value(math.inf)])
+             .sockets([lambda o: o.name("in"), lambda o: o.name("out")]).banks([[], [lambda o: o.name("spare")]])
+             .create())
+    B.Board(board).sockets(lambda items: items.item(0, lambda v: v.as_object(
+        lambda o: o.cables(lambda x: x.sink(board.sockets[1])).cables(lambda x: x.sink(panel))))).banks(
+        lambda rows: rows.item(1, lambda v: v.as_indexed(lambda row: row.item(0, lambda w: w.as_object(
+            lambda o: o.cables(lambda x: x.sink(board.sockets[0]))))))).update()
+
     return {
         "address_book": (Contact, alice),
         "natives": (Bag, bag),
@@ -177,4 +207,5 @@ def build():
         "enrollment": (Student, mia),
         "yaml_strings": (Notebook, notebook),
         "embedded": (Deck, deck),
+        "lists": (Board, board),
     }

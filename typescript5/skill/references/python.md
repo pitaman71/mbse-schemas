@@ -57,6 +57,7 @@ S.OfObject.Builder(existing).relations(...).update()        # add adjacencies on
 S.OfRelation.Builder().links("a", "b").properties(spec, ...).unique("a").create()
 S.OfUnion.Builder().branches(lambda b: b.name("phone").of(spec), ...).create()
 S.OfIntersection.Builder().parts(lambda p: p.name("stamp").of(spec), ...).create()
+S.OfIndexed.Builder().of(spec).create()                     # a list; in a property: lambda t: t.as_indexed(lambda i: i.of(spec))
 schema.validate()                                           # the schema's own problems, [] when valid
 
 # Proxies: register object and relation schemas, then build through Proxies.Builders.
@@ -66,6 +67,8 @@ B.Name(obj).prop(v).update()                                # change obj; .clone
 B.Name(obj).clear("prop").update()
 obj.prop                                                    # AttributeError when unset
 B.Name().union_prop(lambda u: u.phone(spec))                # a branch by name; obj.union_prop.phone reads it
+B.Name().list_prop(["a", "b"]).ports([lambda p: p.name("in")])   # a list of items; obj.list_prop is a tuple
+B.Name(obj).ports(lambda l: l.item(0, lambda a: a.as_object(lambda p: p.name("x"))).remove(1)).update()  # in place
 B.Name(obj).property("p", lambda p: ...).adjacency("a", lambda a: a.entries(...))  # visitor protocol, any name
 
 # Everything else works for any schema.
@@ -76,8 +79,8 @@ Validators.Validate(B)(schema, obj); Validators.Validate(B).Reachable(schema, ro
 Validators.properties_of(obj)                               # {name: value} of the properties that are set
 Comparison.OfObject(schema, a).compare(Comparison.OfObject(schema, b))   # -1, 0, 1, or None if incomparable
 
-# Dataclasses: native fields are properties; set/list/dict of dataclasses are relations. Defaults, mandatoriness and
-# nesting are not translated.
+# Dataclasses: native fields are properties, lists of natives are lists; set/list/dict of dataclasses are relations.
+# Defaults, mandatoriness and nesting are not translated.
 from mbse.Schemas.Adapters.Dataclasses import FromDataclass, ToDataclass
 FromDataclass.model(Contact)       # {"Contact": ..., "Address": ..., "ContactAddresses": ...}, ready to register
 ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromDataclass(cls), ToDataclass(schema, name)
@@ -86,7 +89,8 @@ ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromD
 ## Traps
 
 - `True` is not an `int`, and `1.0` is not an `int`. Validation reports `expected int, got bool`.
-- Entry properties must be native. Use an object linked by the relation for anything richer.
+- Entry properties hold natives, lists and value objects without adjacencies. Link an object for anything richer.
+- Setting a value object into a property or a list copies it. Edit one in place through a Spec instead.
 - The proxy registry is global to the process, and registering a name twice raises `ValueError`.
 - Reading a relation's entries goes through a builder's visitor: see `entries` in
   [tutorials/toolkit.py](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/toolkit.py), and

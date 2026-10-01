@@ -98,35 +98,43 @@ export function key(value: unknown): string {
   });
 }
 
+/** Whether a snapshot's list is an adjacency: each of its entries links something, while a list a property holds never
+ * has a reference at its top level. */
+export function is_adjacency(value: unknown): value is PlainMap[] {
+  return Array.isArray(value) && value.length > 0 &&
+    value.every((e) => e instanceof Map && [...e.values()].some((v) => v instanceof Map && v.has("$ref")));
+}
+
 /** Snapshot equality up to symbol numbering and entry order. Objects are identified by their own property values,
- * which must be distinct within each graph. */
+ * which must be distinct within each graph, and value objects by their owner's and the path to them. */
 export function same_graph(a: PlainData, b: PlainData): boolean {
   const byKey = ([x]: [string, unknown], [y]: [string, unknown]) => (x < y ? -1 : x > y ? 1 : 0);
   /** A value without the symbols and entries in it. */
   const content = (value: unknown): unknown => value instanceof Map
-    ? [...value].filter(([k, v]) => k !== "$id" && !Array.isArray(v)).map(([k, v]) => [k, content(v)] as [string, unknown]).sort(byKey)
-    : value;
+    ? [...value].filter(([k, v]) => k !== "$id" && !is_adjacency(v)).map(([k, v]) => [k, content(v)] as [string, unknown]).sort(byKey)
+    : Array.isArray(value) ? value.map(content) : value;
   const canonical = (graph: PlainMap): string => {
     const objects = graph.get("objects") as Map<string, PlainMap>;
     const labels = new Map<string, string>();
     for (const [symbol, obj] of objects) labels.set(symbol, key(content(obj)));
     assert(new Set(labels.values()).size === labels.size, "objects must have distinct property values");
     const holders: [string, PlainMap][] = []; // every object and value object, by label
-    const visit = (label: string, mapping: PlainMap): void => {
-      holders.push([label, mapping]);
-      for (const [k, v] of mapping) {
-        if (v instanceof Map && k !== "$schema") {
-          if (v.has("$id")) labels.set(v.get("$id") as string, `${label}.${k}`);
-          visit(`${label}.${k}`, v);
-        }
+    const visit = (label: string, value: unknown): void => {
+      if (Array.isArray(value)) {
+        value.forEach((item, i) => visit(`${label}[${i}]`, item));
+      } else if (value instanceof Map) {
+        holders.push([label, value]);
+        if (value.has("$id")) labels.set(value.get("$id") as string, label);
+        for (const [k, item] of value) if (k !== "$schema" && !is_adjacency(item)) visit(`${label}.${k}`, item);
       }
     };
     for (const [symbol, obj] of objects) visit(labels.get(symbol) as string, obj);
-    const entry = (e: PlainMap): string =>
-      key([...e].map(([k, v]) => [k, v instanceof Map ? labels.get(v.get("$ref") as string) : v] as [string, unknown]).sort(byKey));
+    const entry = (e: PlainMap): string => key([...e]
+      .map(([k, v]) => [k, v instanceof Map && v.has("$ref") ? labels.get(v.get("$ref") as string) : v] as [string, unknown])
+      .sort(byKey));
     const lists = holders.map(([label, mapping]) => key([
       label,
-      [...mapping].filter(([, v]) => Array.isArray(v)).map(([k, v]) => [k, (v as PlainMap[]).map(entry).sort()]).sort(),
+      [...mapping].filter(([, v]) => is_adjacency(v)).map(([k, v]) => [k, (v as PlainMap[]).map(entry).sort()]).sort(),
     ]));
     return key([labels.get(graph.get("root") as string), lists.sort()]);
   };
@@ -182,7 +190,7 @@ function write(entry: any, item: Record<string, unknown>): void {
 
 /** Parameter counts of every protocol method, from Python's signatures (TypeScript interfaces vanish at runtime). */
 export const PROTOCOLS: Record<string, Record<string, number>> = {
-  OfAny: { as_native: 1, as_object: 1, as_union: 1, as_intersection: 1 },
+  OfAny: { as_native: 1, as_object: 1, as_union: 1, as_intersection: 1, as_indexed: 1 },
   OfNative: { has: 0, get: 0, set: 1, clear: 0 },
   OfProperty: { name: 0, has: 0, value: 1, clear: 0 },
   OfObject: { properties: 1, has: 1, property: 2, clear: 1, adjacencies: 1, adjacency: 2, identify: 1 },
@@ -192,6 +200,7 @@ export const PROTOCOLS: Record<string, Record<string, number>> = {
   OfRelation: { links: 1, entries: 1 },
   OfUnion: { properties: 1, has: 1, property: 2, clear: 1 },
   OfIntersection: { properties: 1, has: 1, property: 2, clear: 1 },
+  OfIndexed: { items: 1, item: 2, append: 1, remove: 1, clear: 0 },
   Visitable: { identity: 0, schema_name: 0, owner: 0, accept: 1 },
 };
 

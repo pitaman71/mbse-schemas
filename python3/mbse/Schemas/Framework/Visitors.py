@@ -27,6 +27,7 @@ __all__ = [
     "OfRelation",
     "OfUnion",
     "OfIntersection",
+    "OfIndexed",
     "Visitable",
 ]
 
@@ -48,6 +49,8 @@ class OfAny(Protocol):
     def as_union(self, callback: Callable[[OfUnion], Any]) -> OfAny: ...
 
     def as_intersection(self, callback: Callable[[OfIntersection], Any]) -> OfAny: ...
+
+    def as_indexed(self, callback: Callable[[OfIndexed], Any]) -> OfAny: ...
 
 
 class OfNative(Protocol):
@@ -196,6 +199,31 @@ class OfIntersection(Protocol):
         ...
 
     def clear(self, name: str) -> OfIntersection: ...
+
+
+class OfIndexed(Protocol):
+    """A list: its items, in order, each a value of the list's item schema. An item written with no value is left
+    out."""
+
+    def items(self, callback: Callable[[OfAny], Any]) -> OfIndexed:
+        """Calls `callback` once for each item, in order."""
+        ...
+
+    def item(self, index: int, callback: Callable[[OfAny], Any]) -> OfIndexed:
+        """Calls `callback` with the item at `index`; raises LookupError for an index the list does not have."""
+        ...
+
+    def append(self, callback: Callable[[OfAny], Any]) -> OfIndexed:
+        """Appends the item `callback` writes."""
+        ...
+
+    def remove(self, index: int) -> OfIndexed:
+        """Removes the item at `index`; raises LookupError for an index the list does not have."""
+        ...
+
+    def clear(self) -> OfIndexed:
+        """Removes every item."""
+        ...
 
 
 class Visitable(Protocol):

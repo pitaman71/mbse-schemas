@@ -58,6 +58,12 @@ export class DecodeError extends ValueError {
   }
 }
 
+/** The item of a list at `index`; raises LookupError for an index the list does not have, negative ones included. */
+export function item<T>(items: readonly T[], index: number): T {
+  if (!(Number.isInteger(index) && index >= 0 && index < items.length)) throw new LookupError(`the list has no item ${index}`);
+  return items[index] as T;
+}
+
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
 /** A plain-data path: `$`, then `.key` for identifier keys, `["key"]` for other keys and `[i]` for list items. */

@@ -68,9 +68,11 @@ new S.OfRelation.Builder().links("a", "b").properties(spec, ...).unique("a").cre
 S.OfNative.resolve((n) => n.token("ccpp", "int32_t").bits(32n));   // any format's token; a width in bits or bytes
 new S.OfUnion.Builder().branches((b) => b.name("phone").of(spec), ...).create();
 new S.OfIntersection.Builder().parts((p) => p.name("stamp").of(spec), ...).create();
+new S.OfIndexed.Builder().of(spec).create();              // a list; in a property: (t) => t.as_indexed((i) => i.of(spec))
 Proxies.register("Name", schema); const B = Proxies.Builders;
 B.Name().prop(value).adjacencyName((e: any) => e.link(obj).entryProp(v)).create();
 B.Name(obj).prop(v).update();                              // .clone() makes a changed copy instead
+B.Name().listProp(["a", "b"]).create();                    // a list of items; obj.listProp is a frozen array
 JSON.ToJSON.Reachable(schema, root); JSON.FromJSON(B).Reachable(schema, text);
 Validators.Validate(B)(schema, obj); Validators.Validate(B).Reachable(schema, root);
 new Comparison.OfObject(schema, a).compare(new Comparison.OfObject(schema, b));   // -1, 0, 1 or null

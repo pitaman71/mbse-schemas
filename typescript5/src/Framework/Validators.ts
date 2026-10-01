@@ -15,17 +15,18 @@
  *   Uniqueness is checked only over the entries reachable from what was validated.
  * - a value object's properties are declared by its schema and hold values of their types, recursively;
  * - a union value holds exactly one of the union's branches, with a value of that branch's type;
- * - an intersection value holds every one of the intersection's parts, each with a value of that part's type.
+ * - an intersection value holds every one of the intersection's parts, each with a value of that part's type;
+ * - each item of a list is a value of the list's item schema.
  */
 
-import { NotImplementedError } from "./Errors.js";
+import { item, NotImplementedError } from "./Errors.js";
 import { schemaTypeName } from "./Plain.js";
 import { nativeKey } from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
 import { repr, sortedStrings, tokenName, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
-import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfNative, OfObject, OfProperty,
-  OfUnion, Visitable } from "./Visitors.js";
+import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIndexed, OfIntersection, OfLink, OfNative, OfObject,
+  OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
 /** Looks schemas up by name, e.g. `Proxies.Builders`. */
 export interface Registry {
@@ -84,12 +85,54 @@ export class _Value implements OfProperty, OfAny, OfNative {
     return this.record("intersection", callback as unknown as Callback<OfObject>);
   }
 
+  as_indexed(callback: Callback<OfIndexed>): _Value {
+    let record = this.values.get(this.slotName);
+    if (!(record instanceof _ListRecord)) this.values.set(this.slotName, (record = new _ListRecord()));
+    callback(record as _ListRecord);
+    return this;
+  }
+
   private record(recordKind: Kind, callback: Callback<OfObject>): _Value {
     let record = this.values.get(this.slotName);
     if (!(record instanceof _ObjectRecord) || record.kind !== recordKind) {
       this.values.set(this.slotName, (record = new _ObjectRecord(recordKind)));
     }
     callback(record as _ObjectRecord);
+    return this;
+  }
+}
+
+/** `Visitors.OfIndexed` recording a list's items, in order; an item written with no value is left out. */
+export class _ListRecord implements OfIndexed {
+  readonly values: unknown[] = [];
+
+  items(callback: Callback<OfAny>): _ListRecord {
+    for (let index = 0, count = this.values.length; index < count; index++) this.item(index, callback);
+    return this;
+  }
+
+  item(index: number, callback: Callback<OfAny>): _ListRecord {
+    const held = new Map([["", item(this.values, index)]]);
+    callback(new _Value(held, ""));
+    this.values.splice(index, 1, ...held.values());
+    return this;
+  }
+
+  append(callback: Callback<OfAny>): _ListRecord {
+    const held = new Map<string, unknown>();
+    callback(new _Value(held, ""));
+    this.values.push(...held.values());
+    return this;
+  }
+
+  remove(index: number): _ListRecord {
+    item(this.values, index);
+    this.values.splice(index, 1);
+    return this;
+  }
+
+  clear(): _ListRecord {
+    this.values.length = 0;
     return this;
   }
 }
@@ -233,7 +276,9 @@ export class _ObjectRecord implements OfObject {
 }
 
 function replay(visitor: OfAny, value: unknown): void {
-  if (value instanceof _ObjectRecord && value.kind === "union") {
+  if (value instanceof _ListRecord) {
+    visitor.as_indexed((items) => replayItems(items, value.values));
+  } else if (value instanceof _ObjectRecord && value.kind === "union") {
     visitor.as_union((u) => value.accept(u as unknown as OfObject));
   } else if (value instanceof _ObjectRecord && value.kind === "intersection") {
     visitor.as_intersection((i) => value.accept(i as unknown as OfObject));
@@ -242,6 +287,10 @@ function replay(visitor: OfAny, value: unknown): void {
   } else {
     visitor.as_native((n) => n.set(value as Native));
   }
+}
+
+function replayItems(visitor: OfIndexed, values: readonly unknown[]): void {
+  for (const value of values) visitor.append((a) => replay(a, value));
 }
 
 // --- Checks ---
@@ -261,7 +310,7 @@ function recordKind(schema: Schemas.OfAny.Data): Kind {
 
 export function _kind(value: unknown): string {
   if (value instanceof _ObjectRecord) return RECORDS[value.kind][0];
-  return typeName(value);
+  return value instanceof _ListRecord ? "a list" : typeName(value);
 }
 
 function nativeProblem(schema: Schemas.OfNative.Data, value: unknown): string | null {
@@ -284,6 +333,7 @@ function filling(relation: Schemas.OfRelation.Data, name: string, target: Visita
 
 /** Equality key per EQUALITY.md: a native's, or a value object's by its properties. */
 function valueKey(value: unknown): string {
+  if (value instanceof _ListRecord) return `list:${JSON.stringify(value.values.map((v) => valueKey(v)))}`;
   if (!(value instanceof _ObjectRecord)) return nativeKey(value);
   const values = sortedStrings(value.values.keys()).map((name) => [name, valueKey(value.values.get(name))]);
   return `object:${JSON.stringify(values)}`;
@@ -326,6 +376,11 @@ class Check {
     if (schema instanceof Schemas.OfNative.Data) {
       const problem = nativeProblem(schema, item);
       return problem === null ? [] : [`${label}: ${problem}`];
+    }
+    if (schema instanceof Schemas.OfIndexed.Data) {
+      if (!(item instanceof _ListRecord)) return [`${label}: expected a list, got ${_kind(item)}`];
+      const itemSchema = schema.item as Schemas.OfAny.Data;
+      return item.values.flatMap((value, i) => this.valueProblems(`${label}[${i}]`, itemSchema, value));
     }
     const expected = recordKind(schema);
     const [what, owner, member] = RECORDS[expected];
@@ -455,7 +510,8 @@ class Check {
 
 /** The property values `value` writes when visited, by name; absent properties are left out. It reads through the
  * visitor protocols, so it works for any `Visitable`. A value object, a union value or an intersection value is
- * returned as an object whose `accept` writes its properties (a union's branch, an intersection's parts). */
+ * returned as an object whose `accept` writes its properties (a union's branch, an intersection's parts), and a list
+ * as an object whose `values` are its items, read the same way. */
 export function properties_of(value: Visitable | { accept(visitor: OfObject): void }): Map<string, unknown> {
   const record = new _ObjectRecord();
   value.accept(record);

@@ -21,16 +21,16 @@
  * A value object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties.
  * Union and intersection values are written the same way, with the union's branches or the intersection's parts as
  * the properties: a union value `{"phone": {"number": "+44"}}` holds exactly one branch, and an intersection value
- * `{"stamp": {...}, "audit": {...}}` each of its parts.
+ * `{"stamp": {...}, "audit": {...}}` each of its parts. A list is written as an array of its items.
  */
 
-import { AttributeError, DecodeError, KeyError, LookupError, NotImplementedError, path } from "./Errors.js";
+import { AttributeError, DecodeError, item, KeyError, LookupError, NotImplementedError, path } from "./Errors.js";
 import * as Proxies from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
 import { repr, sortedStrings, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
-import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfNative, OfObject, OfProperty,
-  OfUnion, Visitable } from "./Visitors.js";
+import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIndexed, OfIntersection, OfLink, OfNative, OfObject,
+  OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
 export type PlainData = null | boolean | bigint | number | string | PlainData[] | PlainMap;
 export type PlainMap = Map<string, PlainData>;
@@ -42,7 +42,7 @@ export const ID = "$id";
 /** The Python class name of a schema's data (`_ObjectData`, ...), so messages match the Python implementation. */
 export function schemaTypeName(schema: unknown): string {
   const kinds = [Schemas.OfNative.Data, Schemas.OfObject.Data, Schemas.OfRelation.Data, Schemas.OfAdjacency.Data,
-    Schemas.OfUnion.Data, Schemas.OfIntersection.Data] as const;
+    Schemas.OfUnion.Data, Schemas.OfIntersection.Data, Schemas.OfIndexed.Data] as const;
   for (const kind of kinds) if (schema instanceof kind) return "_" + kind.name;
   return typeName(schema);
 }
@@ -104,6 +104,14 @@ export class _AnyWriter implements OfAny {
     return this.record(Schemas.OfIntersection.Data, "an intersection", callback as unknown as Callback<OfObject>);
   }
 
+  as_indexed(callback: Callback<OfIndexed>): _AnyWriter {
+    if (!(this.schema instanceof Schemas.OfIndexed.Data)) throw new TypeError(`property ${repr(this.slotName)} is not a list`);
+    let items = this.out.get(this.slotName);
+    if (!Array.isArray(items)) this.out.set(this.slotName, (items = []));
+    callback(new _ListWriter(items, this.slotName, this.schema, this.ref, this.symbol));
+    return this;
+  }
+
   /** Writes a value object, a union value or an intersection value, nested as a mapping. */
   private record(kind: abstract new (...args: never[]) => RecordSchema, what: string, callback: Callback<OfObject>): _AnyWriter {
     if (!(this.schema instanceof kind)) throw new TypeError(`property ${repr(this.slotName)} is not ${what}`);
@@ -121,6 +129,43 @@ export class _AnyWriter implements OfAny {
 /** The schema of a record: a value object's, or a union's or intersection's, whose properties are its branches or
  * parts. */
 type RecordSchema = Schemas.OfObject.Data | Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
+
+/** `Visitors.OfIndexed` writing a plain list, the value of the property `name`; an item written with no value is left
+ * out. */
+export class _ListWriter implements OfIndexed {
+  constructor(private readonly out: PlainData[], private readonly slotName: string,
+    private readonly schema: Schemas.OfIndexed.Data, private readonly ref: Ref, private readonly symbol: Symbol) {}
+
+  items(callback: Callback<OfAny>): _ListWriter {
+    for (let index = 0, count = this.out.length; index < count; index++) this.item(index, callback);
+    return this;
+  }
+
+  item(index: number, callback: Callback<OfAny>): _ListWriter {
+    const held: PlainMap = new Map([[this.slotName, item(this.out, index)]]);
+    callback(new _AnyWriter(held, this.slotName, this.schema.item as Schemas.OfAny.Data, this.ref, this.symbol));
+    this.out.splice(index, 1, ...held.values());
+    return this;
+  }
+
+  append(callback: Callback<OfAny>): _ListWriter {
+    const held: PlainMap = new Map();
+    callback(new _AnyWriter(held, this.slotName, this.schema.item as Schemas.OfAny.Data, this.ref, this.symbol));
+    this.out.push(...held.values());
+    return this;
+  }
+
+  remove(index: number): _ListWriter {
+    item(this.out, index);
+    this.out.splice(index, 1);
+    return this;
+  }
+
+  clear(): _ListWriter {
+    this.out.length = 0;
+    return this;
+  }
+}
 
 /** `Visitors.OfProperty` writing one key of a plain map. */
 export class _PropertyWriter implements OfProperty {
@@ -389,11 +434,13 @@ class DecodedRecord {
 type Where = (string | number)[];
 /** Per adjacency, its decoded entries: each maps links to `Link`s and properties to decoded values. */
 type Rows = Map<string, Map<string, Native | Link>[]>;
-type Steps = readonly (readonly [string, RecordKind])[];
-type RecordKind = typeof Schemas.OfObject.Data | typeof Schemas.OfUnion.Data | typeof Schemas.OfIntersection.Data;
+/** The way from a reference object to a value object in it: each step a property name, or an index in a list, and the
+ * kind of the value found there. */
+type Steps = readonly (readonly [string | number, ValueKind])[];
+type ValueKind = typeof Schemas.OfObject.Data | typeof Schemas.OfUnion.Data | typeof Schemas.OfIntersection.Data |
+  typeof Schemas.OfIndexed.Data;
 
-/** Where decoding found a value object: its reference object's symbol, and the steps from it, each a property name and
- * the kind of the value it holds. */
+/** Where decoding found a value object: its reference object's symbol, and the steps from it. */
 class Found {
   constructor(readonly owner: string, readonly steps: Steps) {}
 }
@@ -403,11 +450,12 @@ class Context {
   constructor(readonly owner: string, readonly ids: Map<string, Found>, readonly entries: [Found, Rows][]) {}
 }
 
-function kindOf(schema: Schemas.OfAny.Data): RecordKind {
-  return schema.constructor as RecordKind;
+function kindOf(schema: Schemas.OfAny.Data): ValueKind {
+  return schema.constructor as ValueKind;
 }
 
-/** The value `plain` holds under `schema`, located at the path `where`. */
+/** The value `plain` holds under `schema`, located at the path `where`: a native, a `DecodedRecord`, or an array of the
+ * items' values. */
 function decode(schema: Schemas.OfAny.Data, plain: unknown, where: Where, context: Context | null = null,
   steps: Steps = []): unknown {
   if (schema instanceof Schemas.OfNative.Data) {
@@ -416,6 +464,11 @@ function decode(schema: Schemas.OfAny.Data, plain: unknown, where: Where, contex
     } catch (error) {
       throw (error as DecodeError).at(path(...where)); // from_plain throws only DecodeError
     }
+  }
+  if (schema instanceof Schemas.OfIndexed.Data) {
+    if (!Array.isArray(plain)) throw new DecodeError(`a list must be an array, got ${typeName(plain)}`, { path: path(...where) });
+    const itemSchema = schema.item as Schemas.OfAny.Data;
+    return plain.map((value, i) => decode(itemSchema, value, [...where, i], context, [...steps, [i, kindOf(itemSchema)]]));
   }
   const [what, owner, member] = recordNames(schema as RecordSchema);
   if (!(plain instanceof Map)) throw new DecodeError(`${what} must be a mapping, got ${typeName(plain)}`, { path: path(...where) });
@@ -468,6 +521,9 @@ function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: 
   if (!Array.isArray(value)) throw new DecodeError("an adjacency must be a list of entries", { path: path(...where, key) });
   const relation = adjacency.relation as Schemas.OfRelation.Data;
   return value.map((entry, i) => {
+    if (!(entry instanceof Map)) {
+      throw new DecodeError(`an entry must be a mapping, got ${typeName(entry)}`, { path: path(...where, key, i) });
+    }
     const row = new Map<string, Native | Link>();
     for (const [name, item] of entry as PlainMap) {
       const at = path(...where, key, i, name);
@@ -488,31 +544,20 @@ function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: 
   });
 }
 
-/** Finds the references in the entries of an object and of the value objects nested in it: a list is always an
- * adjacency, since plain values hold no lists. */
+/** Finds the references among the values of an object, at any depth: in its entries, and in the value objects and
+ * lists nested in it. A mapping with a `$ref` key is a reference; nothing else is. */
 function references(value: unknown, where: Where, found: (ref: PlainMap, where: Where) => void): void {
-  if (value instanceof Map) {
+  if (value instanceof Map && value.has(REF)) {
+    if (!isRef(value)) {
+      throw new DecodeError("a reference is {'$ref': symbol, '$schema': name}, or {'$ref': symbol} to a value object",
+        { path: path(...where) });
+    }
+    found(value, where);
+  } else if (value instanceof Map) {
     for (const [key, item] of value) references(item, [...where, key], found);
-    return;
+  } else if (Array.isArray(value)) {
+    value.forEach((item, i) => references(item, [...where, i], found));
   }
-  if (!Array.isArray(value)) return;
-  value.forEach((entry, i) => {
-    if (!(entry instanceof Map)) {
-      throw new DecodeError(`an entry must be a mapping, got ${typeName(entry)}`, { path: path(...where, i) });
-    }
-    for (const [name, ref] of entry) {
-      if (!(ref instanceof Map)) continue;
-      if (!ref.has(REF)) { // an entry property's value object
-        references(ref, [...where, i, name], found);
-        continue;
-      }
-      if (!isRef(ref)) {
-        throw new DecodeError("a reference is {'$ref': symbol, '$schema': name}, or {'$ref': symbol} to a value object",
-          { path: path(...where, i, name) });
-      }
-      found(ref, [...where, i, name]);
-    }
-  });
 }
 
 /** Per reference object symbol: its decoded property values and its entries. */
@@ -567,7 +612,7 @@ function check(builders: Builders, schema: unknown, plain: unknown): [string, Ma
       }
       found(new Map([[REF, symbol], [SCHEMA, own]]), ["objects", symbol, SCHEMA]);
     }
-    references(new Map([...obj].filter(([key]) => key !== SCHEMA)), ["objects", symbol], found);
+    for (const [key, value] of obj) if (key !== SCHEMA) references(value, ["objects", symbol, key], found);
   }
 
   // Pass 2: check every key against the schemas and decode the values.
@@ -648,7 +693,7 @@ function restore(builders: Builders, schema: Schemas.OfObject.Data, plain: unkno
     if (created.has(symbol)) return created.get(symbol);
     const found = ids.get(symbol) as Found;
     let target = created.get(found.owner);
-    for (const [name] of found.steps) target = builders.member(target, name);
+    for (const [key] of found.steps) target = typeof key === "number" ? (target as readonly unknown[])[key] : builders.member(target, key);
     return target;
   };
 
@@ -677,22 +722,27 @@ function within(visitor: BuilderLike | OfObject, steps: Steps, then: (visitor: O
     then(visitor as OfObject);
     return;
   }
-  const [[name, kind], ...rest] = steps as [readonly [string, RecordKind], ...Steps];
-  visitor.property(name, (p) => p.value((a) => {
+  const [[key, kind], ...rest] = steps as [readonly [string | number, ValueKind], ...Steps];
+  const into = (a: OfAny): void => {
     const inner = (v: unknown) => within(v as OfObject, rest, then);
     if (kind === Schemas.OfUnion.Data) a.as_union(inner);
     else if (kind === Schemas.OfIntersection.Data) a.as_intersection(inner);
+    else if (kind === Schemas.OfIndexed.Data) a.as_indexed(inner);
     else a.as_object(inner);
-  }));
+  };
+  if (typeof key === "number") (visitor as unknown as OfIndexed).item(key, into);
+  else visitor.property(key, (p) => p.value(into));
 }
 
 function set(visitor: { property(name: string, callback: Callback<OfProperty>): unknown }, name: string, value: unknown): void {
   visitor.property(name, (p) => p.value((a) => write(a, value)));
 }
 
-/** Writes a decoded value: a native, or a value object, union value or intersection value. */
+/** Writes a decoded value: a native, a value object, union value or intersection value, or a list. */
 function write(visitor: OfAny, value: unknown): void {
-  if (value instanceof DecodedRecord && value.schema instanceof Schemas.OfUnion.Data) {
+  if (Array.isArray(value)) {
+    visitor.as_indexed((items) => writeItems(items, value));
+  } else if (value instanceof DecodedRecord && value.schema instanceof Schemas.OfUnion.Data) {
     visitor.as_union((u) => value.accept(u as unknown as OfObject));
   } else if (value instanceof DecodedRecord && value.schema instanceof Schemas.OfIntersection.Data) {
     visitor.as_intersection((i) => value.accept(i as unknown as OfObject));
@@ -701,6 +751,10 @@ function write(visitor: OfAny, value: unknown): void {
   } else {
     visitor.as_native((n) => n.set(value as Native));
   }
+}
+
+function writeItems(visitor: OfIndexed, items: readonly unknown[]): void {
+  for (const value of items) visitor.append((a) => write(a, value));
 }
 
 function fill(visitor: OfEntry, row: Map<string, Native | Link>, resolve: (symbol: string) => unknown): void {

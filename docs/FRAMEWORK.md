@@ -47,11 +47,15 @@ The schema elements include:
 - `OfIntersection` : of two or more named parts, each an OfX schema (all of the same kind). Used to implement object and
                      aspect oriented structures. A value holds every part, by name; parts do not merge, so two parts may
                      declare the same property, even with different types.
+- `OfIndexed` : a list of items, in order, each a value of one item schema of any kind but a reference object
+                schema (see Lists).
 
 A property whose schema is an `OfObject` holds a *value object*: a read-only record of that
 schema's properties that belongs to its owner, copied with it and written nested in its owner's snapshot. It has an
 identity, and its schema may declare adjacencies, however it is held (directly, through a union branch or an
 intersection part); see Value objects and reference objects.
+A property whose schema is an `OfIndexed` holds a list, whose items belong to the property's owner as its own
+value would (see Lists).
 A property whose schema is an `OfUnion` holds a union value: a record whose properties are the union's branches, holding
 exactly one of them. A property whose schema is an `OfIntersection` holds an intersection value: a record whose
 properties are the intersection's parts, holding each of them. `Visitors.OfUnion` and `Visitors.OfIntersection` read
@@ -365,6 +369,37 @@ These replace the earlier design, in which a union's branches were chosen by pre
   does (`std::variant` or RTTI in C++, a tagged union in SystemVerilog, a discriminated union in TypeScript); the
   unpacked form above is the neutral one.
 
+## Lists
+
+A list is a property's value, not a relation: an ordered sequence of items, each a value of the list's item schema.
+
+- **`OfIndexed` holds one item schema**, of any kind: a native, a value object schema, a union, an intersection, or
+  another `OfIndexed`. A reference object schema is never an item's schema, for the same reason it is never a
+  property's type. The DSL is `t.as_indexed(lambda i: i.of(spec))`.
+- **Items belong to the list's owner.** A value object in a list is a value object of the object that holds the list:
+  it has an identity, may have adjacencies, is copied and removed with its owner, and is written nested in it. A list
+  of value objects is how an object holds a variable number of parts that take part in relations.
+- **Lists are ordered; relations are not.** Use a list where order is data (a union's branches, a relation's links,
+  the properties of a schema), and a relation to link objects, for maps and keyed lookup, and wherever uniqueness is
+  declared. A list may hold equal items.
+- **Proxies read a list as a read-only tuple** (a frozen array in TypeScript). A setter takes a list (or tuple) of
+  items, each a value, a value object, or the Spec of an item, and replaces the list: `.tags(['a', 'b'])`,
+  `.ports([lambda p: p.name('in'), lambda p: p.name('out')])`. Setting a value object into a list copies it, as
+  setting it into a property does. A setter also takes a Spec that receives the list's builder, a `Visitors.OfIndexed`
+  starting from the items set, to edit items in place, keeping their identities:
+  `.ports(lambda l: l.item(0, lambda a: a.as_object(lambda p: p.name('in2'))))`.
+- **`Visitors.OfIndexed`** has `items(callback)`, `item(index, callback)`, `append(callback)`, `remove(index)` and
+  `clear()`; each callback receives a `Visitors.OfAny` for the item. An item written with no value (a union value with
+  no branch) is left out of the list. `item` and `remove` raise `LookupError` for an index the list does not have.
+  Removing a value object from a list removes it and every entry linking it.
+- **Over the wire, a list is an array** of its items' plain forms, and an empty list is `[]`, distinct from an absent
+  property. A value object in a list is written nested, with its `$id` when something links to it, and decoding finds
+  it again by its position.
+- **Validation** checks each item against the item schema, at the path `label.tags[1]`.
+- **Comparison is item by item**: the first pair that is not equal decides, so lists of ordered natives order
+  lexicographically, and a list that is a prefix of another is less. Items that are incomparable make the lists
+  incomparable, so lists of booleans or of value objects are equal or incomparable.
+
 ## Native types
 
 Native types and their widths are implemented; the meta-schemas that write them over the wire are designed below.
@@ -395,14 +430,15 @@ Designed, not yet implemented. Schemas are data: each schema kind's data has a m
 schemas are written, read, validated and compared like any other objects. Native types are written as their tokens
 and widths (see Native types).
 
-- **A module holds named schemas.** `Schemas.Module` is a reference object schema: a set of named schemas, one per
-  entry of its `schemas` relation, whose properties are the `name` and the `schema`, a value object. A snapshot of
-  schemas is a snapshot of a module.
-- **Within a module, schemas are value objects, nested inline.** An object schema's properties and adjacencies, a
-  union's branches and an intersection's parts are relations of the schema's value object, written nested in it.
-- **A property's type is an inline schema or a name**: a union with the branches `inline` (a value object of any
-  schema kind) and `named` (a string, resolved within the module, then in the registry). Shared and recursive schemas
-  refer to each other by name; a relation that an adjacency names is named the same way.
+- **A module holds named schemas.** `Schemas.Module` is a reference object schema whose `schemas` property is a list
+  of value objects, each a `name` and a `schema`. A snapshot of schemas is a snapshot of a module.
+- **Within a module, schemas are value objects, nested inline**, and their members are lists of value objects, in
+  declared order: an object schema's `properties` (`name`, `type`) and `adjacencies` (`name`, `relation`, `me`), a
+  union's `branches` and an intersection's `parts` (`name`, `type`), a relation's `links` (strings), `properties` and
+  `uniques` (lists of strings), and a list's `item`.
+- **A type is an inline schema or a name**: a union with the branches `inline` (a schema value object, itself a union
+  of the schema kinds) and `named` (a string, resolved within the module, then in the registry). Shared and recursive
+  schemas refer to each other by name; a relation that an adjacency names is named the same way.
 - **Meta-schemas are defined in code and registered by name** (`Schemas.OfNative`, `Schemas.OfObject`, ...), never read
   from data, and their builders implement `Visitors.OfX`, so `Plain.FromPlain` rebuilds schemas as it rebuilds any
   objects. They are separate from the DSL builders, whose methods (`properties(*specs)`) would clash with the visitor
@@ -436,6 +472,7 @@ it is fixed here:
 | Native widths | `int` | `bigint` |
 | Native values | `int`, `float`, `str`, `bool`, `bytes` | `bigint`, `number`, `string`, `boolean`, `Uint8Array` |
 | Plain mappings | `dict` | `Map<string, PlainData>` (order-preserving for every key) |
+| Lists in proxies | `tuple` | frozen array |
 | Schema data equality | `==` | `.equals()` |
 | Errors | built-in `TypeError`, `ValueError`, `AttributeError`, `KeyError`, `LookupError`, `NotImplementedError`; `Errors.DecodeError` | built-in `TypeError`; the others and `DecodeError` exported from `Errors`, with the same names |
 | Callable entry points | `Plain.ToPlain(...)`, `Plain.FromPlain(builders)(...)` (objects with `__call__`) | functions with the per-kind forms attached |
@@ -521,7 +558,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Deserializing a snapshot that references an object it does not contain is an error.
 - Relation links are untyped names (`.links('contact', 'address')`); objects declare adjacencies with
   `.relations(lambda adj: adj.name(...).of(Relation).me(link))`.
-- There is no array-like element (`OfIndexed` was removed); all collections are relations.
+- Lists are `OfIndexed`, a property's value: ordered items of one item schema, which belong to the list's owner (see
+  Lists). Collections of linked objects, maps and keyed lookups are relations.
 - Cardinality is declared with `unique(S)` clauses; ownership is `unique(parent)`; relation entries form a set and
   duplicates are elided.
 - An object may have more than one owner.

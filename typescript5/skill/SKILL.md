@@ -21,10 +21,12 @@ simpler.
 
 ## Rules that prevent most mistakes
 
-1. **No list-valued properties.** Every collection is an `OfRelation`, and its entries link objects and may carry
-   properties. Each object sees a relation through one of its links (an *adjacency*, declared with `.me(link)`).
-2. **Identity or value.** A thing with identity is an object linked through a relation. A value without identity is
-   an *value object*, a property whose schema is an `OfObject`, and it cannot have adjacencies.
+1. **Links are relations; lists are values.** Objects are linked by an `OfRelation`, whose entries may carry
+   properties. Each object sees a relation through one of its links (an *adjacency*, declared with `.me(link)`). A
+   property may hold a list (`OfIndexed`) of natives or value objects, in order; a list never holds reference objects.
+2. **Reference or value.** A reference object (its schema marked `.ref()`) stands on its own and is reached through
+   relations only. A *value object* is held by a property, or in a list, whose schema is an `OfObject`; it belongs to
+   that owner and is copied with it, and it may have adjacencies.
 3. **Nothing is mandatory, and absent is not null.** Reading an unset property raises `AttributeError`. Cardinality
    is `unique(...)` on a relation. "At least one" constraints are not implemented yet.
 4. **Validation runs only when asked:** `Validators.Validate(registry)(schema, value)`, or `.Reachable(...)` for a

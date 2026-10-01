@@ -378,9 +378,7 @@ class RelationData implements HasFields {
  * objects would be too, and nothing could link them once. */
 function entryValueProblems(schema: unknown): string[] {
   if (schema instanceof ObjectData && schema.adjacencies.size > 0) return ["a value object held by an entry cannot have adjacencies"];
-  const members = schema instanceof ObjectData || schema instanceof UnionData || schema instanceof IntersectionData
-    ? [...schema.properties.values()] : [];
-  return sortedStrings(new Set(members.flatMap((member) => entryValueProblems(member))));
+  return sortedStrings(new Set(membersOf(schema).flatMap((member) => entryValueProblems(member))));
 }
 
 class RelationBuilder extends Builder<RelationData> {
@@ -737,12 +735,61 @@ export namespace OfIntersection {
   }
 }
 
+// --- OfIndexed ---
+
+/** A list: ordered items, each a value of the item schema. */
+class IndexedData implements HasFields {
+  item: AnyData | null;
+
+  constructor(fields: { item?: AnyData | null } = {}) {
+    this.item = fields.item ?? null;
+  }
+
+  equals(other: unknown): boolean {
+    return other === this;
+  }
+
+  validate(): string[] {
+    return validateSchema(this.item).map((problem) => `item: ${problem}`);
+  }
+}
+
+class IndexedBuilder extends Builder<IndexedData> {
+  protected make(fields: Record<string, unknown>): IndexedData {
+    return new IndexedData(fields as ConstructorParameters<typeof IndexedData>[0]);
+  }
+
+  /** The schema of every item. */
+  of(spec: OfAny.Spec): IndexedBuilder {
+    this.state["item"] = OfAny.resolve(spec);
+    return this;
+  }
+}
+
+function isIndexedData(value: unknown): value is IndexedData {
+  return value instanceof IndexedData;
+}
+
+export namespace OfIndexed {
+  /** A list of items of one schema, held by a property; its items belong to the property's owner. */
+  export const Data = IndexedData;
+  export type Data = IndexedData;
+  export const Builder = IndexedBuilder;
+  export type Builder = IndexedBuilder;
+  export type Spec = IndexedData | ((builder: IndexedBuilder) => IndexedBuilder);
+
+  export function resolve(spec: Spec | unknown): IndexedData {
+    return resolveSpec(spec, isIndexedData, () => new IndexedBuilder());
+  }
+}
+
 // --- OfAny ---
 
-type AnyData = NativeData | ObjectData | UnionData | IntersectionData;
+type AnyData = NativeData | ObjectData | UnionData | IntersectionData | IndexedData;
 
 function isAnyData(value: unknown): value is AnyData {
-  return value instanceof NativeData || value instanceof ObjectData || value instanceof UnionData || value instanceof IntersectionData;
+  return value instanceof NativeData || value instanceof ObjectData || value instanceof UnionData ||
+    value instanceof IntersectionData || value instanceof IndexedData;
 }
 
 function kindOf(value: unknown): unknown {
@@ -754,12 +801,19 @@ function validateSchema(schema: unknown): string[] {
   return schema.validate();
 }
 
+/** The schemas of the values a value of `schema` holds: a value object's properties, a union's branches, an
+ * intersection's parts, a list's item. */
+function membersOf(schema: unknown): unknown[] {
+  if (schema instanceof IndexedData) return [schema.item];
+  return schema instanceof ObjectData || schema instanceof UnionData || schema instanceof IntersectionData
+    ? [...schema.properties.values()] : [];
+}
+
 /** Problems with a property's schema as a value: an object held by a property is a value object, so its schema is not
- * a reference object schema; nor are the schemas of the objects a union or intersection holds. */
+ * a reference object schema; nor are the schemas of the objects a union, an intersection or a list holds. */
 function embeddedProblems(schema: unknown): string[] {
-  if (schema instanceof ObjectData && schema.ref) return ["a reference object schema cannot be a property's type"];
-  const parts = schema instanceof UnionData || schema instanceof IntersectionData ? [...schema.properties.values()] : [];
-  return sortedStrings(new Set(parts.flatMap((part) => embeddedProblems(part))));
+  if (schema instanceof ObjectData) return schema.ref ? ["a reference object schema cannot be a property's type"] : [];
+  return sortedStrings(new Set(membersOf(schema).flatMap((member) => embeddedProblems(member))));
 }
 
 /** Selects a kind through `as_<kind>(spec)`. Finalizing yields that kind's data, not a wrapper. */
@@ -791,6 +845,11 @@ class AnyBuilder {
 
   as_intersection(spec: OfIntersection.Spec): AnyBuilder {
     this.selected = OfIntersection.resolve(spec);
+    return this;
+  }
+
+  as_indexed(spec: OfIndexed.Spec): AnyBuilder {
+    this.selected = OfIndexed.resolve(spec);
     return this;
   }
 

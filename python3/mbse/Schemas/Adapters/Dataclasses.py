@@ -13,7 +13,8 @@ translate several at once, by name. Both directions go through `ast` trees and n
 Only types are translated, one flat class to one object schema:
 
 - Fields map to properties, in order, including inherited fields. Field types map to native schemas: `int`, `float`,
-  `str`, `bool` and `bytes`.
+  `str`, `bool` and `bytes`. A list of natives, or of such lists (`list[str]`, `list[list[int]]`), maps to a list
+  (`OfIndexed`).
 - A container of dataclasses maps to an adjacency. The field `addresses: set[Address]` of `Contact` becomes the
   relation `ContactAddresses` with links `owner` and `item`, the adjacency `addresses` of `Contact` via `owner`, and the
   adjacency `contact_addresses` of `Address` via `item`. `list[Address]` adds the property `index: int` and
@@ -25,7 +26,7 @@ Only types are translated, one flat class to one object schema:
   which types may fill it.
 - Defaults and mandatoriness are not translated: `FromDataclass` ignores field defaults, and `ToDataclass` writes
   fields without defaults.
-- Anything else raises `TypeError`: other collections, containers of natives, a union in a dataclass field (it does
+- Anything else raises `TypeError`: other collections, sets and dicts of natives, a union in a dataclass field (it does
   not name its branches), and nested dataclasses and other type definitions (value objects, and union and
   intersection values, in a schema), which are handled separately.
 """
@@ -205,6 +206,10 @@ class _Reader:
             raise TypeError(f"field {field!r}: {name} is neither a native type nor a dataclass being translated")
 
     def _container(self, owner: str, field: str, shape: str, outer: str, node: ast.expr) -> None:
+        item = _native_item(node) if shape == "list" else None
+        if item is not None:
+            self.objects[owner].properties[field] = Schemas.OfIndexed.Data(item)
+            return
         properties: dict[str, Schemas.OfNative.Data] = {}
         if shape == "dict":
             key, element = node.elts if isinstance(node, ast.Tuple) and len(node.elts) == 2 else (None, node)
@@ -236,6 +241,18 @@ class _Reader:
         if adjacency.name in adjacencies:
             raise ValueError(f"{owner}: the adjacency {adjacency.name!r} would be declared twice")
         adjacencies[adjacency.name] = adjacency
+
+
+def _native_item(node: ast.expr) -> Any:
+    """The item schema of a list annotated with `node`, when it is a native or a list of natives, at any depth; else
+    None."""
+    name = _name(node)
+    if name in _NATIVES:
+        return Schemas.OfNative.Data(_NATIVES[name])
+    if isinstance(node, ast.Subscript) and _CONTAINERS.get(_name(node.value)) == "list":
+        item = _native_item(node.slice)
+        return None if item is None else Schemas.OfIndexed.Data(item)
+    return None
 
 
 class _FromDataclass:
@@ -298,6 +315,8 @@ def _type_annotation(prop: str, schema: Any) -> ast.expr:
     """An expression tree for the type of a property's values."""
     if isinstance(schema, Schemas.OfNative.Data):
         return _load(schema.host().__name__)
+    if isinstance(schema, Schemas.OfIndexed.Data):
+        return ast.Subscript(value=_load("list"), slice=_type_annotation(prop, schema.item), ctx=ast.Load())
     noun = ("a union value" if isinstance(schema, Schemas.OfUnion.Data) else
             "an intersection value" if isinstance(schema, Schemas.OfIntersection.Data) else "a value object")
     raise TypeError(f"property {prop!r} holds {noun}; nested dataclasses are handled separately")

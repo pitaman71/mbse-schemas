@@ -201,9 +201,12 @@ export class _ListWriter implements OfIndexed {
 /** The keys of a positional list. */
 const INT = new Schemas.OfNative.Data(BigInt);
 
-/** Whether a list is written as a mapping from its keys' text: a keyed list whose key is a native. */
+/** Whether a list is written as a mapping from its keys' text: a keyed list whose key is a native whose text never
+ * starts with `$` (a float, a bool, bytes), so that no key reads as one of the wire format's markers. */
 function isTextKeyed(schema: Schemas.OfIndexed.Data): boolean {
-  return !schema.positional && schema.key instanceof Schemas.OfNative.Data;
+  const key = schema.key;
+  return !schema.positional && key instanceof Schemas.OfNative.Data &&
+    (key.type === Number || key.type === Boolean || key.type === Uint8Array);
 }
 
 interface KeyWriter {

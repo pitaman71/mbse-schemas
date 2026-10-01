@@ -416,10 +416,11 @@ value. One kind, `OfIndexed`, covers both: `t.as_indexed(lambda i: i.key(spec).o
 - **An extent bounds a positional list**: `i.extent(minimum=1, maximum=9)` (in TypeScript `i.extent({ minimum: 1n,
   maximum: 9n })`). `minimum` defaults to 0, and `maximum` may be left out. Validation reports a list with more items
   than its extent allows. Only positional lists take an extent, and its `minimum` is at most its `maximum`.
-- **The wire form follows the key.** A positional list is an array. A keyed list whose key is another native is a
-  mapping from the key's text to the value: a `str` as is, `bytes` as base64, a `float` as its canonical text (Python's
-  `repr`, or `NaN`, `Infinity`, `-Infinity`), a `bool` as `true` or `false`; decoding accepts only that text. Any other
-  keyed list is an array of `{"key": key, "value": value}` mappings. A key that appears twice is a decoding error.
+- **The wire form follows the key.** A positional list is an array. A keyed list whose key's text can never start with
+  `$` is a mapping from that text to the value: a `float` key as its canonical text (Python's `repr`, or `NaN`,
+  `Infinity`, `-Infinity`), a `bool` as `true` or `false`, `bytes` as base64; decoding accepts only that text. Any
+  other keyed list, a `str`-keyed one included, is an array of `{"key": key, "value": value}` mappings, since a `str`
+  key could be `$ref`. A key that appears twice is a decoding error.
 - **Proxies read a keyed list as a read-only mapping** in insertion order (`Proxies.OfIndexed.Map`): `m[key]`,
   `m.get(key)`, `key in m`, `len(m)`, and its keys, values and items. A key is given as a native, a tuple (or list) for
   a list, or a value object, which matches by structure. A setter takes a mapping or a sequence of `(key, value)`
@@ -539,7 +540,8 @@ it is fixed here:
 
 Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/TestPlan.md`) that need a design decision:
 
-- Reserved names (F2): property and adjacency names that collide with binding members (e.g. `create`, `accept`, or
+- Reserved names (F2): names starting with `$` are reserved for the wire format (see Resolved). Other property and
+  adjacency names that collide with binding members (e.g. `create`, `accept`, or
   names starting with `_` in Python; `constructor`, `toString`, `then` in JavaScript) cannot be set through the DSL or
   read as attributes in some bindings, and `validate()` accepts them. Should schemas reject names that any target language reserves, or should bindings rename them?
 - Concurrent builders (F4): two builders over the same object each hold a copy; the last `update()` wins and drops
@@ -591,6 +593,10 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Nothing is mandatory except as specified by a constraint: properties are optional by default, and mandatory
   participation in a relation is expressed as a constraint (directory membership is required by well-formedness).
 - `OfValue` is not a base class; renamed `OfAny`.
+- Names starting with `$` are reserved for the wire format's markers (`$ref`, `$schema`, `$id`): `validate()` reports
+  a property, adjacency, link, branch or part name that starts with `$` ("name '$ref' is reserved: names starting with
+  '$' belong to the wire format"), and a keyed list is written as a mapping only when its key's text can never start
+  with `$` (float, bool and bytes keys). Both depend on the schema alone, so no data can collide with a marker.
 - Object-valued properties hold value objects: read-only values owned by their owner, written
   nested; they have identities and may have adjacencies. Reference objects are reached through relations.
 - Union branches and intersection parts are named, and their values are records keyed by those names, in proxies and

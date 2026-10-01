@@ -80,6 +80,13 @@ class _Builder(Generic[D]):
         return self._source
 
 
+def _reserved(names: Any) -> list[str]:
+    """Problems with names that start with `$`, which the wire format keeps for its own markers (`$ref`, `$schema`,
+    `$id`)."""
+    return [f"name {name!r} is reserved: names starting with '$' belong to the wire format"
+            for name in names if isinstance(name, str) and name.startswith("$")]
+
+
 def _resolve(spec: Any, data: type, builder: Callable[[], Any]) -> Any:
     """Resolves a `Spec`: an instance of `data` is used as is; a callable is given a new builder and must return it."""
     if isinstance(spec, data):
@@ -300,7 +307,7 @@ class _RelationData:
     uniques: tuple[frozenset[str], ...] = ()
 
     def validate(self) -> list[str]:
-        problems = []
+        problems = _reserved([*self.links, *self.properties])
         if len(self.links) < 2:
             problems.append("a relation needs at least two links; a one-link relation merges a relation and an object")
         if len(set(self.links)) != len(self.links):
@@ -429,7 +436,7 @@ class _ObjectData:
             _VALIDATING.discard(id(self))
 
     def _problems(self) -> list[str]:
-        problems = []
+        problems = _reserved([*self.properties, *self.adjacencies])
         if self.singleton is not None and not self.ref:
             problems.append("a singleton's schema must be a reference object schema")
         clashes = set(self.properties) & set(self.adjacencies)
@@ -506,7 +513,7 @@ class _MemberBuilder(_Builder[_MemberData]):
 def _member_problems(a_kind: str, member: str, plural: str, members: tuple[_MemberData, ...]) -> list[str]:
     """Problems with a union's branches (`a_kind` 'a union', `member` 'branch') or an intersection's parts."""
     kind = a_kind.split(" ")[1]
-    problems = []
+    problems = _reserved(m.name for m in members)
     if len(members) < 2:
         problems.append(f"{a_kind} needs at least two {plural}")
     if len({type(m.type) for m in members}) > 1:

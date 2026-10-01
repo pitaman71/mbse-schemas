@@ -181,8 +181,10 @@ _INT = Schemas.OfNative.Data(int)
 
 
 def _text_keyed(schema: Schemas.OfIndexed.Data) -> bool:
-    """Whether a list is written as a mapping from its keys' text: a keyed list whose key is a native."""
-    return not schema.positional and isinstance(schema.key, Schemas.OfNative.Data)
+    """Whether a list is written as a mapping from its keys' text: a keyed list whose key is a native whose text never
+    starts with `$` (a float, a bool, bytes), so that no key reads as one of the wire format's markers."""
+    return (not schema.positional and isinstance(schema.key, Schemas.OfNative.Data)
+            and schema.key.type in (float, bool, bytes))
 
 
 def _written_key(writer: Any, schema: Any, key: Callable[[Visitors.OfAny], Any]) -> PlainData:

@@ -27,13 +27,14 @@ simpler.
 2. **Reference or value.** A reference object (its schema marked `.ref()`) stands on its own and is reached through
    relations only. A *value object* is held by a property, or in a list, whose schema is an `OfObject`; it belongs to
    that owner and is copied with it, and it may have adjacencies.
-3. **Nothing is mandatory, and absent is not null.** Reading an unset property raises `AttributeError`. Cardinality
+3. **Names starting with `$` are reserved** for the wire format (`$ref`, `$schema`, `$id`); `validate()` reports them.
+4. **Nothing is mandatory, and absent is not null.** Reading an unset property raises `AttributeError`. Cardinality
    is `unique(...)` on a relation. "At least one" constraints are not implemented yet.
-4. **Validation runs only when asked:** `Validators.Validate(registry)(schema, value)`, or `.Reachable(...)` for a
+5. **Validation runs only when asked:** `Validators.Validate(registry)(schema, value)`, or `.Reachable(...)` for a
    whole graph. It returns every problem, each with a path. Schemas have their own `.validate()`.
-5. **Native types are exact, never coerced.** `int`, `float`, `bool`, `str` and `bytes` are distinct. In TypeScript,
+6. **Native types are exact, never coerced.** `int`, `float`, `bool`, `str` and `bytes` are distinct. In TypeScript,
    `int` is `bigint`.
-6. **Objects are read-only.** Change them through a builder that ends with `create()`, `clone()` or `update()`.
+7. **Objects are read-only.** Change them through a builder that ends with `create()`, `clone()` or `update()`.
    Linked objects need registered schemas: `Proxies.register(name, schema)`, then `Proxies.Builders.<Name>(...)`.
 
 ## Load the reference for your task

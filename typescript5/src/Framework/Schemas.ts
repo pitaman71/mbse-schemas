@@ -16,6 +16,13 @@ import type { PlainData } from "./Plain.js";
 import { isClassLike, NATIVE_NAMES, pyFloat, repr, sortedStrings, tokenName, Tuple, typeName } from "./Repr.js";
 import type { Native, NativeToken } from "./Visitors.js";
 
+/** Problems with names that start with `$`, which the wire format keeps for its own markers (`$ref`, `$schema`,
+ * `$id`). */
+function reserved(names: readonly unknown[]): string[] {
+  return names.filter((name): name is string => typeof name === "string" && name.startsWith("$"))
+    .map((name) => `name ${repr(name)} is reserved: names starting with '$' belong to the wire format`);
+}
+
 export const NATIVE_TYPES: readonly NativeToken[] = [BigInt, Number, String, Boolean, Uint8Array];
 
 /** Shallow-copies the builder's own containers; references to other schemas are kept, never copied. */
@@ -384,7 +391,7 @@ class RelationData implements HasFields {
   }
 
   validate(): string[] {
-    const problems: string[] = [];
+    const problems = reserved([...this.links, ...this.properties.keys()]);
     if (this.links.length < 2) {
       problems.push("a relation needs at least two links; a one-link relation merges a relation and an object");
     }
@@ -564,7 +571,7 @@ class ObjectData implements HasFields {
   }
 
   private problems(): string[] {
-    const problems: string[] = [];
+    const problems = reserved([...this.properties.keys(), ...this.adjacencies.keys()]);
     if (this.singleton !== null && !this.ref) problems.push("a singleton's schema must be a reference object schema");
     const clashes = [...this.properties.keys()].filter((name) => this.adjacencies.has(name));
     if (clashes.length > 0) {
@@ -672,7 +679,7 @@ function isMemberData(value: unknown): value is MemberData {
 /** Problems with a union's branches (`aKind` 'a union', `member` 'branch') or an intersection's parts. */
 function memberProblems(aKind: string, member: string, plural: string, members: readonly MemberData[]): string[] {
   const kind = aKind.split(" ")[1];
-  const problems: string[] = [];
+  const problems = reserved(members.map((m) => m.name));
   if (members.length < 2) problems.push(`${aKind} needs at least two ${plural}`);
   if (new Set(members.map((m) => kindOf(m.type))).size > 1) problems.push(`${kind} ${plural} must all be the same kind`);
   const seen = new Set<string>();

@@ -48,9 +48,10 @@ objects:
     - - 0
       - 1
     attrs:
-      gain: 1.5
-      ? ''
-      : -0.0
+    - key: gain
+      value: 1.5
+    - key: ''
+      value: -0.0
     weights:
       '0.5': half
       NaN: none

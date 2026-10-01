@@ -13,7 +13,7 @@ Each implementation builds the same corpus of schemas and objects, statement for
 | `yaml_strings` | strings that YAML readers misread, Unicode line breaks, long text |
 | `embedded` | value objects, one linked through a relation (`$id`, and a reference without `$schema`), a card reached only through its value object (carrying its own `$schema`), union values of object and native branches, keyed by branch name, and an intersection value, keyed by part name |
 | `module` | the corpus's own schemas as data: a module of object, relation, union, intersection, list and native schemas, natives of widths and another format's token, shared schemas by name and the others inline |
-| `lists` | lists of strings, bytes, lists of ints, union values and value objects; value objects in lists linking each other and a reference object by `$id`; a positional list with an extent; keyed lists by `str` and by `float` (including `NaN` and `-0.0` as key text) written as mappings, and by a value object written as `{key, value}` items |
+| `lists` | lists of strings, bytes, lists of ints, union values and value objects; value objects in lists linking each other and a reference object by `$id`; a positional list with an extent; a keyed list by `float` (including `NaN` as key text) written as a mapping, and keyed lists by `str` and by a value object written as `{key, value}` items |
 
 The CONF test suite in each implementation checks that:
 

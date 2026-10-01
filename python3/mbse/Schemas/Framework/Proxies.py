@@ -27,7 +27,7 @@ from typing import Any
 from . import Errors, Schemas, Visitors
 from .Visitors import Native
 
-__all__ = ["register", "schema", "name_of", "Builders", "OfObject", "OfRelation"]
+__all__ = ["register", "schema", "registered", "name_of", "Builders", "OfObject", "OfRelation"]
 
 ObjectSchema = Schemas.OfObject.Data
 RelationSchema = Schemas.OfRelation.Data
@@ -48,6 +48,13 @@ def register(name: str, schema: ObjectSchema | RelationSchema) -> None:
 def schema(name: str) -> ObjectSchema:
     """The object schema registered under `name`."""
     return _object_schema(name)
+
+
+def registered(name: str) -> ObjectSchema | RelationSchema:
+    """The object or relation schema registered under `name`."""
+    if name not in _schemas:
+        raise LookupError(f"no schema registered as {name!r}")
+    return _schemas[name]
 
 
 def name_of(schema: ObjectSchema | RelationSchema) -> str:

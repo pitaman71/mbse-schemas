@@ -7,10 +7,10 @@
  * lockstep: same schemas, same names, same values, same order of statements.
  */
 
-import { Proxies, Schemas } from "../Framework/index.js";
+import { Modules, Proxies, Schemas } from "../Framework/index.js";
 import type { Instance } from "../Framework/Proxies.js";
 
-export const CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded", "lists"] as const;
+export const CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded", "lists", "module"] as const;
 
 function text(name: string, native: unknown = String) {
   return (prop: Schemas.OfProperty.Builder) => prop.name(name).of((t) => t.as_native(native as never));
@@ -199,6 +199,14 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
     (rows: any) => rows.item(1, (v: any) => v.as_indexed((row: any) => row.item(0, (w: any) => w.as_object(
       (o: any) => o.cables((x: any) => x.sink(board.sockets[0]))))))).update();
 
+  // --- module: the corpus's own schemas as data, with natives of widths and another format's token ---
+  const schemas = {
+    Int32: Schemas.OfNative.resolve((n) => n.type(BigInt).bits(32n)),
+    Size: Schemas.OfNative.resolve((n) => n.token("ccpp", "size_t").bytes(8n)),
+    Contact, Address, ContactAddresses, Person, Parentage, Card, Deck, Holding, Board, Panel,
+  };
+  const module = Modules.module(schemas) as Instance;
+
   return new Map<string, [Schemas.OfObject.Data, Instance]>([
     ["address_book", [Contact, alice]],
     ["natives", [Bag, bag]],
@@ -207,5 +215,6 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
     ["yaml_strings", [Notebook, notebook]],
     ["embedded", [Deck, deck]],
     ["lists", [Board, board]],
+    ["module", [Schemas.Module.Schema, module]],
   ]);
 }

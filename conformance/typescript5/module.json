@@ -1,0 +1,719 @@
+{
+  "root": "s0",
+  "objects": {
+    "s0": {
+      "schemas": [
+        {
+          "name": "Int32",
+          "schema": {
+            "native": {
+              "format": "basic",
+              "name": "int",
+              "bits": 32
+            }
+          }
+        },
+        {
+          "name": "Size",
+          "schema": {
+            "native": {
+              "format": "ccpp",
+              "name": "size_t",
+              "bytes": 8
+            }
+          }
+        },
+        {
+          "name": "Contact",
+          "schema": {
+            "object": {
+              "properties": [
+                {
+                  "name": "given_name",
+                  "type": {
+                    "native": {
+                      "format": "basic",
+                      "name": "str"
+                    }
+                  }
+                },
+                {
+                  "name": "family_name",
+                  "type": {
+                    "native": {
+                      "format": "basic",
+                      "name": "str"
+                    }
+                  }
+                },
+                {
+                  "name": "birth_date",
+                  "type": {
+                    "native": {
+                      "format": "basic",
+                      "name": "str"
+                    }
+                  }
+                }
+              ],
+              "adjacencies": [
+                {
+                  "name": "addresses",
+                  "relation": {
+                    "named": {
+                      "name": "ContactAddresses"
+                    }
+                  },
+                  "me": "contact"
+                },
+                {
+                  "name": "phones",
+                  "relation": {
+                    "named": {
+                      "name": "ContactPhones"
+                    }
+                  },
+                  "me": "contact"
+                }
+              ],
+              "ref": true
+            }
+          }
+        },
+        {
+          "name": "Address",
+          "schema": {
+            "object": {
+              "properties": [
+                {
+                  "name": "street1",
+                  "type": {
+                    "native": {
+                      "format": "basic",
+                      "name": "str"
+                    }
+                  }
+                },
+                {
+                  "name": "locality",
+                  "type": {
+                    "native": {
+                      "format": "basic",
+                      "name": "str"
+                    }
+                  }
+                },
+                {
+                  "name": "postal_code",
+                  "type": {
+                    "native": {
+                      "format": "basic",
+                      "name": "str"
+                    }
+                  }
+                },
+                {
+                  "name": "country_code",
+                  "type": {
+                    "native": {
+                      "format": "basic",
+                      "name": "str"
+                    }
+                  }
+                }
+              ],
+              "adjacencies": [
+                {
+                  "name": "contacts",
+                  "relation": {
+                    "named": {
+                      "name": "ContactAddresses"
+                    }
+                  },
+                  "me": "address"
+                }
+              ],
+              "ref": true
+            }
+          }
+        },
+        {
+          "name": "ContactAddresses",
+          "schema": {
+            "relation": {
+              "links": [
+                "contact",
+                "address"
+              ],
+              "properties": [
+                {
+                  "name": "label",
+                  "type": {
+                    "native": {
+                      "format": "basic",
+                      "name": "str"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Person",
+          "schema": {
+            "object": {
+              "properties": [
+                {
+                  "name": "given_name",
+                  "type": {
+                    "native": {
+                      "format": "basic",
+                      "name": "str"
+                    }
+                  }
+                },
+                {
+                  "name": "birth_date",
+                  "type": {
+                    "native": {
+                      "format": "basic",
+                      "name": "str"
+                    }
+                  }
+                }
+              ],
+              "adjacencies": [
+                {
+                  "name": "children",
+                  "relation": {
+                    "named": {
+                      "name": "Parentage"
+                    }
+                  },
+                  "me": "parent"
+                },
+                {
+                  "name": "parents",
+                  "relation": {
+                    "named": {
+                      "name": "Parentage"
+                    }
+                  },
+                  "me": "child"
+                },
+                {
+                  "name": "mentees",
+                  "relation": {
+                    "named": {
+                      "name": "Mentorship"
+                    }
+                  },
+                  "me": "mentor"
+                },
+                {
+                  "name": "mentors",
+                  "relation": {
+                    "named": {
+                      "name": "Mentorship"
+                    }
+                  },
+                  "me": "mentee"
+                }
+              ],
+              "ref": true
+            }
+          }
+        },
+        {
+          "name": "Parentage",
+          "schema": {
+            "relation": {
+              "links": [
+                "parent",
+                "child"
+              ],
+              "properties": [
+                {
+                  "name": "kind",
+                  "type": {
+                    "native": {
+                      "format": "basic",
+                      "name": "str"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Card",
+          "schema": {
+            "object": {
+              "properties": [
+                {
+                  "name": "name",
+                  "type": {
+                    "native": {
+                      "format": "basic",
+                      "name": "str"
+                    }
+                  }
+                },
+                {
+                  "name": "home",
+                  "type": {
+                    "object": {
+                      "properties": [
+                        {
+                          "name": "number",
+                          "type": {
+                            "native": {
+                              "format": "basic",
+                              "name": "str"
+                            }
+                          }
+                        },
+                        {
+                          "name": "label",
+                          "type": {
+                            "native": {
+                              "format": "basic",
+                              "name": "str"
+                            }
+                          }
+                        }
+                      ],
+                      "adjacencies": [
+                        {
+                          "name": "hubs",
+                          "relation": {
+                            "named": {
+                              "name": "Line"
+                            }
+                          },
+                          "me": "phone"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "reach",
+                  "type": {
+                    "union": {
+                      "branches": [
+                        {
+                          "name": "phone",
+                          "type": {
+                            "object": {
+                              "properties": [
+                                {
+                                  "name": "number",
+                                  "type": {
+                                    "native": {
+                                      "format": "basic",
+                                      "name": "str"
+                                    }
+                                  }
+                                },
+                                {
+                                  "name": "label",
+                                  "type": {
+                                    "native": {
+                                      "format": "basic",
+                                      "name": "str"
+                                    }
+                                  }
+                                }
+                              ],
+                              "adjacencies": [
+                                {
+                                  "name": "hubs",
+                                  "relation": {
+                                    "named": {
+                                      "name": "Line"
+                                    }
+                                  },
+                                  "me": "phone"
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "name": "email",
+                          "type": {
+                            "object": {
+                              "properties": [
+                                {
+                                  "name": "address",
+                                  "type": {
+                                    "native": {
+                                      "format": "basic",
+                                      "name": "str"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "ident",
+                  "type": {
+                    "union": {
+                      "branches": [
+                        {
+                          "name": "number",
+                          "type": {
+                            "native": {
+                              "format": "basic",
+                              "name": "int"
+                            }
+                          }
+                        },
+                        {
+                          "name": "code",
+                          "type": {
+                            "native": {
+                              "format": "basic",
+                              "name": "str"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "meta",
+                  "type": {
+                    "intersection": {
+                      "parts": [
+                        {
+                          "name": "stamp",
+                          "type": {
+                            "object": {
+                              "properties": [
+                                {
+                                  "name": "updated",
+                                  "type": {
+                                    "native": {
+                                      "format": "basic",
+                                      "name": "str"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "name": "audit",
+                          "type": {
+                            "object": {
+                              "properties": [
+                                {
+                                  "name": "by",
+                                  "type": {
+                                    "native": {
+                                      "format": "basic",
+                                      "name": "str"
+                                    }
+                                  }
+                                },
+                                {
+                                  "name": "updated",
+                                  "type": {
+                                    "native": {
+                                      "format": "basic",
+                                      "name": "str"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "adjacencies": [
+                {
+                  "name": "decks",
+                  "relation": {
+                    "named": {
+                      "name": "Holding"
+                    }
+                  },
+                  "me": "card"
+                }
+              ],
+              "ref": true
+            }
+          }
+        },
+        {
+          "name": "Deck",
+          "schema": {
+            "object": {
+              "properties": [
+                {
+                  "name": "title",
+                  "type": {
+                    "native": {
+                      "format": "basic",
+                      "name": "str"
+                    }
+                  }
+                }
+              ],
+              "adjacencies": [
+                {
+                  "name": "cards",
+                  "relation": {
+                    "named": {
+                      "name": "Holding"
+                    }
+                  },
+                  "me": "deck"
+                }
+              ],
+              "ref": true
+            }
+          }
+        },
+        {
+          "name": "Holding",
+          "schema": {
+            "relation": {
+              "links": [
+                "deck",
+                "card"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Board",
+          "schema": {
+            "object": {
+              "properties": [
+                {
+                  "name": "name",
+                  "type": {
+                    "native": {
+                      "format": "basic",
+                      "name": "str"
+                    }
+                  }
+                },
+                {
+                  "name": "tags",
+                  "type": {
+                    "indexed": {
+                      "item": {
+                        "native": {
+                          "format": "basic",
+                          "name": "str"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "name": "blobs",
+                  "type": {
+                    "indexed": {
+                      "item": {
+                        "native": {
+                          "format": "basic",
+                          "name": "bytes"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "name": "grid",
+                  "type": {
+                    "indexed": {
+                      "item": {
+                        "indexed": {
+                          "item": {
+                            "native": {
+                              "format": "basic",
+                              "name": "int"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "name": "readings",
+                  "type": {
+                    "indexed": {
+                      "item": {
+                        "union": {
+                          "branches": [
+                            {
+                              "name": "value",
+                              "type": {
+                                "native": {
+                                  "format": "basic",
+                                  "name": "float"
+                                }
+                              }
+                            },
+                            {
+                              "name": "note",
+                              "type": {
+                                "native": {
+                                  "format": "basic",
+                                  "name": "str"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "name": "sockets",
+                  "type": {
+                    "indexed": {
+                      "item": {
+                        "object": {
+                          "properties": [
+                            {
+                              "name": "name",
+                              "type": {
+                                "native": {
+                                  "format": "basic",
+                                  "name": "str"
+                                }
+                              }
+                            }
+                          ],
+                          "adjacencies": [
+                            {
+                              "name": "cables",
+                              "relation": {
+                                "named": {
+                                  "name": "Cable"
+                                }
+                              },
+                              "me": "source"
+                            },
+                            {
+                              "name": "plugs",
+                              "relation": {
+                                "named": {
+                                  "name": "Cable"
+                                }
+                              },
+                              "me": "sink"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "name": "banks",
+                  "type": {
+                    "indexed": {
+                      "item": {
+                        "indexed": {
+                          "item": {
+                            "object": {
+                              "properties": [
+                                {
+                                  "name": "name",
+                                  "type": {
+                                    "native": {
+                                      "format": "basic",
+                                      "name": "str"
+                                    }
+                                  }
+                                }
+                              ],
+                              "adjacencies": [
+                                {
+                                  "name": "cables",
+                                  "relation": {
+                                    "named": {
+                                      "name": "Cable"
+                                    }
+                                  },
+                                  "me": "source"
+                                },
+                                {
+                                  "name": "plugs",
+                                  "relation": {
+                                    "named": {
+                                      "name": "Cable"
+                                    }
+                                  },
+                                  "me": "sink"
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ],
+              "ref": true
+            }
+          }
+        },
+        {
+          "name": "Panel",
+          "schema": {
+            "object": {
+              "properties": [
+                {
+                  "name": "name",
+                  "type": {
+                    "native": {
+                      "format": "basic",
+                      "name": "str"
+                    }
+                  }
+                }
+              ],
+              "adjacencies": [
+                {
+                  "name": "plugs",
+                  "relation": {
+                    "named": {
+                      "name": "Cable"
+                    }
+                  },
+                  "me": "sink"
+                }
+              ],
+              "ref": true
+            }
+          }
+        }
+      ]
+    }
+  }
+}

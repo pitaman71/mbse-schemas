@@ -8,6 +8,7 @@ most mistakes, and which reference to load for a task. The design is in docs/FRA
 https://github.com/pitaman71/mbse-schemas.
 """
 
-from . import JSON, YAML, Comparison, Errors, Plain, Proxies, Reachable, Schemas, Validators, Visitors
+from . import JSON, YAML, Comparison, Errors, Modules, Plain, Proxies, Reachable, Schemas, Validators, Visitors
 
-__all__ = ["Errors", "Schemas", "Visitors", "Proxies", "Reachable", "Validators", "Comparison", "Plain", "JSON", "YAML"]
+__all__ = ["Errors", "Schemas", "Visitors", "Proxies", "Reachable", "Validators", "Comparison", "Plain", "JSON", "YAML",
+           "Modules"]

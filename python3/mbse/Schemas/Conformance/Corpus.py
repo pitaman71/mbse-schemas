@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import math
 
-from mbse.Schemas.Framework import Proxies, Schemas
+from mbse.Schemas.Framework import Modules, Proxies, Schemas
 
-CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded", "lists"]
+CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded", "lists", "module"]
 
 
 def _text(name, native=str):
@@ -200,6 +200,13 @@ def build():
         lambda rows: rows.item(1, lambda v: v.as_indexed(lambda row: row.item(0, lambda w: w.as_object(
             lambda o: o.cables(lambda x: x.sink(board.sockets[0]))))))).update()
 
+    # --- module: the corpus's own schemas as data, with natives of widths and another format's token ---
+    schemas = {"Int32": S.OfNative.resolve(lambda n: n.type(int).bits(32)),
+               "Size": S.OfNative.resolve(lambda n: n.token("ccpp", "size_t").bytes(8)),
+               "Contact": Contact, "Address": Address, "ContactAddresses": ContactAddresses, "Person": Person,
+               "Parentage": Parentage, "Card": Card, "Deck": Deck, "Holding": Holding, "Board": Board, "Panel": Panel}
+    module = Modules.module(schemas)
+
     return {
         "address_book": (Contact, alice),
         "natives": (Bag, bag),
@@ -208,4 +215,5 @@ def build():
         "yaml_strings": (Notebook, notebook),
         "embedded": (Deck, deck),
         "lists": (Board, board),
+        "module": (S.Module.Schema, module),
     }

@@ -207,6 +207,9 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   into it, and compares it with another recording: `a.compare(b)` returns -1, 0, 1, or `None` when incomparable. See
   `EQUALITY.md`.
 
+- `Modules` : schemas as data. `Modules.module(schemas)` returns an object of the meta-schema `Schemas.Module.Schema`
+  holding schemas by name, and `Modules.schemas(module)` the schemas it holds. See Meta-schemas.
+
 - `Adapters` : translate between a language's own type declarations and schemas, so they are specific to each
   language. Python has `Adapters.Dataclasses`: `FromDataclass(cls)` returns the `OfObject` a dataclass describes and
   `ToDataclass(schema, name)` returns a new dataclass, both through `ast` trees rather than source text;
@@ -402,7 +405,7 @@ A list is a property's value, not a relation: an ordered sequence of items, each
 
 ## Native types
 
-Native types and their widths are implemented; the meta-schemas that write them over the wire are designed below.
+Native types and their widths are implemented, and written over the wire by their meta-schema (see Meta-schemas).
 
 - **Native types are tokens, `{format, name}`** (`Schemas.OfNative.Token`). A format is a language or a neutral vocabulary; `basic` is the
   neutral one, with the names `bool`, `int`, `float`, `str` and `bytes` (the names of mbse-expressions' Basic
@@ -426,23 +429,34 @@ Native types and their widths are implemented; the meta-schemas that write them 
 
 ## Meta-schemas
 
-Designed, not yet implemented. Schemas are data: each schema kind's data has a meta-schema, `Schemas.OfX.Schema`, so
-schemas are written, read, validated and compared like any other objects. Native types are written as their tokens
-and widths (see Native types).
+Schemas are data: each schema kind's data has a meta-schema, `Schemas.OfX.Schema`, a value object schema, so schemas
+are written, read, validated and compared like any other objects.
 
-- **A module holds named schemas.** `Schemas.Module` is a reference object schema whose `schemas` property is a list
-  of value objects, each a `name` and a `schema`. A snapshot of schemas is a snapshot of a module.
+- **A module holds named schemas.** `Schemas.Module.Schema` is a reference object schema, registered as
+  `Schemas.Module`, whose `schemas` property is a list of `Schemas.Module.Entry` value objects, each a `name` and a
+  `schema`, a `Schemas.Module.Definition`: a union of the schema kinds, `native`, `object`, `union`, `intersection`,
+  `indexed` and `relation`. A snapshot of schemas is a snapshot of a module.
+- **`Modules` translates.** `Modules.module(schemas)` returns a module holding schemas given by name (a dict in Python;
+  a Map or a record in TypeScript), built with the given builders (`Proxies.Builders` by default), and
+  `Modules.schemas(module)` the schemas a module holds, by name. Both go through the module's plain form.
 - **Within a module, schemas are value objects, nested inline**, and their members are lists of value objects, in
-  declared order: an object schema's `properties` (`name`, `type`) and `adjacencies` (`name`, `relation`, `me`), a
-  union's `branches` and an intersection's `parts` (`name`, `type`), a relation's `links` (strings), `properties` and
-  `uniques` (lists of strings), and a list's `item`.
-- **A type is an inline schema or a name**: a union with the branches `inline` (a schema value object, itself a union
-  of the schema kinds) and `named` (a string, resolved within the module, then in the registry). Shared and recursive
-  schemas refer to each other by name; a relation that an adjacency names is named the same way.
-- **Meta-schemas are defined in code and registered by name** (`Schemas.OfNative`, `Schemas.OfObject`, ...), never read
-  from data, and their builders implement `Visitors.OfX`, so `Plain.FromPlain` rebuilds schemas as it rebuilds any
-  objects. They are separate from the DSL builders, whose methods (`properties(*specs)`) would clash with the visitor
-  protocols (`properties(callback)`).
+  declared order: an object schema's `properties` (`name`, `type`) and `adjacencies` (`name`, `relation`, `me`), with
+  its `singleton` and `ref`; a union's `branches` and an intersection's `parts` (`name`, `type`); a relation's `links`
+  (strings), `properties` and `uniques` (lists of strings, each sorted); and a list's `item`. A native is its token's
+  `format` and `name`, and its `bits` or `bytes`. What is absent, false or empty is left out.
+- **A type is a schema of any kind, inline, or a name**: `Schemas.OfAny.Schema`, a union of the kinds and `named`, a
+  value object `{"name": ...}` (union branches are of one kind, so a name is a value object too). A property's type is
+  `{"native": {"format": "basic", "name": "str"}}` or `{"named": {"name": "Phone"}}`, and an adjacency's relation is
+  `Schemas.OfRelation.Ref`, a relation inline or named the same way.
+- **Names make schemas shared.** A schema refers by name to a schema in the module, or a registered one, and writes any
+  other inline. Reading creates every named schema first, so names resolve to the same schema, recursive references
+  included: a name resolves within the module, then in the registry. A schema that refers to itself without a name is
+  refused, and so are a name that resolves nowhere, a relation named as a type or something else named as a
+  relation, and a name a module defines twice.
+- **Meta-schemas are defined in code**, never read from data. Modules are built by the builders of any implementation,
+  through `Plain.FromPlain`, and read through the protocols, so the DSL builders, whose methods (`properties(*specs)`)
+  would clash with the visitor protocols (`properties(callback)`), are not involved.
+- **A schema may hold itself**, as a node holds a list of nodes. Validating it reports each problem once.
 
 ## Expressions
 
@@ -547,7 +561,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - `OfNative` wire conversion (including for literals in expressions) belongs to `Schemas.OfNative`.
 - Builder finalization is `create()` / `clone()` / `update()`; none validate.
 - Validation, including well-formedness, runs only when the caller invokes it.
-- `Schemas.OfX.Schema` is the meta-schema for `Schemas.OfX.Data`.
+- `Schemas.OfX.Schema` is the meta-schema for `Schemas.OfX.Data`; a module of schemas is an object of
+  `Schemas.Module.Schema`, translated by `Modules` (see Meta-schemas).
 - Mutations apply to anything with a schema; one vocabulary per schema kind.
 - A map `a -> [key] -> b` is a relation with links `a`, `b` and property `key`; named references work the same way.
 - A relation must not merge a relation and an object: one-link relations whose entries carry data are not legal.

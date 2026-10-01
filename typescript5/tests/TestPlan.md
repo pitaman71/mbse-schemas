@@ -54,8 +54,9 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `14_Embedded.ipynb` | EMB | 10 | as in Python; the runtime's own probes (`then`, symbols) are not properties |
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
 | `17_Lists.ipynb` | LST | 9 | as in Python; a list reads as a frozen array |
+| `18_Modules.ipynb` | MOD | 4 | as in Python; schemas are given as a Map or a record, and read back as a Map |
 
-Total: 156 cases, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
+Total: 160 cases, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences
@@ -70,6 +71,7 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | Plain mappings | `dict` | `Map<string, PlainData>` (keeps order for every key, incl. `"2"` and `"__proto__"`) | SCH-11, PLN-02 |
 | Schema equality | `==` on data | `.equals()` (no operator overloading) | SCH-01, SCH-15, LST-01 |
 | Lists in proxies | `tuple`, set from a `list` or `tuple` | frozen array, set from an array | LST-02 |
+| Schemas by name (`Modules`) | `dict` | `Map` or record in, `Map` out | MOD-02, MOD-03 |
 | Subclasses of natives | `int` subclasses rejected | boxed primitives and `Buffer` rejected | SCH-03 |
 | Missing attribute | `AttributeError` for any name | `AttributeError`, except JavaScript protocol probes (`then`, `toJSON`, `constructor`, symbols) | PRX-02 |
 | Name collisions (F2) | `_values` shadowed by an internal | internals are private: not shadowed; declared names win over JavaScript's own members | PRX-04 |

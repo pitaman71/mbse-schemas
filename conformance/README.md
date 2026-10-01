@@ -12,6 +12,7 @@ Each implementation builds the same corpus of schemas and objects, statement for
 | `enrollment` | a three-link relation with int, float and bool entry properties |
 | `yaml_strings` | strings that YAML readers misread, Unicode line breaks, long text |
 | `embedded` | value objects, one linked through a relation (`$id`, and a reference without `$schema`), a card reached only through its value object (carrying its own `$schema`), union values of object and native branches, keyed by branch name, and an intersection value, keyed by part name |
+| `module` | the corpus's own schemas as data: a module of object, relation, union, intersection, list and native schemas, natives of widths and another format's token, shared schemas by name and the others inline |
 | `lists` | lists of strings, bytes, lists of ints, union values and value objects; value objects in lists linking each other and a reference object by `$id` |
 
 The CONF test suite in each implementation checks that:

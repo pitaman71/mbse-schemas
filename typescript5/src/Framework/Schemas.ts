@@ -262,6 +262,8 @@ function isNativeData(value: unknown): value is NativeData {
 }
 
 export namespace OfNative {
+  /** The meta-schema of native schemas: a token's `format` and `name`, and a width in `bits` or `bytes`. */
+  export let Schema: ObjectData;
   /** A native value. Conversion to and from the wire format is the responsibility of this element. */
   export const Data = NativeData;
   export type Data = NativeData;
@@ -317,6 +319,8 @@ function isPropertyData(value: unknown): value is PropertyData {
 }
 
 export namespace OfProperty {
+  /** The meta-schema of a named member: a property, a union's branch or an intersection's part. */
+  export let Schema: ObjectData;
   export const Data = PropertyData;
   export type Data = PropertyData;
   export const Builder = PropertyBuilder;
@@ -375,10 +379,13 @@ class RelationData implements HasFields {
 }
 
 /** An entry property's value object has no adjacencies: an entry is written under each object it links, so its value
- * objects would be too, and nothing could link them once. */
-function entryValueProblems(schema: unknown): string[] {
+ * objects would be too, and nothing could link them once. `seen` holds the schemas on the way, so that a schema that
+ * holds itself is checked once. */
+function entryValueProblems(schema: unknown, seen: ReadonlySet<unknown> = new Set()): string[] {
+  if (seen.has(schema)) return [];
   if (schema instanceof ObjectData && schema.adjacencies.size > 0) return ["a value object held by an entry cannot have adjacencies"];
-  return sortedStrings(new Set(membersOf(schema).flatMap((member) => entryValueProblems(member))));
+  const inner = new Set([...seen, schema]);
+  return sortedStrings(new Set(membersOf(schema).flatMap((member) => entryValueProblems(member, inner))));
 }
 
 class RelationBuilder extends Builder<RelationData> {
@@ -408,6 +415,10 @@ function isRelationData(value: unknown): value is RelationData {
 }
 
 export namespace OfRelation {
+  /** The meta-schema of relation schemas. */
+  export let Schema: ObjectData;
+  /** A relation, inline or by name. */
+  export let Ref: UnionData;
   /** A relationship between objects, with a named link per linked object. Relations have no caller-facing instance
    * builder; entries are added through the adjacencies of the objects they link. */
   export const Data = RelationData;
@@ -476,6 +487,8 @@ function isAdjacencyData(value: unknown): value is AdjacencyData {
 }
 
 export namespace OfAdjacency {
+  /** The meta-schema of adjacencies. */
+  export let Schema: ObjectData;
   /** Declares that an `OfObject` is adjacent to an `OfRelation` via a particular link. */
   export const Data = AdjacencyData;
   export type Data = AdjacencyData;
@@ -485,6 +498,9 @@ export namespace OfAdjacency {
 }
 
 // --- OfObject ---
+
+/** The object schemas being validated, so that one that holds itself is validated once. */
+const VALIDATING = new Set<unknown>();
 
 class ObjectData implements HasFields {
   properties: Map<string, AnyData>;
@@ -506,7 +522,19 @@ class ObjectData implements HasFields {
     return other === this;
   }
 
+  /** The schema's problems. A value object schema may hold itself, through a list: its problems are reported once,
+   * where it is first reached. */
   validate(): string[] {
+    if (VALIDATING.has(this)) return [];
+    VALIDATING.add(this);
+    try {
+      return this.problems();
+    } finally {
+      VALIDATING.delete(this);
+    }
+  }
+
+  private problems(): string[] {
     const problems: string[] = [];
     if (this.singleton !== null && !this.ref) problems.push("a singleton's schema must be a reference object schema");
     const clashes = [...this.properties.keys()].filter((name) => this.adjacencies.has(name));
@@ -561,6 +589,8 @@ function isObjectData(value: unknown): value is ObjectData {
 }
 
 export namespace OfObject {
+  /** The meta-schema of object schemas. */
+  export let Schema: ObjectData;
   export const Data = ObjectData;
   export type Data = ObjectData;
   export const Builder = ObjectBuilder;
@@ -671,6 +701,8 @@ function isUnionData(value: unknown): value is UnionData {
 }
 
 export namespace OfUnion {
+  /** The meta-schema of union schemas. */
+  export let Schema: ObjectData;
   export const Data = UnionData;
   export type Data = UnionData;
   export const Builder = UnionBuilder;
@@ -722,6 +754,8 @@ function isIntersectionData(value: unknown): value is IntersectionData {
 }
 
 export namespace OfIntersection {
+  /** The meta-schema of intersection schemas. */
+  export let Schema: ObjectData;
   export const Data = IntersectionData;
   export type Data = IntersectionData;
   export const Builder = IntersectionBuilder;
@@ -771,6 +805,8 @@ function isIndexedData(value: unknown): value is IndexedData {
 }
 
 export namespace OfIndexed {
+  /** The meta-schema of list schemas. */
+  export let Schema: ObjectData;
   /** A list of items of one schema, held by a property; its items belong to the property's owner. */
   export const Data = IndexedData;
   export type Data = IndexedData;
@@ -810,10 +846,13 @@ function membersOf(schema: unknown): unknown[] {
 }
 
 /** Problems with a property's schema as a value: an object held by a property is a value object, so its schema is not
- * a reference object schema; nor are the schemas of the objects a union, an intersection or a list holds. */
-function embeddedProblems(schema: unknown): string[] {
+ * a reference object schema; nor are the schemas of the objects a union, an intersection or a list holds. `seen` holds
+ * the schemas on the way, so that one that holds itself is checked once. */
+function embeddedProblems(schema: unknown, seen: ReadonlySet<unknown> = new Set()): string[] {
   if (schema instanceof ObjectData) return schema.ref ? ["a reference object schema cannot be a property's type"] : [];
-  return sortedStrings(new Set(membersOf(schema).flatMap((member) => embeddedProblems(member))));
+  if (seen.has(schema)) return [];
+  const inner = new Set([...seen, schema]);
+  return sortedStrings(new Set(membersOf(schema).flatMap((member) => embeddedProblems(member, inner))));
 }
 
 /** Selects a kind through `as_<kind>(spec)`. Finalizing yields that kind's data, not a wrapper. */
@@ -889,6 +928,10 @@ class AnyBuilder {
 }
 
 export namespace OfAny {
+  /** A type: a schema of any kind, inline, or a name. */
+  export let Schema: UnionData;
+  /** A name, as a type refers to a schema by it. */
+  export let Named: ObjectData;
   /** Where a schema of any kind is expected. `OfAny.Data` is any schema kind's data. */
   export type Data = AnyData;
   export const Builder = AnyBuilder;
@@ -899,4 +942,62 @@ export namespace OfAny {
     if (isAnyData(spec)) return spec;
     return resolveSpec(spec, isAnyData, () => new AnyBuilder());
   }
+}
+
+// --- Meta-schemas: the schemas of schema data, so that schemas are written, read, validated and compared as objects ---
+
+function namedText(name: string) {
+  return (p: PropertyBuilder) => p.name(name).of((t) => t.as_native(String));
+}
+
+function listOf(spec: OfAny.Spec) {
+  return (t: AnyBuilder) => t.as_indexed((i) => i.of(spec));
+}
+
+const Text = (t: AnyBuilder) => t.as_native(String);
+const NamedSchema = new ObjectBuilder().properties(namedText("name")).create();
+const AnySchema = new UnionBuilder().create(); // a type; its branches, which refer back to it, are added below
+const PropertySchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("type").of(AnySchema)).create();
+const NativeSchema = new ObjectBuilder().properties(
+  namedText("format"), namedText("name"), (p) => p.name("bits").of((t) => t.as_native(BigInt)),
+  (p) => p.name("bytes").of((t) => t.as_native(BigInt))).create();
+const RelationSchema = new ObjectBuilder().properties(
+  (p) => p.name("links").of(listOf(Text)), (p) => p.name("properties").of(listOf(PropertySchema)),
+  (p) => p.name("uniques").of(listOf(listOf(Text)))).create();
+const RelationRef = new UnionBuilder().branches((b) => b.name("relation").of(RelationSchema),
+  (b) => b.name("named").of(NamedSchema)).create();
+const AdjacencySchema = new ObjectBuilder().properties(
+  namedText("name"), (p) => p.name("relation").of(RelationRef), namedText("me")).create();
+const ObjectSchema = new ObjectBuilder().properties(
+  (p) => p.name("properties").of(listOf(PropertySchema)), (p) => p.name("adjacencies").of(listOf(AdjacencySchema)),
+  namedText("singleton"), (p) => p.name("ref").of((t) => t.as_native(Boolean))).create();
+const UnionSchema = new ObjectBuilder().properties((p) => p.name("branches").of(listOf(PropertySchema))).create();
+const IntersectionSchema = new ObjectBuilder().properties((p) => p.name("parts").of(listOf(PropertySchema))).create();
+const IndexedSchema = new ObjectBuilder().properties((p) => p.name("item").of(AnySchema)).create();
+const KIND_SCHEMAS: [string, ObjectData][] = [["native", NativeSchema], ["object", ObjectSchema], ["union", UnionSchema],
+  ["intersection", IntersectionSchema], ["indexed", IndexedSchema]];
+const kindBranches = KIND_SCHEMAS.map(([name, schema]) => (b: MemberBuilder) => b.name(name).of(schema));
+new UnionBuilder(AnySchema).branches(...kindBranches, (b) => b.name("named").of(NamedSchema)).update();
+const DefinitionSchema = new UnionBuilder().branches(...kindBranches, (b) => b.name("relation").of(RelationSchema)).create();
+const EntrySchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("schema").of(DefinitionSchema)).create();
+
+OfNative.Schema = NativeSchema;
+OfProperty.Schema = PropertySchema;
+OfRelation.Schema = RelationSchema;
+OfRelation.Ref = RelationRef;
+OfAdjacency.Schema = AdjacencySchema;
+OfObject.Schema = ObjectSchema;
+OfUnion.Schema = UnionSchema;
+OfIntersection.Schema = IntersectionSchema;
+OfIndexed.Schema = IndexedSchema;
+OfAny.Schema = AnySchema;
+OfAny.Named = NamedSchema;
+
+/** A named set of schemas, as data. `Module.Schema` is the reference object schema of a module: its `schemas` are a
+ * list of `Module.Entry` value objects, each a `name` and a `schema`, a `Module.Definition` (a schema of any kind,
+ * relations included). See `Modules` for the translation between schemas and modules. */
+export namespace Module {
+  export const Schema = new ObjectBuilder().ref().properties((p) => p.name("schemas").of(listOf(EntrySchema))).create();
+  export const Entry = EntrySchema;
+  export const Definition = DefinitionSchema;
 }

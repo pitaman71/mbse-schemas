@@ -26,6 +26,19 @@ and TypeScript write byte-identical JSON, and each reads the other's.
   references to reference objects carry schema names, so a linked reference object's schema must be registered. An
   object reached only through links to its value objects carries its own `"$schema"`.
 
+## Schemas as data
+
+A module is an object holding schemas by name, so schemas save, load, validate and compare like any data:
+
+```python fragment
+text = JSON.ToJSON(S.Module.Schema, Modules.module({"Contact": Contact, "Phone": Phone}))
+schemas = Modules.schemas(JSON.FromJSON(B)(S.Module.Schema, text))   # {"Contact": ..., "Phone": ...}
+```
+
+Each schema is written inline by kind (`{"object": {...}}`), and refers by name (`{"named": {"name": "Phone"}}`) to
+the schemas in the module and those registered; a name resolves within the module, then in the registry. A schema
+that refers to itself must be named.
+
 ## Calls
 
 | Call | Writes or reads |

@@ -71,6 +71,9 @@ B.Name().list_prop(["a", "b"]).ports([lambda p: p.name("in")])   # a list of ite
 B.Name(obj).ports(lambda l: l.item(0, lambda a: a.as_object(lambda p: p.name("x"))).remove(1)).update()  # in place
 B.Name(obj).property("p", lambda p: ...).adjacency("a", lambda a: a.entries(...))  # visitor protocol, any name
 
+# Schemas as data: a module holds schemas by name, as an object of S.Module.Schema.
+Modules.module({"Contact": Contact}); Modules.schemas(module)   # schemas to a module, and back
+
 # Everything else works for any schema.
 Reachable.of(root)                                          # root and everything reachable, in first-reference order
 Plain.ToPlain(schema, obj); Plain.ToPlain.Reachable(schema, root); Plain.FromPlain(B)(schema, plain)

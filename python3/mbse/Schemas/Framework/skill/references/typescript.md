@@ -76,6 +76,7 @@ B.Name().listProp(["a", "b"]).create();                    // a list of items; o
 JSON.ToJSON.Reachable(schema, root); JSON.FromJSON(B).Reachable(schema, text);
 Validators.Validate(B)(schema, obj); Validators.Validate(B).Reachable(schema, root);
 new Comparison.OfObject(schema, a).compare(new Comparison.OfObject(schema, b));   // -1, 0, 1 or null
+Modules.module({ Contact }); Modules.schemas(module);      // schemas to a module (a Map or a record), and back (a Map)
 ```
 
 ## Go deeper

@@ -70,6 +70,13 @@ export function schema(name: string): ObjectSchema {
   return objectSchema(name);
 }
 
+/** The object or relation schema registered under `name`. */
+export function registered(name: string): ObjectSchema | RelationSchema {
+  const found = registry.get(name);
+  if (found === undefined) throw new LookupError(`no schema registered as ${repr(name)}`);
+  return found;
+}
+
 /** The name `schema` is registered under. */
 export function name_of(schema: ObjectSchema | RelationSchema): string {
   for (const [name, registered] of registry) if (registered === schema) return name;

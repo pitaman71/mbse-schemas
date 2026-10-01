@@ -32,6 +32,7 @@ __all__ = [
     "OfUnion",
     "OfIntersection",
     "OfIndexed",
+    "Module",
 ]
 
 NATIVE_TYPES: tuple[type[Native], ...] = (int, float, str, bool, bytes)
@@ -293,12 +294,16 @@ class _RelationData:
         return problems
 
 
-def _entry_value_problems(schema: Any) -> list[str]:
+def _entry_value_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[str]:
     """An entry property's value object has no adjacencies: an entry is written under each object it links, so its
-    value objects would be too, and nothing could link them once."""
+    value objects would be too, and nothing could link them once. `seen` holds the schemas on the way, so that a
+    schema that holds itself is checked once."""
+    if id(schema) in seen:
+        return []
     if isinstance(schema, _ObjectData) and schema.adjacencies:
         return ["a value object held by an entry cannot have adjacencies"]
-    return sorted({problem for member in _members_of(schema) for problem in _entry_value_problems(member)})
+    inner = seen | {id(schema)}
+    return sorted({problem for member in _members_of(schema) for problem in _entry_value_problems(member, inner)})
 
 
 class _RelationBuilder(_Builder[_RelationData]):
@@ -377,6 +382,10 @@ class OfAdjacency:
 # --- OfObject ---
 
 
+_VALIDATING: set[int] = set()
+"""The object schemas being validated, so that one that holds itself is validated once."""
+
+
 @dataclass(eq=False)
 class _ObjectData:
     properties: dict[str, Any] = field(default_factory=dict)  # name -> OfAny.Data
@@ -385,6 +394,17 @@ class _ObjectData:
     ref: bool = False  # a reference object schema; otherwise a value object schema
 
     def validate(self) -> list[str]:
+        """The schema's problems. A value object schema may hold itself, through a list: its problems are reported once,
+        where it is first reached."""
+        if id(self) in _VALIDATING:
+            return []
+        _VALIDATING.add(id(self))
+        try:
+            return self._problems()
+        finally:
+            _VALIDATING.discard(id(self))
+
+    def _problems(self) -> list[str]:
         problems = []
         if self.singleton is not None and not self.ref:
             problems.append("a singleton's schema must be a reference object schema")
@@ -600,12 +620,16 @@ def _members_of(schema: Any) -> list[Any]:
     return list(schema.properties.values()) if isinstance(schema, (_ObjectData, _UnionData, _IntersectionData)) else []
 
 
-def _embedded_problems(schema: Any) -> list[str]:
+def _embedded_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[str]:
     """Problems with a property's schema as a value: an object held by a property is a value object, so its schema is
-    not a reference object schema; nor are the schemas of the objects a union, an intersection or a list holds."""
+    not a reference object schema; nor are the schemas of the objects a union, an intersection or a list holds. `seen`
+    holds the schemas on the way, so that one that holds itself is checked once."""
     if isinstance(schema, _ObjectData):
         return ["a reference object schema cannot be a property's type"] if schema.ref else []
-    return sorted({problem for member in _members_of(schema) for problem in _embedded_problems(member)})
+    if id(schema) in seen:
+        return []
+    inner = seen | {id(schema)}
+    return sorted({problem for member in _members_of(schema) for problem in _embedded_problems(member, inner)})
 
 
 class _AnyBuilder:
@@ -673,3 +697,69 @@ class OfAny:
         if isinstance(spec, _KINDS):
             return spec
         return _resolve(spec, _KINDS, _AnyBuilder)
+
+
+# --- Meta-schemas: the schemas of schema data, so that schemas are written, read, validated and compared as objects ---
+
+
+def _named_text(name: str) -> OfProperty.Spec:
+    return lambda p: p.name(name).of(lambda t: t.as_native(str))
+
+
+def _list_of(spec: OfAny.Spec) -> Callable[[_AnyBuilder], _AnyBuilder]:
+    return lambda t: t.as_indexed(lambda i: i.of(spec))
+
+
+def _Text(t: _AnyBuilder) -> _AnyBuilder:
+    return t.as_native(str)
+
+
+_Named = OfObject.Builder().properties(_named_text("name")).create()
+_AnySchema = OfUnion.Builder().create()  # a type; its branches, which refer back to it, are added below
+_PropertySchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("type").of(_AnySchema)).create()
+_NativeSchema = OfObject.Builder().properties(
+    _named_text("format"), _named_text("name"), lambda p: p.name("bits").of(lambda t: t.as_native(int)),
+    lambda p: p.name("bytes").of(lambda t: t.as_native(int))).create()
+_RelationSchema = OfObject.Builder().properties(
+    lambda p: p.name("links").of(_list_of(_Text)), lambda p: p.name("properties").of(_list_of(_PropertySchema)),
+    lambda p: p.name("uniques").of(_list_of(_list_of(_Text)))).create()
+_RelationRef = OfUnion.Builder().branches(lambda b: b.name("relation").of(_RelationSchema),
+                                          lambda b: b.name("named").of(_Named)).create()
+_AdjacencySchema = OfObject.Builder().properties(
+    _named_text("name"), lambda p: p.name("relation").of(_RelationRef), _named_text("me")).create()
+_ObjectSchema = OfObject.Builder().properties(
+    lambda p: p.name("properties").of(_list_of(_PropertySchema)),
+    lambda p: p.name("adjacencies").of(_list_of(_AdjacencySchema)), _named_text("singleton"),
+    lambda p: p.name("ref").of(lambda t: t.as_native(bool))).create()
+_UnionSchema = OfObject.Builder().properties(lambda p: p.name("branches").of(_list_of(_PropertySchema))).create()
+_IntersectionSchema = OfObject.Builder().properties(lambda p: p.name("parts").of(_list_of(_PropertySchema))).create()
+_IndexedSchema = OfObject.Builder().properties(lambda p: p.name("item").of(_AnySchema)).create()
+_KIND_SCHEMAS = (("native", _NativeSchema), ("object", _ObjectSchema), ("union", _UnionSchema),
+                 ("intersection", _IntersectionSchema), ("indexed", _IndexedSchema))
+OfUnion.Builder(_AnySchema).branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
+                                     lambda b: b.name("named").of(_Named)).update()
+_Definition = OfUnion.Builder().branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
+                                         lambda b: b.name("relation").of(_RelationSchema)).create()
+_Entry = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("schema").of(_Definition)).create()
+
+OfNative.Schema = _NativeSchema  # type: ignore[attr-defined]
+OfProperty.Schema = _PropertySchema  # type: ignore[attr-defined]
+OfRelation.Schema = _RelationSchema  # type: ignore[attr-defined]
+OfRelation.Ref = _RelationRef  # type: ignore[attr-defined]
+OfAdjacency.Schema = _AdjacencySchema  # type: ignore[attr-defined]
+OfObject.Schema = _ObjectSchema  # type: ignore[attr-defined]
+OfUnion.Schema = _UnionSchema  # type: ignore[attr-defined]
+OfIntersection.Schema = _IntersectionSchema  # type: ignore[attr-defined]
+OfIndexed.Schema = _IndexedSchema  # type: ignore[attr-defined]
+OfAny.Schema = _AnySchema  # type: ignore[attr-defined]
+OfAny.Named = _Named  # type: ignore[attr-defined]
+
+
+class Module:
+    """A named set of schemas, as data. `Module.Schema` is the reference object schema of a module: its `schemas` are a
+    list of `Module.Entry` value objects, each a `name` and a `schema`, a `Module.Definition` (a schema of any kind,
+    relations included). See `Modules` for the translation between schemas and modules."""
+
+    Schema = OfObject.Builder().ref().properties(lambda p: p.name("schemas").of(_list_of(_Entry))).create()
+    Entry = _Entry
+    Definition = _Definition

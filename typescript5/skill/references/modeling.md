@@ -8,7 +8,7 @@ How to express an interface or data model with the schema elements. The same mod
 |---|---|
 | Block, class, entity, table row: anything with identity | registered `OfObject` |
 | Primitive attribute, value property | `OfNative` property |
-| Structured value without identity (UML datatype, SysML value type with parts, ICD signal description) | embedded object: a property whose schema is an `OfObject` |
+| Structured value without identity (UML datatype, SysML value type with parts, ICD signal description) | value object: a property whose schema is an `OfObject` |
 | Association, reference property, pointer, foreign key | `OfRelation` linking the objects, with an adjacency on each side |
 | Association class, association block, join table with columns | `OfRelation` with properties |
 | Composition, part property (each part has at most one whole) | `.links("whole", "part").unique("whole")` |
@@ -27,7 +27,7 @@ How to express an interface or data model with the schema elements. The same mod
 
 **Reference object or value object?** Use a reference object, whose schema is marked `.ref()`, if the thing is shared
 by several owners, navigated back from, part of a cycle, or referred to by identity; it is reached through relations
-and never held by a property. Otherwise use a value object (an embedded object): a property holds it, it is copied by
+and never held by a property. Otherwise use a value object: a property holds it, it is copied by
 value and written nested. A value object has an identity too, and may have adjacencies: a component's ports, say, as
 value objects linked by connectors.
 

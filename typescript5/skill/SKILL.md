@@ -24,7 +24,7 @@ simpler.
 1. **No list-valued properties.** Every collection is an `OfRelation`, and its entries link objects and may carry
    properties. Each object sees a relation through one of its links (an *adjacency*, declared with `.me(link)`).
 2. **Identity or value.** A thing with identity is an object linked through a relation. A value without identity is
-   an *embedded object*, a property whose schema is an `OfObject`, and it cannot have adjacencies.
+   an *value object*, a property whose schema is an `OfObject`, and it cannot have adjacencies.
 3. **Nothing is mandatory, and absent is not null.** Reading an unset property raises `AttributeError`. Cardinality
    is `unique(...)` on a relation. "At least one" constraints are not implemented yet.
 4. **Validation runs only when asked:** `Validators.Validate(registry)(schema, value)`, or `.Reachable(...)` for a

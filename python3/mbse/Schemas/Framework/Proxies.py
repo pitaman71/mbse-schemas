@@ -7,7 +7,7 @@ Builders (`Proxies.OfObject.Builder`) implement `Visitors.OfObject`, like every 
 
 Relation entries live in one global table per relation. Adding an entry equal to an existing one is elided.
 
-A property whose schema is an `OfObject` holds an embedded object: a read-only record with no identity
+A property whose schema is an `OfObject` holds a value object: a read-only record with no identity
 (`Proxies.OfObject.Record`), read with attributes like an instance and set with a Spec, e.g.
 `.reach(lambda r: r.number('+44'))`. Union and intersection values are records too, whose properties are the union's
 branches or the intersection's parts, by name: `.reach(lambda u: u.phone(lambda p: p.number('+44')))` sets the branch
@@ -220,7 +220,7 @@ def _write_properties(visitor: Any, schema: ObjectSchema, values: dict[str, Any]
 
 
 def _write_value(visitor: Visitors.OfAny, value: Any) -> None:
-    """Writes a native, an embedded object, a union value or an intersection value into a `Visitors.OfAny`."""
+    """Writes a native, a value object, a union value or an intersection value into a `Visitors.OfAny`."""
     if isinstance(value, _RecordData):
         _write_record(visitor, object.__getattribute__(value, "_schema"), lambda r: value.accept(r))
     else:
@@ -233,11 +233,11 @@ def _noun(schema: Any) -> str:
         return "union value"
     if isinstance(schema, Schemas.OfIntersection.Data):
         return "intersection value"
-    return "embedded object"
+    return "value object"
 
 
 def _a(noun: str) -> str:
-    return f"a {noun}" if noun == "union value" else f"an {noun}"
+    return f"an {noun}" if noun == "intersection value" else f"a {noun}"
 
 
 class _RecordData:
@@ -425,7 +425,7 @@ class _AnySlot:
         return self
 
     def as_object(self, callback: Callable[[Visitors.OfObject], Any]) -> _AnySlot:
-        """Builds an embedded object, starting from the one already set, if any."""
+        """Builds a value object, starting from the one already set, if any."""
         return self._record(Schemas.OfObject.Data, "an object", callback)
 
     def as_union(self, callback: Callable[[Visitors.OfUnion], Any]) -> _AnySlot:
@@ -472,7 +472,7 @@ class _PropertySlot:
 
 def _setter(visitor: Any, name: str, schema: Any = None) -> Callable[[Any], Any]:
     """DSL setter for a property of `schema`: `.name(value)`, or `.name(Spec)` where the Spec receives the value's
-    builder: a `Visitors.OfNative` (`v.set(...)`), or the builder of an embedded object, a union value or an intersection
+    builder: a `Visitors.OfNative` (`v.set(...)`), or the builder of a value object, a union value or an intersection
     value, which starts from the value already set. A value object given as the value replaces the one set."""
 
     def setter(spec: Any) -> Any:
@@ -520,7 +520,7 @@ class _RecordBuilder:
             _load_entries(self._entries, schema, source)
         self._member = ("branch of the union" if isinstance(schema, Schemas.OfUnion.Data) else
                         "part of the intersection" if isinstance(schema, Schemas.OfIntersection.Data) else
-                        "property of the embedded object")
+                        "property of the value object")
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _RecordBuilder:
         for name in [n for n in self._schema.properties if n in self._values]:

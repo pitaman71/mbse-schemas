@@ -65,7 +65,7 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   new S.OfObject.Builder(Notebook).relations((a) => a.name("notes").of(Pages).me("notebook")).update();
   new S.OfObject.Builder(Note).relations((a) => a.name("notebooks").of(Pages).me("note")).update();
 
-  // --- embedded: value objects (embedded objects, one linked through a relation), union values of objects and of
+  // --- embedded: value objects (value objects, one linked through a relation), union values of objects and of
   // natives, and an intersection value; a card reached only through its value object carries its schema ---
   const Line = new Schemas.OfRelation.Builder().links("hub", "phone").create();
   const CardPhone = new Schemas.OfObject.Builder().properties(text("number"), text("label")).relations(

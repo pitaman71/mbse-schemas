@@ -20,7 +20,7 @@ The schema elements include:
                bits or bytes. In Python the host types are `int`, `float`, `str`, `bool` and `bytes`.
                Conversion between the native format and the over-the-wire format is the responsibility of `Schemas.OfNative`.
 - `OfObject` : named properties list where each property has type described by `OfAny`. An `OfObject` schema describes
-               reference objects when marked `.ref()`, and otherwise value (embedded) objects; see Value objects and
+               reference objects when marked `.ref()`, and otherwise value objects; see Value objects and
                reference objects. An `OfObject` schema may declare
                a singleton global name; that single instance is created implicitly, must always exist, and is referenced
                by its global name. Properties are optional: nothing is mandatory except as specified by a constraint.
@@ -48,14 +48,14 @@ The schema elements include:
                      aspect oriented structures. A value holds every part, by name; parts do not merge, so two parts may
                      declare the same property, even with different types.
 
-A property whose schema is an `OfObject` holds an *embedded object*, a value object: a read-only record of that
+A property whose schema is an `OfObject` holds a *value object*: a read-only record of that
 schema's properties that belongs to its owner, copied with it and written nested in its owner's snapshot. It has an
 identity, and its schema may declare adjacencies, however it is held (directly, through a union branch or an
 intersection part); see Value objects and reference objects.
 A property whose schema is an `OfUnion` holds a union value: a record whose properties are the union's branches, holding
 exactly one of them. A property whose schema is an `OfIntersection` holds an intersection value: a record whose
 properties are the intersection's parts, holding each of them. `Visitors.OfUnion` and `Visitors.OfIntersection` read
-and write them like an embedded object's properties (`properties`, `has`, `property`, `clear`), and writing a union's
+and write them like a value object's properties (`properties`, `has`, `property`, `clear`), and writing a union's
 branch clears any other.
 
 Named references are handled entirely by relations with a property (or properties) for the index value.
@@ -192,7 +192,7 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   checks everything reachable from the root. It is constructed with a registry that looks schemas up by name (e.g.
   `Proxies.Builders`), and runs only when the caller asks. It checks the schemas' own `validate()`, exact native types
   of properties and entry properties, that every link is set and filled by an object whose schema declares an
-  adjacency via that link, `unique(...)` clauses over the entries seen, embedded objects' properties and entries
+  adjacency via that link, `unique(...)` clauses over the entries seen, value objects' properties and entries
   recursively (a link to a value object is checked against its schema when its owner is validated too),
   that a union value holds exactly one of its branches and an intersection value every one of its parts, each with a
   value of its type. The validator is a visitor: objects write
@@ -211,7 +211,7 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   relation with links `owner` and `item`, plus `index: int` or `key: K` with `unique(item)` for lists and dicts: the
   owner's adjacency is the field, and each element class gets an adjacency via `item`. Adjacencies declare which
   object schemas may fill a link, so writing a class finds a container's element type by reverse lookup, and writes
-  fields only for adjacencies via a relation's first link. Defaults, mandatoriness and nested classes (embedded
+  fields only for adjacencies via a relation's first link. Defaults, mandatoriness and nested classes (value
   objects) are left out or refused.
 
 ## Proxies
@@ -241,7 +241,7 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
   one) and checkably so: a deserializer must reject a symbol assigned to two objects or an object assigned two symbols.
 - Symbols bind only to objects, never to values or entries.
 - Singletons are referenced by their global name and never need a symbol.
-- An embedded object is written nested, as a mapping of its properties and its adjacencies, with its symbol as `$id`
+- A value object is written nested, as a mapping of its properties and its adjacencies, with its symbol as `$id`
   when something links to it. Union and intersection values are written the
   same way, keyed by branch or part name: a union value `{"phone": {"number": "1"}}` has exactly one key, and decoding
   rejects any other count; an intersection value `{"stamp": {...}, "audit": {...}}` has a key per part, and a missing
@@ -298,9 +298,9 @@ Mistakes in the calling program keep their usual classes, e.g. a root schema tha
 
 ## Value objects and reference objects
 
-Implemented, except where a bullet says otherwise. This lifts the rule that an embedded object has no identity and no
+Implemented, except where a bullet says otherwise. This lifts the rule that a value object has no identity and no
 adjacencies, so that an object can be composed of parts that take part in relations (a component's ports, a schema's
-properties). The terms are to replace "embedded object" and "object" throughout the API's messages and these documents.
+properties). The terms are to replace "value object" and "object" throughout the API's messages and these documents.
 
 - **Every object has an identity**, and any object can be linked by relations. What distinguishes the two kinds is
   ownership, and the schema says which kind it describes: `Schemas.OfObject.Builder().ref()` marks a *reference object
@@ -313,7 +313,7 @@ properties). The terms are to replace "embedded object" and "object" throughout 
 - **A value object** is held by a property whose schema is a value object schema, and belongs to that one owner, a
   reference object or another value object. Union and intersection values are value objects, and so are the objects they hold.
   `Visitable.owner()` gives a value object's owner, and None for a reference object.
-- **A value object may have adjacencies**, and its entries link it like any object. The rule "an embedded object cannot
+- **A value object may have adjacencies**, and its entries link it like any object. The rule "a value object cannot
   have adjacencies" is dropped. A value object's schema follows from its owner's, so a value object schema needs no
   registration, and a link to a value object carries no `$schema`: `{"$ref": "s3"}`.
 - **Ownership is exclusive and deep.** Editing a value object through its owner's builder keeps its identity. Setting
@@ -502,7 +502,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Nothing is mandatory except as specified by a constraint: properties are optional by default, and mandatory
   participation in a relation is expressed as a constraint (directory membership is required by well-formedness).
 - `OfValue` is not a base class; renamed `OfAny`.
-- Object-valued properties hold embedded objects, value objects: read-only values owned by their owner, written
+- Object-valued properties hold value objects: read-only values owned by their owner, written
   nested; they have identities and may have adjacencies. Reference objects are reached through relations.
 - Union branches and intersection parts are named, and their values are records keyed by those names, in proxies and
   over the wire; there are no branch predicates (see Unions and intersections by name). Intersections as registered

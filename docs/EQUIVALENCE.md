@@ -35,7 +35,7 @@
 
 The corpus (`python3/mbse/Schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`) builds six cases
 statement for statement: an address book, native edge values, a family with a cycle and a self-loop, a three-link
-relation, strings that YAML readers misread, and embedded objects with union and intersection values. See `conformance/README.md`.
+relation, strings that YAML readers misread, and value objects with union and intersection values. See `conformance/README.md`.
 
 Run everything:
 

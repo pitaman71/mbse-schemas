@@ -4,7 +4,7 @@ Install `mbse-schemas` (add the `yaml` extra for YAML), then import from `mbse.S
 
 ## A complete program
 
-Components own ports, wires connect ports and carry a label, and each port describes its signal as an embedded value.
+Components own ports, wires connect ports and carry a label, and each port describes its signal as a value object.
 
 ```python
 from mbse.Schemas.Framework import JSON, Proxies, Schemas as S, Validators
@@ -14,7 +14,7 @@ def native(name, type_):
     return lambda p: p.name(name).of(lambda t: t.as_native(type_))
 
 
-# A value with no identity: an embedded object.
+# A value with no identity: a value object.
 Signal = S.OfObject.Builder().properties(native("width", int), native("unit", str)).create()
 
 # Things with identity: object schemas.
@@ -61,7 +61,7 @@ schema.validate()                                           # the schema's own p
 
 # Proxies: register object and relation schemas, then build through Proxies.Builders.
 Proxies.register("Name", schema); B = Proxies.Builders
-B.Name().prop(value).embedded(lambda r: r.x(1)).adjacency_name(lambda e: e.link(obj).entry_prop(v)).create()
+B.Name().prop(value).value_prop(lambda r: r.x(1)).adjacency_name(lambda e: e.link(obj).entry_prop(v)).create()
 B.Name(obj).prop(v).update()                                # change obj; .clone() makes a changed copy instead
 B.Name(obj).clear("prop").update()
 obj.prop                                                    # AttributeError when unset

@@ -14,7 +14,7 @@ object content carries no schema, so references carry the schema name, and the r
 The serializers are visitors: a value writes itself into them through `Visitable.accept`. `FromPlain` is constructed
 with the builders to build with, e.g. `FromPlain(Proxies.Builders)`.
 
-An embedded object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties. Union
+A value object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties. Union
 and intersection values are written the same way, with the union's branches or the intersection's parts as the
 properties: a union value `{"phone": {"number": "+44"}}` holds exactly one branch, and an intersection value
 `{"stamp": {...}, "audit": {...}}` each of its parts.
@@ -94,7 +94,7 @@ class _AnyWriter:
         return self._record(Schemas.OfIntersection.Data, "an intersection", callback)
 
     def _record(self, kind: type, noun: str, callback: Callable[[Any], Any]) -> _AnyWriter:
-        """Writes an embedded object, a union value or an intersection value, nested as a mapping."""
+        """Writes a value object, a union value or an intersection value, nested as a mapping."""
         if not isinstance(self._schema, kind):
             raise TypeError(f"property {self._name!r} is not {noun}")
         nested = self._out.get(self._name)
@@ -416,7 +416,7 @@ def _identify(symbol: PlainData, context: _Context, steps: tuple[tuple[str, type
 
 # For messages, per record kind: a value of it, its schema, and what its properties are.
 _RECORDS = {
-    Schemas.OfObject.Data: ("an embedded object", "the embedded object", "property"),
+    Schemas.OfObject.Data: ("a value object", "the value object", "property"),
     Schemas.OfUnion.Data: ("a union value", "the union", "branch"),
     Schemas.OfIntersection.Data: ("an intersection value", "the intersection", "part"),
 }
@@ -617,7 +617,7 @@ def _set(visitor: Any, name: str, value: Any) -> None:
 
 
 def _write(visitor: Visitors.OfAny, value: Any) -> None:
-    """Writes a decoded value: a native, or an embedded object, union value or intersection value."""
+    """Writes a decoded value: a native, or a value object, union value or intersection value."""
     if isinstance(value, _Record):
         if isinstance(value.schema, Schemas.OfUnion.Data):
             visitor.as_union(lambda u: value.accept(u))

@@ -18,7 +18,7 @@
  * The serializers are visitors: a value writes itself into them through `Visitable.accept`. `FromPlain` is
  * constructed with the builders to build with, e.g. `FromPlain(Proxies.Builders)`.
  *
- * An embedded object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties.
+ * A value object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties.
  * Union and intersection values are written the same way, with the union's branches or the intersection's parts as
  * the properties: a union value `{"phone": {"number": "+44"}}` holds exactly one branch, and an intersection value
  * `{"stamp": {...}, "audit": {...}}` each of its parts.
@@ -104,7 +104,7 @@ export class _AnyWriter implements OfAny {
     return this.record(Schemas.OfIntersection.Data, "an intersection", callback as unknown as Callback<OfObject>);
   }
 
-  /** Writes an embedded object, a union value or an intersection value, nested as a mapping. */
+  /** Writes a value object, a union value or an intersection value, nested as a mapping. */
   private record(kind: abstract new (...args: never[]) => RecordSchema, what: string, callback: Callback<OfObject>): _AnyWriter {
     if (!(this.schema instanceof kind)) throw new TypeError(`property ${repr(this.slotName)} is not ${what}`);
     let nested = this.out.get(this.slotName);
@@ -118,7 +118,7 @@ export class _AnyWriter implements OfAny {
   }
 }
 
-/** The schema of a record: an embedded object's, or a union's or intersection's, whose properties are its branches or
+/** The schema of a record: a value object's, or a union's or intersection's, whose properties are its branches or
  * parts. */
 type RecordSchema = Schemas.OfObject.Data | Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
 
@@ -455,7 +455,7 @@ function identify(symbol: unknown, context: Context, steps: Steps, where: Where)
 function recordNames(schema: RecordSchema): [string, string, string] {
   if (schema instanceof Schemas.OfUnion.Data) return ["a union value", "the union", "branch"];
   if (schema instanceof Schemas.OfIntersection.Data) return ["an intersection value", "the intersection", "part"];
-  return ["an embedded object", "the embedded object", "property"];
+  return ["a value object", "the value object", "property"];
 }
 
 /** An entry property's value: a native or a value object, which has no symbol or adjacencies of its own. */
@@ -690,7 +690,7 @@ function set(visitor: { property(name: string, callback: Callback<OfProperty>): 
   visitor.property(name, (p) => p.value((a) => write(a, value)));
 }
 
-/** Writes a decoded value: a native, or an embedded object, union value or intersection value. */
+/** Writes a decoded value: a native, or a value object, union value or intersection value. */
 function write(visitor: OfAny, value: unknown): void {
   if (value instanceof DecodedRecord && value.schema instanceof Schemas.OfUnion.Data) {
     visitor.as_union((u) => value.accept(u as unknown as OfObject));

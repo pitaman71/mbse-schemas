@@ -12,7 +12,7 @@ The validator is a visitor: each object writes itself into a recorder through `V
   an adjacency to that relation via that link;
 - `unique(S)` clauses hold over the entries seen: entries that agree on everything outside `S` agree on `S`.
   Uniqueness is checked only over the entries reachable from what was validated.
-- an embedded object's properties are declared by its schema and hold values of their types, recursively;
+- a value object's properties are declared by its schema and hold values of their types, recursively;
 - a union value holds exactly one of the union's branches, with a value of that branch's type;
 - an intersection value holds every one of the intersection's parts, each with a value of that part's type.
 """
@@ -40,7 +40,7 @@ class Registry(Protocol):
 
 
 class _Value:
-    """`Visitors.OfProperty` / `OfAny` / `OfNative` recording one value into a dict: a native, or an embedded object, a
+    """`Visitors.OfProperty` / `OfAny` / `OfNative` recording one value into a dict: a native, or a value object, a
     union value or an intersection value (an `_ObjectRecord` of that kind)."""
 
     def __init__(self, values: dict[str, Any], name: str):
@@ -207,7 +207,7 @@ class _ObjectRecord:
         return self
 
     def accept(self, visitor: Visitors.OfObject) -> None:
-        """Writes the recorded property values back, so a recorded embedded object can be read like any object."""
+        """Writes the recorded property values back, so a recorded value object can be read like any object."""
         for name, value in self.values.items():
             visitor.property(name, lambda p, value=value: p.value(lambda a: _replay(a, value)))
 
@@ -228,7 +228,7 @@ def _replay(visitor: Visitors.OfAny, value: Any) -> None:
 
 # For messages, per record kind: a value of it, its schema, and what its properties are.
 _RECORDS: dict[str, tuple[str, str, str]] = {
-    "object": ("an embedded object", "the embedded object", "property"),
+    "object": ("a value object", "the value object", "property"),
     "union": ("a union value", "the union", "branch"),
     "intersection": ("an intersection value", "the intersection", "part"),
 }
@@ -354,7 +354,7 @@ class _Check:
         problems = []
         for name, entries in item.adjacency_entries.items():
             if name not in schema.adjacencies:
-                problems.append(f"{label}.{name}: not an adjacency of the embedded object")
+                problems.append(f"{label}.{name}: not an adjacency of the value object")
                 continue
             for i, entry in enumerate(entries):
                 problems += self._entry(f"{label}.{name}[{i}]", schema.adjacencies[name], item.target, entry)
@@ -419,7 +419,7 @@ class _Check:
 
 def properties_of(value: Visitors.Visitable) -> dict[str, Any]:
     """The property values `value` writes when visited, by name; absent properties are left out. It reads through the
-    visitor protocols, so it works for any `Visitable`. An embedded object, a union value or an intersection value is
+    visitor protocols, so it works for any `Visitable`. A value object, a union value or an intersection value is
     returned as an object whose `accept` writes its properties (a union's branch, an intersection's parts)."""
     record = _ObjectRecord()
     value.accept(record)

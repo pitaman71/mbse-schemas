@@ -13,7 +13,7 @@
  *   declares an adjacency to that relation via that link;
  * - `unique(S)` clauses hold over the entries seen: entries that agree on everything outside `S` agree on `S`.
  *   Uniqueness is checked only over the entries reachable from what was validated.
- * - an embedded object's properties are declared by its schema and hold values of their types, recursively;
+ * - a value object's properties are declared by its schema and hold values of their types, recursively;
  * - a union value holds exactly one of the union's branches, with a value of that branch's type;
  * - an intersection value holds every one of the intersection's parts, each with a value of that part's type.
  */
@@ -35,7 +35,7 @@ export interface Registry {
 
 // --- Recorders: Visitors that capture what an object writes into them ---
 
-/** `Visitors.OfProperty` / `OfAny` / `OfNative` recording one value into a map: a native, or an embedded object, a
+/** `Visitors.OfProperty` / `OfAny` / `OfNative` recording one value into a map: a native, or a value object, a
  * union value or an intersection value (an `_ObjectRecord` of that kind). */
 export class _Value implements OfProperty, OfAny, OfNative {
   constructor(private readonly values: Map<string, unknown>, private readonly slotName: string) {}
@@ -226,7 +226,7 @@ export class _ObjectRecord implements OfObject {
     return this;
   }
 
-  /** Writes the recorded property values back, so a recorded embedded object can be read like any object. */
+  /** Writes the recorded property values back, so a recorded value object can be read like any object. */
   accept(visitor: OfObject): void {
     for (const [name, value] of this.values) visitor.property(name, (p) => p.value((a) => replay(a, value)));
   }
@@ -248,7 +248,7 @@ function replay(visitor: OfAny, value: unknown): void {
 
 /** For messages, per record kind: a value of it, its schema, and what its properties are. */
 const RECORDS: Record<Kind, [string, string, string]> = {
-  object: ["an embedded object", "the embedded object", "property"],
+  object: ["a value object", "the value object", "property"],
   union: ["a union value", "the union", "branch"],
   intersection: ["an intersection value", "the intersection", "part"],
 };
@@ -353,7 +353,7 @@ class Check {
     for (const [name, list] of item.adjacencyEntries) {
       const adjacency = schema.adjacencies.get(name);
       if (adjacency === undefined) {
-        problems.push(`${label}.${name}: not an adjacency of the embedded object`);
+        problems.push(`${label}.${name}: not an adjacency of the value object`);
         continue;
       }
       list.forEach((entry, i) => problems.push(...this.entry(`${label}.${name}[${i}]`, adjacency, item.target, entry)));
@@ -454,7 +454,7 @@ class Check {
 // --- Entry point ---
 
 /** The property values `value` writes when visited, by name; absent properties are left out. It reads through the
- * visitor protocols, so it works for any `Visitable`. An embedded object, a union value or an intersection value is
+ * visitor protocols, so it works for any `Visitable`. A value object, a union value or an intersection value is
  * returned as an object whose `accept` writes its properties (a union's branch, an intersection's parts). */
 export function properties_of(value: Visitable | { accept(visitor: OfObject): void }): Map<string, unknown> {
   const record = new _ObjectRecord();

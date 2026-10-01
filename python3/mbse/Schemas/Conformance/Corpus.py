@@ -68,7 +68,7 @@ def build():
     S.OfObject.Builder(Notebook).relations(lambda a: a.name("notes").of(Pages).me("notebook")).update()
     S.OfObject.Builder(Note).relations(lambda a: a.name("notebooks").of(Pages).me("note")).update()
 
-    # --- embedded: value objects (embedded objects, one linked through a relation), union values of objects and of
+    # --- embedded: value objects (value objects, one linked through a relation), union values of objects and of
     # natives, and an intersection value; a card reached only through its value object carries its schema ---
     Line = S.OfRelation.Builder().links("hub", "phone").create()
     CardPhone = S.OfObject.Builder().properties(_text("number"), _text("label")).relations(

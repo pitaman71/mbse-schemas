@@ -17,13 +17,13 @@ and TypeScript write byte-identical JSON, and each reads the other's.
   objects link to it, and cycles need no special handling.
 - An object maps property names to values, and adjacency names to lists of entries. An entry holds the other links
   as references `{"$ref": symbol, "$schema": name}` and its own properties. The object's own link is implied.
-- An embedded object (a value object) is a nested mapping, with its own adjacencies nested in it. One that something
+- A value object is a nested mapping, with its own adjacencies nested in it. One that something
   links to carries its symbol, `"home": {"$id": "s3", ...}`, and links to it are `{"$ref": "s3"}`, without a schema.
   Union and intersection values are nested mappings keyed by branch or part name: a union value has exactly one key,
   and an intersection value one per part.
 - Object content carries no schema, except where nothing else gives it. The root schema is passed to the decoder, and
   references to reference objects carry schema names, so a linked reference object's schema must be registered. An
-  object reached only through links to its embedded objects carries its own `"$schema"`.
+  object reached only through links to its value objects carries its own `"$schema"`.
 
 ## Calls
 

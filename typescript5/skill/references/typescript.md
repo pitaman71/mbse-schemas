@@ -6,7 +6,7 @@ Deno.
 
 ## A complete program
 
-Components own ports, wires connect ports and carry a label, and each port describes its signal as an embedded value.
+Components own ports, wires connect ports and carry a label, and each port describes its signal as a value object.
 It writes the same JSON as the Python version, byte for byte.
 
 ```typescript
@@ -14,7 +14,7 @@ import { JSON, Proxies, Schemas as S, Validators } from "@mbse/schemas/Framework
 
 const native = (name: string, type: S.OfNative.Spec) => (p: S.OfProperty.Builder) => p.name(name).of((t) => t.as_native(type));
 
-// A value with no identity: an embedded object.
+// A value with no identity: a value object.
 const Signal = new S.OfObject.Builder().properties(native("width", BigInt), native("unit", String)).create();
 
 // Things with identity: object schemas.

@@ -151,7 +151,7 @@ IDs, and both reach 100% code coverage (`uv run coverage ...` / `npm run coverag
 
 The core is implemented in both languages:
 - schemas: objects, relations, unions and intersections;
-- embedded objects, union values and intersection values, keyed by branch and part names;
+- value objects, union values and intersection values, keyed by branch and part names;
 - dynamic proxies;
 - reachability;
 - plain snapshots, JSON and YAML;

@@ -12,7 +12,7 @@
  *
  * Relation entries live in one global table per relation. Adding an entry equal to an existing one is elided.
  *
- * A property whose schema is an `OfObject` holds an embedded object: a read-only record with no identity
+ * A property whose schema is an `OfObject` holds a value object: a read-only record with no identity
  * (`Proxies.OfObject.Record`), read with attributes like an instance and set with a Spec, e.g.
  * `.reach((r) => r.number("+44"))`. Union and intersection values are records too, whose properties are the union's
  * branches or the intersection's parts, by name: `.reach((u) => u.phone((p) => p.number("+44")))` sets the branch
@@ -304,7 +304,7 @@ function writeProperties(visitor: PropertyHolder, schema: RecordSchema, values: 
   }
 }
 
-/** Writes a native, an embedded object, a union value or an intersection value into a `Visitors.OfAny`. */
+/** Writes a native, a value object, a union value or an intersection value into a `Visitors.OfAny`. */
 function writeValue(visitor: OfAny, value: unknown): void {
   if (isRecord(value)) writeRecord(visitor, (recordTargets.get(value) as RecordTarget).schema, (r) => value.accept(r));
   else visitor.as_native((n) => n.set(value as Native));
@@ -316,7 +316,7 @@ function writeRecord(visitor: OfAny, schema: RecordSchema, callback: Callback<Ob
   else visitor.as_object(callback);
 }
 
-/** The schema of a record: an embedded object's, or a union's or intersection's, whose properties are its branches or
+/** The schema of a record: a value object's, or a union's or intersection's, whose properties are its branches or
  * parts. */
 type RecordSchema = ObjectSchema | Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
 
@@ -324,16 +324,16 @@ type RecordSchema = ObjectSchema | Schemas.OfUnion.Data | Schemas.OfIntersection
 function noun(schema: RecordSchema): string {
   if (schema instanceof Schemas.OfUnion.Data) return "union value";
   if (schema instanceof Schemas.OfIntersection.Data) return "intersection value";
-  return "embedded object";
+  return "value object";
 }
 
 function withArticle(noun: string): string {
-  return noun === "union value" ? `a ${noun}` : `an ${noun}`;
+  return noun === "intersection value" ? `an ${noun}` : `a ${noun}`;
 }
 
 /** A value object as seen by callers: `Visitable`, with properties readable by name. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type EmbeddedObject = Visitable & { readonly [name: string]: any };
+export type ValueObject = Visitable & { readonly [name: string]: any };
 
 const recordTargets = new WeakMap<object, RecordTarget>();
 
@@ -345,10 +345,10 @@ const recordTargets = new WeakMap<object, RecordTarget>();
 class RecordTarget {
   readonly id = ++nextIdentity;
   holder: Visitable | null = null;
-  proxy!: EmbeddedObject;
+  proxy!: ValueObject;
 
   constructor(readonly schema: RecordSchema, readonly values: Map<string, unknown>,
-    public pending: Map<string, _EntryBuilder[]> = new Map(), readonly source: EmbeddedObject | null = null,
+    public pending: Map<string, _EntryBuilder[]> = new Map(), readonly source: ValueObject | null = null,
     readonly copyOf: Visitable | null = null) {}
 
   identity(): number {
@@ -377,7 +377,7 @@ class RecordTarget {
 const RECORD_METHODS = new Set(["identity", "schema_name", "owner", "accept"]);
 
 function makeRecord(schema: RecordSchema, values: Map<string, unknown>, pending?: Map<string, _EntryBuilder[]>,
-  source: EmbeddedObject | null = null, copyOf: Visitable | null = null): EmbeddedObject {
+  source: ValueObject | null = null, copyOf: Visitable | null = null): ValueObject {
   const target = new RecordTarget(schema, new Map(values), pending, source, copyOf);
   const readOnly = (): never => {
     throw new AttributeError(`${noun(schema)}s are read-only; use a builder`);
@@ -392,17 +392,17 @@ function makeRecord(schema: RecordSchema, values: Map<string, unknown>, pending?
     defineProperty: readOnly,
     deleteProperty: readOnly,
     setPrototypeOf: readOnly,
-  }) as unknown as EmbeddedObject;
+  }) as unknown as ValueObject;
   target.proxy = proxy;
   recordTargets.set(proxy, target);
   return proxy;
 }
 
-function isRecord(value: unknown): value is EmbeddedObject {
+function isRecord(value: unknown): value is ValueObject {
   return typeof value === "object" && value !== null && recordTargets.has(value);
 }
 
-function stateOf(record: EmbeddedObject): RecordTarget {
+function stateOf(record: ValueObject): RecordTarget {
   return recordTargets.get(record) as RecordTarget;
 }
 
@@ -415,7 +415,7 @@ function stage(old: unknown, value: unknown, mapping: Mapping): unknown {
   let state = stateOf(value);
   if (state.source !== null && state.source === old) { // an edit of `old`, which keeps its identity
     mapping.set(old, old);
-    stageValues(value, old as EmbeddedObject, mapping);
+    stageValues(value, old as ValueObject, mapping);
     return value;
   }
   let staged = value;
@@ -428,14 +428,14 @@ function stage(old: unknown, value: unknown, mapping: Mapping): unknown {
   return staged;
 }
 
-function stageValues(record: EmbeddedObject, old: EmbeddedObject | null, mapping: Mapping): void {
+function stageValues(record: ValueObject, old: ValueObject | null, mapping: Mapping): void {
   const held = old === null ? new Map<string, unknown>() : stateOf(old).values;
   const values = stateOf(record).values;
   for (const [name, value] of [...values]) values.set(name, stage(held.get(name), value, mapping));
 }
 
 /** A copy of a placed value object, with copies of the entries linking it and the value objects it holds. */
-function copy(record: EmbeddedObject): EmbeddedObject {
+function copy(record: ValueObject): ValueObject {
   const builder = makeRecordBuilder(stateOf(record).schema);
   record.accept(builder);
   return (recordBuilderTargets.get(builder) as RecordBuilderTarget).build();
@@ -446,7 +446,7 @@ function finish(owner: Visitable, old: unknown, value: unknown, mapping: Mapping
   if (!isRecord(value) || value === old) return value;
   const state = stateOf(value);
   if (state.source !== null && state.source === old) {
-    merge(old as EmbeddedObject, value, mapping);
+    merge(old as ValueObject, value, mapping);
     return old;
   }
   state.holder = owner;
@@ -456,7 +456,7 @@ function finish(owner: Visitable, old: unknown, value: unknown, mapping: Mapping
 }
 
 /** Adds a value object's entries, linked to the value objects that take the place of those in `mapping`. */
-function addPending(record: EmbeddedObject, mapping: Mapping): void {
+function addPending(record: ValueObject, mapping: Mapping): void {
   const state = stateOf(record);
   for (const [name, builders] of state.pending) {
     const adjacency = (state.schema as ObjectSchema).adjacencies.get(name) as AdjacencySchema;
@@ -471,7 +471,7 @@ function addPending(record: EmbeddedObject, mapping: Mapping): void {
 }
 
 /** Writes an edit of a placed value object into it, so that it keeps its identity. */
-function merge(old: EmbeddedObject, edit: EmbeddedObject, mapping: Mapping): void {
+function merge(old: ValueObject, edit: ValueObject, mapping: Mapping): void {
   const target = stateOf(old);
   const values = new Map<string, unknown>();
   for (const [name, value] of stateOf(edit).values) values.set(name, finish(old, target.values.get(name), value, mapping));
@@ -560,7 +560,7 @@ export class _AnySlot implements OfAny {
     return this;
   }
 
-  /** Builds an embedded object, starting from the one already set, if any. */
+  /** Builds a value object, starting from the one already set, if any. */
   as_object(callback: Callback<ObjectVisitor>): _AnySlot {
     return this.record(Schemas.OfObject.Data, "an object", callback);
   }
@@ -616,7 +616,7 @@ export class _PropertySlot implements OfProperty {
 }
 
 /** DSL setter for a property of `schema`: `.name(value)`, or `.name(Spec)` where the Spec receives the value's builder:
- * a `Visitors.OfNative` (`v.set(...)`), or the builder of an embedded object, a union value or an intersection value,
+ * a `Visitors.OfNative` (`v.set(...)`), or the builder of a value object, a union value or an intersection value,
  * which starts from the value already set. A value object given as the value replaces the one set. */
 function setter<V extends PropertyHolder>(visitor: V, self: unknown, name: string, schema: unknown = null) {
   return (spec: unknown): unknown => {
@@ -648,16 +648,16 @@ export class RecordBuilderTarget implements ObjectVisitor {
   readonly values: Map<string, unknown>;
   readonly entries = new Map<string, _EntryBuilder[]>();
   readonly member: string;
-  readonly source: EmbeddedObject | null;
+  readonly source: ValueObject | null;
   copyOf: Visitable | null = null;
   proxy!: ObjectVisitor;
 
-  constructor(readonly schema: RecordSchema, source?: EmbeddedObject) {
+  constructor(readonly schema: RecordSchema, source?: ValueObject) {
     this.source = source ?? null;
     this.values = new Map(source === undefined ? [] : stateOf(source).values);
     if (source !== undefined && schema instanceof Schemas.OfObject.Data) loadEntries(this.entries, schema, source);
     this.member = schema instanceof Schemas.OfUnion.Data ? "branch of the union"
-      : schema instanceof Schemas.OfIntersection.Data ? "part of the intersection" : "property of the embedded object";
+      : schema instanceof Schemas.OfIntersection.Data ? "part of the intersection" : "property of the value object";
   }
 
   properties(callback: Callback<OfProperty>): ObjectVisitor {
@@ -710,7 +710,7 @@ export class RecordBuilderTarget implements ObjectVisitor {
     return this.proxy;
   }
 
-  build(): EmbeddedObject {
+  build(): ValueObject {
     return makeRecord(this.schema, this.values, this.entries, this.source, this.copyOf);
   }
 }
@@ -739,7 +739,7 @@ function loadEntries(entries: Map<string, _EntryBuilder[]>, schema: ObjectSchema
   }
 }
 
-function makeRecordBuilder(schema: RecordSchema, source?: EmbeddedObject): ObjectVisitor {
+function makeRecordBuilder(schema: RecordSchema, source?: ValueObject): ObjectVisitor {
   const target = new RecordBuilderTarget(schema, source);
   const proxy = new Proxy(target, {
     get(t, prop, receiver) {
@@ -1057,9 +1057,9 @@ export namespace OfObject {
   /** The class of proxy instances: `value instanceof Proxies.OfObject.Data`, as Python's `isinstance`. */
   export const Data = ObjectTarget;
   export type Data = Instance;
-  /** The class of embedded objects: `value instanceof Proxies.OfObject.Record`. */
+  /** The class of value objects: `value instanceof Proxies.OfObject.Record`. */
   export const Record = RecordTarget;
-  export type Record = EmbeddedObject;
+  export type Record = ValueObject;
   export type Builder = DynamicBuilder;
   /** A builder for `schema` registered as `schemaName`, as `Builders[schemaName](instance)` returns. */
   export function Builder(schema: ObjectSchema, schemaName: string, instance?: Instance): DynamicBuilder {

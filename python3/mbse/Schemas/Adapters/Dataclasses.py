@@ -26,7 +26,7 @@ Only types are translated, one flat class to one object schema:
 - Defaults and mandatoriness are not translated: `FromDataclass` ignores field defaults, and `ToDataclass` writes
   fields without defaults.
 - Anything else raises `TypeError`: other collections, containers of natives, a union in a dataclass field (it does
-  not name its branches), and nested dataclasses and other type definitions (embedded objects, and union and
+  not name its branches), and nested dataclasses and other type definitions (value objects, and union and
   intersection values, in a schema), which are handled separately.
 """
 
@@ -299,7 +299,7 @@ def _type_annotation(prop: str, schema: Any) -> ast.expr:
     if isinstance(schema, Schemas.OfNative.Data):
         return _load(schema.host().__name__)
     noun = ("a union value" if isinstance(schema, Schemas.OfUnion.Data) else
-            "an intersection value" if isinstance(schema, Schemas.OfIntersection.Data) else "an embedded object")
+            "an intersection value" if isinstance(schema, Schemas.OfIntersection.Data) else "a value object")
     raise TypeError(f"property {prop!r} holds {noun}; nested dataclasses are handled separately")
 
 

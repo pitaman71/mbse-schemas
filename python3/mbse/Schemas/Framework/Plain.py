@@ -422,9 +422,8 @@ _RECORDS = {
 }
 
 
-def _decode_entry_property(schema: Schemas.OfAny.Data, name: str, plain: PlainData, where: tuple) -> Native:
-    if not isinstance(schema, Schemas.OfNative.Data):
-        raise NotImplementedError(f"entry property {name!r}: entry properties must be native")
+def _decode_entry_property(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple) -> Any:
+    """An entry property's value: a native or a value object, which has no symbol or adjacencies of its own."""
     return _decode(schema, plain, where)
 
 
@@ -445,7 +444,7 @@ def _decode_rows(adjacency: Schemas.OfAdjacency.Data, value: PlainData, where: t
                     raise DecodeError("a link must be a reference", path=at)
                 row[name] = _Link(item[REF])
             elif name in relation.properties:
-                row[name] = _decode_entry_property(relation.properties[name], name, item, (*where, key, i, name))
+                row[name] = _decode_entry_property(relation.properties[name], item, (*where, key, i, name))
             else:
                 raise DecodeError(f"the relation has no link or property {name!r}", path=at)
         missing = [n for n in relation.links if n != adjacency.me and n not in entry]
@@ -468,7 +467,9 @@ def _references(value: PlainData, where: tuple, found: Callable[[dict[str, Any],
         if not isinstance(entry, dict):
             raise DecodeError(f"an entry must be a mapping, got {type(entry).__name__}", path=path(*where, i))
         for name, ref in entry.items():
-            if isinstance(ref, dict):
+            if isinstance(ref, dict) and REF not in ref:  # an entry property's value object
+                _references(ref, (*where, i, name), found)
+            elif isinstance(ref, dict):
                 if not _is_ref(ref):
                     raise DecodeError("a reference is {'$ref': symbol, '$schema': name}, or {'$ref': symbol} to a value object",
                                       path=path(*where, i, name))

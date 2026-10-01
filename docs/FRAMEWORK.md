@@ -320,8 +320,10 @@ properties). The terms are to replace "embedded object" and "object" throughout 
   it into another owner, or `clone()` of its owner, copies it with a new identity, with the entries among the copied
   objects (re-linked to the copies) and a copy of each entry that links them to objects outside. Clearing the property,
   or replacing its value, removes the value object and every entry linking it.
-- **Entry properties may be value objects, never reference objects.** Such a value object is owned by its entry. Not
-  yet implemented: entry properties are native.
+- **Entry properties may be value objects, never reference objects.** Such a value object is owned by the object that
+  added its entry, is written nested in the entry, and keys and compares the entry by its properties. It cannot have
+  adjacencies, since an entry is written under each object it links ("a value object held by an entry cannot have
+  adjacencies").
 - **Value objects are written nested**, inside their owner, with their adjacencies nested in them as a reference
   object's are. A value object that something links to carries its symbol, `"home": {"$id": "s3", "number": "1"}`,
   and is referred to by it, `{"$ref": "s3"}`; one that nothing links to has no `$id`. Symbols are
@@ -334,7 +336,8 @@ properties). The terms are to replace "embedded object" and "object" throughout 
   part); a `$ref` to an `$id` resolves to that value object.
 - **Value objects compare deeply**: by their properties, recursively, and by their entries, whose links to reference
   objects compare by identity and to value objects deeply. Their identity does not take part. Reference objects
-  compare by identity when linked. Not yet implemented: value objects compare by their properties only.
+  compare by identity when linked. A link from one value object to another within the two compared objects compares
+  by where the target is, the path from the object compared, so that a copy equals its original.
 - **Proxies keep value objects read-only**, with adjacencies set through the owner's builder, e.g.
   `.home(lambda r: r.number("1").ports(lambda x: x.port(p)))`.
 

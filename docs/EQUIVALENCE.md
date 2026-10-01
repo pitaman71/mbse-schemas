@@ -148,7 +148,7 @@ Equalizing coverage found more differences, all fixed in the direction noted and
 - Python's `JSON.dumps` and `YAML.dumps` accepted non-plain data (JSON turned `1` keys into `"1"`; YAML wrote tags);
   both now refuse it with TypeScript's messages (JSN-10, YML-13).
 - Entry properties that are not native values were accepted by TypeScript, and by Python unless unhashable (then a bare
-  `unhashable type` error); both now raise `an entry property must be a native value, got X` (PRX-17).
+  `unhashable type` error); both now raise `an entry property must be a native value or a value object, got X` (PRX-17).
 - Proxies accepted a non-proxy as a builder's source in Python; now refused in both (PRX-16).
 - Parse-error messages and positions differed in TypeScript for bad escapes, trailing commas, oversized integers and
   UTF-32 input; they now match Python's `json` (JSN-09). Python's advice about `sys.set_int_max_str_digits()` is

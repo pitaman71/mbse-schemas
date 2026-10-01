@@ -458,10 +458,8 @@ function recordNames(schema: RecordSchema): [string, string, string] {
   return ["an embedded object", "the embedded object", "property"];
 }
 
-function decodeEntryProperty(schema: Schemas.OfAny.Data, name: string, plain: unknown, where: Where): Native {
-  if (!(schema instanceof Schemas.OfNative.Data)) {
-    throw new NotImplementedError(`entry property ${repr(name)}: entry properties must be native`);
-  }
+/** An entry property's value: a native or a value object, which has no symbol or adjacencies of its own. */
+function decodeEntryProperty(schema: Schemas.OfAny.Data, plain: unknown, where: Where): Native {
   return decode(schema, plain, where) as Native;
 }
 
@@ -479,7 +477,7 @@ function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: 
         if (!isRef(item)) throw new DecodeError("a link must be a reference", { path: at });
         row.set(name, new Link(item.get(REF) as string));
       } else if (entryType !== undefined) {
-        row.set(name, decodeEntryProperty(entryType, name, item, [...where, key, i, name]));
+        row.set(name, decodeEntryProperty(entryType, item, [...where, key, i, name]));
       } else {
         throw new DecodeError(`the relation has no link or property ${repr(name)}`, { path: at });
       }
@@ -504,6 +502,10 @@ function references(value: unknown, where: Where, found: (ref: PlainMap, where: 
     }
     for (const [name, ref] of entry) {
       if (!(ref instanceof Map)) continue;
+      if (!ref.has(REF)) { // an entry property's value object
+        references(ref, [...where, i, name], found);
+        continue;
+      }
       if (!isRef(ref)) {
         throw new DecodeError("a reference is {'$ref': symbol, '$schema': name}, or {'$ref': symbol} to a value object",
           { path: path(...where, i, name) });

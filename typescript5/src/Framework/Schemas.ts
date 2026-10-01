@@ -367,10 +367,20 @@ class RelationData implements HasFields {
       }
     }
     for (const [name, prop] of this.properties) {
-      problems.push(...[...validateSchema(prop), ...embeddedProblems(prop)].map((p) => `property ${repr(name)}: ${p}`));
+      problems.push(...[...validateSchema(prop), ...embeddedProblems(prop), ...entryValueProblems(prop)]
+        .map((p) => `property ${repr(name)}: ${p}`));
     }
     return problems;
   }
+}
+
+/** An entry property's value object has no adjacencies: an entry is written under each object it links, so its value
+ * objects would be too, and nothing could link them once. */
+function entryValueProblems(schema: unknown): string[] {
+  if (schema instanceof ObjectData && schema.adjacencies.size > 0) return ["a value object held by an entry cannot have adjacencies"];
+  const members = schema instanceof ObjectData || schema instanceof UnionData || schema instanceof IntersectionData
+    ? [...schema.properties.values()] : [];
+  return sortedStrings(new Set(members.flatMap((member) => entryValueProblems(member))));
 }
 
 class RelationBuilder extends Builder<RelationData> {

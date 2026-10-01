@@ -264,8 +264,7 @@ export function _kind(value: unknown): string {
   return typeName(value);
 }
 
-function nativeProblem(schema: Schemas.OfAny.Data, value: unknown): string | null {
-  if (!(schema instanceof Schemas.OfNative.Data)) return "entry properties must be native";
+function nativeProblem(schema: Schemas.OfNative.Data, value: unknown): string | null {
   if (schema.type === null) { // an unsupported type is the schema's own problem, reported by its validate()
     return schema.token instanceof Schemas.OfNative.Token ? `${String(schema.token)} has no type in this implementation` : null;
   }
@@ -283,6 +282,13 @@ function filling(relation: Schemas.OfRelation.Data, name: string, target: Visita
   return `${what} cannot fill link ${repr(name)}; its schema declares no adjacency to this relation via ${repr(name)}`;
 }
 
+/** Equality key per EQUALITY.md: a native's, or a value object's by its properties. */
+function valueKey(value: unknown): string {
+  if (!(value instanceof _ObjectRecord)) return nativeKey(value);
+  const values = sortedStrings(value.values.keys()).map((name) => [name, valueKey(value.values.get(name))]);
+  return `object:${JSON.stringify(values)}`;
+}
+
 class Entry {
   constructor(readonly links: Map<string, Visitable>, readonly values: Map<string, unknown>) {}
 
@@ -290,7 +296,7 @@ class Entry {
     const parts = sortedStrings(names).map((name) => {
       const link = this.links.get(name);
       if (link !== undefined) return [name, "object", String(link.identity())];
-      if (this.values.has(name)) return [name, nativeKey(this.values.get(name))];
+      if (this.values.has(name)) return [name, valueKey(this.values.get(name))];
       return [name, ABSENT];
     });
     return JSON.stringify(parts);
@@ -403,8 +409,7 @@ class Check {
         problems.push(`${label}.${name}: not a property of the relation`);
         continue;
       }
-      const problem = nativeProblem(propertyType, item);
-      if (problem) problems.push(`${label}.${name}: ${problem}`);
+      problems.push(...this.valueProblems(`${label}.${name}`, propertyType, item));
     }
     const full = new Entry(new Map([...links].filter(([, t]) => t !== null)) as Map<string, Visitable>, entry.values);
     let seen = this.entries.get(relation);

@@ -287,8 +287,18 @@ class _RelationData:
             if unknown:
                 problems.append(f"unique({', '.join(sorted(unique))}) names unknown links or properties {sorted(unknown)}")
         for name, prop in self.properties.items():
-            problems += [f"property {name!r}: {p}" for p in _validate(prop) + _embedded_problems(prop)]
+            problems += [f"property {name!r}: {p}" for p in _validate(prop) + _embedded_problems(prop)
+                         + _entry_value_problems(prop)]
         return problems
+
+
+def _entry_value_problems(schema: Any) -> list[str]:
+    """An entry property's value object has no adjacencies: an entry is written under each object it links, so its
+    value objects would be too, and nothing could link them once."""
+    if isinstance(schema, _ObjectData) and schema.adjacencies:
+        return ["a value object held by an entry cannot have adjacencies"]
+    members = list(schema.properties.values()) if isinstance(schema, (_ObjectData, _UnionData, _IntersectionData)) else []
+    return sorted({problem for member in members for problem in _entry_value_problems(member)})
 
 
 class _RelationBuilder(_Builder[_RelationData]):

@@ -243,9 +243,7 @@ def _kind(value: Any) -> str:
     return type(value).__name__
 
 
-def _native_problem(schema: Schemas.OfAny.Data, value: Any) -> str | None:
-    if not isinstance(schema, Schemas.OfNative.Data):
-        return "entry properties must be native"
+def _native_problem(schema: Schemas.OfNative.Data, value: Any) -> str | None:
     if schema.type is None:  # an unsupported type is the schema's own problem, reported by its validate()
         token = schema.token
         return f"{token} has no type in this implementation" if isinstance(token, Schemas.OfNative.Token) else None
@@ -264,7 +262,10 @@ def _filling(relation: Schemas.OfRelation.Data, name: str, target: Visitors.Visi
 
 
 def _value_key(value: Any) -> Hashable:
-    """Equality key per EQUALITY.md: distinct native types never compare equal; floats compare by bit pattern."""
+    """Equality key per EQUALITY.md: distinct native types never compare equal; floats compare by bit pattern; a value
+    object by its properties."""
+    if isinstance(value, _ObjectRecord):
+        return ("object", tuple(sorted((name, _value_key(v)) for name, v in value.values.items())))
     if isinstance(value, float):
         return ("float", value.hex())
     return (type(value).__name__, value)
@@ -384,9 +385,7 @@ class _Check:
             if name not in relation.properties:
                 problems.append(f"{label}.{name}: not a property of the relation")
                 continue
-            problem = _native_problem(relation.properties[name], item)
-            if problem:
-                problems.append(f"{label}.{name}: {problem}")
+            problems += self._value_problems(f"{label}.{name}", relation.properties[name], item)
         full = _Entry({n: t for n, t in links.items() if t is not None}, entry.values)
         _, seen = self._entries.setdefault(id(relation), (relation, {}))
         seen.setdefault(full.key(set(relation.links) | set(relation.properties)), full)

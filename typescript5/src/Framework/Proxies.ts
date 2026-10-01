@@ -23,7 +23,7 @@
 
 import { toHex } from "./Bytes.js";
 import { AttributeError, LookupError, NotImplementedError, ValueError } from "./Errors.js";
-import { repr, typeName } from "./Repr.js";
+import { repr, sortedStrings, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfNative,
   OfObject as ObjectVisitor, OfProperty, OfUnion, Visitable } from "./Visitors.js";
@@ -119,8 +119,23 @@ export const Builders: {
 
 const floatView = new DataView(new ArrayBuffer(8));
 
-/** Equality key per EQUALITY.md: distinct native types never compare equal; floats compare by bit pattern. */
+const schemaIds = new WeakMap<object, number>();
+let nextSchemaId = 0;
+
+/** A number for each schema, as Python's `id()` of it, so that value objects of different schemas differ. */
+function schemaId(schema: object): number {
+  if (!schemaIds.has(schema)) schemaIds.set(schema, ++nextSchemaId);
+  return schemaIds.get(schema) as number;
+}
+
+/** Equality key per EQUALITY.md: distinct native types never compare equal; floats compare by bit pattern; a value
+ * object by its schema and properties, whatever its identity. */
 export function nativeKey(value: unknown): string {
+  if (isRecord(value)) {
+    const state = stateOf(value);
+    const values = sortedStrings(state.values.keys()).map((name) => [name, nativeKey(state.values.get(name))]);
+    return `object:${schemaId(state.schema)}:${JSON.stringify(values)}`;
+  }
   if (typeof value === "number") {
     if (Number.isNaN(value)) return "float:nan";
     floatView.setFloat64(0, value);
@@ -132,7 +147,7 @@ export function nativeKey(value: unknown): string {
   if (value instanceof Uint8Array && Object.getPrototypeOf(value) === Uint8Array.prototype) {
     return `bytes:${toHex(value)}`;
   }
-  throw new TypeError(`an entry property must be a native value, got ${typeName(value)}`);
+  throw new TypeError(`an entry property must be a native value or a value object, got ${typeName(value)}`);
 }
 
 class Entry {
@@ -502,8 +517,8 @@ function writeEntry(visitor: OfEntry, entry: Entry, adjacency: AdjacencySchema):
   }
   for (const name of relation.properties.keys()) {
     if (entry.properties.has(name)) {
-      const value = entry.properties.get(name) as Native;
-      visitor.property(name, (p) => p.value((a) => a.as_native((n) => n.set(value))));
+      const value = entry.properties.get(name);
+      visitor.property(name, (p) => p.value((a) => writeValue(a, value)));
     }
   }
 }
@@ -795,7 +810,7 @@ export class _EntryBuilder implements OfEntry {
   }
 
   properties(callback: Callback<OfProperty>): _EntryBuilder {
-    for (const name of [...this.values.keys()]) callback(new _PropertySlot(this.values, name));
+    for (const name of [...this.values.keys()]) callback(new _PropertySlot(this.values, name, this.relation.properties.get(name)));
     return this.proxy;
   }
 
@@ -805,7 +820,7 @@ export class _EntryBuilder implements OfEntry {
 
   property(name: string, callback: Callback<OfProperty>): _EntryBuilder {
     if (!this.relation.properties.has(name)) throw new AttributeError(`${repr(name)} is not a property of this relation`);
-    callback(new _PropertySlot(this.values, name));
+    callback(new _PropertySlot(this.values, name, this.relation.properties.get(name)));
     return this.proxy;
   }
 
@@ -830,7 +845,7 @@ export class _EntryBuilder implements OfEntry {
         return this.proxy;
       };
     }
-    if (this.relation.properties.has(name)) return setter(this, this.proxy, name);
+    if (this.relation.properties.has(name)) return setter(this, this.proxy, name, this.relation.properties.get(name));
     return undefined;
   }
 
@@ -842,7 +857,7 @@ export class _EntryBuilder implements OfEntry {
       if (value === undefined) throw new ValueError(`link ${repr(name)} is not set`);
       links.set(name, value instanceof ObjectBuilderTarget ? value.create() : value);
     }
-    return new Entry(links, new Map(this.values));
+    return new Entry(links, settle(target, new Map(), this.values, new Map()) as Map<string, Native>); // its value objects belong to `target`
   }
 }
 

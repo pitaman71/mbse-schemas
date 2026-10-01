@@ -101,10 +101,14 @@ Builders = _Builders()
 # --- Relation entries ---
 
 
-def _native_key(value: Native) -> tuple[str, object]:
-    """Equality key per EQUALITY.md: distinct native types never compare equal; floats compare by bit pattern."""
+def _native_key(value: Any) -> Hashable:
+    """Equality key per EQUALITY.md: distinct native types never compare equal; floats compare by bit pattern; a value
+    object by its schema and properties, whatever its identity."""
+    if isinstance(value, _RecordData):
+        values = object.__getattribute__(value, "_values")
+        return ("object", id(value._schema), tuple(sorted((n, _native_key(v)) for n, v in values.items())))
     if type(value) not in (int, float, str, bool, bytes):
-        raise TypeError(f"an entry property must be a native value, got {type(value).__name__}")
+        raise TypeError(f"an entry property must be a native value or a value object, got {type(value).__name__}")
     if isinstance(value, float):
         return ("float", value.hex())
     return (type(value).__name__, value)
@@ -380,7 +384,7 @@ def _write_entry(visitor: Visitors.OfEntry, entry: _Entry, adjacency: Schemas.Of
     for name in relation.properties:
         if name in entry.properties:
             value = entry.properties[name]
-            visitor.property(name, lambda p, value=value: p.value(lambda a: a.as_native(lambda n: n.set(value))))
+            visitor.property(name, lambda p, value=value: p.value(lambda a: _write_value(a, value)))
 
 
 # --- Builders ---
@@ -643,7 +647,7 @@ class _EntryBuilder:
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryBuilder:
         for name in list(self._values):
-            callback(_PropertySlot(self._values, name))
+            callback(_PropertySlot(self._values, name, self._relation.properties.get(name)))
         return self
 
     def has(self, name: str) -> bool:
@@ -652,7 +656,7 @@ class _EntryBuilder:
     def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryBuilder:
         if name not in self._relation.properties:
             raise AttributeError(f"{name!r} is not a property of this relation")
-        callback(_PropertySlot(self._values, name))
+        callback(_PropertySlot(self._values, name, self._relation.properties[name]))
         return self
 
     def clear(self, name: str) -> _EntryBuilder:
@@ -677,7 +681,7 @@ class _EntryBuilder:
 
             return link_setter
         if name in self._relation.properties:
-            return _setter(self, name)
+            return _setter(self, name, self._relation.properties[name])
         raise AttributeError(name)
 
     def build(self, target: _ObjectData) -> _Entry:
@@ -689,7 +693,7 @@ class _EntryBuilder:
                 raise ValueError(f"link {name!r} is not set")
             value = self._links[name]
             links[name] = value.create() if isinstance(value, _ObjectBuilder) else value
-        return _Entry(links, self._values)
+        return _Entry(links, _settle(target, {}, self._values, {}))  # its value objects belong to `target`
 
 
 class _AdjacencySlot:

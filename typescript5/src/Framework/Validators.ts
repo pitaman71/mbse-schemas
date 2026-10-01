@@ -606,12 +606,24 @@ class Check {
 /** The property values `value` writes when visited, by name; absent properties are left out. It reads through the
  * visitor protocols, so it works for any `Visitable`. A value object, a union value or an intersection value is
  * returned as an object whose `accept` writes its properties (a union's branch, an intersection's parts), and a list
- * as an object whose `values` are its items, read the same way. */
+ * as a `ListRecord`, whose `values` are its items, read the same way. */
 export function properties_of(value: Visitable | { accept(visitor: OfObject): void }): Map<string, unknown> {
   const record = new _ObjectRecord();
   value.accept(record);
   return new Map(record.values);
 }
+
+/** The entries `value` writes when visited, by adjacency name, in order: each an `EntryRecord` of the targets of its
+ * other links and its property values, read as `properties_of` reads them. */
+export function entries_of(value: Visitable | { accept(visitor: OfObject): void }): Map<string, _EntryRecord[]> {
+  const record = new _ObjectRecord();
+  value.accept(record);
+  return new Map([...record.adjacencyEntries].map(([name, entries]) => [name, [...entries]]));
+}
+
+/** A list as `properties_of` reads it: its items in `values`, and their keys in `keys` (null for an item appended). An
+ * entry as `entries_of` reads it: its other links' targets in `targets`, and its property values in `values`. */
+export { _EntryRecord as EntryRecord, _ListRecord as ListRecord };
 
 export interface ValidateCall {
   (schema: unknown, value: unknown): string[];

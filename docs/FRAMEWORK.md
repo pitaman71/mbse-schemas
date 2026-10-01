@@ -201,7 +201,9 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   that a union value holds exactly one of its branches and an intersection value every one of its parts, each with a
   value of its type. The validator is a visitor: objects write
   themselves into it through `accept`. `Validators.properties_of(value)` returns the property values any object writes when
-  visited, for other modules and packages that read objects (e.g. mbse-expressions' evaluators).
+  visited (a list as a `ListRecord` of its items and keys), and `Validators.entries_of(value)` its entries by adjacency
+  (each an `EntryRecord` of its other links' targets and its property values), for other modules and packages that
+  read objects (e.g. mbse-expressions' evaluators).
 
 - `Comparison` : for each schema element `OfX`, `Comparison.OfX` implements `Visitors.OfX`, records the value written
   into it, and compares it with another recording: `a.compare(b)` returns -1, 0, 1, or `None` when incomparable. See

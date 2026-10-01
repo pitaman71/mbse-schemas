@@ -26,7 +26,7 @@ from typing import Any, Literal, Protocol
 from . import Errors, Reachable, Schemas, Visitors
 from .Visitors import Native
 
-__all__ = ["Registry", "Validate", "properties_of"]
+__all__ = ["Registry", "Validate", "properties_of", "entries_of", "ListRecord", "EntryRecord"]
 
 
 class Registry(Protocol):
@@ -553,14 +553,28 @@ class _Check:
 # --- Entry points ---
 
 
+ListRecord = _ListRecord
+"""A list as `properties_of` reads it: its items in `values`, and their keys in `keys` (None for an item appended)."""
+EntryRecord = _EntryRecord
+"""An entry as `entries_of` reads it: its other links' targets in `targets`, and its property values in `values`."""
+
+
 def properties_of(value: Visitors.Visitable) -> dict[str, Any]:
     """The property values `value` writes when visited, by name; absent properties are left out. It reads through the
     visitor protocols, so it works for any `Visitable`. A value object, a union value or an intersection value is
     returned as an object whose `accept` writes its properties (a union's branch, an intersection's parts), and a list
-    as an object whose `values` are its items, read the same way."""
+    as a `ListRecord`, whose `values` are its items, read the same way."""
     record = _ObjectRecord()
     value.accept(record)
     return dict(record.values)
+
+
+def entries_of(value: Visitors.Visitable) -> dict[str, list[_EntryRecord]]:
+    """The entries `value` writes when visited, by adjacency name, in order: each an `EntryRecord` of the targets of
+    its other links and its property values, read as `properties_of` reads them."""
+    record = _ObjectRecord()
+    value.accept(record)
+    return {name: list(entries) for name, entries in record.adjacency_entries.items()}
 
 
 

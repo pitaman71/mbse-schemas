@@ -42,6 +42,27 @@ objects:
         cables:
         - sink:
             $ref: s2
+    matrix:
+    - - 1
+      - 0
+    - - 0
+      - 1
+    attrs:
+      gain: 1.5
+      ? ''
+      : -0.0
+    weights:
+      '0.5': half
+      NaN: none
+    cells:
+    - key:
+        r: 2
+        c: 3
+      value: 6
+    - key:
+        r: 0
+        c: 0
+      value: 0
   s1:
     name: mains
     plugs:

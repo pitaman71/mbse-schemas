@@ -16,7 +16,8 @@ each of its parts, set and read the same way (`card.meta.stamp.updated`).
 
 A property whose schema is an `OfIndexed` holds a list, read as a tuple and set with a list of items, each a value, a
 value object or an item's Spec (`.tags(['a', 'b'])`), or with a Spec that receives the list's builder, a
-`Visitors.OfIndexed` starting from the items set. The value objects in a list belong to the list's owner.
+`Visitors.OfIndexed` starting from the items set. The value objects in a list belong to the list's owner. A keyed list
+is read as a read-only mapping (`Proxies.OfIndexed.Map`) and set with a mapping or `(key, value)` pairs.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ from typing import Any
 from . import Errors, Schemas, Visitors
 from .Visitors import Native
 
-__all__ = ["register", "schema", "registered", "name_of", "Builders", "OfObject", "OfRelation"]
+__all__ = ["register", "schema", "registered", "name_of", "Builders", "OfObject", "OfRelation", "OfIndexed"]
 
 ObjectSchema = Schemas.OfObject.Data
 RelationSchema = Schemas.OfRelation.Data
@@ -118,6 +119,8 @@ def _native_key(value: Any) -> Hashable:
     if isinstance(value, _RecordData):
         values = object.__getattribute__(value, "_values")
         return ("object", id(value._schema), tuple(sorted((n, _native_key(v)) for n, v in values.items())))
+    if isinstance(value, _Map):
+        return ("map", frozenset((_native_key(k), _native_key(v)) for k, v in value.items()))
     if isinstance(value, (tuple, list)):
         return ("list", tuple(_native_key(item) for item in value))
     if type(value) not in (int, float, str, bool, bytes):
@@ -236,6 +239,8 @@ def _write_value(visitor: Visitors.OfAny, value: Any) -> None:
     """Writes a native, a value object, a union value, an intersection value or a list into a `Visitors.OfAny`."""
     if isinstance(value, _RecordData):
         _write_record(visitor, object.__getattribute__(value, "_schema"), lambda r: value.accept(r))
+    elif isinstance(value, _Map):
+        visitor.as_indexed(lambda items: _write_pairs(items, value))
     elif isinstance(value, tuple):
         visitor.as_indexed(lambda items: _write_items(items, value))
     else:
@@ -245,6 +250,42 @@ def _write_value(visitor: Visitors.OfAny, value: Any) -> None:
 def _write_items(visitor: Visitors.OfIndexed, items: tuple[Any, ...]) -> None:
     for item in items:
         visitor.append(lambda a, item=item: _write_value(a, item))
+
+
+def _write_pairs(visitor: Visitors.OfIndexed, items: _Map) -> None:
+    for key, value in items.items():
+        visitor.put(lambda a, key=key: _write_value(a, key), lambda a, value=value: _write_value(a, value))
+
+
+class _Map(Mapping[Any, Any]):
+    """A keyed list as proxies read it: a read-only mapping, in insertion order. A key is looked up by schema equality:
+    a native by its exact type, a list given as a tuple or list, a value object by its schema and properties."""
+
+    __slots__ = ("_pairs", "_index")
+
+    def __init__(self, pairs: Any):
+        self._pairs: tuple[tuple[Any, Any], ...] = tuple((key, value) for key, value in pairs)
+        self._index = {_native_key(key): i for i, (key, _) in enumerate(self._pairs)}
+
+    def __getitem__(self, key: Any) -> Any:
+        index = self._index.get(_native_key(key))
+        if index is None:
+            raise KeyError(key)
+        return self._pairs[index][1]
+
+    def __iter__(self) -> Iterator[Any]:
+        return (key for key, _ in self._pairs)
+
+    def __len__(self) -> int:
+        return len(self._pairs)
+
+    def __repr__(self) -> str:
+        return f"Map({list(self._pairs)!r})"
+
+    def _replaced(self, key: Any) -> tuple[Any, Any]:
+        """The key and value of the item with a key equal to `key`, or Nones."""
+        index = self._index.get(_native_key(key))
+        return (None, None) if index is None else self._pairs[index]
 
 
 def _noun(schema: Any) -> str:
@@ -304,6 +345,11 @@ def _set(target: Any, name: str, value: Any) -> None:
     object.__getattribute__(target, "_values")[name] = value
 
 
+def _replaced(old: Any, key: Any) -> tuple[Any, Any]:
+    """What a keyed list's item replaces in `old`: the key and value of the item with an equal key."""
+    return old._replaced(key) if isinstance(old, _Map) else (None, None)
+
+
 def _counterpart(old: Any, index: int, item: Any) -> Any:
     """What a list's item replaces in the list `old`: the value object it is or edits, or the list at its position."""
     olds = old if isinstance(old, tuple) else ()
@@ -318,6 +364,8 @@ def _stage(old: Any, new: Any, mapping: dict[int, Any]) -> Any:
     list's items are staged each in place of what it replaces."""
     if isinstance(new, tuple) and new is not old:
         return tuple(_stage(_counterpart(old, i, item), item, mapping) for i, item in enumerate(new))
+    if isinstance(new, _Map) and new is not old:
+        return _Map((_stage(ok, k, mapping), _stage(ov, v, mapping)) for k, v in new.items() for ok, ov in [_replaced(old, k)])
     if not isinstance(new, _RecordData) or new is old:
         return new
     if new._source is not None and new._source is old:  # an edit of `old`, which keeps its identity
@@ -351,6 +399,9 @@ def _finish(owner: Any, old: Any, new: Any, mapping: dict[int, Any]) -> Any:
     are those in a list."""
     if isinstance(new, tuple) and new is not old:
         return tuple(_finish(owner, _counterpart(old, i, item), item, mapping) for i, item in enumerate(new))
+    if isinstance(new, _Map) and new is not old:
+        return _Map((_finish(owner, ok, k, mapping), _finish(owner, ov, v, mapping))
+                    for k, v in new.items() for ok, ov in [_replaced(old, k)])
     if not isinstance(new, _RecordData) or new is old:
         return new
     if new._source is not None and new._source is old:
@@ -396,10 +447,12 @@ def _settle(owner: Any, old: dict[str, Any], new: dict[str, Any], mapping: dict[
 
 
 def _records(values: Any) -> list[_RecordData]:
-    """The value objects that `values` hold directly, those in lists included."""
+    """The value objects that `values` hold directly, those in lists, keys included, too."""
     found: list[_RecordData] = []
     for value in values:
-        if isinstance(value, tuple):
+        if isinstance(value, _Map):
+            found += _records([held for pair in value.items() for held in pair])
+        elif isinstance(value, tuple):
             found += _records(value)
         elif isinstance(value, _RecordData):
             found.append(value)
@@ -488,9 +541,14 @@ class _AnySlot:
         if not isinstance(self._schema, Schemas.OfIndexed.Data):
             raise TypeError(f"property {self._name!r} does not hold a list")
         current = self._values.get(self._name)
-        builder = _ListBuilder(self._name, self._schema, current if isinstance(current, tuple) else ())
-        callback(builder)
-        self._values[self._name] = tuple(builder._items)
+        if self._schema.positional:
+            builder = _ListBuilder(self._name, self._schema, current if isinstance(current, tuple) else ())
+            callback(builder)
+            self._values[self._name] = tuple(builder._items)
+        else:
+            keyed = _MapBuilder(self._name, self._schema, current.items() if isinstance(current, _Map) else ())
+            callback(keyed)
+            self._values[self._name] = _Map(keyed._pairs)
         return self
 
     def _record(self, kind: type, noun: str, callback: Callable[[Any], Any]) -> _AnySlot:
@@ -539,6 +597,124 @@ class _ListBuilder:
         self._items.clear()
         return self
 
+    def pairs(self, callback: Callable[[Visitors.OfItem], Any]) -> _ListBuilder:
+        for index in range(len(self._items)):
+            callback(_ItemSlot(self, index, self._schema.minimum + index, _INT))
+        return self
+
+    def _position(self, key: Callable[[Visitors.OfAny], Any], appending: bool = False) -> int:
+        """The position of the item at the key `key` writes; `appending` admits the next key."""
+        written = _written_key(self._name, _INT, key)
+        if type(written) is not int:
+            raise TypeError(f"a positional list's keys are ints, got {type(written).__name__}")
+        position = written - self._schema.minimum
+        if not 0 <= position < len(self._items) + appending:
+            raise LookupError(f"the list has no item {written}")
+        return position
+
+    def at(self, key: Callable[[Visitors.OfAny], Any], callback: Callable[[Visitors.OfAny], Any]) -> _ListBuilder:
+        return self.item(self._position(key), callback)
+
+    def put(self, key: Callable[[Visitors.OfAny], Any], value: Callable[[Visitors.OfAny], Any]) -> _ListBuilder:
+        position = self._position(key, appending=True)
+        return self.append(value) if position == len(self._items) else self.item(position, value)
+
+    def discard(self, key: Callable[[Visitors.OfAny], Any]) -> _ListBuilder:
+        return self.remove(self._position(key))
+
+
+_INT = Schemas.OfNative.Data(int)
+"""The keys of a positional list."""
+
+
+def _written_key(name: str, schema: Any, key: Callable[[Visitors.OfAny], Any]) -> Any:
+    """The key that `key` writes, as a value of `schema`."""
+    held: dict[str, Any] = {}
+    key(_AnySlot(held, name, schema))
+    if name not in held:
+        raise ValueError("a key needs a value")
+    return held[name]
+
+
+class _ItemSlot:
+    """`Visitors.OfItem` over one item of a list builder: its key, read from a copy, and its value."""
+
+    def __init__(self, builder: Any, index: int, key: Any, schema: Any):
+        self._builder, self._index, self._key, self._schema = builder, index, key, schema
+
+    def key(self, callback: Callable[[Visitors.OfAny], Any]) -> _ItemSlot:
+        name = self._builder._name
+        callback(_AnySlot({name: self._key}, name, self._schema))
+        return self
+
+    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _ItemSlot:
+        self._builder.item(self._index, callback)
+        return self
+
+
+class _MapBuilder:
+    """`Visitors.OfIndexed` building a keyed list, starting from `pairs`: items held by unique keys, in insertion order.
+    Keys are compared by schema equality; an item written with no value is left out."""
+
+    def __init__(self, name: str, schema: Schemas.OfIndexed.Data, pairs: Any):
+        self._name, self._schema = name, schema
+        self._pairs = [[key, value] for key, value in pairs]
+
+    def _find(self, key: Any) -> int | None:
+        wanted = _native_key(key)
+        return next((i for i, (k, _) in enumerate(self._pairs) if _native_key(k) == wanted), None)
+
+    def _position(self, key: Callable[[Visitors.OfAny], Any]) -> int:
+        index = self._find(_written_key(self._name, self._schema.key, key))
+        if index is None:
+            raise LookupError("the list has no item with this key")
+        return index
+
+    def items(self, callback: Callable[[Visitors.OfAny], Any]) -> _MapBuilder:
+        for index in range(len(self._pairs)):
+            self.item(index, callback)
+        return self
+
+    def item(self, index: int, callback: Callable[[Visitors.OfAny], Any]) -> _MapBuilder:
+        pair = Errors.item(self._pairs, index)
+        held = {self._name: pair[1]}
+        callback(_AnySlot(held, self._name, self._schema.item))
+        self._pairs[index:index + 1] = [[pair[0], value] for value in held.values()]
+        return self
+
+    def append(self, callback: Callable[[Visitors.OfAny], Any]) -> _MapBuilder:
+        raise TypeError("a keyed list takes put, not append")
+
+    def remove(self, index: int) -> _MapBuilder:
+        Errors.item(self._pairs, index)
+        del self._pairs[index]
+        return self
+
+    def clear(self) -> _MapBuilder:
+        self._pairs.clear()
+        return self
+
+    def pairs(self, callback: Callable[[Visitors.OfItem], Any]) -> _MapBuilder:
+        for index in range(len(self._pairs)):
+            callback(_ItemSlot(self, index, self._pairs[index][0], self._schema.key))
+        return self
+
+    def at(self, key: Callable[[Visitors.OfAny], Any], callback: Callable[[Visitors.OfAny], Any]) -> _MapBuilder:
+        return self.item(self._position(key), callback)
+
+    def put(self, key: Callable[[Visitors.OfAny], Any], value: Callable[[Visitors.OfAny], Any]) -> _MapBuilder:
+        written = _written_key(self._name, self._schema.key, key)
+        index = self._find(written)
+        if index is not None:
+            return self.item(index, value)
+        held: dict[str, Any] = {}
+        value(_AnySlot(held, self._name, self._schema.item))
+        self._pairs.extend([written, v] for v in held.values())
+        return self
+
+    def discard(self, key: Callable[[Visitors.OfAny], Any]) -> _MapBuilder:
+        return self.remove(self._position(key))
+
 
 class _PropertySlot:
     """`Visitors.OfProperty` over one key of a value dict, holding a value of `schema`."""
@@ -582,10 +758,14 @@ def _apply(visitor: Visitors.OfAny, name: str, schema: Any, spec: Any) -> None:
     if isinstance(schema, Schemas.OfIndexed.Data):
         if callable(spec):
             visitor.as_indexed(spec)
-        elif isinstance(spec, (list, tuple)):
+        elif schema.positional and isinstance(spec, (list, tuple)):
             visitor.as_indexed(lambda items: _apply_items(items.clear(), name, schema.item, spec))
+        elif not schema.positional and isinstance(spec, (Mapping, list, tuple)):
+            pairs = list(spec.items()) if isinstance(spec, Mapping) else list(spec)
+            visitor.as_indexed(lambda items: _apply_pairs(items.clear(), name, schema, pairs))
         else:
-            raise TypeError(f"property {name!r} takes a list or a Spec, got {type(spec).__name__}")
+            takes = "a list" if schema.positional else "a mapping, (key, value) pairs"
+            raise TypeError(f"property {name!r} takes {takes} or a Spec, got {type(spec).__name__}")
     elif isinstance(schema, (Schemas.OfObject.Data, Schemas.OfUnion.Data, Schemas.OfIntersection.Data)):
         if callable(spec):
             _write_record(visitor, schema, spec)
@@ -595,6 +775,14 @@ def _apply(visitor: Visitors.OfAny, name: str, schema: Any, spec: Any) -> None:
             raise TypeError(f"property {name!r} takes {_a(_noun(schema))} or a Spec, got {type(spec).__name__}")
     else:
         visitor.as_native(spec if callable(spec) else (lambda n: n.set(spec)))
+
+
+def _apply_pairs(visitor: Visitors.OfIndexed, name: str, schema: Schemas.OfIndexed.Data, pairs: list[Any]) -> None:
+    for pair in pairs:
+        if not (isinstance(pair, (list, tuple)) and len(pair) == 2):
+            raise TypeError(f"property {name!r} takes (key, value) pairs, got {type(pair).__name__}")
+        key, value = pair
+        visitor.put(lambda a, key=key: _apply(a, name, schema.key, key), lambda a, value=value: _apply(a, name, schema.item, value))
 
 
 def _apply_items(visitor: Visitors.OfIndexed, name: str, schema: Any, specs: list[Any] | tuple[Any, ...]) -> None:
@@ -930,3 +1118,7 @@ class OfObject:
 
 class OfRelation:
     Data = _RelationData
+
+
+class OfIndexed:
+    Map = _Map

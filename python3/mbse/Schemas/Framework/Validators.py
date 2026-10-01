@@ -97,10 +97,13 @@ class _Value:
 
 
 class _ListRecord:
-    """`Visitors.OfIndexed` recording a list's items, in order; an item written with no value is left out."""
+    """`Visitors.OfIndexed` recording a list's items, in order, and their keys: `keys[i]` is the key written with `put`,
+    or None for an item appended. It keeps every item written, so that a key written twice can be reported; an item
+    written with no value is left out."""
 
     def __init__(self) -> None:
         self.values: list[Any] = []
+        self.keys: list[Any] = []
 
     def items(self, callback: Callable[[Visitors.OfAny], Any]) -> _ListRecord:
         for index in range(len(self.values)):
@@ -110,22 +113,69 @@ class _ListRecord:
     def item(self, index: int, callback: Callable[[Visitors.OfAny], Any]) -> _ListRecord:
         held = {"": Errors.item(self.values, index)}
         callback(_Value(held, ""))
+        self.keys[index:index + 1] = [self.keys[index]] * len(held)
         self.values[index:index + 1] = held.values()
         return self
 
     def append(self, callback: Callable[[Visitors.OfAny], Any]) -> _ListRecord:
+        return self._add(None, callback)
+
+    def _add(self, key: Any, callback: Callable[[Visitors.OfAny], Any]) -> _ListRecord:
         held: dict[str, Any] = {}
         callback(_Value(held, ""))
+        self.keys.extend([key] * len(held))
         self.values.extend(held.values())
         return self
 
     def remove(self, index: int) -> _ListRecord:
         Errors.item(self.values, index)
-        del self.values[index]
+        del self.values[index], self.keys[index]
         return self
 
     def clear(self) -> _ListRecord:
         self.values.clear()
+        self.keys.clear()
+        return self
+
+    def pairs(self, callback: Callable[[Visitors.OfItem], Any]) -> _ListRecord:
+        for index in range(len(self.values)):
+            callback(_ItemRecord(self, index))
+        return self
+
+    def _written(self, key: Callable[[Visitors.OfAny], Any]) -> Any:
+        held: dict[str, Any] = {}
+        key(_Value(held, ""))
+        return held.get("")
+
+    def _position(self, key: Callable[[Visitors.OfAny], Any]) -> int:
+        wanted = _value_key(self._written(key))
+        index = next((i for i, k in enumerate(self.keys) if _value_key(k) == wanted), None)
+        if index is None:
+            raise LookupError("the list has no item with this key")
+        return index
+
+    def at(self, key: Callable[[Visitors.OfAny], Any], callback: Callable[[Visitors.OfAny], Any]) -> _ListRecord:
+        return self.item(self._position(key), callback)
+
+    def put(self, key: Callable[[Visitors.OfAny], Any], value: Callable[[Visitors.OfAny], Any]) -> _ListRecord:
+        return self._add(self._written(key), value)
+
+    def discard(self, key: Callable[[Visitors.OfAny], Any]) -> _ListRecord:
+        return self.remove(self._position(key))
+
+
+class _ItemRecord:
+    """`Visitors.OfItem` over one recorded item: its key, read from a copy, and its value."""
+
+    def __init__(self, record: _ListRecord, index: int):
+        self._record, self._index = record, index
+
+    def key(self, callback: Callable[[Visitors.OfAny], Any]) -> _ItemRecord:
+        callback(_Value({"": self._record.keys[self._index]}, ""))
+        return self
+
+    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _ItemRecord:
+        self._record.item(self._index, callback)
         return self
 
 
@@ -255,7 +305,7 @@ class _ObjectRecord:
 
 def _replay(visitor: Visitors.OfAny, value: Any) -> None:
     if isinstance(value, _ListRecord):
-        visitor.as_indexed(lambda items: _replay_items(items, value.values))
+        visitor.as_indexed(lambda items: _replay_items(items, value))
     elif isinstance(value, _ObjectRecord) and value.kind == "union":
         visitor.as_union(lambda u: value.accept(u))
     elif isinstance(value, _ObjectRecord) and value.kind == "intersection":
@@ -266,9 +316,12 @@ def _replay(visitor: Visitors.OfAny, value: Any) -> None:
         visitor.as_native(lambda n: n.set(value))
 
 
-def _replay_items(visitor: Visitors.OfIndexed, values: list[Any]) -> None:
-    for value in values:
-        visitor.append(lambda a, value=value: _replay(a, value))
+def _replay_items(visitor: Visitors.OfIndexed, record: _ListRecord) -> None:
+    for key, value in zip(record.keys, record.values):
+        if key is None:
+            visitor.append(lambda a, value=value: _replay(a, value))
+        else:
+            visitor.put(lambda a, key=key: _replay(a, key), lambda a, value=value: _replay(a, value))
 
 
 # --- Checks ---
@@ -314,6 +367,8 @@ def _value_key(value: Any) -> Hashable:
     object by its properties."""
     if isinstance(value, _ObjectRecord):
         return ("object", tuple(sorted((name, _value_key(v)) for name, v in value.values.items())))
+    if isinstance(value, _ListRecord) and any(key is not None for key in value.keys):
+        return ("map", frozenset((_value_key(k), _value_key(v)) for k, v in zip(value.keys, value.values)))
     if isinstance(value, _ListRecord):
         return ("list", tuple(_value_key(v) for v in value.values))
     if isinstance(value, float):
@@ -381,8 +436,7 @@ class _Check:
         if isinstance(schema, Schemas.OfIndexed.Data):
             if not isinstance(item, _ListRecord):
                 return [f"{label}: expected a list, got {_kind(item)}"]
-            return [problem for i, value in enumerate(item.values)
-                    for problem in self._value_problems(f"{label}[{i}]", schema.item, value)]
+            return self._positional(label, schema, item) if schema.positional else self._keyed(label, schema, item)
         kind = _KINDS[type(schema)]
         noun, owner, member = _RECORDS[kind]
         if not isinstance(item, _ObjectRecord) or item.kind != kind:
@@ -400,6 +454,33 @@ class _Check:
             problems.append(f"{label}: parts {missing} are not set")
         if kind == "object":
             problems += self._value_entries(label, schema, item)
+        return problems
+
+    def _positional(self, label: str, schema: Schemas.OfIndexed.Data, item: _ListRecord) -> list[str]:
+        """Problems with a positional list's items, labeled by key, and with its extent."""
+        problems = [problem for i, value in enumerate(item.values)
+                    for problem in self._value_problems(f"{label}[{schema.minimum + i}]", schema.item, value)]
+        capacity = schema.capacity
+        if capacity is not None and len(item.values) > capacity:
+            extent = schema.extent
+            problems.append(f"{label}: {len(item.values)} items are more than the extent "
+                            f"{extent.minimum}..{extent.maximum} holds")  # type: ignore[union-attr]
+        return problems
+
+    def _keyed(self, label: str, schema: Schemas.OfIndexed.Data, item: _ListRecord) -> list[str]:
+        """Problems with a keyed list's items, labeled by position: each key's, a key that appears twice, each value's."""
+        problems: list[str] = []
+        seen: dict[Hashable, int] = {}
+        for i, (key, value) in enumerate(zip(item.keys, item.values)):
+            at = f"{label}[{i}]"
+            if key is None:
+                problems.append(f"{at}.key: not set")
+            else:
+                problems += self._value_problems(f"{at}.key", schema.key, key)
+                first = seen.setdefault(_value_key(key), i)
+                if first != i:
+                    problems.append(f"{at}.key: the same key as item {first}")
+            problems += self._value_problems(at, schema.item, value)
         return problems
 
     def _value_entries(self, label: str, schema: Schemas.OfObject.Data, item: _ObjectRecord) -> list[str]:

@@ -17,7 +17,8 @@ and anywhere else values are compared. Two values are compared under a schema:
   objects compared, by its path from them.
 - `OfUnion` : the same branch, by name, and equal under that branch's schema.
 - `OfIntersection` : every part, by name, either absent in both or present and equal in both, under that part's schema.
-- `OfIndexed` : the same number of items, each equal to the item at the same position under the item schema.
+- `OfIndexed` : positional, the same number of items, each equal to the item at the same position under the item
+  schema; keyed, the same keys, each with equal values, in any order.
 - `OfAny` : same runtime schema and equal under it.
 
 Because linked objects compare by identity and only relations can form cycles, structural equality always terminates.

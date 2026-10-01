@@ -100,7 +100,11 @@ class _Writer:
         if isinstance(schema, Schemas.OfIntersection.Data):
             return _kind_of("intersection", parts=self._members((p.name, p.type) for p in schema.parts))
         if isinstance(schema, Schemas.OfIndexed.Data):
-            return _kind_of("indexed", item=self.reference(schema.item))
+            extent = None if schema.extent is None else {
+                key: value for key, value in (("minimum", schema.extent.minimum), ("maximum", schema.extent.maximum))
+                if value is not None}
+            return _kind_of("indexed", item=self.reference(schema.item),
+                            key=None if schema.key is None else self.reference(schema.key), extent=extent)
         raise TypeError(f"not a schema: {schema!r}")
 
 
@@ -189,4 +193,7 @@ class _Reader:
             schema.parts = tuple(Schemas.OfIntersection.Part(n, t) for n, t in self._members(body.get("parts", [])))
         else:
             schema.item = self._type(body["item"])
+            schema.key = self._type(body["key"]) if "key" in body else None
+            extent = body.get("extent")
+            schema.extent = None if extent is None else Schemas.OfIndexed.Extent(extent.get("minimum", 0), extent.get("maximum"))
         return schema

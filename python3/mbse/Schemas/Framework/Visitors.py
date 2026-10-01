@@ -28,6 +28,7 @@ __all__ = [
     "OfUnion",
     "OfIntersection",
     "OfIndexed",
+    "OfItem",
     "Visitable",
 ]
 
@@ -203,7 +204,9 @@ class OfIntersection(Protocol):
 
 class OfIndexed(Protocol):
     """A list: its items, in order, each a value of the list's item schema. An item written with no value is left
-    out."""
+    out. Items are addressed by position (`item`, `remove`) and by key (`pairs`, `at`, `put`, `discard`): a positional
+    list's keys are its positions from its extent's minimum, and a keyed list's are values of its key schema, each
+    written through a `Visitors.OfAny` callback."""
 
     def items(self, callback: Callable[[OfAny], Any]) -> OfIndexed:
         """Calls `callback` once for each item, in order."""
@@ -224,6 +227,31 @@ class OfIndexed(Protocol):
     def clear(self) -> OfIndexed:
         """Removes every item."""
         ...
+
+    def pairs(self, callback: Callable[[OfItem], Any]) -> OfIndexed:
+        """Calls `callback` once for each item, in order, with its key and value."""
+        ...
+
+    def at(self, key: Callable[[OfAny], Any], callback: Callable[[OfAny], Any]) -> OfIndexed:
+        """Calls `callback` with the value of the item whose key `key` writes; raises LookupError when there is none."""
+        ...
+
+    def put(self, key: Callable[[OfAny], Any], value: Callable[[OfAny], Any]) -> OfIndexed:
+        """Writes, through `value`, the value of the item whose key `key` writes, adding the item when there is none: a
+        positional list appends at its next key. A keyed list takes `put`, and raises TypeError on `append`."""
+        ...
+
+    def discard(self, key: Callable[[OfAny], Any]) -> OfIndexed:
+        """Removes the item whose key `key` writes; raises LookupError when there is none."""
+        ...
+
+
+class OfItem(Protocol):
+    """One item of a list, seen through `OfIndexed.pairs`: its key, read-only, and its value."""
+
+    def key(self, callback: Callable[[OfAny], Any]) -> OfItem: ...
+
+    def value(self, callback: Callable[[OfAny], Any]) -> OfItem: ...
 
 
 class Visitable(Protocol):

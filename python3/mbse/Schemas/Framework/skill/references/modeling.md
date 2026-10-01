@@ -16,6 +16,8 @@ How to express an interface or data model with the schema elements. The same mod
 | Multiplicity lower bound (1, 1..*) | not expressible yet: constraints are planned |
 | Qualified association, map, dictionary | relation with a key property: `.unique("owner", "key")` |
 | Ordered list of values or parts (tags, a union's branches, a component's ports) | `OfIndexed` property: `t.as_indexed(lambda i: i.of(spec))`, its items natives or value objects |
+| Dictionary, associative array, sparse tensor (values by key) | keyed list: `t.as_indexed(lambda i: i.key(spec).of(spec))`, with a native key (`str`, `float`, ...) or a value object key (e.g. `{row, col}`) |
+| Fixed-size array, dense tensor dimension | positional list with an extent: `i.of(spec).extent(1, 9)` (keys from `minimum`, at most `maximum`) |
 | Ordered list of shared objects | relation with an index property: `.links("owner", "item").properties(index).unique("owner", "index")` |
 | Tagged union, variant, `oneOf`, `xsd:choice` | `OfUnion`: named, same-kind branches; a value holds exactly one |
 | Mixin, aspect, `allOf` | `OfIntersection`: named, same-kind parts; a value holds every one. Supported for property values. Objects with identity composed from aspects are not yet |

@@ -362,6 +362,60 @@ objects:
                             named:
                               name: Cable
                           me: sink
+          - name: matrix
+            type:
+              indexed:
+                item:
+                  indexed:
+                    item:
+                      native:
+                        format: basic
+                        name: int
+                extent:
+                  minimum: 1
+                  maximum: 3
+          - name: attrs
+            type:
+              indexed:
+                item:
+                  native:
+                    format: basic
+                    name: float
+                key:
+                  native:
+                    format: basic
+                    name: str
+          - name: weights
+            type:
+              indexed:
+                item:
+                  native:
+                    format: basic
+                    name: str
+                key:
+                  native:
+                    format: basic
+                    name: float
+          - name: cells
+            type:
+              indexed:
+                item:
+                  native:
+                    format: basic
+                    name: int
+                key:
+                  object:
+                    properties:
+                    - name: r
+                      type:
+                        native:
+                          format: basic
+                          name: int
+                    - name: c
+                      type:
+                        native:
+                          format: basic
+                          name: int
           ref: true
     - name: Panel
       schema:

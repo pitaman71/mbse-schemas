@@ -10,7 +10,7 @@
  */
 
 import { AttributeError, LookupError, NotImplementedError } from "./Errors.js";
-import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIndexed, OfIntersection, OfLink, OfNative, OfObject,
+import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIndexed, OfIntersection, OfItem, OfLink, OfNative, OfObject,
   OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
 type Found = (target: Visitable) => void;
@@ -96,6 +96,24 @@ export class _Items implements OfIndexed {
 
   clear(): _Items {
     return this;
+  }
+
+  pairs(_callback: Callback<OfItem>): _Items {
+    return this;
+  }
+
+  at(_key: Callback<OfAny>, _callback: Callback<OfAny>): _Items {
+    throw new LookupError("the list has no item with this key"); // it keeps no items
+  }
+
+  put(key: Callback<OfAny>, value: Callback<OfAny>): _Items {
+    key(new _Ignored(this.propertyName, this.found)); // a key holds no links, but a visitor may write any value
+    value(new _Ignored(this.propertyName, this.found));
+    return this;
+  }
+
+  discard(_key: Callback<OfAny>): _Items {
+    throw new LookupError("the list has no item with this key");
   }
 }
 

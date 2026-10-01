@@ -92,6 +92,20 @@ class _Items:
     def clear(self) -> _Items:
         return self
 
+    def pairs(self, callback: Callable[[Visitors.OfItem], Any]) -> _Items:
+        return self
+
+    def at(self, key: Callable[[Visitors.OfAny], Any], callback: Callable[[Visitors.OfAny], Any]) -> _Items:
+        raise LookupError("the list has no item with this key")  # it keeps no items
+
+    def put(self, key: Callable[[Visitors.OfAny], Any], value: Callable[[Visitors.OfAny], Any]) -> _Items:
+        key(_Ignored(self._name, self._found))  # a key holds no links, but a visitor may write any value
+        value(_Ignored(self._name, self._found))
+        return self
+
+    def discard(self, key: Callable[[Visitors.OfAny], Any]) -> _Items:
+        raise LookupError("the list has no item with this key")
+
 
 class _Link:
     """`Visitors.OfLink` that reports its target."""

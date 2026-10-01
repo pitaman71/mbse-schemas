@@ -383,8 +383,8 @@ A list is a property's value, not a relation: an ordered sequence of items, each
   it has an identity, may have adjacencies, is copied and removed with its owner, and is written nested in it. A list
   of value objects is how an object holds a variable number of parts that take part in relations.
 - **Lists are ordered; relations are not.** Use a list where order is data (a union's branches, a relation's links,
-  the properties of a schema), and a relation to link objects, for maps and keyed lookup, and wherever uniqueness is
-  declared. A list may hold equal items.
+  the properties of a schema) or where the owner holds values by key (see Keys and extents), and a relation to link
+  objects that stand on their own, keyed by an entry property where needed. A positional list may hold equal items.
 - **Proxies read a list as a read-only tuple** (a frozen array in TypeScript). A setter takes a list (or tuple) of
   items, each a value, a value object, or the Spec of an item, and replaces the list: `.tags(['a', 'b'])`,
   `.ports([lambda p: p.name('in'), lambda p: p.name('out')])`. Setting a value object into a list copies it, as
@@ -402,6 +402,39 @@ A list is a property's value, not a relation: an ordered sequence of items, each
 - **Comparison is item by item**: the first pair that is not equal decides, so lists of ordered natives order
   lexicographically, and a list that is a prefix of another is less. Items that are incomparable make the lists
   incomparable, so lists of booleans or of value objects are equal or incomparable.
+
+### Keys and extents
+
+A list may take a key schema, which makes it an associative array: a sparse tensor, a dictionary, a table keyed by a
+value. One kind, `OfIndexed`, covers both: `t.as_indexed(lambda i: i.key(spec).of(spec))`.
+
+- **Integer keys are positions.** A list whose key is absent or a native `int` is positional: its keys are
+  `minimum`, `minimum + 1`, ... in order, with no holes. Any other key schema makes a *keyed list*: its keys are
+  values of the key schema, unique under schema equality (EQUALITY.md), and its items stay in insertion order.
+- **A key is a value.** Its schema is of any kind but a reference object schema, and a value object in a key has no
+  adjacencies ("a value object in a key cannot have adjacencies"): keys compare by structure, never by identity.
+- **An extent bounds a positional list**: `i.extent(minimum=1, maximum=9)` (in TypeScript `i.extent({ minimum: 1n,
+  maximum: 9n })`). `minimum` defaults to 0, and `maximum` may be left out. Validation reports a list with more items
+  than its extent allows. Only positional lists take an extent, and its `minimum` is at most its `maximum`.
+- **The wire form follows the key.** A positional list is an array. A keyed list whose key is another native is a
+  mapping from the key's text to the value: a `str` as is, `bytes` as base64, a `float` as its canonical text (Python's
+  `repr`, or `NaN`, `Infinity`, `-Infinity`), a `bool` as `true` or `false`; decoding accepts only that text. Any other
+  keyed list is an array of `{"key": key, "value": value}` mappings. A key that appears twice is a decoding error.
+- **Proxies read a keyed list as a read-only mapping** in insertion order (`Proxies.OfIndexed.Map`): `m[key]`,
+  `m.get(key)`, `key in m`, `len(m)`, and its keys, values and items. A key is given as a native, a tuple (or list) for
+  a list, or a value object, which matches by structure. A setter takes a mapping or a sequence of `(key, value)`
+  pairs, each a value, a value object or a Spec; a Spec receives the list's builder, as for any list.
+- **`Visitors.OfIndexed` addresses items by key** as well as by position: `pairs(callback)` calls `callback` with a
+  `Visitors.OfItem` per item, whose `key(callback)` and `value(callback)` pass a `Visitors.OfAny` (a key read there is
+  read-only: `put` and `discard` change keys); `at(key, callback)` passes the value of the item whose key `key` writes;
+  `put(key, value)` writes the value of that item, adding it if the list lacks the key; and `discard(key)` removes it.
+  `at` and `discard` raise `LookupError` for a key the list does not have. In a positional list the keys are its
+  positions, so `put` replaces an item or appends at the next key, and in a keyed list `append` raises `TypeError`.
+- **Validation** labels a positional list's items by key (`label.row[1]`) and a keyed list's by position, the key at
+  `label.attrs[2].key`. It checks each key against the key schema, reports a key that appears twice, and checks the
+  extent.
+- **Comparison**: keyed lists are equal when they hold the same keys with equal values, in any order, and
+  incomparable otherwise. Positional lists compare as above.
 
 ## Native types
 
@@ -442,7 +475,8 @@ are written, read, validated and compared like any other objects.
 - **Within a module, schemas are value objects, nested inline**, and their members are lists of value objects, in
   declared order: an object schema's `properties` (`name`, `type`) and `adjacencies` (`name`, `relation`, `me`), with
   its `singleton` and `ref`; a union's `branches` and an intersection's `parts` (`name`, `type`); a relation's `links`
-  (strings), `properties` and `uniques` (lists of strings, each sorted); and a list's `item`. A native is its token's
+  (strings), `properties` and `uniques` (lists of strings, each sorted); and a list's `item`, `key` and `extent` (`minimum`,
+  `maximum`). A native is its token's
   `format` and `name`, and its `bits` or `bytes`. What is absent, false or empty is left out.
 - **A type is a schema of any kind, inline, or a name**: `Schemas.OfAny.Schema`, a union of the kinds and `named`, a
   value object `{"name": ...}` (union branches are of one kind, so a name is a value object too). A property's type is
@@ -487,6 +521,7 @@ it is fixed here:
 | Native values | `int`, `float`, `str`, `bool`, `bytes` | `bigint`, `number`, `string`, `boolean`, `Uint8Array` |
 | Plain mappings | `dict` | `Map<string, PlainData>` (order-preserving for every key) |
 | Lists in proxies | `tuple` | frozen array |
+| Keyed lists in proxies | `Mapping` (`m[key]`, iterates keys) | `Map`-shaped (`m.get(key)`, iterates entries) |
 | Schema data equality | `==` | `.equals()` |
 | Errors | built-in `TypeError`, `ValueError`, `AttributeError`, `KeyError`, `LookupError`, `NotImplementedError`; `Errors.DecodeError` | built-in `TypeError`; the others and `DecodeError` exported from `Errors`, with the same names |
 | Callable entry points | `Plain.ToPlain(...)`, `Plain.FromPlain(builders)(...)` (objects with `__call__`) | functions with the per-kind forms attached |
@@ -498,6 +533,9 @@ it is fixed here:
 | YAML | PyYAML (optional extra), YAML 1.2 core loader | `yaml` package loader, own block emitter; the same quoting rules |
 
 ## Open questions
+
+- Sparse lists keyed by integers: an `int` key makes a list positional and dense. A sparse integer map needs a key of
+  another schema (e.g. a value object holding the index), or a way to mark an `int` key as sparse.
 
 Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/TestPlan.md`) that need a design decision:
 

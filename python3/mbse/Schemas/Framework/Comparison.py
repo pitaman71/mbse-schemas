@@ -15,8 +15,9 @@ record a value when constructed; an instance writes itself in through `Visitable
 - `OfProperty` and `OfAny` compare their values; values of different kinds are incomparable.
 - `OfUnion`: equal when both hold the same branch with equal values; otherwise incomparable.
 - `OfIntersection`: equal when every part is absent in both or equal in both; otherwise incomparable.
-- `OfIndexed`: item by item, under the item schema: the first pair that is not equal decides, and a list that is a
-  prefix of the other is less. Lists of ordered natives so order lexicographically.
+- `OfIndexed`: positional, item by item, under the item schema: the first pair that is not equal decides, and a list
+  that is a prefix of the other is less, so lists of ordered natives order lexicographically. Keyed, equal when both
+  hold the same keys with equal values, in any order; otherwise incomparable.
 - `OfLink`: equal when both link the same object (by identity), or, within two recordings, value objects at the same
   path from their roots (`home`, `reach.phone`); otherwise incomparable.
 - `OfEntry`: equal when every link and property is equal; otherwise incomparable.
@@ -37,8 +38,8 @@ from . import Errors, Schemas, Visitors
 from .Visitors import Native
 
 __all__ = [
-    "Result", "OfAny", "OfNative", "OfProperty", "OfObject", "OfUnion", "OfIntersection", "OfIndexed", "OfAdjacency",
-    "OfEntry", "OfLink",
+    "Result", "OfAny", "OfNative", "OfProperty", "OfObject", "OfUnion", "OfIntersection", "OfIndexed", "OfItem",
+    "OfAdjacency", "OfEntry", "OfLink",
 ]
 
 Result = int | None
@@ -224,12 +225,17 @@ class OfIntersection(_Members):
 
 
 class OfIndexed:
-    """`Visitors.OfIndexed` recording a list: its items, in order, each an `OfAny` of the item schema. An item written
-    with no value is left out."""
+    """`Visitors.OfIndexed` recording a list: its items, in order, each an `OfAny` of the item schema, and in a keyed
+    list each one's key, an `OfAny` of the key schema. An item written with no value is left out. Positional lists
+    compare item by item; keyed lists are equal when they hold equal values under equal keys, in any order."""
 
     def __init__(self, schema: Schemas.OfIndexed.Data, paths: _Paths | None = None, path: Path = ()):
         self._schema, self._paths, self._path = schema, paths, path
         self._items: list[OfAny] = []
+        self._keys: list[OfAny] = []  # a keyed list's
+
+    def _slot(self) -> OfAny:
+        return OfAny(self._schema.item, self._paths, (*self._path, len(self._items)))
 
     def items(self, callback: Callable[[Visitors.OfAny], Any]) -> OfIndexed:
         for item in list(self._items):
@@ -241,28 +247,112 @@ class OfIndexed:
         return self
 
     def append(self, callback: Callable[[Visitors.OfAny], Any]) -> OfIndexed:
-        item = OfAny(self._schema.item, self._paths, (*self._path, len(self._items)))
+        if not self._schema.positional:
+            raise TypeError("a keyed list takes put, not append")
+        return self._add(None, callback)
+
+    def _add(self, key: OfAny | None, callback: Callable[[Visitors.OfAny], Any]) -> OfIndexed:
+        item = self._slot()
         callback(item)
-        self._items.extend([] if item._absent() else [item])
+        added = [] if item._absent() else [item]
+        self._items.extend(added)
+        self._keys.extend([key] * len(added) if key is not None else [])
         return self
 
     def remove(self, index: int) -> OfIndexed:
         Errors.item(self._items, index)
         del self._items[index]
+        del self._keys[index:index + 1]
         return self
 
     def clear(self) -> OfIndexed:
-        self._items = []
+        self._items, self._keys = [], []
         return self
+
+    def _key(self, position: int) -> OfAny:
+        """The key of the item at `position`: a keyed list's own, or a positional list's index from its minimum."""
+        if not self._schema.positional:
+            return self._keys[position]
+        key = OfAny(_INT)
+        key.as_native(lambda n: n.set(self._schema.minimum + position))
+        return key
+
+    def pairs(self, callback: Callable[[Visitors.OfItem], Any]) -> OfIndexed:
+        for position, item in enumerate(list(self._items)):
+            callback(OfItem(self._key(position), item))
+        return self
+
+    def _written(self, key: Callable[[Visitors.OfAny], Any]) -> OfAny:
+        written = OfAny(_INT if self._schema.positional else self._schema.key)
+        key(written)
+        if written._absent():
+            raise ValueError("a key needs a value")
+        return written
+
+    def _position(self, key: OfAny, appending: bool = False) -> int:
+        """The position of the item at `key`; `appending` admits a positional list's next key."""
+        if self._schema.positional:
+            index = key._value.get() - self._schema.minimum  # type: ignore[union-attr]
+            if not 0 <= index < len(self._items) + appending:
+                raise LookupError(f"the list has no item {key._value.get()}")  # type: ignore[union-attr]
+            return index
+        found = next((i for i, k in enumerate(self._keys) if k.compare(key) == 0), None)
+        if found is None:
+            raise LookupError("the list has no item with this key")
+        return found
+
+    def at(self, key: Callable[[Visitors.OfAny], Any], callback: Callable[[Visitors.OfAny], Any]) -> OfIndexed:
+        return self.item(self._position(self._written(key)), callback)
+
+    def put(self, key: Callable[[Visitors.OfAny], Any], value: Callable[[Visitors.OfAny], Any]) -> OfIndexed:
+        written = self._written(key)
+        if self._schema.positional:
+            index = self._position(written, appending=True)
+            return self._add(None, value) if index == len(self._items) else self.item(index, value)
+        if any(k.compare(written) == 0 for k in self._keys):
+            return self.item(self._position(written), value)
+        return self._add(written, value)
+
+    def discard(self, key: Callable[[Visitors.OfAny], Any]) -> OfIndexed:
+        return self.remove(self._position(self._written(key)))
 
     def compare(self, other: OfIndexed) -> Result:
         if self._schema is not other._schema:
             return None
+        if not self._schema.positional:
+            return self._compare_keyed(other)
         for mine, theirs in zip(self._items, other._items):
             result = mine.compare(theirs)
             if result != 0:
                 return result
         return _sign(len(self._items), len(other._items))
+
+    def _compare_keyed(self, other: OfIndexed) -> Result:
+        """Equal when both hold the same keys, each with equal values, in any order; otherwise incomparable."""
+        if len(self._items) != len(other._items):
+            return None
+        theirs = list(zip(other._keys, other._items))
+        return _all_equal([0 if any(key.compare(k) == 0 and item.compare(v) == 0 for k, v in theirs) else None
+                           for key, item in zip(self._keys, self._items)])
+
+
+_INT = Schemas.OfNative.Data(int)
+"""The keys of a positional list."""
+
+
+class OfItem:
+    """`Visitors.OfItem` over one recorded item: its key and its value."""
+
+    def __init__(self, key: OfAny, value: OfAny):
+        self._key, self._value = key, value
+
+    def key(self, callback: Callable[[Visitors.OfAny], Any]) -> OfItem:
+        callback(self._key)
+        return self
+
+    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> OfItem:
+        callback(self._value)
+        return self
 
 
 class OfProperty:

@@ -112,7 +112,12 @@ class Writer {
     if (schema instanceof Schemas.OfIntersection.Data) {
       return kindOf("intersection", [["parts", this.members(schema.parts.map((p) => [p.name, p.type] as const))]]);
     }
-    if (schema instanceof Schemas.OfIndexed.Data) return kindOf("indexed", [["item", this.reference(schema.item)]]);
+    if (schema instanceof Schemas.OfIndexed.Data) {
+      const extent = schema.extent === null ? null : new Map<string, PlainData>(
+        ([["minimum", schema.extent.minimum], ["maximum", schema.extent.maximum]] as [string, PlainData][]).filter(([, v]) => v !== null));
+      return kindOf("indexed", [["item", this.reference(schema.item)],
+        ["key", schema.key === null ? null : this.reference(schema.key)], ["extent", extent]]);
+    }
     throw new TypeError(`not a schema: ${repr(schema)}`);
   }
 }
@@ -210,7 +215,12 @@ class Reader {
     } else if (schema instanceof Schemas.OfIntersection.Data) {
       schema.parts = this.members(body.get("parts")).map(([name, type]) => new Schemas.OfIntersection.Part({ name, type }));
     } else {
-      (schema as Schemas.OfIndexed.Data).item = this.type(body.get("item") as Definition);
+      const indexed = schema as Schemas.OfIndexed.Data;
+      indexed.item = this.type(body.get("item") as Definition);
+      indexed.key = body.has("key") ? this.type(body.get("key") as Definition) : null;
+      const extent = body.get("extent") as PlainMap | undefined;
+      indexed.extent = extent === undefined ? null
+        : new Schemas.OfIndexed.Extent((extent.get("minimum") as bigint | undefined) ?? 0n, (extent.get("maximum") as bigint | undefined) ?? null);
     }
     return schema;
   }

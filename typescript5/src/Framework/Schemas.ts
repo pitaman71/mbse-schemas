@@ -13,7 +13,7 @@
 import { fromBase64, toBase64 } from "./Bytes.js";
 import { DecodeError, ValueError } from "./Errors.js";
 import type { PlainData } from "./Plain.js";
-import { isClassLike, NATIVE_NAMES, repr, sortedStrings, tokenName, Tuple, typeName } from "./Repr.js";
+import { isClassLike, NATIVE_NAMES, pyFloat, repr, sortedStrings, tokenName, Tuple, typeName } from "./Repr.js";
 import type { Native, NativeToken } from "./Visitors.js";
 
 export const NATIVE_TYPES: readonly NativeToken[] = [BigInt, Number, String, Boolean, Uint8Array];
@@ -209,9 +209,38 @@ class NativeData implements HasFields {
   /** Converts plain data back to a native value. Distinct native types are never coerced into each other.
    * Plain data that does not hold such a value, or a token this implementation cannot read, throws
    * `Errors.DecodeError`. */
+  /** A native value as the text of a key over the wire: its plain form when that is text (`str`, `bytes` as base64,
+   * non-finite floats), a finite float's Python `repr`, and `true` or `false`. */
+  to_key(value: unknown): string {
+    const plain = this.to_plain(value);
+    if (typeof plain === "boolean") return plain ? "true" : "false";
+    return typeof plain === "string" ? plain : pyFloat(plain as number);
+  }
+
+  /** The native value a key's text holds; anything but the text `to_key` writes throws `DecodeError`. */
+  from_key(text: string): Native {
+    const host = this.hostForDecoding();
+    let value: Native | null;
+    try {
+      value = host === Boolean ? (text === "true" ? true : text === "false" ? false : null)
+        : host === Number && !NON_FINITE.has(text) ? Number(text) : this.from_plain(text);
+    } catch {
+      value = null; // from_plain throws only DecodeError
+    }
+    if (value === null || this.to_key(value) !== text) {
+      throw new DecodeError(`expected the text of a ${tokenName(host)} key, got ${repr(text)}`);
+    }
+    return value;
+  }
+
+  /** The host type, or `DecodeError` when this implementation cannot read the token. */
+  private hostForDecoding(): NativeToken {
+    if (this.type === null) throw new DecodeError(`${String(this.token)} has no type in this implementation`);
+    return this.type;
+  }
+
   from_plain(plain: unknown): Native {
-    const host = this.type;
-    if (host === null) throw new DecodeError(`${String(this.token)} has no type in this implementation`);
+    const host = this.hostForDecoding();
     if (host === Uint8Array) {
       if (typeof plain !== "string") throw new DecodeError(`expected base64 text for bytes, got ${typeName(plain)}`);
       if (!BASE64.test(plain)) throw new DecodeError("invalid base64 text");
@@ -379,13 +408,13 @@ class RelationData implements HasFields {
 }
 
 /** An entry property's value object has no adjacencies: an entry is written under each object it links, so its value
- * objects would be too, and nothing could link them once. `seen` holds the schemas on the way, so that a schema that
- * holds itself is checked once. */
-function entryValueProblems(schema: unknown, seen: ReadonlySet<unknown> = new Set()): string[] {
+ * objects would be too, and nothing could link them once. Nor has a value object in a key (`held`), which compares by
+ * structure. `seen` holds the schemas on the way, so that a schema that holds itself is checked once. */
+function entryValueProblems(schema: unknown, held = "held by an entry", seen: ReadonlySet<unknown> = new Set()): string[] {
   if (seen.has(schema)) return [];
-  if (schema instanceof ObjectData && schema.adjacencies.size > 0) return ["a value object held by an entry cannot have adjacencies"];
+  if (schema instanceof ObjectData && schema.adjacencies.size > 0) return [`a value object ${held} cannot have adjacencies`];
   const inner = new Set([...seen, schema]);
-  return sortedStrings(new Set(membersOf(schema).flatMap((member) => entryValueProblems(member, inner))));
+  return sortedStrings(new Set(membersOf(schema).flatMap((member) => entryValueProblems(member, held, inner))));
 }
 
 class RelationBuilder extends Builder<RelationData> {
@@ -771,12 +800,49 @@ export namespace OfIntersection {
 
 // --- OfIndexed ---
 
-/** A list: ordered items, each a value of the item schema. */
+/** The keys a positional list may have: `minimum` to `maximum`, inclusive; `maximum` null for no bound. */
+class ExtentClass {
+  readonly minimum: bigint;
+  readonly maximum: bigint | null;
+
+  constructor(minimum: bigint = 0n, maximum: bigint | null = null) {
+    this.minimum = minimum;
+    this.maximum = maximum;
+  }
+
+  equals(other: unknown): boolean {
+    return other instanceof ExtentClass && other.minimum === this.minimum && other.maximum === this.maximum;
+  }
+}
+
+/** A list: items of the item schema, in order. Without a key schema, or with a native `int` one, it is positional: its
+ * keys are its positions, from its extent's minimum. With any other key schema it is keyed: its items are held by
+ * unique keys of that schema, in insertion order. */
 class IndexedData implements HasFields {
   item: AnyData | null;
+  key: AnyData | null;
+  extent: ExtentClass | null;
 
-  constructor(fields: { item?: AnyData | null } = {}) {
+  constructor(fields: { item?: AnyData | null; key?: AnyData | null; extent?: ExtentClass | null } = {}) {
     this.item = fields.item ?? null;
+    this.key = fields.key ?? null;
+    this.extent = fields.extent ?? null;
+  }
+
+  get positional(): boolean {
+    return this.key === null || (this.key instanceof NativeData && this.key.type === BigInt);
+  }
+
+  /** The first key of a positional list: its extent's minimum, or 0. */
+  get minimum(): bigint {
+    return this.extent !== null && typeof this.extent.minimum === "bigint" ? this.extent.minimum : 0n;
+  }
+
+  /** How many items a positional list's extent holds, or null when it has no valid maximum. */
+  get capacity(): bigint | null {
+    const extent = this.extent;
+    if (extent === null || typeof extent.maximum !== "bigint" || typeof extent.minimum !== "bigint") return null;
+    return extent.maximum - extent.minimum + 1n;
   }
 
   equals(other: unknown): boolean {
@@ -784,7 +850,24 @@ class IndexedData implements HasFields {
   }
 
   validate(): string[] {
-    return validateSchema(this.item).map((problem) => `item: ${problem}`);
+    const problems = validateSchema(this.item).map((problem) => `item: ${problem}`);
+    if (this.key !== null) {
+      const key = [...validateSchema(this.key), ...embeddedProblems(this.key, new Set(), "a key"),
+        ...entryValueProblems(this.key, "in a key")];
+      problems.push(...key.map((problem) => `key: ${problem}`));
+    }
+    if (this.extent !== null) problems.push(...this.extentProblems(this.extent));
+    return problems;
+  }
+
+  private extentProblems(extent: ExtentClass): string[] {
+    const problems = this.positional ? [] : ["an extent bounds a positional list, whose keys are ints"];
+    if (typeof extent.minimum !== "bigint" || !(extent.maximum === null || typeof extent.maximum === "bigint")) {
+      problems.push(`an extent's minimum and maximum are ints, got ${repr(extent.minimum)} and ${repr(extent.maximum)}`);
+    } else if (extent.maximum !== null && extent.minimum > extent.maximum) {
+      problems.push(`an extent's minimum ${extent.minimum} exceeds its maximum ${extent.maximum}`);
+    }
+    return problems;
   }
 }
 
@@ -796,6 +879,18 @@ class IndexedBuilder extends Builder<IndexedData> {
   /** The schema of every item. */
   of(spec: OfAny.Spec): IndexedBuilder {
     this.state["item"] = OfAny.resolve(spec);
+    return this;
+  }
+
+  /** The schema of the keys; any but a native `int` makes the list keyed. */
+  key(spec: OfAny.Spec): IndexedBuilder {
+    this.state["key"] = OfAny.resolve(spec);
+    return this;
+  }
+
+  /** The keys a positional list may have, `minimum` to `maximum`. */
+  extent(bounds: { minimum?: bigint; maximum?: bigint | null } = {}): IndexedBuilder {
+    this.state["extent"] = new ExtentClass(bounds.minimum ?? 0n, bounds.maximum ?? null);
     return this;
   }
 }
@@ -812,6 +907,8 @@ export namespace OfIndexed {
   export type Data = IndexedData;
   export const Builder = IndexedBuilder;
   export type Builder = IndexedBuilder;
+  export const Extent = ExtentClass;
+  export type Extent = ExtentClass;
   export type Spec = IndexedData | ((builder: IndexedBuilder) => IndexedBuilder);
 
   export function resolve(spec: Spec | unknown): IndexedData {
@@ -845,14 +942,14 @@ function membersOf(schema: unknown): unknown[] {
     ? [...schema.properties.values()] : [];
 }
 
-/** Problems with a property's schema as a value: an object held by a property is a value object, so its schema is not
- * a reference object schema; nor are the schemas of the objects a union, an intersection or a list holds. `seen` holds
- * the schemas on the way, so that one that holds itself is checked once. */
-function embeddedProblems(schema: unknown, seen: ReadonlySet<unknown> = new Set()): string[] {
-  if (schema instanceof ObjectData) return schema.ref ? ["a reference object schema cannot be a property's type"] : [];
+/** Problems with a property's schema as a value (or a key's, `role`): an object held by a property is a value object,
+ * so its schema is not a reference object schema; nor are the schemas of the objects a union, an intersection or a list
+ * holds. `seen` holds the schemas on the way, so that one that holds itself is checked once. */
+function embeddedProblems(schema: unknown, seen: ReadonlySet<unknown> = new Set(), role = "a property's type"): string[] {
+  if (schema instanceof ObjectData) return schema.ref ? [`a reference object schema cannot be ${role}`] : [];
   if (seen.has(schema)) return [];
   const inner = new Set([...seen, schema]);
-  return sortedStrings(new Set(membersOf(schema).flatMap((member) => embeddedProblems(member, inner))));
+  return sortedStrings(new Set(membersOf(schema).flatMap((member) => embeddedProblems(member, inner, role))));
 }
 
 /** Selects a kind through `as_<kind>(spec)`. Finalizing yields that kind's data, not a wrapper. */
@@ -973,7 +1070,10 @@ const ObjectSchema = new ObjectBuilder().properties(
   namedText("singleton"), (p) => p.name("ref").of((t) => t.as_native(Boolean))).create();
 const UnionSchema = new ObjectBuilder().properties((p) => p.name("branches").of(listOf(PropertySchema))).create();
 const IntersectionSchema = new ObjectBuilder().properties((p) => p.name("parts").of(listOf(PropertySchema))).create();
-const IndexedSchema = new ObjectBuilder().properties((p) => p.name("item").of(AnySchema)).create();
+const ExtentSchema = new ObjectBuilder().properties((p) => p.name("minimum").of((t) => t.as_native(BigInt)),
+  (p) => p.name("maximum").of((t) => t.as_native(BigInt))).create();
+const IndexedSchema = new ObjectBuilder().properties((p) => p.name("item").of(AnySchema), (p) => p.name("key").of(AnySchema),
+  (p) => p.name("extent").of(ExtentSchema)).create();
 const KIND_SCHEMAS: [string, ObjectData][] = [["native", NativeSchema], ["object", ObjectSchema], ["union", UnionSchema],
   ["intersection", IntersectionSchema], ["indexed", IndexedSchema]];
 const kindBranches = KIND_SCHEMAS.map(([name, schema]) => (b: MemberBuilder) => b.name(name).of(schema));

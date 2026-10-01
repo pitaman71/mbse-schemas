@@ -83,6 +83,7 @@ noticed.
 | Plain mappings | `dict` | `Map<string, PlainData>` | object literals reorder integer-like keys and mishandle `__proto__` | SCH-11, PLN-02 |
 | Schema data equality | `==` | `.equals()` | no operator overloading | SCH-01, SCH-15, LST-01 |
 | Lists in proxies | a `tuple`; a setter takes a `list` or a `tuple` | a frozen array; a setter takes an array | the read-only sequences of each language | LST-02 |
+| Keyed lists in proxies | `Proxies.OfIndexed.Map`, a `Mapping`: `m[key]` raises `KeyError`, iterating gives the keys, `repr` shows the pairs; a setter takes a mapping or pairs | `Proxies.OfIndexed.Map`, shaped as a `Map`: `get(key)` gives `undefined`, iterating gives the entries; a setter takes a `Map` or pairs | each language's read-only mapping. A JavaScript `Map` makes a `-0.0` key `0`, so float keys that must keep `-0.0` are given as pairs | LST-11, LST-13 |
 | Schemas by name (`Modules`) | a `dict` | a `Map`, or a record, and `schemas()` returns a `Map` | object literals are records by name, but only a `Map` keeps every key's order | MOD-02, MOD-03 |
 | Errors | built-in exceptions | built-in `TypeError`; `ValueError`, `AttributeError`, `KeyError`, `LookupError`, `NotImplementedError` from `Errors` | JavaScript lacks the others | throughout |
 | Callable entry points | objects with `__call__` | functions with the per-kind forms attached | no callable instances | PLN-01 |

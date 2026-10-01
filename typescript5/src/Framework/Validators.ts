@@ -19,14 +19,14 @@
  * - each item of a list is a value of the list's item schema.
  */
 
-import { item, NotImplementedError } from "./Errors.js";
+import { item, LookupError, NotImplementedError } from "./Errors.js";
 import { schemaTypeName } from "./Plain.js";
 import { nativeKey } from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
 import { repr, sortedStrings, tokenName, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
-import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIndexed, OfIntersection, OfLink, OfNative, OfObject,
-  OfProperty, OfUnion, Visitable } from "./Visitors.js";
+import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIndexed, OfIntersection, OfItem, OfLink, OfNative,
+  OfObject, OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
 /** Looks schemas up by name, e.g. `Proxies.Builders`. */
 export interface Registry {
@@ -102,9 +102,12 @@ export class _Value implements OfProperty, OfAny, OfNative {
   }
 }
 
-/** `Visitors.OfIndexed` recording a list's items, in order; an item written with no value is left out. */
+/** `Visitors.OfIndexed` recording a list's items, in order, and their keys: `keys[i]` is the key written with `put`, or
+ * null for an item appended. It keeps every item written, so that a key written twice can be reported; an item written
+ * with no value is left out. */
 export class _ListRecord implements OfIndexed {
   readonly values: unknown[] = [];
+  readonly keys: unknown[] = [];
 
   items(callback: Callback<OfAny>): _ListRecord {
     for (let index = 0, count = this.values.length; index < count; index++) this.item(index, callback);
@@ -114,13 +117,19 @@ export class _ListRecord implements OfIndexed {
   item(index: number, callback: Callback<OfAny>): _ListRecord {
     const held = new Map([["", item(this.values, index)]]);
     callback(new _Value(held, ""));
+    this.keys.splice(index, 1, ...[...held.values()].map(() => this.keys[index]));
     this.values.splice(index, 1, ...held.values());
     return this;
   }
 
   append(callback: Callback<OfAny>): _ListRecord {
+    return this.add(null, callback);
+  }
+
+  private add(key: unknown, callback: Callback<OfAny>): _ListRecord {
     const held = new Map<string, unknown>();
     callback(new _Value(held, ""));
+    this.keys.push(...[...held.values()].map(() => key));
     this.values.push(...held.values());
     return this;
   }
@@ -128,11 +137,58 @@ export class _ListRecord implements OfIndexed {
   remove(index: number): _ListRecord {
     item(this.values, index);
     this.values.splice(index, 1);
+    this.keys.splice(index, 1);
     return this;
   }
 
   clear(): _ListRecord {
     this.values.length = 0;
+    this.keys.length = 0;
+    return this;
+  }
+
+  pairs(callback: Callback<OfItem>): _ListRecord {
+    for (let index = 0, count = this.values.length; index < count; index++) callback(new _ItemRecord(this, index));
+    return this;
+  }
+
+  private written(key: Callback<OfAny>): unknown {
+    const held = new Map<string, unknown>();
+    key(new _Value(held, ""));
+    return held.get("") ?? null;
+  }
+
+  private position(key: Callback<OfAny>): number {
+    const wanted = valueKey(this.written(key));
+    const index = this.keys.findIndex((k) => valueKey(k) === wanted);
+    if (index < 0) throw new LookupError("the list has no item with this key");
+    return index;
+  }
+
+  at(key: Callback<OfAny>, callback: Callback<OfAny>): _ListRecord {
+    return this.item(this.position(key), callback);
+  }
+
+  put(key: Callback<OfAny>, value: Callback<OfAny>): _ListRecord {
+    return this.add(this.written(key), value);
+  }
+
+  discard(key: Callback<OfAny>): _ListRecord {
+    return this.remove(this.position(key));
+  }
+}
+
+/** `Visitors.OfItem` over one recorded item: its key, read from a copy, and its value. */
+export class _ItemRecord implements OfItem {
+  constructor(private readonly record: _ListRecord, private readonly index: number) {}
+
+  key(callback: Callback<OfAny>): _ItemRecord {
+    callback(new _Value(new Map([["", this.record.keys[this.index]]]), ""));
+    return this;
+  }
+
+  value(callback: Callback<OfAny>): _ItemRecord {
+    this.record.item(this.index, callback);
     return this;
   }
 }
@@ -277,7 +333,7 @@ export class _ObjectRecord implements OfObject {
 
 function replay(visitor: OfAny, value: unknown): void {
   if (value instanceof _ListRecord) {
-    visitor.as_indexed((items) => replayItems(items, value.values));
+    visitor.as_indexed((items) => replayItems(items, value));
   } else if (value instanceof _ObjectRecord && value.kind === "union") {
     visitor.as_union((u) => value.accept(u as unknown as OfObject));
   } else if (value instanceof _ObjectRecord && value.kind === "intersection") {
@@ -289,8 +345,12 @@ function replay(visitor: OfAny, value: unknown): void {
   }
 }
 
-function replayItems(visitor: OfIndexed, values: readonly unknown[]): void {
-  for (const value of values) visitor.append((a) => replay(a, value));
+function replayItems(visitor: OfIndexed, record: _ListRecord): void {
+  record.values.forEach((value, i) => {
+    const key = record.keys[i];
+    if (key === null) visitor.append((a) => replay(a, value));
+    else visitor.put((a) => replay(a, key), (a) => replay(a, value));
+  });
 }
 
 // --- Checks ---
@@ -333,7 +393,11 @@ function filling(relation: Schemas.OfRelation.Data, name: string, target: Visita
 
 /** Equality key per EQUALITY.md: a native's, or a value object's by its properties. */
 function valueKey(value: unknown): string {
+  if (value instanceof _ListRecord && value.keys.some((key) => key !== null)) {
+    return `map:${JSON.stringify(sortedStrings(value.values.map((v, i) => JSON.stringify([valueKey(value.keys[i]), valueKey(v)]))))}`;
+  }
   if (value instanceof _ListRecord) return `list:${JSON.stringify(value.values.map((v) => valueKey(v)))}`;
+  if (value === null) return "none";
   if (!(value instanceof _ObjectRecord)) return nativeKey(value);
   const values = sortedStrings(value.values.keys()).map((name) => [name, valueKey(value.values.get(name))]);
   return `object:${JSON.stringify(values)}`;
@@ -379,8 +443,7 @@ class Check {
     }
     if (schema instanceof Schemas.OfIndexed.Data) {
       if (!(item instanceof _ListRecord)) return [`${label}: expected a list, got ${_kind(item)}`];
-      const itemSchema = schema.item as Schemas.OfAny.Data;
-      return item.values.flatMap((value, i) => this.valueProblems(`${label}[${i}]`, itemSchema, value));
+      return schema.positional ? this.positional(label, schema, item) : this.keyed(label, schema, item);
     }
     const expected = recordKind(schema);
     const [what, owner, member] = RECORDS[expected];
@@ -398,6 +461,38 @@ class Check {
     const missing = expected === "intersection" ? [...record.properties.keys()].filter((name) => !item.values.has(name)) : [];
     if (missing.length > 0) problems.push(`${label}: parts ${repr(missing)} are not set`);
     if (expected === "object") problems.push(...this.valueEntries(label, schema as Schemas.OfObject.Data, item));
+    return problems;
+  }
+
+  /** Problems with a positional list's items, labeled by key, and with its extent. */
+  private positional(label: string, schema: Schemas.OfIndexed.Data, item: _ListRecord): string[] {
+    const itemSchema = schema.item as Schemas.OfAny.Data;
+    const problems = item.values.flatMap((value, i) => this.valueProblems(`${label}[${schema.minimum + BigInt(i)}]`, itemSchema, value));
+    const capacity = schema.capacity;
+    if (capacity !== null && BigInt(item.values.length) > capacity) {
+      const extent = schema.extent as Schemas.OfIndexed.Extent;
+      problems.push(`${label}: ${item.values.length} items are more than the extent ${extent.minimum}..${extent.maximum} holds`);
+    }
+    return problems;
+  }
+
+  /** Problems with a keyed list's items, labeled by position: each key's, a key that appears twice, each value's. */
+  private keyed(label: string, schema: Schemas.OfIndexed.Data, item: _ListRecord): string[] {
+    const problems: string[] = [];
+    const seen = new Map<string, number>();
+    item.values.forEach((value, i) => {
+      const at = `${label}[${i}]`;
+      const key = item.keys[i];
+      if (key === null) {
+        problems.push(`${at}.key: not set`);
+      } else {
+        problems.push(...this.valueProblems(`${at}.key`, schema.key as Schemas.OfAny.Data, key));
+        const equality = valueKey(key);
+        if (seen.has(equality)) problems.push(`${at}.key: the same key as item ${seen.get(equality)}`);
+        else seen.set(equality, i);
+      }
+      problems.push(...this.valueProblems(at, schema.item as Schemas.OfAny.Data, value));
+    });
     return problems;
   }
 

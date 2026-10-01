@@ -146,7 +146,10 @@ export interface OfIntersection {
   clear(name: string): OfIntersection;
 }
 
-/** A list: its items, in order, each a value of the list's item schema. An item written with no value is left out. */
+/** A list: its items, in order, each a value of the list's item schema. An item written with no value is left out.
+ * Items are addressed by position (`item`, `remove`) and by key (`pairs`, `at`, `put`, `discard`): a positional list's
+ * keys are its positions from its extent's minimum, and a keyed list's are values of its key schema, each written
+ * through a `Visitors.OfAny` callback. */
 export interface OfIndexed {
   /** Calls `callback` once for each item, in order. */
   items(callback: Callback<OfAny>): OfIndexed;
@@ -158,6 +161,21 @@ export interface OfIndexed {
   remove(index: number): OfIndexed;
   /** Removes every item. */
   clear(): OfIndexed;
+  /** Calls `callback` once for each item, in order, with its key and value. */
+  pairs(callback: Callback<OfItem>): OfIndexed;
+  /** Calls `callback` with the value of the item whose key `key` writes; throws LookupError when there is none. */
+  at(key: Callback<OfAny>, callback: Callback<OfAny>): OfIndexed;
+  /** Writes, through `value`, the value of the item whose key `key` writes, adding the item when there is none: a
+   * positional list appends at its next key. A keyed list takes `put`, and throws TypeError on `append`. */
+  put(key: Callback<OfAny>, value: Callback<OfAny>): OfIndexed;
+  /** Removes the item whose key `key` writes; throws LookupError when there is none. */
+  discard(key: Callback<OfAny>): OfIndexed;
+}
+
+/** One item of a list, seen through `OfIndexed.pairs`: its key, read-only, and its value. */
+export interface OfItem {
+  key(callback: Callback<OfAny>): OfItem;
+  value(callback: Callback<OfAny>): OfItem;
 }
 
 /** An in-memory object that can be visited, e.g. a proxy. It is not a visitor itself. */
@@ -185,6 +203,7 @@ export const PROTOCOL_METHODS = {
   OfRelation: ["links", "entries"],
   OfUnion: ["properties", "has", "property", "clear"],
   OfIntersection: ["properties", "has", "property", "clear"],
-  OfIndexed: ["items", "item", "append", "remove", "clear"],
+  OfIndexed: ["items", "item", "append", "remove", "clear", "pairs", "at", "put", "discard"],
+  OfItem: ["key", "value"],
   Visitable: ["identity", "schema_name", "owner", "accept"],
 } as const satisfies Record<string, readonly string[]>;

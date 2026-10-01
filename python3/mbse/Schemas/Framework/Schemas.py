@@ -169,13 +169,37 @@ class _NativeData:
             return "NaN" if math.isnan(value) else "Infinity" if value > 0 else "-Infinity"
         return value
 
+    def to_key(self, value: Native) -> str:
+        """A native value as the text of a key over the wire: its plain form when that is text (`str`, `bytes` as
+        base64, non-finite floats), a finite float's `repr`, and `true` or `false`."""
+        plain = self.to_plain(value)
+        if isinstance(plain, bool):
+            return "true" if plain else "false"
+        return plain if isinstance(plain, str) else repr(plain)
+
+    def from_key(self, text: str) -> Native:
+        """The native value a key's text holds; anything but the text `to_key` writes raises `Errors.DecodeError`."""
+        host = self._host_for_decoding()
+        try:
+            value = ({"true": True, "false": False}[text] if host is bool else
+                     float(text) if host is float and text not in _NON_FINITE else self.from_plain(text))
+        except (KeyError, ValueError):
+            value = None
+        if value is None or self.to_key(value) != text:
+            raise DecodeError(f"expected the text of a {host.__name__} key, got {text!r}")
+        return value
+
+    def _host_for_decoding(self) -> type[Native]:
+        """The host type, or `Errors.DecodeError` when this implementation cannot read the token."""
+        if self.type is None:
+            raise DecodeError(f"{self.token} has no type in this implementation")
+        return self.type
+
     def from_plain(self, plain: object) -> Native:
         """Converts plain data back to a native value. Distinct native types are never coerced into each other.
         Plain data that does not hold such a value, or a token this implementation cannot read, raises
         `Errors.DecodeError`."""
-        host = self.type
-        if host is None:
-            raise DecodeError(f"{self.token} has no type in this implementation")
+        host = self._host_for_decoding()
         if host is bytes:
             if not isinstance(plain, str):
                 raise DecodeError(f"expected base64 text for bytes, got {type(plain).__name__}")
@@ -294,16 +318,16 @@ class _RelationData:
         return problems
 
 
-def _entry_value_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[str]:
+def _entry_value_problems(schema: Any, held: str = "held by an entry", seen: frozenset[int] = frozenset()) -> list[str]:
     """An entry property's value object has no adjacencies: an entry is written under each object it links, so its
-    value objects would be too, and nothing could link them once. `seen` holds the schemas on the way, so that a
-    schema that holds itself is checked once."""
+    value objects would be too, and nothing could link them once. Nor has a value object in a key (`held`), which
+    compares by structure. `seen` holds the schemas on the way, so that a schema that holds itself is checked once."""
     if id(schema) in seen:
         return []
     if isinstance(schema, _ObjectData) and schema.adjacencies:
-        return ["a value object held by an entry cannot have adjacencies"]
+        return [f"a value object {held} cannot have adjacencies"]
     inner = seen | {id(schema)}
-    return sorted({problem for member in _members_of(schema) for problem in _entry_value_problems(member, inner)})
+    return sorted({problem for member in _members_of(schema) for problem in _entry_value_problems(member, held, inner)})
 
 
 class _RelationBuilder(_Builder[_RelationData]):
@@ -570,14 +594,57 @@ class OfIntersection:
 # --- OfIndexed ---
 
 
+@dataclass(frozen=True)
+class _Extent:
+    """The keys a positional list may have: `minimum` to `maximum`, inclusive; `maximum` None for no bound."""
+
+    minimum: int = 0
+    maximum: int | None = None
+
+
 @dataclass(eq=False)
 class _IndexedData:
-    """A list: ordered items, each a value of the item schema."""
+    """A list: items of the item schema, in order. Without a key schema, or with a native `int` one, it is positional:
+    its keys are its positions, from its extent's minimum. With any other key schema it is keyed: its items are held by
+    unique keys of that schema, in insertion order."""
 
     item: Any = None  # OfAny.Data
+    key: Any = None  # OfAny.Data, or None for a positional list
+    extent: _Extent | None = None
+
+    @property
+    def positional(self) -> bool:
+        return self.key is None or (isinstance(self.key, _NativeData) and self.key.type is int)
+
+    @property
+    def minimum(self) -> int:
+        """The first key of a positional list: its extent's minimum, or 0."""
+        return self.extent.minimum if self.extent is not None and type(self.extent.minimum) is int else 0
+
+    @property
+    def capacity(self) -> int | None:
+        """How many items a positional list's extent holds, or None when it has no valid maximum."""
+        extent = self.extent
+        if extent is None or type(extent.maximum) is not int or type(extent.minimum) is not int:
+            return None
+        return extent.maximum - extent.minimum + 1
 
     def validate(self) -> list[str]:
-        return [f"item: {problem}" for problem in _validate(self.item)]
+        problems = [f"item: {problem}" for problem in _validate(self.item)]
+        if self.key is not None:
+            key = _validate(self.key) + _embedded_problems(self.key, role="a key")
+            problems += [f"key: {problem}" for problem in key + _entry_value_problems(self.key, "in a key")]
+        if self.extent is not None:
+            problems += self._extent_problems(self.extent)
+        return problems
+
+    def _extent_problems(self, extent: _Extent) -> list[str]:
+        problems = [] if self.positional else ["an extent bounds a positional list, whose keys are ints"]
+        if type(extent.minimum) is not int or not (extent.maximum is None or type(extent.maximum) is int):
+            problems.append(f"an extent's minimum and maximum are ints, got {extent.minimum!r} and {extent.maximum!r}")
+        elif extent.maximum is not None and extent.minimum > extent.maximum:
+            problems.append(f"an extent's minimum {extent.minimum} exceeds its maximum {extent.maximum}")
+        return problems
 
 
 class _IndexedBuilder(_Builder[_IndexedData]):
@@ -588,12 +655,23 @@ class _IndexedBuilder(_Builder[_IndexedData]):
         self._fields["item"] = OfAny.resolve(spec)
         return self
 
+    def key(self, spec: OfAny.Spec) -> _IndexedBuilder:
+        """The schema of the keys; any but a native `int` makes the list keyed."""
+        self._fields["key"] = OfAny.resolve(spec)
+        return self
+
+    def extent(self, minimum: int = 0, maximum: int | None = None) -> _IndexedBuilder:
+        """The keys a positional list may have, `minimum` to `maximum`."""
+        self._fields["extent"] = _Extent(minimum, maximum)
+        return self
+
 
 class OfIndexed:
     """A list of items of one schema, held by a property; its items belong to the property's owner."""
 
     Data = _IndexedData
     Builder = _IndexedBuilder
+    Extent = _Extent
     Spec = _IndexedData | Callable[[_IndexedBuilder], _IndexedBuilder]
 
     @staticmethod
@@ -620,16 +698,16 @@ def _members_of(schema: Any) -> list[Any]:
     return list(schema.properties.values()) if isinstance(schema, (_ObjectData, _UnionData, _IntersectionData)) else []
 
 
-def _embedded_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[str]:
-    """Problems with a property's schema as a value: an object held by a property is a value object, so its schema is
-    not a reference object schema; nor are the schemas of the objects a union, an intersection or a list holds. `seen`
-    holds the schemas on the way, so that one that holds itself is checked once."""
+def _embedded_problems(schema: Any, seen: frozenset[int] = frozenset(), role: str = "a property's type") -> list[str]:
+    """Problems with a property's schema as a value (or a key's, `role`): an object held by a property is a value
+    object, so its schema is not a reference object schema; nor are the schemas of the objects a union, an intersection
+    or a list holds. `seen` holds the schemas on the way, so that one that holds itself is checked once."""
     if isinstance(schema, _ObjectData):
-        return ["a reference object schema cannot be a property's type"] if schema.ref else []
+        return [f"a reference object schema cannot be {role}"] if schema.ref else []
     if id(schema) in seen:
         return []
     inner = seen | {id(schema)}
-    return sorted({problem for member in _members_of(schema) for problem in _embedded_problems(member, inner)})
+    return sorted({problem for member in _members_of(schema) for problem in _embedded_problems(member, inner, role)})
 
 
 class _AnyBuilder:
@@ -733,7 +811,10 @@ _ObjectSchema = OfObject.Builder().properties(
     lambda p: p.name("ref").of(lambda t: t.as_native(bool))).create()
 _UnionSchema = OfObject.Builder().properties(lambda p: p.name("branches").of(_list_of(_PropertySchema))).create()
 _IntersectionSchema = OfObject.Builder().properties(lambda p: p.name("parts").of(_list_of(_PropertySchema))).create()
-_IndexedSchema = OfObject.Builder().properties(lambda p: p.name("item").of(_AnySchema)).create()
+_ExtentSchema = OfObject.Builder().properties(lambda p: p.name("minimum").of(lambda t: t.as_native(int)),
+                                              lambda p: p.name("maximum").of(lambda t: t.as_native(int))).create()
+_IndexedSchema = OfObject.Builder().properties(lambda p: p.name("item").of(_AnySchema), lambda p: p.name("key").of(_AnySchema),
+                                               lambda p: p.name("extent").of(_ExtentSchema)).create()
 _KIND_SCHEMAS = (("native", _NativeSchema), ("object", _ObjectSchema), ("union", _UnionSchema),
                  ("intersection", _IntersectionSchema), ("indexed", _IndexedSchema))
 OfUnion.Builder(_AnySchema).branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],

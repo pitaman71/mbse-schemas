@@ -200,7 +200,8 @@ export const PROTOCOLS: Record<string, Record<string, number>> = {
   OfRelation: { links: 1, entries: 1 },
   OfUnion: { properties: 1, has: 1, property: 2, clear: 1 },
   OfIntersection: { properties: 1, has: 1, property: 2, clear: 1 },
-  OfIndexed: { items: 1, item: 2, append: 1, remove: 1, clear: 0 },
+  OfIndexed: { items: 1, item: 2, append: 1, remove: 1, clear: 0, pairs: 1, at: 2, put: 2, discard: 1 },
+  OfItem: { key: 1, value: 1 },
   Visitable: { identity: 0, schema_name: 0, owner: 0, accept: 1 },
 };
 

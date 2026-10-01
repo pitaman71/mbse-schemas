@@ -58,6 +58,7 @@ S.OfRelation.Builder().links("a", "b").properties(spec, ...).unique("a").create(
 S.OfUnion.Builder().branches(lambda b: b.name("phone").of(spec), ...).create()
 S.OfIntersection.Builder().parts(lambda p: p.name("stamp").of(spec), ...).create()
 S.OfIndexed.Builder().of(spec).create()                     # a list; in a property: lambda t: t.as_indexed(lambda i: i.of(spec))
+S.OfIndexed.Builder().key(spec).of(spec).create()           # a keyed list (a native or value object key); .extent(1, 9) bounds a positional one
 schema.validate()                                           # the schema's own problems, [] when valid
 
 # Proxies: register object and relation schemas, then build through Proxies.Builders.
@@ -69,6 +70,7 @@ obj.prop                                                    # AttributeError whe
 B.Name().union_prop(lambda u: u.phone(spec))                # a branch by name; obj.union_prop.phone reads it
 B.Name().list_prop(["a", "b"]).ports([lambda p: p.name("in")])   # a list of items; obj.list_prop is a tuple
 B.Name(obj).ports(lambda l: l.item(0, lambda a: a.as_object(lambda p: p.name("x"))).remove(1)).update()  # in place
+B.Name().attrs({"gain": 1.5}).cells([(lambda c: c.r(1).c(2), 7)])   # keyed lists: obj.attrs["gain"], a read-only mapping
 B.Name(obj).property("p", lambda p: ...).adjacency("a", lambda a: a.entries(...))  # visitor protocol, any name
 
 # Schemas as data: a module holds schemas by name, as an object of S.Module.Schema.

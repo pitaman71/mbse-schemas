@@ -20,6 +20,10 @@ function list(spec: Schemas.OfAny.Spec) {
   return (t: Schemas.OfAny.Builder) => t.as_indexed((i) => i.of(spec));
 }
 
+function keyed(key: Schemas.OfAny.Spec, spec: Schemas.OfAny.Spec) {
+  return (t: Schemas.OfAny.Builder) => t.as_indexed((i) => i.key(key).of(spec));
+}
+
 export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   const S = Schemas;
 
@@ -95,6 +99,7 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   const Cable = new Schemas.OfRelation.Builder().links("source", "sink").create();
   const Socket = new Schemas.OfObject.Builder().properties(text("name")).relations(
     (a) => a.name("cables").of(Cable).me("source"), (a) => a.name("plugs").of(Cable).me("sink")).create();
+  const Coord = new Schemas.OfObject.Builder().properties(text("r", BigInt), text("c", BigInt)).create();
   const Reading = new Schemas.OfUnion.Builder().branches((b) => b.name("value").of((t) => t.as_native(Number)),
     (b) => b.name("note").of((t) => t.as_native(String))).create();
   const Board = new Schemas.OfObject.Builder().ref().properties(
@@ -102,7 +107,11 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
     (p) => p.name("blobs").of(list((t) => t.as_native(Uint8Array))),
     (p) => p.name("grid").of(list(list((t) => t.as_native(BigInt)))),
     (p) => p.name("readings").of(list(Reading)), (p) => p.name("sockets").of(list(Socket)),
-    (p) => p.name("banks").of(list(list(Socket)))).create();
+    (p) => p.name("banks").of(list(list(Socket))),
+    (p) => p.name("matrix").of((t) => t.as_indexed((i) => i.of(list((t) => t.as_native(BigInt))).extent({ minimum: 1n, maximum: 3n }))),
+    (p) => p.name("attrs").of(keyed((t) => t.as_native(String), (t) => t.as_native(Number))),
+    (p) => p.name("weights").of(keyed((t) => t.as_native(Number), (t) => t.as_native(String))),
+    (p) => p.name("cells").of(keyed(Coord, (t) => t.as_native(BigInt)))).create();
   const Panel = new Schemas.OfObject.Builder().ref().properties(text("name")).relations(
     (a) => a.name("plugs").of(Cable).me("sink")).create();
 
@@ -193,6 +202,8 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
     .grid([[1n, -(2n ** 70n)], [], [0n]])
     .readings([(u: any) => u.value(-0.0), (u: any) => u.note("off"), (u: any) => u.value(Infinity)])
     .sockets([(o: any) => o.name("in"), (o: any) => o.name("out")]).banks([[], [(o: any) => o.name("spare")]])
+    .matrix([[1n, 0n], [0n, 1n]]).attrs(new Map([["gain", 1.5], ["", -0.0]])).weights(new Map([[0.5, "half"], [NaN, "none"]]))
+    .cells([[(c: any) => c.r(2n).c(3n), 6n], [(c: any) => c.r(0n).c(0n), 0n]])
     .create();
   B.Board(board).sockets((items: any) => items.item(0, (v: any) => v.as_object(
     (o: any) => o.cables((x: any) => x.sink(board.sockets[1])).cables((x: any) => x.sink(panel))))).banks(

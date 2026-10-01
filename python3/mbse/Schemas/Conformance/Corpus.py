@@ -23,6 +23,10 @@ def _list(spec):
     return lambda t: t.as_indexed(lambda i: i.of(spec))
 
 
+def _keyed(key, spec):
+    return lambda t: t.as_indexed(lambda i: i.key(key).of(spec))
+
+
 def build():
     S = Schemas
 
@@ -99,6 +103,7 @@ def build():
     Cable = S.OfRelation.Builder().links("source", "sink").create()
     Socket = S.OfObject.Builder().properties(_text("name")).relations(
         lambda a: a.name("cables").of(Cable).me("source"), lambda a: a.name("plugs").of(Cable).me("sink")).create()
+    Coord = S.OfObject.Builder().properties(_text("r", int), _text("c", int)).create()
     Reading = S.OfUnion.Builder().branches(lambda b: b.name("value").of(lambda t: t.as_native(float)),
                                            lambda b: b.name("note").of(lambda t: t.as_native(str))).create()
     Board = S.OfObject.Builder().ref().properties(
@@ -106,7 +111,11 @@ def build():
         lambda p: p.name("blobs").of(_list(lambda t: t.as_native(bytes))),
         lambda p: p.name("grid").of(_list(_list(lambda t: t.as_native(int)))),
         lambda p: p.name("readings").of(_list(Reading)), lambda p: p.name("sockets").of(_list(Socket)),
-        lambda p: p.name("banks").of(_list(_list(Socket)))).create()
+        lambda p: p.name("banks").of(_list(_list(Socket))),
+        lambda p: p.name("matrix").of(lambda t: t.as_indexed(lambda i: i.of(_list(lambda t: t.as_native(int))).extent(1, 3))),
+        lambda p: p.name("attrs").of(_keyed(lambda t: t.as_native(str), lambda t: t.as_native(float))),
+        lambda p: p.name("weights").of(_keyed(lambda t: t.as_native(float), lambda t: t.as_native(str))),
+        lambda p: p.name("cells").of(_keyed(Coord, lambda t: t.as_native(int)))).create()
     Panel = S.OfObject.Builder().ref().properties(_text("name")).relations(
         lambda a: a.name("plugs").of(Cable).me("sink")).create()
 
@@ -194,6 +203,8 @@ def build():
     board = (B.Board().name("rack").tags(["", "日本語 🚀", "a"]).blobs([b"", b"\x00\xff"]).grid([[1, -(2**70)], [], [0]])
              .readings([lambda u: u.value(-0.0), lambda u: u.note("off"), lambda u: u.value(math.inf)])
              .sockets([lambda o: o.name("in"), lambda o: o.name("out")]).banks([[], [lambda o: o.name("spare")]])
+             .matrix([[1, 0], [0, 1]]).attrs({"gain": 1.5, "": -0.0}).weights({0.5: "half", math.nan: "none"})
+             .cells([(lambda c: c.r(2).c(3), 6), (lambda c: c.r(0).c(0), 0)])
              .create())
     B.Board(board).sockets(lambda items: items.item(0, lambda v: v.as_object(
         lambda o: o.cables(lambda x: x.sink(board.sockets[1])).cables(lambda x: x.sink(panel))))).banks(

@@ -12,7 +12,7 @@ import { assert, equal, raises, same_graph } from "./_support.js";
 
 // --- Schemas ---
 
-let Reading = new Schemas.OfObject.Builder()
+let Reading = new Schemas.OfObject.Builder().ref()
   .properties(
     (prop) => prop.name("observed").of((t) => t.as_native(String)), // ISO 8601, e.g. '2026-09-28T12:00:00Z'
     (prop) => prop.name("value").of((t) => t.as_native(Number)),
@@ -22,7 +22,7 @@ let Reading = new Schemas.OfObject.Builder()
     (prop) => prop.name("note").of((t) => t.as_native(String)),
   )
   .create();
-let Station = new Schemas.OfObject.Builder()
+let Station = new Schemas.OfObject.Builder().ref()
   .properties(
     (prop) => prop.name("wmo_id").of((t) => t.as_native(String)), // e.g. '03772'; leading zeros matter
     (prop) => prop.name("name").of((t) => t.as_native(String)),

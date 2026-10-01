@@ -18,8 +18,8 @@ def native(name, type_):
 Signal = S.OfObject.Builder().properties(native("width", int), native("unit", str)).create()
 
 # Things with identity: object schemas.
-Component = S.OfObject.Builder().properties(native("name", str)).create()
-Port = S.OfObject.Builder().properties(native("name", str), lambda p: p.name("signal").of(Signal)).create()
+Component = S.OfObject.Builder().ref().properties(native("name", str)).create()
+Port = S.OfObject.Builder().ref().properties(native("name", str), lambda p: p.name("signal").of(Signal)).create()
 
 # Every collection is a relation. unique("owner"): entries that agree on the port agree on the owner.
 Ownership = S.OfRelation.Builder().links("owner", "port").unique("owner").create()
@@ -51,7 +51,8 @@ assert Validators.Validate(B).Reachable(Component, copy) == []
 # Schemas: values built with fluent builders. A Spec is a schema or a callable taking a builder.
 S.OfNative.Data(int)                                        # natives: int, float, str, bool, bytes (basic tokens)
 S.OfNative.resolve(lambda n: n.token("ccpp", "int32_t").bits(32))   # any format's token; a width in bits or bytes
-S.OfObject.Builder().properties(spec, ...).relations(spec, ...).singleton("Name").create()
+S.OfObject.Builder().ref().properties(spec, ...).relations(spec, ...).create()   # .ref(): a reference object schema
+S.OfObject.Builder().properties(spec, ...).create()        # a value object schema, for a property's type
 S.OfObject.Builder(existing).relations(...).update()        # add adjacencies once the relations exist
 S.OfRelation.Builder().links("a", "b").properties(spec, ...).unique("a").create()
 S.OfUnion.Builder().branches(lambda b: b.name("phone").of(spec), ...).create()

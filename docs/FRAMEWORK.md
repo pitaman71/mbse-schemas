@@ -19,7 +19,9 @@ The schema elements include:
 - `OfNative` : a native value, whose type is a token `{format, name}` (see Native types below), with an optional width in
                bits or bytes. In Python the host types are `int`, `float`, `str`, `bool` and `bytes`.
                Conversion between the native format and the over-the-wire format is the responsibility of `Schemas.OfNative`.
-- `OfObject` : named properties list where each property has type described by `OfAny`. An `OfObject` schema may declare
+- `OfObject` : named properties list where each property has type described by `OfAny`. An `OfObject` schema describes
+               reference objects when marked `.ref()`, and otherwise value (embedded) objects; see Value objects and
+               reference objects. An `OfObject` schema may declare
                a singleton global name; that single instance is created implicitly, must always exist, and is referenced
                by its global name. Properties are optional: nothing is mandatory except as specified by a constraint.
 - `OfRelation` : describes a relationship between objects (must be objects not values)
@@ -290,9 +292,10 @@ Mistakes in the calling program keep their usual classes, e.g. a root schema tha
 
 ## Value objects and reference objects
 
-Designed, not yet implemented. It lifts the rule that an embedded object has no identity and no adjacencies, so that
-an object can be composed of parts that take part in relations (a component's ports, a schema's properties). The
-terms replace "embedded object" and "object" throughout once implemented.
+Reference object schemas (`.ref()` and its rules, the first two bullets) are implemented; value objects with
+identities and adjacencies are designed, not yet implemented. The design lifts the rule that an embedded object has no
+identity and no adjacencies, so that an object can be composed of parts that take part in relations (a component's
+ports, a schema's properties). The terms replace "embedded object" and "object" throughout once implemented.
 
 - **Every object has an identity**, and any object can be linked by relations. What distinguishes the two kinds is
   ownership, and the schema says which kind it describes: `Schemas.OfObject.Builder().ref()` marks a *reference object

@@ -288,6 +288,8 @@ class _Snapshot:
     ) -> dict[str, PlainData]:
         if Proxies.schema(root.schema_name()) is not schema:
             raise TypeError(f"value is a {root.schema_name()!r}, not an instance of the given schema")
+        if not schema.ref:
+            raise TypeError(f"a snapshot's root must be a reference object; {root.schema_name()!r} is a value object schema")
         for value in include:
             self._symbol(value)
         objects: dict[str, PlainData] = {}
@@ -363,6 +365,8 @@ def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData) 
     each object's schema name, and the decoded objects. Problems in the snapshot raise `DecodeError`."""
     if not isinstance(schema, Schemas.OfObject.Data):
         raise TypeError(f"the root schema must be an object schema, got {type(schema).__name__}")
+    if not schema.ref:
+        raise TypeError("the root schema must be a reference object schema")
     if not isinstance(plain, dict) or set(plain) != {"root", "objects"} or not isinstance(plain["objects"], dict):
         raise DecodeError("expected an object snapshot: {'root': symbol, 'objects': {symbol: object}}", path="$")
     root, objects = plain["root"], plain["objects"]
@@ -405,6 +409,8 @@ def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData) 
             object_schema = builders.schema(names[symbol])
         except (AttributeError, LookupError, TypeError):
             raise DecodeError(f"no object schema registered as {names[symbol]!r}", path=path("objects", symbol)) from None
+        if not object_schema.ref:
+            raise DecodeError(f"{names[symbol]!r} is not a reference object schema", path=path("objects", symbol))
         properties: dict[str, Native] = {}
         adjacencies: dict[str, list[dict[str, Any]]] = {}
         for key, value in obj.items():

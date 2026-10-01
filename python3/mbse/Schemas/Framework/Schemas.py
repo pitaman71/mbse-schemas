@@ -372,9 +372,12 @@ class _ObjectData:
     properties: dict[str, Any] = field(default_factory=dict)  # name -> OfAny.Data
     adjacencies: dict[str, _AdjacencyData] = field(default_factory=dict)
     singleton: str | None = None
+    ref: bool = False  # a reference object schema; otherwise a value object schema
 
     def validate(self) -> list[str]:
         problems = []
+        if self.singleton is not None and not self.ref:
+            problems.append("a singleton's schema must be a reference object schema")
         clashes = set(self.properties) & set(self.adjacencies)
         if clashes:
             problems.append(f"names used as both property and adjacency: {sorted(clashes)}")
@@ -400,8 +403,16 @@ class _ObjectBuilder(_Builder[_ObjectData]):
         return self
 
     def singleton(self, name: str) -> _ObjectBuilder:
-        """Declares a singleton global name: the one instance exists implicitly and is referenced by this name."""
+        """Declares a singleton global name: the one instance exists implicitly and is referenced by this name. A
+        singleton is a reference object."""
         self._fields["singleton"] = name
+        self._fields["ref"] = True
+        return self
+
+    def ref(self) -> _ObjectBuilder:
+        """Marks a reference object schema: its objects stand on their own, reached through relations, and no property
+        holds one. Without it, the schema describes value objects, which properties hold."""
+        self._fields["ref"] = True
         return self
 
 
@@ -539,7 +550,9 @@ def _validate(schema: Any) -> list[str]:
 
 def _embedded_problems(schema: Any) -> list[str]:
     """Problems with a property's schema as a value: an object held by a property is embedded, with no identity, so it
-    cannot have adjacencies; nor can the objects a union or intersection holds."""
+    is not a reference object and cannot have adjacencies; nor can the objects a union or intersection holds."""
+    if isinstance(schema, _ObjectData) and schema.ref:
+        return ["a reference object schema cannot be a property's type"]
     if isinstance(schema, _ObjectData) and schema.adjacencies:
         return ["an embedded object cannot have adjacencies"]
     parts = list(schema.properties.values()) if isinstance(schema, (_UnionData, _IntersectionData)) else []

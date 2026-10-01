@@ -23,10 +23,10 @@ def build():
     S = Schemas
 
     # --- address_book ---
-    Contact = S.OfObject.Builder().properties(_text("given_name"), _text("family_name"), _text("birth_date")).create()
-    Address = S.OfObject.Builder().properties(_text("street1"), _text("locality"), _text("postal_code"),
+    Contact = S.OfObject.Builder().ref().properties(_text("given_name"), _text("family_name"), _text("birth_date")).create()
+    Address = S.OfObject.Builder().ref().properties(_text("street1"), _text("locality"), _text("postal_code"),
                                               _text("country_code")).create()
-    Phone = S.OfObject.Builder().properties(_text("number")).create()
+    Phone = S.OfObject.Builder().ref().properties(_text("number")).create()
     ContactAddresses = S.OfRelation.Builder().links("contact", "address").properties(_text("label")).create()
     ContactPhones = S.OfRelation.Builder().links("contact", "phone").properties(_text("label")).create()
     S.OfObject.Builder(Contact).relations(lambda a: a.name("addresses").of(ContactAddresses).me("contact"),
@@ -35,15 +35,15 @@ def build():
     S.OfObject.Builder(Phone).relations(lambda a: a.name("contacts").of(ContactPhones).me("phone")).update()
 
     # --- natives ---
-    Bag = S.OfObject.Builder().properties(_text("name")).create()
-    Sample = S.OfObject.Builder().properties(_text("label"), _text("payload", bytes), _text("count", int),
+    Bag = S.OfObject.Builder().ref().properties(_text("name")).create()
+    Sample = S.OfObject.Builder().ref().properties(_text("label"), _text("payload", bytes), _text("count", int),
                                              _text("ratio", float), _text("flag", bool)).create()
     Holds = S.OfRelation.Builder().links("bag", "item").properties(_text("slot", int)).unique("bag", "slot").create()
     S.OfObject.Builder(Bag).relations(lambda a: a.name("items").of(Holds).me("bag")).update()
     S.OfObject.Builder(Sample).relations(lambda a: a.name("bags").of(Holds).me("item")).update()
 
     # --- family ---
-    Person = S.OfObject.Builder().properties(_text("given_name"), _text("birth_date")).create()
+    Person = S.OfObject.Builder().ref().properties(_text("given_name"), _text("birth_date")).create()
     Parentage = S.OfRelation.Builder().links("parent", "child").properties(_text("kind")).create()
     Mentorship = S.OfRelation.Builder().links("mentor", "mentee").create()
     S.OfObject.Builder(Person).relations(lambda a: a.name("children").of(Parentage).me("parent"),
@@ -52,9 +52,9 @@ def build():
                                          lambda a: a.name("mentors").of(Mentorship).me("mentee")).update()
 
     # --- enrollment ---
-    Student = S.OfObject.Builder().properties(_text("name")).create()
-    Course = S.OfObject.Builder().properties(_text("code")).create()
-    Term = S.OfObject.Builder().properties(_text("code"), _text("starts")).create()
+    Student = S.OfObject.Builder().ref().properties(_text("name")).create()
+    Course = S.OfObject.Builder().ref().properties(_text("code")).create()
+    Term = S.OfObject.Builder().ref().properties(_text("code"), _text("starts")).create()
     Enrollment = (S.OfRelation.Builder().links("student", "course", "term")
                   .properties(_text("credits", int), _text("score", float), _text("audit", bool)).create())
     S.OfObject.Builder(Student).relations(lambda a: a.name("enrollments").of(Enrollment).me("student")).update()
@@ -62,8 +62,8 @@ def build():
     S.OfObject.Builder(Term).relations(lambda a: a.name("enrollments").of(Enrollment).me("term")).update()
 
     # --- yaml_strings ---
-    Notebook = S.OfObject.Builder().properties(_text("title")).create()
-    Note = S.OfObject.Builder().properties(_text("text")).create()
+    Notebook = S.OfObject.Builder().ref().properties(_text("title")).create()
+    Note = S.OfObject.Builder().ref().properties(_text("text")).create()
     Pages = S.OfRelation.Builder().links("notebook", "note").properties(_text("page", int)).create()
     S.OfObject.Builder(Notebook).relations(lambda a: a.name("notes").of(Pages).me("notebook")).update()
     S.OfObject.Builder(Note).relations(lambda a: a.name("notebooks").of(Pages).me("note")).update()
@@ -79,11 +79,11 @@ def build():
     CardAudit = S.OfObject.Builder().properties(_text("by"), _text("updated")).create()
     CardMeta = S.OfIntersection.Builder().parts(lambda p: p.name("stamp").of(CardStamp),
                                                 lambda p: p.name("audit").of(CardAudit)).create()
-    Card = S.OfObject.Builder().properties(_text("name"), lambda p: p.name("home").of(CardPhone),
+    Card = S.OfObject.Builder().ref().properties(_text("name"), lambda p: p.name("home").of(CardPhone),
                                            lambda p: p.name("reach").of(Reach), lambda p: p.name("ident").of(Ident),
                                            lambda p: p.name("meta").of(CardMeta)).create()
     Holding = S.OfRelation.Builder().links("deck", "card").create()
-    Deck = S.OfObject.Builder().properties(_text("title")).relations(lambda a: a.name("cards").of(Holding).me("deck")).create()
+    Deck = S.OfObject.Builder().ref().properties(_text("title")).relations(lambda a: a.name("cards").of(Holding).me("deck")).create()
     S.OfObject.Builder(Card).relations(lambda a: a.name("decks").of(Holding).me("card")).update()
 
     for name, schema in [("Contact", Contact), ("Address", Address), ("Phone", Phone),

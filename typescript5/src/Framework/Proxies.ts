@@ -792,6 +792,9 @@ function noArguments(method: string, args: unknown[]): void {
 }
 
 function makeObjectBuilder(schema: ObjectSchema, schemaName: string, instance?: Instance): DynamicBuilder {
+  if (!schema.ref) {
+    throw new TypeError(`${repr(schemaName)} is a value object schema; a value object is built through its owner`);
+  }
   if (instance !== undefined && !isInstance(instance)) throw new TypeError("a builder's source must be a proxy instance");
   const target = new ObjectBuilderTarget(schema, schemaName, instance);
   const proxy = new Proxy(target, {

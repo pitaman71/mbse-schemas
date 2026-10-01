@@ -20,10 +20,10 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   const S = Schemas;
 
   // --- address_book ---
-  const Contact = new S.OfObject.Builder().properties(text("given_name"), text("family_name"), text("birth_date")).create();
-  const Address = new S.OfObject.Builder().properties(text("street1"), text("locality"), text("postal_code"),
+  const Contact = new S.OfObject.Builder().ref().properties(text("given_name"), text("family_name"), text("birth_date")).create();
+  const Address = new S.OfObject.Builder().ref().properties(text("street1"), text("locality"), text("postal_code"),
     text("country_code")).create();
-  const Phone = new S.OfObject.Builder().properties(text("number")).create();
+  const Phone = new S.OfObject.Builder().ref().properties(text("number")).create();
   const ContactAddresses = new S.OfRelation.Builder().links("contact", "address").properties(text("label")).create();
   const ContactPhones = new S.OfRelation.Builder().links("contact", "phone").properties(text("label")).create();
   new S.OfObject.Builder(Contact).relations((a) => a.name("addresses").of(ContactAddresses).me("contact"),
@@ -32,15 +32,15 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   new S.OfObject.Builder(Phone).relations((a) => a.name("contacts").of(ContactPhones).me("phone")).update();
 
   // --- natives ---
-  const Bag = new S.OfObject.Builder().properties(text("name")).create();
-  const Sample = new S.OfObject.Builder().properties(text("label"), text("payload", Uint8Array), text("count", BigInt),
+  const Bag = new S.OfObject.Builder().ref().properties(text("name")).create();
+  const Sample = new S.OfObject.Builder().ref().properties(text("label"), text("payload", Uint8Array), text("count", BigInt),
     text("ratio", Number), text("flag", Boolean)).create();
   const Holds = new S.OfRelation.Builder().links("bag", "item").properties(text("slot", BigInt)).unique("bag", "slot").create();
   new S.OfObject.Builder(Bag).relations((a) => a.name("items").of(Holds).me("bag")).update();
   new S.OfObject.Builder(Sample).relations((a) => a.name("bags").of(Holds).me("item")).update();
 
   // --- family ---
-  const Person = new S.OfObject.Builder().properties(text("given_name"), text("birth_date")).create();
+  const Person = new S.OfObject.Builder().ref().properties(text("given_name"), text("birth_date")).create();
   const Parentage = new S.OfRelation.Builder().links("parent", "child").properties(text("kind")).create();
   const Mentorship = new S.OfRelation.Builder().links("mentor", "mentee").create();
   new S.OfObject.Builder(Person).relations((a) => a.name("children").of(Parentage).me("parent"),
@@ -49,9 +49,9 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
     (a) => a.name("mentors").of(Mentorship).me("mentee")).update();
 
   // --- enrollment ---
-  const Student = new S.OfObject.Builder().properties(text("name")).create();
-  const Course = new S.OfObject.Builder().properties(text("code")).create();
-  const Term = new S.OfObject.Builder().properties(text("code"), text("starts")).create();
+  const Student = new S.OfObject.Builder().ref().properties(text("name")).create();
+  const Course = new S.OfObject.Builder().ref().properties(text("code")).create();
+  const Term = new S.OfObject.Builder().ref().properties(text("code"), text("starts")).create();
   const Enrollment = new S.OfRelation.Builder().links("student", "course", "term")
     .properties(text("credits", BigInt), text("score", Number), text("audit", Boolean)).create();
   new S.OfObject.Builder(Student).relations((a) => a.name("enrollments").of(Enrollment).me("student")).update();
@@ -59,8 +59,8 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   new S.OfObject.Builder(Term).relations((a) => a.name("enrollments").of(Enrollment).me("term")).update();
 
   // --- yaml_strings ---
-  const Notebook = new S.OfObject.Builder().properties(text("title")).create();
-  const Note = new S.OfObject.Builder().properties(text("text")).create();
+  const Notebook = new S.OfObject.Builder().ref().properties(text("title")).create();
+  const Note = new S.OfObject.Builder().ref().properties(text("text")).create();
   const Pages = new S.OfRelation.Builder().links("notebook", "note").properties(text("page", BigInt)).create();
   new S.OfObject.Builder(Notebook).relations((a) => a.name("notes").of(Pages).me("notebook")).update();
   new S.OfObject.Builder(Note).relations((a) => a.name("notebooks").of(Pages).me("note")).update();
@@ -76,10 +76,10 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   const CardAudit = new Schemas.OfObject.Builder().properties(text("by"), text("updated")).create();
   const CardMeta = new Schemas.OfIntersection.Builder().parts((p) => p.name("stamp").of(CardStamp),
     (p) => p.name("audit").of(CardAudit)).create();
-  const Card = new Schemas.OfObject.Builder().properties(text("name"), (p) => p.name("home").of(CardPhone),
+  const Card = new Schemas.OfObject.Builder().ref().properties(text("name"), (p) => p.name("home").of(CardPhone),
     (p) => p.name("reach").of(Reach), (p) => p.name("ident").of(Ident), (p) => p.name("meta").of(CardMeta)).create();
   const Holding = new Schemas.OfRelation.Builder().links("deck", "card").create();
-  const Deck = new Schemas.OfObject.Builder().properties(text("title")).relations((a) => a.name("cards").of(Holding).me("deck")).create();
+  const Deck = new Schemas.OfObject.Builder().ref().properties(text("title")).relations((a) => a.name("cards").of(Holding).me("deck")).create();
   new Schemas.OfObject.Builder(Card).relations((a) => a.name("decks").of(Holding).me("card")).update();
 
   for (const [name, schema] of [["Contact", Contact], ["Address", Address], ["Phone", Phone],

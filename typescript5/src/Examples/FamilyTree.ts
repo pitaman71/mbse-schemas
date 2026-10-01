@@ -12,7 +12,7 @@ import { assert, entries, raises, same_graph } from "./_support.js";
 
 // --- Schemas ---
 
-let Person = new Schemas.OfObject.Builder()
+let Person = new Schemas.OfObject.Builder().ref()
   .properties(
     (prop) => prop.name("given_name").of((t) => t.as_native(String)),
     (prop) => prop.name("family_name").of((t) => t.as_native(String)),

@@ -550,6 +550,8 @@ class _ObjectBuilder:
     `.<adjacency>(entry Spec)`. Finalized by `create()`, `clone()` or `update()`; none validate."""
 
     def __init__(self, schema: ObjectSchema, schema_name: str, instance: _ObjectData | None = None):
+        if not schema.ref:
+            raise TypeError(f"{schema_name!r} is a value object schema; a value object is built through its owner")
         self._schema, self._schema_name, self._source = schema, schema_name, instance
         self._values: dict[str, Native] = {}
         self._entries: dict[str, list[_EntryBuilder]] = {}

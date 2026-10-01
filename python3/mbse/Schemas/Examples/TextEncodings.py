@@ -15,7 +15,7 @@ from mbse.Schemas.Examples._support import raises, same_graph
 # --- Schemas ---
 
 Reading = (
-    Schemas.OfObject.Builder()
+    Schemas.OfObject.Builder().ref()
     .properties(
         lambda prop: prop.name('observed').of(lambda t: t.as_native(str)),  # ISO 8601, e.g. '2026-09-28T12:00:00Z'
         lambda prop: prop.name('value').of(lambda t: t.as_native(float)),
@@ -27,7 +27,7 @@ Reading = (
     .create()
 )
 Station = (
-    Schemas.OfObject.Builder()
+    Schemas.OfObject.Builder().ref()
     .properties(
         lambda prop: prop.name('wmo_id').of(lambda t: t.as_native(str)),  # e.g. '03772'; leading zeros matter
         lambda prop: prop.name('name').of(lambda t: t.as_native(str)),

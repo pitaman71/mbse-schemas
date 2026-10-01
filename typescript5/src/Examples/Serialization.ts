@@ -11,7 +11,7 @@ import { assert, entries, equal, map, raises } from "./_support.js";
 
 // --- Schemas ---
 
-const Sample = new Schemas.OfObject.Builder()
+const Sample = new Schemas.OfObject.Builder().ref()
   .properties(
     (prop) => prop.name("label").of((t) => t.as_native(String)),
     (prop) => prop.name("payload").of((t) => t.as_native(Uint8Array)),
@@ -21,15 +21,15 @@ const Sample = new Schemas.OfObject.Builder()
   )
   .create();
 
-let Currency = new Schemas.OfObject.Builder()
+let Currency = new Schemas.OfObject.Builder().ref()
   .properties(
     (prop) => prop.name("code").of((t) => t.as_native(String)), // ISO 4217 alpha, e.g. 'JPY'
     (prop) => prop.name("numeric").of((t) => t.as_native(String)), // ISO 4217 numeric, e.g. '392'; keeps zeros
     (prop) => prop.name("minor_units").of((t) => t.as_native(BigInt)), // 0 for JPY, 2 for EUR, 3 for BHD
   )
   .create();
-let Product = new Schemas.OfObject.Builder().properties((prop) => prop.name("sku").of((t) => t.as_native(String))).create();
-let Money = new Schemas.OfObject.Builder()
+let Product = new Schemas.OfObject.Builder().ref().properties((prop) => prop.name("sku").of((t) => t.as_native(String))).create();
+let Money = new Schemas.OfObject.Builder().ref()
   .properties((prop) => prop.name("amount").of((t) => t.as_native(BigInt))) // in minor units
   .create();
 

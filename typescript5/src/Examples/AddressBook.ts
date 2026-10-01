@@ -8,7 +8,7 @@ import { assert, equal } from "./_support.js";
 
 // --- Schemas ---
 
-let IntlAddress = new Schemas.OfObject.Builder()
+let IntlAddress = new Schemas.OfObject.Builder().ref()
   .properties(
     (prop) => prop.name("street1").of((t) => t.as_native(String)),
     (prop) => prop.name("street2").of((t) => t.as_native(String)),
@@ -22,7 +22,7 @@ let IntlAddress = new Schemas.OfObject.Builder()
   )
   .create();
 
-let Contact = new Schemas.OfObject.Builder()
+let Contact = new Schemas.OfObject.Builder().ref()
   .properties(
     (prop) => prop.name("given_name").of((t) => t.as_native(String)),
     (prop) => prop.name("family_name").of((t) => t.as_native(String)),
@@ -31,13 +31,13 @@ let Contact = new Schemas.OfObject.Builder()
   )
   .create();
 
-let PhoneNumber = new Schemas.OfObject.Builder()
+let PhoneNumber = new Schemas.OfObject.Builder().ref()
   .properties(
     (prop) => prop.name("number").of((t) => t.as_native(String)), // ITU-T E.164, e.g. '+14155550100'
   )
   .create();
 
-let EmailAddress = new Schemas.OfObject.Builder()
+let EmailAddress = new Schemas.OfObject.Builder().ref()
   .properties(
     (prop) => prop.name("address").of((t) => t.as_native(String)), // RFC 5322 addr-spec
   )

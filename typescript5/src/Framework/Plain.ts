@@ -317,6 +317,9 @@ class Snapshot {
     if (Proxies.schema(root.schema_name()) !== schema) {
       throw new TypeError(`value is a ${repr(root.schema_name())}, not an instance of the given schema`);
     }
+    if (!schema.ref) {
+      throw new TypeError(`a snapshot's root must be a reference object; ${repr(root.schema_name())} is a value object schema`);
+    }
     for (const value of include) this.symbol(value);
     const objects: PlainMap = new Map();
     for (const value of include) {
@@ -397,6 +400,7 @@ function check(builders: Builders, schema: unknown, plain: unknown): [string, Ma
   if (!(schema instanceof Schemas.OfObject.Data)) {
     throw new TypeError(`the root schema must be an object schema, got ${schemaTypeName(schema)}`);
   }
+  if (!schema.ref) throw new TypeError("the root schema must be a reference object schema");
   if (!(plain instanceof Map) || plain.size !== 2 || !plain.has("root") || !(plain.get("objects") instanceof Map)) {
     throw new DecodeError("expected an object snapshot: {'root': symbol, 'objects': {symbol: object}}", { path: "$" });
   }
@@ -452,6 +456,7 @@ function check(builders: Builders, schema: unknown, plain: unknown): [string, Ma
       }
       throw error;
     }
+    if (!objectSchema.ref) throw new DecodeError(`${repr(name)} is not a reference object schema`, { path: path("objects", symbol) });
     const properties = new Map<string, unknown>();
     const adjacencies = new Map<string, Map<string, Native | Link>[]>();
     for (const [key, value] of obj) {

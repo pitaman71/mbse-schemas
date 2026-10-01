@@ -482,11 +482,15 @@ class ObjectData implements HasFields {
   properties: Map<string, AnyData>;
   adjacencies: Map<string, AdjacencyData>;
   singleton: string | null;
+  /** A reference object schema; otherwise a value object schema. */
+  ref: boolean;
 
-  constructor(fields: { properties?: Map<string, AnyData>; adjacencies?: Map<string, AdjacencyData>; singleton?: string | null } = {}) {
+  constructor(fields: { properties?: Map<string, AnyData>; adjacencies?: Map<string, AdjacencyData>; singleton?: string | null;
+    ref?: boolean } = {}) {
     this.properties = fields.properties ?? new Map();
     this.adjacencies = fields.adjacencies ?? new Map();
     this.singleton = fields.singleton ?? null;
+    this.ref = fields.ref ?? false;
   }
 
 
@@ -496,6 +500,7 @@ class ObjectData implements HasFields {
 
   validate(): string[] {
     const problems: string[] = [];
+    if (this.singleton !== null && !this.ref) problems.push("a singleton's schema must be a reference object schema");
     const clashes = [...this.properties.keys()].filter((name) => this.adjacencies.has(name));
     if (clashes.length > 0) {
       problems.push(`names used as both property and adjacency: ${repr(sortedStrings(clashes))}`);
@@ -527,9 +532,18 @@ class ObjectBuilder extends Builder<ObjectData> {
     return this;
   }
 
-  /** Declares a singleton global name: the one instance exists implicitly and is referenced by this name. */
+  /** Declares a singleton global name: the one instance exists implicitly and is referenced by this name. A
+   * singleton is a reference object. */
   singleton(name: string): ObjectBuilder {
     this.state["singleton"] = name;
+    this.state["ref"] = true;
+    return this;
+  }
+
+  /** Marks a reference object schema: its objects stand on their own, reached through relations, and no property holds
+   * one. Without it, the schema describes value objects, which properties hold. */
+  ref(): ObjectBuilder {
+    this.state["ref"] = true;
     return this;
   }
 }
@@ -733,6 +747,7 @@ function validateSchema(schema: unknown): string[] {
 /** Problems with a property's schema as a value: an object held by a property is embedded, with no identity, so it
  * cannot have adjacencies; nor can the objects a union or intersection holds. */
 function embeddedProblems(schema: unknown): string[] {
+  if (schema instanceof ObjectData && schema.ref) return ["a reference object schema cannot be a property's type"];
   if (schema instanceof ObjectData && schema.adjacencies.size > 0) return ["an embedded object cannot have adjacencies"];
   const parts = schema instanceof UnionData || schema instanceof IntersectionData ? [...schema.properties.values()] : [];
   return sortedStrings(new Set(parts.flatMap((part) => embeddedProblems(part))));

@@ -9,7 +9,7 @@ from mbse.Schemas.Examples._support import entries, raises, same_graph
 # --- Schemas ---
 
 Person = (
-    Schemas.OfObject.Builder()
+    Schemas.OfObject.Builder().ref()
     .properties(
         lambda prop: prop.name('given_name').of(lambda t: t.as_native(str)),
         lambda prop: prop.name('family_name').of(lambda t: t.as_native(str)),

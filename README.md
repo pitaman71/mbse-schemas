@@ -28,8 +28,8 @@ from `mbse.Schemas.Framework`, TypeScript from `@mbse/schemas/Framework`.
 ```python
 from mbse.Schemas.Framework import JSON, Proxies, Schemas, Validators
 
-Contact = Schemas.OfObject.Builder().properties(lambda p: p.name('name').of(lambda t: t.as_native(str))).create()
-Address = Schemas.OfObject.Builder().properties(lambda p: p.name('street').of(lambda t: t.as_native(str))).create()
+Contact = Schemas.OfObject.Builder().ref().properties(lambda p: p.name('name').of(lambda t: t.as_native(str))).create()
+Address = Schemas.OfObject.Builder().ref().properties(lambda p: p.name('street').of(lambda t: t.as_native(str))).create()
 
 # Collections are relations: entries link objects and carry their own properties.
 ContactAddresses = (

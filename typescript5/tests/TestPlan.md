@@ -38,7 +38,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 
 | Notebook | Suite | Cases | Focus |
 |---|---|---|---|
-| `01_Schemas.ipynb` | SCH | 18 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array`, the own token format is `typescript5`, and widths are `bigint`s |
+| `01_Schemas.ipynb` | SCH | 19 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array`, the own token format is `typescript5`, and widths are `bigint`s |
 | `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length` |
 | `03_Proxies.ipynb` | PRX | 17 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances and the registry, `util.inspect` of instances and builders, and the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel) |
 | `04_Reachable.ipynb` | RCH | 10 | as in Python |
@@ -54,7 +54,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `14_Embedded.ipynb` | EMB | 8 | as in Python; the runtime's own probes (`then`, symbols) are not properties |
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
 
-Total: 144 cases, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
+Total: 145 cases, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

@@ -7,7 +7,7 @@ from mbse.Schemas.Framework import Schemas, Proxies, Plain, JSON
 # --- Schemas ---
 
 IntlAddress = (
-    Schemas.OfObject.Builder()
+    Schemas.OfObject.Builder().ref()
     .properties(
         lambda prop: prop.name('street1').of(lambda t: t.as_native(str)),
         lambda prop: prop.name('street2').of(lambda t: t.as_native(str)),
@@ -23,7 +23,7 @@ IntlAddress = (
 )
 
 Contact = (
-    Schemas.OfObject.Builder()
+    Schemas.OfObject.Builder().ref()
     .properties(
         lambda prop: prop.name('given_name').of(lambda t: t.as_native(str)),
         lambda prop: prop.name('family_name').of(lambda t: t.as_native(str)),
@@ -34,7 +34,7 @@ Contact = (
 )
 
 PhoneNumber = (
-    Schemas.OfObject.Builder()
+    Schemas.OfObject.Builder().ref()
     .properties(
         lambda prop: prop.name('number').of(lambda t: t.as_native(str)),  # ITU-T E.164, e.g. '+14155550100'
     )
@@ -42,7 +42,7 @@ PhoneNumber = (
 )
 
 EmailAddress = (
-    Schemas.OfObject.Builder()
+    Schemas.OfObject.Builder().ref()
     .properties(
         lambda prop: prop.name('address').of(lambda t: t.as_native(str)),  # RFC 5322 addr-spec
     )

@@ -18,8 +18,8 @@ const native = (name: string, type: S.OfNative.Spec) => (p: S.OfProperty.Builder
 const Signal = new S.OfObject.Builder().properties(native("width", BigInt), native("unit", String)).create();
 
 // Things with identity: object schemas.
-const Component = new S.OfObject.Builder().properties(native("name", String)).create();
-const Port = new S.OfObject.Builder().properties(native("name", String), (p) => p.name("signal").of(Signal)).create();
+const Component = new S.OfObject.Builder().ref().properties(native("name", String)).create();
+const Port = new S.OfObject.Builder().ref().properties(native("name", String), (p) => p.name("signal").of(Signal)).create();
 
 // Every collection is a relation. unique("owner"): entries that agree on the port agree on the owner.
 const Ownership = new S.OfRelation.Builder().links("owner", "port").unique("owner").create();
@@ -61,7 +61,8 @@ if (Validators.Validate(B).Reachable(Component, copy).length > 0) throw new Erro
 ## Cheat sheet
 
 ```typescript fragment
-new S.OfObject.Builder().properties(spec, ...).relations(spec, ...).singleton("Name").create();
+new S.OfObject.Builder().ref().properties(spec, ...).relations(spec, ...).create(); // .ref(): a reference object schema
+new S.OfObject.Builder().properties(spec, ...).create();  // a value object schema, for a property's type
 new S.OfObject.Builder(existing).relations(...).update();   // add adjacencies once the relations exist
 new S.OfRelation.Builder().links("a", "b").properties(spec, ...).unique("a").create();
 S.OfNative.resolve((n) => n.token("ccpp", "int32_t").bits(32n));   // any format's token; a width in bits or bytes

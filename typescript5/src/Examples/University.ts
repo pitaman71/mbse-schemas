@@ -16,13 +16,13 @@ function text(name: string) {
 
 // --- Schemas ---
 
-let Student = new Schemas.OfObject.Builder().properties(text("name"), text("student_id")).create();
-let Staff = new Schemas.OfObject.Builder().properties(text("name"), text("staff_id")).create();
-let Course = new Schemas.OfObject.Builder().properties(text("code"), text("title")).create();
-let Term = new Schemas.OfObject.Builder()
+let Student = new Schemas.OfObject.Builder().ref().properties(text("name"), text("student_id")).create();
+let Staff = new Schemas.OfObject.Builder().ref().properties(text("name"), text("staff_id")).create();
+let Course = new Schemas.OfObject.Builder().ref().properties(text("code"), text("title")).create();
+let Term = new Schemas.OfObject.Builder().ref()
   .properties(text("code"), text("starts"), text("ends")) // ISO 8601 dates, e.g. '2026-09-01'
   .create();
-let Room = new Schemas.OfObject.Builder().properties(text("building"), text("number")).create();
+let Room = new Schemas.OfObject.Builder().ref().properties(text("building"), text("number")).create();
 
 // Three links: each entry is one student taking one course in one term.
 const Enrollment = new Schemas.OfRelation.Builder()

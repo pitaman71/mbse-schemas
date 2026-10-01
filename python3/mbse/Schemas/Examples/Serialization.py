@@ -12,7 +12,7 @@ from mbse.Schemas.Examples._support import entries, raises
 # --- Schemas ---
 
 Sample = (
-    Schemas.OfObject.Builder()
+    Schemas.OfObject.Builder().ref()
     .properties(
         lambda prop: prop.name('label').of(lambda t: t.as_native(str)),
         lambda prop: prop.name('payload').of(lambda t: t.as_native(bytes)),
@@ -24,7 +24,7 @@ Sample = (
 )
 
 Currency = (
-    Schemas.OfObject.Builder()
+    Schemas.OfObject.Builder().ref()
     .properties(
         lambda prop: prop.name('code').of(lambda t: t.as_native(str)),  # ISO 4217 alpha, e.g. 'JPY'
         lambda prop: prop.name('numeric').of(lambda t: t.as_native(str)),  # ISO 4217 numeric, e.g. '392'; keeps zeros
@@ -32,9 +32,9 @@ Currency = (
     )
     .create()
 )
-Product = Schemas.OfObject.Builder().properties(lambda prop: prop.name('sku').of(lambda t: t.as_native(str))).create()
+Product = Schemas.OfObject.Builder().ref().properties(lambda prop: prop.name('sku').of(lambda t: t.as_native(str))).create()
 Money = (
-    Schemas.OfObject.Builder()
+    Schemas.OfObject.Builder().ref()
     .properties(lambda prop: prop.name('amount').of(lambda t: t.as_native(int)))  # in minor units
     .create()
 )

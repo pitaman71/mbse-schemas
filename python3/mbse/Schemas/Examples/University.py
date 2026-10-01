@@ -15,15 +15,15 @@ def text(name):
 
 # --- Schemas ---
 
-Student = Schemas.OfObject.Builder().properties(text('name'), text('student_id')).create()
-Staff = Schemas.OfObject.Builder().properties(text('name'), text('staff_id')).create()
-Course = Schemas.OfObject.Builder().properties(text('code'), text('title')).create()
+Student = Schemas.OfObject.Builder().ref().properties(text('name'), text('student_id')).create()
+Staff = Schemas.OfObject.Builder().ref().properties(text('name'), text('staff_id')).create()
+Course = Schemas.OfObject.Builder().ref().properties(text('code'), text('title')).create()
 Term = (
-    Schemas.OfObject.Builder()
+    Schemas.OfObject.Builder().ref()
     .properties(text('code'), text('starts'), text('ends'))  # ISO 8601 dates, e.g. '2026-09-01'
     .create()
 )
-Room = Schemas.OfObject.Builder().properties(text('building'), text('number')).create()
+Room = Schemas.OfObject.Builder().ref().properties(text('building'), text('number')).create()
 
 # Three links: each entry is one student taking one course in one term.
 Enrollment = (

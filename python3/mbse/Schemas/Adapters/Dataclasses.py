@@ -165,7 +165,7 @@ class _Reader:
 
     def __init__(self, trees: dict[str, ast.ClassDef]):
         self.trees = trees
-        self.objects = {name: Schemas.OfObject.Data() for name in trees}
+        self.objects = {name: Schemas.OfObject.Data(ref=True) for name in trees}  # a dataclass is a reference object
         self.relations: dict[str, Schemas.OfRelation.Data] = {}
 
     def read(self) -> Model:

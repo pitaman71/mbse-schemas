@@ -25,9 +25,10 @@ How to express an interface or data model with the schema elements. The same mod
 
 ## Decisions
 
-**Object or embedded value?** Use an object if the thing is shared by several owners, navigated back from, part of a
-cycle, or referred to by identity. Otherwise use an embedded object: it is copied by value and written nested.
-Embedded objects cannot have adjacencies.
+**Reference object or value object?** Use a reference object, whose schema is marked `.ref()`, if the thing is shared
+by several owners, navigated back from, part of a cycle, or referred to by identity; it is reached through relations
+and never held by a property. Otherwise use a value object (an embedded object): a property holds it, it is copied by
+value and written nested. Value objects cannot have adjacencies yet.
 
 **A relation must link objects.** A one-link relation whose entries carry the data (a contact's phone numbers as
 entries holding `number`) is not legal. Make the data an object and link it to its owner.

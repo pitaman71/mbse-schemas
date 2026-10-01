@@ -294,30 +294,32 @@ Designed, not yet implemented. It lifts the rule that an embedded object has no 
 an object can be composed of parts that take part in relations (a component's ports, a schema's properties). The
 terms replace "embedded object" and "object" throughout once implemented.
 
-- **A reference object** has its own identity: it is linked by relations, a snapshot writes it once under its symbol,
-  and others refer to it with `{"$ref": symbol, "$schema": name}`. A snapshot's root is a reference object.
-- **A value object** is held by a property whose schema is an `OfObject`, and belongs to one owner through that
-  property. Its identity is relative to its owner: its path from the nearest reference object (`contact.home`, or
-  `contact.reach.phone` through a union value). Union and intersection values are value objects, and so are the
-  objects they hold.
-- **A value object may have adjacencies.** Its schema may declare them, and its entries link it like any object: to
-  reference objects, to other value objects, or to value objects of other owners. The rule "an embedded object cannot
-  have adjacencies" is dropped.
-- **Ownership is exclusive and deep.** Setting a value object into another owner copies it, with the entries among
-  the copied objects and a copy of each entry that links them to objects outside; `clone()` of an owner does the same.
-  Clearing the property, or replacing its value, removes the value object and every entry linking it.
-- **Entry properties may be value objects, never reference objects.** Such a value object nests like any other (its
-  properties may hold value objects), and it may have adjacencies, but only one-directional ones: an entry has no
-  identity, so a value object it holds has no path, and nothing can link back to it. Its entries are written under it
-  alone, and a relation it fills must have no other end that declares an adjacency to it.
-- **Value objects are written nested**, as now, with their adjacencies nested in them as a reference object's are. A
-  reference to a value object is its owner's reference with a path: `{"$ref": "s0", "$path": ["home"], "$schema":
-  "Phone"}`. A path names properties, and union branches and intersection parts by name. Decoding rejects a path that
-  does not name a value object of that schema.
-- **Reachability goes through value objects**: their entries are followed as a reference object's are, and the objects
-  they reach are included in a snapshot.
+- **Every object has an identity**, and any object can be linked by relations. What distinguishes the two kinds is
+  ownership.
+- **A reference object** stands on its own: a snapshot writes it once among its `objects`, under its symbol. A
+  snapshot's root is a reference object.
+- **A value object** is held by a property whose schema is an `OfObject`, and belongs to that one owner, a reference
+  object or another value object. Union and intersection values are value objects, and so are the objects they hold.
+  `Visitable.owner()` gives a value object's owner, and None for a reference object.
+- **A value object may have adjacencies**, and its entries link it like any object. The rule "an embedded object cannot
+  have adjacencies" is dropped. A linked object's schema must be registered, whichever its kind.
+- **Ownership is exclusive and deep.** Editing a value object through its owner's builder keeps its identity. Setting
+  it into another owner, or `clone()` of its owner, copies it with a new identity, with the entries among the copied
+  objects (re-linked to the copies) and a copy of each entry that links them to objects outside. Clearing the property,
+  or replacing its value, removes the value object and every entry linking it.
+- **Entry properties may be value objects, never reference objects.** Such a value object is owned by its entry.
+- **Value objects are written nested**, inside their owner, with their adjacencies nested in them as a reference
+  object's are. A value object that something links to carries its symbol, `"home": {"$id": "s3", "number": "1"}`,
+  and is referred to as any object is, `{"$ref": "s3", "$schema": "Phone"}`; one that nothing links to is written as
+  embedded objects are now. Symbols are assigned in first-reference order, value objects and reference objects alike.
+- **Reachability goes through value objects**: their entries are followed as a reference object's are, and an object
+  reached that is a value object brings in the reference object that owns it, which is where it is written.
+- **Decoding** rebuilds a value object through its owner's builder, and finds it again to link it with
+  `Builders.member(instance, name)`, the value an instance holds in a property (a union's branch, an intersection's
+  part); a `$ref` to an `$id` resolves to that value object.
 - **Value objects compare deeply**: by their properties, recursively, and by their entries, whose links to reference
-  objects compare by identity and to value objects deeply. Reference objects still compare by identity.
+  objects compare by identity and to value objects deeply. Their identity does not take part. Reference objects
+  compare by identity when linked.
 - **Proxies keep value objects read-only**, with adjacencies set through the owner's builder, e.g.
   `.home(lambda r: r.number("1").ports(lambda x: x.port(p)))`.
 

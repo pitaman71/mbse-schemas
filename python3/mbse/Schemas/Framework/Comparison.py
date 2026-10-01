@@ -291,6 +291,9 @@ class OfObject:
         callback(self._adjacencies.setdefault(name, OfAdjacency(name, self._schema.adjacencies[name])))
         return self
 
+    def identify(self, value: Visitors.Visitable) -> OfObject:
+        return self
+
     def compare(self, other: OfObject) -> Result:
         if self._schema is not other._schema:
             return None

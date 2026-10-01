@@ -35,6 +35,7 @@ PlainData = None | bool | int | float | str | list["PlainData"] | dict[str, "Pla
 
 REF = "$ref"
 SCHEMA = "$schema"
+ID = "$id"
 
 
 # --- Writers: Visitors that write plain data ---
@@ -61,12 +62,21 @@ class _NativeWriter:
         return self
 
 
-class _AnyWriter:
-    """`Visitors.OfAny` writing one key of a plain dict: a native, an embedded object (nested), a union value or an
-    intersection value."""
+Ref = Callable[[Visitors.Visitable], dict[str, PlainData]]
+Symbol = Callable[[Visitors.Visitable], "str | None"]
 
-    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfAny.Data):
-        self._out, self._name, self._schema = out, name, schema
+
+def _unlinked(value: Visitors.Visitable) -> str | None:
+    return None
+
+
+class _AnyWriter:
+    """`Visitors.OfAny` writing one key of a plain dict: a native, or a value object (an object's, a union value or an
+    intersection value), nested. `ref` writes references to linked objects, and `symbol` gives a value object's symbol
+    when something links to it."""
+
+    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfAny.Data, ref: Ref, symbol: Symbol):
+        self._out, self._name, self._schema, self._ref, self._symbol = out, name, schema, ref, symbol
 
     def as_native(self, callback: Callable[[Visitors.OfNative], Any]) -> _AnyWriter:
         if not isinstance(self._schema, Schemas.OfNative.Data):
@@ -90,8 +100,8 @@ class _AnyWriter:
         nested = self._out.get(self._name)
         if not isinstance(nested, dict):
             nested = self._out[self._name] = {}
-        callback(_ObjectWriter(nested, self._schema, lambda target: {}) if isinstance(self._schema, Schemas.OfObject.Data)
-                 else _RecordWriter(nested, self._schema))
+        callback(_ObjectWriter(nested, self._schema, self._ref, self._symbol) if isinstance(self._schema, Schemas.OfObject.Data)
+                 else _RecordWriter(nested, self._schema, self._ref, self._symbol))
         if isinstance(self._schema, Schemas.OfUnion.Data) and not nested:
             del self._out[self._name]  # a union value without a branch is no value
         return self
@@ -100,8 +110,8 @@ class _AnyWriter:
 class _PropertyWriter:
     """`Visitors.OfProperty` writing one key of a plain dict."""
 
-    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfAny.Data):
-        self._out, self._name, self._schema = out, name, schema
+    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfAny.Data, ref: Ref, symbol: Symbol):
+        self._out, self._name, self._schema, self._ref, self._symbol = out, name, schema, ref, symbol
 
     def name(self) -> str:
         return self._name
@@ -110,7 +120,7 @@ class _PropertyWriter:
         return self._name in self._out
 
     def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _PropertyWriter:
-        callback(_AnyWriter(self._out, self._name, self._schema))
+        callback(_AnyWriter(self._out, self._name, self._schema, self._ref, self._symbol))
         return self
 
     def clear(self) -> _PropertyWriter:
@@ -122,9 +132,6 @@ def _property_schema(properties: dict[str, Schemas.OfAny.Data], name: str) -> Sc
     if name not in properties:
         raise KeyError(f"unknown property {name!r}")
     return properties[name]
-
-
-Ref = Callable[[Visitors.Visitable], dict[str, PlainData]]
 
 
 class _LinkWriter:
@@ -165,14 +172,15 @@ class _EntryWriter:
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryWriter:
         for name in self._relation.properties:
             if name in self._entry:
-                callback(_PropertyWriter(self._entry, name, self._relation.properties[name]))
+                callback(_PropertyWriter(self._entry, name, self._relation.properties[name], self._ref, _unlinked))
         return self
 
     def has(self, name: str) -> bool:
         return name in self._entry
 
     def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryWriter:
-        callback(_PropertyWriter(self._entry, name, _property_schema(self._relation.properties, name)))
+        schema = _property_schema(self._relation.properties, name)
+        callback(_PropertyWriter(self._entry, name, schema, self._ref, _unlinked))
         return self
 
     def clear(self, name: str) -> _EntryWriter:
@@ -211,13 +219,13 @@ class _RecordWriter:
     """`Visitors.OfUnion` and `Visitors.OfIntersection` writing a union or intersection value, whose properties are the
     branches or parts; the base of `_ObjectWriter`. Writing a union's branch clears any other."""
 
-    def __init__(self, out: dict[str, PlainData], schema: Any):
-        self._out, self._schema = out, schema
+    def __init__(self, out: dict[str, PlainData], schema: Any, ref: Ref, symbol: Symbol):
+        self._out, self._schema, self._ref, self._symbol = out, schema, ref, symbol
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> Any:
         for name, schema in self._schema.properties.items():
             if name in self._out:
-                callback(_PropertyWriter(self._out, name, schema))
+                callback(_PropertyWriter(self._out, name, schema, self._ref, self._symbol))
         return self
 
     def has(self, name: str) -> bool:
@@ -228,7 +236,7 @@ class _RecordWriter:
         if isinstance(self._schema, Schemas.OfUnion.Data):
             for other in [n for n in self._out if n != name]:
                 del self._out[other]
-        callback(_PropertyWriter(self._out, name, schema))
+        callback(_PropertyWriter(self._out, name, schema, self._ref, self._symbol))
         return self
 
     def clear(self, name: str) -> Any:
@@ -237,11 +245,17 @@ class _RecordWriter:
 
 
 class _ObjectWriter(_RecordWriter):
-    """`Visitors.OfObject` writing one plain object."""
+    """`Visitors.OfObject` writing one plain object, a reference object or a value object nested in its owner. A value
+    object that something links to is written with its symbol, `$id`."""
 
-    def __init__(self, out: dict[str, PlainData], schema: Schemas.OfObject.Data, ref: Ref):
-        super().__init__(out, schema)
-        self._ref = ref
+    def __init__(self, out: dict[str, PlainData], schema: Schemas.OfObject.Data, ref: Ref, symbol: Symbol = _unlinked):
+        super().__init__(out, schema, ref, symbol)
+
+    def identify(self, value: Visitors.Visitable) -> _ObjectWriter:
+        symbol = self._symbol(value)
+        if symbol is not None:
+            self._out[ID] = symbol
+        return self
 
     def adjacencies(self, callback: Callable[[Visitors.OfAdjacency], Any]) -> _ObjectWriter:
         for name in self._schema.adjacencies:
@@ -268,6 +282,10 @@ class Builders(Protocol):
 
     def name_of(self, schema: Schemas.OfObject.Data) -> str: ...
 
+    def member(self, instance: Any, name: str) -> Any:
+        """The value `instance` holds in its property `name`, e.g. a value object."""
+        ...
+
     def __getattr__(self, name: str) -> Callable[..., Any]: ...
 
 
@@ -276,11 +294,16 @@ class _Snapshot:
 
     def __init__(self) -> None:
         self._symbols: dict[Hashable, str] = {}
+        self._typed: set[str] = set()  # the reference objects some reference names the schema of
 
     def _symbol(self, value: Visitors.Visitable) -> str:
         return self._symbols.setdefault(value.identity(), f"s{len(self._symbols)}")
 
     def _ref(self, target: Visitors.Visitable) -> dict[str, PlainData]:
+        """A reference to a linked object; one to a value object has no schema, which its owner's gives."""
+        if target.owner() is not None:
+            return {REF: self._symbol(target)}
+        self._typed.add(self._symbol(target))
         return {REF: self._symbol(target), SCHEMA: target.schema_name()}
 
     def run(
@@ -292,16 +315,27 @@ class _Snapshot:
             raise TypeError(f"a snapshot's root must be a reference object; {root.schema_name()!r} is a value object schema")
         for value in include:
             self._symbol(value)
+        linked = Reachable.targets(include)
+
+        def symbol(value: Visitors.Visitable) -> str | None:
+            return self._symbol(value) if value.identity() in linked else None
+
         objects: dict[str, PlainData] = {}
         for value in include:
             out: dict[str, PlainData] = {}
-            value.accept(_ObjectWriter(out, Proxies.schema(value.schema_name()), self._ref))
+            value.accept(_ObjectWriter(out, Proxies.schema(value.schema_name()), self._ref, symbol))
             objects[self._symbol(value)] = out
+        for value in include:  # an object whose schema nothing else gives carries it: one linked only by value objects
+            key = self._symbol(value)
+            if value is not root and key not in self._typed:
+                objects[key] = {SCHEMA: value.schema_name(), **objects[key]}  # type: ignore[dict-item]
         return {"root": self._symbol(root), "objects": objects}
 
 
 def _is_ref(value: PlainData) -> bool:
-    return isinstance(value, dict) and set(value) == {REF, SCHEMA} and all(isinstance(v, str) for v in value.values())
+    """A reference: `{'$ref': symbol, '$schema': name}` to a reference object, or `{'$ref': symbol}` to a value object."""
+    return (isinstance(value, dict) and set(value) in ({REF, SCHEMA}, {REF})
+            and all(isinstance(v, str) for v in value.values()))
 
 
 class _Link(NamedTuple):
@@ -311,7 +345,8 @@ class _Link(NamedTuple):
 
 
 class _Record(NamedTuple):
-    """A decoded embedded object, union value or intersection value; `accept` writes its properties into a builder."""
+    """A decoded value object (an object's, a union value or an intersection value); `accept` writes its properties into
+    a builder. Its entries are added once every object is built."""
 
     schema: Any
     values: dict[str, Any]
@@ -321,7 +356,27 @@ class _Record(NamedTuple):
             _set(visitor, name, value)
 
 
-def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple) -> Any:
+Rows = dict[str, list[dict[str, Any]]]
+"""Per adjacency, its decoded entries: each maps links to `_Link`s and properties to decoded values."""
+
+
+class _Found(NamedTuple):
+    """Where decoding found a value object: its reference object's symbol, and the steps from it, each a property name
+    and the kind of the value it holds."""
+
+    owner: str
+    steps: tuple[tuple[str, type], ...]
+
+
+class _Context:
+    """What decoding a reference object's values collects: the symbols of the value objects in it, and their entries."""
+
+    def __init__(self, owner: str, ids: dict[str, _Found], entries: list[tuple[_Found, Rows]]):
+        self.owner, self.ids, self.entries = owner, ids, entries
+
+
+def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context: _Context | None = None,
+            steps: tuple[tuple[str, type], ...] = ()) -> Any:
     """The value `plain` holds under `schema`, located at the path `where`."""
     if isinstance(schema, Schemas.OfNative.Data):
         try:
@@ -331,14 +386,32 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple) -> Any:
     noun, owner, member = _RECORDS[type(schema)]
     if not isinstance(plain, dict):
         raise DecodeError(f"{noun} must be a mapping, got {type(plain).__name__}", path=path(*where))
-    values = {}
+    adjacencies = schema.adjacencies if isinstance(schema, Schemas.OfObject.Data) else {}
+    values: dict[str, Any] = {}
+    rows: Rows = {}
     for key, item in plain.items():
-        if key not in schema.properties:
+        if key == ID and isinstance(schema, Schemas.OfObject.Data) and context is not None:
+            _identify(item, context, steps, (*where, key))
+        elif key in adjacencies and context is not None:
+            rows[key] = _decode_rows(adjacencies[key], item, where, key)
+        elif key in schema.properties:
+            values[key] = _decode(schema.properties[key], item, (*where, key), context,
+                                  (*steps, (key, type(schema.properties[key]))))
+        else:
             raise DecodeError(f"{owner} has no {member} {key!r}", path=path(*where, key))
-        values[key] = _decode(schema.properties[key], item, (*where, key))
     if isinstance(schema, Schemas.OfUnion.Data) and len(values) != 1:
         raise DecodeError(f"a union value holds exactly one branch, got {len(values)}", path=path(*where))
+    if rows:
+        context.entries.append((_Found(context.owner, steps), rows))  # type: ignore[union-attr]
     return _Record(schema, values)
+
+
+def _identify(symbol: PlainData, context: _Context, steps: tuple[tuple[str, type], ...], where: tuple) -> None:
+    if not isinstance(symbol, str):
+        raise DecodeError(f"a symbol must be a string, got {type(symbol).__name__}", path=path(*where))
+    if symbol in context.ids:
+        raise DecodeError(f"{symbol!r} is the symbol of two objects", path=path(*where))
+    context.ids[symbol] = _Found(context.owner, steps)
 
 
 # For messages, per record kind: a value of it, its schema, and what its properties are.
@@ -355,14 +428,62 @@ def _decode_entry_property(schema: Schemas.OfAny.Data, name: str, plain: PlainDa
     return _decode(schema, plain, where)
 
 
-# Per object symbol: its decoded property values, and per adjacency its entries, each mapping links to target symbols
-# and properties to decoded values.
-_Decoded = dict[str, tuple[dict[str, Native], dict[str, list[dict[str, Any]]]]]
+def _decode_rows(adjacency: Schemas.OfAdjacency.Data, value: PlainData, where: tuple, key: str) -> list[dict[str, Any]]:
+    """The entries of one adjacency, at `where` + `key`."""
+    if not isinstance(value, list):
+        raise DecodeError("an adjacency must be a list of entries", path=path(*where, key))
+    relation = adjacency.relation
+    rows = []
+    for i, entry in enumerate(value):
+        row: dict[str, Any] = {}
+        for name, item in entry.items():
+            at = path(*where, key, i, name)
+            if name == adjacency.me:
+                raise DecodeError(f"{name!r} is this object's own link, which is implied", path=at)
+            if name in relation.links:
+                if not _is_ref(item):
+                    raise DecodeError("a link must be a reference", path=at)
+                row[name] = _Link(item[REF])
+            elif name in relation.properties:
+                row[name] = _decode_entry_property(relation.properties[name], name, item, (*where, key, i, name))
+            else:
+                raise DecodeError(f"the relation has no link or property {name!r}", path=at)
+        missing = [n for n in relation.links if n != adjacency.me and n not in entry]
+        if missing:
+            raise DecodeError(f"links {missing} are not set", path=path(*where, key, i))
+        rows.append(row)
+    return rows
 
 
-def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData) -> tuple[str, dict[str, str], _Decoded]:
+def _references(value: PlainData, where: tuple, found: Callable[[dict[str, Any], tuple], None]) -> None:
+    """Finds the references in the entries of an object and of the value objects nested in it: a list is always an
+    adjacency, since plain values hold no lists."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            _references(item, (*where, key), found)
+        return
+    if not isinstance(value, list):
+        return
+    for i, entry in enumerate(value):
+        if not isinstance(entry, dict):
+            raise DecodeError(f"an entry must be a mapping, got {type(entry).__name__}", path=path(*where, i))
+        for name, ref in entry.items():
+            if isinstance(ref, dict):
+                if not _is_ref(ref):
+                    raise DecodeError("a reference is {'$ref': symbol, '$schema': name}, or {'$ref': symbol} to a value object",
+                                      path=path(*where, i, name))
+                found(ref, (*where, i, name))
+
+
+# Per reference object symbol: its decoded property values and its entries.
+_Decoded = dict[str, tuple[dict[str, Any], Rows]]
+
+
+def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData
+           ) -> tuple[str, dict[str, str], _Decoded, dict[str, _Found], list[tuple[_Found, Rows]]]:
     """Checks a snapshot against the schemas and decodes its values before anything is built. Returns the root symbol,
-    each object's schema name, and the decoded objects. Problems in the snapshot raise `DecodeError`."""
+    each reference object's schema name, the decoded reference objects, where each value object with a symbol is, and
+    the entries of value objects. Problems in the snapshot raise `DecodeError`."""
     if not isinstance(schema, Schemas.OfObject.Data):
         raise TypeError(f"the root schema must be an object schema, got {type(schema).__name__}")
     if not schema.ref:
@@ -376,32 +497,33 @@ def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData) 
         if not isinstance(obj, dict):
             raise DecodeError(f"an object must be a mapping, got {type(obj).__name__}", path=path("objects", symbol))
 
-    # Pass 1: infer each object's schema from the references to it.
+    # Pass 1: infer each reference object's schema from the references to it.
     names: dict[str, str] = {root: builders.name_of(schema)}
+    values: list[tuple[str, tuple]] = []  # references to value objects, checked once their symbols are known
+
+    def found(ref: dict[str, Any], where: tuple) -> None:
+        target = ref[REF]
+        if SCHEMA not in ref:
+            values.append((target, where))
+            return
+        if target not in objects:
+            raise DecodeError(f"unresolved reference {target!r}: the snapshot does not contain it", path=path(*where))
+        if names.setdefault(target, ref[SCHEMA]) != ref[SCHEMA]:
+            raise DecodeError(f"{target!r} is referenced as both {names[target]!r} and {ref[SCHEMA]!r}",
+                              path=path(*where))
+
     for symbol, obj in objects.items():
-        for key, value in obj.items():
-            if not isinstance(value, list):
-                continue
-            for i, entry in enumerate(value):
-                if not isinstance(entry, dict):
-                    raise DecodeError(
-                        f"an entry must be a mapping, got {type(entry).__name__}", path=path("objects", symbol, key, i)
-                    )
-                for name, ref in entry.items():
-                    if not isinstance(ref, dict):
-                        continue
-                    where = path("objects", symbol, key, i, name)
-                    if not _is_ref(ref):
-                        raise DecodeError("a reference is {'$ref': symbol, '$schema': name}", path=where)
-                    target, target_schema = ref[REF], ref[SCHEMA]
-                    if target not in objects:
-                        raise DecodeError(f"unresolved reference {target!r}: the snapshot does not contain it", path=where)
-                    if names.setdefault(target, target_schema) != target_schema:
-                        raise DecodeError(
-                            f"{target!r} is referenced as both {names[target]!r} and {target_schema!r}", path=where
-                        )
+        own = obj.get(SCHEMA)
+        if own is not None:  # an object carries its schema when nothing else gives it
+            if not isinstance(own, str):
+                raise DecodeError(f"a schema name must be a string, got {type(own).__name__}",
+                                  path=path("objects", symbol, SCHEMA))
+            found({REF: symbol, SCHEMA: own}, ("objects", symbol, SCHEMA))
+        _references({k: v for k, v in obj.items() if k != SCHEMA}, ("objects", symbol), found)
     # Pass 2: check every key against the schemas and decode the values.
     decoded: _Decoded = {}
+    ids: dict[str, _Found] = {symbol: _Found(symbol, ()) for symbol in objects}
+    entries: list[tuple[_Found, Rows]] = []
     for symbol, obj in objects.items():
         if symbol not in names:
             continue
@@ -411,49 +533,35 @@ def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData) 
             raise DecodeError(f"no object schema registered as {names[symbol]!r}", path=path("objects", symbol)) from None
         if not object_schema.ref:
             raise DecodeError(f"{names[symbol]!r} is not a reference object schema", path=path("objects", symbol))
-        properties: dict[str, Native] = {}
-        adjacencies: dict[str, list[dict[str, Any]]] = {}
+        context = _Context(symbol, ids, entries)
+        properties: dict[str, Any] = {}
+        adjacencies: Rows = {}
         for key, value in obj.items():
-            where = path("objects", symbol, key)
+            where = ("objects", symbol)
+            if key == SCHEMA:
+                continue
             if key in object_schema.adjacencies:
-                if not isinstance(value, list):
-                    raise DecodeError("an adjacency must be a list of entries", path=where)
-                adjacency = object_schema.adjacencies[key]
-                relation = adjacency.relation
-                rows = adjacencies[key] = []
-                for i, entry in enumerate(value):
-                    row: dict[str, Any] = {}
-                    for name, item in entry.items():
-                        at = path("objects", symbol, key, i, name)
-                        if name == adjacency.me:
-                            raise DecodeError(f"{name!r} is this object's own link, which is implied", path=at)
-                        if name in relation.links:
-                            if not _is_ref(item):
-                                raise DecodeError("a link must be a reference", path=at)
-                            row[name] = _Link(item[REF])
-                        elif name in relation.properties:
-                            row[name] = _decode_entry_property(
-                                relation.properties[name], name, item, ("objects", symbol, key, i, name))
-                        else:
-                            raise DecodeError(f"the relation has no link or property {name!r}", path=at)
-                    missing = [n for n in relation.links if n != adjacency.me and n not in entry]
-                    if missing:
-                        raise DecodeError(f"links {missing} are not set", path=path("objects", symbol, key, i))
-                    rows.append(row)
+                adjacencies[key] = _decode_rows(object_schema.adjacencies[key], value, where, key)
             elif key in object_schema.properties:
-                properties[key] = _decode(object_schema.properties[key], value, ("objects", symbol, key))
+                properties[key] = _decode(object_schema.properties[key], value, (*where, key), context,
+                                          ((key, type(object_schema.properties[key])),))
             else:
-                raise DecodeError(f"{names[symbol]!r} has no property or adjacency {key!r}", path=where)
+                raise DecodeError(f"{names[symbol]!r} has no property or adjacency {key!r}", path=path(*where, key))
         decoded[symbol] = (properties, adjacencies)
     unreached = sorted(set(objects) - set(names))
     if unreached:
         raise DecodeError("nothing references this object, so its schema is unknown", path=path("objects", unreached[0]))
-    return root, names, decoded
+    for target, where in values:
+        if target not in ids or not ids[target].steps:
+            raise DecodeError(f"unresolved reference {target!r}: no value object in the snapshot has this symbol",
+                              path=path(*where))
+    return root, names, decoded, {s: f for s, f in ids.items() if f.steps}, entries
 
 
 def _restore(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
-    """Rebuilds objects from an object snapshot using `builders`. Every reference must resolve within the snapshot."""
-    root, names, decoded = _check(builders, schema, plain)
+    """Rebuilds objects from an object snapshot using `builders`. Every reference must resolve within the snapshot:
+    reference objects are built first, with the value objects they hold, then the entries are added."""
+    root, names, decoded, ids, entries = _check(builders, schema, plain)
 
     created: dict[str, Any] = {}
     for symbol, (properties, _) in decoded.items():
@@ -462,13 +570,45 @@ def _restore(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData
             _set(builder, key, value)
         created[symbol] = builder.create()
 
+    def resolve(symbol: str) -> Any:
+        """The object a symbol names: a reference object, or the value object found at its steps."""
+        if symbol in created:
+            return created[symbol]
+        found = ids[symbol]
+        target = created[found.owner]
+        for name, _ in found.steps:
+            target = builders.member(target, name)
+        return target
+
+    nested: dict[str, list[tuple[_Found, Rows]]] = {}
+    for found, rows in entries:
+        nested.setdefault(found.owner, []).append((found, rows))
     for symbol, (_, adjacencies) in decoded.items():
         builder = getattr(builders, names[symbol])(created[symbol])
         for key, rows in adjacencies.items():
             for row in rows:
-                builder.adjacency(key, lambda a, r=row: a.add(lambda x: _fill(x, r, created)))
+                builder.adjacency(key, lambda a, r=row: a.add(lambda x: _fill(x, r, resolve)))
+        for found, rows in nested.get(symbol, []):
+            _within(builder, found.steps, lambda v, rows=rows: _add_rows(v, rows, resolve))
         builder.update()
     return created[root]
+
+
+def _add_rows(visitor: Visitors.OfObject, rows: Rows, resolve: Callable[[str], Any]) -> None:
+    for key, entries in rows.items():
+        for row in entries:
+            visitor.adjacency(key, lambda a, r=row: a.add(lambda x: _fill(x, r, resolve)))
+
+
+def _within(visitor: Any, steps: tuple[tuple[str, type], ...], then: Callable[[Any], None]) -> None:
+    """Calls `then` with the builder of the value object at `steps` from `visitor`, editing each value on the way."""
+    if not steps:
+        then(visitor)
+        return
+    (name, kind), rest = steps[0], steps[1:]
+    select = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
+              Schemas.OfIntersection.Data: "as_intersection"}[kind]
+    visitor.property(name, lambda p: p.value(lambda a: getattr(a, select)(lambda v: _within(v, rest, then))))
 
 
 def _set(visitor: Any, name: str, value: Any) -> None:
@@ -488,10 +628,10 @@ def _write(visitor: Visitors.OfAny, value: Any) -> None:
         visitor.as_native(lambda n: n.set(value))
 
 
-def _fill(visitor: Visitors.OfEntry, row: dict[str, Any], created: dict[str, Any]) -> None:
+def _fill(visitor: Visitors.OfEntry, row: dict[str, Any], resolve: Callable[[str], Any]) -> None:
     for key, value in row.items():  # links map to target symbols; properties to decoded values
         if isinstance(value, _Link):
-            visitor.link(key, lambda k, target=created[value.symbol]: k.set(target))
+            visitor.link(key, lambda k, target=resolve(value.symbol): k.set(target))
         else:
             _set(visitor, key, value)
 

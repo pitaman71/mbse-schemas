@@ -53,19 +53,36 @@ def entries(schema: Any, obj: Any, adjacency: str) -> list[dict[str, Any]]:
 
 def same_graph(a: dict, b: dict) -> bool:
     """Snapshot equality up to symbol numbering and entry order. Objects are identified by their own property values,
-    which must be distinct within each graph."""
+    which must be distinct within each graph, and value objects by their owner's and the path to them."""
+
+    def content(value: Any) -> Any:
+        """A value without the symbols and entries in it."""
+        if isinstance(value, dict):
+            return sorted((k, content(v)) for k, v in value.items() if k != "$id" and not isinstance(v, list))
+        return value
 
     def canonical(graph: dict) -> tuple:
         objects = graph["objects"]
-        labels = {s: repr(sorted((k, v) for k, v in o.items() if not isinstance(v, list))) for s, o in objects.items()}
+        labels = {s: repr(content(o)) for s, o in objects.items()}
         assert len(set(labels.values())) == len(labels), "objects must have distinct property values"
+        holders: list[tuple[str, dict]] = []  # every object and value object, by label
+
+        def visit(label: str, mapping: dict) -> None:
+            holders.append((label, mapping))
+            for key, value in mapping.items():
+                if isinstance(value, dict) and key != "$schema":
+                    if "$id" in value:
+                        labels[value["$id"]] = f"{label}.{key}"
+                    visit(f"{label}.{key}", value)
+
+        for symbol, obj in objects.items():
+            visit(labels[symbol], obj)
 
         def entry(e: dict) -> str:
             return repr(sorted((k, labels[v["$ref"]] if isinstance(v, dict) else v) for k, v in e.items()))
 
         return labels[graph["root"]], {
-            labels[s]: {k: sorted(map(entry, v)) for k, v in o.items() if isinstance(v, list)}
-            for s, o in objects.items()
+            label: {k: sorted(map(entry, v)) for k, v in mapping.items() if isinstance(v, list)} for label, mapping in holders
         }
 
     return canonical(a) == canonical(b)
@@ -91,6 +108,9 @@ class Fake:
 
     def schema_name(self) -> str:
         return self._schema_name
+
+    def owner(self) -> Any:
+        return None
 
     def accept(self, visitor: Any) -> None:
         for name, value in self.values.items():

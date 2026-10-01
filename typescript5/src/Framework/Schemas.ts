@@ -744,11 +744,10 @@ function validateSchema(schema: unknown): string[] {
   return schema.validate();
 }
 
-/** Problems with a property's schema as a value: an object held by a property is embedded, with no identity, so it
- * cannot have adjacencies; nor can the objects a union or intersection holds. */
+/** Problems with a property's schema as a value: an object held by a property is a value object, so its schema is not
+ * a reference object schema; nor are the schemas of the objects a union or intersection holds. */
 function embeddedProblems(schema: unknown): string[] {
   if (schema instanceof ObjectData && schema.ref) return ["a reference object schema cannot be a property's type"];
-  if (schema instanceof ObjectData && schema.adjacencies.size > 0) return ["an embedded object cannot have adjacencies"];
   const parts = schema instanceof UnionData || schema instanceof IntersectionData ? [...schema.properties.values()] : [];
   return sortedStrings(new Set(parts.flatMap((part) => embeddedProblems(part))));
 }

@@ -173,8 +173,13 @@ class _ObjectRecord:
 
     def __init__(self, kind: _Kind = "object") -> None:
         self.kind = kind
+        self.target: Visitors.Visitable | None = None  # the value object recorded, once it identifies itself
         self.values: dict[str, Any] = {}
         self.adjacency_entries: dict[str, list[_EntryRecord]] = {}
+
+    def identify(self, value: Visitors.Visitable) -> _ObjectRecord:
+        self.target = value
+        return self
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _ObjectRecord:
         for name in list(self.values):
@@ -249,6 +254,15 @@ def _native_problem(schema: Schemas.OfAny.Data, value: Any) -> str | None:
     return None
 
 
+def _filling(relation: Schemas.OfRelation.Data, name: str, target: Visitors.Visitable,
+             schema: Schemas.OfObject.Data) -> str | None:
+    """Whether `target`, of `schema`, may fill link `name` of `relation`: its schema must declare an adjacency via it."""
+    if any(a.relation is relation and a.me == name for a in schema.adjacencies.values()):
+        return None
+    what = f"a {target.schema_name()!r}" if target.schema_name() else "a value object"
+    return f"{what} cannot fill link {name!r}; its schema declares no adjacency to this relation via {name!r}"
+
+
 def _value_key(value: Any) -> Hashable:
     """Equality key per EQUALITY.md: distinct native types never compare equal; floats compare by bit pattern."""
     if isinstance(value, float):
@@ -281,6 +295,8 @@ class _Check:
         self.problems: list[str] = []
         self._schemas_checked: set[int] = set()
         self._entries: dict[int, tuple[Schemas.OfRelation.Data, dict[Hashable, _Entry]]] = {}
+        self._value_schemas: dict[Hashable, Schemas.OfObject.Data] = {}  # the schemas of the value objects seen
+        self._links: list[tuple[str, Schemas.OfRelation.Data, str, Visitors.Visitable]] = []  # links to value objects
 
     def _schema(self, label: str, schema: Any) -> None:
         if id(schema) in self._schemas_checked:
@@ -303,7 +319,7 @@ class _Check:
                 continue
             adjacency = schema.adjacencies[name]
             for i, entry in enumerate(entries):
-                self._entry(f"{label}.{name}[{i}]", adjacency, value, entry)
+                self.problems += self._entry(f"{label}.{name}[{i}]", adjacency, value, entry)
 
     def _value_problems(self, label: str, schema: Schemas.OfAny.Data, item: Any) -> list[str]:
         """Problems with a property's value: its kind and type, recursively, and that a union value holds one branch
@@ -326,35 +342,63 @@ class _Check:
         missing = [name for name in schema.properties if name not in item.values] if kind == "intersection" else []
         if missing:
             problems.append(f"{label}: parts {missing} are not set")
+        if kind == "object":
+            problems += self._value_entries(label, schema, item)
+        return problems
+
+    def _value_entries(self, label: str, schema: Schemas.OfObject.Data, item: _ObjectRecord) -> list[str]:
+        """Problems with a value object's entries, which are checked as a reference object's are."""
+        if item.target is not None:
+            self._value_schemas[item.target.identity()] = schema
+        problems = []
+        for name, entries in item.adjacency_entries.items():
+            if name not in schema.adjacencies:
+                problems.append(f"{label}.{name}: not an adjacency of the embedded object")
+                continue
+            for i, entry in enumerate(entries):
+                problems += self._entry(f"{label}.{name}[{i}]", schema.adjacencies[name], item.target, entry)
         return problems
 
     def _entry(
-        self, label: str, adjacency: Schemas.OfAdjacency.Data, owner: Visitors.Visitable, entry: _EntryRecord
-    ) -> None:
+        self, label: str, adjacency: Schemas.OfAdjacency.Data, owner: Visitors.Visitable | None, entry: _EntryRecord
+    ) -> list[str]:
+        """Problems with one entry. A link to a value object is checked once every value object has been seen."""
         relation = adjacency.relation
         self._schema(f"of {label}", relation)
+        problems = []
         links = {adjacency.me: owner, **entry.targets}
         for name in relation.links:
             if name not in links:
-                self.problems.append(f"{label}: link {name!r} is not set")
+                problems.append(f"{label}: link {name!r} is not set")
                 continue
             target = links[name]
-            target_schema = self._registry.schema(target.schema_name())
-            if not any(a.relation is relation and a.me == name for a in target_schema.adjacencies.values()):
-                self.problems.append(
-                    f"{label}.{name}: a {target.schema_name()!r} cannot fill link {name!r}; its schema declares no "
-                    f"adjacency to this relation via {name!r}"
-                )
+            if target is None:  # a value object that did not identify itself
+                continue
+            if target.owner() is not None:
+                self._links.append((label, relation, name, target))
+                continue
+            problem = _filling(relation, name, target, self._registry.schema(target.schema_name()))
+            if problem:
+                problems.append(f"{label}.{name}: {problem}")
         for name, item in entry.values.items():
             if name not in relation.properties:
-                self.problems.append(f"{label}.{name}: not a property of the relation")
+                problems.append(f"{label}.{name}: not a property of the relation")
                 continue
             problem = _native_problem(relation.properties[name], item)
             if problem:
-                self.problems.append(f"{label}.{name}: {problem}")
-        full = _Entry(links, entry.values)
+                problems.append(f"{label}.{name}: {problem}")
+        full = _Entry({n: t for n, t in links.items() if t is not None}, entry.values)
         _, seen = self._entries.setdefault(id(relation), (relation, {}))
         seen.setdefault(full.key(set(relation.links) | set(relation.properties)), full)
+        return problems
+
+    def links(self) -> None:
+        """Checks the links to value objects, each against its schema; a value object not validated is not checked."""
+        for label, relation, name, target in self._links:
+            schema = self._value_schemas.get(target.identity())
+            problem = None if schema is None else _filling(relation, name, target, schema)
+            if problem:
+                self.problems.append(f"{label}.{name}: {problem}")
 
     def uniques(self) -> None:
         for relation, entries in self._entries.values():
@@ -417,5 +461,6 @@ class Validate:
         check = _Check(self._registry)
         for i, value in enumerate(values):
             check.object(f"{value.schema_name()}#{i}", self._registry.schema(value.schema_name()), value)
+        check.links()
         check.uniques()
         return check.problems

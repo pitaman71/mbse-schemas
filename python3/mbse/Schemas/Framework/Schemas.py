@@ -549,12 +549,10 @@ def _validate(schema: Any) -> list[str]:
 
 
 def _embedded_problems(schema: Any) -> list[str]:
-    """Problems with a property's schema as a value: an object held by a property is embedded, with no identity, so it
-    is not a reference object and cannot have adjacencies; nor can the objects a union or intersection holds."""
+    """Problems with a property's schema as a value: an object held by a property is a value object, so its schema is
+    not a reference object schema; nor are the schemas of the objects a union or intersection holds."""
     if isinstance(schema, _ObjectData) and schema.ref:
         return ["a reference object schema cannot be a property's type"]
-    if isinstance(schema, _ObjectData) and schema.adjacencies:
-        return ["an embedded object cannot have adjacencies"]
     parts = list(schema.properties.values()) if isinstance(schema, (_UnionData, _IntersectionData)) else []
     return sorted({problem for part in parts for problem in _embedded_problems(part)})
 

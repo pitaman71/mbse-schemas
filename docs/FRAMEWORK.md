@@ -48,9 +48,10 @@ The schema elements include:
                      aspect oriented structures. A value holds every part, by name; parts do not merge, so two parts may
                      declare the same property, even with different types.
 
-A property whose schema is an `OfObject` holds an *embedded object*: a read-only record of that schema's properties,
-with no identity and no adjacencies, copied by value and written nested in its owner's snapshot. An embedded object's
-schema must not declare adjacencies, however it is held (directly, through a union branch or an intersection part).
+A property whose schema is an `OfObject` holds an *embedded object*, a value object: a read-only record of that
+schema's properties that belongs to its owner, copied with it and written nested in its owner's snapshot. It has an
+identity, and its schema may declare adjacencies, however it is held (directly, through a union branch or an
+intersection part); see Value objects and reference objects.
 A property whose schema is an `OfUnion` holds a union value: a record whose properties are the union's branches, holding
 exactly one of them. A property whose schema is an `OfIntersection` holds an intersection value: a record whose
 properties are the intersection's parts, holding each of them. `Visitors.OfUnion` and `Visitors.OfIntersection` read
@@ -191,7 +192,8 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   checks everything reachable from the root. It is constructed with a registry that looks schemas up by name (e.g.
   `Proxies.Builders`), and runs only when the caller asks. It checks the schemas' own `validate()`, exact native types
   of properties and entry properties, that every link is set and filled by an object whose schema declares an
-  adjacency via that link, `unique(...)` clauses over the entries seen, embedded objects' properties recursively,
+  adjacency via that link, `unique(...)` clauses over the entries seen, embedded objects' properties and entries
+  recursively (a link to a value object is checked against its schema when its owner is validated too),
   that a union value holds exactly one of its branches and an intersection value every one of its parts, each with a
   value of its type. The validator is a visitor: objects write
   themselves into it through `accept`. `Validators.properties_of(value)` returns the property values any object writes when
@@ -223,8 +225,10 @@ Both in-memory objects and mutations (see `Mutations`) are serializable.
 Over the wire, object content carries no schema. Association of an object with a schema is done dynamically, starting
 from the expected root schema, which is why deserializers such as `Plain.FromPlain(builders)(schema, ...)` take it as an
 argument, and continuing through property types and the branch written with each union value. Links are untyped, so a serialized
-reference to a linked object carries that object's schema name alongside its symbol. Consequently, an object that is
-linked from another object must have a named (registered) schema.
+reference to a linked reference object carries that object's schema name alongside its symbol. Consequently, a
+reference object that is linked from another object must have a named (registered) schema. A reference to a value
+object carries no schema, since its owner's schema gives it, and a reference object that only such references reach
+carries its schema itself, `{"$schema": "Card", ...}`: an object carries its schema whenever nothing else gives it.
 
 A transaction is a flat sequence of symbol bindings and mutations. Mutations may be nested; transactions are not.
 
@@ -237,7 +241,8 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
   one) and checkably so: a deserializer must reject a symbol assigned to two objects or an object assigned two symbols.
 - Symbols bind only to objects, never to values or entries.
 - Singletons are referenced by their global name and never need a symbol.
-- An embedded object is written nested, as a mapping of its properties. Union and intersection values are written the
+- An embedded object is written nested, as a mapping of its properties and its adjacencies, with its symbol as `$id`
+  when something links to it. Union and intersection values are written the
   same way, keyed by branch or part name: a union value `{"phone": {"number": "1"}}` has exactly one key, and decoding
   rejects any other count; an intersection value `{"stamp": {...}, "audit": {...}}` has a key per part, and a missing
   part is for `Validators` to report.
@@ -252,8 +257,9 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
   that references an object it does not contain is an error.
   An object snapshot is `{"root": symbol, "objects": {symbol: object}}`. Each object maps property names to plain
   values and adjacency names to lists of entries; an entry maps the other links to references and the entry properties
-  to plain values (the object's own link is implied). A reference is `{"$ref": symbol, "$schema": name}`. Symbols are
-  assigned in the order objects are first referenced. `Plain.ToPlain.OfObject` includes only the root, so its references
+  to plain values (the object's own link is implied). A reference is `{"$ref": symbol, "$schema": name}`, or
+  `{"$ref": symbol}` to a value object. Symbols are assigned in the order objects are first referenced, value objects
+  included. `Plain.ToPlain.OfObject` includes only the root, so its references
   are unresolved; `Plain.ToPlain.Reachable` includes every object reachable through adjacencies. An entry appears under
   each object it links; on deserialization the duplicate is elided.
 - `JSON` : `JSON.ToJSON(schema, value)` returns JSON text and `JSON.FromJSON(builders)(schema, text)` rebuilds values;
@@ -292,10 +298,9 @@ Mistakes in the calling program keep their usual classes, e.g. a root schema tha
 
 ## Value objects and reference objects
 
-Reference object schemas (`.ref()` and its rules, the first two bullets) are implemented; value objects with
-identities and adjacencies are designed, not yet implemented. The design lifts the rule that an embedded object has no
-identity and no adjacencies, so that an object can be composed of parts that take part in relations (a component's
-ports, a schema's properties). The terms replace "embedded object" and "object" throughout once implemented.
+Implemented, except where a bullet says otherwise. This lifts the rule that an embedded object has no identity and no
+adjacencies, so that an object can be composed of parts that take part in relations (a component's ports, a schema's
+properties). The terms are to replace "embedded object" and "object" throughout the API's messages and these documents.
 
 - **Every object has an identity**, and any object can be linked by relations. What distinguishes the two kinds is
   ownership, and the schema says which kind it describes: `Schemas.OfObject.Builder().ref()` marks a *reference object
@@ -315,10 +320,13 @@ ports, a schema's properties). The terms replace "embedded object" and "object" 
   it into another owner, or `clone()` of its owner, copies it with a new identity, with the entries among the copied
   objects (re-linked to the copies) and a copy of each entry that links them to objects outside. Clearing the property,
   or replacing its value, removes the value object and every entry linking it.
-- **Entry properties may be value objects, never reference objects.** Such a value object is owned by its entry.
+- **Entry properties may be value objects, never reference objects.** Such a value object is owned by its entry. Not
+  yet implemented: entry properties are native.
 - **Value objects are written nested**, inside their owner, with their adjacencies nested in them as a reference
   object's are. A value object that something links to carries its symbol, `"home": {"$id": "s3", "number": "1"}`,
-  and is referred to by it, `{"$ref": "s3"}`; one that nothing links to is written as embedded objects are now. Symbols are assigned in first-reference order, value objects and reference objects alike.
+  and is referred to by it, `{"$ref": "s3"}`; one that nothing links to has no `$id`. Symbols are
+  assigned in first-reference order, value objects and reference objects alike. A reference object that only
+  references to its value objects reach carries its own `$schema`.
 - **Reachability goes through value objects**: their entries are followed as a reference object's are, and an object
   reached that is a value object brings in the reference object that owns it, which is where it is written.
 - **Decoding** rebuilds a value object through its owner's builder, and finds it again to link it with
@@ -326,7 +334,7 @@ ports, a schema's properties). The terms replace "embedded object" and "object" 
   part); a `$ref` to an `$id` resolves to that value object.
 - **Value objects compare deeply**: by their properties, recursively, and by their entries, whose links to reference
   objects compare by identity and to value objects deeply. Their identity does not take part. Reference objects
-  compare by identity when linked.
+  compare by identity when linked. Not yet implemented: value objects compare by their properties only.
 - **Proxies keep value objects read-only**, with adjacencies set through the owner's builder, e.g.
   `.home(lambda r: r.number("1").ports(lambda x: x.port(p)))`.
 
@@ -491,8 +499,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Nothing is mandatory except as specified by a constraint: properties are optional by default, and mandatory
   participation in a relation is expressed as a constraint (directory membership is required by well-formedness).
 - `OfValue` is not a base class; renamed `OfAny`.
-- Object-valued properties hold embedded objects: read-only values with no identity and no adjacencies, written
-  nested. Objects with identity are reached through relations.
+- Object-valued properties hold embedded objects, value objects: read-only values owned by their owner, written
+  nested; they have identities and may have adjacencies. Reference objects are reached through relations.
 - Union branches and intersection parts are named, and their values are records keyed by those names, in proxies and
   over the wire; there are no branch predicates (see Unions and intersections by name). Intersections as registered
   object schemas (objects with identity composed from aspects) are a later step.
@@ -526,7 +534,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   schema: exactly one registered object schema may declare an adjacency to that relation via that link; otherwise it
   is an error. Pass an existing object instead when inference is ambiguous.
 - Builders and serializers implement `Visitors`; proxies do not. Proxies implement `Visitors.Visitable`: `identity()`,
-  `schema_name()`, and `accept(visitor)`, which writes the object's properties and adjacency entries into the visitor.
+  `schema_name()`, `owner()`, and `accept(visitor)`, which writes the object's properties and adjacency entries into
+  the visitor; a value object first calls the visitor's `identify(value)` with itself.
 - Schemas may be named or inline; inline (anonymous) sub-schemas are created with the lambda-builder notation.
 - `Schemas.OfAny.Builder` selects a kind via `as_<kind>` methods (e.g. `as_native`).
 - `Visitors.OfAny.as_<kind>` takes a callback that receives the kind's visitor and returns `self`; chained calls dispatch on
@@ -560,8 +569,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   errors).
 - `Plain.FromPlain` is constructed with the builders of the implementation to build with, e.g.
   `Plain.FromPlain(Proxies.Builders)(schema, plain)`.
-- Reachability is its own visitor, `Reachable.of(root)`, which returns the root and every object reachable through
-  adjacencies in first-reference order. `Plain.ToPlain.Reachable` uses it.
+- Reachability is its own visitor, `Reachable.of(root)`, which returns the root and every reference object reachable
+  through adjacencies, value objects' included, in first-reference order. `Plain.ToPlain.Reachable` uses it.
 - Over the wire, object content carries no schema. Association with a schema is dynamic, starting from the expected
   root schema (hence `FromPlain(builders)(schema, ...)` takes it) and continuing through property types and the
-  branch written with each union value. Serialized references to linked objects carry the object's schema name.
+  branch written with each union value. Serialized references to linked reference objects carry the object's schema
+  name; an object carries its own schema when nothing else gives it.

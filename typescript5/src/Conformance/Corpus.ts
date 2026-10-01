@@ -65,8 +65,11 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   new S.OfObject.Builder(Notebook).relations((a) => a.name("notes").of(Pages).me("notebook")).update();
   new S.OfObject.Builder(Note).relations((a) => a.name("notebooks").of(Pages).me("note")).update();
 
-  // --- embedded: embedded objects, union values of objects and of natives, and an intersection value ---
-  const CardPhone = new Schemas.OfObject.Builder().properties(text("number"), text("label")).create();
+  // --- embedded: value objects (embedded objects, one linked through a relation), union values of objects and of
+  // natives, and an intersection value; a card reached only through its value object carries its schema ---
+  const Line = new Schemas.OfRelation.Builder().links("hub", "phone").create();
+  const CardPhone = new Schemas.OfObject.Builder().properties(text("number"), text("label")).relations(
+    (a) => a.name("hubs").of(Line).me("phone")).create();
   const CardEmail = new Schemas.OfObject.Builder().properties(text("address")).create();
   const Reach = new Schemas.OfUnion.Builder().branches((b) => b.name("phone").of(CardPhone),
     (b) => b.name("email").of(CardEmail)).create();
@@ -81,6 +84,7 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   const Holding = new Schemas.OfRelation.Builder().links("deck", "card").create();
   const Deck = new Schemas.OfObject.Builder().ref().properties(text("title")).relations((a) => a.name("cards").of(Holding).me("deck")).create();
   new Schemas.OfObject.Builder(Card).relations((a) => a.name("decks").of(Holding).me("card")).update();
+  const Hub = new Schemas.OfObject.Builder().ref().properties(text("name")).relations((a) => a.name("phones").of(Line).me("hub")).create();
 
   for (const [name, schema] of [["Contact", Contact], ["Address", Address], ["Phone", Phone],
     ["ContactAddresses", ContactAddresses], ["ContactPhones", ContactPhones],
@@ -88,7 +92,8 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
     ["Person", Person], ["Parentage", Parentage], ["Mentorship", Mentorship],
     ["Student", Student], ["Course", Course], ["Term", Term], ["Enrollment", Enrollment],
     ["Notebook", Notebook], ["Note", Note], ["Pages", Pages],
-    ["Card", Card], ["Deck", Deck], ["Holding", Holding]] as const) {
+    ["Card", Card], ["Deck", Deck], ["Holding", Holding],
+    ["Hub", Hub], ["Line", Line]] as const) {
     Proxies.register(name, schema);
   }
   const B = Proxies.Builders;
@@ -160,6 +165,8 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
     B.Card().name("Cy").create(),
   ];
   for (const card of cards) B.Deck(deck).cards((x: any) => x.card(card)).update();
+  const di = B.Card().name("Di").home((r: any) => r.number("+33 1 00 00 00 00")).create();
+  B.Hub().name("switchboard").phones((x: any) => x.phone((cards[0] as any).home)).phones((x: any) => x.phone(di.home)).create();
 
   return new Map<string, [Schemas.OfObject.Data, Instance]>([
     ["address_book", [Contact, alice]],

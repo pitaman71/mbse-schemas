@@ -78,6 +78,9 @@ export interface OfObject {
   /** Calls `callback` once for each adjacency declared by the object's schema. */
   adjacencies(callback: Callback<OfAdjacency>): OfObject;
   adjacency(name: string, callback: Callback<OfAdjacency>): OfObject;
+  /** Called by a value object's `accept`, before anything else, with the value object itself, so that a visitor can
+   * tell which object it is given (to write its symbol, or to link to it). */
+  identify(value: Visitable): OfObject;
 }
 
 /** The entries of one relation seen from one object, which fills its own link (`me`). */
@@ -146,8 +149,11 @@ export interface OfIntersection {
 export interface Visitable {
   /** In-memory identity, stable for the object's lifetime. Serializers map it 1:1 to a transaction symbol. */
   identity(): unknown;
-  /** Registered name of the object's schema, carried by serialized references to this object. */
+  /** Registered name of the object's schema, carried by serialized references to a reference object; '' for a value
+   * object whose schema is not registered. */
   schema_name(): string;
+  /** The object that owns this value object, or null for a reference object. */
+  owner(): Visitable | null;
   /** Writes this object's properties and adjacency entries into `visitor`. */
   accept(visitor: OfObject): void;
 }
@@ -157,12 +163,12 @@ export const PROTOCOL_METHODS = {
   OfAny: ["as_native", "as_object", "as_union", "as_intersection"],
   OfNative: ["has", "get", "set", "clear"],
   OfProperty: ["name", "has", "value", "clear"],
-  OfObject: ["properties", "has", "property", "clear", "adjacencies", "adjacency"],
+  OfObject: ["properties", "has", "property", "clear", "adjacencies", "adjacency", "identify"],
   OfAdjacency: ["name", "me", "entries", "add", "remove"],
   OfEntry: ["links", "link", "properties", "has", "property", "clear"],
   OfLink: ["name", "target", "set"],
   OfRelation: ["links", "entries"],
   OfUnion: ["properties", "has", "property", "clear"],
   OfIntersection: ["properties", "has", "property", "clear"],
-  Visitable: ["identity", "schema_name", "accept"],
+  Visitable: ["identity", "schema_name", "owner", "accept"],
 } as const satisfies Record<string, readonly string[]>;

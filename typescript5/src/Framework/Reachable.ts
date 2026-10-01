@@ -1,9 +1,12 @@
 /**
  * Reachable: finds every object reachable from a root through adjacencies.
  *
- * `Reachable.of(root)` returns the root and every object reachable from it, in the order each is first referenced.
- * The collector is a visitor: each object writes itself into it through `Visitable.accept`, and the collector records
- * the targets of the links it is given. It needs no schema: property values are ignored.
+ * `Reachable.of(root)` returns the root and every reference object reachable from it, in the order each is first
+ * referenced. Value objects are followed too: their entries are collected like a reference object's, and a value object
+ * reached brings in the reference object that owns it (`Visitable.owner()`), where it is written.
+ * `Reachable.targets(objects)` gives the identities of every object their entries link, value objects included. The
+ * collector is a visitor: each object writes itself into it through `Visitable.accept`, and the collector records the
+ * targets of the links it is given. It needs no schema: native property values are ignored.
  */
 
 import { AttributeError, NotImplementedError } from "./Errors.js";
@@ -12,9 +15,10 @@ import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIntersection, OfL
 
 type Found = (target: Visitable) => void;
 
-/** `Visitors.OfNative` / `OfAny` / `OfProperty` that discards property values. */
+/** `Visitors.OfNative` / `OfAny` / `OfProperty` that discards native property values, and collects the entries of value
+ * objects. */
 export class _Ignored implements OfNative, OfAny, OfProperty {
-  constructor(private readonly propertyName: string = "") {}
+  constructor(private readonly propertyName: string, private readonly found: Found) {}
 
   name(): string {
     return this.propertyName;
@@ -46,15 +50,19 @@ export class _Ignored implements OfNative, OfAny, OfProperty {
     return this;
   }
 
-  as_object(_callback: Callback<OfObject>): _Ignored {
+  /** A value object's entries are collected too. */
+  as_object(callback: Callback<OfObject>): _Ignored {
+    callback(new _Collector(this.found));
     return this;
   }
 
-  as_union(_callback: Callback<OfUnion>): _Ignored {
+  as_union(callback: Callback<OfUnion>): _Ignored {
+    callback(new _Collector(this.found) as unknown as OfUnion);
     return this;
   }
 
-  as_intersection(_callback: Callback<OfIntersection>): _Ignored {
+  as_intersection(callback: Callback<OfIntersection>): _Ignored {
+    callback(new _Collector(this.found) as unknown as OfIntersection);
     return this;
   }
 }
@@ -99,7 +107,7 @@ export class _Entry implements OfEntry {
   }
 
   property(name: string, callback: Callback<OfProperty>): _Entry {
-    callback(new _Ignored(name));
+    callback(new _Ignored(name, this.found));
     return this;
   }
 
@@ -147,7 +155,7 @@ export class _Collector implements OfObject {
   }
 
   property(name: string, callback: Callback<OfProperty>): _Collector {
-    callback(new _Ignored(name));
+    callback(new _Ignored(name, this.found));
     return this;
   }
 
@@ -163,13 +171,24 @@ export class _Collector implements OfObject {
     callback(new _Adjacency(name, this.found));
     return this;
   }
+
+  identify(_value: Visitable): _Collector {
+    return this;
+  }
 }
 
-/** The root and every object reachable from it through adjacencies, in first-reference order. */
+/** The reference object that owns `target`, or `target` itself when it is a reference object. */
+function referent(target: Visitable): Visitable {
+  for (let owner = target.owner(); owner !== null; owner = target.owner()) target = owner;
+  return target;
+}
+
+/** The root and every reference object reachable from it through adjacencies, in first-reference order. */
 export function of(root: Visitable): Visitable[] {
   const seen = new Map<unknown, Visitable>([[root.identity(), root]]);
   const queue: Visitable[] = [root];
-  const found = (target: Visitable): void => {
+  const found = (reached: Visitable): void => {
+    const target = referent(reached);
     if (!seen.has(target.identity())) {
       seen.set(target.identity(), target);
       queue.push(target);
@@ -177,4 +196,11 @@ export function of(root: Visitable): Visitable[] {
   };
   for (let i = 0; i < queue.length; i++) (queue[i] as Visitable).accept(new _Collector(found));
   return [...seen.values()];
+}
+
+/** The identities of every object that the entries of `objects`, and of the value objects they hold, link. */
+export function targets(objects: Visitable[]): Set<unknown> {
+  const linked = new Set<unknown>();
+  for (const value of objects) value.accept(new _Collector((target) => linked.add(target.identity())));
+  return linked;
 }

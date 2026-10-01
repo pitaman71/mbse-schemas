@@ -51,10 +51,10 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `11_Conformance.ipynb` | CONF | 4 | as in Python, from this side |
 | `12_Text.ipynb` | TXT | 4 | `Repr` produces Python's text: `repr`, float `repr`, type names (plus one row for a prototype-less object), code-point order |
 | `13_Comparison.ipynb` | CMP | 12 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
-| `14_Embedded.ipynb` | EMB | 8 | as in Python; the runtime's own probes (`then`, symbols) are not properties |
+| `14_Embedded.ipynb` | EMB | 9 | as in Python; the runtime's own probes (`then`, symbols) are not properties |
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
 
-Total: 145 cases, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
+Total: 146 cases, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

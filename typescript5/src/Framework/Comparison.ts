@@ -322,6 +322,10 @@ export class OfObject implements Visitors.OfObject {
     return this;
   }
 
+  identify(_value: Visitors.Visitable): OfObject {
+    return this;
+  }
+
   compare(other: OfObject): Result {
     if (this.schema !== other.schema) return null;
     return allEqual(this.recorded.compare(other.recorded));

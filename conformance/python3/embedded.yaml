@@ -15,8 +15,13 @@ objects:
   s1:
     name: Ann
     home:
+      $id: s6
       number: +1 555 0100
       label: home
+      hubs:
+      - hub:
+          $ref: s4
+          $schema: Hub
     reach:
       email:
         address: ann@example.com
@@ -49,3 +54,20 @@ objects:
     - deck:
         $ref: s0
         $schema: Deck
+  s4:
+    name: switchboard
+    phones:
+    - phone:
+        $ref: s6
+    - phone:
+        $ref: s7
+  s5:
+    $schema: Card
+    name: Di
+    home:
+      $id: s7
+      number: +33 1 00 00 00 00
+      hubs:
+      - hub:
+          $ref: s4
+          $schema: Hub

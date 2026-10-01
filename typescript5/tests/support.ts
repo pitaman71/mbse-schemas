@@ -102,16 +102,31 @@ export function key(value: unknown): string {
  * which must be distinct within each graph. */
 export function same_graph(a: PlainData, b: PlainData): boolean {
   const byKey = ([x]: [string, unknown], [y]: [string, unknown]) => (x < y ? -1 : x > y ? 1 : 0);
+  /** A value without the symbols and entries in it. */
+  const content = (value: unknown): unknown => value instanceof Map
+    ? [...value].filter(([k, v]) => k !== "$id" && !Array.isArray(v)).map(([k, v]) => [k, content(v)] as [string, unknown]).sort(byKey)
+    : value;
   const canonical = (graph: PlainMap): string => {
     const objects = graph.get("objects") as Map<string, PlainMap>;
     const labels = new Map<string, string>();
-    for (const [symbol, obj] of objects) labels.set(symbol, key([...obj].filter(([, v]) => !Array.isArray(v)).sort(byKey)));
+    for (const [symbol, obj] of objects) labels.set(symbol, key(content(obj)));
     assert(new Set(labels.values()).size === labels.size, "objects must have distinct property values");
+    const holders: [string, PlainMap][] = []; // every object and value object, by label
+    const visit = (label: string, mapping: PlainMap): void => {
+      holders.push([label, mapping]);
+      for (const [k, v] of mapping) {
+        if (v instanceof Map && k !== "$schema") {
+          if (v.has("$id")) labels.set(v.get("$id") as string, `${label}.${k}`);
+          visit(`${label}.${k}`, v);
+        }
+      }
+    };
+    for (const [symbol, obj] of objects) visit(labels.get(symbol) as string, obj);
     const entry = (e: PlainMap): string =>
       key([...e].map(([k, v]) => [k, v instanceof Map ? labels.get(v.get("$ref") as string) : v] as [string, unknown]).sort(byKey));
-    const lists = [...objects].map(([symbol, obj]) => key([
-      labels.get(symbol),
-      [...obj].filter(([, v]) => Array.isArray(v)).map(([k, v]) => [k, (v as PlainMap[]).map(entry).sort()]).sort(),
+    const lists = holders.map(([label, mapping]) => key([
+      label,
+      [...mapping].filter(([, v]) => Array.isArray(v)).map(([k, v]) => [k, (v as PlainMap[]).map(entry).sort()]).sort(),
     ]));
     return key([labels.get(graph.get("root") as string), lists.sort()]);
   };
@@ -146,6 +161,10 @@ export class Fake implements Visitable {
     return this.schemaName;
   }
 
+  owner(): null {
+    return null;
+  }
+
   accept(visitor: ObjectVisitor): void {
     for (const [name, value] of this.values) set_property(visitor, name, value);
     for (const [name, items] of this.adjacencies) {
@@ -166,14 +185,14 @@ export const PROTOCOLS: Record<string, Record<string, number>> = {
   OfAny: { as_native: 1, as_object: 1, as_union: 1, as_intersection: 1 },
   OfNative: { has: 0, get: 0, set: 1, clear: 0 },
   OfProperty: { name: 0, has: 0, value: 1, clear: 0 },
-  OfObject: { properties: 1, has: 1, property: 2, clear: 1, adjacencies: 1, adjacency: 2 },
+  OfObject: { properties: 1, has: 1, property: 2, clear: 1, adjacencies: 1, adjacency: 2, identify: 1 },
   OfAdjacency: { name: 0, me: 0, entries: 1, add: 1, remove: 1 },
   OfEntry: { links: 1, link: 2, properties: 1, has: 1, property: 2, clear: 1 },
   OfLink: { name: 0, target: 1, set: 1 },
   OfRelation: { links: 1, entries: 1 },
   OfUnion: { properties: 1, has: 1, property: 2, clear: 1 },
   OfIntersection: { properties: 1, has: 1, property: 2, clear: 1 },
-  Visitable: { identity: 0, schema_name: 0, accept: 1 },
+  Visitable: { identity: 0, schema_name: 0, owner: 0, accept: 1 },
 };
 
 /** Methods of `protocol` that `implementation` lacks, or declares with a different number of parameters. */

@@ -68,8 +68,11 @@ def build():
     S.OfObject.Builder(Notebook).relations(lambda a: a.name("notes").of(Pages).me("notebook")).update()
     S.OfObject.Builder(Note).relations(lambda a: a.name("notebooks").of(Pages).me("note")).update()
 
-    # --- embedded: embedded objects, union values of objects and of natives, and an intersection value ---
-    CardPhone = S.OfObject.Builder().properties(_text("number"), _text("label")).create()
+    # --- embedded: value objects (embedded objects, one linked through a relation), union values of objects and of
+    # natives, and an intersection value; a card reached only through its value object carries its schema ---
+    Line = S.OfRelation.Builder().links("hub", "phone").create()
+    CardPhone = S.OfObject.Builder().properties(_text("number"), _text("label")).relations(
+        lambda a: a.name("hubs").of(Line).me("phone")).create()
     CardEmail = S.OfObject.Builder().properties(_text("address")).create()
     Reach = S.OfUnion.Builder().branches(lambda b: b.name("phone").of(CardPhone),
                                          lambda b: b.name("email").of(CardEmail)).create()
@@ -85,6 +88,7 @@ def build():
     Holding = S.OfRelation.Builder().links("deck", "card").create()
     Deck = S.OfObject.Builder().ref().properties(_text("title")).relations(lambda a: a.name("cards").of(Holding).me("deck")).create()
     S.OfObject.Builder(Card).relations(lambda a: a.name("decks").of(Holding).me("card")).update()
+    Hub = S.OfObject.Builder().ref().properties(_text("name")).relations(lambda a: a.name("phones").of(Line).me("hub")).create()
 
     for name, schema in [("Contact", Contact), ("Address", Address), ("Phone", Phone),
                          ("ContactAddresses", ContactAddresses), ("ContactPhones", ContactPhones),
@@ -92,7 +96,8 @@ def build():
                          ("Person", Person), ("Parentage", Parentage), ("Mentorship", Mentorship),
                          ("Student", Student), ("Course", Course), ("Term", Term), ("Enrollment", Enrollment),
                          ("Notebook", Notebook), ("Note", Note), ("Pages", Pages),
-                         ("Card", Card), ("Deck", Deck), ("Holding", Holding)]:
+                         ("Card", Card), ("Deck", Deck), ("Holding", Holding),
+                         ("Hub", Hub), ("Line", Line)]:
         Proxies.register(name, schema)
     B = Proxies.Builders
 
@@ -162,6 +167,8 @@ def build():
     ]
     for card in cards:
         B.Deck(deck).cards(lambda x, card=card: x.card(card)).update()
+    di = B.Card().name("Di").home(lambda r: r.number("+33 1 00 00 00 00")).create()
+    B.Hub().name("switchboard").phones(lambda x: x.phone(cards[0].home)).phones(lambda x: x.phone(di.home)).create()
 
     return {
         "address_book": (Contact, alice),

@@ -1,8 +1,11 @@
 """Reachable: finds every object reachable from a root through adjacencies.
 
-`Reachable.of(root)` returns the root and every object reachable from it, in the order each is first referenced.
-The collector is a visitor: each object writes itself into it through `Visitable.accept`, and the collector records
-the targets of the links it is given. It needs no schema: property values are ignored.
+`Reachable.of(root)` returns the root and every reference object reachable from it, in the order each is first
+referenced. Value objects are followed too: their entries are collected like a reference object's, and a value object
+reached brings in the reference object that owns it (`Visitable.owner()`), where it is written. `Reachable.targets(
+objects)` gives the identities of every object their entries link, value objects included. The collector is a
+visitor: each object writes itself into it through `Visitable.accept`, and the collector records the targets of the
+links it is given. It needs no schema: native property values are ignored.
 """
 
 from __future__ import annotations
@@ -13,16 +16,17 @@ from typing import Any
 from . import Visitors
 from .Visitors import Native
 
-__all__ = ["of"]
+__all__ = ["of", "targets"]
 
 _Found = Callable[[Visitors.Visitable], None]
 
 
 class _Ignored:
-    """`Visitors.OfNative` / `OfAny` / `OfProperty` that discards property values."""
+    """`Visitors.OfNative` / `OfAny` / `OfProperty` that discards native property values, and collects the entries of
+    value objects."""
 
-    def __init__(self, name: str = ""):
-        self._name = name
+    def __init__(self, name: str, found: _Found):
+        self._name, self._found = name, found
 
     def name(self) -> str:
         return self._name
@@ -48,12 +52,16 @@ class _Ignored:
         return self
 
     def as_object(self, callback: Callable[[Visitors.OfObject], Any]) -> _Ignored:
+        """A value object's entries are collected too."""
+        callback(_Collector(self._found))
         return self
 
     def as_union(self, callback: Callable[[Visitors.OfUnion], Any]) -> _Ignored:
+        callback(_Collector(self._found))
         return self
 
     def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _Ignored:
+        callback(_Collector(self._found))
         return self
 
 
@@ -94,7 +102,7 @@ class _Entry:
         return False
 
     def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _Entry:
-        callback(_Ignored(name))
+        callback(_Ignored(name, self._found))
         return self
 
     def clear(self, name: str) -> _Entry:
@@ -137,7 +145,7 @@ class _Collector:
         return False
 
     def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _Collector:
-        callback(_Ignored(name))
+        callback(_Ignored(name, self._found))
         return self
 
     def clear(self, name: str) -> _Collector:
@@ -150,13 +158,24 @@ class _Collector:
         callback(_Adjacency(name, self._found))
         return self
 
+    def identify(self, value: Visitors.Visitable) -> _Collector:
+        return self
+
+
+def _referent(target: Visitors.Visitable) -> Visitors.Visitable:
+    """The reference object that owns `target`, or `target` itself when it is a reference object."""
+    while (owner := target.owner()) is not None:
+        target = owner
+    return target
+
 
 def of(root: Visitors.Visitable) -> list[Visitors.Visitable]:
-    """The root and every object reachable from it through adjacencies, in first-reference order."""
+    """The root and every reference object reachable from it through adjacencies, in first-reference order."""
     seen: dict[Hashable, Visitors.Visitable] = {root.identity(): root}
     queue = [root]
 
     def found(target: Visitors.Visitable) -> None:
+        target = _referent(target)
         if target.identity() not in seen:
             seen[target.identity()] = target
             queue.append(target)
@@ -164,3 +183,11 @@ def of(root: Visitors.Visitable) -> list[Visitors.Visitable]:
     while queue:
         queue.pop(0).accept(_Collector(found))
     return list(seen.values())
+
+
+def targets(objects: list[Visitors.Visitable]) -> set[Hashable]:
+    """The identities of every object that the entries of `objects`, and of the value objects they hold, link."""
+    linked: set[Hashable] = set()
+    for value in objects:
+        value.accept(_Collector(lambda target: linked.add(target.identity())))
+    return linked

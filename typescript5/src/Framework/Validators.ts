@@ -183,10 +183,17 @@ type Kind = "object" | "union" | "intersection";
  * `Visitors.OfIntersection` recording a union or intersection value (its branches or parts are its properties). It
  * records every property written, so that a union value written with two branches can be reported. */
 export class _ObjectRecord implements OfObject {
+  /** The value object recorded, once it identifies itself. */
+  target: Visitable | null = null;
   readonly values = new Map<string, unknown>();
   readonly adjacencyEntries = new Map<string, _EntryRecord[]>();
 
   constructor(readonly kind: Kind = "object") {}
+
+  identify(value: Visitable): _ObjectRecord {
+    this.target = value;
+    return this;
+  }
 
   properties(callback: Callback<OfProperty>): _ObjectRecord {
     for (const name of [...this.values.keys()]) callback(new _Value(this.values, name));
@@ -269,6 +276,13 @@ function nativeProblem(schema: Schemas.OfAny.Data, value: unknown): string | nul
 const ABSENT = "absent";
 
 /** One relation entry with all its links, from whichever end it was seen. */
+/** Whether `target`, of `schema`, may fill link `name` of `relation`: its schema must declare an adjacency via it. */
+function filling(relation: Schemas.OfRelation.Data, name: string, target: Visitable, schema: Schemas.OfObject.Data): string | null {
+  if ([...schema.adjacencies.values()].some((a) => a.relation === relation && a.me === name)) return null;
+  const what = target.schema_name() ? `a ${repr(target.schema_name())}` : "a value object";
+  return `${what} cannot fill link ${repr(name)}; its schema declares no adjacency to this relation via ${repr(name)}`;
+}
+
 class Entry {
   constructor(readonly links: Map<string, Visitable>, readonly values: Map<string, unknown>) {}
 
@@ -287,6 +301,10 @@ class Check {
   readonly problems: string[] = [];
   private readonly schemasChecked = new Set<unknown>();
   private readonly entries = new Map<Schemas.OfRelation.Data, Map<string, Entry>>();
+  /** The schemas of the value objects seen. */
+  private readonly valueSchemas = new Map<unknown, Schemas.OfObject.Data>();
+  /** The links to value objects, checked once every value object has been seen. */
+  private readonly valueLinks: [string, Schemas.OfRelation.Data, string, Visitable][] = [];
 
   constructor(private readonly registry: Registry) {}
 
@@ -318,6 +336,22 @@ class Check {
     }
     const missing = expected === "intersection" ? [...record.properties.keys()].filter((name) => !item.values.has(name)) : [];
     if (missing.length > 0) problems.push(`${label}: parts ${repr(missing)} are not set`);
+    if (expected === "object") problems.push(...this.valueEntries(label, schema as Schemas.OfObject.Data, item));
+    return problems;
+  }
+
+  /** Problems with a value object's entries, which are checked as a reference object's are. */
+  private valueEntries(label: string, schema: Schemas.OfObject.Data, item: _ObjectRecord): string[] {
+    if (item.target !== null) this.valueSchemas.set(item.target.identity(), schema);
+    const problems: string[] = [];
+    for (const [name, list] of item.adjacencyEntries) {
+      const adjacency = schema.adjacencies.get(name);
+      if (adjacency === undefined) {
+        problems.push(`${label}.${name}: not an adjacency of the embedded object`);
+        continue;
+      }
+      list.forEach((entry, i) => problems.push(...this.entry(`${label}.${name}[${i}]`, adjacency, item.target, entry)));
+    }
     return problems;
   }
 
@@ -339,42 +373,54 @@ class Check {
         this.problems.push(`${label}.${name}: not an adjacency of ${repr(value.schema_name())}`);
         continue;
       }
-      list.forEach((entry, i) => this.entry(`${label}.${name}[${i}]`, adjacency, value, entry));
+      list.forEach((entry, i) => this.problems.push(...this.entry(`${label}.${name}[${i}]`, adjacency, value, entry)));
     }
   }
 
-  private entry(label: string, adjacency: Schemas.OfAdjacency.Data, owner: Visitable, entry: _EntryRecord): void {
+  /** Problems with one entry. A link to a value object is checked once every value object has been seen. */
+  private entry(label: string, adjacency: Schemas.OfAdjacency.Data, owner: Visitable | null, entry: _EntryRecord): string[] {
     const relation = adjacency.relation as Schemas.OfRelation.Data;
     this.schema(`of ${label}`, relation);
-    const links = new Map<string, Visitable>([[adjacency.me, owner], ...entry.targets]);
+    const problems: string[] = [];
+    const links = new Map<string, Visitable | null>([[adjacency.me, owner], ...entry.targets]);
     for (const name of relation.links) {
-      const target = links.get(name);
-      if (target === undefined) {
-        this.problems.push(`${label}: link ${repr(name)} is not set`);
+      if (!links.has(name)) {
+        problems.push(`${label}: link ${repr(name)} is not set`);
         continue;
       }
-      const targetSchema = this.registry.schema(target.schema_name());
-      if (![...targetSchema.adjacencies.values()].some((a) => a.relation === relation && a.me === name)) {
-        this.problems.push(
-          `${label}.${name}: a ${repr(target.schema_name())} cannot fill link ${repr(name)}; its schema declares no ` +
-            `adjacency to this relation via ${repr(name)}`,
-        );
+      const target = links.get(name) as Visitable | null;
+      if (target === null) continue; // a value object that did not identify itself
+      if (target.owner() !== null) {
+        this.valueLinks.push([label, relation, name, target]);
+        continue;
       }
+      const problem = filling(relation, name, target, this.registry.schema(target.schema_name()));
+      if (problem !== null) problems.push(`${label}.${name}: ${problem}`);
     }
     for (const [name, item] of entry.values) {
       const propertyType = relation.properties.get(name);
       if (propertyType === undefined) {
-        this.problems.push(`${label}.${name}: not a property of the relation`);
+        problems.push(`${label}.${name}: not a property of the relation`);
         continue;
       }
       const problem = nativeProblem(propertyType, item);
-      if (problem) this.problems.push(`${label}.${name}: ${problem}`);
+      if (problem) problems.push(`${label}.${name}: ${problem}`);
     }
-    const full = new Entry(links, entry.values);
+    const full = new Entry(new Map([...links].filter(([, t]) => t !== null)) as Map<string, Visitable>, entry.values);
     let seen = this.entries.get(relation);
     if (seen === undefined) this.entries.set(relation, (seen = new Map()));
     const key = full.key([...relation.links, ...relation.properties.keys()]);
     if (!seen.has(key)) seen.set(key, full);
+    return problems;
+  }
+
+  /** Checks the links to value objects, each against its schema; a value object not validated is not checked. */
+  links(): void {
+    for (const [label, relation, name, target] of this.valueLinks) {
+      const schema = this.valueSchemas.get(target.identity());
+      const problem = schema === undefined ? null : filling(relation, name, target, schema);
+      if (problem !== null) this.problems.push(`${label}.${name}: ${problem}`);
+    }
   }
 
   uniques(): void {
@@ -427,6 +473,7 @@ export function Validate(registry: Registry): ValidateCall {
     }
     const check = new Check(registry);
     values.forEach((value, i) => check.object(`${value.schema_name()}#${i}`, registry.schema(value.schema_name()), value));
+    check.links();
     check.uniques();
     return check.problems;
   };

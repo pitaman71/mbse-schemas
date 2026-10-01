@@ -95,6 +95,11 @@ class OfObject(Protocol):
 
     def adjacency(self, name: str, callback: Callable[[OfAdjacency], Any]) -> OfObject: ...
 
+    def identify(self, value: Visitable) -> OfObject:
+        """Called by a value object's `accept`, before anything else, with the value object itself, so that a visitor
+        can tell which object it is given (to write its symbol, or to link to it)."""
+        ...
+
 
 class OfAdjacency(Protocol):
     """The entries of one relation seen from one object, which fills its own link (`me`)."""
@@ -201,7 +206,12 @@ class Visitable(Protocol):
         ...
 
     def schema_name(self) -> str:
-        """Registered name of the object's schema, carried by serialized references to this object."""
+        """Registered name of the object's schema, carried by serialized references to a reference object; '' for a
+        value object whose schema is not registered."""
+        ...
+
+    def owner(self) -> Visitable | None:
+        """The object that owns this value object, or None for a reference object."""
         ...
 
     def accept(self, visitor: OfObject) -> None:

@@ -11,6 +11,14 @@ snapshots. Selecting objects by a condition is an extension, in mbse-expressions
 
 `Catalog` holds schemas by name and the roots, as every store does, with the messages every store gives, and computes
 extents from the roots; `META` holds the meta-schemas a store of proxies starts with.
+
+A store is equipped with a random source when it is made (`Proxies.OfStore(random=PCG32(42))`), for whatever draws
+from it, such as mbse-patterns' generators: `store.random()` gives it. `Random` is the protocol: `next_u32()`, the
+next 32 random bits, and `split(key)`, an independent stream determined by the source's seed and `key` alone, not by
+what was drawn before. `PCG32(seed, sequence)` is the reference source, specified exactly so that every implementation
+draws the same numbers: PCG-XSH-RR with a 64-bit state, seeded as the PCG paper's `pcg32_srandom`; `split(key)` seeds
+a new PCG32, with the same sequence, from FNV-1a 64 of the key's UTF-8 bytes, starting from the offset basis XOR the
+seed.
 """
 
 from __future__ import annotations
@@ -20,10 +28,58 @@ from typing import Any, Protocol
 
 from . import Reachable, Schemas, Visitors
 
-__all__ = ["Store", "Catalog", "META"]
+__all__ = ["Store", "Catalog", "META", "Random", "PCG32"]
 
 META = (Schemas.Module.Schema,)
 """The meta-schemas a store of proxies starts with, each under its name, so that it can hold modules of schemas."""
+
+
+class Random(Protocol):
+    """A source of random bits, which a store is equipped with."""
+
+    def next_u32(self) -> int:
+        """The next 32 random bits, as an int from 0 to 2**32 - 1."""
+        ...
+
+    def split(self, key: str) -> Random:
+        """An independent stream, determined by this source's seed and `key` alone."""
+        ...
+
+
+_MASK64 = (1 << 64) - 1
+_MULTIPLIER = 6364136223846793005
+_FNV_BASIS, _FNV_PRIME = 0xCBF29CE484222325, 0x100000001B3
+
+
+class PCG32:
+    """The reference random source: PCG-XSH-RR, a 64-bit state and 32-bit output (O'Neill, 2014), seeded as
+    `pcg32_srandom(seed, sequence)`."""
+
+    def __init__(self, seed: int, sequence: int = 0):
+        if type(seed) is not int or type(sequence) is not int or not 0 <= seed <= _MASK64 or not 0 <= sequence <= _MASK64:
+            raise ValueError("a PCG32's seed and sequence are ints from 0 to 2**64 - 1")
+        self.seed, self.sequence = seed, sequence
+        self._state, self._increment = 0, ((sequence << 1) | 1) & _MASK64
+        self.next_u32()
+        self._state = (self._state + seed) & _MASK64
+        self.next_u32()
+
+    def next_u32(self) -> int:
+        old = self._state
+        self._state = (old * _MULTIPLIER + self._increment) & _MASK64
+        shifted = (((old >> 18) ^ old) >> 27) & 0xFFFFFFFF
+        rotation = old >> 59
+        return ((shifted >> rotation) | (shifted << ((-rotation) & 31))) & 0xFFFFFFFF
+
+    def split(self, key: str) -> PCG32:
+        hashed = _FNV_BASIS ^ self.seed
+        try:
+            encoded = key.encode("utf-8")
+        except UnicodeEncodeError:
+            raise ValueError("a key must be text without lone surrogates") from None
+        for byte in encoded:
+            hashed = ((hashed ^ byte) * _FNV_PRIME) & _MASK64
+        return PCG32(hashed, self.sequence)
 
 
 class Store(Protocol):
@@ -63,14 +119,24 @@ class Store(Protocol):
         order."""
         ...
 
+    def random(self) -> Random:
+        """The random source the store was made with; `LookupError` if it was made without one."""
+        ...
+
 
 class Catalog:
     """Schemas by name: `register`, `schema`, `registered`, `name_of` and `names`, as every store has them; the roots, by
     global name (`singleton`), which an implementation fills; and `extent`, the reference objects reachable from them."""
 
-    def __init__(self) -> None:
+    def __init__(self, random: Random | None = None) -> None:
         self._schemas: dict[str, Schemas.OfObject.Data | Schemas.OfRelation.Data] = {}
         self._singletons: dict[str, Visitors.Visitable] = {}
+        self._random = random
+
+    def random(self) -> Random:
+        if self._random is None:
+            raise LookupError("the store has no random source: give it one when it is made")
+        return self._random
 
     def register(self, schema: Schemas.OfObject.Data | Schemas.OfRelation.Data) -> None:
         """Registers a schema under its name."""

@@ -1,6 +1,9 @@
 /**
- * Bytes: base64 and hex text for `Uint8Array`, without Node's `Buffer`, so the framework runs in browsers too.
+ * Bytes: base64 and hex text for `Uint8Array`, and the UTF-8 bytes of text, without Node's `Buffer` or `TextEncoder`,
+ * so the framework runs in browsers too.
  */
+
+import { ValueError } from "./Errors.js";
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 const INDEX = new Map([...ALPHABET].map((char, i) => [char, i]));
@@ -40,4 +43,18 @@ export function toHex(bytes: Uint8Array): string {
   let out = "";
   for (const byte of bytes) out += byte.toString(16).padStart(2, "0");
   return out;
+}
+
+/** The UTF-8 bytes of `text`; `ValueError` for a lone surrogate, which UTF-8 cannot encode. */
+export function utf8(text: string): Uint8Array {
+  const bytes: number[] = [];
+  for (const character of text) {
+    const code = character.codePointAt(0) as number;
+    if (code >= 0xd800 && code <= 0xdfff) throw new ValueError("a key must be text without lone surrogates");
+    if (code < 0x80) bytes.push(code);
+    else if (code < 0x800) bytes.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f));
+    else if (code < 0x10000) bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f));
+    else bytes.push(0xf0 | (code >> 18), 0x80 | ((code >> 12) & 0x3f), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f));
+  }
+  return new Uint8Array(bytes);
 }

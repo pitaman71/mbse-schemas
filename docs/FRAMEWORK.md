@@ -246,6 +246,15 @@ in-memory cache slices.
     none).
   - `extent(name)`: the store's reference objects of the schema `name`: those reachable from its singletons, in
     first-reference order.
+  - `random()`: the random source the store was made with (`LookupError` if it was made without one).
+- **A store is equipped with a random source when it is made**, for whatever draws from it (mbse-patterns' generators):
+  `Proxies.OfStore(random=Stores.PCG32(42))`, `Bindings.OfStore(builders, relations, random=...)` (in TypeScript, an
+  options object, `{ random }`). `Stores.Random` is the protocol: `next_u32()`, the next 32 random bits, and
+  `split(key)`, an independent stream determined by the source's seed and `key` alone, not by what was drawn before.
+  `Stores.PCG32(seed, sequence)` is the reference source, specified exactly so that every implementation draws the
+  same numbers: PCG-XSH-RR with a 64-bit state, seeded as `pcg32_srandom`; `split(key)` seeds a new PCG32, with the
+  same sequence, from FNV-1a 64 of the key's UTF-8 bytes, starting from the offset basis XOR the seed. Any other source
+  meets the protocol, at the cost of drawing other numbers.
 - **A store's roots are its singletons.** Registering a singleton schema (`.singleton("GlobalName")`) makes its one
   instance, which the store holds for as long as it lives; registering a second schema with the same global name is
   refused ("singleton 'X' is already registered"). A builder refuses to `create()` or `clone()` a singleton schema's
@@ -716,6 +725,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Object identity on the wire uses transaction-local string symbols with a checkable 1:1 mapping; only `create` creates
   objects.
 - Transactions are flat; mutations may be nested.
+- A store is equipped with its random source when it is made, as the root object holds its environment; PCG32 is the
+  reference source, and split streams depend on the seed and key, not on what was drawn.
 - A schema's name is its own, set by its builder (`.name('crm.Contact')`), on any kind of schema: identifiers separated
   by dots, the part before the last dot its namespace. A store registers a schema under its name (`register(schema)`),
   so a schema has one name in every store, and a reference to a named schema is written by that name with no store.

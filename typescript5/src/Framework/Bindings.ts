@@ -397,8 +397,8 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
   readonly [name: string]: unknown;
 
   constructor(builders: Iterable<readonly [Schemas.OfObject.Data, (instance?: any) => unknown]>,
-    relations: Iterable<Schemas.OfRelation.Data> = []) {
-    super();
+    relations: Iterable<Schemas.OfRelation.Data> = [], options: { random?: Stores.Random | null } = {}) {
+    super(options.random ?? null);
     const bound = [...builders];
     for (const [schema, factory] of bound) {
       this.register(schema);

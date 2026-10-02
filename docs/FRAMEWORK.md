@@ -228,8 +228,8 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
 
 ## Stores
 
-A store is the root object of a body of data: it holds schemas by name, and the objects built with them. Code locates
-schemas, builders and objects through a store, never through a global. Implemented in `Proxies.OfStore` and
+A store is the root object of a body of data: it holds schemas by name, and the data reachable from its roots. Code
+locates schemas, builders and objects through a store, never through a global. Implemented in `Proxies.OfStore` and
 `Bindings.OfStore`; envisioned also for generated (language-optimized) data structures, SQL and noSQL databases, and
 in-memory cache slices.
 
@@ -240,10 +240,22 @@ in-memory cache slices.
   - `builder(name, instance=None)`: a builder for the object schema `name`, a `Visitors.OfObject` finalized by
     `create()`, or by `clone()` / `update()` of `instance`.
   - `member(instance, name)`: the value an instance holds in its property `name` (a value object, a union's branch).
-  - `extent(name)`: the reference objects of the schema `name` that the store holds, in the order they were made.
-- **A store holds its objects.** Every reference object built through a store, by a builder or by decoding, is in its
-  schema's extent, and lives as long as the store does (deleting objects is not built yet). Value objects are reached
-  through their owners, not extents. A store's relation entries are its own too.
+  - `singleton(name)`: the one instance of the singleton schema whose global name is `name` (`LookupError` if there is
+    none).
+  - `extent(name)`: the store's reference objects of the schema `name`: those reachable from its singletons, in
+    first-reference order.
+- **A store's roots are its singletons.** Registering a singleton schema (`.singleton("GlobalName")`) makes its one
+  instance, which the store holds for as long as it lives; registering a second schema with the same global name is
+  refused ("singleton 'X' is already registered"). A builder refuses to `create()` or `clone()` a singleton schema's
+  object ("create() would make a second 'X'; its one instance is store.singleton('GlobalName')"); it is changed by
+  `update()`, and decoding a snapshot that holds one updates the store's instance rather than making another.
+- **A store's data is what its roots reach**: every reference object reachable from a singleton through relation
+  entries (see `Reachable`), with the value objects those own. Everything else built with a store's builders is
+  *transient*: it belongs to the store (its schemas, isolation) but lives only while the program holds it, and is
+  garbage-collected when it no longer does. Linking a transient object to data makes it data. So a long-lived store
+  (a dialect's, say) does not accumulate the objects built with it.
+- **Entries live on the objects they link**, each end holding its side; a store keeps no relation tables. An entry
+  linking a transient object is reachable only through that object, and goes with it.
 - **Stores are isolated.** Each store has its own schemas, objects and entries: two stores may register the same name,
   and an object of one store cannot be linked to, or used as the source of a builder in, another ("the object belongs
   to another store"). Tests and programs make the stores they need. Objects move between stores, or implementations,
@@ -256,11 +268,9 @@ in-memory cache slices.
 - **Everything that looks schemas up takes a store**: `Plain.ToPlain(store)` and `Plain.FromPlain(store)`, the JSON and
   YAML forms, `Validators.Validate(store)`, `Modules.module(store, ...)` and `Modules.schemas(store, ...)`, and a
   builder inferring the schema of an object it creates through a link (from the store's schemas).
-- **Queries are an extension.** The protocol locates schemas, builders and extents; selecting objects by a condition
+- **Queries are an extension.** The protocol locates schemas, builders, singletons and extents; selecting objects by a condition
   belongs to [mbse-expressions](https://github.com/pitaman71/mbse-expressions), whose expressions are the conditions. A
   store that can answer a query natively (a database) may do so behind the same extension.
-- **Implicit singletons will live in a store**: a store will hold the one instance of each singleton schema registered
-  in it.
 
 ## Proxies
 
@@ -283,7 +293,7 @@ mbse-typescript, ...) will share, and mbse-expressions' expressions are its firs
   visitor protocols, so the class's `accept` is one line; `Bindings.Builder(binding, instance)` is a
   `Visitors.OfObject` over a state, with every value kind the schema declares (natives checked by type, value objects,
   unions and lists through plain data), `create()`, `clone()` and `update()`; and `Bindings.OfStore(bindings)` is a
-  store of bound classes (see Stores), whose extents hold the instances its builders make. A class's own builder derives from `Bindings.Builder` for its DSL.
+  store of bound classes (see Stores), whose builders make the instance of each singleton schema when the store is made. A class's own builder derives from `Bindings.Builder` for its DSL.
 - **A binding may declare what the schema cannot**: `fixed` properties, whose value is the class's (a tag, such as an
   expression's `kind`), so that writing another raises; `exclusive` groups of properties, of which a state holds at
   most one, so that writing one clears the others (a literal's value, under the property named after its native type);
@@ -691,12 +701,14 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   duplicates are elided.
 - An object may have more than one owner.
 - Entries linking a deleted object vanish with it.
-- Singletons declare a global name in their `OfObject` schema, exist implicitly, and are referenced by that name.
+- Singletons declare a global name in their `OfObject` schema, exist implicitly (a store makes the one instance when the
+  schema is registered: `store.singleton(name)`), and are referenced by that name. They are a store's roots.
 - Object identity on the wire uses transaction-local string symbols with a checkable 1:1 mapping; only `create` creates
   objects.
 - Transactions are flat; mutations may be nested.
 - Stores replace the `Factories` design and every registry: a store (`Stores.Store`) locates schemas, builders,
-  members and extents; it holds its objects, isolated from other stores' (see Stores). There is no global registry.
+  members, singletons and extents; its data is what its singletons reach, and everything else is transient; it is
+  isolated from other stores (see Stores). There is no global registry.
   Queries are an extension in mbse-expressions.
 - `clone()` copies the source's adjacency entries to the clone.
 - Building a new object inline through a link (`x.phone(lambda y: ...)`) requires an unambiguous inference of its

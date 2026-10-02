@@ -10,8 +10,8 @@ two functions: `read(instance)` gives an instance's `State`, and `make(state)` b
 - `Builder(binding, instance)` is a `Visitors.OfObject` over a state, with every value kind the schema declares:
   natives (checked by type), and value objects, unions and lists (through their plain form). It is finalized by
   `create()`, `clone()` and `update()`, none validating. A class's own builder derives from it for its DSL.
-- `OfStore(builders)` is a store of bound classes (see `Stores`): their schemas and builders by name, and the
-  instances its builders make.
+- `OfStore(builders)` is a store of bound classes (see `Stores`): their schemas and builders by name, and the instance
+  of each singleton schema, made by its builder.
 
 A state holds each property's value, natives as natives and other values in their plain form (an absent property has
 no key, and a builder drops the keys whose value is None), and each adjacency's
@@ -274,7 +274,6 @@ class Builder:
 
     def __init__(self, binding: Binding, instance: Any = None):
         self.binding, self._source = binding, instance
-        self._store: OfStore | None = None  # set by the store that made this builder, whose extents take what it makes
         state = State() if instance is None else binding.read(instance)
         state.values = {name: value for name, value in state.values.items() if value is not None}
         self.state = state
@@ -284,22 +283,17 @@ class Builder:
     def create(self) -> Any:
         if self._source is not None:
             raise ValueError("create() is only valid without a source instance; use clone() or update()")
-        return self._made(self.binding.make(self.state))
+        return self.binding.make(self.state)
 
     def clone(self) -> Any:
         if self._source is None:
             raise ValueError("clone() is only valid with a source instance")
-        return self._made(self.binding.make(self.state))
+        return self.binding.make(self.state)
 
     def update(self) -> Any:
         if self._source is None:
             raise ValueError("update() is only valid with a source instance")
         return self.binding.assign(self._source, self.state)
-
-    def _made(self, instance: Any) -> Any:
-        if self._store is not None:
-            self._store._extents.setdefault(self._store.name_of(self.binding.schema), []).append(instance)
-        return instance
 
     # Visitors.OfObject
 
@@ -353,33 +347,29 @@ class Builder:
 class OfStore(Stores.Catalog):
     """A store of bound classes: `builders` gives each object schema and the function that makes its builder from an
     optional instance, by name; `relations` names the relations. `store.builder(name, instance)`, or
-    `store.<Name>(instance)`, returns a builder, and the instances that the store's builders create or clone are in
-    its extents."""
+    `store.<Name>(instance)`, returns a builder. The instance of each singleton schema is made by its builder when the
+    store is."""
 
     def __init__(self, builders: Mapping[str, tuple[Schemas.OfObject.Data, Callable[..., Any]]],
                  relations: Mapping[str, Schemas.OfRelation.Data] | None = None):
         super().__init__()
         self._factories: dict[str, Callable[..., Any]] = {}
-        self._extents: dict[str, list[Any]] = {}
         for name, (schema, factory) in builders.items():
             self.register(name, schema)
             self._factories[name] = factory
         for name, relation in (relations or {}).items():
             self.register(name, relation)
+        for name, (schema, _) in builders.items():
+            if schema.singleton is not None:
+                self._singletons[schema.singleton] = self.builder(name).create()
 
     def builder(self, name: str, instance: Any = None) -> Any:
         self.schema(name)
-        builder = self._factories[name](instance)
-        builder._store = self
-        return builder
+        return self._factories[name](instance)
 
     def member(self, instance: Any, name: str) -> Any:
         """The value an instance holds in its property `name`."""
         return getattr(instance, name)
-
-    def extent(self, name: str) -> tuple[Any, ...]:
-        self.schema(name)
-        return tuple(self._extents.get(name, ()))
 
     def __getattr__(self, name: str) -> Callable[..., Any]:
         if name.startswith("_") or name not in self._factories:

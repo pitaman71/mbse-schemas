@@ -30,7 +30,7 @@ new S.OfObject.Builder(Component).relations((r) => r.name("ports").of(Ownership)
 new S.OfObject.Builder(Port).relations((r) => r.name("owner").of(Ownership).me("port"),
   (r) => r.name("fanout").of(Wire).me("source"),
   (r) => r.name("fanin").of(Wire).me("target")).update();
-// A store holds the schemas by name, and the objects built with them.
+// A store holds the schemas by name; the objects built with them belong to it.
 const store = new Proxies.OfStore();
 for (const [name, schema] of [["Component", Component], ["Port", Port], ["Ownership", Ownership], ["Wire", Wire]] as const) {
   store.register(name, schema);
@@ -73,7 +73,8 @@ new S.OfIntersection.Builder().parts((p) => p.name("stamp").of(spec), ...).creat
 new S.OfIndexed.Builder().of(spec).create();              // a list; in a property: (t) => t.as_indexed((i) => i.of(spec))
 new S.OfIndexed.Builder().key(spec).of(spec).extent({ minimum: 1n }).create(); // key: keyed; extent: bounds a positional list
 const store = new Proxies.OfStore(); store.register("Name", schema); const B = store;   // stores are isolated
-store.extent("Name"); Proxies.store_of(obj);               // a schema's reference objects; the store a proxy belongs to
+store.extent("Name"); store.singleton("Global");           // a schema's objects its singletons reach; a singleton
+Proxies.store_of(obj);                                     // the store a proxy belongs to
 B.Name().prop(value).adjacencyName((e: any) => e.link(obj).entryProp(v)).create();
 B.Name(obj).prop(v).update();                              // .clone() makes a changed copy instead
 B.Name().listProp(["a", "b"]).create();                    // a list of items; obj.listProp is a frozen array

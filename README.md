@@ -40,7 +40,7 @@ ContactAddresses = (
 )
 Schemas.OfObject.Builder(Contact).relations(lambda adj: adj.name('addresses').of(ContactAddresses).me('contact')).update()
 Schemas.OfObject.Builder(Address).relations(lambda adj: adj.name('residents').of(ContactAddresses).me('address')).update()
-store = Proxies.OfStore()  # holds schemas by name, and the objects built with them
+store = Proxies.OfStore()  # holds schemas by name; the objects built with them belong to it
 for name, schema in [('Contact', Contact), ('Address', Address), ('ContactAddresses', ContactAddresses)]:
     store.register(name, schema)
 
@@ -174,6 +174,5 @@ mbse-typescript, mbse-systemverilog), each depending on this one.
 Designed but not built yet (see `docs/FRAMEWORK.md`):
 - constraints such as "at least one";
 - mutations and transactions;
-- implicit singletons;
 - object deletion;
 - queries over a store (an extension in mbse-expressions).

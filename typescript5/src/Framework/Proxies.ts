@@ -11,9 +11,10 @@
  * unknown name throws `AttributeError`, except JavaScript's own protocol probes (`then`, `toJSON`, `constructor`,
  * symbols, ...), which behave as on any object. Identities are never reused.
  *
- * Each store keeps one table per relation, and the extent of each schema: the reference objects built through it.
- * Adding an entry equal to an existing one is elided. An object of one store cannot be linked to, or be a builder's
- * source in, another.
+ * A store holds its singletons, created when their schemas are registered (`store.singleton(globalName)`), and through
+ * them its data (see `Stores`); an object nothing reachable from a singleton links is the program's to keep. A
+ * relation's entries live on the objects they link, so they go with them. Adding an entry equal to an existing one is
+ * elided. An object of one store cannot be linked to, or be a builder's source in, another.
  *
  * A property whose schema is an `OfObject` holds a value object: a read-only record with no identity
  * (`Proxies.OfObject.Record`), read with attributes like an instance and set with a Spec, e.g.
@@ -68,14 +69,13 @@ function member(instance: unknown, name: string): unknown {
   return read(t, name, instance);
 }
 
-const STORE_MEMBERS = new Set(["register", "schema", "registered", "name_of", "names", "builder", "member", "extent"]);
+const STORE_MEMBERS = new Set(["register", "schema", "registered", "name_of", "names", "singleton", "builder", "member",
+  "extent"]);
 
-/** A store of proxies: schemas by name, the proxies built with them, and their relation entries.
+/** A store of proxies: schemas by name, and the instance of each singleton schema registered, created with it.
  * `store.<Name>(optional instance)` is `store.builder(name, instance)`; use `builder` for names that are not
  * identifiers, or that a method's name shadows. */
 export class OfStore extends Stores.Catalog implements Stores.Store {
-  readonly _relations = new Map<RelationSchema, RelationData>();
-  readonly _extents = new Map<string, Instance[]>();
   /** `(instance?: Instance) => DynamicBuilder` for each registered object schema; dynamic by design. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [name: string]: any;
@@ -94,6 +94,16 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
     });
   }
 
+  /** Registers a schema under `name`; a singleton schema's instance is created with it. */
+  override register(name: string, schema: ObjectSchema | RelationSchema): void {
+    const globalName = schema instanceof Schemas.OfObject.Data ? schema.singleton : null;
+    if (globalName !== null && this._singletons.has(globalName)) {
+      throw new ValueError(`singleton ${repr(globalName)} is already registered`);
+    }
+    super.register(name, schema);
+    if (globalName !== null) this._singletons.set(globalName, makeInstance(this, schema as ObjectSchema, name));
+  }
+
   /** A builder for the object schema `name`; typed loosely, as the store's DSL is. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   builder(name: string, instance?: unknown): any {
@@ -103,17 +113,6 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
   /** The value an instance or value object holds in its property `name`. */
   member(instance: unknown, name: string): unknown {
     return member(instance, name);
-  }
-
-  extent(name: string): readonly Instance[] {
-    this.schema(name);
-    return [...(this._extents.get(name) ?? [])];
-  }
-
-  _relationData(schema: RelationSchema): RelationData {
-    let data = this._relations.get(schema);
-    if (data === undefined) this._relations.set(schema, (data = new RelationData(schema)));
-    return data;
   }
 
   /** The name of the one object schema that declares an adjacency to `relation` via `link`. */
@@ -195,31 +194,41 @@ function byName(a: readonly [string, unknown], b: readonly [string, unknown]): n
   return a[0] < b[0] ? -1 : 1; // names within an entry are unique
 }
 
-/** All entries of one relation. */
-class RelationData {
-  private readonly entries = new Map<string, Entry>();
+/** The entries of one relation that link `target`, by key: they live on the objects they link. */
+function table(target: Visitable, relation: RelationSchema): Map<string, Entry> {
+  const adjacent = ((instanceTargets.get(target) ?? recordTargets.get(target)) as ObjectTarget | RecordTarget).adjacent;
+  let found = adjacent.get(relation);
+  if (found === undefined) adjacent.set(relation, (found = new Map()));
+  return found;
+}
 
-  constructor(readonly schema: RelationSchema) {}
+/** Adds `entry` to every object it links, unless an equal entry is there already. */
+function addEntry(relation: RelationSchema, entry: Entry): void {
+  const key = entry.key();
+  if (table([...entry.links.values()][0] as Visitable, relation).has(key)) return;
+  for (const target of entry.links.values()) table(target, relation).set(key, entry);
+}
 
-  add(entry: Entry): void {
+/** The entries of `relation` that link `target` via `link`, in the order they were added. */
+function linking(relation: RelationSchema, link: string, target: Visitable): Entry[] {
+  return [...table(target, relation).values()].filter((entry) => entry.links.get(link) === target);
+}
+
+function discard(relation: RelationSchema, entries: readonly Entry[]): void {
+  for (const entry of entries) {
     const key = entry.key();
-    if (!this.entries.has(key)) this.entries.set(key, entry);
+    for (const target of entry.links.values()) table(target, relation).delete(key);
   }
+}
 
-  linking(link: string, target: Visitable): Entry[] {
-    return [...this.entries.values()].filter((entry) => entry.links.get(link) === target);
-  }
+function discardLinking(relation: RelationSchema, link: string, target: Visitable): void {
+  discard(relation, linking(relation, link, target));
+}
 
-  discard_linking(link: string, target: Visitable): void {
-    for (const [key, entry] of [...this.entries]) if (entry.links.get(link) === target) this.entries.delete(key);
-  }
-
-  /** Discards every entry that links `target`, through any link. */
-  discard_target(target: Visitable): void {
-    for (const [key, entry] of [...this.entries]) {
-      if ([...entry.links.values()].some((t) => t === target)) this.entries.delete(key);
-    }
-  }
+/** Discards every entry that links `target`, through any link. */
+function discardTarget(target: Visitable): void {
+  const adjacent = ((instanceTargets.get(target) ?? recordTargets.get(target)) as ObjectTarget | RecordTarget).adjacent;
+  for (const [relation, entries] of [...adjacent]) discard(relation, [...entries.values()]);
 }
 
 // --- Instances ---
@@ -236,6 +245,8 @@ const instanceTargets = new WeakMap<object, ObjectTarget>();
 class ObjectTarget {
   readonly id = ++nextIdentity;
   readonly values = new Map<string, unknown>();
+  /** The entries linking this object, by relation and key. */
+  readonly adjacent = new Map<RelationSchema, Map<string, Entry>>();
   proxy!: Instance;
 
   constructor(readonly store: OfStore, readonly schema: ObjectSchema, readonly schemaName: string) {}
@@ -275,10 +286,8 @@ const INSTANCE_METHODS = new Set(["identity", "schema_name", "owner", "accept"])
 
 /** Writes the entries linking `target`, adjacency by adjacency; a value object not yet placed has none. */
 function writeAdjacencies(visitor: ObjectVisitor, target: Visitable, schema: ObjectSchema): void {
-  const store = storeOf(target);
-  if (store === null) return;
   for (const [adjacencyName, adjacency] of schema.adjacencies) {
-    for (const entry of store._relationData(adjacency.relation as RelationSchema).linking(adjacency.me, target)) {
+    for (const entry of linking(adjacency.relation as RelationSchema, adjacency.me, target)) {
       visitor.adjacency(adjacencyName, (a) => a.add((e) => writeEntry(e, entry, adjacency)));
     }
   }
@@ -434,6 +443,8 @@ const recordTargets = new WeakMap<object, RecordTarget>();
 class RecordTarget {
   readonly id = ++nextIdentity;
   holder: Visitable | null = null;
+  /** The entries linking this value object, by relation and key. */
+  readonly adjacent = new Map<RelationSchema, Map<string, Entry>>();
   proxy!: ValueObject;
 
   constructor(readonly schema: RecordSchema, readonly values: Map<string, unknown>,
@@ -580,14 +591,13 @@ function finish(owner: Visitable, old: unknown, value: unknown, mapping: Mapping
 /** Adds a value object's entries, linked to the value objects that take the place of those in `mapping`. */
 function addPending(record: ValueObject, mapping: Mapping): void {
   const state = stateOf(record);
-  const store = storeOf(record) as OfStore; // placed, so its owner's
   for (const [name, builders] of state.pending) {
     const adjacency = (state.schema as ObjectSchema).adjacencies.get(name) as AdjacencySchema;
-    const relation = store._relationData(adjacency.relation as RelationSchema);
+    const relation = adjacency.relation as RelationSchema;
     for (const builder of builders) {
       const links = entryOf(builder).linkValues;
       for (const [link, target] of [...links]) if (mapping.has(target)) links.set(link, mapping.get(target) as LinkValue);
-      relation.add(builder.build(record));
+      addEntry(relation, builder.build(record));
     }
   }
   state.pending = new Map();
@@ -603,7 +613,7 @@ function merge(old: ValueObject, edit: ValueObject, mapping: Mapping): void {
   for (const [name, value] of values) target.values.set(name, value);
   if (target.schema instanceof Schemas.OfObject.Data) {
     for (const adjacency of target.schema.adjacencies.values()) {
-      (storeOf(old) as OfStore)._relationData(adjacency.relation as RelationSchema).discard_linking(adjacency.me, old);
+      discardLinking(adjacency.relation as RelationSchema, adjacency.me, old);
     }
   }
   target.pending = stateOf(edit).pending;
@@ -639,7 +649,7 @@ function drop(before: readonly unknown[], after: readonly unknown[]): void {
 /** Removes a value object no longer held: the value objects it holds, and every entry linking it. */
 function remove(value: ValueObject): void {
   for (const held of records([...stateOf(value).values.values()])) remove(held);
-  for (const relation of (storeOf(value) as OfStore)._relations.values()) relation.discard_target(value); // placed, so its owner's
+  discardTarget(value);
 }
 
 function isInstance(value: unknown): value is Instance {
@@ -1078,8 +1088,8 @@ function adder(builder: { adjacency(name: string, callback: Callback<OfAdjacency
 /** Loads the entries linking `source` into a builder, as entry builders, so that an update rewrites them. */
 function loadEntries(entries: Map<string, _EntryBuilder[]>, schema: ObjectSchema, source: Visitable): void {
   const store = storeOf(source);
-  for (const [name, adjacency] of store === null ? [] : schema.adjacencies) {
-    for (const entry of (store as OfStore)._relationData(adjacency.relation as RelationSchema).linking(adjacency.me, source)) {
+  for (const [name, adjacency] of schema.adjacencies) {
+    for (const entry of linking(adjacency.relation as RelationSchema, adjacency.me, source)) {
       const builder = makeEntryBuilder(adjacency.relation as RelationSchema, adjacency.me, store);
       const state = entryOf(builder);
       for (const [link, target] of entry.links) if (link !== adjacency.me) state.linkValues.set(link, target as LinkValue);
@@ -1339,30 +1349,31 @@ export class ObjectBuilderTarget implements ObjectVisitor {
     if (this.source !== undefined) {
       throw new ValueError("create() is only valid without a source instance; use clone() or update()");
     }
-    return this.made(this.write(makeInstance(this.store, this.schema, this.schemaName)));
+    this.notSingleton("create");
+    return this.write(makeInstance(this.store, this.schema, this.schemaName));
   }
 
   clone(...args: unknown[]): Instance {
     noArguments("clone", args);
     if (this.source === undefined) throw new ValueError("clone() is only valid with a source instance");
-    return this.made(this.write(makeInstance(this.store, this.schema, this.schemaName)));
+    this.notSingleton("clone");
+    return this.write(makeInstance(this.store, this.schema, this.schemaName));
   }
 
   update(...args: unknown[]): Instance {
     noArguments("update", args);
     if (this.source === undefined) throw new ValueError("update() is only valid with a source instance");
     for (const adjacency of this.schema.adjacencies.values()) {
-      this.store._relationData(adjacency.relation as RelationSchema).discard_linking(adjacency.me, this.source);
+      discardLinking(adjacency.relation as RelationSchema, adjacency.me, this.source);
     }
     return this.write(this.source);
   }
 
-  /** Adds a new instance to its schema's extent. */
-  private made(target: Instance): Instance {
-    const extent = this.store._extents.get(this.schemaName) ?? [];
-    extent.push(target);
-    this.store._extents.set(this.schemaName, extent);
-    return target;
+  private notSingleton(method: string): void {
+    if (this.schema.singleton !== null) {
+      throw new ValueError(`${method}() would make a second ${repr(this.schemaName)}; its one instance is `
+        + `store.singleton(${repr(this.schema.singleton)})`);
+    }
   }
 
   private write(target: Instance): Instance {
@@ -1374,11 +1385,11 @@ export class ObjectBuilderTarget implements ObjectVisitor {
     state.values.clear();
     for (const [name, value] of values) state.values.set(name, value);
     for (const [name, entries] of this.entries) {
-      const relation = this.store._relationData((this.schema.adjacencies.get(name) as AdjacencySchema).relation as RelationSchema);
+      const relation = (this.schema.adjacencies.get(name) as AdjacencySchema).relation as RelationSchema;
       for (const entry of entries) {
         const links = entryOf(entry).linkValues;
         for (const [link, linked] of [...links]) if (mapping.has(linked)) links.set(link, mapping.get(linked) as LinkValue);
-        relation.add(entry.build(target));
+        addEntry(relation, entry.build(target));
       }
     }
     return target;
@@ -1431,11 +1442,6 @@ export namespace OfObject {
   export function Builder(store: OfStore, schema: ObjectSchema, schemaName: string, instance?: Instance): DynamicBuilder {
     return makeObjectBuilder(store, schema, schemaName, instance);
   }
-}
-
-export namespace OfRelation {
-  export const Data = RelationData;
-  export type Data = RelationData;
 }
 
 export namespace OfIndexed {

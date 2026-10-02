@@ -12,7 +12,7 @@
  *   natives (checked by type), and value objects, unions and lists (through their plain form). It is finalized by
  *   `create()`, `clone()` and `update()`, none validating. A class's own builder derives from it for its DSL.
  * - `OfStore(builders)` is a store of bound classes (see `Stores`): their schemas and builders by name, and the
- *   instances its builders make.
+ *   instance of each singleton schema, made by its builder.
  *
  * A state holds each property's value, natives as natives and other values in their plain form (an absent property
  * has no key, and a builder drops the keys whose value is null), and each adjacency's entries, each an `Entry` of its
@@ -304,8 +304,6 @@ class _AdjacencySlot implements OfAdjacency {
 export class Builder implements OfObject {
   readonly state: State;
   protected readonly source: unknown;
-  /** Set by the store that made this builder, whose extents take what it makes. */
-  _store: OfStore | null = null;
 
   constructor(readonly binding: Binding, instance?: unknown) {
     this.source = instance ?? null;
@@ -320,12 +318,12 @@ export class Builder implements OfObject {
     if (this.source !== null) {
       throw new ValueError("create() is only valid without a source instance; use clone() or update()");
     }
-    return this.made(this.binding.make(this.state));
+    return this.binding.make(this.state);
   }
 
   clone(): any {
     if (this.source === null) throw new ValueError("clone() is only valid with a source instance");
-    return this.made(this.binding.make(this.state));
+    return this.binding.make(this.state);
   }
 
   update(): any {
@@ -333,13 +331,6 @@ export class Builder implements OfObject {
     return this.binding.assign(this.source, this.state);
   }
 
-  private made(instance: unknown): unknown {
-    if (this._store !== null) {
-      const name = this._store.name_of(this.binding.schema);
-      this._store._extents.set(name, [...(this._store._extents.get(name) ?? []), instance as Visitable]);
-    }
-    return instance;
-  }
 
   // Visitors.OfObject
 
@@ -399,11 +390,10 @@ export class Builder implements OfObject {
 
 /** A store of bound classes: `builders` gives each object schema and the function that makes its builder from an
  * optional instance, by name; `relations` names the relations. `store.builder(name, instance)`, or
- * `store[name](instance)`, returns a builder, and the instances that the store's builders create or clone are in its
- * extents. */
+ * `store[name](instance)`, returns a builder. The instance of each singleton schema is made by its builder when the
+ * store is. */
 export class OfStore extends Stores.Catalog implements Stores.Store {
   readonly _factories = new Map<string, (instance?: any) => any>();
-  readonly _extents = new Map<string, Visitable[]>();
   readonly [name: string]: unknown;
 
   constructor(builders: ReadonlyMap<string, readonly [Schemas.OfObject.Data, (instance?: any) => unknown]>,
@@ -414,6 +404,9 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
       this._factories.set(name, factory);
     }
     for (const [name, relation] of relations) this.register(name, relation);
+    for (const [name, [schema]] of builders) {
+      if (schema.singleton !== null) this._singletons.set(schema.singleton, this.builder(name).create() as Visitable);
+    }
     return new Proxy(this, {
       get(t, prop, receiver) {
         if (typeof prop === "symbol" || prop in t) return Reflect.get(t, prop, receiver);
@@ -426,9 +419,7 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
 
   builder(name: string, instance?: unknown): any {
     this.schema(name);
-    const builder = (this._factories.get(name) as (instance?: unknown) => Builder)(instance);
-    builder._store = this;
-    return builder;
+    return (this._factories.get(name) as (instance?: unknown) => Builder)(instance);
   }
 
   /** The value an instance holds in its property `name`. */
@@ -436,8 +427,4 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
     return (instance as Record<string, unknown>)[name];
   }
 
-  extent(name: string): readonly Visitable[] {
-    this.schema(name);
-    return [...(this._extents.get(name) ?? [])];
-  }
 }

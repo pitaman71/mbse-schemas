@@ -93,6 +93,7 @@ noticed.
 | Subclasses of natives | rejected | boxed primitives and `Buffer` rejected | the nearest analogues | SCH-03 |
 | Unknown attribute on a proxy | `AttributeError` | `AttributeError`, except JavaScript protocol probes (`then`, `toJSON`, `constructor`, symbols) | awaiting or printing a proxy must not throw | PRX-02 |
 | A store's builders by name (`store.<Name>()`) | `__getattr__`; an unknown name raises `AttributeError` | the store is a `Proxy`; an unknown name throws `AttributeError`, except the protocol probes; `Proxies.OfStore.builder` returns `any`, as proxy builders are typed loosely | as for proxies | STO-01, STO-04 |
+| Transient objects (Stores) | STO-02 checks that an object no singleton reaches is garbage-collected once the program drops it | not checked | JavaScript has no deterministic collection to observe; the same structure holds no strong reference to it | STO-02 |
 | Name collisions (F2) | `_values` is shadowed by an internal | not shadowed (private state); declared names win over JavaScript's own members | private fields exist | PRX-04 |
 | Object identity (F12) | `id(self)`, may be reused after collection | a counter, never reused | no object ids in JavaScript | PRX-02 |
 | Lone surrogate encoded as UTF-8 | raises | replaced with U+FFFD | `TextEncoder` behavior | JSN-06 |

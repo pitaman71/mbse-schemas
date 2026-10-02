@@ -10,7 +10,8 @@ properties to plain values; the object's own link is implied. A reference is `{"
 object content carries no schema, so references carry the schema name, and the root schema is passed in.
 
 `ToPlain(store).OfObject` includes only the root object, so its references are unresolved and `FromPlain` rejects them.
-`ToPlain(store).Reachable` also includes every object reachable through adjacencies (see `Reachable`).
+`ToPlain(store).Reachable` also includes every object reachable through adjacencies (see `Reachable`). Decoding builds
+new objects in the store, except an object of a singleton schema, which updates the store's instance.
 
 The serializers are visitors: a value writes itself into them through `Visitable.accept`.
 
@@ -787,10 +788,11 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
 
     created: dict[str, Any] = {}
     for symbol, (properties, _) in decoded.items():
-        builder = store.builder(names[symbol])
+        global_name = store.schema(names[symbol]).singleton  # a singleton is the store's own instance, updated
+        builder = store.builder(names[symbol], None if global_name is None else store.singleton(global_name))
         for key, value in properties.items():
             _set(builder, key, value)
-        created[symbol] = builder.create()
+        created[symbol] = builder.create() if global_name is None else builder.update()
 
     def resolve(symbol: str) -> Any:
         """The object a symbol names: a reference object, or the value object found at its steps."""

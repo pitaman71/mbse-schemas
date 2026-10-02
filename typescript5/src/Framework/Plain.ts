@@ -894,9 +894,11 @@ function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unkn
 
   const created = new Map<string, unknown>();
   for (const [symbol, [properties]] of decoded) {
-    const builder = builderFor(store, names.get(symbol) as string);
+    const name = names.get(symbol) as string;
+    const globalName = store.schema(name).singleton; // a singleton is the store's own instance, updated
+    const builder = builderFor(store, name, globalName === null ? undefined : store.singleton(globalName));
     for (const [key, value] of properties) set(builder, key, value);
-    created.set(symbol, builder.create());
+    created.set(symbol, globalName === null ? builder.create() : builder.update());
   }
 
   /** The object a symbol names: a reference object, or the value object found at its steps. */

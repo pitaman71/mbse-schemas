@@ -30,7 +30,7 @@ S.OfObject.Builder(Component).relations(lambda r: r.name("ports").of(Ownership).
 S.OfObject.Builder(Port).relations(lambda r: r.name("owner").of(Ownership).me("port"),
                                    lambda r: r.name("fanout").of(Wire).me("source"),
                                    lambda r: r.name("fanin").of(Wire).me("target")).update()
-# A store holds the schemas by name, and the objects built with them.
+# A store holds the schemas by name; the objects built with them belong to it.
 store = Proxies.OfStore()
 for name, schema in [("Component", Component), ("Port", Port), ("Ownership", Ownership), ("Wire", Wire)]:
     store.register(name, schema)
@@ -66,7 +66,7 @@ schema.validate()                                           # the schema's own p
 # A store: register object and relation schemas, then build through it. Stores are isolated; objects move between them
 # as snapshots.
 store = Proxies.OfStore(); store.register("Name", schema); B = store
-store.extent("Name")                                        # the reference objects of a schema the store holds
+store.extent("Name"); store.singleton("Global")             # a schema's objects its singletons reach; a singleton
 Proxies.store_of(obj)                                       # the store a proxy belongs to
 B.Name().prop(value).value_prop(lambda r: r.x(1)).adjacency_name(lambda e: e.link(obj).entry_prop(v)).create()
 B.Name(obj).prop(v).update()                                # change obj; .clone() makes a changed copy instead

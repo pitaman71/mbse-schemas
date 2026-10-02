@@ -1,13 +1,16 @@
 """Stores: the root object of a body of data, through which schemas, builders and objects are located.
 
-A store holds schemas by name and the objects built with them. `Store` is the protocol every implementation meets;
+A store holds schemas by name, and its data: the instances of its singleton schemas, its roots, and every reference
+object reachable from them through relation entries, with the value objects those own. Anything else built with a
+store's builders is transient: it lives only while the program holds it. `Store` is the protocol every implementation
+meets;
 `Proxies.OfStore` (dynamic instances) and `Bindings.OfStore` (a program's own classes) implement it. Everything that
 looks a schema up by name takes a store: `Plain.ToPlain(store)`, `Plain.FromPlain(store)`, the JSON and YAML forms,
 `Validators.Validate(store)` and `Modules`. Stores are isolated from one another; objects move between them as
 snapshots. Selecting objects by a condition is an extension, in mbse-expressions.
 
-`Catalog` holds schemas by name, as every store does, with the messages every store gives; `META` names the
-meta-schemas a store of proxies starts with.
+`Catalog` holds schemas by name and the roots, as every store does, with the messages every store gives, and computes
+extents from the roots; `META` names the meta-schemas a store of proxies starts with.
 """
 
 from __future__ import annotations
@@ -15,7 +18,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any, Protocol
 
-from . import Schemas, Visitors
+from . import Reachable, Schemas, Visitors
 
 __all__ = ["Store", "Catalog", "META"]
 
@@ -51,16 +54,23 @@ class Store(Protocol):
         """The value `instance` holds in its property `name`, e.g. a value object or a union's branch."""
         ...
 
+    def singleton(self, name: str) -> Visitors.Visitable:
+        """The one instance of the singleton schema whose global name is `name`; `LookupError` if there is none."""
+        ...
+
     def extent(self, name: str) -> Iterable[Visitors.Visitable]:
-        """The reference objects of the schema `name` that the store holds, in the order they were made."""
+        """The store's reference objects of the schema `name`: those reachable from its singletons, in first-reference
+        order."""
         ...
 
 
 class Catalog:
-    """Schemas by name: `register`, `schema`, `registered`, `name_of` and `names`, as every store has them."""
+    """Schemas by name: `register`, `schema`, `registered`, `name_of` and `names`, as every store has them; the roots, by
+    global name (`singleton`), which an implementation fills; and `extent`, the reference objects reachable from them."""
 
     def __init__(self) -> None:
         self._schemas: dict[str, Schemas.OfObject.Data | Schemas.OfRelation.Data] = {}
+        self._singletons: dict[str, Visitors.Visitable] = {}
 
     def register(self, name: str, schema: Schemas.OfObject.Data | Schemas.OfRelation.Data) -> None:
         """Registers a schema under `name`, which need not be a valid identifier."""
@@ -89,6 +99,23 @@ class Catalog:
 
     def names(self) -> tuple[str, ...]:
         return tuple(self._schemas)
+
+    def singleton(self, name: str) -> Visitors.Visitable:
+        if name not in self._singletons:
+            raise LookupError(f"no singleton named {name!r}")
+        return self._singletons[name]
+
+    def extent(self, name: str) -> tuple[Visitors.Visitable, ...]:
+        self.schema(name)
+        seen: set[Any] = set()
+        found: list[Visitors.Visitable] = []
+        for root in self._singletons.values():
+            for value in Reachable.of(root):
+                if value.identity() not in seen:
+                    seen.add(value.identity())
+                    if value.schema_name() == name:
+                        found.append(value)
+        return tuple(found)
 
     def _filling(self, relation: Schemas.OfRelation.Data, link: str) -> list[str]:
         """The names of the object schemas that declare an adjacency to `relation` via `link`."""

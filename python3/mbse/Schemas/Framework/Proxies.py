@@ -6,9 +6,10 @@ Programs using proxies skip code generation. A store, `OfStore()`, holds schemas
 visitors: they expose their properties as read-only attributes and write themselves into a visitor on `accept`.
 Builders (`Proxies.OfObject.Builder`) implement `Visitors.OfObject`, like every builder.
 
-Each store keeps one table per relation, and the extent of each schema: the reference objects built through it.
-Adding an entry equal to an existing one is elided. An object of one store cannot be linked to, or be a builder's
-source in, another.
+A store holds its singletons, created when their schemas are registered (`store.singleton(global_name)`), and through
+them its data (see `Stores`); an object nothing reachable from a singleton links is the program's to keep. A relation's
+entries live on the objects they link, so they go with them. Adding an entry equal to an existing one is elided. An
+object of one store cannot be linked to, or be a builder's source in, another.
 
 A property whose schema is an `OfObject` holds a value object: a read-only record with no identity
 (`Proxies.OfObject.Record`), read with attributes like an instance and set with a Spec, e.g.
@@ -31,7 +32,7 @@ from typing import Any
 from . import Errors, Schemas, Stores, Visitors
 from .Visitors import Native
 
-__all__ = ["OfStore", "store_of", "OfObject", "OfRelation", "OfIndexed"]
+__all__ = ["OfStore", "store_of", "OfObject", "OfIndexed"]
 
 ObjectSchema = Schemas.OfObject.Data
 RelationSchema = Schemas.OfRelation.Data
@@ -40,16 +41,23 @@ RelationSchema = Schemas.OfRelation.Data
 # --- Stores ---
 
 class OfStore(Stores.Catalog):
-    """A store of proxies: schemas by name, the proxies built with them, and their relation entries.
+    """A store of proxies: schemas by name, and the instance of each singleton schema registered, created with it.
     `store.<Name>(optional instance)` is `store.builder(name, instance)`; use `builder` for names that are not
     identifiers, or that a method's name shadows."""
 
     def __init__(self) -> None:
         super().__init__()
-        self._relations: dict[int, _RelationData] = {}
-        self._extents: dict[str, list[_ObjectData]] = {}
         for name, schema in Stores.META.items():
             self.register(name, schema)
+
+    def register(self, name: str, schema: ObjectSchema | RelationSchema) -> None:
+        """Registers a schema under `name`; a singleton schema's instance is created with it."""
+        global_name = schema.singleton if isinstance(schema, ObjectSchema) else None
+        if global_name is not None and global_name in self._singletons:
+            raise ValueError(f"singleton {global_name!r} is already registered")
+        super().register(name, schema)
+        if global_name is not None:
+            self._singletons[global_name] = _ObjectData(self, schema, name)
 
     def builder(self, name: str, instance: Any = None) -> _ObjectBuilder:
         return _ObjectBuilder(self, self.schema(name), name, instance)
@@ -58,18 +66,11 @@ class OfStore(Stores.Catalog):
         """The value an instance or value object holds in its property `name`."""
         return _read(instance, name)
 
-    def extent(self, name: str) -> tuple[_ObjectData, ...]:
-        self.schema(name)
-        return tuple(self._extents.get(name, ()))
-
     def __getattr__(self, name: str) -> Callable[..., _ObjectBuilder]:
         if name.startswith("_"):
             raise AttributeError(name)
         schema = self.schema(name)
         return lambda instance=None: _ObjectBuilder(self, schema, name, instance)
-
-    def _relation_data(self, schema: RelationSchema) -> _RelationData:
-        return self._relations.setdefault(id(schema), _RelationData(schema))
 
     def _filled(self, relation: RelationSchema, link: str) -> str:
         """The name of the one object schema that declares an adjacency to `relation` via `link`."""
@@ -134,27 +135,40 @@ class _Entry:
         )
 
 
-class _RelationData:
-    """All entries of one relation."""
+def _table(target: Any, relation_id: int) -> dict[Hashable, _Entry]:
+    """The entries of one relation that link `target`, by key: they live on the objects they link."""
+    return object.__getattribute__(target, "_adjacent").setdefault(relation_id, {})
 
-    def __init__(self, schema: RelationSchema):
-        self.schema = schema
-        self._entries: dict[Hashable, _Entry] = {}
 
-    def add(self, entry: _Entry) -> None:
-        self._entries.setdefault(entry.key(), entry)
+def _add_entry(relation: RelationSchema, entry: _Entry) -> None:
+    """Adds `entry` to every object it links, unless an equal entry is there already."""
+    key = entry.key()
+    if key in _table(next(iter(entry.links.values())), id(relation)):
+        return
+    for target in entry.links.values():
+        _table(target, id(relation))[key] = entry
 
-    def linking(self, link: str, target: _ObjectData) -> Iterator[_Entry]:
-        return (entry for entry in list(self._entries.values()) if entry.links.get(link) is target)
 
-    def discard_linking(self, link: str, target: _ObjectData) -> None:
-        for key in [key for key, entry in self._entries.items() if entry.links.get(link) is target]:
-            del self._entries[key]
+def _linking(relation: RelationSchema, link: str, target: Any) -> list[_Entry]:
+    """The entries of `relation` that link `target` via `link`, in the order they were added."""
+    return [entry for entry in _table(target, id(relation)).values() if entry.links.get(link) is target]
 
-    def discard_target(self, target: Any) -> None:
-        """Discards every entry that links `target`, through any link."""
-        for key in [key for key, entry in self._entries.items() if any(t is target for t in entry.links.values())]:
-            del self._entries[key]
+
+def _discard(relation_id: int, entries: list[_Entry]) -> None:
+    for entry in entries:
+        key = entry.key()
+        for target in entry.links.values():
+            _table(target, relation_id).pop(key, None)
+
+
+def _discard_linking(relation: RelationSchema, link: str, target: Any) -> None:
+    _discard(id(relation), _linking(relation, link, target))
+
+
+def _discard_target(target: Any) -> None:
+    """Discards every entry that links `target`, through any link."""
+    for relation_id, table in list(object.__getattribute__(target, "_adjacent").items()):
+        _discard(relation_id, list(table.values()))
 
 
 # --- Instances ---
@@ -163,9 +177,10 @@ class _RelationData:
 class _ObjectData:
     """A proxy instance. Properties are read-only attributes; reading one that is not set raises AttributeError."""
 
-    __slots__ = ("_store", "_schema", "_schema_name", "_values")
+    __slots__ = ("_store", "_schema", "_schema_name", "_values", "_adjacent", "__weakref__")
 
     def __init__(self, store: OfStore, schema: ObjectSchema, schema_name: str):
+        object.__setattr__(self, "_adjacent", {})
         object.__setattr__(self, "_store", store)
         object.__setattr__(self, "_schema", schema)
         object.__setattr__(self, "_schema_name", schema_name)
@@ -194,11 +209,8 @@ class _ObjectData:
 
 def _write_adjacencies(visitor: Any, target: Any, schema: ObjectSchema) -> None:
     """Writes the entries linking `target`, adjacency by adjacency; a value object not yet placed has none."""
-    store = _store_of(target)
-    if store is None:
-        return
     for adjacency_name, adjacency in schema.adjacencies.items():
-        for entry in store._relation_data(adjacency.relation).linking(adjacency.me, target):
+        for entry in _linking(adjacency.relation, adjacency.me, target):
             visitor.adjacency(
                 adjacency_name,
                 lambda a, entry=entry, adj=adjacency: a.add(lambda e: _write_entry(e, entry, adj)),
@@ -294,12 +306,12 @@ class _RecordData:
     own; its properties are read-only attributes, and reading one that is not set raises AttributeError. Built but not
     yet placed in an owner, it holds its entries in `_pending` until its owner is created or updated."""
 
-    __slots__ = ("_schema", "_values", "_owner", "_pending", "_source", "_copy_of")
+    __slots__ = ("_schema", "_values", "_owner", "_pending", "_source", "_copy_of", "_adjacent")
 
     def __init__(self, schema: Any, values: dict[str, Any], pending: dict[str, list[_EntryBuilder]] | None = None,
                  source: _RecordData | None = None, copy_of: Any = None):
         for name, value in (("_schema", schema), ("_values", dict(values)), ("_owner", None),
-                            ("_pending", pending or {}), ("_source", source), ("_copy_of", copy_of)):
+                            ("_pending", pending or {}), ("_source", source), ("_copy_of", copy_of), ("_adjacent", {})):
             object.__setattr__(self, name, value)
 
     def __getattr__(self, name: str) -> Any:
@@ -404,12 +416,11 @@ def _finish(owner: Any, old: Any, new: Any, mapping: dict[int, Any]) -> Any:
 
 def _add_pending(record: _RecordData, mapping: dict[int, Any]) -> None:
     """Adds a value object's entries, linked to the value objects that take the place of those in `mapping`."""
-    store = _store_of(record)
     for name, builders in record._pending.items():
-        relation = store._relation_data(record._schema.adjacencies[name].relation)  # type: ignore[union-attr]
+        relation = record._schema.adjacencies[name].relation
         for builder in builders:
             builder._links = {link: mapping.get(id(target), target) for link, target in builder._links.items()}
-            relation.add(builder.build(record))
+            _add_entry(relation, builder.build(record))
     object.__setattr__(record, "_pending", {})
 
 
@@ -421,7 +432,7 @@ def _merge(old: _RecordData, new: _RecordData, mapping: dict[int, Any]) -> None:
     object.__getattribute__(old, "_values").update(values)
     if isinstance(old._schema, ObjectSchema):
         for adjacency in old._schema.adjacencies.values():
-            _store_of(old)._relation_data(adjacency.relation).discard_linking(adjacency.me, old)  # type: ignore[union-attr]
+            _discard_linking(adjacency.relation, adjacency.me, old)
     object.__setattr__(old, "_pending", new._pending)
     _add_pending(old, mapping)
 
@@ -460,8 +471,7 @@ def _remove(value: _RecordData) -> None:
     """Removes a value object no longer held: the value objects it holds, and every entry linking it."""
     for held in _records(value._values.values()):
         _remove(held)
-    for relation in _store_of(value)._relations.values():  # type: ignore[union-attr]  # placed, so its owner's
-        relation.discard_target(value)
+    _discard_target(value)
 
 
 def _write_entry(visitor: Visitors.OfEntry, entry: _Entry, adjacency: Schemas.OfAdjacency.Data) -> None:
@@ -872,8 +882,8 @@ def _adder(builder: Any, name: str) -> Callable[[Any], Any]:
 def _load_entries(entries: dict[str, list[_EntryBuilder]], schema: ObjectSchema, source: Any) -> None:
     """Loads the entries linking `source` into a builder, as entry builders, so that an update rewrites them."""
     store = _store_of(source)
-    for name, adjacency in schema.adjacencies.items() if store is not None else ():
-        for entry in store._relation_data(adjacency.relation).linking(adjacency.me, source):  # type: ignore[union-attr]
+    for name, adjacency in schema.adjacencies.items():
+        for entry in _linking(adjacency.relation, adjacency.me, source):
             builder = _EntryBuilder(adjacency.relation, adjacency.me, store)
             builder._links = {link: target for link, target in entry.links.items() if link != adjacency.me}
             builder._values = dict(entry.properties)
@@ -1074,24 +1084,26 @@ class _ObjectBuilder:
     def create(self) -> _ObjectData:
         if self._source is not None:
             raise ValueError("create() is only valid without a source instance; use clone() or update()")
-        return self._made(self._write(_ObjectData(self._store, self._schema, self._schema_name)))
+        self._not_singleton("create")
+        return self._write(_ObjectData(self._store, self._schema, self._schema_name))
 
     def clone(self) -> _ObjectData:
         if self._source is None:
             raise ValueError("clone() is only valid with a source instance")
-        return self._made(self._write(_ObjectData(self._store, self._schema, self._schema_name)))
+        self._not_singleton("clone")
+        return self._write(_ObjectData(self._store, self._schema, self._schema_name))
 
     def update(self) -> _ObjectData:
         if self._source is None:
             raise ValueError("update() is only valid with a source instance")
         for adjacency in self._schema.adjacencies.values():
-            self._store._relation_data(adjacency.relation).discard_linking(adjacency.me, self._source)
+            _discard_linking(adjacency.relation, adjacency.me, self._source)
         return self._write(self._source)
 
-    def _made(self, target: _ObjectData) -> _ObjectData:
-        """Adds a new instance to its schema's extent."""
-        self._store._extents.setdefault(self._schema_name, []).append(target)
-        return target
+    def _not_singleton(self, method: str) -> None:
+        if self._schema.singleton is not None:
+            raise ValueError(f"{method}() would make a second {self._schema_name!r}; its one instance is "
+                             f"store.singleton({self._schema.singleton!r})")
 
     def _write(self, target: _ObjectData) -> _ObjectData:
         mapping: dict[int, Any] = {}
@@ -1102,10 +1114,10 @@ class _ObjectBuilder:
         target._values.clear()
         target._values.update(values)
         for name, entries in self._entries.items():
-            relation = self._store._relation_data(self._schema.adjacencies[name].relation)
+            relation = self._schema.adjacencies[name].relation
             for entry in entries:
                 entry._links = {link: mapping.get(id(t), t) for link, t in entry._links.items()}
-                relation.add(entry.build(target))
+                _add_entry(relation, entry.build(target))
         return target
 
 
@@ -1113,10 +1125,6 @@ class OfObject:
     Data = _ObjectData
     Builder = _ObjectBuilder
     Record = _RecordData
-
-
-class OfRelation:
-    Data = _RelationData
 
 
 class OfIndexed:

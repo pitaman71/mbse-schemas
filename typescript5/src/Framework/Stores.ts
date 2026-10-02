@@ -1,17 +1,21 @@
 /**
  * Stores: the root object of a body of data, through which schemas, builders and objects are located.
  *
- * A store holds schemas by name and the objects built with them. `Store` is the protocol every implementation meets;
+ * A store holds schemas by name, and its data: the instances of its singleton schemas, its roots, and every reference
+ * object reachable from them through relation entries, with the value objects those own. Anything else built with a
+ * store's builders is transient: it lives only while the program holds it. `Store` is the protocol every
+ * implementation meets;
  * `Proxies.OfStore` (dynamic instances) and `Bindings.OfStore` (a program's own classes) implement it. Everything that
  * looks a schema up by name takes a store: `Plain.ToPlain(store)`, `Plain.FromPlain(store)`, the JSON and YAML forms,
  * `Validators.Validate(store)` and `Modules`. Stores are isolated from one another; objects move between them as
  * snapshots. Selecting objects by a condition is an extension, in mbse-expressions.
  *
- * `Catalog` holds schemas by name, as every store does, with the messages every store gives; `META` names the
- * meta-schemas a store of proxies starts with.
+ * `Catalog` holds schemas by name and the roots, as every store does, with the messages every store gives, and
+ * computes extents from the roots; `META` names the meta-schemas a store of proxies starts with.
  */
 
 import { AttributeError, LookupError, ValueError } from "./Errors.js";
+import * as Reachable from "./Reachable.js";
 import { repr } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type { Visitable } from "./Visitors.js";
@@ -38,13 +42,18 @@ export interface Store {
   builder(name: string, instance?: unknown): any;
   /** The value `instance` holds in its property `name`, e.g. a value object or a union's branch. */
   member(instance: unknown, name: string): unknown;
-  /** The reference objects of the schema `name` that the store holds, in the order they were made. */
+  /** The one instance of the singleton schema whose global name is `name`; `LookupError` if there is none. */
+  singleton(name: string): Visitable;
+  /** The store's reference objects of the schema `name`: those reachable from its singletons, in first-reference
+   * order. */
   extent(name: string): readonly Visitable[];
 }
 
-/** Schemas by name: `register`, `schema`, `registered`, `name_of` and `names`, as every store has them. */
+/** Schemas by name: `register`, `schema`, `registered`, `name_of` and `names`, as every store has them; the roots, by
+ * global name (`singleton`), which an implementation fills; and `extent`, the reference objects reachable from them. */
 export class Catalog {
   readonly _schemas = new Map<string, ObjectSchema | RelationSchema>();
+  readonly _singletons = new Map<string, Visitable>();
 
   /** Registers a schema under `name`, which need not be a valid identifier. */
   register(name: string, schema: ObjectSchema | RelationSchema): void {
@@ -72,6 +81,27 @@ export class Catalog {
 
   names(): readonly string[] {
     return [...this._schemas.keys()];
+  }
+
+  singleton(name: string): Visitable {
+    const found = this._singletons.get(name);
+    if (found === undefined) throw new LookupError(`no singleton named ${repr(name)}`);
+    return found;
+  }
+
+  extent(name: string): readonly Visitable[] {
+    this.schema(name);
+    const seen = new Set<unknown>();
+    const found: Visitable[] = [];
+    for (const root of this._singletons.values()) {
+      for (const value of Reachable.of(root)) {
+        if (!seen.has(value.identity())) {
+          seen.add(value.identity());
+          if (value.schema_name() === name) found.push(value);
+        }
+      }
+    }
+    return found;
   }
 
   /** The names of the object schemas that declare an adjacency to `relation` via `link`. */

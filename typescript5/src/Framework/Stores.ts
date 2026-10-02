@@ -11,7 +11,7 @@
  * snapshots. Selecting objects by a condition is an extension, in mbse-expressions.
  *
  * `Catalog` holds schemas by name and the roots, as every store does, with the messages every store gives, and
- * computes extents from the roots; `META` names the meta-schemas a store of proxies starts with.
+ * computes extents from the roots; `META` holds the meta-schemas a store of proxies starts with.
  */
 
 import { AttributeError, LookupError, ValueError } from "./Errors.js";
@@ -23,8 +23,8 @@ import type { Visitable } from "./Visitors.js";
 type ObjectSchema = Schemas.OfObject.Data;
 type RelationSchema = Schemas.OfRelation.Data;
 
-/** The meta-schemas a store of proxies starts with, by name, so that it can hold modules of schemas. */
-export const META: ReadonlyMap<string, ObjectSchema> = new Map([["Schemas.Module", Schemas.Module.Schema]]);
+/** The meta-schemas a store of proxies starts with, each under its name, so that it can hold modules of schemas. */
+export const META: readonly ObjectSchema[] = [Schemas.Module.Schema];
 
 /** A store: schemas by name, builders, and the objects it holds. */
 export interface Store {
@@ -55,8 +55,10 @@ export class Catalog {
   readonly _schemas = new Map<string, ObjectSchema | RelationSchema>();
   readonly _singletons = new Map<string, Visitable>();
 
-  /** Registers a schema under `name`, which need not be a valid identifier. */
-  register(name: string, schema: ObjectSchema | RelationSchema): void {
+  /** Registers a schema under its name. */
+  register(schema: ObjectSchema | RelationSchema): void {
+    const name = schema.name;
+    if (name === null) throw new ValueError("a schema needs a name to be registered; name it with its builder's .name()");
     if (this._schemas.has(name)) throw new ValueError(`schema ${repr(name)} is already registered`);
     this._schemas.set(name, schema);
   }

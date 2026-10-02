@@ -11,7 +11,7 @@ store = Proxies.OfStore()
 # --- Schemas ---
 
 Person = (
-    Schemas.OfObject.Builder().ref()
+    Schemas.OfObject.Builder().name('Person').ref()
     .properties(
         lambda prop: prop.name('given_name').of(lambda t: t.as_native(str)),
         lambda prop: prop.name('family_name').of(lambda t: t.as_native(str)),
@@ -22,13 +22,13 @@ Person = (
 
 # Both links of these relations are filled by Person objects.
 Parentage = (
-    Schemas.OfRelation.Builder()
+    Schemas.OfRelation.Builder().name('Parentage')
     .links('parent', 'child')
     .properties(lambda prop: prop.name('kind').of(lambda t: t.as_native(str)))  # 'biological', 'adoptive'
     .create()
 )
 
-Mentorship = Schemas.OfRelation.Builder().links('mentor', 'mentee').create()
+Mentorship = Schemas.OfRelation.Builder().name('Mentorship').links('mentor', 'mentee').create()
 
 Person = (
     Schemas.OfObject.Builder(Person)
@@ -42,9 +42,9 @@ Person = (
 )
 assert Person.validate() == [] and Parentage.validate() == [] and Mentorship.validate() == []
 
-store.register('Person', Person)
-store.register('Parentage', Parentage)
-store.register('Mentorship', Mentorship)
+store.register(Person)
+store.register(Parentage)
+store.register(Mentorship)
 
 
 def kinds(obj, adjacency):

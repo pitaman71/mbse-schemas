@@ -1,19 +1,19 @@
 """Modules: schemas as data.
 
-A module is a named set of schemas, held by an object of the meta-schema `Schemas.Module.Schema`, which every proxy
-store registers as 'Schemas.Module'. `module(store, schemas)` returns such an object, built in `store`, for schemas
-given by name, and `schemas(store, module)` the schemas a module holds, so that schemas are written, read, validated
-and compared like any other objects:
+A module is a set of named schemas, held by an object of the meta-schema `Schemas.Module.Schema`, which every proxy
+store registers as 'Schemas.Module'. `module(store, schemas)` returns such an object, built in `store`, and
+`schemas(store, module)` the schemas a module holds, by name, so that schemas are written, read, validated and compared
+like any other objects:
 
-    text = JSON.ToJSON(store)(Schemas.Module.Schema, Modules.module(store, {"Contact": Contact, "Phone": Phone}))
+    text = JSON.ToJSON(store)(Schemas.Module.Schema, Modules.module(store, [Contact, Phone]))
     schemas = Modules.schemas(store, JSON.FromJSON(store)(Schemas.Module.Schema, text))
 
-Within a module, each schema is written inline, as a value object of its kind, and refers to another schema by name
-when that one is in the module or registered in the store, so shared and recursive schemas are written once. A name
-resolves within the module, then in the store. A schema that refers to itself must be named.
+Within a module, each schema is an entry, its name and its definition, inline, as a value object of its kind. A schema
+refers to a named schema by its name, so shared and recursive schemas are written once, and writes an unnamed one
+inline. A name resolves within the module, then in the store. A schema that refers to itself must be named.
 
-`reference(store, schema)` and `resolve(store, definition)` translate one type the same way, for data that refers to a
-schema as a module's members do (by name when the store registers it, else inline), e.g. the symbols of a predicate.
+`reference(schema)` and `resolve(store, definition)` translate one type the same way, for data that refers to schemas
+as a module's members do, e.g. the symbols of a predicate.
 
 The translation goes through plain data, the form `Plain`, `JSON` and `YAML` share: `module` decodes the plain form of
 the schemas in the store, and `schemas` reads the plain form of the module.
@@ -21,7 +21,7 @@ the schemas in the store, and `schemas` reads the plain form of the module.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable
 from typing import Any
 
 from . import Plain, Schemas, Stores
@@ -34,10 +34,14 @@ Definition = dict[str, Any]
 """A schema's plain form: a mapping from its kind to its contents, e.g. `{"native": {"format": "basic", ...}}`."""
 
 
-def module(store: Stores.Store, schemas: Mapping[str, Any]) -> Any:
-    """A module holding `schemas`, by name, built in `store`."""
-    writer = _Writer(store, {id(schema): name for name, schema in schemas.items()})
-    entries = [{"name": name, "schema": writer.definition(schema)} for name, schema in schemas.items()]
+def module(store: Stores.Store, schemas: Iterable[Any]) -> Any:
+    """A module holding `schemas`, each under its name, built in `store`."""
+    schemas = list(schemas)
+    unnamed = [schema for schema in schemas if getattr(schema, "name", None) is None]
+    if unnamed:
+        raise ValueError("a module holds named schemas; name each with its builder's .name()")
+    writer = _Writer()
+    entries = [{"name": schema.name, "schema": writer.definition(schema)} for schema in schemas]
     return Plain.FromPlain(store)(Schemas.Module.Schema, {"root": "s0", "objects": {"s0": {"schemas": entries}}})
 
 
@@ -48,10 +52,10 @@ def schemas(store: Stores.Store, module: Any) -> dict[str, Any]:
     return _Reader(store, entries).read()
 
 
-def reference(store: Stores.Store, schema: Any) -> Definition:
-    """The plain form of a type (`Schemas.OfAny.Schema`'s): `{"named": {"name": ...}}` when `store` registers `schema`,
-    else the schema inline."""
-    return _Writer(store, {}).reference(schema)
+def reference(schema: Any) -> Definition:
+    """The plain form of a type (`Schemas.OfAny.Schema`'s): `{"named": {"name": ...}}` for a named schema, else the
+    schema inline."""
+    return _Writer().reference(schema)
 
 
 def resolve(store: Stores.Store, definition: Definition) -> Any:
@@ -63,29 +67,20 @@ def resolve(store: Stores.Store, definition: Definition) -> Any:
 
 
 class _Writer:
-    """Writes schemas as plain data, naming those in the module (`names`, by identity) and those in the store."""
+    """Writes schemas as plain data, referring to named schemas by name."""
 
-    def __init__(self, store: Stores.Store, names: dict[int, str]):
-        self._store, self._names = store, names
+    def __init__(self) -> None:
         self._inline: set[int] = set()  # the schemas being written inline, to refuse one that refers to itself
-
-    def _name(self, schema: Any) -> str | None:
-        if id(schema) in self._names:
-            return self._names[id(schema)]
-        try:
-            return self._store.name_of(schema)
-        except LookupError:
-            return None
 
     def reference(self, schema: Any) -> Definition:
         """A type or a relation, by name if it has one, else inline."""
-        name = self._name(schema)
+        name = getattr(schema, "name", None)
         return {"named": {"name": name}} if name is not None else self.definition(schema)
 
     def definition(self, schema: Any) -> Definition:
         """A schema written inline."""
         if id(schema) in self._inline:
-            raise ValueError("a schema that refers to itself must be named, in the module or the store")
+            raise ValueError("a schema that refers to itself must be named")
         self._inline.add(id(schema))
         try:
             return self._contents(schema)
@@ -153,6 +148,7 @@ class _Reader:
             if entry["name"] in self._defined:
                 raise ValueError(f"the module defines {entry['name']!r} twice")
             self._defined[entry["name"]] = _BLANK[_contents_of(entry["schema"])[0]]()
+            self._defined[entry["name"]].name = entry["name"]
         for entry in self._entries:
             self._fill(self._defined[entry["name"]], entry["schema"])
         return dict(self._defined)

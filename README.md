@@ -28,21 +28,22 @@ from `mbse.Schemas.Framework`, TypeScript from `@mbse/schemas/Framework`.
 ```python
 from mbse.Schemas.Framework import JSON, Proxies, Schemas, Validators
 
-Contact = Schemas.OfObject.Builder().ref().properties(lambda p: p.name('name').of(lambda t: t.as_native(str))).create()
-Address = Schemas.OfObject.Builder().ref().properties(lambda p: p.name('street').of(lambda t: t.as_native(str))).create()
+Contact = Schemas.OfObject.Builder().name('Contact').ref().properties(lambda p: p.name('name').of(lambda t: t.as_native(str))).create()
+Address = Schemas.OfObject.Builder().name('Address').ref().properties(lambda p: p.name('street').of(lambda t: t.as_native(str))).create()
 
 # Collections are relations: entries link objects and carry their own properties.
 ContactAddresses = (
     Schemas.OfRelation.Builder()
+    .name('ContactAddresses')
     .links('contact', 'address')
     .properties(lambda p: p.name('label').of(lambda t: t.as_native(str)))
     .create()
 )
 Schemas.OfObject.Builder(Contact).relations(lambda adj: adj.name('addresses').of(ContactAddresses).me('contact')).update()
 Schemas.OfObject.Builder(Address).relations(lambda adj: adj.name('residents').of(ContactAddresses).me('address')).update()
-store = Proxies.OfStore()  # holds schemas by name; the objects built with them belong to it
-for name, schema in [('Contact', Contact), ('Address', Address), ('ContactAddresses', ContactAddresses)]:
-    store.register(name, schema)
+store = Proxies.OfStore()  # holds named schemas; the objects built with them belong to it
+for schema in [Contact, Address, ContactAddresses]:
+    store.register(schema)
 
 alice = (
     store.Contact()

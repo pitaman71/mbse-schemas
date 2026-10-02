@@ -18,22 +18,22 @@ def native(name, type_):
 Signal = S.OfObject.Builder().properties(native("width", int), native("unit", str)).create()
 
 # Things with identity: object schemas.
-Component = S.OfObject.Builder().ref().properties(native("name", str)).create()
-Port = S.OfObject.Builder().ref().properties(native("name", str), lambda p: p.name("signal").of(Signal)).create()
+Component = S.OfObject.Builder().name("Component").ref().properties(native("name", str)).create()
+Port = S.OfObject.Builder().name("Port").ref().properties(native("name", str), lambda p: p.name("signal").of(Signal)).create()
 
 # Every collection is a relation. unique("owner"): entries that agree on the port agree on the owner.
-Ownership = S.OfRelation.Builder().links("owner", "port").unique("owner").create()
-Wire = S.OfRelation.Builder().links("source", "target").properties(native("label", str)).create()
+Ownership = S.OfRelation.Builder().name("Ownership").links("owner", "port").unique("owner").create()
+Wire = S.OfRelation.Builder().name("Wire").links("source", "target").properties(native("label", str)).create()
 
 # Each object sees a relation through one of its links (an adjacency).
 S.OfObject.Builder(Component).relations(lambda r: r.name("ports").of(Ownership).me("owner")).update()
 S.OfObject.Builder(Port).relations(lambda r: r.name("owner").of(Ownership).me("port"),
                                    lambda r: r.name("fanout").of(Wire).me("source"),
                                    lambda r: r.name("fanin").of(Wire).me("target")).update()
-# A store holds the schemas by name; the objects built with them belong to it.
+# A store holds named schemas, each under its own name; the objects built with them belong to it.
 store = Proxies.OfStore()
-for name, schema in [("Component", Component), ("Port", Port), ("Ownership", Ownership), ("Wire", Wire)]:
-    store.register(name, schema)
+for schema in [Component, Port, Ownership, Wire]:
+    store.register(schema)
 B = store
 
 irq = B.Port().name("irq").signal(lambda s: s.width(1).unit("bit")).create()
@@ -63,9 +63,10 @@ S.OfIndexed.Builder().of(spec).create()                     # a list; in a prope
 S.OfIndexed.Builder().key(spec).of(spec).create()           # a keyed list (a native or value object key); .extent(1, 9) bounds a positional one
 schema.validate()                                           # the schema's own problems, [] when valid
 
-# A store: register object and relation schemas, then build through it. Stores are isolated; objects move between them
-# as snapshots.
-store = Proxies.OfStore(); store.register("Name", schema); B = store
+S.OfObject.Builder().name("crm.Contact")                    # a name, identifiers separated by dots, on any kind of schema
+# A store: register named object and relation schemas, then build through it. Stores are isolated; objects move between
+# them as snapshots.
+store = Proxies.OfStore(); store.register(schema); B = store  # under schema.name; an unnamed schema is refused
 store.extent("Name"); store.singleton("Global")             # a schema's objects its singletons reach; a singleton
 Proxies.store_of(obj)                                       # the store a proxy belongs to
 B.Name().prop(value).value_prop(lambda r: r.x(1)).adjacency_name(lambda e: e.link(obj).entry_prop(v)).create()
@@ -79,7 +80,7 @@ B.Name().attrs({"gain": 1.5}).cells([(lambda c: c.r(1).c(2), 7)])   # keyed list
 B.Name(obj).property("p", lambda p: ...).adjacency("a", lambda a: a.entries(...))  # visitor protocol, any name
 
 # Schemas as data: a module holds schemas by name, as an object of S.Module.Schema.
-Modules.module(store, {"Contact": Contact}); Modules.schemas(store, module)   # schemas to a module, and back
+Modules.module(store, [Contact]); Modules.schemas(store, module)   # named schemas to a module, and back (by name)
 
 # Everything else works for any schema.
 Reachable.of(root)                                          # root and everything reachable, in first-reference order
@@ -92,7 +93,7 @@ Comparison.OfObject(schema, a).compare(Comparison.OfObject(schema, b))   # -1, 0
 # Dataclasses: native fields are properties, lists of natives are lists; set/list/dict of dataclasses are relations.
 # Defaults, mandatoriness and nesting are not translated.
 from mbse.Schemas.Adapters.Dataclasses import FromDataclass, ToDataclass
-FromDataclass.model(Contact)       # {"Contact": ..., "Address": ..., "ContactAddresses": ...}, ready to register
+FromDataclass.model(Contact)       # {"Contact": ..., "Address": ..., "ContactAddresses": ...}, named, ready to register
 ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromDataclass(cls), ToDataclass(schema, name)
 ```
 
@@ -101,8 +102,9 @@ ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromD
 - `True` is not an `int`, and `1.0` is not an `int`. Validation reports `expected int, got bool`.
 - Entry properties hold natives, lists and value objects without adjacencies. Link an object for anything richer.
 - Setting a value object into a property or a list copies it. Edit one in place through a Spec instead.
-- Each store has its own schemas: registering a name twice in one store raises `ValueError`, and an object of one
-  store cannot be linked from another.
+- A schema's name is its own (`.name("crm.Contact")`), the same in every store that registers it. Registering an
+  unnamed schema, or a name twice in one store, raises `ValueError`, and an object of one store cannot be linked from
+  another.
 - Reading a relation's entries goes through a builder's visitor: see `entries` in
   [tutorials/toolkit.py](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/toolkit.py), and
   tutorial 3 for removing entries and for what `update()` replaces.

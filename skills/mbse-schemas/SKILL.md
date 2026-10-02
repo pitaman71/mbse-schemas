@@ -35,8 +35,9 @@ simpler.
 6. **Native types are exact, never coerced.** `int`, `float`, `bool`, `str` and `bytes` are distinct. In TypeScript,
    `int` is `bigint`.
 7. **Objects are read-only.** Change them through a builder that ends with `create()`, `clone()` or `update()`.
-8. **Everything lives in a store.** `store = Proxies.OfStore()` holds schemas by name, and as data what its
-   singletons reach: `store.register(name, schema)`, then `store.<Name>(...)`. Serializers and validators take the store
+8. **Everything lives in a store.** `store = Proxies.OfStore()` holds named schemas, and as data what its
+   singletons reach: `store.register(schema)` (a schema named by its builder's `.name("crm.Contact")`), then
+   `store.<Name>(...)`. Serializers and validators take the store
    (`JSON.ToJSON(store)`, `Validators.Validate(store)`). Stores are isolated; objects move between them as snapshots.
 
 ## Load the reference for your task

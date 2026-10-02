@@ -6,6 +6,10 @@ take an optional source instance, keep shallow copies of its data, are fluent, a
 callable that takes and returns the corresponding builder.
 
 `validate()` on each `Data` returns a list of problems and runs only when the caller asks.
+
+Every kind of schema may have a `name`, set by its builder's `.name('crm.Contact')`: identifiers separated by dots, the
+part before the last dot its namespace. A named schema is referred to by its name wherever it is written (a module, a
+predicate's symbols), and a store registers it under that name; an unnamed one is written inline.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ import binascii
 import copy
 import dataclasses
 import math
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar
@@ -80,6 +85,25 @@ class _Builder(Generic[D]):
         return self._source
 
 
+class _NamedBuilder(_Builder[D]):
+    """A builder of a kind of schema, which may be named."""
+
+    def name(self, name: str) -> Any:
+        """The schema's name: identifiers separated by dots, e.g. `'crm.Contact'`."""
+        self._fields["name"] = name
+        return self
+
+
+_DOTTED = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*\Z")
+
+
+def _name_problems(name: Any) -> list[str]:
+    """A schema's name, when it has one, is identifiers separated by dots."""
+    if name is None or (isinstance(name, str) and _DOTTED.match(name)):
+        return []
+    return [f"name {name!r} is not identifiers separated by dots, e.g. 'crm.Contact'"]
+
+
 def _reserved(names: Any) -> list[str]:
     """Problems with names that start with `$`, which the wire format keeps for its own markers (`$ref`, `$schema`,
     `$id`)."""
@@ -132,10 +156,11 @@ class _NativeData:
     token: Any
     bits: int | None
     bytes: int | None
+    name: str | None
 
-    def __init__(self, token: Any = None, bits: int | None = None, bytes: int | None = None):
+    def __init__(self, token: Any = None, bits: int | None = None, bytes: int | None = None, name: str | None = None):
         self.token = _Token(BASIC, _BASIC_NAMES[token]) if isinstance(token, type) and token in _BASIC_NAMES else token
-        self.bits, self.bytes = bits, bytes
+        self.bits, self.bytes, self.name = bits, bytes, name
 
     @property
     def type(self) -> type[Native] | None:
@@ -149,7 +174,7 @@ class _NativeData:
         return self.type
 
     def validate(self) -> list[str]:
-        problems = []
+        problems = _name_problems(self.name)
         if not isinstance(self.token, _Token):
             problems.append(f"unsupported native type {self.token!r}")
         elif not (isinstance(self.token.format, str) and self.token.format and isinstance(self.token.name, str)
@@ -226,7 +251,7 @@ class _NativeData:
 _NON_FINITE = {"NaN": math.nan, "Infinity": math.inf, "-Infinity": -math.inf}
 
 
-class _NativeBuilder(_Builder[_NativeData]):
+class _NativeBuilder(_NamedBuilder[_NativeData]):
     _data = _NativeData
 
     def type(self, native: type[Native]) -> _NativeBuilder:
@@ -305,9 +330,10 @@ class _RelationData:
     links: tuple[str, ...] = ()
     properties: dict[str, Any] = field(default_factory=dict)  # name -> OfAny.Data
     uniques: tuple[frozenset[str], ...] = ()
+    name: str | None = None
 
     def validate(self) -> list[str]:
-        problems = _reserved([*self.links, *self.properties])
+        problems = _name_problems(self.name) + _reserved([*self.links, *self.properties])
         if len(self.links) < 2:
             problems.append("a relation needs at least two links; a one-link relation merges a relation and an object")
         if len(set(self.links)) != len(self.links):
@@ -337,7 +363,7 @@ def _entry_value_problems(schema: Any, held: str = "held by an entry", seen: fro
     return sorted({problem for member in _members_of(schema) for problem in _entry_value_problems(member, held, inner)})
 
 
-class _RelationBuilder(_Builder[_RelationData]):
+class _RelationBuilder(_NamedBuilder[_RelationData]):
     _data = _RelationData
 
     def links(self, *names: str) -> _RelationBuilder:
@@ -423,6 +449,7 @@ class _ObjectData:
     adjacencies: dict[str, _AdjacencyData] = field(default_factory=dict)
     singleton: str | None = None
     ref: bool = False  # a reference object schema; otherwise a value object schema
+    name: str | None = None
 
     def validate(self) -> list[str]:
         """The schema's problems. A value object schema may hold itself, through a list: its problems are reported once,
@@ -436,7 +463,7 @@ class _ObjectData:
             _VALIDATING.discard(id(self))
 
     def _problems(self) -> list[str]:
-        problems = _reserved([*self.properties, *self.adjacencies])
+        problems = _name_problems(self.name) + _reserved([*self.properties, *self.adjacencies])
         if self.singleton is not None and not self.ref:
             problems.append("a singleton's schema must be a reference object schema")
         clashes = set(self.properties) & set(self.adjacencies)
@@ -449,7 +476,7 @@ class _ObjectData:
         return problems
 
 
-class _ObjectBuilder(_Builder[_ObjectData]):
+class _ObjectBuilder(_NamedBuilder[_ObjectData]):
     _data = _ObjectData
 
     def properties(self, *specs: OfProperty.Spec) -> _ObjectBuilder:
@@ -535,6 +562,7 @@ def _members(specs: tuple[Callable[[_MemberBuilder], _MemberBuilder], ...]) -> t
 @dataclass(eq=False)
 class _UnionData:
     branches: tuple[_MemberData, ...] = ()
+    name: str | None = None
 
     @property
     def properties(self) -> dict[str, Any]:
@@ -542,10 +570,10 @@ class _UnionData:
         return {branch.name: branch.type for branch in self.branches}
 
     def validate(self) -> list[str]:
-        return _member_problems("a union", "branch", "branches", self.branches)
+        return _name_problems(self.name) + _member_problems("a union", "branch", "branches", self.branches)
 
 
-class _UnionBuilder(_Builder[_UnionData]):
+class _UnionBuilder(_NamedBuilder[_UnionData]):
     _data = _UnionData
 
     def branches(self, *specs: Callable[[_MemberBuilder], _MemberBuilder]) -> _UnionBuilder:
@@ -568,6 +596,7 @@ class OfUnion:
 @dataclass(eq=False)
 class _IntersectionData:
     parts: tuple[_MemberData, ...] = ()
+    name: str | None = None
 
     @property
     def properties(self) -> dict[str, Any]:
@@ -575,10 +604,10 @@ class _IntersectionData:
         return {part.name: part.type for part in self.parts}
 
     def validate(self) -> list[str]:
-        return _member_problems("an intersection", "part", "parts", self.parts)
+        return _name_problems(self.name) + _member_problems("an intersection", "part", "parts", self.parts)
 
 
-class _IntersectionBuilder(_Builder[_IntersectionData]):
+class _IntersectionBuilder(_NamedBuilder[_IntersectionData]):
     _data = _IntersectionData
 
     def parts(self, *specs: Callable[[_MemberBuilder], _MemberBuilder]) -> _IntersectionBuilder:
@@ -618,6 +647,7 @@ class _IndexedData:
     item: Any = None  # OfAny.Data
     key: Any = None  # OfAny.Data, or None for a positional list
     extent: _Extent | None = None
+    name: str | None = None
 
     @property
     def positional(self) -> bool:
@@ -637,7 +667,7 @@ class _IndexedData:
         return extent.maximum - extent.minimum + 1
 
     def validate(self) -> list[str]:
-        problems = [f"item: {problem}" for problem in _validate(self.item)]
+        problems = _name_problems(self.name) + [f"item: {problem}" for problem in _validate(self.item)]
         if self.key is not None:
             key = _validate(self.key) + _embedded_problems(self.key, role="a key")
             problems += [f"key: {problem}" for problem in key + _entry_value_problems(self.key, "in a key")]
@@ -654,7 +684,7 @@ class _IndexedData:
         return problems
 
 
-class _IndexedBuilder(_Builder[_IndexedData]):
+class _IndexedBuilder(_NamedBuilder[_IndexedData]):
     _data = _IndexedData
 
     def of(self, spec: OfAny.Spec) -> _IndexedBuilder:
@@ -848,6 +878,7 @@ class Module:
     list of `Module.Entry` value objects, each a `name` and a `schema`, a `Module.Definition` (a schema of any kind,
     relations included). See `Modules` for the translation between schemas and modules."""
 
-    Schema = OfObject.Builder().ref().properties(lambda p: p.name("schemas").of(_list_of(_Entry))).create()
+    Schema = OfObject.Builder().name("Schemas.Module").ref().properties(
+        lambda p: p.name("schemas").of(_list_of(_Entry))).create()
     Entry = _Entry
     Definition = _Definition

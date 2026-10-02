@@ -13,7 +13,7 @@ const store = new Proxies.OfStore();
 
 // --- Schemas ---
 
-const Sample = new Schemas.OfObject.Builder().ref()
+const Sample = new Schemas.OfObject.Builder().name("Sample").ref()
   .properties(
     (prop) => prop.name("label").of((t) => t.as_native(String)),
     (prop) => prop.name("payload").of((t) => t.as_native(Uint8Array)),
@@ -23,26 +23,26 @@ const Sample = new Schemas.OfObject.Builder().ref()
   )
   .create();
 
-let Currency = new Schemas.OfObject.Builder().ref()
+let Currency = new Schemas.OfObject.Builder().name("iso4217.Currency").ref()
   .properties(
     (prop) => prop.name("code").of((t) => t.as_native(String)), // ISO 4217 alpha, e.g. 'JPY'
     (prop) => prop.name("numeric").of((t) => t.as_native(String)), // ISO 4217 numeric, e.g. '392'; keeps zeros
     (prop) => prop.name("minor_units").of((t) => t.as_native(BigInt)), // 0 for JPY, 2 for EUR, 3 for BHD
   )
   .create();
-let Product = new Schemas.OfObject.Builder().ref().properties((prop) => prop.name("sku").of((t) => t.as_native(String))).create();
-let Money = new Schemas.OfObject.Builder().ref()
+let Product = new Schemas.OfObject.Builder().name("Product").ref().properties((prop) => prop.name("sku").of((t) => t.as_native(String))).create();
+let Money = new Schemas.OfObject.Builder().name("Money").ref()
   .properties((prop) => prop.name("amount").of((t) => t.as_native(BigInt))) // in minor units
   .create();
 
 // product -> [currency] -> money
-const Prices = new Schemas.OfRelation.Builder()
+const Prices = new Schemas.OfRelation.Builder().name("Prices")
   .links("product", "price")
   .properties((prop) => prop.name("currency").of((t) => t.as_native(String)))
   .unique("price")
   .create();
 // Which currency a money amount is in.
-const Denomination = new Schemas.OfRelation.Builder().links("money", "currency").unique("currency").create();
+const Denomination = new Schemas.OfRelation.Builder().name("Denomination").links("money", "currency").unique("currency").create();
 
 Product = new Schemas.OfObject.Builder(Product).relations((adj) => adj.name("prices").of(Prices).me("product")).update();
 Money = new Schemas.OfObject.Builder(Money)
@@ -54,10 +54,9 @@ Money = new Schemas.OfObject.Builder(Money)
 Currency = new Schemas.OfObject.Builder(Currency).relations((adj) => adj.name("amounts").of(Denomination).me("currency")).update();
 
 // Registered names are strings and need not be identifiers.
-for (const [name, schema] of [["Sample", Sample], ["iso4217.Currency", Currency], ["Product", Product], ["Money", Money],
-  ["Prices", Prices], ["Denomination", Denomination]] as const) {
-  assert(schema.validate().length === 0, `${name}: ${schema.validate()}`);
-  store.register(name, schema);
+for (const schema of [Sample, Currency, Product, Money, Prices, Denomination]) {
+  assert(schema.validate().length === 0, `${schema.name}: ${schema.validate()}`);
+  store.register(schema);
 }
 const bytes = (...values: number[]) => new Uint8Array(values);
 const repeat = (b: Uint8Array, n: number) => new Uint8Array(Array.from({ length: n }, () => [...b]).flat());
@@ -190,7 +189,7 @@ raises(TypeError, () => Plain.ToPlain(store)(Currency, widget));
 
 // --- Store corner cases ---
 
-raises(ValueError, () => store.register("Sample", Sample)); // names are registered once
+raises(ValueError, () => store.register(Sample)); // names are registered once
 raises(AttributeError, () => store.Unregistered());
 raises(TypeError, () => store.Prices()); // no relation builder is exposed
 raises(TypeError, () => store.Product(jpy)); // the source instance must have the builder's schema
@@ -200,7 +199,8 @@ raises(AttributeError, () => {
 });
 
 // A schema registered as 'schema' is shadowed by the store's schema() method, but still reachable by name.
-store.register("schema", Sample);
-assert(store.schema("schema") === Sample && store.builder("schema").create().schema_name() === "schema");
+const Shadowed = new Schemas.OfObject.Builder(Sample).name("schema").clone(); // a schema named like a store method
+store.register(Shadowed);
+assert(store.schema("schema") === Shadowed && store.builder("schema").create().schema_name() === "schema");
 
 console.log("Serialization: all checks passed");

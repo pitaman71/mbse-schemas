@@ -2,10 +2,10 @@
  * Proxies: the dynamic implementation.
  *
  * Programs using proxies skip code generation. A store, `new OfStore()`, holds schemas and the proxies built with them
- * (see `Stores`): `store.register(name, schema)` makes a schema available, and `store.<Name>(optional instance)` (or
- * `store.builder(name, instance)`) returns a builder for it. Instances (`Proxies.OfObject.Data`) are `Visitable`, not
- * visitors: they expose their properties as read-only attributes and write themselves into a visitor on `accept`.
- * Builders (`Proxies.OfObject.Builder`) implement `Visitors.OfObject`, like every builder.
+ * (see `Stores`): `store.register(schema)` makes a schema available, under its name, and `store.<Name>(optional
+ * instance)` (or `store.builder(name, instance)`) returns a builder for it. Instances (`Proxies.OfObject.Data`) are
+ * `Visitable`, not visitors: they expose their properties as read-only attributes and write themselves into a visitor
+ * on `accept`. Builders (`Proxies.OfObject.Builder`) implement `Visitors.OfObject`, like every builder.
  *
  * Attribute lookup follows Python's: the builder's or instance's own methods first, then schema names. Reading an
  * unknown name throws `AttributeError`, except JavaScript's own protocol probes (`then`, `toJSON`, `constructor`,
@@ -82,7 +82,7 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
 
   constructor() {
     super();
-    for (const [name, schema] of Stores.META) this.register(name, schema);
+    for (const schema of Stores.META) this.register(schema);
     return new Proxy(this, {
       get(t, prop, receiver) {
         if (typeof prop === "symbol" || prop in t || STORE_MEMBERS.has(prop)) return Reflect.get(t, prop, receiver);
@@ -95,13 +95,13 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
   }
 
   /** Registers a schema under `name`; a singleton schema's instance is created with it. */
-  override register(name: string, schema: ObjectSchema | RelationSchema): void {
+  override register(schema: ObjectSchema | RelationSchema): void {
     const globalName = schema instanceof Schemas.OfObject.Data ? schema.singleton : null;
     if (globalName !== null && this._singletons.has(globalName)) {
       throw new ValueError(`singleton ${repr(globalName)} is already registered`);
     }
-    super.register(name, schema);
-    if (globalName !== null) this._singletons.set(globalName, makeInstance(this, schema as ObjectSchema, name));
+    super.register(schema);
+    if (globalName !== null) this._singletons.set(globalName, makeInstance(this, schema as ObjectSchema, schema.name as string));
   }
 
   /** A builder for the object schema `name`; typed loosely, as the store's DSL is. */

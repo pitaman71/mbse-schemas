@@ -18,23 +18,21 @@ const native = (name: string, type: S.OfNative.Spec) => (p: S.OfProperty.Builder
 const Signal = new S.OfObject.Builder().properties(native("width", BigInt), native("unit", String)).create();
 
 // Things with identity: object schemas.
-const Component = new S.OfObject.Builder().ref().properties(native("name", String)).create();
-const Port = new S.OfObject.Builder().ref().properties(native("name", String), (p) => p.name("signal").of(Signal)).create();
+const Component = new S.OfObject.Builder().name("Component").ref().properties(native("name", String)).create();
+const Port = new S.OfObject.Builder().name("Port").ref().properties(native("name", String), (p) => p.name("signal").of(Signal)).create();
 
 // Every collection is a relation. unique("owner"): entries that agree on the port agree on the owner.
-const Ownership = new S.OfRelation.Builder().links("owner", "port").unique("owner").create();
-const Wire = new S.OfRelation.Builder().links("source", "target").properties(native("label", String)).create();
+const Ownership = new S.OfRelation.Builder().name("Ownership").links("owner", "port").unique("owner").create();
+const Wire = new S.OfRelation.Builder().name("Wire").links("source", "target").properties(native("label", String)).create();
 
 // Each object sees a relation through one of its links (an adjacency).
 new S.OfObject.Builder(Component).relations((r) => r.name("ports").of(Ownership).me("owner")).update();
 new S.OfObject.Builder(Port).relations((r) => r.name("owner").of(Ownership).me("port"),
   (r) => r.name("fanout").of(Wire).me("source"),
   (r) => r.name("fanin").of(Wire).me("target")).update();
-// A store holds the schemas by name; the objects built with them belong to it.
+// A store holds named schemas, each under its own name; the objects built with them belong to it.
 const store = new Proxies.OfStore();
-for (const [name, schema] of [["Component", Component], ["Port", Port], ["Ownership", Ownership], ["Wire", Wire]] as const) {
-  store.register(name, schema);
-}
+for (const schema of [Component, Port, Ownership, Wire]) store.register(schema);
 const B = store;
 
 const irq = B.Port().name("irq").signal((s: any) => s.width(1n).unit("bit")).create();
@@ -72,7 +70,8 @@ new S.OfUnion.Builder().branches((b) => b.name("phone").of(spec), ...).create();
 new S.OfIntersection.Builder().parts((p) => p.name("stamp").of(spec), ...).create();
 new S.OfIndexed.Builder().of(spec).create();              // a list; in a property: (t) => t.as_indexed((i) => i.of(spec))
 new S.OfIndexed.Builder().key(spec).of(spec).extent({ minimum: 1n }).create(); // key: keyed; extent: bounds a positional list
-const store = new Proxies.OfStore(); store.register("Name", schema); const B = store;   // stores are isolated
+new S.OfObject.Builder().name("crm.Contact");                     // a name, identifiers separated by dots, on any kind
+const store = new Proxies.OfStore(); store.register(schema); const B = store;   // under schema.name; stores are isolated
 store.extent("Name"); store.singleton("Global");           // a schema's objects its singletons reach; a singleton
 Proxies.store_of(obj);                                     // the store a proxy belongs to
 B.Name().prop(value).adjacencyName((e: any) => e.link(obj).entryProp(v)).create();
@@ -82,7 +81,7 @@ B.Name().attrs(new Map([["gain", 1.5]])).create();          // a keyed list; obj
 JSON.ToJSON(store).Reachable(schema, root); JSON.FromJSON(store).Reachable(schema, text);
 Validators.Validate(store)(schema, obj); Validators.Validate(store).Reachable(schema, root);
 new Comparison.OfObject(schema, a).compare(new Comparison.OfObject(schema, b));   // -1, 0, 1 or null
-Modules.module(store, { Contact }); Modules.schemas(store, module);   // schemas to a module (a Map or a record), and back
+Modules.module(store, [Contact]); Modules.schemas(store, module);   // named schemas to a module, and back (a Map, by name)
 ```
 
 ## Go deeper

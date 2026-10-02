@@ -33,13 +33,13 @@ and TypeScript write byte-identical JSON, and each reads the other's.
 A module is an object holding schemas by name, so schemas save, load, validate and compare like any data:
 
 ```python fragment
-text = JSON.ToJSON(store)(S.Module.Schema, Modules.module(store, {"Contact": Contact, "Phone": Phone}))
+text = JSON.ToJSON(store)(S.Module.Schema, Modules.module(store, [Contact, Phone]))
 schemas = Modules.schemas(store, JSON.FromJSON(store)(S.Module.Schema, text))   # {"Contact": ..., "Phone": ...}
 ```
 
-Each schema is written inline by kind (`{"object": {...}}`), and refers by name (`{"named": {"name": "Phone"}}`) to
-the schemas in the module and those registered in the store; a name resolves within the module, then in the store. A schema
-that refers to itself must be named.
+Each schema in a module is an entry, its name and its definition inline by kind (`{"object": {...}}`). A schema refers to
+a named schema by its name (`{"named": {"name": "Phone"}}`) and writes an unnamed one inline; a name resolves within the
+module, then in the store. A schema that refers to itself must be named.
 
 ## Calls
 

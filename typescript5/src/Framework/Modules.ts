@@ -1,21 +1,20 @@
 /**
  * Modules: schemas as data.
  *
- * A module is a named set of schemas, held by an object of the meta-schema `Schemas.Module.Schema`, which every proxy
- * store registers as 'Schemas.Module'. `module(store, schemas)` returns such an object, built in `store`, for schemas
- * given by name, and `schemas(store, module)` the schemas a module holds, so that schemas are written, read, validated
- * and compared like any other objects:
+ * A module is a set of named schemas, held by an object of the meta-schema `Schemas.Module.Schema`, which every proxy
+ * store registers as 'Schemas.Module'. `module(store, schemas)` returns such an object, built in `store`, and
+ * `schemas(store, module)` the schemas a module holds, by name, so that schemas are written, read, validated and
+ * compared like any other objects:
  *
- *     const text = JSON.ToJSON(store)(Schemas.Module.Schema, Modules.module(store, new Map([["Contact", Contact]])));
+ *     const text = JSON.ToJSON(store)(Schemas.Module.Schema, Modules.module(store, [Contact, Phone]));
  *     const schemas = Modules.schemas(store, JSON.FromJSON(store)(Schemas.Module.Schema, text));
  *
- * Within a module, each schema is written inline, as a value object of its kind, and refers to another schema by name
- * when that one is in the module or registered in the store, so shared and recursive schemas are written once. A name
- * resolves within the module, then in the store. A schema that refers to itself must be named.
+ * Within a module, each schema is an entry, its name and its definition, inline, as a value object of its kind. A
+ * schema refers to a named schema by its name, so shared and recursive schemas are written once, and writes an unnamed
+ * one inline. A name resolves within the module, then in the store. A schema that refers to itself must be named.
  *
- * `reference(store, schema)` and `resolve(store, definition)` translate one type the same way, for data that refers to
- * a schema as a module's members do (by name when the store registers it, else inline), e.g. the symbols of a
- * predicate.
+ * `reference(schema)` and `resolve(store, definition)` translate one type the same way, for data that refers to
+ * schemas as a module's members do, e.g. the symbols of a predicate.
  *
  * The translation goes through plain data, the form `Plain`, `JSON` and `YAML` share: `module` decodes the plain form
  * of the schemas in the store, and `schemas` reads the plain form of the module.
@@ -32,11 +31,14 @@ export const MODULE = "Schemas.Module";
 
 type Schema = Schemas.OfAny.Data | Schemas.OfRelation.Data;
 
-/** A module holding `schemas`, by name, built in `store`. */
-export function module(store: Stores.Store, schemas: Map<string, Schema> | Record<string, Schema>): unknown {
-  const named = schemas instanceof Map ? [...schemas] : Object.entries(schemas);
-  const writer = new Writer(store, new Map(named.map(([name, schema]) => [schema as unknown, name])));
-  const entries = named.map(([name, schema]) => new Map<string, PlainData>([["name", name], ["schema", writer.definition(schema)]]));
+/** A module holding `schemas`, each under its name, built in `store`. */
+export function module(store: Stores.Store, schemas: Iterable<Schema>): unknown {
+  const named = [...schemas];
+  if (named.some((schema) => schemaName(schema) === null)) {
+    throw new ValueError("a module holds named schemas; name each with its builder's .name()");
+  }
+  const writer = new Writer();
+  const entries = named.map((schema) => new Map<string, PlainData>([["name", schemaName(schema)], ["schema", writer.definition(schema)]]));
   const root = new Map<string, PlainData>([["schemas", entries]]);
   return Plain.FromPlain(store)(Schemas.Module.Schema,
     new Map<string, PlainData>([["root", "s0"], ["objects", new Map([["s0", root]])]]));
@@ -49,10 +51,16 @@ export function schemas(store: Stores.Store, module: unknown): Map<string, Schem
   return new Reader(store, (root.get("schemas") as PlainMap[] | undefined) ?? []).read();
 }
 
-/** The plain form of a type (`Schemas.OfAny.Schema`'s): `{"named": {"name": ...}}` when `store` registers `schema`,
- * else the schema inline. */
-export function reference(store: Stores.Store, schema: unknown): PlainMap {
-  return new Writer(store, new Map()).reference(schema);
+/** The plain form of a type (`Schemas.OfAny.Schema`'s): `{"named": {"name": ...}}` for a named schema, else the
+ * schema inline. */
+export function reference(schema: unknown): PlainMap {
+  return new Writer().reference(schema);
+}
+
+/** A schema's name, or null for an unnamed schema or anything else. */
+function schemaName(schema: unknown): string | null {
+  const name = (schema as { name?: unknown } | null)?.name;
+  return typeof name === "string" ? name : null;
 }
 
 /** The type a plain form describes: a name resolves in `store`, and an inline schema is read. */
@@ -65,32 +73,20 @@ export function resolve(store: Stores.Store, definition: PlainMap): Schemas.OfAn
 /** A schema's plain form: a mapping from its kind to its contents, e.g. `{"native": {"format": "basic", ...}}`. */
 type Definition = PlainMap;
 
-/** Writes schemas as plain data, naming those in the module (`names`, by identity) and those in the store. */
+/** Writes schemas as plain data, referring to named schemas by name. */
 class Writer {
   /** The schemas being written inline, to refuse one that refers to itself. */
   private readonly inline = new Set<unknown>();
 
-  constructor(private readonly store: Stores.Store, private readonly names: Map<unknown, string>) {}
-
-  private nameOf(schema: unknown): string | null {
-    const name = this.names.get(schema);
-    if (name !== undefined) return name;
-    try {
-      return this.store.name_of(schema);
-    } catch {
-      return null; // name_of throws only LookupError, for a schema not registered
-    }
-  }
-
   /** A type or a relation, by name if it has one, else inline. */
   reference(schema: unknown): Definition {
-    const name = this.nameOf(schema);
+    const name = schemaName(schema);
     return name !== null ? new Map([["named", new Map([["name", name]])]]) : this.definition(schema);
   }
 
   /** A schema written inline. */
   definition(schema: unknown): Definition {
-    if (this.inline.has(schema)) throw new ValueError("a schema that refers to itself must be named, in the module or the store");
+    if (this.inline.has(schema)) throw new ValueError("a schema that refers to itself must be named");
     this.inline.add(schema);
     try {
       return this.contents(schema);
@@ -168,7 +164,9 @@ class Reader {
     for (const entry of this.entries) {
       const name = entry.get("name") as string;
       if (this.defined.has(name)) throw new ValueError(`the module defines ${repr(name)} twice`);
-      this.defined.set(name, (BLANK[contentsOf(entry.get("schema") as Definition)[0]] as () => Schema)());
+      const blank = (BLANK[contentsOf(entry.get("schema") as Definition)[0]] as () => Schema)();
+      blank.name = name;
+      this.defined.set(name, blank);
     }
     for (const entry of this.entries) this.fill(this.defined.get(entry.get("name") as string) as Schema, entry.get("schema") as Definition);
     return new Map(this.defined);

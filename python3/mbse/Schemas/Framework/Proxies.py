@@ -1,7 +1,7 @@
 """Proxies: the dynamic implementation.
 
 Programs using proxies skip code generation. A store, `OfStore()`, holds schemas and the proxies built with them (see
-`Stores`): `store.register(name, schema)` makes a schema available, and `store.<Name>(optional instance)` (or
+`Stores`): `store.register(schema)` makes a schema available, under its name, and `store.<Name>(optional instance)` (or
 `store.builder(name, instance)`) returns a builder for it. Instances (`Proxies.OfObject.Data`) are `Visitable`, not
 visitors: they expose their properties as read-only attributes and write themselves into a visitor on `accept`.
 Builders (`Proxies.OfObject.Builder`) implement `Visitors.OfObject`, like every builder.
@@ -47,17 +47,17 @@ class OfStore(Stores.Catalog):
 
     def __init__(self) -> None:
         super().__init__()
-        for name, schema in Stores.META.items():
-            self.register(name, schema)
+        for schema in Stores.META:
+            self.register(schema)
 
-    def register(self, name: str, schema: ObjectSchema | RelationSchema) -> None:
-        """Registers a schema under `name`; a singleton schema's instance is created with it."""
+    def register(self, schema: ObjectSchema | RelationSchema) -> None:
+        """Registers a schema under its name; a singleton schema's instance is created with it."""
         global_name = schema.singleton if isinstance(schema, ObjectSchema) else None
         if global_name is not None and global_name in self._singletons:
             raise ValueError(f"singleton {global_name!r} is already registered")
-        super().register(name, schema)
+        super().register(schema)
         if global_name is not None:
-            self._singletons[global_name] = _ObjectData(self, schema, name)
+            self._singletons[global_name] = _ObjectData(self, schema, schema.name)
 
     def builder(self, name: str, instance: Any = None) -> _ObjectBuilder:
         return _ObjectBuilder(self, self.schema(name), name, instance)

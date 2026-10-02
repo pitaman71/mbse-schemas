@@ -14,7 +14,7 @@ const store = new Proxies.OfStore();
 
 // --- Schemas ---
 
-let Person = new Schemas.OfObject.Builder().ref()
+let Person = new Schemas.OfObject.Builder().name("Person").ref()
   .properties(
     (prop) => prop.name("given_name").of((t) => t.as_native(String)),
     (prop) => prop.name("family_name").of((t) => t.as_native(String)),
@@ -23,12 +23,12 @@ let Person = new Schemas.OfObject.Builder().ref()
   .create();
 
 // Both links of these relations are filled by Person objects.
-const Parentage = new Schemas.OfRelation.Builder()
+const Parentage = new Schemas.OfRelation.Builder().name("Parentage")
   .links("parent", "child")
   .properties((prop) => prop.name("kind").of((t) => t.as_native(String))) // 'biological', 'adoptive'
   .create();
 
-const Mentorship = new Schemas.OfRelation.Builder().links("mentor", "mentee").create();
+const Mentorship = new Schemas.OfRelation.Builder().name("Mentorship").links("mentor", "mentee").create();
 
 Person = new Schemas.OfObject.Builder(Person)
   .relations(
@@ -40,9 +40,9 @@ Person = new Schemas.OfObject.Builder(Person)
   .update();
 assert(Person.validate().length === 0 && Parentage.validate().length === 0 && Mentorship.validate().length === 0);
 
-store.register("Person", Person);
-store.register("Parentage", Parentage);
-store.register("Mentorship", Mentorship);
+store.register(Person);
+store.register(Parentage);
+store.register(Mentorship);
 
 function kinds(obj: Instance, adjacency: string): string[] {
   return sortedStrings(entries(Person, obj, adjacency).map((e) => e.get("kind") as string));

@@ -18,16 +18,16 @@ function text(name: string) {
 
 // --- Schemas ---
 
-let Student = new Schemas.OfObject.Builder().ref().properties(text("name"), text("student_id")).create();
-let Staff = new Schemas.OfObject.Builder().ref().properties(text("name"), text("staff_id")).create();
-let Course = new Schemas.OfObject.Builder().ref().properties(text("code"), text("title")).create();
-let Term = new Schemas.OfObject.Builder().ref()
+let Student = new Schemas.OfObject.Builder().name("Student").ref().properties(text("name"), text("student_id")).create();
+let Staff = new Schemas.OfObject.Builder().name("Staff").ref().properties(text("name"), text("staff_id")).create();
+let Course = new Schemas.OfObject.Builder().name("Course").ref().properties(text("code"), text("title")).create();
+let Term = new Schemas.OfObject.Builder().name("Term").ref()
   .properties(text("code"), text("starts"), text("ends")) // ISO 8601 dates, e.g. '2026-09-01'
   .create();
-let Room = new Schemas.OfObject.Builder().ref().properties(text("building"), text("number")).create();
+let Room = new Schemas.OfObject.Builder().name("Room").ref().properties(text("building"), text("number")).create();
 
 // Three links: each entry is one student taking one course in one term.
-const Enrollment = new Schemas.OfRelation.Builder()
+const Enrollment = new Schemas.OfRelation.Builder().name("Enrollment")
   .links("student", "course", "term")
   .properties(
     (prop) => prop.name("credits").of((t) => t.as_native(BigInt)),
@@ -38,7 +38,7 @@ const Enrollment = new Schemas.OfRelation.Builder()
   .create();
 
 // Both Student and Staff can book rooms, so the 'booker' link is filled by more than one schema.
-const Booking = new Schemas.OfRelation.Builder()
+const Booking = new Schemas.OfRelation.Builder().name("Booking")
   .links("booker", "room")
   .properties(text("starts")) // ISO 8601 date-time, e.g. '2026-09-14T09:00:00Z'
   .create();
@@ -54,10 +54,9 @@ Course = new Schemas.OfObject.Builder(Course).relations((adj) => adj.name("enrol
 Term = new Schemas.OfObject.Builder(Term).relations((adj) => adj.name("enrollments").of(Enrollment).me("term")).update();
 Room = new Schemas.OfObject.Builder(Room).relations((adj) => adj.name("bookings").of(Booking).me("room")).update();
 
-for (const [name, schema] of [["Student", Student], ["Staff", Staff], ["Course", Course], ["Term", Term], ["Room", Room],
-  ["Enrollment", Enrollment], ["Booking", Booking]] as const) {
-  assert(schema.validate().length === 0, `${name}: ${schema.validate()}`);
-  store.register(name, schema);
+for (const schema of [Student, Staff, Course, Term, Room, Enrollment, Booking]) {
+  assert(schema.validate().length === 0, `${schema.name}: ${schema.validate()}`);
+  store.register(schema);
 }
 const same = (a: unknown[], b: unknown[]): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
 

@@ -1,8 +1,9 @@
 """Dataclasses: translation between Python dataclasses and object schemas, through Python's syntax trees.
 
-`FromDataclass(cls)` returns the `Schemas.OfObject.Data` that a dataclass describes, and `ToDataclass(schema, name)`
-returns a new dataclass describing an object schema. `FromDataclass.model(*classes)` and `ToDataclass.model(schemas)`
-translate several at once, by name. Both directions go through `ast` trees and never through source text:
+`FromDataclass(cls)` returns the `Schemas.OfObject.Data` that a dataclass describes, named after the class, and
+`ToDataclass(schema)` returns a new dataclass describing an object schema, named after the last part of the schema's
+name (or `ToDataclass(schema, name)`). `FromDataclass.model(*classes)` and `ToDataclass.model(schemas)` translate
+several at once, by name. Both directions go through `ast` trees and never through source text:
 
 - `FromDataclass.ast(cls)` builds an `ast.ClassDef` from the class's fields and resolved type hints, not from its
   source. `FromDataclass` also reads such trees, so trees built by other tools work too.
@@ -167,7 +168,7 @@ class _Reader:
 
     def __init__(self, trees: dict[str, ast.ClassDef]):
         self.trees = trees
-        self.objects = {name: Schemas.OfObject.Data(ref=True) for name in trees}  # a dataclass is a reference object
+        self.objects = {name: Schemas.OfObject.Data(ref=True, name=name) for name in trees}  # a dataclass: a reference object
         self.relations: dict[str, Schemas.OfRelation.Data] = {}
 
     def read(self) -> Model:
@@ -230,7 +231,7 @@ class _Reader:
         if name in self.relations or name in self.objects:
             raise ValueError(f"field {field!r}: the relation name {name!r} is already used")
         relation = Schemas.OfRelation.Data(links=(_OWNER, _ITEM), properties=properties,
-                                           uniques=(frozenset({_ITEM}),) if properties else ())
+                                           uniques=(frozenset({_ITEM}),) if properties else (), name=name)
         self.relations[name] = relation
         self._adjacency(owner, Schemas.OfAdjacency.Data(name=field, relation=relation, me=_OWNER))
         for target in dict.fromkeys(targets):
@@ -359,11 +360,15 @@ def _container_annotation(adjacency: Schemas.OfAdjacency.Data, objects: Mapping[
 
 
 class _ToDataclass:
-    """`ToDataclass(schema, name)`: a new dataclass describing an object schema."""
+    """`ToDataclass(schema)`: a new dataclass describing an object schema, named after the last part of its name, or
+    `ToDataclass(schema, name)`."""
 
-    def __call__(self, schema: Schemas.OfObject.Data, name: str) -> type:
+    def __call__(self, schema: Schemas.OfObject.Data, name: str | None = None) -> type:
         if not isinstance(schema, Schemas.OfObject.Data):
             raise TypeError(f"expected an object schema, got {type(schema).__name__}")
+        if name is None and schema.name is None:
+            raise ValueError("an unnamed schema needs a class name: ToDataclass(schema, name)")
+        name = name if name is not None else schema.name.rsplit(".", 1)[-1]
         return self.model({name: schema})[name]
 
     def model(self, schemas: Mapping[str, Any]) -> dict[str, type]:

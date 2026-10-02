@@ -10,7 +10,7 @@ looks a schema up by name takes a store: `Plain.ToPlain(store)`, `Plain.FromPlai
 snapshots. Selecting objects by a condition is an extension, in mbse-expressions.
 
 `Catalog` holds schemas by name and the roots, as every store does, with the messages every store gives, and computes
-extents from the roots; `META` names the meta-schemas a store of proxies starts with.
+extents from the roots; `META` holds the meta-schemas a store of proxies starts with.
 """
 
 from __future__ import annotations
@@ -22,8 +22,8 @@ from . import Reachable, Schemas, Visitors
 
 __all__ = ["Store", "Catalog", "META"]
 
-META = {"Schemas.Module": Schemas.Module.Schema}
-"""The meta-schemas a store of proxies starts with, by name, so that it can hold modules of schemas."""
+META = (Schemas.Module.Schema,)
+"""The meta-schemas a store of proxies starts with, each under its name, so that it can hold modules of schemas."""
 
 
 class Store(Protocol):
@@ -72,8 +72,11 @@ class Catalog:
         self._schemas: dict[str, Schemas.OfObject.Data | Schemas.OfRelation.Data] = {}
         self._singletons: dict[str, Visitors.Visitable] = {}
 
-    def register(self, name: str, schema: Schemas.OfObject.Data | Schemas.OfRelation.Data) -> None:
-        """Registers a schema under `name`, which need not be a valid identifier."""
+    def register(self, schema: Schemas.OfObject.Data | Schemas.OfRelation.Data) -> None:
+        """Registers a schema under its name."""
+        name = getattr(schema, "name", None)
+        if name is None:
+            raise ValueError("a schema needs a name to be registered; name it with its builder's .name()")
         if name in self._schemas:
             raise ValueError(f"schema {name!r} is already registered")
         self._schemas[name] = schema

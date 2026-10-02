@@ -17,7 +17,7 @@ store = Proxies.OfStore()
 # --- Schemas ---
 
 Reading = (
-    Schemas.OfObject.Builder().ref()
+    Schemas.OfObject.Builder().name('Reading').ref()
     .properties(
         lambda prop: prop.name('observed').of(lambda t: t.as_native(str)),  # ISO 8601, e.g. '2026-09-28T12:00:00Z'
         lambda prop: prop.name('value').of(lambda t: t.as_native(float)),
@@ -29,7 +29,7 @@ Reading = (
     .create()
 )
 Station = (
-    Schemas.OfObject.Builder().ref()
+    Schemas.OfObject.Builder().name('Station').ref()
     .properties(
         lambda prop: prop.name('wmo_id').of(lambda t: t.as_native(str)),  # e.g. '03772'; leading zeros matter
         lambda prop: prop.name('name').of(lambda t: t.as_native(str)),
@@ -37,7 +37,7 @@ Station = (
     .create()
 )
 Readings = (
-    Schemas.OfRelation.Builder()
+    Schemas.OfRelation.Builder().name('Readings')
     .links('station', 'reading')
     .properties(lambda prop: prop.name('sensor').of(lambda t: t.as_native(str)))
     .unique('station', 'sensor')  # each reading comes from one sensor of one station
@@ -46,8 +46,8 @@ Readings = (
 Station = Schemas.OfObject.Builder(Station).relations(lambda adj: adj.name('readings').of(Readings).me('station')).update()
 Reading = Schemas.OfObject.Builder(Reading).relations(lambda adj: adj.name('station').of(Readings).me('reading')).update()
 
-for name, schema in [('Reading', Reading), ('Station', Station), ('Readings', Readings)]:
-    store.register(name, schema)
+for schema in [Reading, Station, Readings]:
+    store.register(schema)
 validate = Validators.Validate(store)
 from_json = JSON.FromJSON(store)
 from_yaml = YAML.FromYAML(store)

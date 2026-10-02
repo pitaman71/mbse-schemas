@@ -17,19 +17,19 @@ def text(name):
 
 # --- Schemas ---
 
-Student = Schemas.OfObject.Builder().ref().properties(text('name'), text('student_id')).create()
-Staff = Schemas.OfObject.Builder().ref().properties(text('name'), text('staff_id')).create()
-Course = Schemas.OfObject.Builder().ref().properties(text('code'), text('title')).create()
+Student = Schemas.OfObject.Builder().name('Student').ref().properties(text('name'), text('student_id')).create()
+Staff = Schemas.OfObject.Builder().name('Staff').ref().properties(text('name'), text('staff_id')).create()
+Course = Schemas.OfObject.Builder().name('Course').ref().properties(text('code'), text('title')).create()
 Term = (
-    Schemas.OfObject.Builder().ref()
+    Schemas.OfObject.Builder().name('Term').ref()
     .properties(text('code'), text('starts'), text('ends'))  # ISO 8601 dates, e.g. '2026-09-01'
     .create()
 )
-Room = Schemas.OfObject.Builder().ref().properties(text('building'), text('number')).create()
+Room = Schemas.OfObject.Builder().name('Room').ref().properties(text('building'), text('number')).create()
 
 # Three links: each entry is one student taking one course in one term.
 Enrollment = (
-    Schemas.OfRelation.Builder()
+    Schemas.OfRelation.Builder().name('Enrollment')
     .links('student', 'course', 'term')
     .properties(
         lambda prop: prop.name('credits').of(lambda t: t.as_native(int)),
@@ -42,7 +42,7 @@ Enrollment = (
 
 # Both Student and Staff can book rooms, so the 'booker' link is filled by more than one schema.
 Booking = (
-    Schemas.OfRelation.Builder()
+    Schemas.OfRelation.Builder().name('Booking')
     .links('booker', 'room')
     .properties(text('starts'))  # ISO 8601 date-time, e.g. '2026-09-14T09:00:00Z'
     .create()
@@ -61,10 +61,9 @@ Course = Schemas.OfObject.Builder(Course).relations(lambda adj: adj.name('enroll
 Term = Schemas.OfObject.Builder(Term).relations(lambda adj: adj.name('enrollments').of(Enrollment).me('term')).update()
 Room = Schemas.OfObject.Builder(Room).relations(lambda adj: adj.name('bookings').of(Booking).me('room')).update()
 
-for name, schema in [('Student', Student), ('Staff', Staff), ('Course', Course), ('Term', Term), ('Room', Room),
-                     ('Enrollment', Enrollment), ('Booking', Booking)]:
-    assert schema.validate() == [], (name, schema.validate())
-    store.register(name, schema)
+for schema in [Student, Staff, Course, Term, Room, Enrollment, Booking]:
+    assert schema.validate() == [], (schema.name, schema.validate())
+    store.register(schema)
 
 # --- A three-link relation ---
 

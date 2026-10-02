@@ -17,15 +17,15 @@ npm run conformance                     # regenerate ../conformance/typescript5
 The same program in both languages:
 
 ```python
-IntlAddress = Schemas.OfObject.Builder().ref().properties(lambda p: p.name('street1').of(lambda t: t.as_native(str))).create()
+IntlAddress = Schemas.OfObject.Builder().name('IntlAddress').ref().properties(lambda p: p.name('street1').of(lambda t: t.as_native(str))).create()
 store = Proxies.OfStore()
-store.register('IntlAddress', IntlAddress)
+store.register(IntlAddress)
 addr = store.IntlAddress().street1('10 Downing Street').create()
 ```
 
 ```ts
-const IntlAddress = new Schemas.OfObject.Builder().ref().properties((p) => p.name("street1").of((t) => t.as_native(String))).create();
+const IntlAddress = new Schemas.OfObject.Builder().name("IntlAddress").ref().properties((p) => p.name("street1").of((t) => t.as_native(String))).create();
 const store = new Proxies.OfStore();
-store.register("IntlAddress", IntlAddress);
+store.register(IntlAddress);
 const addr = store.IntlAddress().street1("10 Downing Street").create();
 ```

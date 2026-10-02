@@ -8,6 +8,10 @@
  *
  * `validate()` on each `Data` returns a list of problems and runs only when the caller asks. `equals()` stands in for
  * Python's `==`: by value for `OfNative.Data`, by identity for the other kinds.
+ *
+ * Every kind of schema may have a `name`, set by its builder's `.name("crm.Contact")`: identifiers separated by dots,
+ * the part before the last dot its namespace. A named schema is referred to by its name wherever it is written (a
+ * module, a predicate's symbols), and a store registers it under that name; an unnamed one is written inline.
  */
 
 import { fromBase64, toBase64 } from "./Bytes.js";
@@ -24,6 +28,14 @@ function reserved(names: readonly unknown[]): string[] {
 }
 
 export const NATIVE_TYPES: readonly NativeToken[] = [BigInt, Number, String, Boolean, Uint8Array];
+
+const DOTTED = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;
+
+/** A schema's name, when it has one, is identifiers separated by dots. */
+function nameProblems(name: unknown): string[] {
+  if (name === null || name === undefined || (typeof name === "string" && DOTTED.test(name))) return [];
+  return [`name ${repr(name)} is not identifiers separated by dots, e.g. 'crm.Contact'`];
+}
 
 /** Shallow-copies the builder's own containers; references to other schemas are kept, never copied. */
 function copyContainer<T>(value: T): T {
@@ -80,6 +92,15 @@ abstract class Builder<D extends HasFields> {
     if (this.source === undefined) throw new ValueError("update() is only valid with a source instance");
     Object.assign(this.source, this.final());
     return this.source;
+  }
+}
+
+/** A builder of a kind of schema, which may be named. */
+abstract class NamedBuilder<D extends HasFields> extends Builder<D> {
+  /** The schema's name: identifiers separated by dots, e.g. `"crm.Contact"`. */
+  name(name: string): this {
+    this.state["name"] = name;
+    return this;
   }
 }
 
@@ -147,10 +168,11 @@ class TokenClass {
   }
 }
 
-/** The widths a native may have: in bits or in bytes. */
+/** The widths a native may have, in bits or in bytes, and its name. */
 export interface Widths {
   bits?: bigint | null;
   bytes?: bigint | null;
+  name?: string | null;
 }
 
 /** A native type: a token, and optionally a width in bits or in bytes. A host type given in place of the token
@@ -159,11 +181,13 @@ class NativeData implements HasFields {
   token: unknown;
   bits: bigint | null;
   bytes: bigint | null;
+  name: string | null;
 
   constructor(token: unknown = null, widths: Widths = {}) {
     this.token = NATIVE_NAMES.has(token) ? new TokenClass(BASIC, NATIVE_NAMES.get(token) as string) : token;
     this.bits = widths.bits ?? null;
     this.bytes = widths.bytes ?? null;
+    this.name = widths.name ?? null;
   }
 
   /** The host type the token maps to, or null when this implementation cannot read the token. */
@@ -181,12 +205,12 @@ class NativeData implements HasFields {
   }
 
   equals(other: unknown): boolean {
-    return other instanceof NativeData && other.bits === this.bits && other.bytes === this.bytes
+    return other instanceof NativeData && other.bits === this.bits && other.bytes === this.bytes && other.name === this.name
       && (this.token instanceof TokenClass ? this.token.equals(other.token) : other.token === this.token);
   }
 
   validate(): string[] {
-    const problems: string[] = [];
+    const problems = nameProblems(this.name);
     const token = this.token;
     if (!(token instanceof TokenClass)) problems.push(`unsupported native type ${repr(token)}`);
     else if (typeof token.format !== "string" || token.format === "" || typeof token.name !== "string" || token.name === "") {
@@ -265,9 +289,10 @@ class NativeData implements HasFields {
   }
 }
 
-class NativeBuilder extends Builder<NativeData> {
+class NativeBuilder extends NamedBuilder<NativeData> {
   protected make(fields: Record<string, unknown>): NativeData {
-    return new NativeData(fields["token"] ?? null, { bits: fields["bits"] as bigint | null, bytes: fields["bytes"] as bigint | null });
+    return new NativeData(fields["token"] ?? null, { bits: fields["bits"] as bigint | null, bytes: fields["bytes"] as bigint | null,
+      name: fields["name"] as string | null });
   }
 
   /** A host type: shorthand for the `basic` token of the same name. */
@@ -378,11 +403,14 @@ class RelationData implements HasFields {
   links: readonly string[];
   properties: Map<string, AnyData>;
   uniques: readonly ReadonlySet<string>[];
+  name: string | null;
 
-  constructor(fields: { links?: readonly string[]; properties?: Map<string, AnyData>; uniques?: readonly ReadonlySet<string>[] } = {}) {
+  constructor(fields: { links?: readonly string[]; properties?: Map<string, AnyData>; uniques?: readonly ReadonlySet<string>[];
+    name?: string | null } = {}) {
     this.links = fields.links ?? [];
     this.properties = fields.properties ?? new Map();
     this.uniques = fields.uniques ?? [];
+    this.name = fields.name ?? null;
   }
 
 
@@ -391,7 +419,7 @@ class RelationData implements HasFields {
   }
 
   validate(): string[] {
-    const problems = reserved([...this.links, ...this.properties.keys()]);
+    const problems = [...nameProblems(this.name), ...reserved([...this.links, ...this.properties.keys()])];
     if (this.links.length < 2) {
       problems.push("a relation needs at least two links; a one-link relation merges a relation and an object");
     }
@@ -424,7 +452,7 @@ function entryValueProblems(schema: unknown, held = "held by an entry", seen: Re
   return sortedStrings(new Set(membersOf(schema).flatMap((member) => entryValueProblems(member, held, inner))));
 }
 
-class RelationBuilder extends Builder<RelationData> {
+class RelationBuilder extends NamedBuilder<RelationData> {
   protected make(fields: Record<string, unknown>): RelationData {
     return new RelationData(fields as ConstructorParameters<typeof RelationData>[0]);
   }
@@ -544,13 +572,15 @@ class ObjectData implements HasFields {
   singleton: string | null;
   /** A reference object schema; otherwise a value object schema. */
   ref: boolean;
+  name: string | null;
 
   constructor(fields: { properties?: Map<string, AnyData>; adjacencies?: Map<string, AdjacencyData>; singleton?: string | null;
-    ref?: boolean } = {}) {
+    ref?: boolean; name?: string | null } = {}) {
     this.properties = fields.properties ?? new Map();
     this.adjacencies = fields.adjacencies ?? new Map();
     this.singleton = fields.singleton ?? null;
     this.ref = fields.ref ?? false;
+    this.name = fields.name ?? null;
   }
 
 
@@ -571,7 +601,7 @@ class ObjectData implements HasFields {
   }
 
   private problems(): string[] {
-    const problems = reserved([...this.properties.keys(), ...this.adjacencies.keys()]);
+    const problems = [...nameProblems(this.name), ...reserved([...this.properties.keys(), ...this.adjacencies.keys()])];
     if (this.singleton !== null && !this.ref) problems.push("a singleton's schema must be a reference object schema");
     const clashes = [...this.properties.keys()].filter((name) => this.adjacencies.has(name));
     if (clashes.length > 0) {
@@ -585,7 +615,7 @@ class ObjectData implements HasFields {
   }
 }
 
-class ObjectBuilder extends Builder<ObjectData> {
+class ObjectBuilder extends NamedBuilder<ObjectData> {
   protected make(fields: Record<string, unknown>): ObjectData {
     return new ObjectData(fields as ConstructorParameters<typeof ObjectData>[0]);
   }
@@ -701,9 +731,11 @@ function byName(members: readonly MemberData[]): Map<string, AnyData> {
 
 class UnionData implements HasFields {
   branches: readonly MemberData[];
+  name: string | null;
 
-  constructor(fields: { branches?: readonly MemberData[] } = {}) {
+  constructor(fields: { branches?: readonly MemberData[]; name?: string | null } = {}) {
     this.branches = fields.branches ?? [];
+    this.name = fields.name ?? null;
   }
 
   /** The branches by name: a union value is an object holding exactly one of them. */
@@ -716,11 +748,11 @@ class UnionData implements HasFields {
   }
 
   validate(): string[] {
-    return memberProblems("a union", "branch", "branches", this.branches);
+    return [...nameProblems(this.name), ...memberProblems("a union", "branch", "branches", this.branches)];
   }
 }
 
-class UnionBuilder extends Builder<UnionData> {
+class UnionBuilder extends NamedBuilder<UnionData> {
   protected make(fields: Record<string, unknown>): UnionData {
     return new UnionData(fields as ConstructorParameters<typeof UnionData>[0]);
   }
@@ -754,9 +786,11 @@ export namespace OfUnion {
 
 class IntersectionData implements HasFields {
   parts: readonly MemberData[];
+  name: string | null;
 
-  constructor(fields: { parts?: readonly MemberData[] } = {}) {
+  constructor(fields: { parts?: readonly MemberData[]; name?: string | null } = {}) {
     this.parts = fields.parts ?? [];
+    this.name = fields.name ?? null;
   }
 
   /** The parts by name: an intersection value is an object holding every one of them. */
@@ -769,11 +803,11 @@ class IntersectionData implements HasFields {
   }
 
   validate(): string[] {
-    return memberProblems("an intersection", "part", "parts", this.parts);
+    return [...nameProblems(this.name), ...memberProblems("an intersection", "part", "parts", this.parts)];
   }
 }
 
-class IntersectionBuilder extends Builder<IntersectionData> {
+class IntersectionBuilder extends NamedBuilder<IntersectionData> {
   protected make(fields: Record<string, unknown>): IntersectionData {
     return new IntersectionData(fields as ConstructorParameters<typeof IntersectionData>[0]);
   }
@@ -829,11 +863,13 @@ class IndexedData implements HasFields {
   item: AnyData | null;
   key: AnyData | null;
   extent: ExtentClass | null;
+  name: string | null;
 
-  constructor(fields: { item?: AnyData | null; key?: AnyData | null; extent?: ExtentClass | null } = {}) {
+  constructor(fields: { item?: AnyData | null; key?: AnyData | null; extent?: ExtentClass | null; name?: string | null } = {}) {
     this.item = fields.item ?? null;
     this.key = fields.key ?? null;
     this.extent = fields.extent ?? null;
+    this.name = fields.name ?? null;
   }
 
   get positional(): boolean {
@@ -857,7 +893,7 @@ class IndexedData implements HasFields {
   }
 
   validate(): string[] {
-    const problems = validateSchema(this.item).map((problem) => `item: ${problem}`);
+    const problems = [...nameProblems(this.name), ...validateSchema(this.item).map((problem) => `item: ${problem}`)];
     if (this.key !== null) {
       const key = [...validateSchema(this.key), ...embeddedProblems(this.key, new Set(), "a key"),
         ...entryValueProblems(this.key, "in a key")];
@@ -878,7 +914,7 @@ class IndexedData implements HasFields {
   }
 }
 
-class IndexedBuilder extends Builder<IndexedData> {
+class IndexedBuilder extends NamedBuilder<IndexedData> {
   protected make(fields: Record<string, unknown>): IndexedData {
     return new IndexedData(fields as ConstructorParameters<typeof IndexedData>[0]);
   }
@@ -1104,7 +1140,8 @@ OfAny.Named = NamedSchema;
  * list of `Module.Entry` value objects, each a `name` and a `schema`, a `Module.Definition` (a schema of any kind,
  * relations included). See `Modules` for the translation between schemas and modules. */
 export namespace Module {
-  export const Schema = new ObjectBuilder().ref().properties((p) => p.name("schemas").of(listOf(EntrySchema))).create();
+  export const Schema = new ObjectBuilder().name("Schemas.Module").ref()
+    .properties((p) => p.name("schemas").of(listOf(EntrySchema))).create();
   export const Entry = EntrySchema;
   export const Definition = DefinitionSchema;
 }

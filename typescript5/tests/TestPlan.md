@@ -38,7 +38,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 
 | Notebook | Suite | Cases | Focus |
 |---|---|---|---|
-| `01_Schemas.ipynb` | SCH | 19 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array`, the own token format is `typescript5`, and widths are `bigint`s |
+| `01_Schemas.ipynb` | SCH | 20 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array`, the own token format is `typescript5`, and widths are `bigint`s |
 | `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length` |
 | `03_Proxies.ipynb` | PRX | 17 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances and stores, `util.inspect` of instances and builders, and the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel) |
 | `04_Reachable.ipynb` | RCH | 10 | as in Python |
@@ -58,7 +58,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `19_Bindings.ipynb` | BND | 4 | as in Python; a binding's options are an object with `fixed` a `Map`, states, entries and stores hold `Map`s |
 | `20_Stores.ipynb` | STO | 5 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), a `Bindings.OfStore` lets JavaScript's probes through, and STO-05 builds its unplaced value object through the visitor protocol |
 
-Total: 176 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
+Total: 177 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

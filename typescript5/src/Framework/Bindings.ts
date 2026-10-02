@@ -396,16 +396,17 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
   readonly _factories = new Map<string, (instance?: any) => any>();
   readonly [name: string]: unknown;
 
-  constructor(builders: ReadonlyMap<string, readonly [Schemas.OfObject.Data, (instance?: any) => unknown]>,
-    relations: ReadonlyMap<string, Schemas.OfRelation.Data> = new Map()) {
+  constructor(builders: Iterable<readonly [Schemas.OfObject.Data, (instance?: any) => unknown]>,
+    relations: Iterable<Schemas.OfRelation.Data> = []) {
     super();
-    for (const [name, [schema, factory]] of builders) {
-      this.register(name, schema);
-      this._factories.set(name, factory);
+    const bound = [...builders];
+    for (const [schema, factory] of bound) {
+      this.register(schema);
+      this._factories.set(schema.name as string, factory);
     }
-    for (const [name, relation] of relations) this.register(name, relation);
-    for (const [name, [schema]] of builders) {
-      if (schema.singleton !== null) this._singletons.set(schema.singleton, this.builder(name).create() as Visitable);
+    for (const relation of relations) this.register(relation);
+    for (const [schema] of bound) {
+      if (schema.singleton !== null) this._singletons.set(schema.singleton, this.builder(schema.name as string).create() as Visitable);
     }
     return new Proxy(this, {
       get(t, prop, receiver) {

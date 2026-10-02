@@ -10,7 +10,7 @@ const store = new Proxies.OfStore();
 
 // --- Schemas ---
 
-let IntlAddress = new Schemas.OfObject.Builder().ref()
+let IntlAddress = new Schemas.OfObject.Builder().name("IntlAddress").ref()
   .properties(
     (prop) => prop.name("street1").of((t) => t.as_native(String)),
     (prop) => prop.name("street2").of((t) => t.as_native(String)),
@@ -24,7 +24,7 @@ let IntlAddress = new Schemas.OfObject.Builder().ref()
   )
   .create();
 
-let Contact = new Schemas.OfObject.Builder().ref()
+let Contact = new Schemas.OfObject.Builder().name("Contact").ref()
   .properties(
     (prop) => prop.name("given_name").of((t) => t.as_native(String)),
     (prop) => prop.name("family_name").of((t) => t.as_native(String)),
@@ -33,13 +33,13 @@ let Contact = new Schemas.OfObject.Builder().ref()
   )
   .create();
 
-let PhoneNumber = new Schemas.OfObject.Builder().ref()
+let PhoneNumber = new Schemas.OfObject.Builder().name("PhoneNumber").ref()
   .properties(
     (prop) => prop.name("number").of((t) => t.as_native(String)), // ITU-T E.164, e.g. '+14155550100'
   )
   .create();
 
-let EmailAddress = new Schemas.OfObject.Builder().ref()
+let EmailAddress = new Schemas.OfObject.Builder().name("EmailAddress").ref()
   .properties(
     (prop) => prop.name("address").of((t) => t.as_native(String)), // RFC 5322 addr-spec
   )
@@ -47,21 +47,21 @@ let EmailAddress = new Schemas.OfObject.Builder().ref()
 
 // Collections are relations. Links are untyped; each object declares its adjacencies below.
 
-const ContactAddresses = new Schemas.OfRelation.Builder()
+const ContactAddresses = new Schemas.OfRelation.Builder().name("ContactAddresses")
   .links("contact", "address")
   .properties(
     (prop) => prop.name("label").of((t) => t.as_native(String)), // e.g. 'home', 'work'
   )
   .create();
 
-const ContactPhones = new Schemas.OfRelation.Builder()
+const ContactPhones = new Schemas.OfRelation.Builder().name("ContactPhones")
   .links("contact", "phone")
   .properties(
     (prop) => prop.name("label").of((t) => t.as_native(String)), // e.g. 'mobile', 'work'
   )
   .create();
 
-const ContactEmails = new Schemas.OfRelation.Builder()
+const ContactEmails = new Schemas.OfRelation.Builder().name("ContactEmails")
   .links("contact", "email")
   .properties(
     (prop) => prop.name("label").of((t) => t.as_native(String)), // e.g. 'personal', 'work'
@@ -88,13 +88,13 @@ EmailAddress = new Schemas.OfObject.Builder(EmailAddress)
   .relations((adj) => adj.name("contacts").of(ContactEmails).me("email"))
   .update();
 
-store.register("IntlAddress", IntlAddress);
-store.register("Contact", Contact);
-store.register("PhoneNumber", PhoneNumber);
-store.register("EmailAddress", EmailAddress);
-store.register("ContactAddresses", ContactAddresses);
-store.register("ContactPhones", ContactPhones);
-store.register("ContactEmails", ContactEmails);
+store.register(IntlAddress);
+store.register(Contact);
+store.register(PhoneNumber);
+store.register(EmailAddress);
+store.register(ContactAddresses);
+store.register(ContactPhones);
+store.register(ContactEmails);
 
 // --- Builder forms ---
 

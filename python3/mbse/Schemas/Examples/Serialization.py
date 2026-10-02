@@ -14,7 +14,7 @@ store = Proxies.OfStore()
 # --- Schemas ---
 
 Sample = (
-    Schemas.OfObject.Builder().ref()
+    Schemas.OfObject.Builder().name('Sample').ref()
     .properties(
         lambda prop: prop.name('label').of(lambda t: t.as_native(str)),
         lambda prop: prop.name('payload').of(lambda t: t.as_native(bytes)),
@@ -26,7 +26,7 @@ Sample = (
 )
 
 Currency = (
-    Schemas.OfObject.Builder().ref()
+    Schemas.OfObject.Builder().name('iso4217.Currency').ref()
     .properties(
         lambda prop: prop.name('code').of(lambda t: t.as_native(str)),  # ISO 4217 alpha, e.g. 'JPY'
         lambda prop: prop.name('numeric').of(lambda t: t.as_native(str)),  # ISO 4217 numeric, e.g. '392'; keeps zeros
@@ -34,23 +34,23 @@ Currency = (
     )
     .create()
 )
-Product = Schemas.OfObject.Builder().ref().properties(lambda prop: prop.name('sku').of(lambda t: t.as_native(str))).create()
+Product = Schemas.OfObject.Builder().name('Product').ref().properties(lambda prop: prop.name('sku').of(lambda t: t.as_native(str))).create()
 Money = (
-    Schemas.OfObject.Builder().ref()
+    Schemas.OfObject.Builder().name('Money').ref()
     .properties(lambda prop: prop.name('amount').of(lambda t: t.as_native(int)))  # in minor units
     .create()
 )
 
 # product -> [currency] -> money
 Prices = (
-    Schemas.OfRelation.Builder()
+    Schemas.OfRelation.Builder().name('Prices')
     .links('product', 'price')
     .properties(lambda prop: prop.name('currency').of(lambda t: t.as_native(str)))
     .unique('price')
     .create()
 )
 # Which currency a money amount is in.
-Denomination = Schemas.OfRelation.Builder().links('money', 'currency').unique('currency').create()
+Denomination = Schemas.OfRelation.Builder().name('Denomination').links('money', 'currency').unique('currency').create()
 
 Product = Schemas.OfObject.Builder(Product).relations(lambda adj: adj.name('prices').of(Prices).me('product')).update()
 Money = (
@@ -64,10 +64,9 @@ Money = (
 Currency = Schemas.OfObject.Builder(Currency).relations(lambda adj: adj.name('amounts').of(Denomination).me('currency')).update()
 
 # Registered names are strings and need not be identifiers.
-for name, schema in [('Sample', Sample), ('iso4217.Currency', Currency), ('Product', Product), ('Money', Money),
-                     ('Prices', Prices), ('Denomination', Denomination)]:
-    assert schema.validate() == [], (name, schema.validate())
-    store.register(name, schema)
+for schema in [Sample, Currency, Product, Money, Prices, Denomination]:
+    assert schema.validate() == [], (schema.name, schema.validate())
+    store.register(schema)
 
 # --- Native values at their edges ---
 
@@ -206,7 +205,7 @@ with raises(TypeError):
 # --- Store corner cases ---
 
 with raises(ValueError):
-    store.register('Sample', Sample)  # names are registered once
+    store.register(Sample)  # names are registered once
 with raises(AttributeError):
     store.Unregistered()
 with raises(TypeError):
@@ -218,8 +217,9 @@ with raises(AttributeError):
 with raises(AttributeError):
     widget.sku = 'W-2'  # instances are read-only
 
-# A schema registered as 'schema' is shadowed by the store's schema() method, but still reachable by name.
-store.register('schema', Sample)
-assert store.schema('schema') is Sample and store.builder('schema').create().schema_name() == 'schema'
+# A schema named 'schema' is shadowed by the store's schema() method, but still reachable by name.
+Shadowed = Schemas.OfObject.Builder(Sample).name('schema').clone()
+store.register(Shadowed)
+assert store.schema('schema') is Shadowed and store.builder('schema').create().schema_name() == 'schema'
 
 print('Serialization: all checks passed')

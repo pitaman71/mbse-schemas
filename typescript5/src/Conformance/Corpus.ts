@@ -29,54 +29,54 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   const store = new Proxies.OfStore();
 
   // --- address_book ---
-  const Contact = new S.OfObject.Builder().ref().properties(text("given_name"), text("family_name"), text("birth_date")).create();
-  const Address = new S.OfObject.Builder().ref().properties(text("street1"), text("locality"), text("postal_code"),
+  const Contact = new S.OfObject.Builder().name("Contact").ref().properties(text("given_name"), text("family_name"), text("birth_date")).create();
+  const Address = new S.OfObject.Builder().name("Address").ref().properties(text("street1"), text("locality"), text("postal_code"),
     text("country_code")).create();
-  const Phone = new S.OfObject.Builder().ref().properties(text("number")).create();
-  const ContactAddresses = new S.OfRelation.Builder().links("contact", "address").properties(text("label")).create();
-  const ContactPhones = new S.OfRelation.Builder().links("contact", "phone").properties(text("label")).create();
+  const Phone = new S.OfObject.Builder().name("Phone").ref().properties(text("number")).create();
+  const ContactAddresses = new S.OfRelation.Builder().name("ContactAddresses").links("contact", "address").properties(text("label")).create();
+  const ContactPhones = new S.OfRelation.Builder().name("ContactPhones").links("contact", "phone").properties(text("label")).create();
   new S.OfObject.Builder(Contact).relations((a) => a.name("addresses").of(ContactAddresses).me("contact"),
     (a) => a.name("phones").of(ContactPhones).me("contact")).update();
   new S.OfObject.Builder(Address).relations((a) => a.name("contacts").of(ContactAddresses).me("address")).update();
   new S.OfObject.Builder(Phone).relations((a) => a.name("contacts").of(ContactPhones).me("phone")).update();
 
   // --- natives ---
-  const Bag = new S.OfObject.Builder().ref().properties(text("name")).create();
-  const Sample = new S.OfObject.Builder().ref().properties(text("label"), text("payload", Uint8Array), text("count", BigInt),
+  const Bag = new S.OfObject.Builder().name("Bag").ref().properties(text("name")).create();
+  const Sample = new S.OfObject.Builder().name("Sample").ref().properties(text("label"), text("payload", Uint8Array), text("count", BigInt),
     text("ratio", Number), text("flag", Boolean)).create();
-  const Holds = new S.OfRelation.Builder().links("bag", "item").properties(text("slot", BigInt)).unique("bag", "slot").create();
+  const Holds = new S.OfRelation.Builder().name("Holds").links("bag", "item").properties(text("slot", BigInt)).unique("bag", "slot").create();
   new S.OfObject.Builder(Bag).relations((a) => a.name("items").of(Holds).me("bag")).update();
   new S.OfObject.Builder(Sample).relations((a) => a.name("bags").of(Holds).me("item")).update();
 
   // --- family ---
-  const Person = new S.OfObject.Builder().ref().properties(text("given_name"), text("birth_date")).create();
-  const Parentage = new S.OfRelation.Builder().links("parent", "child").properties(text("kind")).create();
-  const Mentorship = new S.OfRelation.Builder().links("mentor", "mentee").create();
+  const Person = new S.OfObject.Builder().name("Person").ref().properties(text("given_name"), text("birth_date")).create();
+  const Parentage = new S.OfRelation.Builder().name("Parentage").links("parent", "child").properties(text("kind")).create();
+  const Mentorship = new S.OfRelation.Builder().name("Mentorship").links("mentor", "mentee").create();
   new S.OfObject.Builder(Person).relations((a) => a.name("children").of(Parentage).me("parent"),
     (a) => a.name("parents").of(Parentage).me("child"),
     (a) => a.name("mentees").of(Mentorship).me("mentor"),
     (a) => a.name("mentors").of(Mentorship).me("mentee")).update();
 
   // --- enrollment ---
-  const Student = new S.OfObject.Builder().ref().properties(text("name")).create();
-  const Course = new S.OfObject.Builder().ref().properties(text("code")).create();
-  const Term = new S.OfObject.Builder().ref().properties(text("code"), text("starts")).create();
-  const Enrollment = new S.OfRelation.Builder().links("student", "course", "term")
+  const Student = new S.OfObject.Builder().name("Student").ref().properties(text("name")).create();
+  const Course = new S.OfObject.Builder().name("Course").ref().properties(text("code")).create();
+  const Term = new S.OfObject.Builder().name("Term").ref().properties(text("code"), text("starts")).create();
+  const Enrollment = new S.OfRelation.Builder().name("Enrollment").links("student", "course", "term")
     .properties(text("credits", BigInt), text("score", Number), text("audit", Boolean)).create();
   new S.OfObject.Builder(Student).relations((a) => a.name("enrollments").of(Enrollment).me("student")).update();
   new S.OfObject.Builder(Course).relations((a) => a.name("enrollments").of(Enrollment).me("course")).update();
   new S.OfObject.Builder(Term).relations((a) => a.name("enrollments").of(Enrollment).me("term")).update();
 
   // --- yaml_strings ---
-  const Notebook = new S.OfObject.Builder().ref().properties(text("title")).create();
-  const Note = new S.OfObject.Builder().ref().properties(text("text")).create();
-  const Pages = new S.OfRelation.Builder().links("notebook", "note").properties(text("page", BigInt)).create();
+  const Notebook = new S.OfObject.Builder().name("Notebook").ref().properties(text("title")).create();
+  const Note = new S.OfObject.Builder().name("Note").ref().properties(text("text")).create();
+  const Pages = new S.OfRelation.Builder().name("Pages").links("notebook", "note").properties(text("page", BigInt)).create();
   new S.OfObject.Builder(Notebook).relations((a) => a.name("notes").of(Pages).me("notebook")).update();
   new S.OfObject.Builder(Note).relations((a) => a.name("notebooks").of(Pages).me("note")).update();
 
   // --- embedded: value objects (value objects, one linked through a relation), union values of objects and of
   // natives, and an intersection value; a card reached only through its value object carries its schema ---
-  const Line = new Schemas.OfRelation.Builder().links("hub", "phone").create();
+  const Line = new Schemas.OfRelation.Builder().name("Line").links("hub", "phone").create();
   const CardPhone = new Schemas.OfObject.Builder().properties(text("number"), text("label")).relations(
     (a) => a.name("hubs").of(Line).me("phone")).create();
   const CardEmail = new Schemas.OfObject.Builder().properties(text("address")).create();
@@ -88,22 +88,22 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   const CardAudit = new Schemas.OfObject.Builder().properties(text("by"), text("updated")).create();
   const CardMeta = new Schemas.OfIntersection.Builder().parts((p) => p.name("stamp").of(CardStamp),
     (p) => p.name("audit").of(CardAudit)).create();
-  const Card = new Schemas.OfObject.Builder().ref().properties(text("name"), (p) => p.name("home").of(CardPhone),
+  const Card = new Schemas.OfObject.Builder().name("Card").ref().properties(text("name"), (p) => p.name("home").of(CardPhone),
     (p) => p.name("reach").of(Reach), (p) => p.name("ident").of(Ident), (p) => p.name("meta").of(CardMeta)).create();
-  const Holding = new Schemas.OfRelation.Builder().links("deck", "card").create();
-  const Deck = new Schemas.OfObject.Builder().ref().properties(text("title")).relations((a) => a.name("cards").of(Holding).me("deck")).create();
+  const Holding = new Schemas.OfRelation.Builder().name("Holding").links("deck", "card").create();
+  const Deck = new Schemas.OfObject.Builder().name("Deck").ref().properties(text("title")).relations((a) => a.name("cards").of(Holding).me("deck")).create();
   new Schemas.OfObject.Builder(Card).relations((a) => a.name("decks").of(Holding).me("card")).update();
-  const Hub = new Schemas.OfObject.Builder().ref().properties(text("name")).relations((a) => a.name("phones").of(Line).me("hub")).create();
+  const Hub = new Schemas.OfObject.Builder().name("Hub").ref().properties(text("name")).relations((a) => a.name("phones").of(Line).me("hub")).create();
 
   // --- lists: of natives, of lists, of union values and of value objects, which link each other and a reference
   // object ---
-  const Cable = new Schemas.OfRelation.Builder().links("source", "sink").create();
+  const Cable = new Schemas.OfRelation.Builder().name("Cable").links("source", "sink").create();
   const Socket = new Schemas.OfObject.Builder().properties(text("name")).relations(
     (a) => a.name("cables").of(Cable).me("source"), (a) => a.name("plugs").of(Cable).me("sink")).create();
   const Coord = new Schemas.OfObject.Builder().properties(text("r", BigInt), text("c", BigInt)).create();
   const Reading = new Schemas.OfUnion.Builder().branches((b) => b.name("value").of((t) => t.as_native(Number)),
     (b) => b.name("note").of((t) => t.as_native(String))).create();
-  const Board = new Schemas.OfObject.Builder().ref().properties(
+  const Board = new Schemas.OfObject.Builder().name("Board").ref().properties(
     text("name"), (p) => p.name("tags").of(list((t) => t.as_native(String))),
     (p) => p.name("blobs").of(list((t) => t.as_native(Uint8Array))),
     (p) => p.name("grid").of(list(list((t) => t.as_native(BigInt)))),
@@ -113,18 +113,11 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
     (p) => p.name("attrs").of(keyed((t) => t.as_native(String), (t) => t.as_native(Number))),
     (p) => p.name("weights").of(keyed((t) => t.as_native(Number), (t) => t.as_native(String))),
     (p) => p.name("cells").of(keyed(Coord, (t) => t.as_native(BigInt)))).create();
-  const Panel = new Schemas.OfObject.Builder().ref().properties(text("name")).relations(
+  const Panel = new Schemas.OfObject.Builder().name("Panel").ref().properties(text("name")).relations(
     (a) => a.name("plugs").of(Cable).me("sink")).create();
 
-  for (const [name, schema] of [["Contact", Contact], ["Address", Address], ["Phone", Phone],
-    ["ContactAddresses", ContactAddresses], ["ContactPhones", ContactPhones],
-    ["Bag", Bag], ["Sample", Sample], ["Holds", Holds],
-    ["Person", Person], ["Parentage", Parentage], ["Mentorship", Mentorship],
-    ["Student", Student], ["Course", Course], ["Term", Term], ["Enrollment", Enrollment],
-    ["Notebook", Notebook], ["Note", Note], ["Pages", Pages],
-    ["Card", Card], ["Deck", Deck], ["Holding", Holding],
-    ["Hub", Hub], ["Line", Line], ["Board", Board], ["Panel", Panel], ["Cable", Cable]] as const) {
-    store.register(name, schema);
+  for (const schema of [Contact, Address, Phone, ContactAddresses, ContactPhones, Bag, Sample, Holds, Person, Parentage, Mentorship, Student, Course, Term, Enrollment, Notebook, Note, Pages, Card, Deck, Holding, Hub, Line, Board, Panel, Cable]) {
+    store.register(schema);
   }
   const B = store;
 
@@ -212,11 +205,11 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
       (o: any) => o.cables((x: any) => x.sink(board.sockets[0]))))))).update();
 
   // --- module: the corpus's own schemas as data, with natives of widths and another format's token ---
-  const schemas = {
-    Int32: Schemas.OfNative.resolve((n) => n.type(BigInt).bits(32n)),
-    Size: Schemas.OfNative.resolve((n) => n.token("ccpp", "size_t").bytes(8n)),
+  const schemas = [
+    Schemas.OfNative.resolve((n) => n.name("Int32").type(BigInt).bits(32n)),
+    Schemas.OfNative.resolve((n) => n.name("Size").token("ccpp", "size_t").bytes(8n)),
     Contact, Address, ContactAddresses, Person, Parentage, Card, Deck, Holding, Board, Panel,
-  };
+  ];
   const module = Modules.module(store, schemas) as Instance;
 
   return new Map<string, [Schemas.OfObject.Data, Instance]>([

@@ -147,9 +147,10 @@ configures the builder; it is not part of the resulting schema, which stays seri
 
 Instances of a user schema follow the same pattern. With the dynamic (proxy) implementation (see `python3/mbse/Schemas/Examples/AddressBook.py` and `typescript5/src/Examples/AddressBook.ts`):
 
-- `store = Proxies.OfStore()` makes a store (see Stores), and `store.register('Name', schema)` registers a schema in
-  it under a name. The name is a string, so it need not be a valid identifier in any host language (e.g. dotted or
-  versioned names).
+- A schema is named by its builder: `Schemas.OfObject.Builder().name('crm.Contact')`, on any kind of schema. A name
+  is identifiers separated by dots, the part before the last dot its namespace; `validate()` reports any other.
+- `store = Proxies.OfStore()` makes a store (see Stores), and `store.register(schema)` registers a named schema in it,
+  under its name; an unnamed schema is refused.
 - `store.Name(optional instance)` returns a builder for that schema with one fluent setter per property
   (e.g. `.street1('foo')`), finalized by `create()` / `clone()` / `update()` as above.
 - Relation entries are added through the object builder's adjacency accessors, never through a relation builder
@@ -213,8 +214,8 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   `EQUALITY.md`.
 
 - `Modules` : schemas as data. `Modules.module(store, schemas)` returns an object of the meta-schema
-  `Schemas.Module.Schema`, built in `store`, holding schemas by name, and `Modules.schemas(store, module)` the schemas
-  it holds. See Meta-schemas.
+  `Schemas.Module.Schema`, built in `store`, holding named schemas, and `Modules.schemas(store, module)` the schemas it
+  holds, by name. See Meta-schemas.
 
 - `Adapters` : translate between a language's own type declarations and schemas, so they are specific to each
   language. Python has `Adapters.Dataclasses`: `FromDataclass(cls)` returns the `OfObject` a dataclass describes and
@@ -229,7 +230,7 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
 
 ## Stores
 
-A store is the root object of a body of data: it holds schemas by name, and the data reachable from its roots. Code
+A store is the root object of a body of data: it holds named schemas, and the data reachable from its roots. Code
 locates schemas, builders and objects through a store, never through a global. Implemented in `Proxies.OfStore` and
 `Bindings.OfStore`; envisioned also for generated (language-optimized) data structures, SQL and noSQL databases, and
 in-memory cache slices.
@@ -550,9 +551,9 @@ are written, read, validated and compared like any other objects.
   proxies as `Schemas.Module`, whose `schemas` property is a list of `Schemas.Module.Entry` value objects, each a `name` and a
   `schema`, a `Schemas.Module.Definition`: a union of the schema kinds, `native`, `object`, `union`, `intersection`,
   `indexed` and `relation`. A snapshot of schemas is a snapshot of a module.
-- **`Modules` translates.** `Modules.module(store, schemas)` returns a module holding schemas given by name (a dict in
-  Python; a Map or a record in TypeScript), built in the store, and `Modules.schemas(store, module)` the schemas a
-  module holds, by name. Both go through the module's plain form.
+- **`Modules` translates.** `Modules.module(store, schemas)` returns a module holding named schemas, each under its
+  name, built in the store, and `Modules.schemas(store, module)` the schemas a module holds, by name, each read back
+  with its name. Both go through the module's plain form.
 - **Within a module, schemas are value objects, nested inline**, and their members are lists of value objects, in
   declared order: an object schema's `properties` (`name`, `type`) and `adjacencies` (`name`, `relation`, `me`), with
   its `singleton` and `ref`; a union's `branches` and an intersection's `parts` (`name`, `type`); a relation's `links`
@@ -568,9 +569,13 @@ are written, read, validated and compared like any other objects.
   included: a name resolves within the module, then in the store. A schema that refers to itself without a name is
   refused, and so are a name that resolves nowhere, a relation named as a type or something else named as a
   relation, and a name a module defines twice.
-- **One type translates alone too.** `Modules.reference(store, schema)` gives a type's plain form, by name when the store
-  registers it and inline otherwise, and `Modules.resolve(store, definition)` the type it describes, so that other data
-  can refer to schemas as a module's members do (mbse-patterns' predicates name their symbols' schemas this way).
+- **A named schema is written by its name, everywhere.** A schema refers to a named schema by name and writes an
+  unnamed one inline, so writing schemas needs no store; reading resolves names, within a module and then in the store.
+  A module entry is the one place a named schema is defined: its name, beside its definition, so the kinds'
+  meta-schemas hold no name.
+- **One type translates alone too.** `Modules.reference(schema)` gives a type's plain form, by name when it has one and
+  inline otherwise, and `Modules.resolve(store, definition)` the type it describes, so that other data can refer to
+  schemas as a module's members do (mbse-patterns' predicates name their symbols' schemas this way).
 - **Meta-schemas are defined in code**, never read from data. Modules are built by the builders of any implementation,
   through `Plain.FromPlain`, and read through the protocols, so the DSL builders, whose methods (`properties(*specs)`)
   would clash with the visitor protocols (`properties(callback)`), are not involved.
@@ -636,7 +641,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Snapshots whose two ends disagree (F13) are accepted and restore the union of both ends' entries. Should
   deserialization reject them instead of leaving it to validation?
 
-- Names within a store: namespacing and versioning of schema names (dotted names are only a convention).
+- Versioning schema names: whether a version is part of a name (`crm.Contact.v2`) or beside it.
 - Equality edge cases listed in `EQUALITY.md` are proposals; confirm them.
 - Multi-object snapshot naming: confirm `Plain.ToPlain(store).Reachable(schema, value)` /
   `Plain.FromPlain(store).Reachable(schema, plain)` (still marked PROPOSED in the example).
@@ -711,6 +716,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Object identity on the wire uses transaction-local string symbols with a checkable 1:1 mapping; only `create` creates
   objects.
 - Transactions are flat; mutations may be nested.
+- A schema's name is its own, set by its builder (`.name('crm.Contact')`), on any kind of schema: identifiers separated
+  by dots, the part before the last dot its namespace. A store registers a schema under its name (`register(schema)`),
+  so a schema has one name in every store, and a reference to a named schema is written by that name with no store.
 - Stores replace the `Factories` design and every registry: a store (`Stores.Store`) locates schemas, builders,
   members, singletons and extents; its data is what its singletons reach, and everything else is transient; it is
   isolated from other stores (see Stores). There is no global registry.

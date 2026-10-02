@@ -9,7 +9,7 @@ store = Proxies.OfStore()
 # --- Schemas ---
 
 IntlAddress = (
-    Schemas.OfObject.Builder().ref()
+    Schemas.OfObject.Builder().name('IntlAddress').ref()
     .properties(
         lambda prop: prop.name('street1').of(lambda t: t.as_native(str)),
         lambda prop: prop.name('street2').of(lambda t: t.as_native(str)),
@@ -25,7 +25,7 @@ IntlAddress = (
 )
 
 Contact = (
-    Schemas.OfObject.Builder().ref()
+    Schemas.OfObject.Builder().name('Contact').ref()
     .properties(
         lambda prop: prop.name('given_name').of(lambda t: t.as_native(str)),
         lambda prop: prop.name('family_name').of(lambda t: t.as_native(str)),
@@ -36,7 +36,7 @@ Contact = (
 )
 
 PhoneNumber = (
-    Schemas.OfObject.Builder().ref()
+    Schemas.OfObject.Builder().name('PhoneNumber').ref()
     .properties(
         lambda prop: prop.name('number').of(lambda t: t.as_native(str)),  # ITU-T E.164, e.g. '+14155550100'
     )
@@ -44,7 +44,7 @@ PhoneNumber = (
 )
 
 EmailAddress = (
-    Schemas.OfObject.Builder().ref()
+    Schemas.OfObject.Builder().name('EmailAddress').ref()
     .properties(
         lambda prop: prop.name('address').of(lambda t: t.as_native(str)),  # RFC 5322 addr-spec
     )
@@ -54,7 +54,7 @@ EmailAddress = (
 # Collections are relations. Links are untyped; each object declares its adjacencies below.
 
 ContactAddresses = (
-    Schemas.OfRelation.Builder()
+    Schemas.OfRelation.Builder().name('ContactAddresses')
     .links('contact', 'address')
     .properties(
         lambda prop: prop.name('label').of(lambda t: t.as_native(str)),  # e.g. 'home', 'work'
@@ -63,7 +63,7 @@ ContactAddresses = (
 )
 
 ContactPhones = (
-    Schemas.OfRelation.Builder()
+    Schemas.OfRelation.Builder().name('ContactPhones')
     .links('contact', 'phone')
     .properties(
         lambda prop: prop.name('label').of(lambda t: t.as_native(str)),  # e.g. 'mobile', 'work'
@@ -72,7 +72,7 @@ ContactPhones = (
 )
 
 ContactEmails = (
-    Schemas.OfRelation.Builder()
+    Schemas.OfRelation.Builder().name('ContactEmails')
     .links('contact', 'email')
     .properties(
         lambda prop: prop.name('label').of(lambda t: t.as_native(str)),  # e.g. 'personal', 'work'
@@ -114,13 +114,13 @@ EmailAddress = (
     .update()
 )
 
-store.register('IntlAddress', IntlAddress)
-store.register('Contact', Contact)
-store.register('PhoneNumber', PhoneNumber)
-store.register('EmailAddress', EmailAddress)
-store.register('ContactAddresses', ContactAddresses)
-store.register('ContactPhones', ContactPhones)
-store.register('ContactEmails', ContactEmails)
+store.register(IntlAddress)
+store.register(Contact)
+store.register(PhoneNumber)
+store.register(EmailAddress)
+store.register(ContactAddresses)
+store.register(ContactPhones)
+store.register(ContactEmails)
 
 # --- Builder forms ---
 

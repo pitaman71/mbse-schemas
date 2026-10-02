@@ -10,7 +10,7 @@ two functions: `read(instance)` gives an instance's `State`, and `make(state)` b
 - `Builder(binding, instance)` is a `Visitors.OfObject` over a state, with every value kind the schema declares:
   natives (checked by type), and value objects, unions and lists (through their plain form). It is finalized by
   `create()`, `clone()` and `update()`, none validating. A class's own builder derives from it for its DSL.
-- `OfStore(builders)` is a store of bound classes (see `Stores`): their schemas and builders by name, and the instance
+- `OfStore(builders, relations)` is a store of bound classes (see `Stores`): their schemas and builders by name, and the instance
   of each singleton schema, made by its builder.
 
 A state holds each property's value, natives as natives and other values in their plain form (an absent property has
@@ -345,23 +345,24 @@ class Builder:
 
 
 class OfStore(Stores.Catalog):
-    """A store of bound classes: `builders` gives each object schema and the function that makes its builder from an
-    optional instance, by name; `relations` names the relations. `store.builder(name, instance)`, or
+    """A store of bound classes: `builders` gives each object schema, with the function that makes its builder from an
+    optional instance, and `relations` the relations, each registered under its name. `store.builder(name, instance)`, or
     `store.<Name>(instance)`, returns a builder. The instance of each singleton schema is made by its builder when the
     store is."""
 
-    def __init__(self, builders: Mapping[str, tuple[Schemas.OfObject.Data, Callable[..., Any]]],
-                 relations: Mapping[str, Schemas.OfRelation.Data] | None = None):
+    def __init__(self, builders: Iterable[tuple[Schemas.OfObject.Data, Callable[..., Any]]],
+                 relations: Iterable[Schemas.OfRelation.Data] = ()):
         super().__init__()
         self._factories: dict[str, Callable[..., Any]] = {}
-        for name, (schema, factory) in builders.items():
-            self.register(name, schema)
-            self._factories[name] = factory
-        for name, relation in (relations or {}).items():
-            self.register(name, relation)
-        for name, (schema, _) in builders.items():
+        builders = list(builders)
+        for schema, factory in builders:
+            self.register(schema)
+            self._factories[schema.name] = factory
+        for relation in relations:
+            self.register(relation)
+        for schema, _ in builders:
             if schema.singleton is not None:
-                self._singletons[schema.singleton] = self.builder(name).create()
+                self._singletons[schema.singleton] = self.builder(schema.name).create()
 
     def builder(self, name: str, instance: Any = None) -> Any:
         self.schema(name)

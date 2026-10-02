@@ -14,7 +14,7 @@ const store = new Proxies.OfStore();
 
 // --- Schemas ---
 
-let Reading = new Schemas.OfObject.Builder().ref()
+let Reading = new Schemas.OfObject.Builder().name("Reading").ref()
   .properties(
     (prop) => prop.name("observed").of((t) => t.as_native(String)), // ISO 8601, e.g. '2026-09-28T12:00:00Z'
     (prop) => prop.name("value").of((t) => t.as_native(Number)),
@@ -24,13 +24,13 @@ let Reading = new Schemas.OfObject.Builder().ref()
     (prop) => prop.name("note").of((t) => t.as_native(String)),
   )
   .create();
-let Station = new Schemas.OfObject.Builder().ref()
+let Station = new Schemas.OfObject.Builder().name("Station").ref()
   .properties(
     (prop) => prop.name("wmo_id").of((t) => t.as_native(String)), // e.g. '03772'; leading zeros matter
     (prop) => prop.name("name").of((t) => t.as_native(String)),
   )
   .create();
-const Readings = new Schemas.OfRelation.Builder()
+const Readings = new Schemas.OfRelation.Builder().name("Readings")
   .links("station", "reading")
   .properties((prop) => prop.name("sensor").of((t) => t.as_native(String)))
   .unique("station", "sensor") // each reading comes from one sensor of one station
@@ -38,8 +38,8 @@ const Readings = new Schemas.OfRelation.Builder()
 Station = new Schemas.OfObject.Builder(Station).relations((adj) => adj.name("readings").of(Readings).me("station")).update();
 Reading = new Schemas.OfObject.Builder(Reading).relations((adj) => adj.name("station").of(Readings).me("reading")).update();
 
-for (const [name, schema] of [["Reading", Reading], ["Station", Station], ["Readings", Readings]] as const) {
-  store.register(name, schema);
+for (const schema of [Reading, Station, Readings]) {
+  store.register(schema);
 }
 const validate = Validators.Validate(store);
 const from_json = JSON.FromJSON(store);

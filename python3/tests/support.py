@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-from mbse.Schemas.Framework import Plain, Reachable
+from mbse.Schemas.Framework import Plain, Proxies, Reachable
 
 
 @contextmanager
@@ -42,7 +42,7 @@ def get_property(visitor: Any, name: str) -> Any:
 def entries(schema: Any, obj: Any, adjacency: str) -> list[dict[str, Any]]:
     """An object's entries with references resolved to objects, read from a Reachable snapshot (symbols follow
     `Reachable.of` order)."""
-    graph = Plain.ToPlain.Reachable(schema, obj)
+    graph = Plain.ToPlain(Proxies.store_of(obj)).Reachable(schema, obj)
     objects = Reachable.of(obj)
 
     def resolve(value: Any) -> Any:

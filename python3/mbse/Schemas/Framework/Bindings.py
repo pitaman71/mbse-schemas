@@ -10,7 +10,8 @@ two functions: `read(instance)` gives an instance's `State`, and `make(state)` b
 - `Builder(binding, instance)` is a `Visitors.OfObject` over a state, with every value kind the schema declares:
   natives (checked by type), and value objects, unions and lists (through their plain form). It is finalized by
   `create()`, `clone()` and `update()`, none validating. A class's own builder derives from it for its DSL.
-- `Registry` gives `Plain.FromPlain` the builders by schema name.
+- `OfStore(builders)` is a store of bound classes (see `Stores`): their schemas and builders by name, and the
+  instances its builders make.
 
 A state holds each property's value, natives as natives and other values in their plain form (an absent property has
 no key, and a builder drops the keys whose value is None), and each adjacency's
@@ -26,10 +27,10 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import Plain, Schemas, Visitors
+from . import Plain, Schemas, Stores, Visitors
 from .Visitors import Native
 
-__all__ = ["Entry", "State", "Binding", "Builder", "Registry", "accept"]
+__all__ = ["Entry", "State", "Binding", "Builder", "OfStore", "accept"]
 
 
 @dataclass
@@ -273,6 +274,7 @@ class Builder:
 
     def __init__(self, binding: Binding, instance: Any = None):
         self.binding, self._source = binding, instance
+        self._store: OfStore | None = None  # set by the store that made this builder, whose extents take what it makes
         state = State() if instance is None else binding.read(instance)
         state.values = {name: value for name, value in state.values.items() if value is not None}
         self.state = state
@@ -282,17 +284,22 @@ class Builder:
     def create(self) -> Any:
         if self._source is not None:
             raise ValueError("create() is only valid without a source instance; use clone() or update()")
-        return self.binding.make(self.state)
+        return self._made(self.binding.make(self.state))
 
     def clone(self) -> Any:
         if self._source is None:
             raise ValueError("clone() is only valid with a source instance")
-        return self.binding.make(self.state)
+        return self._made(self.binding.make(self.state))
 
     def update(self) -> Any:
         if self._source is None:
             raise ValueError("update() is only valid with a source instance")
         return self.binding.assign(self._source, self.state)
+
+    def _made(self, instance: Any) -> Any:
+        if self._store is not None:
+            self._store._extents.setdefault(self._store.name_of(self.binding.schema), []).append(instance)
+        return instance
 
     # Visitors.OfObject
 
@@ -340,38 +347,41 @@ class Builder:
         return self
 
 
-# --- The registry ---
+# --- The store ---
 
 
-class Registry:
-    """The builders of bound classes, by schema name: `getattr(registry, name)(instance)` returns a builder, as
-    `Plain.FromPlain` expects. `schema` and `name_of` look the schemas up; a relation's name is known, but has no
-    builder."""
+class OfStore(Stores.Catalog):
+    """A store of bound classes: `builders` gives each object schema and the function that makes its builder from an
+    optional instance, by name; `relations` names the relations. `store.builder(name, instance)`, or
+    `store.<Name>(instance)`, returns a builder, and the instances that the store's builders create or clone are in
+    its extents."""
 
     def __init__(self, builders: Mapping[str, tuple[Schemas.OfObject.Data, Callable[..., Any]]],
                  relations: Mapping[str, Schemas.OfRelation.Data] | None = None):
-        self._builders = dict(builders)
-        self._schemas: dict[str, Any] = {name: schema for name, (schema, _) in builders.items()}
-        self._relations = dict(relations or {})
+        super().__init__()
+        self._factories: dict[str, Callable[..., Any]] = {}
+        self._extents: dict[str, list[Any]] = {}
+        for name, (schema, factory) in builders.items():
+            self.register(name, schema)
+            self._factories[name] = factory
+        for name, relation in (relations or {}).items():
+            self.register(name, relation)
 
-    def schema(self, name: str) -> Schemas.OfObject.Data:
-        if name in self._relations:
-            raise TypeError(f"{name!r} is a relation; no relation builder is exposed")
-        if name not in self._schemas:
-            raise AttributeError(f"no schema registered as {name!r}")
-        return self._schemas[name]
-
-    def name_of(self, schema: Any) -> str:
-        for name, registered in {**self._schemas, **self._relations}.items():
-            if registered is schema:
-                return name
-        raise LookupError("schema is not registered")
+    def builder(self, name: str, instance: Any = None) -> Any:
+        self.schema(name)
+        builder = self._factories[name](instance)
+        builder._store = self
+        return builder
 
     def member(self, instance: Any, name: str) -> Any:
         """The value an instance holds in its property `name`."""
         return getattr(instance, name)
 
+    def extent(self, name: str) -> tuple[Any, ...]:
+        self.schema(name)
+        return tuple(self._extents.get(name, ()))
+
     def __getattr__(self, name: str) -> Callable[..., Any]:
-        if name.startswith("_") or name not in self._builders:
+        if name.startswith("_") or name not in self._factories:
             raise AttributeError(name)
-        return self._builders[name][1]
+        return lambda instance=None: self.builder(name, instance)

@@ -23,7 +23,7 @@ def entries(obj, adjacency):
         )
         rows.append(row)
 
-    getattr(Proxies.Builders, obj.schema_name())(obj).adjacency(adjacency, lambda a: a.entries(read))
+    Proxies.store_of(obj).builder(obj.schema_name(), obj).adjacency(adjacency, lambda a: a.entries(read))
     return rows
 
 
@@ -47,4 +47,4 @@ def remove_entries(obj, adjacency, where):
         for entry in doomed:
             a.remove(entry)
 
-    return getattr(Proxies.Builders, obj.schema_name())(obj).adjacency(adjacency, visit).update()
+    return Proxies.store_of(obj).builder(obj.schema_name(), obj).adjacency(adjacency, visit).update()

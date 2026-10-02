@@ -1,8 +1,8 @@
 """Validators: check data against its schema, only when the caller asks.
 
-`Validate(registry)(schema, value)` returns a list of problems (empty when valid). It is constructed with a registry
-that looks schemas up by name, e.g. `Proxies.Builders`. `Validate(registry).Reachable(schema, root)` checks the root
-and every object reachable from it.
+`Validate(store)(schema, value)` returns a list of problems (empty when valid). It is constructed with the store that
+looks schemas up by name (see `Stores`). `Validate(store).Reachable(schema, root)` checks the root and every object
+reachable from it.
 
 The validator is a visitor: each object writes itself into a recorder through `Visitable.accept`. Checks:
 
@@ -21,20 +21,12 @@ The validator is a visitor: each object writes itself into a recorder through `V
 from __future__ import annotations
 
 from collections.abc import Callable, Hashable
-from typing import Any, Literal, Protocol
+from typing import Any, Literal
 
-from . import Errors, Reachable, Schemas, Visitors
+from . import Errors, Reachable, Schemas, Stores, Visitors
 from .Visitors import Native
 
-__all__ = ["Registry", "Validate", "properties_of", "entries_of", "ListRecord", "EntryRecord"]
-
-
-class Registry(Protocol):
-    """Looks schemas up by name, e.g. `Proxies.Builders`."""
-
-    def schema(self, name: str) -> Schemas.OfObject.Data: ...
-
-    def name_of(self, schema: Schemas.OfObject.Data) -> str: ...
+__all__ = ["Validate", "properties_of", "entries_of", "ListRecord", "EntryRecord"]
 
 
 # --- Recorders: Visitors that capture what an object writes into them ---
@@ -396,8 +388,8 @@ class _Entry:
 
 
 class _Check:
-    def __init__(self, registry: Registry):
-        self._registry = registry
+    def __init__(self, store: Stores.Store):
+        self._store = store
         self.problems: list[str] = []
         self._schemas_checked: set[int] = set()
         self._entries: dict[int, tuple[Schemas.OfRelation.Data, dict[Hashable, _Entry]]] = {}
@@ -514,7 +506,7 @@ class _Check:
             if target.owner() is not None:
                 self._links.append((label, relation, name, target))
                 continue
-            problem = _filling(relation, name, target, self._registry.schema(target.schema_name()))
+            problem = _filling(relation, name, target, self._store.schema(target.schema_name()))
             if problem:
                 problems.append(f"{label}.{name}: {problem}")
         for name, item in entry.values.items():
@@ -579,10 +571,10 @@ def entries_of(value: Visitors.Visitable) -> dict[str, list[_EntryRecord]]:
 
 
 class Validate:
-    """Validates data against its schema. `Validate(registry)(schema, value)` dispatches on the schema's kind."""
+    """Validates data against its schema. `Validate(store)(schema, value)` dispatches on the schema's kind."""
 
-    def __init__(self, registry: Registry):
-        self._registry = registry
+    def __init__(self, store: Stores.Store):
+        self._store = store
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> list[str]:
         if isinstance(schema, Schemas.OfNative.Data):
@@ -606,11 +598,11 @@ class Validate:
 
     def _run(self, schema: Schemas.OfObject.Data, values: list[Visitors.Visitable]) -> list[str]:
         root = values[0]
-        if self._registry.schema(root.schema_name()) is not schema:
+        if self._store.schema(root.schema_name()) is not schema:
             return [f"the value is a {root.schema_name()!r}, not an instance of the given schema"]
-        check = _Check(self._registry)
+        check = _Check(self._store)
         for i, value in enumerate(values):
-            check.object(f"{value.schema_name()}#{i}", self._registry.schema(value.schema_name()), value)
+            check.object(f"{value.schema_name()}#{i}", self._store.schema(value.schema_name()), value)
         check.links()
         check.uniques()
         return check.problems

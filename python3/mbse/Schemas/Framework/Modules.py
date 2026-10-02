@@ -1,18 +1,19 @@
 """Modules: schemas as data.
 
-A module is a named set of schemas, held by an object of the meta-schema `Schemas.Module.Schema`, which is registered
-as 'Schemas.Module'. `module(schemas)` returns such an object for schemas given by name, and `schemas(module)` the
-schemas a module holds, so that schemas are written, read, validated and compared like any other objects:
+A module is a named set of schemas, held by an object of the meta-schema `Schemas.Module.Schema`, which every proxy
+store registers as 'Schemas.Module'. `module(store, schemas)` returns such an object, built in `store`, for schemas
+given by name, and `schemas(store, module)` the schemas a module holds, so that schemas are written, read, validated
+and compared like any other objects:
 
-    text = JSON.ToJSON(Schemas.Module.Schema, Modules.module({"Contact": Contact, "Phone": Phone}))
-    schemas = Modules.schemas(JSON.FromJSON(Proxies.Builders)(Schemas.Module.Schema, text))
+    text = JSON.ToJSON(store)(Schemas.Module.Schema, Modules.module(store, {"Contact": Contact, "Phone": Phone}))
+    schemas = Modules.schemas(store, JSON.FromJSON(store)(Schemas.Module.Schema, text))
 
 Within a module, each schema is written inline, as a value object of its kind, and refers to another schema by name
-when that one is in the module or registered, so shared and recursive schemas are written once. A name resolves within
-the module, then in the registry. A schema that refers to itself must be named.
+when that one is in the module or registered in the store, so shared and recursive schemas are written once. A name
+resolves within the module, then in the store. A schema that refers to itself must be named.
 
 The translation goes through plain data, the form `Plain`, `JSON` and `YAML` share: `module` decodes the plain form of
-the schemas, with the given builders, and `schemas` reads the plain form of the module.
+the schemas in the store, and `schemas` reads the plain form of the module.
 """
 
 from __future__ import annotations
@@ -20,46 +21,45 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from . import Plain, Proxies, Schemas
+from . import Plain, Schemas, Stores
 
 __all__ = ["MODULE", "module", "schemas"]
 
 MODULE = "Schemas.Module"
-Proxies.register(MODULE, Schemas.Module.Schema)
 
 Definition = dict[str, Any]
 """A schema's plain form: a mapping from its kind to its contents, e.g. `{"native": {"format": "basic", ...}}`."""
 
 
-def module(schemas: Mapping[str, Any], builders: Plain.Builders = Proxies.Builders) -> Any:
-    """A module holding `schemas`, by name, built with `builders`."""
-    writer = _Writer({id(schema): name for name, schema in schemas.items()})
+def module(store: Stores.Store, schemas: Mapping[str, Any]) -> Any:
+    """A module holding `schemas`, by name, built in `store`."""
+    writer = _Writer(store, {id(schema): name for name, schema in schemas.items()})
     entries = [{"name": name, "schema": writer.definition(schema)} for name, schema in schemas.items()]
-    return Plain.FromPlain(builders)(Schemas.Module.Schema, {"root": "s0", "objects": {"s0": {"schemas": entries}}})
+    return Plain.FromPlain(store)(Schemas.Module.Schema, {"root": "s0", "objects": {"s0": {"schemas": entries}}})
 
 
-def schemas(module: Any) -> dict[str, Any]:
-    """The schemas `module` holds, by name. Names resolve within the module, then in the registry."""
-    plain = Plain.ToPlain(Schemas.Module.Schema, module)
+def schemas(store: Stores.Store, module: Any) -> dict[str, Any]:
+    """The schemas `module` holds, by name. Names resolve within the module, then in `store`."""
+    plain = Plain.ToPlain(store)(Schemas.Module.Schema, module)
     entries = plain["objects"][plain["root"]].get("schemas", [])  # type: ignore[index, union-attr]
-    return _Reader(entries).read()
+    return _Reader(store, entries).read()
 
 
 # --- Schemas to plain data ---
 
 
 class _Writer:
-    """Writes schemas as plain data, naming those in the module (`names`, by identity) and those registered."""
+    """Writes schemas as plain data, naming those in the module (`names`, by identity) and those in the store."""
 
-    def __init__(self, names: dict[int, str]):
-        self._names = names
+    def __init__(self, store: Stores.Store, names: dict[int, str]):
+        self._store, self._names = store, names
         self._inline: set[int] = set()  # the schemas being written inline, to refuse one that refers to itself
 
     def _name(self, schema: Any) -> str | None:
         if id(schema) in self._names:
             return self._names[id(schema)]
         try:
-            return Proxies.name_of(schema)
+            return self._store.name_of(schema)
         except LookupError:
             return None
 
@@ -71,7 +71,7 @@ class _Writer:
     def definition(self, schema: Any) -> Definition:
         """A schema written inline."""
         if id(schema) in self._inline:
-            raise ValueError("a schema that refers to itself must be named, in the module or the registry")
+            raise ValueError("a schema that refers to itself must be named, in the module or the store")
         self._inline.add(id(schema))
         try:
             return self._contents(schema)
@@ -130,8 +130,8 @@ class _Reader:
     """Reads the schemas of a module's plain entries. Each named schema is created first, so that references to it,
     recursive ones included, resolve to it."""
 
-    def __init__(self, entries: list[dict[str, Any]]):
-        self._entries = entries
+    def __init__(self, store: Stores.Store, entries: list[dict[str, Any]]):
+        self._store, self._entries = store, entries
         self._defined: dict[str, Any] = {}
 
     def read(self) -> dict[str, Any]:
@@ -147,9 +147,9 @@ class _Reader:
         if name in self._defined:
             return self._defined[name]
         try:
-            return Proxies.registered(name)
+            return self._store.registered(name)
         except LookupError:
-            raise LookupError(f"no schema named {name!r} in the module or the registry") from None
+            raise LookupError(f"no schema named {name!r} in the module or the store") from None
 
     def _type(self, definition: Definition) -> Any:
         kind, body = _contents_of(definition)

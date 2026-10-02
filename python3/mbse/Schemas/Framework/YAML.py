@@ -1,7 +1,7 @@
 """YAML: a thin text encoding of `Plain` data. Requires PyYAML (`pip install schemas[yaml]`).
 
-`ToYAML(schema, value)` returns YAML text; `FromYAML(builders)(schema, text)` rebuilds values with the given
-implementation's builders. Both mirror `Plain` and `JSON`.
+`ToYAML(store)(schema, value)` returns YAML text, naming the schemas of objects in `store`, and
+`FromYAML(store)(schema, text)` rebuilds values in `store`. Both mirror `Plain` and `JSON`.
 
 Loading follows the YAML 1.2 core schema rather than PyYAML's YAML 1.1 defaults: only `true` / `false` are booleans
 (not `yes` / `on`), `010` is ten, there are no sexagesimal numbers (`1:30` is a string), and unquoted dates stay
@@ -17,7 +17,7 @@ import re
 from functools import cache
 from typing import Any
 
-from . import JSON, Plain, Schemas, Visitors
+from . import JSON, Plain, Schemas, Stores, Visitors
 from .Errors import DecodeError
 from .Plain import PlainData
 
@@ -210,30 +210,31 @@ def loads(text: str | bytes) -> PlainData:
     return plain
 
 
-class _ToYAML:
-    """`ToYAML(schema, value)` dispatches on the schema's kind."""
+class ToYAML:
+    """Encodes values, naming the schemas of objects in `store`: `ToYAML(store)(schema, value)` dispatches on the
+    schema's kind."""
+
+    def __init__(self, store: Stores.Store):
+        self._plain = Plain.ToPlain(store)
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> str:
-        return dumps(Plain.ToPlain(schema, value))
+        return dumps(self._plain(schema, value))
 
-    @staticmethod
-    def OfNative(schema: Schemas.OfNative.Data, value: Any) -> str:
-        return dumps(Plain.ToPlain.OfNative(schema, value))
+    def OfNative(self, schema: Schemas.OfNative.Data, value: Any) -> str:
+        return dumps(self._plain.OfNative(schema, value))
 
-    @staticmethod
-    def OfObject(schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> str:
-        return dumps(Plain.ToPlain.OfObject(schema, value))
+    def OfObject(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> str:
+        return dumps(self._plain.OfObject(schema, value))
 
-    @staticmethod
-    def Reachable(schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> str:
-        return dumps(Plain.ToPlain.Reachable(schema, value))
+    def Reachable(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> str:
+        return dumps(self._plain.Reachable(schema, value))
 
 
 class FromYAML:
-    """Decodes YAML, building objects with the given implementation's builders, e.g. `FromYAML(Proxies.Builders)`."""
+    """Decodes YAML, building objects in `store`: `FromYAML(store)(schema, text)`."""
 
-    def __init__(self, builders: Plain.Builders):
-        self._plain = Plain.FromPlain(builders)
+    def __init__(self, store: Stores.Store):
+        self._plain = Plain.FromPlain(store)
 
     def __call__(self, schema: Schemas.OfAny.Data, text: str | bytes) -> Any:
         return self._plain(schema, loads(text))
@@ -247,5 +248,3 @@ class FromYAML:
     def Reachable(self, schema: Schemas.OfObject.Data, text: str | bytes) -> Any:
         return self._plain.Reachable(schema, loads(text))
 
-
-ToYAML = _ToYAML()

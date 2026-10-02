@@ -9,6 +9,8 @@ from mbse.Schemas.Framework import Schemas, Proxies, Plain, Validators
 from mbse.Schemas.Framework.Errors import DecodeError
 from mbse.Schemas.Examples._support import entries, raises
 
+store = Proxies.OfStore()
+
 # --- Schemas ---
 
 Sample = (
@@ -65,8 +67,8 @@ Currency = Schemas.OfObject.Builder(Currency).relations(lambda adj: adj.name('am
 for name, schema in [('Sample', Sample), ('iso4217.Currency', Currency), ('Product', Product), ('Money', Money),
                      ('Prices', Prices), ('Denomination', Denomination)]:
     assert schema.validate() == [], (name, schema.validate())
-    Proxies.register(name, schema)
-Builders = Proxies.Builders
+    store.register(name, schema)
+Builders = store
 
 # --- Native values at their edges ---
 
@@ -79,37 +81,37 @@ edge = (
     .flag(False)  # a present False is not an absent property
     .create()
 )
-plain = Plain.ToPlain(Sample, edge)
+plain = Plain.ToPlain(store)(Sample, edge)
 fields = plain['objects'][plain['root']]
 assert fields['payload'] == 'AP8QAP8QAP8Q'  # bytes become base64 text
 assert fields['flag'] is False and fields['count'] == 2**100
 
 # Plain data is JSON-encodable, and survives a JSON round trip.
-restored = Plain.FromPlain(Proxies.Builders)(Sample, json.loads(json.dumps(plain)))
+restored = Plain.FromPlain(store)(Sample, json.loads(json.dumps(plain)))
 assert restored.label == edge.label and restored.payload == edge.payload and restored.count == 2**100
 assert restored.ratio == 0.0 and math.copysign(1, restored.ratio) < 0  # the sign of -0.0 survives
 assert restored.flag is False
 
 # Empty values are present values.
 empty = Builders.Sample().label('').payload(b'').count(0).ratio(0.0).create()
-back = Plain.FromPlain(Proxies.Builders)(Sample, Plain.ToPlain(Sample, empty))
+back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty))
 assert (back.label, back.payload, back.count, back.ratio) == ('', b'', 0, 0.0)
 with raises(AttributeError):
     back.flag  # never set, so absent
 
 # An object with nothing set serializes to an empty object.
 blank = Builders.Sample().create()
-assert Plain.ToPlain(Sample, blank) == {'root': 's0', 'objects': {'s0': {}}}
+assert Plain.ToPlain(store)(Sample, blank) == {'root': 's0', 'objects': {'s0': {}}}
 
 # Per-kind entry points.
-assert Plain.ToPlain(Schemas.OfNative.Data(bytes), b'\x01') == Plain.ToPlain.OfNative(Schemas.OfNative.Data(bytes), b'\x01') == 'AQ=='
-assert Plain.FromPlain(Proxies.Builders).OfNative(Schemas.OfNative.Data(int), 7) == 7
+assert Plain.ToPlain(store)(Schemas.OfNative.Data(bytes), b'\x01') == Plain.ToPlain(store).OfNative(Schemas.OfNative.Data(bytes), b'\x01') == 'AQ=='
+assert Plain.FromPlain(store).OfNative(Schemas.OfNative.Data(int), 7) == 7
 
 # --- Strict native types ---
 
 # Distinct native types are never coerced into each other, in either direction. Reading a wrong type is a problem in
 # the data: a DecodeError (a ValueError) located by a path, here the root.
-from_plain = Plain.FromPlain(Proxies.Builders)
+from_plain = Plain.FromPlain(store)
 for native, bad in [(int, True), (int, 1.0), (int, '1'), (float, 1), (bool, 0), (str, b'x'), (str, None)]:
     with raises(DecodeError):
         from_plain(Schemas.OfNative.Data(native), bad)
@@ -122,10 +124,10 @@ with raises(DecodeError):
 sloppy = Builders.Sample().count('3').create()
 assert sloppy.count == '3'
 with raises(TypeError):
-    Plain.ToPlain(Sample, sloppy)
+    Plain.ToPlain(store)(Sample, sloppy)
 
 # Validation reports it without serializing.
-validate = Validators.Validate(Proxies.Builders)
+validate = Validators.Validate(store)
 assert validate(Sample, sloppy) == ['Sample#0.count: expected int, got str']
 assert validate(Sample, edge) == [] and validate(Sample, blank) == []
 assert validate(Schemas.OfNative.Data(int), True) == ['expected int, got bool']
@@ -144,7 +146,7 @@ widget = (
 by_currency = {e['currency']: e['price'].amount for e in entries(Product, widget, 'prices')}
 assert by_currency == {'JPY': 1500, 'EUR': 1299}
 
-graph = Plain.ToPlain.Reachable(Product, widget)
+graph = Plain.ToPlain(store).Reachable(Product, widget)
 assert sorted(o.get('code') for o in graph['objects'].values() if 'code' in o) == ['EUR', 'JPY']
 schemas_named = {ref['$schema'] for obj in graph['objects'].values() for v in obj.values() if isinstance(v, list)
                  for e in v for ref in e.values() if isinstance(ref, dict)}
@@ -169,7 +171,7 @@ assert validate(Currency, widget) != []
 
 # --- Malformed snapshots are rejected ---
 
-good = Plain.ToPlain.Reachable(Product, widget)
+good = Plain.ToPlain(store).Reachable(Product, widget)
 root = good['root']
 price_ref = good['objects'][root]['prices'][0]['price']
 
@@ -196,16 +198,16 @@ for snapshot in bad_snapshots:
 
 # A single-object snapshot leaves references unresolved, so it cannot be deserialized on its own.
 with raises(DecodeError):
-    from_plain(Product, Plain.ToPlain(Product, widget))
+    from_plain(Product, Plain.ToPlain(store)(Product, widget))
 
 # The root must be an instance of the schema given.
 with raises(TypeError):
-    Plain.ToPlain(Currency, widget)
+    Plain.ToPlain(store)(Currency, widget)
 
 # --- Registry corner cases ---
 
 with raises(ValueError):
-    Proxies.register('Sample', Sample)  # names are registered once
+    store.register('Sample', Sample)  # names are registered once
 with raises(AttributeError):
     Builders.Unregistered()
 with raises(TypeError):
@@ -218,7 +220,7 @@ with raises(AttributeError):
     widget.sku = 'W-2'  # instances are read-only
 
 # A schema registered as 'schema' is shadowed by the Builders.schema() method, but still reachable by name.
-Proxies.register('schema', Sample)
-assert Proxies.schema('schema') is Sample and Builders.schema('schema') is Sample
+store.register('schema', Sample)
+assert store.schema('schema') is Sample and Builders.schema('schema') is Sample
 
 print('Serialization: all checks passed')

@@ -1,7 +1,7 @@
 """JSON: a thin text encoding of `Plain` data.
 
-`ToJSON(schema, value)` returns JSON text; `FromJSON(builders)(schema, text)` rebuilds values with the given
-implementation's builders. Both mirror `Plain`: calling them dispatches on the schema's kind, and `.OfNative`,
+`ToJSON(store)(schema, value)` returns JSON text, naming the schemas of objects in `store`, and
+`FromJSON(store)(schema, text)` rebuilds values in `store`. Both mirror `Plain`: calling them dispatches on the schema's kind, and `.OfNative`,
 `.OfObject` and `.Reachable` are the specific forms.
 
 The encoding is strict JSON (RFC 8259). Output never contains NaN or Infinity, because `Schemas.OfNative` gives
@@ -18,7 +18,7 @@ import json
 import re
 from typing import Any, NoReturn
 
-from . import Plain, Schemas, Visitors
+from . import Plain, Schemas, Stores, Visitors
 from .Errors import DecodeError
 from .Plain import PlainData
 
@@ -229,30 +229,31 @@ class _Parser:
                 self.fail("trailing comma before ']'", comma)
 
 
-class _ToJSON:
-    """`ToJSON(schema, value)` dispatches on the schema's kind."""
+class ToJSON:
+    """Encodes values, naming the schemas of objects in `store`: `ToJSON(store)(schema, value)` dispatches on the
+    schema's kind."""
+
+    def __init__(self, store: Stores.Store):
+        self._plain = Plain.ToPlain(store)
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any, *, indent: int | None = None) -> str:
-        return dumps(Plain.ToPlain(schema, value), indent=indent)
+        return dumps(self._plain(schema, value), indent=indent)
 
-    @staticmethod
-    def OfNative(schema: Schemas.OfNative.Data, value: Any, *, indent: int | None = None) -> str:
-        return dumps(Plain.ToPlain.OfNative(schema, value), indent=indent)
+    def OfNative(self, schema: Schemas.OfNative.Data, value: Any, *, indent: int | None = None) -> str:
+        return dumps(self._plain.OfNative(schema, value), indent=indent)
 
-    @staticmethod
-    def OfObject(schema: Schemas.OfObject.Data, value: Visitors.Visitable, *, indent: int | None = None) -> str:
-        return dumps(Plain.ToPlain.OfObject(schema, value), indent=indent)
+    def OfObject(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable, *, indent: int | None = None) -> str:
+        return dumps(self._plain.OfObject(schema, value), indent=indent)
 
-    @staticmethod
-    def Reachable(schema: Schemas.OfObject.Data, value: Visitors.Visitable, *, indent: int | None = None) -> str:
-        return dumps(Plain.ToPlain.Reachable(schema, value), indent=indent)
+    def Reachable(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable, *, indent: int | None = None) -> str:
+        return dumps(self._plain.Reachable(schema, value), indent=indent)
 
 
 class FromJSON:
-    """Decodes JSON, building objects with the given implementation's builders, e.g. `FromJSON(Proxies.Builders)`."""
+    """Decodes JSON, building objects in `store`: `FromJSON(store)(schema, text)`."""
 
-    def __init__(self, builders: Plain.Builders):
-        self._plain = Plain.FromPlain(builders)
+    def __init__(self, store: Stores.Store):
+        self._plain = Plain.FromPlain(store)
 
     def __call__(self, schema: Schemas.OfAny.Data, text: str | bytes) -> Any:
         return self._plain(schema, loads(text))
@@ -266,5 +267,3 @@ class FromJSON:
     def Reachable(self, schema: Schemas.OfObject.Data, text: str | bytes) -> Any:
         return self._plain.Reachable(schema, loads(text))
 
-
-ToJSON = _ToJSON()

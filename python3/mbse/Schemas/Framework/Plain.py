@@ -1,18 +1,18 @@
 """Plain: conversion between values and plain data (dicts, lists, strings, numbers, booleans, null).
 
-`ToPlain(schema, value)` and `FromPlain(builders)(schema, plain)` dispatch on the schema's kind; `ToPlain.OfObject(...)` etc.
-are the per-kind forms. JSON and YAML are thin text encodings of plain data.
+`ToPlain(store)(schema, value)` and `FromPlain(store)(schema, plain)` dispatch on the schema's kind;
+`ToPlain(store).OfObject(...)` etc. are the per-kind forms. The store (see `Stores`) names the schemas of the objects
+written, and builds the objects read. JSON and YAML are thin text encodings of plain data.
 
 An object snapshot has the shape `{"root": symbol, "objects": {symbol: object}}`. Each object maps property names to
 plain values and adjacency names to lists of entries. An entry maps the other links to references and the entry
 properties to plain values; the object's own link is implied. A reference is `{"$ref": symbol, "$schema": name}`:
 object content carries no schema, so references carry the schema name, and the root schema is passed in.
 
-`ToPlain.OfObject` includes only the root object, so its references are unresolved and `FromPlain` rejects them.
-`ToPlain.Reachable` also includes every object reachable through adjacencies (see `Reachable`).
+`ToPlain(store).OfObject` includes only the root object, so its references are unresolved and `FromPlain` rejects them.
+`ToPlain(store).Reachable` also includes every object reachable through adjacencies (see `Reachable`).
 
-The serializers are visitors: a value writes itself into them through `Visitable.accept`. `FromPlain` is constructed
-with the builders to build with, e.g. `FromPlain(Proxies.Builders)`.
+The serializers are visitors: a value writes itself into them through `Visitable.accept`.
 
 A value object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties. Union
 and intersection values are written the same way, with the union's branches or the intersection's parts as the
@@ -26,11 +26,11 @@ from __future__ import annotations
 from collections.abc import Callable, Hashable, Mapping
 from typing import Any, NamedTuple, Protocol
 
-from . import Errors, Proxies, Reachable, Schemas, Visitors
+from . import Errors, Reachable, Schemas, Stores, Visitors
 from .Errors import DecodeError, path
 from .Visitors import Native
 
-__all__ = ["PlainData", "Builders", "ToPlain", "FromPlain"]
+__all__ = ["PlainData", "ToPlain", "FromPlain"]
 
 PlainData = None | bool | int | float | str | list["PlainData"] | dict[str, "PlainData"]
 
@@ -455,25 +455,11 @@ class _ObjectWriter(_RecordWriter):
 # --- Snapshots ---
 
 
-class Builders(Protocol):
-    """What `FromPlain` needs from an implementation, e.g. `Proxies.Builders`: `getattr(builders, name)(instance)`
-    returns a builder for the schema registered as `name`."""
-
-    def schema(self, name: str) -> Schemas.OfObject.Data: ...
-
-    def name_of(self, schema: Schemas.OfObject.Data) -> str: ...
-
-    def member(self, instance: Any, name: str) -> Any:
-        """The value `instance` holds in its property `name`, e.g. a value object."""
-        ...
-
-    def __getattr__(self, name: str) -> Callable[..., Any]: ...
-
-
 class _Snapshot:
     """Assigns symbols 1:1 to object identities, in first-reference order, and writes the included objects."""
 
-    def __init__(self) -> None:
+    def __init__(self, store: Stores.Store) -> None:
+        self._store = store
         self._symbols: dict[Hashable, str] = {}
         self._typed: set[str] = set()  # the reference objects some reference names the schema of
 
@@ -490,7 +476,7 @@ class _Snapshot:
     def run(
         self, schema: Schemas.OfObject.Data, root: Visitors.Visitable, include: list[Visitors.Visitable]
     ) -> dict[str, PlainData]:
-        if Proxies.schema(root.schema_name()) is not schema:
+        if self._store.schema(root.schema_name()) is not schema:
             raise TypeError(f"value is a {root.schema_name()!r}, not an instance of the given schema")
         if not schema.ref:
             raise TypeError(f"a snapshot's root must be a reference object; {root.schema_name()!r} is a value object schema")
@@ -504,7 +490,7 @@ class _Snapshot:
         objects: dict[str, PlainData] = {}
         for value in include:
             out: dict[str, PlainData] = {}
-            value.accept(_ObjectWriter(out, Proxies.schema(value.schema_name()), self._ref, symbol))
+            value.accept(_ObjectWriter(out, self._store.schema(value.schema_name()), self._ref, symbol))
             objects[self._symbol(value)] = out
         for value in include:  # an object whose schema nothing else gives carries it: one linked only by value objects
             key = self._symbol(value)
@@ -713,7 +699,7 @@ def _references(value: PlainData, where: tuple, found: Callable[[dict[str, Any],
 _Decoded = dict[str, tuple[dict[str, Any], Rows]]
 
 
-def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData
+def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
            ) -> tuple[str, dict[str, str], _Decoded, dict[str, _Found], list[tuple[_Found, Rows]]]:
     """Checks a snapshot against the schemas and decodes its values before anything is built. Returns the root symbol,
     each reference object's schema name, the decoded reference objects, where each value object with a symbol is, and
@@ -732,7 +718,7 @@ def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData
             raise DecodeError(f"an object must be a mapping, got {type(obj).__name__}", path=path("objects", symbol))
 
     # Pass 1: infer each reference object's schema from the references to it.
-    names: dict[str, str] = {root: builders.name_of(schema)}
+    names: dict[str, str] = {root: store.name_of(schema)}
     values: list[tuple[str, tuple]] = []  # references to value objects, checked once their symbols are known
 
     def found(ref: dict[str, Any], where: tuple) -> None:
@@ -764,7 +750,7 @@ def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData
         if symbol not in names:
             continue
         try:
-            object_schema = builders.schema(names[symbol])
+            object_schema = store.schema(names[symbol])
         except (AttributeError, LookupError, TypeError):
             raise DecodeError(f"no object schema registered as {names[symbol]!r}", path=path("objects", symbol)) from None
         if not object_schema.ref:
@@ -794,14 +780,14 @@ def _check(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData
     return root, names, decoded, {s: f for s, f in ids.items() if f.steps}, entries
 
 
-def _restore(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
-    """Rebuilds objects from an object snapshot using `builders`. Every reference must resolve within the snapshot:
+def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
+    """Rebuilds objects from an object snapshot in `store`. Every reference must resolve within the snapshot:
     reference objects are built first, with the value objects they hold, then the entries are added."""
-    root, names, decoded, ids, entries = _check(builders, schema, plain)
+    root, names, decoded, ids, entries = _check(store, schema, plain)
 
     created: dict[str, Any] = {}
     for symbol, (properties, _) in decoded.items():
-        builder = getattr(builders, names[symbol])()
+        builder = store.builder(names[symbol])
         for key, value in properties.items():
             _set(builder, key, value)
         created[symbol] = builder.create()
@@ -816,14 +802,14 @@ def _restore(builders: Builders, schema: Schemas.OfObject.Data, plain: PlainData
             if isinstance(key, int):
                 target = list(target.values())[key] if isinstance(target, Mapping) else target[key]
             else:
-                target = builders.member(target, key)
+                target = store.member(target, key)
         return target
 
     nested: dict[str, list[tuple[_Found, Rows]]] = {}
     for found, rows in entries:
         nested.setdefault(found.owner, []).append((found, rows))
     for symbol, (_, adjacencies) in decoded.items():
-        builder = getattr(builders, names[symbol])(created[symbol])
+        builder = store.builder(names[symbol], created[symbol])
         for key, rows in adjacencies.items():
             for row in rows:
                 builder.adjacency(key, lambda a, r=row: a.add(lambda x: _fill(x, r, resolve)))
@@ -899,8 +885,12 @@ def _fill(visitor: Visitors.OfEntry, row: dict[str, Any], resolve: Callable[[str
 # --- Entry points ---
 
 
-class _ToPlain:
-    """`ToPlain(schema, value)` dispatches on the schema's kind."""
+class ToPlain:
+    """Serializes values to plain data, naming the schemas of objects in `store`: `ToPlain(store)(schema, value)`
+    dispatches on the schema's kind."""
+
+    def __init__(self, store: Stores.Store):
+        self._store = store
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> PlainData:
         if isinstance(schema, Schemas.OfNative.Data):
@@ -913,23 +903,21 @@ class _ToPlain:
     def OfNative(schema: Schemas.OfNative.Data, value: Native) -> PlainData:
         return schema.to_plain(value)
 
-    @staticmethod
-    def OfObject(schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> PlainData:
+    def OfObject(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> PlainData:
         """Snapshot of `value` alone; its references to other objects are left unresolved."""
-        return _Snapshot().run(schema, value, [value])
+        return _Snapshot(self._store).run(schema, value, [value])
 
-    @staticmethod
-    def Reachable(schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> PlainData:
+    def Reachable(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> PlainData:
         """Snapshot of `value` and every object reachable from it through adjacencies (see `Reachable`)."""
-        return _Snapshot().run(schema, value, Reachable.of(value))
+        return _Snapshot(self._store).run(schema, value, Reachable.of(value))
 
 
 class FromPlain:
-    """Deserializes plain data, building objects with the given implementation's builders, e.g.
-    `FromPlain(Proxies.Builders)(schema, plain)`. Calling it dispatches on the schema's kind."""
+    """Deserializes plain data, building objects in `store`: `FromPlain(store)(schema, plain)` dispatches on the
+    schema's kind."""
 
-    def __init__(self, builders: Builders):
-        self._builders = builders
+    def __init__(self, store: Stores.Store):
+        self._store = store
 
     def __call__(self, schema: Schemas.OfAny.Data, plain: PlainData) -> Any:
         if isinstance(schema, Schemas.OfNative.Data):
@@ -946,10 +934,8 @@ class FromPlain:
             raise error.at("$") from None
 
     def OfObject(self, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
-        return _restore(self._builders, schema, plain)
+        return _restore(self._store, schema, plain)
 
     def Reachable(self, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
-        return _restore(self._builders, schema, plain)
+        return _restore(self._store, schema, plain)
 
-
-ToPlain = _ToPlain()

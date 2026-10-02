@@ -30,9 +30,11 @@ S.OfObject.Builder(Component).relations(lambda r: r.name("ports").of(Ownership).
 S.OfObject.Builder(Port).relations(lambda r: r.name("owner").of(Ownership).me("port"),
                                    lambda r: r.name("fanout").of(Wire).me("source"),
                                    lambda r: r.name("fanin").of(Wire).me("target")).update()
+# A store holds the schemas by name, and the objects built with them.
+store = Proxies.OfStore()
 for name, schema in [("Component", Component), ("Port", Port), ("Ownership", Ownership), ("Wire", Wire)]:
-    Proxies.register(name, schema)
-B = Proxies.Builders
+    store.register(name, schema)
+B = store
 
 irq = B.Port().name("irq").signal(lambda s: s.width(1).unit("bit")).create()
 pic_in = B.Port().name("pic_in").create()
@@ -40,7 +42,7 @@ cpu = B.Component().name("cpu").ports(lambda e: e.port(irq)).create()
 B.Port(irq).fanout(lambda e: e.target(pic_in).label("interrupt")).update()
 assert irq.signal.width == 1
 
-text = JSON.ToJSON.Reachable(Component, cpu)
+text = JSON.ToJSON(store).Reachable(Component, cpu)
 copy = JSON.FromJSON(B).Reachable(Component, text)
 assert Validators.Validate(B).Reachable(Component, copy) == []
 ```
@@ -61,8 +63,11 @@ S.OfIndexed.Builder().of(spec).create()                     # a list; in a prope
 S.OfIndexed.Builder().key(spec).of(spec).create()           # a keyed list (a native or value object key); .extent(1, 9) bounds a positional one
 schema.validate()                                           # the schema's own problems, [] when valid
 
-# Proxies: register object and relation schemas, then build through Proxies.Builders.
-Proxies.register("Name", schema); B = Proxies.Builders
+# A store: register object and relation schemas, then build through it. Stores are isolated; objects move between them
+# as snapshots.
+store = Proxies.OfStore(); store.register("Name", schema); B = store
+store.extent("Name")                                        # the reference objects of a schema the store holds
+Proxies.store_of(obj)                                       # the store a proxy belongs to
 B.Name().prop(value).value_prop(lambda r: r.x(1)).adjacency_name(lambda e: e.link(obj).entry_prop(v)).create()
 B.Name(obj).prop(v).update()                                # change obj; .clone() makes a changed copy instead
 B.Name(obj).clear("prop").update()
@@ -74,13 +79,13 @@ B.Name().attrs({"gain": 1.5}).cells([(lambda c: c.r(1).c(2), 7)])   # keyed list
 B.Name(obj).property("p", lambda p: ...).adjacency("a", lambda a: a.entries(...))  # visitor protocol, any name
 
 # Schemas as data: a module holds schemas by name, as an object of S.Module.Schema.
-Modules.module({"Contact": Contact}); Modules.schemas(module)   # schemas to a module, and back
+Modules.module(store, {"Contact": Contact}); Modules.schemas(store, module)   # schemas to a module, and back
 
 # Everything else works for any schema.
 Reachable.of(root)                                          # root and everything reachable, in first-reference order
-Plain.ToPlain(schema, obj); Plain.ToPlain.Reachable(schema, root); Plain.FromPlain(B)(schema, plain)
-JSON.ToJSON(...), JSON.FromJSON(B)(...); YAML.ToYAML(...), YAML.FromYAML(B)(...)   # same shapes as Plain
-Validators.Validate(B)(schema, obj); Validators.Validate(B).Reachable(schema, root)
+Plain.ToPlain(store)(schema, obj); Plain.ToPlain(store).Reachable(schema, root); Plain.FromPlain(store)(schema, plain)
+JSON.ToJSON(store)(...), JSON.FromJSON(store)(...); YAML.ToYAML(store)(...), YAML.FromYAML(store)(...)   # as Plain
+Validators.Validate(store)(schema, obj); Validators.Validate(store).Reachable(schema, root)
 Validators.properties_of(obj)                               # {name: value} of the properties that are set
 Comparison.OfObject(schema, a).compare(Comparison.OfObject(schema, b))   # -1, 0, 1, or None if incomparable
 

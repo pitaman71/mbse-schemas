@@ -12,6 +12,8 @@ from mbse.Schemas.Framework import JSON, YAML, Plain, Proxies, Schemas, Validato
 from mbse.Schemas.Framework.Errors import DecodeError
 from mbse.Schemas.Examples._support import raises, same_graph
 
+store = Proxies.OfStore()
+
 # --- Schemas ---
 
 Reading = (
@@ -45,20 +47,20 @@ Station = Schemas.OfObject.Builder(Station).relations(lambda adj: adj.name('read
 Reading = Schemas.OfObject.Builder(Reading).relations(lambda adj: adj.name('station').of(Readings).me('reading')).update()
 
 for name, schema in [('Reading', Reading), ('Station', Station), ('Readings', Readings)]:
-    Proxies.register(name, schema)
-Builders = Proxies.Builders
-validate = Validators.Validate(Proxies.Builders)
-from_json = JSON.FromJSON(Proxies.Builders)
-from_yaml = YAML.FromYAML(Proxies.Builders)
+    store.register(name, schema)
+Builders = store
+validate = Validators.Validate(store)
+from_json = JSON.FromJSON(store)
+from_yaml = YAML.FromYAML(store)
 
 # --- Floats at their edges, through every encoding ---
 
 for value in [0.0, -0.0, 1e308, 5e-324, 0.1, math.inf, -math.inf, math.nan]:
     reading = Builders.Reading().value(value).create()
     for back in (
-        Plain.FromPlain(Proxies.Builders)(Reading, Plain.ToPlain(Reading, reading)),
-        from_json(Reading, JSON.ToJSON(Reading, reading)),
-        from_yaml(Reading, YAML.ToYAML(Reading, reading)),
+        Plain.FromPlain(store)(Reading, Plain.ToPlain(store)(Reading, reading)),
+        from_json(Reading, JSON.ToJSON(store)(Reading, reading)),
+        from_yaml(Reading, YAML.ToYAML(store)(Reading, reading)),
     ):
         if math.isnan(value):
             assert math.isnan(back.value)
@@ -66,7 +68,7 @@ for value in [0.0, -0.0, 1e308, 5e-324, 0.1, math.inf, -math.inf, math.nan]:
             assert back.value == value and math.copysign(1, back.value) == math.copysign(1, value)
 
 # Non-finite floats have a plain form, so JSON output stays strict (no NaN / Infinity literals).
-text = JSON.ToJSON(Reading, Builders.Reading().value(math.nan).create())
+text = JSON.ToJSON(store)(Reading, Builders.Reading().value(math.nan).create())
 assert '"NaN"' in text and json.loads(text, parse_constant=lambda c: 1 / 0)
 
 # --- Every native type at once, and the three encodings agree ---
@@ -81,12 +83,12 @@ sample = (
     .note('日本語 🚀 \x00 "quoted" \\ back\nsecond line')
     .create()
 )
-plain = Plain.ToPlain(Reading, sample)
-assert JSON.loads(JSON.ToJSON(Reading, sample)) == plain
-assert YAML.loads(YAML.ToYAML(Reading, sample)) == plain
-assert JSON.loads(JSON.ToJSON(Reading, sample, indent=2)) == plain  # formatting does not change content
+plain = Plain.ToPlain(store)(Reading, sample)
+assert JSON.loads(JSON.ToJSON(store)(Reading, sample)) == plain
+assert YAML.loads(YAML.ToYAML(store)(Reading, sample)) == plain
+assert JSON.loads(JSON.ToJSON(store)(Reading, sample, indent=2)) == plain  # formatting does not change content
 
-for back in (from_json(Reading, JSON.ToJSON(Reading, sample)), from_yaml(Reading, YAML.ToYAML(Reading, sample))):
+for back in (from_json(Reading, JSON.ToJSON(store)(Reading, sample)), from_yaml(Reading, YAML.ToYAML(store)(Reading, sample))):
     assert (back.observed, back.quality, back.valid, back.raw, back.note) == (
         sample.observed, sample.quality, sample.valid, sample.raw, sample.note)
     assert validate(Reading, back) == []
@@ -98,15 +100,15 @@ tricky = ['yes', 'No', 'on', 'OFF', 'true', 'null', '~', '', '010', '0o17', '0x1
           'x #y', '"dq"', "'sq'", '@at', '`tick', '%pct', '!bang', '&amp', '*star', '|', '>', '{}', '[]', '<<']
 for note in tricky:
     reading = Builders.Reading().note(note).create()
-    text = YAML.ToYAML(Reading, reading)
+    text = YAML.ToYAML(store)(Reading, reading)
     assert from_yaml(Reading, text).note == note, note
     # The output is also read correctly by a stock YAML 1.1 loader.
-    assert yaml.safe_load(text) == Plain.ToPlain(Reading, reading), note
+    assert yaml.safe_load(text) == Plain.ToPlain(store)(Reading, reading), note
 
 # WMO identifiers keep their leading zeros in both encodings.
 paris = Builders.Station().wmo_id('07149').name('Paris-Orly').create()
-assert from_json(Station, JSON.ToJSON(Station, paris)).wmo_id == '07149'
-assert from_yaml(Station, YAML.ToYAML(Station, paris)).wmo_id == '07149'
+assert from_json(Station, JSON.ToJSON(store)(Station, paris)).wmo_id == '07149'
+assert from_yaml(Station, YAML.ToYAML(store)(Station, paris)).wmo_id == '07149'
 
 # --- Hand-written YAML follows the YAML 1.2 core schema ---
 
@@ -155,18 +157,18 @@ lyon = (
     .readings(lambda x: x.reading(lambda r: r.observed('2026-09-28T06:00:00Z').value(71.0).valid(True)).sensor('rh'))
     .create()
 )
-graph = Plain.ToPlain.Reachable(Station, lyon)
-for text, decode in [(JSON.ToJSON.Reachable(Station, lyon), from_json.Reachable),
-                     (YAML.ToYAML.Reachable(Station, lyon), from_yaml.Reachable)]:
+graph = Plain.ToPlain(store).Reachable(Station, lyon)
+for text, decode in [(JSON.ToJSON(store).Reachable(Station, lyon), from_json.Reachable),
+                     (YAML.ToYAML(store).Reachable(Station, lyon), from_yaml.Reachable)]:
     restored = decode(Station, text)
     assert restored is not lyon and restored.name == 'Lyon-Saint-Exupéry'
-    assert same_graph(Plain.ToPlain.Reachable(Station, restored), graph)
+    assert same_graph(Plain.ToPlain(store).Reachable(Station, restored), graph)
     assert validate.Reachable(Station, restored) == []
 
 # A single-object snapshot leaves references unresolved, in any encoding.
 with raises(DecodeError):
-    from_json(Station, JSON.ToJSON(Station, lyon))
+    from_json(Station, JSON.ToJSON(store)(Station, lyon))
 with raises(DecodeError):
-    from_yaml(Station, YAML.ToYAML(Station, lyon))
+    from_yaml(Station, YAML.ToYAML(store)(Station, lyon))
 
 print('TextEncodings: all checks passed')

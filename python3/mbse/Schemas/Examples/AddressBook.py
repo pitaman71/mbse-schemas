@@ -4,6 +4,8 @@
 
 from mbse.Schemas.Framework import Schemas, Proxies, Plain, JSON
 
+store = Proxies.OfStore()
+
 # --- Schemas ---
 
 IntlAddress = (
@@ -112,19 +114,19 @@ EmailAddress = (
     .update()
 )
 
-Proxies.register('IntlAddress', IntlAddress)
-Proxies.register('Contact', Contact)
-Proxies.register('PhoneNumber', PhoneNumber)
-Proxies.register('EmailAddress', EmailAddress)
-Proxies.register('ContactAddresses', ContactAddresses)
-Proxies.register('ContactPhones', ContactPhones)
-Proxies.register('ContactEmails', ContactEmails)
+store.register('IntlAddress', IntlAddress)
+store.register('Contact', Contact)
+store.register('PhoneNumber', PhoneNumber)
+store.register('EmailAddress', EmailAddress)
+store.register('ContactAddresses', ContactAddresses)
+store.register('ContactPhones', ContactPhones)
+store.register('ContactEmails', ContactEmails)
 
 # --- Builder forms ---
 
 # fluent "create" form
 addr1 = (
-    Proxies.Builders.IntlAddress()
+    store.IntlAddress()
     .street1('10 Downing Street')
     .street2('bar')
     .street3('Whitehall')
@@ -136,7 +138,7 @@ addr1 = (
 
 # fluent "update" form: writes back into the source and returns it
 updated = (
-    Proxies.Builders.IntlAddress(addr1)
+    store.IntlAddress(addr1)
     .street2(lambda v: v.set('baz'))  # equivalent to .street2('baz')
     .update()
 )
@@ -145,7 +147,7 @@ assert addr1.street2 == 'baz'
 
 # fluent "clone" form: returns a new object and leaves the source untouched
 cloned = (
-    Proxies.Builders.IntlAddress(addr1)
+    store.IntlAddress(addr1)
     .street2('shoe')
     .clone()
 )
@@ -154,7 +156,7 @@ assert cloned.street2 == 'shoe'
 assert addr1.street2 == 'baz'
 
 # clearing a property makes it absent; reading an absent property raises
-Proxies.Builders.IntlAddress(addr1).street3(lambda v: v.clear()).update()
+store.IntlAddress(addr1).street3(lambda v: v.clear()).update()
 try:
     addr1.street3
 except AttributeError:
@@ -179,7 +181,7 @@ print(f"{addr1.street1}, {addr1.locality} {addr1.postal_code}, {addr1.country_co
 # fills its own link ('contact'); the entry builder sets the other links and the entry properties. A link takes an
 # existing object or a Spec that builds a new one.
 alice = (
-    Proxies.Builders.Contact()
+    store.Contact()
     .given_name('Alice')
     .family_name('Liddell')
     .birth_date('1852-05-04')
@@ -194,19 +196,19 @@ alice = (
 
 # A single-object snapshot includes addr1's adjacencies, so it references alice by symbol without containing her.
 # Deserializing it on its own is an error: the reference cannot be resolved.
-plain = Plain.ToPlain(IntlAddress, addr1)
+plain = Plain.ToPlain(store)(IntlAddress, addr1)
 # equivalent to
-# plain = Plain.ToPlain.OfObject(IntlAddress, addr1)
+# plain = Plain.ToPlain(store).OfObject(IntlAddress, addr1)
 
 # PROPOSED: a snapshot of addr1 and every object reachable through adjacencies (alice, her phone and email), so all
 # symbol references resolve within the snapshot.
-graph = Plain.ToPlain.Reachable(IntlAddress, addr1)
-roundtrip = Plain.FromPlain(Proxies.Builders).Reachable(IntlAddress, graph)
+graph = Plain.ToPlain(store).Reachable(IntlAddress, addr1)
+roundtrip = Plain.FromPlain(store).Reachable(IntlAddress, graph)
 assert roundtrip is not addr1
-assert Plain.ToPlain.Reachable(IntlAddress, roundtrip) == graph
+assert Plain.ToPlain(store).Reachable(IntlAddress, roundtrip) == graph
 
 # The same snapshot as JSON text, and back.
-text = JSON.ToJSON.Reachable(IntlAddress, addr1, indent=2)
-from_json = JSON.FromJSON(Proxies.Builders).Reachable(IntlAddress, text)
+text = JSON.ToJSON(store).Reachable(IntlAddress, addr1, indent=2)
+from_json = JSON.FromJSON(store).Reachable(IntlAddress, text)
 assert from_json is not addr1 and from_json.street1 == addr1.street1
 assert JSON.loads(text) == graph

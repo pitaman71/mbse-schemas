@@ -6,6 +6,8 @@
 from mbse.Schemas.Framework import Schemas, Proxies, Plain, Reachable, Validators
 from mbse.Schemas.Examples._support import entries, raises, same_graph
 
+store = Proxies.OfStore()
+
 # --- Schemas ---
 
 Person = (
@@ -40,10 +42,10 @@ Person = (
 )
 assert Person.validate() == [] and Parentage.validate() == [] and Mentorship.validate() == []
 
-Proxies.register('Person', Person)
-Proxies.register('Parentage', Parentage)
-Proxies.register('Mentorship', Mentorship)
-Builders = Proxies.Builders
+store.register('Person', Person)
+store.register('Parentage', Parentage)
+store.register('Mentorship', Mentorship)
+Builders = store
 
 
 def kinds(obj, adjacency):
@@ -145,14 +147,14 @@ with raises(TypeError):
 # --- Validation ---
 
 # Cycles, a self-loop, and several relations between the same people are all valid.
-assert Validators.Validate(Proxies.Builders).Reachable(Person, ada) == []
+assert Validators.Validate(store).Reachable(Person, ada) == []
 
 # --- Round trips, from any root ---
 
 for root in (ada, carol, loner):
-    graph = Plain.ToPlain.Reachable(Person, root)
-    restored = Plain.FromPlain(Proxies.Builders).Reachable(Person, graph)
+    graph = Plain.ToPlain(store).Reachable(Person, root)
+    restored = Plain.FromPlain(store).Reachable(Person, graph)
     assert restored is not root and restored.given_name == root.given_name
-    assert same_graph(Plain.ToPlain.Reachable(Person, restored), graph)
+    assert same_graph(Plain.ToPlain(store).Reachable(Person, restored), graph)
 
 print('FamilyTree: all checks passed')

@@ -3,7 +3,7 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from mbse.Schemas.Framework import Plain, Reachable
+from mbse.Schemas.Framework import Plain, Proxies, Reachable
 
 
 def entries(schema, obj, adjacency):
@@ -12,7 +12,7 @@ def entries(schema, obj, adjacency):
     Reading entries back is not part of the API yet, so this reads them from a Reachable snapshot: its symbols are
     assigned in first-reference order, the same order `Reachable.of` returns.
     """
-    graph = Plain.ToPlain.Reachable(schema, obj)
+    graph = Plain.ToPlain(Proxies.store_of(obj)).Reachable(schema, obj)
     objects = Reachable.of(obj)
 
     def resolve(value):

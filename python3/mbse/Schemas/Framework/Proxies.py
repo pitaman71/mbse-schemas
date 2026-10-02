@@ -1,11 +1,14 @@
 """Proxies: the dynamic implementation.
 
-Programs using proxies skip code generation: `register(name, schema)` makes a schema available, and
-`Builders.<Name>(optional instance)` returns a builder for it. Instances (`Proxies.OfObject.Data`) are `Visitable`,
-not visitors: they expose their properties as read-only attributes and write themselves into a visitor on `accept`.
+Programs using proxies skip code generation. A store, `OfStore()`, holds schemas and the proxies built with them (see
+`Stores`): `store.register(name, schema)` makes a schema available, and `store.<Name>(optional instance)` (or
+`store.builder(name, instance)`) returns a builder for it. Instances (`Proxies.OfObject.Data`) are `Visitable`, not
+visitors: they expose their properties as read-only attributes and write themselves into a visitor on `accept`.
 Builders (`Proxies.OfObject.Builder`) implement `Visitors.OfObject`, like every builder.
 
-Relation entries live in one global table per relation. Adding an entry equal to an existing one is elided.
+Each store keeps one table per relation, and the extent of each schema: the reference objects built through it.
+Adding an entry equal to an existing one is elided. An object of one store cannot be linked to, or be a builder's
+source in, another.
 
 A property whose schema is an `OfObject` holds a value object: a read-only record with no identity
 (`Proxies.OfObject.Record`), read with attributes like an instance and set with a Spec, e.g.
@@ -25,89 +28,80 @@ from __future__ import annotations
 from collections.abc import Callable, Hashable, Iterator, Mapping
 from typing import Any
 
-from . import Errors, Schemas, Visitors
+from . import Errors, Modules, Schemas, Stores, Visitors
 from .Visitors import Native
 
-__all__ = ["register", "schema", "registered", "name_of", "Builders", "OfObject", "OfRelation", "OfIndexed"]
+__all__ = ["OfStore", "store_of", "OfObject", "OfRelation", "OfIndexed"]
 
 ObjectSchema = Schemas.OfObject.Data
 RelationSchema = Schemas.OfRelation.Data
 
 
-# --- Registry ---
+# --- Stores ---
 
-_schemas: dict[str, ObjectSchema | RelationSchema] = {}
-
-
-def register(name: str, schema: ObjectSchema | RelationSchema) -> None:
-    """Registers a schema under a global name. The name need not be a valid identifier."""
-    if name in _schemas:
-        raise ValueError(f"schema {name!r} is already registered")
-    _schemas[name] = schema
+META = {Modules.MODULE: Schemas.Module.Schema}
+"""The meta-schemas every proxy store starts with, so that it can hold modules of schemas."""
 
 
-def schema(name: str) -> ObjectSchema:
-    """The object schema registered under `name`."""
-    return _object_schema(name)
+class OfStore(Stores.Catalog):
+    """A store of proxies: schemas by name, the proxies built with them, and their relation entries.
+    `store.<Name>(optional instance)` is `store.builder(name, instance)`; use `builder` for names that are not
+    identifiers, or that a method's name shadows."""
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._relations: dict[int, _RelationData] = {}
+        self._extents: dict[str, list[_ObjectData]] = {}
+        for name, schema in META.items():
+            self.register(name, schema)
 
-def registered(name: str) -> ObjectSchema | RelationSchema:
-    """The object or relation schema registered under `name`."""
-    if name not in _schemas:
-        raise LookupError(f"no schema registered as {name!r}")
-    return _schemas[name]
-
-
-def name_of(schema: ObjectSchema | RelationSchema) -> str:
-    """The name `schema` is registered under."""
-    for name, registered in _schemas.items():
-        if registered is schema:
-            return name
-    raise LookupError("schema is not registered")
-
-
-def _object_schema(name: str) -> ObjectSchema:
-    schema = _schemas.get(name)
-    if schema is None:
-        raise AttributeError(f"no schema registered as {name!r}")
-    if not isinstance(schema, ObjectSchema):
-        raise TypeError(f"{name!r} is a relation; no relation builder is exposed")
-    return schema
-
-
-def _schema_filling(relation: RelationSchema, link: str) -> str:
-    """Name of the registered object schema that declares an adjacency to `relation` via `link`."""
-    names = [
-        name
-        for name, schema in _schemas.items()
-        if isinstance(schema, ObjectSchema)
-        and any(adj.relation is relation and adj.me == link for adj in schema.adjacencies.values())
-    ]
-    if len(names) != 1:
-        raise TypeError(f"expected exactly one object schema filling link {link!r}, found {names}")
-    return names[0]
-
-
-class _Builders:
-    """`Builders.<Name>(optional instance)`; use `getattr(Builders, name)` for names that are not identifiers.
-    `schema` and `name_of` are methods, so schemas registered under those names are reachable only through `schema()`."""
-
-    def schema(self, name: str) -> ObjectSchema:
-        return schema(name)
-
-    def name_of(self, schema: ObjectSchema | RelationSchema) -> str:
-        return name_of(schema)
+    def builder(self, name: str, instance: Any = None) -> _ObjectBuilder:
+        return _ObjectBuilder(self, self.schema(name), name, instance)
 
     def member(self, instance: Any, name: str) -> Any:
         """The value an instance or value object holds in its property `name`."""
         return _read(instance, name)
 
+    def extent(self, name: str) -> tuple[_ObjectData, ...]:
+        self.schema(name)
+        return tuple(self._extents.get(name, ()))
+
     def __getattr__(self, name: str) -> Callable[..., _ObjectBuilder]:
-        schema = _object_schema(name)
-        return lambda instance=None: _ObjectBuilder(schema, name, instance)
+        if name.startswith("_"):
+            raise AttributeError(name)
+        schema = self.schema(name)
+        return lambda instance=None: _ObjectBuilder(self, schema, name, instance)
+
+    def _relation_data(self, schema: RelationSchema) -> _RelationData:
+        return self._relations.setdefault(id(schema), _RelationData(schema))
+
+    def _filled(self, relation: RelationSchema, link: str) -> str:
+        """The name of the one object schema that declares an adjacency to `relation` via `link`."""
+        names = self._filling(relation, link)
+        if len(names) != 1:
+            raise TypeError(f"expected exactly one object schema filling link {link!r}, found {names}")
+        return names[0]
 
 
-Builders = _Builders()
+def _store_of(value: Any) -> OfStore | None:
+    """The store a proxy belongs to; a value object's is its owner's, and one not yet placed has none."""
+    while isinstance(value, _RecordData):
+        value = object.__getattribute__(value, "_owner")
+    return object.__getattribute__(value, "_store") if isinstance(value, _ObjectData) else None
+
+
+def store_of(value: Any) -> OfStore:
+    """The store a proxy, or a value object placed in one, belongs to."""
+    store = _store_of(value)
+    if store is None:
+        raise TypeError("the value does not belong to a store")
+    return store
+
+
+def _same_store(store: OfStore | None, value: Any) -> None:
+    held = _store_of(value)
+    if store is not None and held is not None and held is not store:
+        raise TypeError("the object belongs to another store")
 
 
 # --- Relation entries ---
@@ -167,22 +161,16 @@ class _RelationData:
             del self._entries[key]
 
 
-_relations: dict[int, _RelationData] = {}
-
-
-def _relation_data(schema: RelationSchema) -> _RelationData:
-    return _relations.setdefault(id(schema), _RelationData(schema))
-
-
 # --- Instances ---
 
 
 class _ObjectData:
     """A proxy instance. Properties are read-only attributes; reading one that is not set raises AttributeError."""
 
-    __slots__ = ("_schema", "_schema_name", "_values")
+    __slots__ = ("_store", "_schema", "_schema_name", "_values")
 
-    def __init__(self, schema: ObjectSchema, schema_name: str):
+    def __init__(self, store: OfStore, schema: ObjectSchema, schema_name: str):
+        object.__setattr__(self, "_store", store)
         object.__setattr__(self, "_schema", schema)
         object.__setattr__(self, "_schema_name", schema_name)
         object.__setattr__(self, "_values", {})
@@ -209,9 +197,12 @@ class _ObjectData:
 
 
 def _write_adjacencies(visitor: Any, target: Any, schema: ObjectSchema) -> None:
-    """Writes the entries linking `target`, adjacency by adjacency."""
+    """Writes the entries linking `target`, adjacency by adjacency; a value object not yet placed has none."""
+    store = _store_of(target)
+    if store is None:
+        return
     for adjacency_name, adjacency in schema.adjacencies.items():
-        for entry in _relation_data(adjacency.relation).linking(adjacency.me, target):
+        for entry in store._relation_data(adjacency.relation).linking(adjacency.me, target):
             visitor.adjacency(
                 adjacency_name,
                 lambda a, entry=entry, adj=adjacency: a.add(lambda e: _write_entry(e, entry, adj)),
@@ -325,8 +316,9 @@ class _RecordData:
         return id(self)
 
     def schema_name(self) -> str:
-        """The registered name of the value object's schema, or '' when it is not registered."""
-        return next((name for name, schema in _schemas.items() if schema is self._schema), "")
+        """The registered name of the value object's schema, or '' when it is not registered in its store."""
+        store = _store_of(self)
+        return "" if store is None else next((n for n, s in store._schemas.items() if s is self._schema), "")
 
     def owner(self) -> Any:
         return self._owner
@@ -389,7 +381,7 @@ def _stage_values(record: _RecordData, old: _RecordData | None, mapping: dict[in
 
 def _copy(record: _RecordData) -> _RecordData:
     """A copy of a placed value object, with copies of the entries linking it and the value objects it holds."""
-    builder = _RecordBuilder(record._schema)
+    builder = _RecordBuilder(record._schema, store=_store_of(record))
     record.accept(builder)
     return builder.build()
 
@@ -416,8 +408,9 @@ def _finish(owner: Any, old: Any, new: Any, mapping: dict[int, Any]) -> Any:
 
 def _add_pending(record: _RecordData, mapping: dict[int, Any]) -> None:
     """Adds a value object's entries, linked to the value objects that take the place of those in `mapping`."""
+    store = _store_of(record)
     for name, builders in record._pending.items():
-        relation = _relation_data(record._schema.adjacencies[name].relation)
+        relation = store._relation_data(record._schema.adjacencies[name].relation)  # type: ignore[union-attr]
         for builder in builders:
             builder._links = {link: mapping.get(id(target), target) for link, target in builder._links.items()}
             relation.add(builder.build(record))
@@ -432,7 +425,7 @@ def _merge(old: _RecordData, new: _RecordData, mapping: dict[int, Any]) -> None:
     object.__getattribute__(old, "_values").update(values)
     if isinstance(old._schema, ObjectSchema):
         for adjacency in old._schema.adjacencies.values():
-            _relation_data(adjacency.relation).discard_linking(adjacency.me, old)
+            _store_of(old)._relation_data(adjacency.relation).discard_linking(adjacency.me, old)  # type: ignore[union-attr]
     object.__setattr__(old, "_pending", new._pending)
     _add_pending(old, mapping)
 
@@ -471,7 +464,8 @@ def _remove(value: _RecordData) -> None:
     """Removes a value object no longer held: the value objects it holds, and every entry linking it."""
     for held in _records(value._values.values()):
         _remove(held)
-    for relation in _relations.values():
+    store = _store_of(value)
+    for relation in store._relations.values() if store is not None else ():
         relation.discard_target(value)
 
 
@@ -517,8 +511,8 @@ class _AnySlot:
     """`Visitors.OfAny` over one key of a value dict, holding a value of `schema` (an entry property's schema is not
     given: entry properties are native)."""
 
-    def __init__(self, values: dict[str, Any], name: str, schema: Any = None):
-        self._values, self._name, self._schema = values, name, schema
+    def __init__(self, values: dict[str, Any], name: str, schema: Any = None, store: OfStore | None = None):
+        self._values, self._name, self._schema, self._store = values, name, schema, store
 
     def as_native(self, callback: Callable[[Visitors.OfNative], Any]) -> _AnySlot:
         callback(_NativeSlot(self._values, self._name))
@@ -542,11 +536,11 @@ class _AnySlot:
             raise TypeError(f"property {self._name!r} does not hold a list")
         current = self._values.get(self._name)
         if self._schema.positional:
-            builder = _ListBuilder(self._name, self._schema, current if isinstance(current, tuple) else ())
+            builder = _ListBuilder(self._name, self._schema, current if isinstance(current, tuple) else (), self._store)
             callback(builder)
             self._values[self._name] = tuple(builder._items)
         else:
-            keyed = _MapBuilder(self._name, self._schema, current.items() if isinstance(current, _Map) else ())
+            keyed = _MapBuilder(self._name, self._schema, current.items() if isinstance(current, _Map) else (), self._store)
             callback(keyed)
             self._values[self._name] = _Map(keyed._pairs)
         return self
@@ -555,7 +549,7 @@ class _AnySlot:
         if not isinstance(self._schema, kind):
             raise TypeError(f"property {self._name!r} does not hold {noun}")
         current = self._values.get(self._name)
-        builder = _RecordBuilder(self._schema, current if isinstance(current, _RecordData) else None)
+        builder = _RecordBuilder(self._schema, current if isinstance(current, _RecordData) else None, self._store)
         callback(builder)
         if isinstance(self._schema, Schemas.OfUnion.Data) and not builder._values:
             self._values.pop(self._name, None)  # a union value without a branch is no value
@@ -568,8 +562,8 @@ class _ListBuilder:
     """`Visitors.OfIndexed` building the list a property holds, starting from `items`. Each item is written through an
     `_AnySlot`; an item written with no value is left out."""
 
-    def __init__(self, name: str, schema: Schemas.OfIndexed.Data, items: tuple[Any, ...]):
-        self._name, self._schema, self._items = name, schema, list(items)
+    def __init__(self, name: str, schema: Schemas.OfIndexed.Data, items: tuple[Any, ...], store: OfStore | None = None):
+        self._name, self._schema, self._items, self._store = name, schema, list(items), store
 
     def items(self, callback: Callable[[Visitors.OfAny], Any]) -> _ListBuilder:
         for index in range(len(self._items)):
@@ -578,13 +572,13 @@ class _ListBuilder:
 
     def item(self, index: int, callback: Callable[[Visitors.OfAny], Any]) -> _ListBuilder:
         held = {self._name: Errors.item(self._items, index)}
-        callback(_AnySlot(held, self._name, self._schema.item))
+        callback(_AnySlot(held, self._name, self._schema.item, self._store))
         self._items[index:index + 1] = held.values()
         return self
 
     def append(self, callback: Callable[[Visitors.OfAny], Any]) -> _ListBuilder:
         held: dict[str, Any] = {}
-        callback(_AnySlot(held, self._name, self._schema.item))
+        callback(_AnySlot(held, self._name, self._schema.item, self._store))
         self._items.extend(held.values())
         return self
 
@@ -656,8 +650,8 @@ class _MapBuilder:
     """`Visitors.OfIndexed` building a keyed list, starting from `pairs`: items held by unique keys, in insertion order.
     Keys are compared by schema equality; an item written with no value is left out."""
 
-    def __init__(self, name: str, schema: Schemas.OfIndexed.Data, pairs: Any):
-        self._name, self._schema = name, schema
+    def __init__(self, name: str, schema: Schemas.OfIndexed.Data, pairs: Any, store: OfStore | None = None):
+        self._name, self._schema, self._store = name, schema, store
         self._pairs = [[key, value] for key, value in pairs]
 
     def _find(self, key: Any) -> int | None:
@@ -678,7 +672,7 @@ class _MapBuilder:
     def item(self, index: int, callback: Callable[[Visitors.OfAny], Any]) -> _MapBuilder:
         pair = Errors.item(self._pairs, index)
         held = {self._name: pair[1]}
-        callback(_AnySlot(held, self._name, self._schema.item))
+        callback(_AnySlot(held, self._name, self._schema.item, self._store))
         self._pairs[index:index + 1] = [[pair[0], value] for value in held.values()]
         return self
 
@@ -708,7 +702,7 @@ class _MapBuilder:
         if index is not None:
             return self.item(index, value)
         held: dict[str, Any] = {}
-        value(_AnySlot(held, self._name, self._schema.item))
+        value(_AnySlot(held, self._name, self._schema.item, self._store))
         self._pairs.extend([written, v] for v in held.values())
         return self
 
@@ -719,8 +713,8 @@ class _MapBuilder:
 class _PropertySlot:
     """`Visitors.OfProperty` over one key of a value dict, holding a value of `schema`."""
 
-    def __init__(self, values: dict[str, Any], name: str, schema: Any = None):
-        self._values, self._name, self._schema = values, name, schema
+    def __init__(self, values: dict[str, Any], name: str, schema: Any = None, store: OfStore | None = None):
+        self._values, self._name, self._schema, self._store = values, name, schema, store
 
     def name(self) -> str:
         return self._name
@@ -729,7 +723,7 @@ class _PropertySlot:
         return self._name in self._values
 
     def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _PropertySlot:
-        callback(_AnySlot(self._values, self._name, self._schema))
+        callback(_AnySlot(self._values, self._name, self._schema, self._store))
         return self
 
     def clear(self) -> _PropertySlot:
@@ -804,8 +798,8 @@ class _RecordBuilder:
     `Visitors.OfIntersection` for a union or intersection value, whose properties are the branches or parts. DSL:
     `.<property>(value or Spec)` and `.<adjacency>(entry Spec)`. Writing a union's branch clears any other."""
 
-    def __init__(self, schema: Any, source: _RecordData | None = None):
-        self._schema, self._source, self._copy_of = schema, source, None
+    def __init__(self, schema: Any, source: _RecordData | None = None, store: OfStore | None = None):
+        self._schema, self._source, self._copy_of, self._store = schema, source, None, store
         self._values: dict[str, Any] = {} if source is None else dict(object.__getattribute__(source, "_values"))
         self._entries: dict[str, list[_EntryBuilder]] = {}
         if source is not None and isinstance(schema, ObjectSchema):
@@ -816,7 +810,7 @@ class _RecordBuilder:
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _RecordBuilder:
         for name in [n for n in self._schema.properties if n in self._values]:
-            callback(_PropertySlot(self._values, name, self._schema.properties[name]))
+            callback(_PropertySlot(self._values, name, self._schema.properties[name], self._store))
         return self
 
     def has(self, name: str) -> bool:
@@ -828,7 +822,7 @@ class _RecordBuilder:
         if isinstance(self._schema, Schemas.OfUnion.Data):
             for other in [n for n in self._values if n != name]:
                 del self._values[other]
-        callback(_PropertySlot(self._values, name, self._schema.properties[name]))
+        callback(_PropertySlot(self._values, name, self._schema.properties[name], self._store))
         return self
 
     def clear(self, name: str) -> _RecordBuilder:
@@ -882,9 +876,10 @@ def _adder(builder: Any, name: str) -> Callable[[Any], Any]:
 
 def _load_entries(entries: dict[str, list[_EntryBuilder]], schema: ObjectSchema, source: Any) -> None:
     """Loads the entries linking `source` into a builder, as entry builders, so that an update rewrites them."""
-    for name, adjacency in schema.adjacencies.items():
-        for entry in _relation_data(adjacency.relation).linking(adjacency.me, source):
-            builder = _EntryBuilder(adjacency.relation, adjacency.me)
+    store = _store_of(source)
+    for name, adjacency in schema.adjacencies.items() if store is not None else ():
+        for entry in store._relation_data(adjacency.relation).linking(adjacency.me, source):  # type: ignore[union-attr]
+            builder = _EntryBuilder(adjacency.relation, adjacency.me, store)
             builder._links = {link: target for link, target in entry.links.items() if link != adjacency.me}
             builder._values = dict(entry.properties)
             entries.setdefault(name, []).append(builder)
@@ -895,8 +890,8 @@ def _load_entries(entries: dict[str, list[_EntryBuilder]], schema: ObjectSchema,
 class _LinkSlot:
     """`Visitors.OfLink` over one link of an entry builder."""
 
-    def __init__(self, links: dict[str, _ObjectData | _ObjectBuilder], name: str):
-        self._links, self._name = links, name
+    def __init__(self, links: dict[str, _ObjectData | _ObjectBuilder], name: str, store: OfStore | None = None):
+        self._links, self._name, self._store = links, name, store
 
     def name(self) -> str:
         return self._name
@@ -909,6 +904,7 @@ class _LinkSlot:
         if not isinstance(target, _ObjectData) and not (
                 isinstance(target, _RecordData) and isinstance(object.__getattribute__(target, "_schema"), ObjectSchema)):
             raise TypeError("proxies can only link proxy instances and their value objects")
+        _same_store(self._store, target)
         self._links[self._name] = target
         return self
 
@@ -917,8 +913,8 @@ class _EntryBuilder:
     """`Visitors.OfEntry` for one entry being added through an adjacency. The object's own link (`me`) is filled when
     the object builder is finalized. DSL: `.<link>(object or Spec)` and `.<property>(value or Spec)`."""
 
-    def __init__(self, relation: RelationSchema, me: str):
-        self._relation, self._me = relation, me
+    def __init__(self, relation: RelationSchema, me: str, store: OfStore | None = None):
+        self._relation, self._me, self._store = relation, me, store
         self._links: dict[str, _ObjectData | _ObjectBuilder] = {}
         self._values: dict[str, Native] = {}
 
@@ -929,17 +925,17 @@ class _EntryBuilder:
     def links(self, callback: Callable[[Visitors.OfLink], Any]) -> _EntryBuilder:
         for name in self._relation.links:
             if name != self._me:
-                callback(_LinkSlot(self._links, name))
+                callback(_LinkSlot(self._links, name, self._store))
         return self
 
     def link(self, name: str, callback: Callable[[Visitors.OfLink], Any]) -> _EntryBuilder:
         self._check_link(name)
-        callback(_LinkSlot(self._links, name))
+        callback(_LinkSlot(self._links, name, self._store))
         return self
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryBuilder:
         for name in list(self._values):
-            callback(_PropertySlot(self._values, name, self._relation.properties.get(name)))
+            callback(_PropertySlot(self._values, name, self._relation.properties.get(name), self._store))
         return self
 
     def has(self, name: str) -> bool:
@@ -948,7 +944,7 @@ class _EntryBuilder:
     def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryBuilder:
         if name not in self._relation.properties:
             raise AttributeError(f"{name!r} is not a property of this relation")
-        callback(_PropertySlot(self._values, name, self._relation.properties[name]))
+        callback(_PropertySlot(self._values, name, self._relation.properties[name], self._store))
         return self
 
     def clear(self, name: str) -> _EntryBuilder:
@@ -963,8 +959,10 @@ class _EntryBuilder:
 
             def link_setter(spec: Any) -> _EntryBuilder:
                 if callable(spec):
-                    schema_name = _schema_filling(self._relation, name)
-                    builder = _ObjectBuilder(_object_schema(schema_name), schema_name)
+                    if self._store is None:
+                        raise TypeError("an object is created through a link only by a store's builder")
+                    schema_name = self._store._filled(self._relation, name)
+                    builder = _ObjectBuilder(self._store, self._store.schema(schema_name), schema_name)
                     spec(builder)
                     self._links[name] = builder
                 else:
@@ -1007,7 +1005,7 @@ class _AdjacencySlot:
         return self
 
     def add(self, callback: Callable[[Visitors.OfEntry], Any]) -> _AdjacencySlot:
-        entry = _EntryBuilder(self._schema.relation, self._schema.me)
+        entry = _EntryBuilder(self._schema.relation, self._schema.me, self._builder._store)
         callback(entry)
         self._builder._entries.setdefault(self._name, []).append(entry)
         return self
@@ -1022,10 +1020,10 @@ class _ObjectBuilder:
     """`Visitors.OfObject` for building a proxy instance. DSL: `.<property>(value or Spec)` and
     `.<adjacency>(entry Spec)`. Finalized by `create()`, `clone()` or `update()`; none validate."""
 
-    def __init__(self, schema: ObjectSchema, schema_name: str, instance: _ObjectData | None = None):
+    def __init__(self, store: OfStore, schema: ObjectSchema, schema_name: str, instance: _ObjectData | None = None):
         if not schema.ref:
             raise TypeError(f"{schema_name!r} is a value object schema; a value object is built through its owner")
-        self._schema, self._schema_name, self._source = schema, schema_name, instance
+        self._store, self._schema, self._schema_name, self._source = store, schema, schema_name, instance
         self._values: dict[str, Native] = {}
         self._entries: dict[str, list[_EntryBuilder]] = {}
         if instance is not None:
@@ -1033,12 +1031,13 @@ class _ObjectBuilder:
                 raise TypeError("a builder's source must be a proxy instance")
             if instance.schema_name() != schema_name:
                 raise TypeError(f"instance is a {instance.schema_name()!r}, not a {schema_name!r}")
+            _same_store(store, instance)
             self._values = dict(instance._values)  # the value objects themselves, so that an update keeps them
             _load_entries(self._entries, schema, instance)
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _ObjectBuilder:
         for name in list(self._values):
-            callback(_PropertySlot(self._values, name, self._schema.properties[name]))
+            callback(_PropertySlot(self._values, name, self._schema.properties[name], self._store))
         return self
 
     def has(self, name: str) -> bool:
@@ -1047,7 +1046,7 @@ class _ObjectBuilder:
     def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _ObjectBuilder:
         if name not in self._schema.properties:
             raise AttributeError(f"{name!r} is not a property of {self._schema_name!r}")
-        callback(_PropertySlot(self._values, name, self._schema.properties[name]))
+        callback(_PropertySlot(self._values, name, self._schema.properties[name], self._store))
         return self
 
     def clear(self, name: str) -> _ObjectBuilder:
@@ -1080,19 +1079,24 @@ class _ObjectBuilder:
     def create(self) -> _ObjectData:
         if self._source is not None:
             raise ValueError("create() is only valid without a source instance; use clone() or update()")
-        return self._write(_ObjectData(self._schema, self._schema_name))
+        return self._made(self._write(_ObjectData(self._store, self._schema, self._schema_name)))
 
     def clone(self) -> _ObjectData:
         if self._source is None:
             raise ValueError("clone() is only valid with a source instance")
-        return self._write(_ObjectData(self._schema, self._schema_name))
+        return self._made(self._write(_ObjectData(self._store, self._schema, self._schema_name)))
 
     def update(self) -> _ObjectData:
         if self._source is None:
             raise ValueError("update() is only valid with a source instance")
         for adjacency in self._schema.adjacencies.values():
-            _relation_data(adjacency.relation).discard_linking(adjacency.me, self._source)
+            self._store._relation_data(adjacency.relation).discard_linking(adjacency.me, self._source)
         return self._write(self._source)
+
+    def _made(self, target: _ObjectData) -> _ObjectData:
+        """Adds a new instance to its schema's extent."""
+        self._store._extents.setdefault(self._schema_name, []).append(target)
+        return target
 
     def _write(self, target: _ObjectData) -> _ObjectData:
         mapping: dict[int, Any] = {}
@@ -1103,7 +1107,7 @@ class _ObjectBuilder:
         target._values.clear()
         target._values.update(values)
         for name, entries in self._entries.items():
-            relation = _relation_data(self._schema.adjacencies[name].relation)
+            relation = self._store._relation_data(self._schema.adjacencies[name].relation)
             for entry in entries:
                 entry._links = {link: mapping.get(id(t), t) for link, t in entry._links.items()}
                 relation.add(entry.build(target))

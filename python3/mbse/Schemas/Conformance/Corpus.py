@@ -28,7 +28,9 @@ def _keyed(key, spec):
 
 
 def build():
+    """The corpus, built in a store of its own: each case's root schema and root object."""
     S = Schemas
+    store = Proxies.OfStore()
 
     # --- address_book ---
     Contact = S.OfObject.Builder().ref().properties(_text("given_name"), _text("family_name"), _text("birth_date")).create()
@@ -127,8 +129,8 @@ def build():
                          ("Notebook", Notebook), ("Note", Note), ("Pages", Pages),
                          ("Card", Card), ("Deck", Deck), ("Holding", Holding),
                          ("Hub", Hub), ("Line", Line), ("Board", Board), ("Panel", Panel), ("Cable", Cable)]:
-        Proxies.register(name, schema)
-    B = Proxies.Builders
+        store.register(name, schema)
+    B = store
 
     home = B.Address().street1("10 Downing Street").locality("London").postal_code("SW1A 2AA").country_code("GB").create()
     alice = (B.Contact().given_name("Alice").family_name("Liddell").birth_date("1852-05-04")
@@ -216,7 +218,7 @@ def build():
                "Size": S.OfNative.resolve(lambda n: n.token("ccpp", "size_t").bytes(8)),
                "Contact": Contact, "Address": Address, "ContactAddresses": ContactAddresses, "Person": Person,
                "Parentage": Parentage, "Card": Card, "Deck": Deck, "Holding": Holding, "Board": Board, "Panel": Panel}
-    module = Modules.module(schemas)
+    module = Modules.module(store, schemas)
 
     return {
         "address_book": (Contact, alice),

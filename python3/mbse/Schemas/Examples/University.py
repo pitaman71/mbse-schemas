@@ -8,6 +8,8 @@ import math
 from mbse.Schemas.Framework import Schemas, Proxies, Plain, Reachable, Validators
 from mbse.Schemas.Examples._support import entries, raises, same_graph
 
+store = Proxies.OfStore()
+
 
 def text(name):
     return lambda prop: prop.name(name).of(lambda t: t.as_native(str))
@@ -62,8 +64,8 @@ Room = Schemas.OfObject.Builder(Room).relations(lambda adj: adj.name('bookings')
 for name, schema in [('Student', Student), ('Staff', Staff), ('Course', Course), ('Term', Term), ('Room', Room),
                      ('Enrollment', Enrollment), ('Booking', Booking)]:
     assert schema.validate() == [], (name, schema.validate())
-    Proxies.register(name, schema)
-Builders = Proxies.Builders
+    store.register(name, schema)
+Builders = store
 
 # --- A three-link relation ---
 
@@ -131,12 +133,12 @@ assert len(values) == 2 and {type(v) for v in values} == {int, bool}
 
 # Serializing checks native types: a bool where the schema says int is rejected, and so is anything reaching it.
 with raises(TypeError):
-    Plain.ToPlain(Student, zoe)
+    Plain.ToPlain(store)(Student, zoe)
 with raises(TypeError):
-    Plain.ToPlain.Reachable(Term, fall)
+    Plain.ToPlain(store).Reachable(Term, fall)
 
 # Validation reports it, only when asked, with a path to the value.
-validate = Validators.Validate(Proxies.Builders)
+validate = Validators.Validate(store)
 assert validate(Student, zoe) == [
     'Student#0.enrollments[1].credits: expected int, got bool',
     # Her two enrollments also share (student, course, term), which Enrollment's unique(...) clause forbids.
@@ -177,8 +179,8 @@ Builders.Room(lab).bookings(lambda x: x.booker(mia).starts('2026-09-15T13:30:00Z
 assert sorted(e['booker'].schema_name() for e in entries(Room, lab, 'bookings')) == ['Staff', 'Student']
 
 # References carry the schema name, so restoring knows Grace is Staff and Mia is a Student.
-graph = Plain.ToPlain.Reachable(Room, lab)
-restored = Plain.FromPlain(Proxies.Builders).Reachable(Room, graph)
+graph = Plain.ToPlain(store).Reachable(Room, lab)
+restored = Plain.FromPlain(store).Reachable(Room, graph)
 bookers = {e['booker'].name: e['booker'].schema_name() for e in entries(Room, restored, 'bookings')}
 assert bookers == {'Grace': 'Staff', 'Mia': 'Student'}
 
@@ -189,9 +191,9 @@ assert component[0] is fall
 assert {o.schema_name() for o in component} == {'Term', 'Student', 'Course', 'Room', 'Staff'}
 
 for root, schema in [(fall, Term), (mia, Student), (noah, Student)]:
-    graph = Plain.ToPlain.Reachable(schema, root)
-    restored = Plain.FromPlain(Proxies.Builders).Reachable(schema, graph)
-    assert restored is not root and same_graph(Plain.ToPlain.Reachable(schema, restored), graph)
+    graph = Plain.ToPlain(store).Reachable(schema, root)
+    restored = Plain.FromPlain(store).Reachable(schema, graph)
+    assert restored is not root and same_graph(Plain.ToPlain(store).Reachable(schema, restored), graph)
 
 # Apart from Noah's duplicate enrollments, the whole component is valid.
 problems = validate.Reachable(Term, fall)

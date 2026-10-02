@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from mbse.Schemas.Conformance.Corpus import build
-from mbse.Schemas.Framework import JSON, YAML
+from mbse.Schemas.Framework import JSON, YAML, Proxies
 
 DEFAULT = Path(__file__).resolve().parents[4] / "conformance" / "python3"
 
@@ -19,8 +19,9 @@ def render(corpus: dict | None = None) -> dict[str, str]:
     registering its schemas twice."""
     files = {}
     for case, (schema, root) in (corpus if corpus is not None else build()).items():
-        files[f"{case}.json"] = JSON.ToJSON.Reachable(schema, root, indent=2) + "\n"
-        files[f"{case}.yaml"] = YAML.ToYAML.Reachable(schema, root)
+        store = Proxies.store_of(root)
+        files[f"{case}.json"] = JSON.ToJSON(store).Reachable(schema, root, indent=2) + "\n"
+        files[f"{case}.yaml"] = YAML.ToYAML(store).Reachable(schema, root)
     return files
 
 

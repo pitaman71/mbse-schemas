@@ -2,7 +2,7 @@
  * Runs the test notebooks headless, the TypeScript counterpart of pytest + nbmake.
  *
  * Each notebook's code cells run in order as one ES module in its own process, so state carries from cell to cell
- * (as in a kernel) and registries start empty for every notebook. A markdown heading `## XXX-NN · title` names the
+ * (as in a kernel) and every notebook starts afresh. A markdown heading `## XXX-NN · title` names the
  * test case its following code cell belongs to; a failure reports the case, the error, and its position.
  *
  *   tsx tests/run-notebooks.ts [--typecheck] [notebook ...]

@@ -22,7 +22,7 @@ npx tsx src/Examples/AddressBook.ts       # an example
 
 Notebooks are committed without outputs. `tests/run-notebooks.ts` is the counterpart of pytest + nbmake: each
 notebook's code cells run in order as one module in a fresh process (state carries between cells as in a kernel, and
-the proxy registry starts empty), and a failure names the case, the error and its position. With `--typecheck` the
+each notebook makes its own stores), and a failure names the case, the error and its position. With `--typecheck` the
 notebooks are also type-checked under the project's strict `tsconfig.json`. Opening them interactively needs a
 TypeScript kernel (e.g. tslab or `deno jupyter`), which the test run does not.
 
@@ -40,7 +40,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 |---|---|---|---|
 | `01_Schemas.ipynb` | SCH | 19 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array`, the own token format is `typescript5`, and widths are `bigint`s |
 | `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length` |
-| `03_Proxies.ipynb` | PRX | 17 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances and the registry, `util.inspect` of instances and builders, and the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel) |
+| `03_Proxies.ipynb` | PRX | 17 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances and stores, `util.inspect` of instances and builders, and the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel) |
 | `04_Reachable.ipynb` | RCH | 10 | as in Python |
 | `05_Plain.ipynb` | PLN | 16 | as in Python; the same 26 malformed snapshots with byte-identical `DecodeError` paths and reasons |
 | `06_JSON.ipynb` | JSN | 11 | as in Python, including Python's exact output format; the 62-row JSN-09 table of `DecodeError`s is shared verbatim and matches exactly |
@@ -55,9 +55,10 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
 | `17_Lists.ipynb` | LST | 15 | as in Python; a list reads as a frozen array and a keyed list as a `Map`-shaped `Proxies.OfIndexed.Map`; float keys that must keep `-0.0` are given as pairs |
 | `18_Modules.ipynb` | MOD | 4 | as in Python; schemas are given as a Map or a record, and read back as a Map |
-| `19_Bindings.ipynb` | BND | 4 | as in Python; a binding's options are an object with `fixed` a `Map`, states, entries and registries hold `Map`s, and an unknown builder name is `undefined` |
+| `19_Bindings.ipynb` | BND | 4 | as in Python; a binding's options are an object with `fixed` a `Map`, states, entries and stores hold `Map`s |
+| `20_Stores.ipynb` | STO | 5 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), a `Bindings.OfStore` lets JavaScript's probes through, and STO-05 builds its unplaced value object through the visitor protocol |
 
-Total: 166 cases, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
+Total: 175 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences
@@ -107,7 +108,7 @@ one TypeScript-only bug:
 
 ## Not testable yet
 
-The same as in Python: Mutations and transactions, Factories, implicit singletons, deletion,
+The same as in Python: Mutations and transactions, queries over a store's extents, implicit singletons, deletion,
 meta-schemas and schema serialization, an "any value" kind,
 mixing implementations (generated bindings will live in separate repositories, one per target language).
 

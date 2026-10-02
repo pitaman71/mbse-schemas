@@ -1,4 +1,4 @@
-# Serialization example: native values at their edges, strict native types, malformed snapshots, and the registry.
+# Serialization example: native values at their edges, strict native types, malformed snapshots, and a store.
 #
 # Uses ISO 4217 currencies: a price list maps a product -> [currency] -> money.
 
@@ -68,12 +68,11 @@ for name, schema in [('Sample', Sample), ('iso4217.Currency', Currency), ('Produ
                      ('Prices', Prices), ('Denomination', Denomination)]:
     assert schema.validate() == [], (name, schema.validate())
     store.register(name, schema)
-Builders = store
 
 # --- Native values at their edges ---
 
 edge = (
-    Builders.Sample()
+    store.Sample()
     .label('日本語 🚀 \u0000 "quoted" \\ back')  # non-ASCII, emoji, NUL, quotes, backslash
     .payload(b'\x00\xff\x10' * 3)
     .count(2**100)  # Python ints are unbounded
@@ -93,14 +92,14 @@ assert restored.ratio == 0.0 and math.copysign(1, restored.ratio) < 0  # the sig
 assert restored.flag is False
 
 # Empty values are present values.
-empty = Builders.Sample().label('').payload(b'').count(0).ratio(0.0).create()
+empty = store.Sample().label('').payload(b'').count(0).ratio(0.0).create()
 back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty))
 assert (back.label, back.payload, back.count, back.ratio) == ('', b'', 0, 0.0)
 with raises(AttributeError):
     back.flag  # never set, so absent
 
 # An object with nothing set serializes to an empty object.
-blank = Builders.Sample().create()
+blank = store.Sample().create()
 assert Plain.ToPlain(store)(Sample, blank) == {'root': 's0', 'objects': {'s0': {}}}
 
 # Per-kind entry points.
@@ -121,7 +120,7 @@ with raises(DecodeError):
     from_plain(Schemas.OfNative.Data(bytes), 'not base64!')
 
 # The builder does not validate; the serializer does.
-sloppy = Builders.Sample().count('3').create()
+sloppy = store.Sample().count('3').create()
 assert sloppy.count == '3'
 with raises(TypeError):
     Plain.ToPlain(store)(Sample, sloppy)
@@ -134,10 +133,10 @@ assert validate(Schemas.OfNative.Data(int), True) == ['expected int, got bool']
 
 # --- A map: product -> [currency] -> money ---
 
-jpy = getattr(Builders, 'iso4217.Currency')().code('JPY').numeric('392').minor_units(0).create()
-eur = getattr(Builders, 'iso4217.Currency')().code('EUR').numeric('978').minor_units(2).create()
+jpy = getattr(store, 'iso4217.Currency')().code('JPY').numeric('392').minor_units(0).create()
+eur = getattr(store, 'iso4217.Currency')().code('EUR').numeric('978').minor_units(2).create()
 widget = (
-    Builders.Product()
+    store.Product()
     .sku('W-1')
     .prices(lambda x: x.price(lambda m: m.amount(1500).currency(lambda d: d.currency(jpy))).currency('JPY'))
     .prices(lambda x: x.price(lambda m: m.amount(1299).currency(lambda d: d.currency(eur))).currency('EUR'))
@@ -158,7 +157,7 @@ assert validate.Reachable(Product, widget) == []
 
 # unique('price') on Prices: (product, currency) determine the price. A second JPY price breaks it.
 gadget = (
-    Builders.Product()
+    store.Product()
     .sku('G-1')
     .prices(lambda x: x.price(lambda m: m.amount(900)).currency('JPY'))
     .prices(lambda x: x.price(lambda m: m.amount(950)).currency('JPY'))
@@ -204,23 +203,23 @@ with raises(DecodeError):
 with raises(TypeError):
     Plain.ToPlain(store)(Currency, widget)
 
-# --- Registry corner cases ---
+# --- Store corner cases ---
 
 with raises(ValueError):
     store.register('Sample', Sample)  # names are registered once
 with raises(AttributeError):
-    Builders.Unregistered()
+    store.Unregistered()
 with raises(TypeError):
-    Builders.Prices()  # no relation builder is exposed
+    store.Prices()  # no relation builder is exposed
 with raises(TypeError):
-    Builders.Product(jpy)  # the source instance must have the builder's schema
+    store.Product(jpy)  # the source instance must have the builder's schema
 with raises(AttributeError):
-    Builders.Product().colour('red')  # not a property or adjacency
+    store.Product().colour('red')  # not a property or adjacency
 with raises(AttributeError):
     widget.sku = 'W-2'  # instances are read-only
 
-# A schema registered as 'schema' is shadowed by the Builders.schema() method, but still reachable by name.
+# A schema registered as 'schema' is shadowed by the store's schema() method, but still reachable by name.
 store.register('schema', Sample)
-assert store.schema('schema') is Sample and Builders.schema('schema') is Sample
+assert store.schema('schema') is Sample and store.builder('schema').create().schema_name() == 'schema'
 
 print('Serialization: all checks passed')

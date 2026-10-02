@@ -6,8 +6,8 @@
 ## What equivalent means
 
 1. **Same API.** The same modules, classes, methods and argument order, with the same names (snake_case included):
-   `Schemas.OfObject.Builder().properties(...).create()`, `Proxies.Builders.Name(instance)`,
-   `Plain.ToPlain.Reachable(schema, value)`, `JSON.FromJSON(builders)(schema, text)`, `Validators.Validate(registry)`.
+   `Schemas.OfObject.Builder().properties(...).create()`, `store.Name(instance)` of a `Proxies.OfStore`,
+   `Plain.ToPlain(store).Reachable(schema, value)`, `JSON.FromJSON(store)(schema, text)`, `Validators.Validate(store)`.
    Only the unavoidable language mechanics differ (see below).
 2. **Same behavior.** The same results, the same error classes, and byte-identical error and validation messages.
 3. **Same data on the wire.** For the same objects built the same way, JSON output is byte-identical: the same symbol
@@ -85,13 +85,14 @@ noticed.
 | Lists in proxies | a `tuple`; a setter takes a `list` or a `tuple` | a frozen array; a setter takes an array | the read-only sequences of each language | LST-02 |
 | Keyed lists in proxies | `Proxies.OfIndexed.Map`, a `Mapping`: `m[key]` raises `KeyError`, iterating gives the keys, `repr` shows the pairs; a setter takes a mapping or pairs | `Proxies.OfIndexed.Map`, shaped as a `Map`: `get(key)` gives `undefined`, iterating gives the entries; a setter takes a `Map` or pairs | each language's read-only mapping. A JavaScript `Map` makes a `-0.0` key `0`, so float keys that must keep `-0.0` are given as pairs | LST-11, LST-13 |
 | Schemas by name (`Modules`) | a `dict` | a `Map`, or a record, and `schemas()` returns a `Map` | object literals are records by name, but only a `Map` keeps every key's order | MOD-02, MOD-03 |
-| Typed bindings (`Bindings`) | a `Binding`'s `fixed`, `exclusive` and `implied` are keyword arguments; a `State`'s and an `Entry`'s fields are `dict`s; a `Registry` takes `dict`s and an unknown builder name raises `AttributeError` | an options object `{ fixed, exclusive, implied }`, `fixed` a `Map`; `Map`s; a `Registry` takes `Map`s and an unknown builder name is `undefined` | the language's own mappings and members, as for proxies | BND-01..04 |
+| Typed bindings (`Bindings`) | a `Binding`'s `fixed`, `exclusive` and `implied` are keyword arguments; a `State`'s and an `Entry`'s fields are `dict`s; `Bindings.OfStore` takes `dict`s | an options object `{ fixed, exclusive, implied }`, `fixed` a `Map`; `Map`s; `Bindings.OfStore` takes `Map`s | the language's own mappings and members, as for proxies | BND-01..04 |
 | Errors | built-in exceptions | built-in `TypeError`; `ValueError`, `AttributeError`, `KeyError`, `LookupError`, `NotImplementedError` from `Errors` | JavaScript lacks the others | throughout |
 | Callable entry points | objects with `__call__` | functions with the per-kind forms attached | no callable instances | PLN-01 |
 | Keyword arguments | `indent=2` | `{ indent: 2 }` | no keyword arguments | JSN-04 |
 | Finalizer arguments | extra arguments raise `TypeError` | checked explicitly | JavaScript ignores extra arguments | SCH-09, PRX-04 |
 | Subclasses of natives | rejected | boxed primitives and `Buffer` rejected | the nearest analogues | SCH-03 |
 | Unknown attribute on a proxy | `AttributeError` | `AttributeError`, except JavaScript protocol probes (`then`, `toJSON`, `constructor`, symbols) | awaiting or printing a proxy must not throw | PRX-02 |
+| A store's builders by name (`store.<Name>()`) | `__getattr__`; an unknown name raises `AttributeError` | the store is a `Proxy`; an unknown name throws `AttributeError`, except the protocol probes; `Proxies.OfStore.builder` returns `any`, as proxy builders are typed loosely | as for proxies | STO-01, STO-04 |
 | Name collisions (F2) | `_values` is shadowed by an internal | not shadowed (private state); declared names win over JavaScript's own members | private fields exist | PRX-04 |
 | Object identity (F12) | `id(self)`, may be reused after collection | a counter, never reused | no object ids in JavaScript | PRX-02 |
 | Lone surrogate encoded as UTF-8 | raises | replaced with U+FFFD | `TextEncoder` behavior | JSN-06 |
@@ -102,7 +103,7 @@ noticed.
 | YAML the parsers disagree on | e.g. a document after `...` without `---` is a syntax error | the same input is two documents | YAML 1.1 and 1.2 parsers; both reject it, differently | YML-06b |
 | Reading JSON | `json` reads valid input; the reference parser (`JSON._Parser`) reads input `json` rejects, to report the problem | the reference parser reads all input | speed in Python; JSN-09 checks the reference parser reads valid input exactly as `json` | JSN-09 |
 | Byte-like subclass named in errors | `bytearray` | `Buffer` | the nearest analogues | PRX-17 |
-| `Proxies.OfObject.Builder` | a class | a function returning the builder; `Proxies.OfObject.Data` is the class | builders are `Proxy` objects | PRX-16 |
+| `Proxies.OfObject.Builder` | a class, taking the store first | a function returning the builder, taking the store first; `Proxies.OfObject.Data` is the class | builders are `Proxy` objects | PRX-16 |
 | Objects without a class | none | `Object.create(null)` is named `object` | JavaScript-only | TXT-03 |
 | Incomparable (`Comparison`) | `None` | `null` | the respective "no value" | CMP-01..12 |
 | Message text helpers | none: `repr()` and `type(v).__name__` are built in | `Repr` (`repr`, `typeName`, `tokenName`, ...) exported, for packages that must word messages as Python does | JavaScript has no `repr` | TXT-01..04 |
@@ -124,7 +125,7 @@ Two conventions are specific to the TypeScript notebooks, not to the binding:
 
 - The framework's `JSON` module is imported as `Json`. In a notebook, a top-level `JSON` import shadows the global
   `JSON`, which Deno's kernel itself uses.
-- Examples use `Proxies.Builders` directly and annotate DSL callbacks `(x: any)`, per the table above.
+- Examples build through a store (`store.Contact()`) and annotate DSL callbacks `(x: any)`, per the table above.
 
 When a case study changes, change both, and rerun both notebooks to refresh their outputs.
 

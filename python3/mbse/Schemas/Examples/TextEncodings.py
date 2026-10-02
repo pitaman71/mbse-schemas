@@ -48,7 +48,6 @@ Reading = Schemas.OfObject.Builder(Reading).relations(lambda adj: adj.name('stat
 
 for name, schema in [('Reading', Reading), ('Station', Station), ('Readings', Readings)]:
     store.register(name, schema)
-Builders = store
 validate = Validators.Validate(store)
 from_json = JSON.FromJSON(store)
 from_yaml = YAML.FromYAML(store)
@@ -56,7 +55,7 @@ from_yaml = YAML.FromYAML(store)
 # --- Floats at their edges, through every encoding ---
 
 for value in [0.0, -0.0, 1e308, 5e-324, 0.1, math.inf, -math.inf, math.nan]:
-    reading = Builders.Reading().value(value).create()
+    reading = store.Reading().value(value).create()
     for back in (
         Plain.FromPlain(store)(Reading, Plain.ToPlain(store)(Reading, reading)),
         from_json(Reading, JSON.ToJSON(store)(Reading, reading)),
@@ -68,13 +67,13 @@ for value in [0.0, -0.0, 1e308, 5e-324, 0.1, math.inf, -math.inf, math.nan]:
             assert back.value == value and math.copysign(1, back.value) == math.copysign(1, value)
 
 # Non-finite floats have a plain form, so JSON output stays strict (no NaN / Infinity literals).
-text = JSON.ToJSON(store)(Reading, Builders.Reading().value(math.nan).create())
+text = JSON.ToJSON(store)(Reading, store.Reading().value(math.nan).create())
 assert '"NaN"' in text and json.loads(text, parse_constant=lambda c: 1 / 0)
 
 # --- Every native type at once, and the three encodings agree ---
 
 sample = (
-    Builders.Reading()
+    store.Reading()
     .observed('2026-09-28T12:00:00Z')
     .value(-0.0)
     .quality(2**70)  # unbounded in Python; other languages may need a wider type
@@ -99,14 +98,14 @@ tricky = ['yes', 'No', 'on', 'OFF', 'true', 'null', '~', '', '010', '0o17', '0x1
           '2026-09-01', '.inf', '.nan', 'NaN', 'Infinity', '-0.0', ' lead', 'trail ', 'a: b', '- dash', '#hash',
           'x #y', '"dq"', "'sq'", '@at', '`tick', '%pct', '!bang', '&amp', '*star', '|', '>', '{}', '[]', '<<']
 for note in tricky:
-    reading = Builders.Reading().note(note).create()
+    reading = store.Reading().note(note).create()
     text = YAML.ToYAML(store)(Reading, reading)
     assert from_yaml(Reading, text).note == note, note
     # The output is also read correctly by a stock YAML 1.1 loader.
     assert yaml.safe_load(text) == Plain.ToPlain(store)(Reading, reading), note
 
 # WMO identifiers keep their leading zeros in both encodings.
-paris = Builders.Station().wmo_id('07149').name('Paris-Orly').create()
+paris = store.Station().wmo_id('07149').name('Paris-Orly').create()
 assert from_json(Station, JSON.ToJSON(store)(Station, paris)).wmo_id == '07149'
 assert from_yaml(Station, YAML.ToYAML(store)(Station, paris)).wmo_id == '07149'
 
@@ -150,7 +149,7 @@ for bad in ['root: s0\nroot: s1\nobjects: {}',  # duplicate key
 # --- A graph through each encoding ---
 
 lyon = (
-    Builders.Station()
+    store.Station()
     .wmo_id('07480')
     .name('Lyon-Saint-Exupéry')
     .readings(lambda x: x.reading(lambda r: r.observed('2026-09-28T06:00:00Z').value(11.5).valid(True)).sensor('temp'))

@@ -59,16 +59,15 @@ for (const [name, schema] of [["Student", Student], ["Staff", Staff], ["Course",
   assert(schema.validate().length === 0, `${name}: ${schema.validate()}`);
   store.register(name, schema);
 }
-const Builders = store;
 const same = (a: unknown[], b: unknown[]): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
 
 // --- A three-link relation ---
 
-const fall = Builders.Term().code("2026-FA").starts("2026-09-01").ends("2026-12-18").create();
-const cs101 = Builders.Course().code("CS101").title("Programs and Data").create();
+const fall = store.Term().code("2026-FA").starts("2026-09-01").ends("2026-12-18").create();
+const cs101 = store.Course().code("CS101").title("Programs and Data").create();
 
 // From the student's side, an entry sets the two other links; inline creation works because only Course fills 'course'.
-const mia = Builders.Student()
+const mia = store.Student()
   .name("Mia")
   .student_id("S-0001")
   .enrollments((x: any) => x.course(cs101).term(fall).credits(4n))
@@ -84,11 +83,11 @@ assert(same(sortedStrings(new Set(entries(Term, fall, "enrollments").map((e) => 
 assert(same(sortedStrings((entries(Term, fall, "enrollments")[0] as Map<string, unknown>).keys()), ["course", "credits", "student"]));
 
 // Every link other than the object's own must be set.
-raises(ValueError, () => Builders.Student().name("Noah").enrollments((x: any) => x.course(cs101)).create());
+raises(ValueError, () => store.Student().name("Noah").enrollments((x: any) => x.course(cs101)).create());
 
 // --- Entry property equality follows schema equality, not host-language == ---
 
-const noah = Builders.Student().name("Noah").create();
+const noah = store.Student().name("Noah").create();
 
 function enroll(student: Instance, props: Record<string, unknown>): void {
   const spec = (x: any) => {
@@ -96,7 +95,7 @@ function enroll(student: Instance, props: Record<string, unknown>): void {
     for (const [key, value] of Object.entries(props)) x[key](value);
     return x;
   };
-  Builders.Student(student).enrollments(spec).update();
+  store.Student(student).enrollments(spec).update();
 }
 
 enroll(noah, { score: 0.0 });
@@ -105,7 +104,7 @@ enroll(noah, { score: NaN });
 enroll(noah, { score: Number("NaN") }); // all NaNs are equal: elided
 assert(entries(Student, noah, "enrollments").length === 3);
 
-const zoe = Builders.Student().name("Zoe").create();
+const zoe = store.Student().name("Zoe").create();
 enroll(zoe, { credits: 1n });
 enroll(zoe, { credits: true }); // the builder does not validate native types, and true is a different value from 1n
 
@@ -116,7 +115,7 @@ function credits_of(entry: OfEntry): unknown {
 }
 
 const values: unknown[] = [];
-Builders.Student(zoe).adjacency("enrollments", (a: any) => a.entries((e: OfEntry) => values.push(credits_of(e))));
+store.Student(zoe).adjacency("enrollments", (a: any) => a.entries((e: OfEntry) => values.push(credits_of(e))));
 assert(values.length === 2 && same(sortedStrings(new Set(values.map((v) => typeof v))), ["bigint", "boolean"]));
 
 // Serializing checks native types: a bool where the schema says int is rejected, and so is anything reaching it.
@@ -136,30 +135,30 @@ assert(same(validate(Student, zoe), [
 assert(validate(Student, noah).some((p) => p.startsWith("unique(audit, credits, score) violated")));
 
 // A linked object must have a schema that fills that link: here a Student is linked as a course.
-Builders.Student(noah).enrollments((x: any) => x.course(mia).term(fall)).update();
+store.Student(noah).enrollments((x: any) => x.course(mia).term(fall)).update();
 assert(validate(Student, noah).some((p) => p.includes("a 'Student' cannot fill link 'course'")));
-Builders.Student(noah).adjacency("enrollments", (a: any) =>
+store.Student(noah).adjacency("enrollments", (a: any) =>
   a.entries((e: OfEntry) => e.link("course", (k) => k.target((t: Visitable) => (t === mia ? a.remove(e) : null)))),
 ).update();
 assert(!validate(Student, noah).some((p) => p.includes("cannot fill")));
 
 // Remove the bad entry so the rest of the example can serialize.
-Builders.Student(zoe).adjacency("enrollments", (a: any) =>
+store.Student(zoe).adjacency("enrollments", (a: any) =>
   a.entries((e: OfEntry) => (typeof credits_of(e) === "boolean" ? a.remove(e) : null)),
 ).update();
 assert(same(entries(Student, zoe, "enrollments").map((e) => e.get("credits")), [1n]));
 
 // --- Schema inference through a link must be unambiguous ---
 
-const lab = Builders.Room().building("Hopper Hall").number("B12").create();
+const lab = store.Room().building("Hopper Hall").number("B12").create();
 
 // Both Student and Staff fill 'booker', so building one inline from the room's side is refused...
-raises(TypeError, () => Builders.Room(lab).bookings((x: any) => x.booker((b: any) => b.name("?")).starts("2026-09-14T09:00:00Z")).update());
+raises(TypeError, () => store.Room(lab).bookings((x: any) => x.booker((b: any) => b.name("?")).starts("2026-09-14T09:00:00Z")).update());
 
 // ...but linking an existing object works, whichever schema it has.
-const grace = Builders.Staff().name("Grace").staff_id("F-0042").create();
-Builders.Room(lab).bookings((x: any) => x.booker(grace).starts("2026-09-14T09:00:00Z")).update();
-Builders.Room(lab).bookings((x: any) => x.booker(mia).starts("2026-09-15T13:30:00Z")).update();
+const grace = store.Staff().name("Grace").staff_id("F-0042").create();
+store.Room(lab).bookings((x: any) => x.booker(grace).starts("2026-09-14T09:00:00Z")).update();
+store.Room(lab).bookings((x: any) => x.booker(mia).starts("2026-09-15T13:30:00Z")).update();
 assert(same(sortedStrings(entries(Room, lab, "bookings").map((e) => (e.get("booker") as Instance).schema_name())), ["Staff", "Student"]));
 
 // References carry the schema name, so restoring knows Grace is Staff and Mia is a Student.

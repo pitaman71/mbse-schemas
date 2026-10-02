@@ -1,4 +1,4 @@
-// Serialization example: native values at their edges, strict native types, malformed snapshots, and the registry.
+// Serialization example: native values at their edges, strict native types, malformed snapshots, and a store.
 //
 // Uses ISO 4217 currencies: a price list maps a product -> [currency] -> money.
 
@@ -59,13 +59,12 @@ for (const [name, schema] of [["Sample", Sample], ["iso4217.Currency", Currency]
   assert(schema.validate().length === 0, `${name}: ${schema.validate()}`);
   store.register(name, schema);
 }
-const Builders = store;
 const bytes = (...values: number[]) => new Uint8Array(values);
 const repeat = (b: Uint8Array, n: number) => new Uint8Array(Array.from({ length: n }, () => [...b]).flat());
 
 // --- Native values at their edges ---
 
-const edge = Builders.Sample()
+const edge = store.Sample()
   .label('日本語 🚀 \u0000 "quoted" \\ back') // non-ASCII, emoji, NUL, quotes, backslash
   .payload(repeat(bytes(0x00, 0xff, 0x10), 3))
   .count(2n ** 100n) // ints are unbounded
@@ -84,13 +83,13 @@ assert(restored.ratio === 0 && Object.is(restored.ratio, -0)); // the sign of -0
 assert(restored.flag === false);
 
 // Empty values are present values.
-const empty = Builders.Sample().label("").payload(bytes()).count(0n).ratio(0.0).create();
+const empty = store.Sample().label("").payload(bytes()).count(0n).ratio(0.0).create();
 const back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty)) as Instance;
 assert(back.label === "" && equal(back.payload, bytes()) && back.count === 0n && back.ratio === 0);
 raises(AttributeError, () => back.flag); // never set, so absent
 
 // An object with nothing set serializes to an empty object.
-const blank = Builders.Sample().create();
+const blank = store.Sample().create();
 assert(equal(Plain.ToPlain(store)(Sample, blank), map({ root: "s0", objects: { s0: {} } })));
 
 // Per-kind entry points.
@@ -111,7 +110,7 @@ raises(DecodeError, () => from_plain(bytesSchema, new TextEncoder().encode("raw"
 raises(DecodeError, () => from_plain(bytesSchema, "not base64!"));
 
 // The builder does not validate; the serializer does.
-const sloppy = Builders.Sample().count("3").create();
+const sloppy = store.Sample().count("3").create();
 assert(sloppy.count === "3");
 raises(TypeError, () => Plain.ToPlain(store)(Sample, sloppy));
 
@@ -123,9 +122,9 @@ assert(equal(validate(new Schemas.OfNative.Data(BigInt), true), ["expected int, 
 
 // --- A map: product -> [currency] -> money ---
 
-const jpy = Builders["iso4217.Currency"]().code("JPY").numeric("392").minor_units(0n).create();
-const eur = Builders["iso4217.Currency"]().code("EUR").numeric("978").minor_units(2n).create();
-const widget = Builders.Product()
+const jpy = store["iso4217.Currency"]().code("JPY").numeric("392").minor_units(0n).create();
+const eur = store["iso4217.Currency"]().code("EUR").numeric("978").minor_units(2n).create();
+const widget = store.Product()
   .sku("W-1")
   .prices((x: any) => x.price((m: any) => m.amount(1500n).currency((d: any) => d.currency(jpy))).currency("JPY"))
   .prices((x: any) => x.price((m: any) => m.amount(1299n).currency((d: any) => d.currency(eur))).currency("EUR"))
@@ -147,7 +146,7 @@ assert(equal(byCurrency(again), byCurrency(widget)));
 assert(validate.Reachable(Product, widget).length === 0);
 
 // unique('price') on Prices: (product, currency) determine the price. A second JPY price breaks it.
-const gadget = Builders.Product()
+const gadget = store.Product()
   .sku("G-1")
   .prices((x: any) => x.price((m: any) => m.amount(900n)).currency("JPY"))
   .prices((x: any) => x.price((m: any) => m.amount(950n)).currency("JPY"))
@@ -189,19 +188,19 @@ raises(DecodeError, () => from_plain(Product, Plain.ToPlain(store)(Product, widg
 // The root must be an instance of the schema given.
 raises(TypeError, () => Plain.ToPlain(store)(Currency, widget));
 
-// --- Registry corner cases ---
+// --- Store corner cases ---
 
 raises(ValueError, () => store.register("Sample", Sample)); // names are registered once
-raises(AttributeError, () => Builders.Unregistered());
-raises(TypeError, () => Builders.Prices()); // no relation builder is exposed
-raises(TypeError, () => Builders.Product(jpy)); // the source instance must have the builder's schema
-raises(AttributeError, () => Builders.Product().colour("red")); // not a property or adjacency
+raises(AttributeError, () => store.Unregistered());
+raises(TypeError, () => store.Prices()); // no relation builder is exposed
+raises(TypeError, () => store.Product(jpy)); // the source instance must have the builder's schema
+raises(AttributeError, () => store.Product().colour("red")); // not a property or adjacency
 raises(AttributeError, () => {
   (widget as any).sku = "W-2"; // instances are read-only
 });
 
-// A schema registered as 'schema' is shadowed by the Builders.schema() method, but still reachable by name.
+// A schema registered as 'schema' is shadowed by the store's schema() method, but still reachable by name.
 store.register("schema", Sample);
-assert(store.schema("schema") === Sample && Builders.schema("schema") === Sample);
+assert(store.schema("schema") === Sample && store.builder("schema").create().schema_name() === "schema");
 
 console.log("Serialization: all checks passed");

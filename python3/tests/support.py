@@ -1,4 +1,4 @@
-"""Shared helpers for the test notebooks. Each notebook runs in its own kernel, so registries start empty."""
+"""Shared helpers for the test notebooks. Each notebook runs in its own kernel and makes its own stores."""
 
 from __future__ import annotations
 

@@ -40,19 +40,20 @@ ContactAddresses = (
 )
 Schemas.OfObject.Builder(Contact).relations(lambda adj: adj.name('addresses').of(ContactAddresses).me('contact')).update()
 Schemas.OfObject.Builder(Address).relations(lambda adj: adj.name('residents').of(ContactAddresses).me('address')).update()
+store = Proxies.OfStore()  # holds schemas by name, and the objects built with them
 for name, schema in [('Contact', Contact), ('Address', Address), ('ContactAddresses', ContactAddresses)]:
-    Proxies.register(name, schema)
+    store.register(name, schema)
 
 alice = (
-    Proxies.Builders.Contact()
+    store.Contact()
     .name('Alice')
     .addresses(lambda x: x.address(lambda a: a.street('10 Downing Street')).label('home'))
     .create()
 )
 
-text = JSON.ToJSON.Reachable(Contact, alice)              # the whole graph, shared objects written once
-copy = JSON.FromJSON(Proxies.Builders).Reachable(Contact, text)
-assert Validators.Validate(Proxies.Builders).Reachable(Contact, copy) == []
+text = JSON.ToJSON(store).Reachable(Contact, alice)       # the whole graph, shared objects written once
+copy = JSON.FromJSON(store).Reachable(Contact, text)
+assert Validators.Validate(store).Reachable(Contact, copy) == []
 ```
 
 ```json
@@ -157,6 +158,7 @@ The core is implemented in both languages:
 - schemas: objects, relations, unions, intersections and lists;
 - schemas as data: meta-schemas, and modules of schemas written, read, validated and compared as objects;
 - value objects, union values and intersection values, keyed by branch and part names;
+- stores: schemas and objects by name, isolated from one another (`Proxies.OfStore`, `Bindings.OfStore`);
 - dynamic proxies;
 - reachability;
 - plain snapshots, JSON and YAML;
@@ -172,7 +174,6 @@ mbse-typescript, mbse-systemverilog), each depending on this one.
 Designed but not built yet (see `docs/FRAMEWORK.md`):
 - constraints such as "at least one";
 - mutations and transactions;
-- factories;
 - implicit singletons;
 - object deletion;
-- meta-schemas for schemas themselves.
+- queries over a store (an extension in mbse-expressions).

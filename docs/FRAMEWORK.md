@@ -248,8 +248,11 @@ in-memory cache slices.
   and an object of one store cannot be linked to, or used as the source of a builder in, another ("the object belongs
   to another store"). Tests and programs make the stores they need. Objects move between stores, or implementations,
   as snapshots.
-- **Every store starts with the meta-schemas registered** (`Schemas.Module` and the schemas it refers to), so a store
-  can hold modules of schemas (see Meta-schemas).
+- **Every store of proxies starts with the meta-schemas registered** (`Stores.META`: `Schemas.Module`, whose schemas
+  are value object schemas and need no names), so it can hold modules of schemas (see Meta-schemas). A store of bound
+  classes holds only the classes bound to it.
+- **A proxy knows its store.** `Proxies.store_of(value)` gives the store a proxy belongs to, and a placed value
+  object's is its owner's.
 - **Everything that looks schemas up takes a store**: `Plain.ToPlain(store)` and `Plain.FromPlain(store)`, the JSON and
   YAML forms, `Validators.Validate(store)`, `Modules.module(store, ...)` and `Modules.schemas(store, ...)`, and a
   builder inferring the schema of an object it creates through a link (from the store's schemas).
@@ -331,8 +334,8 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
   values and adjacency names to lists of entries; an entry maps the other links to references and the entry properties
   to plain values (the object's own link is implied). A reference is `{"$ref": symbol, "$schema": name}`, or
   `{"$ref": symbol}` to a value object. Symbols are assigned in the order objects are first referenced, value objects
-  included. `Plain.ToPlain.OfObject` includes only the root, so its references
-  are unresolved; `Plain.ToPlain.Reachable` includes every object reachable through adjacencies. An entry appears under
+  included. `Plain.ToPlain(store).OfObject` includes only the root, so its references
+  are unresolved; `Plain.ToPlain(store).Reachable` includes every object reachable through adjacencies. An entry appears under
   each object it links; on deserialization the duplicate is elided.
 - `JSON` : `JSON.ToJSON(store)(schema, value)` returns JSON text and `JSON.FromJSON(store)(schema, text)` rebuilds values;
   both mirror `Plain` (`.OfNative`, `.OfObject`, `.Reachable`). Output is strict JSON (RFC 8259) with key order kept;
@@ -531,8 +534,8 @@ Native types and their widths are implemented, and written over the wire by thei
 Schemas are data: each schema kind's data has a meta-schema, `Schemas.OfX.Schema`, a value object schema, so schemas
 are written, read, validated and compared like any other objects.
 
-- **A module holds named schemas.** `Schemas.Module.Schema` is a reference object schema, registered in every store as
-  `Schemas.Module`, whose `schemas` property is a list of `Schemas.Module.Entry` value objects, each a `name` and a
+- **A module holds named schemas.** `Schemas.Module.Schema` is a reference object schema, registered in every store of
+  proxies as `Schemas.Module`, whose `schemas` property is a list of `Schemas.Module.Entry` value objects, each a `name` and a
   `schema`, a `Schemas.Module.Definition`: a union of the schema kinds, `native`, `object`, `union`, `intersection`,
   `indexed` and `relation`. A snapshot of schemas is a snapshot of a module.
 - **`Modules` translates.** `Modules.module(store, schemas)` returns a module holding schemas given by name (a dict in
@@ -647,7 +650,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Labeling objects outside snapshots: tools other than serializers (diffs, audit logs, debug dumps) have only
   `identity()`, an opaque in-memory value (`id(self)` in Python), to name an object. Snapshots label objects with
   symbols, but those are internal to a serialization. Should the framework expose a reusable, stable labeling, for
-  example the symbol numbering `Plain.ToPlain.Reachable` would assign, or a symbol table tools can share? Seen in the
+  example the symbol numbering `Plain.ToPlain(store).Reachable` would assign, or a symbol table tools can share? Seen in the
   tutorial's audit-log diff (`python3/tutorials/08_Tools_For_Every_Schema.ipynb`), which prints a raw object id.
 
 ### Resolved
@@ -736,7 +739,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - `Plain.ToPlain` and `Plain.FromPlain` are constructed with a store, which names the schemas written and builds the
   objects read: `Plain.FromPlain(store)(schema, plain)`.
 - Reachability is its own visitor, `Reachable.of(root)`, which returns the root and every reference object reachable
-  through adjacencies, value objects' included, in first-reference order. `Plain.ToPlain.Reachable` uses it.
+  through adjacencies, value objects' included, in first-reference order. `Plain.ToPlain(store).Reachable` uses it.
 - Over the wire, object content carries no schema. Association with a schema is dynamic, starting from the expected
   root schema (hence `FromPlain(store)(schema, ...)` takes it) and continuing through property types and the
   branch written with each union value. Serialized references to linked reference objects carry the object's schema

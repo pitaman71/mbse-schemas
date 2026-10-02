@@ -101,7 +101,8 @@ ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromD
 - `True` is not an `int`, and `1.0` is not an `int`. Validation reports `expected int, got bool`.
 - Entry properties hold natives, lists and value objects without adjacencies. Link an object for anything richer.
 - Setting a value object into a property or a list copies it. Edit one in place through a Spec instead.
-- The proxy registry is global to the process, and registering a name twice raises `ValueError`.
+- Each store has its own schemas: registering a name twice in one store raises `ValueError`, and an object of one
+  store cannot be linked from another.
 - Reading a relation's entries goes through a builder's visitor: see `entries` in
   [tutorials/toolkit.py](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/toolkit.py), and
   tutorial 3 for removing entries and for what `update()` replaces.

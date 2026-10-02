@@ -41,7 +41,6 @@ Reading = new Schemas.OfObject.Builder(Reading).relations((adj) => adj.name("sta
 for (const [name, schema] of [["Reading", Reading], ["Station", Station], ["Readings", Readings]] as const) {
   store.register(name, schema);
 }
-const Builders = store;
 const validate = Validators.Validate(store);
 const from_json = JSON.FromJSON(store);
 const from_yaml = YAML.FromYAML(store);
@@ -51,7 +50,7 @@ const yaml11 = (text: string) => Y.parse(text, { version: "1.1", intAsBigInt: tr
 // --- Floats at their edges, through every encoding ---
 
 for (const value of [0.0, -0.0, 1e308, 5e-324, 0.1, Infinity, -Infinity, NaN]) {
-  const reading = Builders.Reading().value(value).create();
+  const reading = store.Reading().value(value).create();
   for (const back of [
     Plain.FromPlain(store)(Reading, Plain.ToPlain(store)(Reading, reading)),
     from_json(Reading, JSON.ToJSON(store)(Reading, reading)),
@@ -63,12 +62,12 @@ for (const value of [0.0, -0.0, 1e308, 5e-324, 0.1, Infinity, -Infinity, NaN]) {
 }
 
 // Non-finite floats have a plain form, so JSON output stays strict (no NaN / Infinity literals).
-let text = JSON.ToJSON(store)(Reading, Builders.Reading().value(NaN).create());
+let text = JSON.ToJSON(store)(Reading, store.Reading().value(NaN).create());
 assert(text.includes('"NaN"') && globalThis.JSON.parse(text));
 
 // --- Every native type at once, and the three encodings agree ---
 
-const sample = Builders.Reading()
+const sample = store.Reading()
   .observed("2026-09-28T12:00:00Z")
   .value(-0.0)
   .quality(2n ** 70n) // ints are unbounded; other languages may need a wider type
@@ -93,7 +92,7 @@ const tricky = ["yes", "No", "on", "OFF", "true", "null", "~", "", "010", "0o17"
   "2026-09-01", ".inf", ".nan", "NaN", "Infinity", "-0.0", " lead", "trail ", "a: b", "- dash", "#hash",
   "x #y", '"dq"', "'sq'", "@at", "`tick", "%pct", "!bang", "&amp", "*star", "|", ">", "{}", "[]", "<<"];
 for (const note of tricky) {
-  const reading = Builders.Reading().note(note).create();
+  const reading = store.Reading().note(note).create();
   text = YAML.ToYAML(store)(Reading, reading);
   assert((from_yaml(Reading, text) as Instance).note === note, note);
   // The output is also read correctly by a stock YAML 1.1 loader.
@@ -101,7 +100,7 @@ for (const note of tricky) {
 }
 
 // WMO identifiers keep their leading zeros in both encodings.
-const paris = Builders.Station().wmo_id("07149").name("Paris-Orly").create();
+const paris = store.Station().wmo_id("07149").name("Paris-Orly").create();
 assert((from_json(Station, JSON.ToJSON(store)(Station, paris)) as Instance).wmo_id === "07149");
 assert((from_yaml(Station, YAML.ToYAML(store)(Station, paris)) as Instance).wmo_id === "07149");
 
@@ -143,7 +142,7 @@ for (const bad of ["root: s0\nroot: s1\nobjects: {}", // duplicate key
 
 // --- A graph through each encoding ---
 
-const lyon = Builders.Station()
+const lyon = store.Station()
   .wmo_id("07480")
   .name("Lyon-Saint-Exupéry")
   .readings((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(11.5).valid(true)).sensor("temp"))

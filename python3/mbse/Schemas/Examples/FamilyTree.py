@@ -45,7 +45,6 @@ assert Person.validate() == [] and Parentage.validate() == [] and Mentorship.val
 store.register('Person', Person)
 store.register('Parentage', Parentage)
 store.register('Mentorship', Mentorship)
-Builders = store
 
 
 def kinds(obj, adjacency):
@@ -58,15 +57,15 @@ def names(obj, adjacency, link):
 
 # --- Self-relations ---
 
-ada = Builders.Person().given_name('Ada').family_name('Lovelace').birth_date('1815-12-10').create()
-bob = Builders.Person().given_name('Bob').parents(lambda x: x.parent(ada).kind('biological')).create()
+ada = store.Person().given_name('Ada').family_name('Lovelace').birth_date('1815-12-10').create()
+bob = store.Person().given_name('Bob').parents(lambda x: x.parent(ada).kind('biological')).create()
 
 # The entry is one fact, visible from both ends.
 assert names(ada, 'children', 'child') == ['Bob'] and names(bob, 'parents', 'parent') == ['Ada']
 
 # Inline creation through a link: 'child' is filled only by Person, so the new object's schema is unambiguous.
 carol = (
-    Builders.Person()
+    store.Person()
     .given_name('Carol')
     .children(lambda x: x.child(lambda y: y.given_name('Dan').birth_date('2001-02-03')).kind('adoptive'))
     .create()
@@ -76,25 +75,25 @@ assert dan.given_name == 'Dan' and dan.schema_name() == 'Person'
 
 # --- Multiple owners: Dan has two parents, through two separate entries ---
 
-Builders.Person(dan).parents(lambda x: x.parent(ada).kind('biological')).update()
+store.Person(dan).parents(lambda x: x.parent(ada).kind('biological')).update()
 assert names(dan, 'parents', 'parent') == ['Ada', 'Carol']
 assert names(ada, 'children', 'child') == ['Bob', 'Dan']
 
 # --- Two different relations between the same pair ---
 
-Builders.Person(ada).mentees(lambda x: x.mentee(bob)).update()
+store.Person(ada).mentees(lambda x: x.mentee(bob)).update()
 assert names(bob, 'parents', 'parent') == ['Ada'] and names(bob, 'mentors', 'mentor') == ['Ada']
 
 # --- Duplicate elision, and entries that differ only by a property ---
 
-Builders.Person(bob).parents(lambda x: x.parent(ada).kind('biological')).update()
+store.Person(bob).parents(lambda x: x.parent(ada).kind('biological')).update()
 assert kinds(bob, 'parents') == ['biological']  # adding an equal entry is elided
 
-Builders.Person(bob).parents(lambda x: x.parent(ada).kind('adoptive')).update()
+store.Person(bob).parents(lambda x: x.parent(ada).kind('adoptive')).update()
 assert kinds(bob, 'parents') == ['adoptive', 'biological']  # a different property value is a different entry
 
 # An entry without the optional property is different again.
-Builders.Person(bob).parents(lambda x: x.parent(ada)).update()
+store.Person(bob).parents(lambda x: x.parent(ada)).update()
 assert len(entries(Person, bob, 'parents')) == 3 and 'kind' not in entries(Person, bob, 'parents')[-1]
 
 # --- Removing entries through a builder ---
@@ -107,7 +106,7 @@ def kind_of(entry):
     return found[0] if found else None
 
 
-Builders.Person(bob).adjacency(
+store.Person(bob).adjacency(
     'parents', lambda a: a.entries(lambda e: a.remove(e) if kind_of(e) != 'biological' else None)
 ).update()
 assert kinds(bob, 'parents') == ['biological']
@@ -115,20 +114,20 @@ assert names(ada, 'children', 'child') == ['Bob', 'Dan']  # removed from both en
 
 # --- A self-loop and a cycle ---
 
-Builders.Person(carol).mentees(lambda x: x.mentee(carol)).update()  # Carol mentors herself
+store.Person(carol).mentees(lambda x: x.mentee(carol)).update()  # Carol mentors herself
 assert names(carol, 'mentees', 'mentee') == ['Carol'] and names(carol, 'mentors', 'mentor') == ['Carol']
 
-Builders.Person(dan).mentees(lambda x: x.mentee(ada)).update()  # ada -> dan by parentage, dan -> ada by mentorship
+store.Person(dan).mentees(lambda x: x.mentee(ada)).update()  # ada -> dan by parentage, dan -> ada by mentorship
 assert {p.given_name for p in Reachable.of(ada)} == {'Ada', 'Bob', 'Carol', 'Dan'}
 assert Reachable.of(ada)[0] is ada  # the root comes first
 assert {p.given_name for p in Reachable.of(bob)} == {p.given_name for p in Reachable.of(ada)}  # same component
 
-loner = Builders.Person().given_name('Eve').create()
+loner = store.Person().given_name('Eve').create()
 assert Reachable.of(loner) == [loner]
 
 # --- clone() copies adjacency entries ---
 
-bob2 = Builders.Person(bob).given_name('Bob II').clone()
+bob2 = store.Person(bob).given_name('Bob II').clone()
 assert kinds(bob2, 'parents') == ['biological'] and names(bob2, 'mentors', 'mentor') == ['Ada']
 assert names(ada, 'children', 'child') == ['Bob', 'Bob II', 'Dan']
 assert bob.given_name == 'Bob'
@@ -136,13 +135,13 @@ assert bob.given_name == 'Bob'
 # --- Entry rules ---
 
 with raises(AttributeError):
-    Builders.Person().parents(lambda x: x.child(bob))  # the object's own link ('child') is implied
+    store.Person().parents(lambda x: x.child(bob))  # the object's own link ('child') is implied
 with raises(AttributeError):
-    Builders.Person().parents(lambda x: x.parent(ada).since('1990'))  # not a property of Parentage
+    store.Person().parents(lambda x: x.parent(ada).since('1990'))  # not a property of Parentage
 with raises(ValueError):
-    Builders.Person().parents(lambda x: x.kind('biological')).create()  # the 'parent' link is never set
+    store.Person().parents(lambda x: x.kind('biological')).create()  # the 'parent' link is never set
 with raises(TypeError):
-    Builders.Person().parents(x=ada)  # an adjacency takes an entry Spec
+    store.Person().parents(x=ada)  # an adjacency takes an entry Spec
 
 # --- Validation ---
 

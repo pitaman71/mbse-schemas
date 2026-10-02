@@ -1,4 +1,4 @@
-/** Shared helpers for the test notebooks. Each notebook runs in its own process, so registries start empty. */
+/** Shared helpers for the test notebooks. Each notebook runs in its own process and makes its own stores. */
 
 import { Plain, Proxies, Reachable } from "@mbse/schemas/Framework";
 import type { PlainData, PlainMap } from "@mbse/schemas/Framework/Plain";

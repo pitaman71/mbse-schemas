@@ -33,21 +33,21 @@ and TypeScript write byte-identical JSON, and each reads the other's.
 A module is an object holding schemas by name, so schemas save, load, validate and compare like any data:
 
 ```python fragment
-text = JSON.ToJSON(S.Module.Schema, Modules.module({"Contact": Contact, "Phone": Phone}))
-schemas = Modules.schemas(JSON.FromJSON(B)(S.Module.Schema, text))   # {"Contact": ..., "Phone": ...}
+text = JSON.ToJSON(store)(S.Module.Schema, Modules.module(store, {"Contact": Contact, "Phone": Phone}))
+schemas = Modules.schemas(store, JSON.FromJSON(store)(S.Module.Schema, text))   # {"Contact": ..., "Phone": ...}
 ```
 
 Each schema is written inline by kind (`{"object": {...}}`), and refers by name (`{"named": {"name": "Phone"}}`) to
-the schemas in the module and those registered; a name resolves within the module, then in the registry. A schema
+the schemas in the module and those registered in the store; a name resolves within the module, then in the store. A schema
 that refers to itself must be named.
 
 ## Calls
 
 | Call | Writes or reads |
 |---|---|
-| `ToPlain.OfObject` / `ToJSON.OfObject` / `ToYAML.OfObject` | the root only; its references stay unresolved, and decoding rejects them |
-| `ToPlain.Reachable` / `ToJSON.Reachable` / `ToYAML.Reachable` | the root and everything reachable through adjacencies |
-| `FromPlain(builders)(schema, data)` and the JSON and YAML forms | builds with the builders you inject, usually `Proxies.Builders` |
+| `ToPlain(store).OfObject`, and the JSON and YAML forms | the root only; its references stay unresolved, and decoding rejects them |
+| `ToPlain(store).Reachable`, and the JSON and YAML forms | the root and everything reachable through adjacencies |
+| `FromPlain(store)(schema, data)`, and the JSON and YAML forms | builds in the store given; a snapshot is how objects move between stores |
 
 ## Strictness
 

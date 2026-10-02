@@ -17,7 +17,7 @@ uv sync --all-extras                 # the project environment, with PyYAML (use
 uv run --with jupyterlab jupyter lab tutorials/   # or open them in VS Code with the project's .venv as the kernel
 ```
 
-Each notebook runs top to bottom in a fresh kernel and starts with an empty schema registry. The notebooks are
+Each notebook runs top to bottom in a fresh kernel and makes its own store. The notebooks are
 committed with their outputs, so you can also just read them. `uv run pytest tutorials` executes them all as tests,
 which keeps them in step with the code.
 

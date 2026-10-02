@@ -65,16 +65,15 @@ for name, schema in [('Student', Student), ('Staff', Staff), ('Course', Course),
                      ('Enrollment', Enrollment), ('Booking', Booking)]:
     assert schema.validate() == [], (name, schema.validate())
     store.register(name, schema)
-Builders = store
 
 # --- A three-link relation ---
 
-fall = Builders.Term().code('2026-FA').starts('2026-09-01').ends('2026-12-18').create()
-cs101 = Builders.Course().code('CS101').title('Programs and Data').create()
+fall = store.Term().code('2026-FA').starts('2026-09-01').ends('2026-12-18').create()
+cs101 = store.Course().code('CS101').title('Programs and Data').create()
 
 # From the student's side, an entry sets the two other links; inline creation works because only Course fills 'course'.
 mia = (
-    Builders.Student()
+    store.Student()
     .name('Mia')
     .student_id('S-0001')
     .enrollments(lambda x: x.course(cs101).term(fall).credits(4))
@@ -92,11 +91,11 @@ assert set(entries(Term, fall, 'enrollments')[0]) == {'student', 'course', 'cred
 
 # Every link other than the object's own must be set.
 with raises(ValueError):
-    Builders.Student().name('Noah').enrollments(lambda x: x.course(cs101)).create()
+    store.Student().name('Noah').enrollments(lambda x: x.course(cs101)).create()
 
 # --- Entry property equality follows schema equality, not host-language == ---
 
-noah = Builders.Student().name('Noah').create()
+noah = store.Student().name('Noah').create()
 
 
 def enroll(student, **props):
@@ -106,7 +105,7 @@ def enroll(student, **props):
             getattr(x, key)(value)
         return x
 
-    Builders.Student(student).enrollments(spec).update()
+    store.Student(student).enrollments(spec).update()
 
 
 enroll(noah, score=0.0)
@@ -115,7 +114,7 @@ enroll(noah, score=math.nan)
 enroll(noah, score=float('nan'))  # all NaNs are equal: elided
 assert len(entries(Student, noah, 'enrollments')) == 3
 
-zoe = Builders.Student().name('Zoe').create()
+zoe = store.Student().name('Zoe').create()
 enroll(zoe, credits=1)
 enroll(zoe, credits=True)  # the builder does not validate native types, and True is a different value from 1
 
@@ -128,7 +127,7 @@ def credits_of(entry):
 
 
 values = []
-Builders.Student(zoe).adjacency('enrollments', lambda a: a.entries(lambda e: values.append(credits_of(e))))
+store.Student(zoe).adjacency('enrollments', lambda a: a.entries(lambda e: values.append(credits_of(e))))
 assert len(values) == 2 and {type(v) for v in values} == {int, bool}
 
 # Serializing checks native types: a bool where the schema says int is rejected, and so is anything reaching it.
@@ -150,32 +149,32 @@ assert validate(Student, zoe) == [
 assert any(p.startswith('unique(audit, credits, score) violated') for p in validate(Student, noah))
 
 # A linked object must have a schema that fills that link: here a Student is linked as a course.
-Builders.Student(noah).enrollments(lambda x: x.course(mia).term(fall)).update()
+store.Student(noah).enrollments(lambda x: x.course(mia).term(fall)).update()
 assert any("a 'Student' cannot fill link 'course'" in p for p in validate(Student, noah))
-Builders.Student(noah).adjacency(
+store.Student(noah).adjacency(
     'enrollments', lambda a: a.entries(lambda e: e.link('course', lambda k: k.target(
         lambda t: a.remove(e) if t is mia else None)))
 ).update()
 assert not any('cannot fill' in p for p in validate(Student, noah))
 
 # Remove the bad entry so the rest of the example can serialize.
-Builders.Student(zoe).adjacency(
+store.Student(zoe).adjacency(
     'enrollments', lambda a: a.entries(lambda e: a.remove(e) if type(credits_of(e)) is bool else None)
 ).update()
 assert [e['credits'] for e in entries(Student, zoe, 'enrollments')] == [1]
 
 # --- Schema inference through a link must be unambiguous ---
 
-lab = Builders.Room().building('Hopper Hall').number('B12').create()
+lab = store.Room().building('Hopper Hall').number('B12').create()
 
 # Both Student and Staff fill 'booker', so building one inline from the room's side is refused...
 with raises(TypeError):
-    Builders.Room(lab).bookings(lambda x: x.booker(lambda b: b.name('?')).starts('2026-09-14T09:00:00Z')).update()
+    store.Room(lab).bookings(lambda x: x.booker(lambda b: b.name('?')).starts('2026-09-14T09:00:00Z')).update()
 
 # ...but linking an existing object works, whichever schema it has.
-grace = Builders.Staff().name('Grace').staff_id('F-0042').create()
-Builders.Room(lab).bookings(lambda x: x.booker(grace).starts('2026-09-14T09:00:00Z')).update()
-Builders.Room(lab).bookings(lambda x: x.booker(mia).starts('2026-09-15T13:30:00Z')).update()
+grace = store.Staff().name('Grace').staff_id('F-0042').create()
+store.Room(lab).bookings(lambda x: x.booker(grace).starts('2026-09-14T09:00:00Z')).update()
+store.Room(lab).bookings(lambda x: x.booker(mia).starts('2026-09-15T13:30:00Z')).update()
 assert sorted(e['booker'].schema_name() for e in entries(Room, lab, 'bookings')) == ['Staff', 'Student']
 
 # References carry the schema name, so restoring knows Grace is Staff and Mia is a Student.

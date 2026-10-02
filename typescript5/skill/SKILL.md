@@ -30,12 +30,14 @@ simpler.
 3. **Names starting with `$` are reserved** for the wire format (`$ref`, `$schema`, `$id`); `validate()` reports them.
 4. **Nothing is mandatory, and absent is not null.** Reading an unset property raises `AttributeError`. Cardinality
    is `unique(...)` on a relation. "At least one" constraints are not implemented yet.
-5. **Validation runs only when asked:** `Validators.Validate(registry)(schema, value)`, or `.Reachable(...)` for a
+5. **Validation runs only when asked:** `Validators.Validate(store)(schema, value)`, or `.Reachable(...)` for a
    whole graph. It returns every problem, each with a path. Schemas have their own `.validate()`.
 6. **Native types are exact, never coerced.** `int`, `float`, `bool`, `str` and `bytes` are distinct. In TypeScript,
    `int` is `bigint`.
 7. **Objects are read-only.** Change them through a builder that ends with `create()`, `clone()` or `update()`.
-   Linked objects need registered schemas: `Proxies.register(name, schema)`, then `Proxies.Builders.<Name>(...)`.
+8. **Everything lives in a store.** `store = Proxies.OfStore()` holds schemas by name and the objects built with them:
+   `store.register(name, schema)`, then `store.<Name>(...)`. Serializers and validators take the store
+   (`JSON.ToJSON(store)`, `Validators.Validate(store)`). Stores are isolated; objects move between them as snapshots.
 
 ## Load the reference for your task
 

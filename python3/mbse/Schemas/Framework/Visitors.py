@@ -1,8 +1,9 @@
 """Visitors: schema-agnostic handles for traversing, analyzing, and modifying data.
 
 For each schema element `OfX`, `Visitors.OfX` is a handle positioned at a value of that kind. A handle can read the
-value, visit its parts, and modify it. Handles are obtained through `Factories`, never instantiated directly by client
-code. Builders and serializers implement these protocols; proxies do not (a proxy would be `Visitable`).
+value, visit its parts, and modify it. Client code obtains handles from a store's builders and the serializers, never
+by instantiating them. Builders and serializers implement these protocols; proxies do not (a proxy would be
+`Visitable`).
 
 Child handles (properties, adjacencies, entries, links, kind-specific values) are never returned: they are passed to a
 callback. Every method that is not a query returns `self`, so calls chain.

@@ -18,12 +18,14 @@ The same program in both languages:
 
 ```python
 IntlAddress = Schemas.OfObject.Builder().ref().properties(lambda p: p.name('street1').of(lambda t: t.as_native(str))).create()
-Proxies.register('IntlAddress', IntlAddress)
-addr = Proxies.Builders.IntlAddress().street1('10 Downing Street').create()
+store = Proxies.OfStore()
+store.register('IntlAddress', IntlAddress)
+addr = store.IntlAddress().street1('10 Downing Street').create()
 ```
 
 ```ts
 const IntlAddress = new Schemas.OfObject.Builder().ref().properties((p) => p.name("street1").of((t) => t.as_native(String))).create();
-Proxies.register("IntlAddress", IntlAddress);
-const addr = Proxies.Builders.IntlAddress().street1("10 Downing Street").create();
+const store = new Proxies.OfStore();
+store.register("IntlAddress", IntlAddress);
+const addr = store.IntlAddress().street1("10 Downing Street").create();
 ```

@@ -13,6 +13,10 @@
  * when that one is in the module or registered in the store, so shared and recursive schemas are written once. A name
  * resolves within the module, then in the store. A schema that refers to itself must be named.
  *
+ * `reference(store, schema)` and `resolve(store, definition)` translate one type the same way, for data that refers to
+ * a schema as a module's members do (by name when the store registers it, else inline), e.g. the symbols of a
+ * predicate.
+ *
  * The translation goes through plain data, the form `Plain`, `JSON` and `YAML` share: `module` decodes the plain form
  * of the schemas in the store, and `schemas` reads the plain form of the module.
  */
@@ -43,6 +47,17 @@ export function schemas(store: Stores.Store, module: unknown): Map<string, Schem
   const plain = Plain.ToPlain(store)(Schemas.Module.Schema, module as never) as PlainMap;
   const root = (plain.get("objects") as PlainMap).get(plain.get("root") as string) as PlainMap;
   return new Reader(store, (root.get("schemas") as PlainMap[] | undefined) ?? []).read();
+}
+
+/** The plain form of a type (`Schemas.OfAny.Schema`'s): `{"named": {"name": ...}}` when `store` registers `schema`,
+ * else the schema inline. */
+export function reference(store: Stores.Store, schema: unknown): PlainMap {
+  return new Writer(store, new Map()).reference(schema);
+}
+
+/** The type a plain form describes: a name resolves in `store`, and an inline schema is read. */
+export function resolve(store: Stores.Store, definition: PlainMap): Schemas.OfAny.Data {
+  return new Reader(store, []).type(definition);
 }
 
 // --- Schemas to plain data ---
@@ -169,7 +184,7 @@ class Reader {
     }
   }
 
-  private type(definition: Definition): Schemas.OfAny.Data {
+  type(definition: Definition): Schemas.OfAny.Data {
     const [kind, body] = contentsOf(definition);
     if (kind !== "named") return this.fill((BLANK[kind] as () => Schema)(), definition) as Schemas.OfAny.Data;
     const schema = this.named(body.get("name") as string);

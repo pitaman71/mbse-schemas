@@ -12,6 +12,9 @@ Within a module, each schema is written inline, as a value object of its kind, a
 when that one is in the module or registered in the store, so shared and recursive schemas are written once. A name
 resolves within the module, then in the store. A schema that refers to itself must be named.
 
+`reference(store, schema)` and `resolve(store, definition)` translate one type the same way, for data that refers to a
+schema as a module's members do (by name when the store registers it, else inline), e.g. the symbols of a predicate.
+
 The translation goes through plain data, the form `Plain`, `JSON` and `YAML` share: `module` decodes the plain form of
 the schemas in the store, and `schemas` reads the plain form of the module.
 """
@@ -23,7 +26,7 @@ from typing import Any
 
 from . import Plain, Schemas, Stores
 
-__all__ = ["MODULE", "module", "schemas"]
+__all__ = ["MODULE", "module", "schemas", "reference", "resolve"]
 
 MODULE = "Schemas.Module"
 
@@ -43,6 +46,17 @@ def schemas(store: Stores.Store, module: Any) -> dict[str, Any]:
     plain = Plain.ToPlain(store)(Schemas.Module.Schema, module)
     entries = plain["objects"][plain["root"]].get("schemas", [])  # type: ignore[index, union-attr]
     return _Reader(store, entries).read()
+
+
+def reference(store: Stores.Store, schema: Any) -> Definition:
+    """The plain form of a type (`Schemas.OfAny.Schema`'s): `{"named": {"name": ...}}` when `store` registers `schema`,
+    else the schema inline."""
+    return _Writer(store, {}).reference(schema)
+
+
+def resolve(store: Stores.Store, definition: Definition) -> Any:
+    """The type a plain form describes: a name resolves in `store`, and an inline schema is read."""
+    return _Reader(store, []).type(definition)
 
 
 # --- Schemas to plain data ---
@@ -151,7 +165,7 @@ class _Reader:
         except LookupError:
             raise LookupError(f"no schema named {name!r} in the module or the store") from None
 
-    def _type(self, definition: Definition) -> Any:
+    def type(self, definition: Definition) -> Any:
         kind, body = _contents_of(definition)
         if kind != "named":
             return self._fill(_BLANK[kind](), definition)
@@ -170,7 +184,7 @@ class _Reader:
         return schema
 
     def _members(self, members: list[dict[str, Any]]) -> list[tuple[str, Any]]:
-        return [(member["name"], self._type(member["type"])) for member in members]
+        return [(member["name"], self.type(member["type"])) for member in members]
 
     def _fill(self, schema: Any, definition: Definition) -> Any:
         """Writes the contents of `definition` into `schema`, a blank schema of its kind, and returns it."""
@@ -192,8 +206,8 @@ class _Reader:
         elif kind == "intersection":
             schema.parts = tuple(Schemas.OfIntersection.Part(n, t) for n, t in self._members(body.get("parts", [])))
         else:
-            schema.item = self._type(body["item"])
-            schema.key = self._type(body["key"]) if "key" in body else None
+            schema.item = self.type(body["item"])
+            schema.key = self.type(body["key"]) if "key" in body else None
             extent = body.get("extent")
             schema.extent = None if extent is None else Schemas.OfIndexed.Extent(extent.get("minimum", 0), extent.get("maximum"))
         return schema

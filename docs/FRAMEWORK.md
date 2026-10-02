@@ -568,6 +568,9 @@ are written, read, validated and compared like any other objects.
   included: a name resolves within the module, then in the store. A schema that refers to itself without a name is
   refused, and so are a name that resolves nowhere, a relation named as a type or something else named as a
   relation, and a name a module defines twice.
+- **One type translates alone too.** `Modules.reference(store, schema)` gives a type's plain form, by name when the store
+  registers it and inline otherwise, and `Modules.resolve(store, definition)` the type it describes, so that other data
+  can refer to schemas as a module's members do (mbse-patterns' predicates name their symbols' schemas this way).
 - **Meta-schemas are defined in code**, never read from data. Modules are built by the builders of any implementation,
   through `Plain.FromPlain`, and read through the protocols, so the DSL builders, whose methods (`properties(*specs)`)
   would clash with the visitor protocols (`properties(callback)`), are not involved.

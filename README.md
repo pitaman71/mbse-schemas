@@ -167,12 +167,11 @@ The core is implemented in both languages:
 - in Python, translation between dataclasses and object schemas (`mbse.Schemas.Adapters.Dataclasses`).
 
 Expressions (for constraints) and their evaluation are a separate package,
-[mbse-expressions](https://github.com/pitaman71/mbse-expressions), which depends on this one. Generated bindings
-(typed code per schema) will be separate repositories too, one per target language (e.g. mbse-cpp, mbse-python,
-mbse-typescript, mbse-systemverilog), each depending on this one.
+[mbse-expressions](https://github.com/pitaman71/mbse-expressions), which depends on this one; constraints, such as "at
+least one phone", and queries over a store are [mbse-patterns](https://github.com/pitaman71/mbse-patterns), which
+depends on both. Generated bindings (typed code per schema) will be separate repositories too, one per target language
+(e.g. mbse-cpp, mbse-python, mbse-typescript, mbse-systemverilog), each depending on this one.
 
 Designed but not built yet (see `docs/FRAMEWORK.md`):
-- constraints such as "at least one";
 - mutations and transactions;
-- object deletion;
-- queries over a store (an extension in mbse-expressions).
+- object deletion.

@@ -100,7 +100,8 @@ Equivalently, the links and properties outside `S` form a key. Each clause is a 
   Adding `.unique(id)` also limits each object to at most one ID.
 - `unique` over every link and property of the relation : at most one entry in the relation
 
-Uniqueness gives only an upper bound. Requiring at least one entry is a separate constraint (see Open questions).
+Uniqueness gives only an upper bound. Requiring at least one entry is a separate constraint, written with
+[mbse-patterns](https://github.com/pitaman71/mbse-patterns): `count(entries(this, 'phones')) >= 1`.
 
 ### Equality
 
@@ -268,9 +269,10 @@ in-memory cache slices.
 - **Everything that looks schemas up takes a store**: `Plain.ToPlain(store)` and `Plain.FromPlain(store)`, the JSON and
   YAML forms, `Validators.Validate(store)`, `Modules.module(store, ...)` and `Modules.schemas(store, ...)`, and a
   builder inferring the schema of an object it creates through a link (from the store's schemas).
-- **Queries are an extension.** The protocol locates schemas, builders, singletons and extents; selecting objects by a condition
-  belongs to [mbse-expressions](https://github.com/pitaman71/mbse-expressions), whose expressions are the conditions. A
-  store that can answer a query natively (a database) may do so behind the same extension.
+- **Queries are an extension.** The protocol locates schemas, builders, singletons and extents; selecting objects by a
+  condition belongs to [mbse-patterns](https://github.com/pitaman71/mbse-patterns), whose queryable store protocol adds
+  `select` and whose `Scan` answers queries over any store's extents, with mbse-expressions' expressions as the
+  conditions. A store that can answer a query natively (a database) implements `select` itself.
 
 ## Proxies
 
@@ -573,10 +575,12 @@ are written, read, validated and compared like any other objects.
 
 ## Expressions
 
-Constraints, planned, are serializable expressions. Expressions are a separate
-package, [mbse-expressions](https://github.com/pitaman71/mbse-expressions), which depends on this one: its expressions
-are ordinary objects with registered meta-schemas, so this package serializes, validates and compares them like any
-others. See its `docs/EXPRESSIONS.md` for the expression kinds, the core vocabulary and evaluation.
+Constraints are serializable expressions, kept beside the schemas in
+[mbse-patterns](https://github.com/pitaman71/mbse-patterns), which also validates data against them and queries stores
+by them. Expressions are a separate package, [mbse-expressions](https://github.com/pitaman71/mbse-expressions), which
+depends on this one: its expressions are ordinary objects with registered meta-schemas, so this package serializes,
+validates and compares them like any others. See its `docs/EXPRESSIONS.md` for the expression kinds, the core vocabulary
+and evaluation.
 
 Nothing in this package evaluates expressions: a union value names its branch, so neither decoding nor validation needs
 an evaluator. Anything here that comes to evaluate constraints will take an evaluator from its caller rather than
@@ -630,8 +634,6 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   deserialization reject them instead of leaving it to validation?
 
 - Names within a store: namespacing and versioning of schema names (dotted names are only a convention).
-- Where constraints are attached to a schema (e.g. an `OfObject`- or `OfRelation`-level list of expressions) and how
-  they are declared in the builder DSL.
 - Equality edge cases listed in `EQUALITY.md` are proposals; confirm them.
 - Multi-object snapshot naming: confirm `Plain.ToPlain(store).Reachable(schema, value)` /
   `Plain.FromPlain(store).Reachable(schema, plain)` (still marked PROPOSED in the example).
@@ -709,7 +711,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Stores replace the `Factories` design and every registry: a store (`Stores.Store`) locates schemas, builders,
   members, singletons and extents; its data is what its singletons reach, and everything else is transient; it is
   isolated from other stores (see Stores). There is no global registry.
-  Queries are an extension in mbse-expressions.
+  Queries are mbse-patterns' (`Queries.QueryableStore`, and `Queries.Scan` over any store).
+- Constraints are kept beside the schemas, in mbse-patterns (sets of named rules about a schema, by its registered
+  name), not in them: this package does not depend on mbse-expressions, and several sets may apply to one schema.
 - `clone()` copies the source's adjacency entries to the clone.
 - Building a new object inline through a link (`x.phone(lambda y: ...)`) requires an unambiguous inference of its
   schema: exactly one registered object schema may declare an adjacency to that relation via that link; otherwise it

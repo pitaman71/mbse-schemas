@@ -129,7 +129,6 @@ shared case in both languages, and code no test could reach was removed from bot
 ## Not testable yet (specified in FRAMEWORK.md, not implemented)
 
 - Mutations, transactions, symbol bindings and mutation serialization.
-- Queries over a store's extents (an extension in mbse-expressions).
 - Deleting objects (and entries vanishing with them).
 - Meta-schemas (`Schemas.OfX.Schema`) and schema builders implementing `Visitors` (serializing schemas).
 - An "any value" `OfAny` kind.

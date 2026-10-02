@@ -108,7 +108,7 @@ one TypeScript-only bug:
 
 ## Not testable yet
 
-The same as in Python: Mutations and transactions, queries over a store's extents, deletion,
+The same as in Python: Mutations and transactions, deletion,
 meta-schemas and schema serialization, an "any value" kind,
 mixing implementations (generated bindings will live in separate repositories, one per target language).
 

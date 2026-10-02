@@ -48,7 +48,7 @@ npm run portability                         # the core without Node (browser bun
 
 - [mbse-expressions](https://github.com/pitaman71/mbse-expressions): expressions (constraints) and their
   evaluators, and [mbse-programs](https://github.com/pitaman71/mbse-programs): programs as syntax trees. Each depends on
-  this repository as a sibling checkout (`../mbse-schemas`), and pins the version it was tested with.
+  this repository as a sibling checkout (`../mbse-schemas`), and pins the version and commit it was tested with.
 - **Releases are versions and tags.** The Python and TypeScript packages share one version; a release is the tag
   `v<version>`. Below 1.0, a change that dependents must adapt to bumps the minor version. Dependents develop against
   this checkout as it is, and pin a release with their `scripts/siblings.py pin`. A change that spans repositories is

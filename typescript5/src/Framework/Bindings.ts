@@ -11,7 +11,8 @@
  * - `new Builder(binding, instance)` is a `Visitors.OfObject` over a state, with every value kind the schema declares:
  *   natives (checked by type), and value objects, unions and lists (through their plain form). It is finalized by
  *   `create()`, `clone()` and `update()`, none validating. A class's own builder derives from it for its DSL.
- * - `Registry` gives `Plain.FromPlain` the builders by schema name.
+ * - `OfStore(builders)` is a store of bound classes (see `Stores`): their schemas and builders by name, and the
+ *   instances its builders make.
  *
  * A state holds each property's value, natives as natives and other values in their plain form (an absent property
  * has no key, and a builder drops the keys whose value is null), and each adjacency's entries, each an `Entry` of its
@@ -24,7 +25,9 @@
 import { AttributeError, KeyError, LookupError, ValueError } from "./Errors.js";
 import * as Plain from "./Plain.js";
 import { repr, tokenName, typeName } from "./Repr.js";
+import { _probes } from "./Proxies.js";
 import * as Schemas from "./Schemas.js";
+import * as Stores from "./Stores.js";
 import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIndexed, OfIntersection, OfLink, OfNative, OfObject,
   OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
@@ -301,6 +304,8 @@ class _AdjacencySlot implements OfAdjacency {
 export class Builder implements OfObject {
   readonly state: State;
   protected readonly source: unknown;
+  /** Set by the store that made this builder, whose extents take what it makes. */
+  _store: OfStore | null = null;
 
   constructor(readonly binding: Binding, instance?: unknown) {
     this.source = instance ?? null;
@@ -315,17 +320,25 @@ export class Builder implements OfObject {
     if (this.source !== null) {
       throw new ValueError("create() is only valid without a source instance; use clone() or update()");
     }
-    return this.binding.make(this.state);
+    return this.made(this.binding.make(this.state));
   }
 
   clone(): any {
     if (this.source === null) throw new ValueError("clone() is only valid with a source instance");
-    return this.binding.make(this.state);
+    return this.made(this.binding.make(this.state));
   }
 
   update(): any {
     if (this.source === null) throw new ValueError("update() is only valid with a source instance");
     return this.binding.assign(this.source, this.state);
+  }
+
+  private made(instance: unknown): unknown {
+    if (this._store !== null) {
+      const name = this._store.name_of(this.binding.schema);
+      this._store._extents.set(name, [...(this._store._extents.get(name) ?? []), instance as Visitable]);
+    }
+    return instance;
   }
 
   // Visitors.OfObject
@@ -382,36 +395,49 @@ export class Builder implements OfObject {
   }
 }
 
-// --- The registry ---
+// --- The store ---
 
-/** The builders of bound classes, by schema name: `registry[name](instance)` returns a builder, as `Plain.FromPlain`
- * expects. `schema` and `name_of` look the schemas up; a relation's name is known, but has no builder. */
-export class Registry implements Plain.Builders {
-  private readonly schemas: Map<string, Schemas.OfObject.Data>;
-  private readonly relations: Map<string, Schemas.OfRelation.Data>;
+/** A store of bound classes: `builders` gives each object schema and the function that makes its builder from an
+ * optional instance, by name; `relations` names the relations. `store.builder(name, instance)`, or
+ * `store[name](instance)`, returns a builder, and the instances that the store's builders create or clone are in its
+ * extents. */
+export class OfStore extends Stores.Catalog implements Stores.Store {
+  readonly _factories = new Map<string, (instance?: any) => any>();
+  readonly _extents = new Map<string, Visitable[]>();
   readonly [name: string]: unknown;
 
   constructor(builders: ReadonlyMap<string, readonly [Schemas.OfObject.Data, (instance?: any) => unknown]>,
     relations: ReadonlyMap<string, Schemas.OfRelation.Data> = new Map()) {
-    this.schemas = new Map([...builders].map(([name, [schema]]) => [name, schema]));
-    this.relations = new Map(relations);
-    for (const [name, [, factory]] of builders) (this as Record<string, unknown>)[name] = factory;
+    super();
+    for (const [name, [schema, factory]] of builders) {
+      this.register(name, schema);
+      this._factories.set(name, factory);
+    }
+    for (const [name, relation] of relations) this.register(name, relation);
+    return new Proxy(this, {
+      get(t, prop, receiver) {
+        if (typeof prop === "symbol" || prop in t) return Reflect.get(t, prop, receiver);
+        if (t._factories.has(prop)) return (instance?: unknown) => t.builder(prop, instance);
+        if (_probes.has(prop)) return undefined;
+        throw new AttributeError(prop);
+      },
+    });
   }
 
-  schema(name: string): Schemas.OfObject.Data {
-    if (this.relations.has(name)) throw new TypeError(`${repr(name)} is a relation; no relation builder is exposed`);
-    const found = this.schemas.get(name);
-    if (found === undefined) throw new AttributeError(`no schema registered as ${repr(name)}`);
-    return found;
-  }
-
-  name_of(schema: unknown): string {
-    for (const [name, registered] of [...this.schemas, ...this.relations]) if (registered === schema) return name;
-    throw new LookupError("schema is not registered");
+  builder(name: string, instance?: unknown): any {
+    this.schema(name);
+    const builder = (this._factories.get(name) as (instance?: unknown) => Builder)(instance);
+    builder._store = this;
+    return builder;
   }
 
   /** The value an instance holds in its property `name`. */
   member(instance: unknown, name: string): unknown {
     return (instance as Record<string, unknown>)[name];
+  }
+
+  extent(name: string): readonly Visitable[] {
+    this.schema(name);
+    return [...(this._extents.get(name) ?? [])];
   }
 }

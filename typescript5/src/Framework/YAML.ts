@@ -1,8 +1,8 @@
 /**
  * YAML: a thin text encoding of `Plain` data. Parsing uses the `yaml` package.
  *
- * `ToYAML(schema, value)` returns YAML text; `FromYAML(builders)(schema, text)` rebuilds values with the given
- * implementation's builders. Both mirror `Plain` and `JSON`.
+ * `ToYAML(store)(schema, value)` returns YAML text, naming the schemas of objects in `store`, and
+ * `FromYAML(store)(schema, text)` rebuilds values in `store`. Both mirror `Plain` and `JSON`.
  *
  * Loading follows the YAML 1.2 core schema: only `true` / `false` are booleans (not `yes` / `on`), `010` is ten,
  * there are no sexagesimal numbers (`1:30` is a string), and unquoted dates stay strings. Several documents,
@@ -22,6 +22,7 @@ import * as Plain from "./Plain.js";
 import type { PlainData, PlainMap } from "./Plain.js";
 import { pyFloat, repr, typeName } from "./Repr.js";
 import type * as Schemas from "./Schemas.js";
+import type * as Stores from "./Stores.js";
 import type { Native, Visitable } from "./Visitors.js";
 
 // --- Dumping ---
@@ -279,25 +280,24 @@ export function loads(input: string | Uint8Array): PlainData {
 
 // --- Entry points ---
 
-function toYAMLOfNative(schema: Schemas.OfNative.Data, value: Native): string {
-  return dumps(Plain.ToPlain.OfNative(schema, value));
+export interface ToYAMLCall {
+  (schema: unknown, value: unknown): string;
+  OfNative(schema: Schemas.OfNative.Data, value: Native): string;
+  OfObject(schema: Schemas.OfObject.Data, value: Visitable): string;
+  Reachable(schema: Schemas.OfObject.Data, value: Visitable): string;
 }
 
-function toYAMLOfObject(schema: Schemas.OfObject.Data, value: Visitable): string {
-  return dumps(Plain.ToPlain.OfObject(schema, value));
+/** Encodes values, naming the schemas of objects in `store`: `ToYAML(store)(schema, value)` dispatches on the schema's
+ * kind. */
+export function ToYAML(store: Stores.Store): ToYAMLCall {
+  const plain = Plain.ToPlain(store);
+  const call = (schema: unknown, value: unknown): string => dumps(plain(schema, value));
+  return Object.assign(call, {
+    OfNative: (schema: Schemas.OfNative.Data, value: Native) => dumps(plain.OfNative(schema, value)),
+    OfObject: (schema: Schemas.OfObject.Data, value: Visitable) => dumps(plain.OfObject(schema, value)),
+    Reachable: (schema: Schemas.OfObject.Data, value: Visitable) => dumps(plain.Reachable(schema, value)),
+  });
 }
-
-function toYAMLReachable(schema: Schemas.OfObject.Data, value: Visitable): string {
-  return dumps(Plain.ToPlain.Reachable(schema, value));
-}
-
-/** `ToYAML(schema, value)` dispatches on the schema's kind. */
-export const ToYAML = Object.assign(
-  function ToYAML(schema: unknown, value: unknown): string {
-    return dumps(Plain.ToPlain(schema, value));
-  },
-  { OfNative: toYAMLOfNative, OfObject: toYAMLOfObject, Reachable: toYAMLReachable },
-);
 
 export interface FromYAMLCall {
   (schema: unknown, text: string | Uint8Array): unknown;
@@ -306,9 +306,9 @@ export interface FromYAMLCall {
   Reachable(schema: Schemas.OfObject.Data, text: string | Uint8Array): unknown;
 }
 
-/** Decodes YAML, building objects with the given implementation's builders, e.g. `FromYAML(Proxies.Builders)`. */
-export function FromYAML(builders: Plain.Builders): FromYAMLCall {
-  const plain = Plain.FromPlain(builders);
+/** Decodes YAML, building objects in `store`: `FromYAML(store)(schema, text)`. */
+export function FromYAML(store: Stores.Store): FromYAMLCall {
+  const plain = Plain.FromPlain(store);
   const call = (schema: unknown, text: string | Uint8Array): unknown => plain(schema, loads(text));
   return Object.assign(call, {
     OfNative: (schema: Schemas.OfNative.Data, text: string | Uint8Array) => plain.OfNative(schema, loads(text)),

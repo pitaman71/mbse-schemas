@@ -10,6 +10,8 @@ import { sortedStrings } from "@mbse/schemas/Framework/Repr";
 import type { OfEntry } from "@mbse/schemas/Framework/Visitors";
 import { assert, entries, raises, same_graph } from "./_support.js";
 
+const store = new Proxies.OfStore();
+
 // --- Schemas ---
 
 let Person = new Schemas.OfObject.Builder().ref()
@@ -38,10 +40,10 @@ Person = new Schemas.OfObject.Builder(Person)
   .update();
 assert(Person.validate().length === 0 && Parentage.validate().length === 0 && Mentorship.validate().length === 0);
 
-Proxies.register("Person", Person);
-Proxies.register("Parentage", Parentage);
-Proxies.register("Mentorship", Mentorship);
-const Builders = Proxies.Builders;
+store.register("Person", Person);
+store.register("Parentage", Parentage);
+store.register("Mentorship", Mentorship);
+const Builders = store;
 
 function kinds(obj: Instance, adjacency: string): string[] {
   return sortedStrings(entries(Person, obj, adjacency).map((e) => e.get("kind") as string));
@@ -135,15 +137,15 @@ raises(TypeError, () => Builders.Person().parents({ x: ada })); // an adjacency 
 // --- Validation ---
 
 // Cycles, a self-loop, and several relations between the same people are all valid.
-assert(Validators.Validate(Proxies.Builders).Reachable(Person, ada).length === 0);
+assert(Validators.Validate(store).Reachable(Person, ada).length === 0);
 
 // --- Round trips, from any root ---
 
 for (const root of [ada, carol, loner]) {
-  const graph = Plain.ToPlain.Reachable(Person, root);
-  const restored = Plain.FromPlain(Proxies.Builders).Reachable(Person, graph) as Instance;
+  const graph = Plain.ToPlain(store).Reachable(Person, root);
+  const restored = Plain.FromPlain(store).Reachable(Person, graph) as Instance;
   assert(restored !== root && restored.given_name === root.given_name);
-  assert(same_graph(Plain.ToPlain.Reachable(Person, restored), graph));
+  assert(same_graph(Plain.ToPlain(store).Reachable(Person, restored), graph));
 }
 
 console.log("FamilyTree: all checks passed");

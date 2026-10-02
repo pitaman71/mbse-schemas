@@ -6,6 +6,8 @@ import { AttributeError } from "@mbse/schemas/Framework/Errors";
 import { JSON, Plain, Proxies, Schemas } from "@mbse/schemas/Framework";
 import { assert, equal } from "./_support.js";
 
+const store = new Proxies.OfStore();
+
 // --- Schemas ---
 
 let IntlAddress = new Schemas.OfObject.Builder().ref()
@@ -86,18 +88,18 @@ EmailAddress = new Schemas.OfObject.Builder(EmailAddress)
   .relations((adj) => adj.name("contacts").of(ContactEmails).me("email"))
   .update();
 
-Proxies.register("IntlAddress", IntlAddress);
-Proxies.register("Contact", Contact);
-Proxies.register("PhoneNumber", PhoneNumber);
-Proxies.register("EmailAddress", EmailAddress);
-Proxies.register("ContactAddresses", ContactAddresses);
-Proxies.register("ContactPhones", ContactPhones);
-Proxies.register("ContactEmails", ContactEmails);
+store.register("IntlAddress", IntlAddress);
+store.register("Contact", Contact);
+store.register("PhoneNumber", PhoneNumber);
+store.register("EmailAddress", EmailAddress);
+store.register("ContactAddresses", ContactAddresses);
+store.register("ContactPhones", ContactPhones);
+store.register("ContactEmails", ContactEmails);
 
 // --- Builder forms ---
 
 // fluent "create" form
-const addr1 = Proxies.Builders.IntlAddress()
+const addr1 = store.IntlAddress()
   .street1("10 Downing Street")
   .street2("bar")
   .street3("Whitehall")
@@ -107,20 +109,20 @@ const addr1 = Proxies.Builders.IntlAddress()
   .create();
 
 // fluent "update" form: writes back into the source and returns it
-const updated = Proxies.Builders.IntlAddress(addr1)
+const updated = store.IntlAddress(addr1)
   .street2((v: any) => v.set("baz")) // equivalent to .street2('baz')
   .update();
 assert(updated === addr1);
 assert(addr1.street2 === "baz");
 
 // fluent "clone" form: returns a new object and leaves the source untouched
-const cloned = Proxies.Builders.IntlAddress(addr1).street2("shoe").clone();
+const cloned = store.IntlAddress(addr1).street2("shoe").clone();
 assert(cloned !== addr1);
 assert(cloned.street2 === "shoe");
 assert(addr1.street2 === "baz");
 
 // clearing a property makes it absent; reading an absent property raises
-Proxies.Builders.IntlAddress(addr1).street3((v: any) => v.clear()).update();
+store.IntlAddress(addr1).street3((v: any) => v.clear()).update();
 try {
   addr1.street3;
   throw new Error("AssertionError: reading a cleared property must raise");
@@ -144,7 +146,7 @@ console.log(`${addr1.street1}, ${addr1.locality} ${addr1.postal_code}, ${addr1.c
 // Entries are added through the object builder's adjacency accessors, which take a Spec for the entry: the object
 // fills its own link ('contact'); the entry builder sets the other links and the entry properties. A link takes an
 // existing object or a Spec that builds a new one.
-const alice = Proxies.Builders.Contact()
+const alice = store.Contact()
   .given_name("Alice")
   .family_name("Liddell")
   .birth_date("1852-05-04")
@@ -160,20 +162,20 @@ export { IntlAddress, addr1 };
 
 // A single-object snapshot includes addr1's adjacencies, so it references alice by symbol without containing her.
 // Deserializing it on its own is an error: the reference cannot be resolved.
-const plain = Plain.ToPlain(IntlAddress, addr1);
+const plain = Plain.ToPlain(store)(IntlAddress, addr1);
 // equivalent to
-// const plain = Plain.ToPlain.OfObject(IntlAddress, addr1)
+// const plain = Plain.ToPlain(store).OfObject(IntlAddress, addr1)
 void plain;
 
 // PROPOSED: a snapshot of addr1 and every object reachable through adjacencies (alice, her phone and email), so all
 // symbol references resolve within the snapshot.
-const graph = Plain.ToPlain.Reachable(IntlAddress, addr1);
-const roundtrip = Plain.FromPlain(Proxies.Builders).Reachable(IntlAddress, graph);
+const graph = Plain.ToPlain(store).Reachable(IntlAddress, addr1);
+const roundtrip = Plain.FromPlain(store).Reachable(IntlAddress, graph);
 assert(roundtrip !== addr1);
-assert(equal(Plain.ToPlain.Reachable(IntlAddress, roundtrip as Proxies.Instance), graph));
+assert(equal(Plain.ToPlain(store).Reachable(IntlAddress, roundtrip as Proxies.Instance), graph));
 
 // The same snapshot as JSON text, and back.
-const text = JSON.ToJSON.Reachable(IntlAddress, addr1, { indent: 2 });
-const fromJson = JSON.FromJSON(Proxies.Builders).Reachable(IntlAddress, text) as Proxies.Instance;
+const text = JSON.ToJSON(store).Reachable(IntlAddress, addr1, { indent: 2 });
+const fromJson = JSON.FromJSON(store).Reachable(IntlAddress, text) as Proxies.Instance;
 assert(fromJson !== addr1 && fromJson.street1 === addr1.street1);
 assert(equal(JSON.loads(text), graph));

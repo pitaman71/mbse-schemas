@@ -28,7 +28,7 @@ from __future__ import annotations
 from collections.abc import Callable, Hashable, Iterator, Mapping
 from typing import Any
 
-from . import Errors, Modules, Schemas, Stores, Visitors
+from . import Errors, Schemas, Stores, Visitors
 from .Visitors import Native
 
 __all__ = ["OfStore", "store_of", "OfObject", "OfRelation", "OfIndexed"]
@@ -39,10 +39,6 @@ RelationSchema = Schemas.OfRelation.Data
 
 # --- Stores ---
 
-META = {Modules.MODULE: Schemas.Module.Schema}
-"""The meta-schemas every proxy store starts with, so that it can hold modules of schemas."""
-
-
 class OfStore(Stores.Catalog):
     """A store of proxies: schemas by name, the proxies built with them, and their relation entries.
     `store.<Name>(optional instance)` is `store.builder(name, instance)`; use `builder` for names that are not
@@ -52,7 +48,7 @@ class OfStore(Stores.Catalog):
         super().__init__()
         self._relations: dict[int, _RelationData] = {}
         self._extents: dict[str, list[_ObjectData]] = {}
-        for name, schema in META.items():
+        for name, schema in Stores.META.items():
             self.register(name, schema)
 
     def builder(self, name: str, instance: Any = None) -> _ObjectBuilder:
@@ -464,8 +460,7 @@ def _remove(value: _RecordData) -> None:
     """Removes a value object no longer held: the value objects it holds, and every entry linking it."""
     for held in _records(value._values.values()):
         _remove(held)
-    store = _store_of(value)
-    for relation in store._relations.values() if store is not None else ():
+    for relation in _store_of(value)._relations.values():  # type: ignore[union-attr]  # placed, so its owner's
         relation.discard_target(value)
 
 

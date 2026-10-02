@@ -1,16 +1,19 @@
 /**
  * Proxies: the dynamic implementation.
  *
- * Programs using proxies skip code generation: `register(name, schema)` makes a schema available, and
- * `Builders.<Name>(optional instance)` returns a builder for it. Instances (`Proxies.OfObject.Data`) are `Visitable`,
- * not visitors: they expose their properties as read-only attributes and write themselves into a visitor on `accept`.
+ * Programs using proxies skip code generation. A store, `new OfStore()`, holds schemas and the proxies built with them
+ * (see `Stores`): `store.register(name, schema)` makes a schema available, and `store.<Name>(optional instance)` (or
+ * `store.builder(name, instance)`) returns a builder for it. Instances (`Proxies.OfObject.Data`) are `Visitable`, not
+ * visitors: they expose their properties as read-only attributes and write themselves into a visitor on `accept`.
  * Builders (`Proxies.OfObject.Builder`) implement `Visitors.OfObject`, like every builder.
  *
  * Attribute lookup follows Python's: the builder's or instance's own methods first, then schema names. Reading an
  * unknown name throws `AttributeError`, except JavaScript's own protocol probes (`then`, `toJSON`, `constructor`,
  * symbols, ...), which behave as on any object. Identities are never reused.
  *
- * Relation entries live in one global table per relation. Adding an entry equal to an existing one is elided.
+ * Each store keeps one table per relation, and the extent of each schema: the reference objects built through it.
+ * Adding an entry equal to an existing one is elided. An object of one store cannot be linked to, or be a builder's
+ * source in, another.
  *
  * A property whose schema is an `OfObject` holds a value object: a read-only record with no identity
  * (`Proxies.OfObject.Record`), read with attributes like an instance and set with a Spec, e.g.
@@ -30,6 +33,7 @@ import { toHex } from "./Bytes.js";
 import { AttributeError, item, LookupError, NotImplementedError, ValueError } from "./Errors.js";
 import { repr, sortedStrings, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
+import * as Stores from "./Stores.js";
 import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIndexed as IndexedVisitor, OfIntersection, OfItem, OfLink, OfNative,
   OfObject as ObjectVisitor, OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
@@ -51,45 +55,12 @@ export type DynamicBuilder = ObjectVisitor & {
 };
 
 /** JavaScript's own protocol probes: never schema lookups, so awaiting, inspecting or printing a proxy is safe. */
-const PROBES = new Set<string>([
+export const _probes: ReadonlySet<string> = new Set<string>([
   "then", "catch", "finally", "toJSON", "constructor", "toString", "toLocaleString", "valueOf", "hasOwnProperty",
   "isPrototypeOf", "propertyIsEnumerable", "__proto__", "$$typeof", "asymmetricMatch", "nodeType", "inspect",
 ]);
 
-// --- Registry ---
-
-const registry = new Map<string, ObjectSchema | RelationSchema>();
-
-/** Registers a schema under a global name. The name need not be a valid identifier. */
-export function register(name: string, schema: ObjectSchema | RelationSchema): void {
-  if (registry.has(name)) throw new ValueError(`schema ${repr(name)} is already registered`);
-  registry.set(name, schema);
-}
-
-/** The object schema registered under `name`. */
-export function schema(name: string): ObjectSchema {
-  return objectSchema(name);
-}
-
-/** The object or relation schema registered under `name`. */
-export function registered(name: string): ObjectSchema | RelationSchema {
-  const found = registry.get(name);
-  if (found === undefined) throw new LookupError(`no schema registered as ${repr(name)}`);
-  return found;
-}
-
-/** The name `schema` is registered under. */
-export function name_of(schema: ObjectSchema | RelationSchema): string {
-  for (const [name, registered] of registry) if (registered === schema) return name;
-  throw new LookupError("schema is not registered");
-}
-
-function objectSchema(name: string): ObjectSchema {
-  const found = registry.get(name);
-  if (found === undefined) throw new AttributeError(`no schema registered as ${repr(name)}`);
-  if (!(found instanceof Schemas.OfObject.Data)) throw new TypeError(`${repr(name)} is a relation; no relation builder is exposed`);
-  return found;
-}
+// --- Stores ---
 
 /** The value an instance or value object holds in its property `name`. */
 function member(instance: unknown, name: string): unknown {
@@ -97,35 +68,79 @@ function member(instance: unknown, name: string): unknown {
   return read(t, name, instance);
 }
 
-/** Name of the registered object schema that declares an adjacency to `relation` via `link`. */
-function schemaFilling(relation: RelationSchema, link: string): string {
-  const names = [...registry]
-    .filter(([, s]) => s instanceof Schemas.OfObject.Data && [...s.adjacencies.values()].some((a) => a.relation === relation && a.me === link))
-    .map(([name]) => name);
-  if (names.length !== 1) throw new TypeError(`expected exactly one object schema filling link ${repr(link)}, found ${repr(names)}`);
-  return names[0] as string;
-}
+const STORE_MEMBERS = new Set(["register", "schema", "registered", "name_of", "names", "builder", "member", "extent"]);
 
-/** `Builders.<Name>(optional instance)`; use `Builders[name]` for names that are not identifiers. `schema` and
- * `name_of` are methods, so schemas registered under those names are reachable only through `schema()`. */
-export const Builders: {
-  schema(name: string): ObjectSchema;
-  name_of(schema: ObjectSchema | RelationSchema): string;
-  /** The value an instance or value object holds in its property `name`. */
-  member(instance: unknown, name: string): unknown;
+/** A store of proxies: schemas by name, the proxies built with them, and their relation entries.
+ * `store.<Name>(optional instance)` is `store.builder(name, instance)`; use `builder` for names that are not
+ * identifiers, or that a method's name shadows. */
+export class OfStore extends Stores.Catalog implements Stores.Store {
+  readonly _relations = new Map<RelationSchema, RelationData>();
+  readonly _extents = new Map<string, Instance[]>();
   /** `(instance?: Instance) => DynamicBuilder` for each registered object schema; dynamic by design. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [name: string]: any;
-} = new Proxy({ schema, name_of, member } as Record<string | symbol, unknown>, {
-  get(target, prop, receiver) {
-    if (prop === "schema" || prop === "name_of" || prop === "member" || typeof prop === "symbol") {
-      return Reflect.get(target, prop, receiver);
-    }
-    if (!registry.has(prop) && PROBES.has(prop)) return Reflect.get(target, prop, receiver);
-    const found = objectSchema(prop);
-    return (instance?: Instance) => makeObjectBuilder(found, prop, instance);
-  },
-}) as never;
+
+  constructor() {
+    super();
+    for (const [name, schema] of Stores.META) this.register(name, schema);
+    return new Proxy(this, {
+      get(t, prop, receiver) {
+        if (typeof prop === "symbol" || prop in t || STORE_MEMBERS.has(prop)) return Reflect.get(t, prop, receiver);
+        if (prop.startsWith("_")) throw new AttributeError(prop);
+        if (!t._schemas.has(prop) && _probes.has(prop)) return Reflect.get(t, prop, receiver);
+        const found = t.schema(prop);
+        return (instance?: Instance) => makeObjectBuilder(receiver as OfStore, found, prop, instance);
+      },
+    });
+  }
+
+  /** A builder for the object schema `name`; typed loosely, as the store's DSL is. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  builder(name: string, instance?: unknown): any {
+    return makeObjectBuilder(this, this.schema(name), name, instance as Instance | undefined);
+  }
+
+  /** The value an instance or value object holds in its property `name`. */
+  member(instance: unknown, name: string): unknown {
+    return member(instance, name);
+  }
+
+  extent(name: string): readonly Instance[] {
+    this.schema(name);
+    return [...(this._extents.get(name) ?? [])];
+  }
+
+  _relationData(schema: RelationSchema): RelationData {
+    let data = this._relations.get(schema);
+    if (data === undefined) this._relations.set(schema, (data = new RelationData(schema)));
+    return data;
+  }
+
+  /** The name of the one object schema that declares an adjacency to `relation` via `link`. */
+  _filled(relation: RelationSchema, link: string): string {
+    const names = this._filling(relation, link);
+    if (names.length !== 1) throw new TypeError(`expected exactly one object schema filling link ${repr(link)}, found ${repr(names)}`);
+    return names[0] as string;
+  }
+}
+
+/** The store a proxy belongs to; a value object's is its owner's, and one not yet placed has none. */
+function storeOf(value: unknown): OfStore | null {
+  while (isRecord(value)) value = stateOf(value).holder;
+  return isInstance(value) ? (instanceTargets.get(value) as ObjectTarget).store : null;
+}
+
+/** The store a proxy, or a value object placed in one, belongs to. */
+export function store_of(value: unknown): OfStore {
+  const store = storeOf(value);
+  if (store === null) throw new TypeError("the value does not belong to a store");
+  return store;
+}
+
+function sameStore(store: OfStore | null, value: unknown): void {
+  const held = storeOf(value);
+  if (store !== null && held !== null && held !== store) throw new TypeError("the object belongs to another store");
+}
 
 // --- Relation entries ---
 
@@ -207,14 +222,6 @@ class RelationData {
   }
 }
 
-const relations = new Map<RelationSchema, RelationData>();
-
-function relationData(schema: RelationSchema): RelationData {
-  let data = relations.get(schema);
-  if (data === undefined) relations.set(schema, (data = new RelationData(schema)));
-  return data;
-}
-
 // --- Instances ---
 
 let nextIdentity = 0;
@@ -231,7 +238,7 @@ class ObjectTarget {
   readonly values = new Map<string, unknown>();
   proxy!: Instance;
 
-  constructor(readonly schema: ObjectSchema, readonly schemaName: string) {}
+  constructor(readonly store: OfStore, readonly schema: ObjectSchema, readonly schemaName: string) {}
 
   identity(): number {
     return this.id;
@@ -266,17 +273,19 @@ class ObjectTarget {
 
 const INSTANCE_METHODS = new Set(["identity", "schema_name", "owner", "accept"]);
 
-/** Writes the entries linking `target`, adjacency by adjacency. */
+/** Writes the entries linking `target`, adjacency by adjacency; a value object not yet placed has none. */
 function writeAdjacencies(visitor: ObjectVisitor, target: Visitable, schema: ObjectSchema): void {
+  const store = storeOf(target);
+  if (store === null) return;
   for (const [adjacencyName, adjacency] of schema.adjacencies) {
-    for (const entry of relationData(adjacency.relation as RelationSchema).linking(adjacency.me, target)) {
+    for (const entry of store._relationData(adjacency.relation as RelationSchema).linking(adjacency.me, target)) {
       visitor.adjacency(adjacencyName, (a) => a.add((e) => writeEntry(e, entry, adjacency)));
     }
   }
 }
 
-function makeInstance(schema: ObjectSchema, schemaName: string): Instance {
-  const target = new ObjectTarget(schema, schemaName);
+function makeInstance(store: OfStore, schema: ObjectSchema, schemaName: string): Instance {
+  const target = new ObjectTarget(store, schema, schemaName);
   const readOnly = (): never => {
     throw new AttributeError("proxy properties are read-only; use a builder");
   };
@@ -288,7 +297,7 @@ function makeInstance(schema: ObjectSchema, schemaName: string): Instance {
     },
     has(t, prop) {
       if (typeof prop === "symbol") return Reflect.has(t, prop);
-      return INSTANCE_METHODS.has(prop) || t.values.has(prop) || (PROBES.has(prop) && Reflect.has(t, prop));
+      return INSTANCE_METHODS.has(prop) || t.values.has(prop) || (_probes.has(prop) && Reflect.has(t, prop));
     },
     set: readOnly,
     defineProperty: readOnly,
@@ -304,7 +313,7 @@ function makeInstance(schema: ObjectSchema, schemaName: string): Instance {
 function read(t: { values: Map<string, unknown>; schema: RecordSchema }, prop: string, receiver: unknown): unknown {
   if (t.values.has(prop)) return t.values.get(prop);
   if (t.schema.properties.has(prop)) throw new AttributeError(`property ${repr(prop)} is not set`);
-  if (PROBES.has(prop)) return Reflect.get(t, prop, receiver);
+  if (_probes.has(prop)) return Reflect.get(t, prop, receiver);
   throw new AttributeError(prop);
 }
 
@@ -435,9 +444,10 @@ class RecordTarget {
     return this.id;
   }
 
-  /** The registered name of the value object's schema, or '' when it is not registered. */
+  /** The registered name of the value object's schema, or '' when it is not registered in its store. */
   schema_name(): string {
-    for (const [name, registered] of registry) if (registered === this.schema) return name;
+    const store = storeOf(this.proxy);
+    for (const [name, registered] of store === null ? [] : store._schemas) if (registered === this.schema) return name;
     return "";
   }
 
@@ -538,7 +548,7 @@ function stageValues(record: ValueObject, old: ValueObject | null, mapping: Mapp
 
 /** A copy of a placed value object, with copies of the entries linking it and the value objects it holds. */
 function copy(record: ValueObject): ValueObject {
-  const builder = makeRecordBuilder(stateOf(record).schema);
+  const builder = makeRecordBuilder(stateOf(record).schema, undefined, storeOf(record));
   record.accept(builder);
   return (recordBuilderTargets.get(builder) as RecordBuilderTarget).build();
 }
@@ -570,9 +580,10 @@ function finish(owner: Visitable, old: unknown, value: unknown, mapping: Mapping
 /** Adds a value object's entries, linked to the value objects that take the place of those in `mapping`. */
 function addPending(record: ValueObject, mapping: Mapping): void {
   const state = stateOf(record);
+  const store = storeOf(record) as OfStore; // placed, so its owner's
   for (const [name, builders] of state.pending) {
     const adjacency = (state.schema as ObjectSchema).adjacencies.get(name) as AdjacencySchema;
-    const relation = relationData(adjacency.relation as RelationSchema);
+    const relation = store._relationData(adjacency.relation as RelationSchema);
     for (const builder of builders) {
       const links = entryOf(builder).linkValues;
       for (const [link, target] of [...links]) if (mapping.has(target)) links.set(link, mapping.get(target) as LinkValue);
@@ -592,7 +603,7 @@ function merge(old: ValueObject, edit: ValueObject, mapping: Mapping): void {
   for (const [name, value] of values) target.values.set(name, value);
   if (target.schema instanceof Schemas.OfObject.Data) {
     for (const adjacency of target.schema.adjacencies.values()) {
-      relationData(adjacency.relation as RelationSchema).discard_linking(adjacency.me, old);
+      (storeOf(old) as OfStore)._relationData(adjacency.relation as RelationSchema).discard_linking(adjacency.me, old);
     }
   }
   target.pending = stateOf(edit).pending;
@@ -628,7 +639,7 @@ function drop(before: readonly unknown[], after: readonly unknown[]): void {
 /** Removes a value object no longer held: the value objects it holds, and every entry linking it. */
 function remove(value: ValueObject): void {
   for (const held of records([...stateOf(value).values.values()])) remove(held);
-  for (const relation of relations.values()) relation.discard_target(value);
+  for (const relation of (storeOf(value) as OfStore)._relations.values()) relation.discard_target(value); // placed, so its owner's
 }
 
 function isInstance(value: unknown): value is Instance {
@@ -681,7 +692,7 @@ export class _NativeSlot implements OfNative {
  * given: entry properties are native). */
 export class _AnySlot implements OfAny {
   constructor(private readonly values: Map<string, unknown>, private readonly slotName: string,
-    private readonly schema: unknown = null) {}
+    private readonly schema: unknown = null, private readonly store: OfStore | null = null) {}
 
   as_native(callback: Callback<OfNative>): _AnySlot {
     callback(new _NativeSlot(this.values, this.slotName));
@@ -708,11 +719,11 @@ export class _AnySlot implements OfAny {
     if (!(this.schema instanceof Schemas.OfIndexed.Data)) throw new TypeError(`property ${repr(this.slotName)} does not hold a list`);
     const current = this.values.get(this.slotName);
     if (this.schema.positional) {
-      const builder = new _ListBuilder(this.slotName, this.schema, Array.isArray(current) ? current : []);
+      const builder = new _ListBuilder(this.slotName, this.schema, Array.isArray(current) ? current : [], this.store);
       callback(builder);
       this.values.set(this.slotName, frozen(builder.held));
     } else {
-      const keyed = new _MapBuilder(this.slotName, this.schema, current instanceof IndexedMap ? current.entries() : []);
+      const keyed = new _MapBuilder(this.slotName, this.schema, current instanceof IndexedMap ? current.entries() : [], this.store);
       callback(keyed);
       this.values.set(this.slotName, new IndexedMap(keyed.held));
     }
@@ -723,7 +734,7 @@ export class _AnySlot implements OfAny {
     callback: Callback<ObjectVisitor>): _AnySlot {
     if (!(this.schema instanceof kind)) throw new TypeError(`property ${repr(this.slotName)} does not hold ${what}`);
     const current = this.values.get(this.slotName);
-    const builder = makeRecordBuilder(this.schema, isRecord(current) ? current : undefined);
+    const builder = makeRecordBuilder(this.schema, isRecord(current) ? current : undefined, this.store);
     callback(builder);
     const target = recordBuilderTargets.get(builder) as RecordBuilderTarget;
     if (this.schema instanceof Schemas.OfUnion.Data && target.values.size === 0) {
@@ -740,7 +751,8 @@ export class _AnySlot implements OfAny {
 export class _ListBuilder implements IndexedVisitor {
   readonly held: unknown[];
 
-  constructor(readonly slotName: string, private readonly schema: Schemas.OfIndexed.Data, items: readonly unknown[]) {
+  constructor(readonly slotName: string, private readonly schema: Schemas.OfIndexed.Data, items: readonly unknown[],
+    private readonly store: OfStore | null = null) {
     this.held = [...items];
   }
 
@@ -751,14 +763,14 @@ export class _ListBuilder implements IndexedVisitor {
 
   item(index: number, callback: Callback<OfAny>): _ListBuilder {
     const slot = new Map([[this.slotName, item(this.held, index)]]);
-    callback(new _AnySlot(slot, this.slotName, this.schema.item));
+    callback(new _AnySlot(slot, this.slotName, this.schema.item, this.store));
     this.held.splice(index, 1, ...slot.values());
     return this;
   }
 
   append(callback: Callback<OfAny>): _ListBuilder {
     const slot = new Map<string, unknown>();
-    callback(new _AnySlot(slot, this.slotName, this.schema.item));
+    callback(new _AnySlot(slot, this.slotName, this.schema.item, this.store));
     this.held.push(...slot.values());
     return this;
   }
@@ -838,7 +850,7 @@ export class _MapBuilder implements IndexedVisitor {
   readonly held: [unknown, unknown][];
 
   constructor(readonly slotName: string, private readonly schema: Schemas.OfIndexed.Data,
-    pairs: Iterable<readonly [unknown, unknown]>) {
+    pairs: Iterable<readonly [unknown, unknown]>, private readonly store: OfStore | null = null) {
     this.held = [...pairs].map(([key, value]) => [key, value]);
   }
 
@@ -862,7 +874,7 @@ export class _MapBuilder implements IndexedVisitor {
   item(index: number, callback: Callback<OfAny>): _MapBuilder {
     const pair = item(this.held, index);
     const slot = new Map([[this.slotName, pair[1]]]);
-    callback(new _AnySlot(slot, this.slotName, this.schema.item));
+    callback(new _AnySlot(slot, this.slotName, this.schema.item, this.store));
     this.held.splice(index, 1, ...[...slot.values()].map((value) => [pair[0], value] as [unknown, unknown]));
     return this;
   }
@@ -898,7 +910,7 @@ export class _MapBuilder implements IndexedVisitor {
     const index = this.find(written);
     if (index !== null) return this.item(index, value);
     const slot = new Map<string, unknown>();
-    value(new _AnySlot(slot, this.slotName, this.schema.item));
+    value(new _AnySlot(slot, this.slotName, this.schema.item, this.store));
     this.held.push(...[...slot.values()].map((v) => [written, v] as [unknown, unknown]));
     return this;
   }
@@ -911,7 +923,7 @@ export class _MapBuilder implements IndexedVisitor {
 /** `Visitors.OfProperty` over one key of a value map, holding a value of `schema`. */
 export class _PropertySlot implements OfProperty {
   constructor(private readonly values: Map<string, unknown>, private readonly slotName: string,
-    private readonly schema: unknown = null) {}
+    private readonly schema: unknown = null, private readonly store: OfStore | null = null) {}
 
   name(): string {
     return this.slotName;
@@ -922,7 +934,7 @@ export class _PropertySlot implements OfProperty {
   }
 
   value(callback: Callback<OfAny>): _PropertySlot {
-    callback(new _AnySlot(this.values, this.slotName, this.schema));
+    callback(new _AnySlot(this.values, this.slotName, this.schema, this.store));
     return this;
   }
 
@@ -992,7 +1004,7 @@ export class RecordBuilderTarget implements ObjectVisitor {
   copyOf: Visitable | null = null;
   proxy!: ObjectVisitor;
 
-  constructor(readonly schema: RecordSchema, source?: ValueObject) {
+  constructor(readonly schema: RecordSchema, source?: ValueObject, readonly store: OfStore | null = null) {
     this.source = source ?? null;
     this.values = new Map(source === undefined ? [] : stateOf(source).values);
     if (source !== undefined && schema instanceof Schemas.OfObject.Data) loadEntries(this.entries, schema, source);
@@ -1002,7 +1014,7 @@ export class RecordBuilderTarget implements ObjectVisitor {
 
   properties(callback: Callback<OfProperty>): ObjectVisitor {
     for (const [name, schema] of this.schema.properties) {
-      if (this.values.has(name)) callback(new _PropertySlot(this.values, name, schema));
+      if (this.values.has(name)) callback(new _PropertySlot(this.values, name, schema, this.store));
     }
     return this.proxy;
   }
@@ -1017,7 +1029,7 @@ export class RecordBuilderTarget implements ObjectVisitor {
     if (this.schema instanceof Schemas.OfUnion.Data) {
       for (const other of [...this.values.keys()]) if (other !== name) this.values.delete(other);
     }
-    callback(new _PropertySlot(this.values, name, schema));
+    callback(new _PropertySlot(this.values, name, schema, this.store));
     return this.proxy;
   }
 
@@ -1065,9 +1077,10 @@ function adder(builder: { adjacency(name: string, callback: Callback<OfAdjacency
 
 /** Loads the entries linking `source` into a builder, as entry builders, so that an update rewrites them. */
 function loadEntries(entries: Map<string, _EntryBuilder[]>, schema: ObjectSchema, source: Visitable): void {
-  for (const [name, adjacency] of schema.adjacencies) {
-    for (const entry of relationData(adjacency.relation as RelationSchema).linking(adjacency.me, source)) {
-      const builder = makeEntryBuilder(adjacency.relation as RelationSchema, adjacency.me);
+  const store = storeOf(source);
+  for (const [name, adjacency] of store === null ? [] : schema.adjacencies) {
+    for (const entry of (store as OfStore)._relationData(adjacency.relation as RelationSchema).linking(adjacency.me, source)) {
+      const builder = makeEntryBuilder(adjacency.relation as RelationSchema, adjacency.me, store);
       const state = entryOf(builder);
       for (const [link, target] of entry.links) if (link !== adjacency.me) state.linkValues.set(link, target as LinkValue);
       for (const [key, value] of entry.properties) state.values.set(key, value);
@@ -1079,8 +1092,8 @@ function loadEntries(entries: Map<string, _EntryBuilder[]>, schema: ObjectSchema
   }
 }
 
-function makeRecordBuilder(schema: RecordSchema, source?: ValueObject): ObjectVisitor {
-  const target = new RecordBuilderTarget(schema, source);
+function makeRecordBuilder(schema: RecordSchema, source?: ValueObject, store: OfStore | null = null): ObjectVisitor {
+  const target = new RecordBuilderTarget(schema, source, store);
   const proxy = new Proxy(target, {
     get(t, prop, receiver) {
       if (typeof prop === "symbol") return Reflect.get(t, prop, receiver);
@@ -1088,7 +1101,7 @@ function makeRecordBuilder(schema: RecordSchema, source?: ValueObject): ObjectVi
       const schema = t.schema.properties.get(prop);
       if (schema !== undefined) return setter(t, t.proxy, prop, schema);
       if (t.adjacencyNames().includes(prop)) return adder(t, prop);
-      if (PROBES.has(prop)) return Reflect.get(t, prop, receiver);
+      if (_probes.has(prop)) return Reflect.get(t, prop, receiver);
       throw new AttributeError(`${repr(prop)} is not a ${t.member}`);
     },
   }) as unknown as ObjectVisitor;
@@ -1101,7 +1114,8 @@ type LinkValue = Visitable | ObjectBuilderTarget;
 
 /** `Visitors.OfLink` over one link of an entry builder. */
 export class _LinkSlot implements OfLink {
-  constructor(private readonly links: Map<string, LinkValue>, private readonly linkName: string) {}
+  constructor(private readonly links: Map<string, LinkValue>, private readonly linkName: string,
+    private readonly store: OfStore | null = null) {}
 
   name(): string {
     return this.linkName;
@@ -1116,6 +1130,7 @@ export class _LinkSlot implements OfLink {
     if (!isInstance(target) && !(isRecord(target) && stateOf(target).schema instanceof Schemas.OfObject.Data)) {
       throw new TypeError("proxies can only link proxy instances and their value objects");
     }
+    sameStore(this.store, target);
     this.links.set(this.linkName, target);
     return this;
   }
@@ -1130,7 +1145,7 @@ export class _EntryBuilder implements OfEntry {
   readonly values = new Map<string, Native>();
   proxy!: _EntryBuilder;
 
-  constructor(private readonly relation: RelationSchema, private readonly me: string) {}
+  constructor(private readonly relation: RelationSchema, private readonly me: string, readonly store: OfStore | null = null) {}
 
   private checkLink(name: string): void {
     if (name === this.me || !this.relation.links.includes(name)) {
@@ -1139,18 +1154,18 @@ export class _EntryBuilder implements OfEntry {
   }
 
   links(callback: Callback<OfLink>): _EntryBuilder {
-    for (const name of this.relation.links) if (name !== this.me) callback(new _LinkSlot(this.linkValues, name));
+    for (const name of this.relation.links) if (name !== this.me) callback(new _LinkSlot(this.linkValues, name, this.store));
     return this.proxy;
   }
 
   link(name: string, callback: Callback<OfLink>): _EntryBuilder {
     this.checkLink(name);
-    callback(new _LinkSlot(this.linkValues, name));
+    callback(new _LinkSlot(this.linkValues, name, this.store));
     return this.proxy;
   }
 
   properties(callback: Callback<OfProperty>): _EntryBuilder {
-    for (const name of [...this.values.keys()]) callback(new _PropertySlot(this.values, name, this.relation.properties.get(name)));
+    for (const name of [...this.values.keys()]) callback(new _PropertySlot(this.values, name, this.relation.properties.get(name), this.store));
     return this.proxy;
   }
 
@@ -1160,7 +1175,7 @@ export class _EntryBuilder implements OfEntry {
 
   property(name: string, callback: Callback<OfProperty>): _EntryBuilder {
     if (!this.relation.properties.has(name)) throw new AttributeError(`${repr(name)} is not a property of this relation`);
-    callback(new _PropertySlot(this.values, name, this.relation.properties.get(name)));
+    callback(new _PropertySlot(this.values, name, this.relation.properties.get(name), this.store));
     return this.proxy;
   }
 
@@ -1175,8 +1190,9 @@ export class _EntryBuilder implements OfEntry {
       this.checkLink(name);
       return (spec: unknown) => {
         if (typeof spec === "function") {
-          const schemaName = schemaFilling(this.relation, name);
-          const builder = makeObjectBuilder(objectSchema(schemaName), schemaName);
+          if (this.store === null) throw new TypeError("an object is created through a link only by a store's builder");
+          const schemaName = this.store._filled(this.relation, name);
+          const builder = makeObjectBuilder(this.store, this.store.schema(schemaName), schemaName);
           spec(builder);
           this.linkValues.set(name, builderTargets.get(builder) as ObjectBuilderTarget);
         } else {
@@ -1208,15 +1224,15 @@ function entryOf(builder: _EntryBuilder): _EntryBuilder {
   return entryTargets.get(builder) as _EntryBuilder;
 }
 
-function makeEntryBuilder(relation: RelationSchema, me: string): _EntryBuilder {
-  const target = new _EntryBuilder(relation, me);
+function makeEntryBuilder(relation: RelationSchema, me: string, store: OfStore | null = null): _EntryBuilder {
+  const target = new _EntryBuilder(relation, me, store);
   const proxy = new Proxy(target, {
     get(t, prop, receiver) {
       if (typeof prop === "symbol") return Reflect.get(t, prop, receiver);
       if (ENTRY_METHODS.has(prop)) return (t[prop as "links"] as (...a: unknown[]) => unknown).bind(t);
       const dsl = t.dsl(prop);
       if (dsl !== undefined) return dsl;
-      if (PROBES.has(prop)) return Reflect.get(t, prop, receiver);
+      if (_probes.has(prop)) return Reflect.get(t, prop, receiver);
       throw new AttributeError(prop);
     },
   });
@@ -1247,7 +1263,7 @@ export class _AdjacencySlot implements OfAdjacency {
   }
 
   add(callback: Callback<OfEntry>): _AdjacencySlot {
-    const entry = makeEntryBuilder(this.schema.relation as RelationSchema, this.schema.me);
+    const entry = makeEntryBuilder(this.schema.relation as RelationSchema, this.schema.me, this.builder.store);
     callback(entry);
     const list = this.builder.entries.get(this.adjacencyName) ?? [];
     list.push(entry);
@@ -1273,10 +1289,11 @@ export class ObjectBuilderTarget implements ObjectVisitor {
   readonly entries = new Map<string, _EntryBuilder[]>();
   proxy!: DynamicBuilder;
 
-  constructor(readonly schema: ObjectSchema, readonly schemaName: string, private readonly source?: Instance) {}
+  constructor(readonly store: OfStore, readonly schema: ObjectSchema, readonly schemaName: string,
+    private readonly source?: Instance) {}
 
   properties(callback: Callback<OfProperty>): DynamicBuilder {
-    for (const name of [...this.values.keys()]) callback(new _PropertySlot(this.values, name, this.schema.properties.get(name)));
+    for (const name of [...this.values.keys()]) callback(new _PropertySlot(this.values, name, this.schema.properties.get(name), this.store));
     return this.proxy;
   }
 
@@ -1286,7 +1303,7 @@ export class ObjectBuilderTarget implements ObjectVisitor {
 
   property(name: string, callback: Callback<OfProperty>): DynamicBuilder {
     if (!this.schema.properties.has(name)) throw new AttributeError(`${repr(name)} is not a property of ${repr(this.schemaName)}`);
-    callback(new _PropertySlot(this.values, name, this.schema.properties.get(name)));
+    callback(new _PropertySlot(this.values, name, this.schema.properties.get(name), this.store));
     return this.proxy;
   }
 
@@ -1322,22 +1339,30 @@ export class ObjectBuilderTarget implements ObjectVisitor {
     if (this.source !== undefined) {
       throw new ValueError("create() is only valid without a source instance; use clone() or update()");
     }
-    return this.write(makeInstance(this.schema, this.schemaName));
+    return this.made(this.write(makeInstance(this.store, this.schema, this.schemaName)));
   }
 
   clone(...args: unknown[]): Instance {
     noArguments("clone", args);
     if (this.source === undefined) throw new ValueError("clone() is only valid with a source instance");
-    return this.write(makeInstance(this.schema, this.schemaName));
+    return this.made(this.write(makeInstance(this.store, this.schema, this.schemaName)));
   }
 
   update(...args: unknown[]): Instance {
     noArguments("update", args);
     if (this.source === undefined) throw new ValueError("update() is only valid with a source instance");
     for (const adjacency of this.schema.adjacencies.values()) {
-      relationData(adjacency.relation as RelationSchema).discard_linking(adjacency.me, this.source);
+      this.store._relationData(adjacency.relation as RelationSchema).discard_linking(adjacency.me, this.source);
     }
     return this.write(this.source);
+  }
+
+  /** Adds a new instance to its schema's extent. */
+  private made(target: Instance): Instance {
+    const extent = this.store._extents.get(this.schemaName) ?? [];
+    extent.push(target);
+    this.store._extents.set(this.schemaName, extent);
+    return target;
   }
 
   private write(target: Instance): Instance {
@@ -1349,7 +1374,7 @@ export class ObjectBuilderTarget implements ObjectVisitor {
     state.values.clear();
     for (const [name, value] of values) state.values.set(name, value);
     for (const [name, entries] of this.entries) {
-      const relation = relationData((this.schema.adjacencies.get(name) as AdjacencySchema).relation as RelationSchema);
+      const relation = this.store._relationData((this.schema.adjacencies.get(name) as AdjacencySchema).relation as RelationSchema);
       for (const entry of entries) {
         const links = entryOf(entry).linkValues;
         for (const [link, linked] of [...links]) if (mapping.has(linked)) links.set(link, mapping.get(linked) as LinkValue);
@@ -1364,19 +1389,19 @@ function noArguments(method: string, args: unknown[]): void {
   if (args.length > 0) throw new TypeError(`${method}() takes no arguments (${args.length} given)`);
 }
 
-function makeObjectBuilder(schema: ObjectSchema, schemaName: string, instance?: Instance): DynamicBuilder {
+function makeObjectBuilder(store: OfStore, schema: ObjectSchema, schemaName: string, instance?: Instance): DynamicBuilder {
   if (!schema.ref) {
     throw new TypeError(`${repr(schemaName)} is a value object schema; a value object is built through its owner`);
   }
   if (instance !== undefined && !isInstance(instance)) throw new TypeError("a builder's source must be a proxy instance");
-  const target = new ObjectBuilderTarget(schema, schemaName, instance);
+  const target = new ObjectBuilderTarget(store, schema, schemaName, instance);
   const proxy = new Proxy(target, {
     get(t, prop, receiver) {
       if (typeof prop === "symbol") return Reflect.get(t, prop, receiver);
       if (BUILDER_METHODS.has(prop)) return (t[prop as "has"] as (...a: unknown[]) => unknown).bind(t);
       const dsl = t.dsl(prop);
       if (dsl !== undefined) return dsl;
-      if (PROBES.has(prop)) return Reflect.get(t, prop, receiver);
+      if (_probes.has(prop)) return Reflect.get(t, prop, receiver);
       throw new AttributeError(`${repr(prop)} is not a property or adjacency of ${repr(schemaName)}`);
     },
   }) as unknown as DynamicBuilder;
@@ -1386,6 +1411,7 @@ function makeObjectBuilder(schema: ObjectSchema, schemaName: string, instance?: 
     if (instance.schema_name() !== schemaName) {
       throw new TypeError(`instance is a ${repr(instance.schema_name())}, not a ${repr(schemaName)}`);
     }
+    sameStore(store, instance);
     // the value objects themselves, so that an update keeps them
     for (const [name, value] of (instanceTargets.get(instance) as ObjectTarget).values) target.values.set(name, value);
     loadEntries(target.entries, schema, instance);
@@ -1401,9 +1427,9 @@ export namespace OfObject {
   export const Record = RecordTarget;
   export type Record = ValueObject;
   export type Builder = DynamicBuilder;
-  /** A builder for `schema` registered as `schemaName`, as `Builders[schemaName](instance)` returns. */
-  export function Builder(schema: ObjectSchema, schemaName: string, instance?: Instance): DynamicBuilder {
-    return makeObjectBuilder(schema, schemaName, instance);
+  /** A builder in `store` for `schema` registered as `schemaName`, as `store[schemaName](instance)` returns. */
+  export function Builder(store: OfStore, schema: ObjectSchema, schemaName: string, instance?: Instance): DynamicBuilder {
+    return makeObjectBuilder(store, schema, schemaName, instance);
   }
 }
 

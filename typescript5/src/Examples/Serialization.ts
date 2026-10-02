@@ -9,6 +9,8 @@ import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
 import { assert, entries, equal, map, raises } from "./_support.js";
 
+const store = new Proxies.OfStore();
+
 // --- Schemas ---
 
 const Sample = new Schemas.OfObject.Builder().ref()
@@ -55,9 +57,9 @@ Currency = new Schemas.OfObject.Builder(Currency).relations((adj) => adj.name("a
 for (const [name, schema] of [["Sample", Sample], ["iso4217.Currency", Currency], ["Product", Product], ["Money", Money],
   ["Prices", Prices], ["Denomination", Denomination]] as const) {
   assert(schema.validate().length === 0, `${name}: ${schema.validate()}`);
-  Proxies.register(name, schema);
+  store.register(name, schema);
 }
-const Builders = Proxies.Builders;
+const Builders = store;
 const bytes = (...values: number[]) => new Uint8Array(values);
 const repeat = (b: Uint8Array, n: number) => new Uint8Array(Array.from({ length: n }, () => [...b]).flat());
 
@@ -70,37 +72,37 @@ const edge = Builders.Sample()
   .ratio(-0.0)
   .flag(false) // a present false is not an absent property
   .create();
-const plain = Plain.ToPlain(Sample, edge) as PlainMap;
+const plain = Plain.ToPlain(store)(Sample, edge) as PlainMap;
 const fields = (plain.get("objects") as PlainMap).get(plain.get("root") as string) as PlainMap;
 assert(fields.get("payload") === "AP8QAP8QAP8Q"); // bytes become base64 text
 assert(fields.get("flag") === false && fields.get("count") === 2n ** 100n);
 
 // Plain data is JSON-encodable, and survives a JSON round trip.
-const restored = Plain.FromPlain(Proxies.Builders)(Sample, JSON.loads(JSON.dumps(plain))) as Instance;
+const restored = Plain.FromPlain(store)(Sample, JSON.loads(JSON.dumps(plain))) as Instance;
 assert(restored.label === edge.label && equal(restored.payload, edge.payload) && restored.count === 2n ** 100n);
 assert(restored.ratio === 0 && Object.is(restored.ratio, -0)); // the sign of -0.0 survives
 assert(restored.flag === false);
 
 // Empty values are present values.
 const empty = Builders.Sample().label("").payload(bytes()).count(0n).ratio(0.0).create();
-const back = Plain.FromPlain(Proxies.Builders)(Sample, Plain.ToPlain(Sample, empty)) as Instance;
+const back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty)) as Instance;
 assert(back.label === "" && equal(back.payload, bytes()) && back.count === 0n && back.ratio === 0);
 raises(AttributeError, () => back.flag); // never set, so absent
 
 // An object with nothing set serializes to an empty object.
 const blank = Builders.Sample().create();
-assert(equal(Plain.ToPlain(Sample, blank), map({ root: "s0", objects: { s0: {} } })));
+assert(equal(Plain.ToPlain(store)(Sample, blank), map({ root: "s0", objects: { s0: {} } })));
 
 // Per-kind entry points.
 const bytesSchema = new Schemas.OfNative.Data(Uint8Array);
-assert(Plain.ToPlain(bytesSchema, bytes(1)) === "AQ==" && Plain.ToPlain.OfNative(bytesSchema, bytes(1)) === "AQ==");
-assert(Plain.FromPlain(Proxies.Builders).OfNative(new Schemas.OfNative.Data(BigInt), 7n) === 7n);
+assert(Plain.ToPlain(store)(bytesSchema, bytes(1)) === "AQ==" && Plain.ToPlain(store).OfNative(bytesSchema, bytes(1)) === "AQ==");
+assert(Plain.FromPlain(store).OfNative(new Schemas.OfNative.Data(BigInt), 7n) === 7n);
 
 // --- Strict native types ---
 
 // Distinct native types are never coerced into each other, in either direction. Reading a wrong type is a problem in
 // the data: a DecodeError (a ValueError) located by a path, here the root.
-const from_plain = Plain.FromPlain(Proxies.Builders);
+const from_plain = Plain.FromPlain(store);
 for (const [native, bad] of [[BigInt, true], [BigInt, 1.0], [BigInt, "1"], [Number, 1n], [Boolean, 0n], [String, bytes(0x78)],
   [String, null]] as const) {
   raises(DecodeError, () => from_plain(new Schemas.OfNative.Data(native), bad));
@@ -111,10 +113,10 @@ raises(DecodeError, () => from_plain(bytesSchema, "not base64!"));
 // The builder does not validate; the serializer does.
 const sloppy = Builders.Sample().count("3").create();
 assert(sloppy.count === "3");
-raises(TypeError, () => Plain.ToPlain(Sample, sloppy));
+raises(TypeError, () => Plain.ToPlain(store)(Sample, sloppy));
 
 // Validation reports it without serializing.
-const validate = Validators.Validate(Proxies.Builders);
+const validate = Validators.Validate(store);
 assert(equal(validate(Sample, sloppy), ["Sample#0.count: expected int, got str"]));
 assert(validate(Sample, edge).length === 0 && validate(Sample, blank).length === 0);
 assert(equal(validate(new Schemas.OfNative.Data(BigInt), true), ["expected int, got bool"]));
@@ -132,7 +134,7 @@ const byCurrency = (obj: Instance) =>
   new Map(entries(Product, obj, "prices").map((e) => [e.get("currency"), (e.get("price") as Instance).amount]));
 assert(equal(byCurrency(widget), map({ JPY: 1500n, EUR: 1299n })));
 
-const graph = Plain.ToPlain.Reachable(Product, widget);
+const graph = Plain.ToPlain(store).Reachable(Product, widget);
 const objectsOf = (g: PlainMap) => [...(g.get("objects") as Map<string, PlainMap>).values()];
 assert(equal(sortedStrings(objectsOf(graph).filter((o) => o.has("code")).map((o) => o.get("code") as string)), ["EUR", "JPY"]));
 const schemasNamed = new Set(objectsOf(graph).flatMap((obj) => [...obj.values()].filter(Array.isArray)
@@ -157,7 +159,7 @@ assert(validate(Currency, widget).length > 0);
 
 // --- Malformed snapshots are rejected ---
 
-const good = Plain.ToPlain.Reachable(Product, widget);
+const good = Plain.ToPlain(store).Reachable(Product, widget);
 const root = good.get("root") as string;
 const objectsIn = (s: PlainMap) => s.get("objects") as Map<string, PlainMap>;
 const pricesOf = (s: PlainMap) => (objectsIn(s).get(root) as PlainMap).get("prices") as PlainMap[];
@@ -182,14 +184,14 @@ const badSnapshots: PlainData[] = [
 for (const snapshot of badSnapshots) raises(DecodeError, () => from_plain.Reachable(Product, snapshot));
 
 // A single-object snapshot leaves references unresolved, so it cannot be deserialized on its own.
-raises(DecodeError, () => from_plain(Product, Plain.ToPlain(Product, widget)));
+raises(DecodeError, () => from_plain(Product, Plain.ToPlain(store)(Product, widget)));
 
 // The root must be an instance of the schema given.
-raises(TypeError, () => Plain.ToPlain(Currency, widget));
+raises(TypeError, () => Plain.ToPlain(store)(Currency, widget));
 
 // --- Registry corner cases ---
 
-raises(ValueError, () => Proxies.register("Sample", Sample)); // names are registered once
+raises(ValueError, () => store.register("Sample", Sample)); // names are registered once
 raises(AttributeError, () => Builders.Unregistered());
 raises(TypeError, () => Builders.Prices()); // no relation builder is exposed
 raises(TypeError, () => Builders.Product(jpy)); // the source instance must have the builder's schema
@@ -199,7 +201,7 @@ raises(AttributeError, () => {
 });
 
 // A schema registered as 'schema' is shadowed by the Builders.schema() method, but still reachable by name.
-Proxies.register("schema", Sample);
-assert(Proxies.schema("schema") === Sample && Builders.schema("schema") === Sample);
+store.register("schema", Sample);
+assert(store.schema("schema") === Sample && Builders.schema("schema") === Sample);
 
 console.log("Serialization: all checks passed");

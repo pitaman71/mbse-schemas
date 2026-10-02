@@ -20,6 +20,7 @@ export * as Proxies from "./Proxies.js";
 export * as Reachable from "./Reachable.js";
 export * as Repr from "./Repr.js";
 export * as Schemas from "./Schemas.js";
+export * as Stores from "./Stores.js";
 export * as Validators from "./Validators.js";
 export * as Visitors from "./Visitors.js";
 export * as YAML from "./YAML.js";

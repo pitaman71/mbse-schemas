@@ -20,6 +20,7 @@ for (const name of ["Buffer", "process", "global", "require"]) Reflect.deletePro
 if (["Buffer", "process", "global", "require"].some((name) => name in globalThis)) throw new Error("Node globals remain");
 
 const corpus = build();
+const store = Proxies.store_of((corpus.get("address_book") as [unknown, unknown])[1]); // the store the corpus is built in
 const files = render(corpus);
 let checked = 0;
 for (const [name, text] of files) {
@@ -28,11 +29,11 @@ for (const [name, text] of files) {
   checked++;
 }
 
-const validate = Validators.Validate(Proxies.Builders);
+const validate = Validators.Validate(store);
 for (const name of CASES) {
   const [schema] = corpus.get(name) as [never, unknown];
   for (const implementation of ["python3", "typescript5"]) {
-    for (const [ext, load] of [["json", JSON.FromJSON(Proxies.Builders)], ["yaml", YAML.FromYAML(Proxies.Builders)]] as const) {
+    for (const [ext, load] of [["json", JSON.FromJSON(store)], ["yaml", YAML.FromYAML(store)]] as const) {
       const restored = load.Reachable(schema, await read(`${implementation}/${name}.${ext}`));
       const problems = validate.Reachable(schema, restored as never);
       if (problems.length > 0) throw new Error(`${implementation}/${name}.${ext}: ${problems.join("; ")}`);

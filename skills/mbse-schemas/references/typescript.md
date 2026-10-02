@@ -30,10 +30,12 @@ new S.OfObject.Builder(Component).relations((r) => r.name("ports").of(Ownership)
 new S.OfObject.Builder(Port).relations((r) => r.name("owner").of(Ownership).me("port"),
   (r) => r.name("fanout").of(Wire).me("source"),
   (r) => r.name("fanin").of(Wire).me("target")).update();
+// A store holds the schemas by name, and the objects built with them.
+const store = new Proxies.OfStore();
 for (const [name, schema] of [["Component", Component], ["Port", Port], ["Ownership", Ownership], ["Wire", Wire]] as const) {
-  Proxies.register(name, schema);
+  store.register(name, schema);
 }
-const B = Proxies.Builders;
+const B = store;
 
 const irq = B.Port().name("irq").signal((s: any) => s.width(1n).unit("bit")).create();
 const picIn = B.Port().name("pic_in").create();
@@ -41,7 +43,7 @@ const cpu = B.Component().name("cpu").ports((e: any) => e.port(irq)).create();
 B.Port(irq).fanout((e: any) => e.target(picIn).label("interrupt")).update();
 if (irq.signal.width !== 1n) throw new Error("unexpected width");
 
-const text = JSON.ToJSON.Reachable(Component, cpu);
+const text = JSON.ToJSON(store).Reachable(Component, cpu);
 const copy = JSON.FromJSON(B).Reachable(Component, text) as Proxies.Instance; // decoders return unknown
 if (Validators.Validate(B).Reachable(Component, copy).length > 0) throw new Error("invalid");
 ```
@@ -70,15 +72,16 @@ new S.OfUnion.Builder().branches((b) => b.name("phone").of(spec), ...).create();
 new S.OfIntersection.Builder().parts((p) => p.name("stamp").of(spec), ...).create();
 new S.OfIndexed.Builder().of(spec).create();              // a list; in a property: (t) => t.as_indexed((i) => i.of(spec))
 new S.OfIndexed.Builder().key(spec).of(spec).extent({ minimum: 1n }).create(); // key: keyed; extent: bounds a positional list
-Proxies.register("Name", schema); const B = Proxies.Builders;
+const store = new Proxies.OfStore(); store.register("Name", schema); const B = store;   // stores are isolated
+store.extent("Name"); Proxies.store_of(obj);               // a schema's reference objects; the store a proxy belongs to
 B.Name().prop(value).adjacencyName((e: any) => e.link(obj).entryProp(v)).create();
 B.Name(obj).prop(v).update();                              // .clone() makes a changed copy instead
 B.Name().listProp(["a", "b"]).create();                    // a list of items; obj.listProp is a frozen array
 B.Name().attrs(new Map([["gain", 1.5]])).create();          // a keyed list; obj.attrs.get("gain"). Give -0.0 keys as [key, value] pairs
-JSON.ToJSON.Reachable(schema, root); JSON.FromJSON(B).Reachable(schema, text);
-Validators.Validate(B)(schema, obj); Validators.Validate(B).Reachable(schema, root);
+JSON.ToJSON(store).Reachable(schema, root); JSON.FromJSON(store).Reachable(schema, text);
+Validators.Validate(store)(schema, obj); Validators.Validate(store).Reachable(schema, root);
 new Comparison.OfObject(schema, a).compare(new Comparison.OfObject(schema, b));   // -1, 0, 1 or null
-Modules.module({ Contact }); Modules.schemas(module);      // schemas to a module (a Map or a record), and back (a Map)
+Modules.module(store, { Contact }); Modules.schemas(store, module);   // schemas to a module (a Map or a record), and back
 ```
 
 ## Go deeper

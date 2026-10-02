@@ -10,6 +10,8 @@ import { sortedStrings } from "@mbse/schemas/Framework/Repr";
 import type { OfEntry, Visitable } from "@mbse/schemas/Framework/Visitors";
 import { assert, entries, raises, same_graph } from "./_support.js";
 
+const store = new Proxies.OfStore();
+
 function text(name: string) {
   return (prop: Schemas.OfProperty.Builder) => prop.name(name).of((t) => t.as_native(String));
 }
@@ -55,9 +57,9 @@ Room = new Schemas.OfObject.Builder(Room).relations((adj) => adj.name("bookings"
 for (const [name, schema] of [["Student", Student], ["Staff", Staff], ["Course", Course], ["Term", Term], ["Room", Room],
   ["Enrollment", Enrollment], ["Booking", Booking]] as const) {
   assert(schema.validate().length === 0, `${name}: ${schema.validate()}`);
-  Proxies.register(name, schema);
+  store.register(name, schema);
 }
-const Builders = Proxies.Builders;
+const Builders = store;
 const same = (a: unknown[], b: unknown[]): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
 
 // --- A three-link relation ---
@@ -118,11 +120,11 @@ Builders.Student(zoe).adjacency("enrollments", (a: any) => a.entries((e: OfEntry
 assert(values.length === 2 && same(sortedStrings(new Set(values.map((v) => typeof v))), ["bigint", "boolean"]));
 
 // Serializing checks native types: a bool where the schema says int is rejected, and so is anything reaching it.
-raises(TypeError, () => Plain.ToPlain(Student, zoe));
-raises(TypeError, () => Plain.ToPlain.Reachable(Term, fall));
+raises(TypeError, () => Plain.ToPlain(store)(Student, zoe));
+raises(TypeError, () => Plain.ToPlain(store).Reachable(Term, fall));
 
 // Validation reports it, only when asked, with a path to the value.
-const validate = Validators.Validate(Proxies.Builders);
+const validate = Validators.Validate(store);
 assert(same(validate(Student, zoe), [
   "Student#0.enrollments[1].credits: expected int, got bool",
   // Her two enrollments also share (student, course, term), which Enrollment's unique(...) clause forbids.
@@ -161,8 +163,8 @@ Builders.Room(lab).bookings((x: any) => x.booker(mia).starts("2026-09-15T13:30:0
 assert(same(sortedStrings(entries(Room, lab, "bookings").map((e) => (e.get("booker") as Instance).schema_name())), ["Staff", "Student"]));
 
 // References carry the schema name, so restoring knows Grace is Staff and Mia is a Student.
-let graph = Plain.ToPlain.Reachable(Room, lab);
-let restored = Plain.FromPlain(Proxies.Builders).Reachable(Room, graph) as Instance;
+let graph = Plain.ToPlain(store).Reachable(Room, lab);
+let restored = Plain.FromPlain(store).Reachable(Room, graph) as Instance;
 const bookers = new Map(entries(Room, restored, "bookings").map((e) => {
   const booker = e.get("booker") as Instance;
   return [booker.name as string, booker.schema_name()];
@@ -176,9 +178,9 @@ assert(component[0] === fall);
 assert(same(sortedStrings(new Set(component.map((o) => o.schema_name()))), ["Course", "Room", "Staff", "Student", "Term"]));
 
 for (const [root, schema] of [[fall, Term], [mia, Student], [noah, Student]] as const) {
-  graph = Plain.ToPlain.Reachable(schema, root);
-  restored = Plain.FromPlain(Proxies.Builders).Reachable(schema, graph) as Instance;
-  assert(restored !== root && same_graph(Plain.ToPlain.Reachable(schema, restored), graph));
+  graph = Plain.ToPlain(store).Reachable(schema, root);
+  restored = Plain.FromPlain(store).Reachable(schema, graph) as Instance;
+  assert(restored !== root && same_graph(Plain.ToPlain(store).Reachable(schema, restored), graph));
 }
 
 // Apart from Noah's duplicate enrollments, the whole component is valid.

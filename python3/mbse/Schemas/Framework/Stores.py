@@ -6,7 +6,8 @@ looks a schema up by name takes a store: `Plain.ToPlain(store)`, `Plain.FromPlai
 `Validators.Validate(store)` and `Modules`. Stores are isolated from one another; objects move between them as
 snapshots. Selecting objects by a condition is an extension, in mbse-expressions.
 
-`Catalog` holds schemas by name, as every store does, with the messages every store gives.
+`Catalog` holds schemas by name, as every store does, with the messages every store gives; `META` names the
+meta-schemas a store of proxies starts with.
 """
 
 from __future__ import annotations
@@ -16,7 +17,10 @@ from typing import Any, Protocol
 
 from . import Schemas, Visitors
 
-__all__ = ["Store", "Catalog"]
+__all__ = ["Store", "Catalog", "META"]
+
+META = {"Schemas.Module": Schemas.Module.Schema}
+"""The meta-schemas a store of proxies starts with, by name, so that it can hold modules of schemas."""
 
 
 class Store(Protocol):

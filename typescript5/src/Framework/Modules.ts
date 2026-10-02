@@ -1,50 +1,48 @@
 /**
  * Modules: schemas as data.
  *
- * A module is a named set of schemas, held by an object of the meta-schema `Schemas.Module.Schema`, which is
- * registered as 'Schemas.Module'. `module(schemas)` returns such an object for schemas given by name, and
- * `schemas(module)` the schemas a module holds, so that schemas are written, read, validated and compared like any
- * other objects:
+ * A module is a named set of schemas, held by an object of the meta-schema `Schemas.Module.Schema`, which every proxy
+ * store registers as 'Schemas.Module'. `module(store, schemas)` returns such an object, built in `store`, for schemas
+ * given by name, and `schemas(store, module)` the schemas a module holds, so that schemas are written, read, validated
+ * and compared like any other objects:
  *
- *     const text = JSON.ToJSON(Schemas.Module.Schema, Modules.module(new Map([["Contact", Contact], ["Phone", Phone]])));
- *     const schemas = Modules.schemas(JSON.FromJSON(Proxies.Builders)(Schemas.Module.Schema, text));
+ *     const text = JSON.ToJSON(store)(Schemas.Module.Schema, Modules.module(store, new Map([["Contact", Contact]])));
+ *     const schemas = Modules.schemas(store, JSON.FromJSON(store)(Schemas.Module.Schema, text));
  *
  * Within a module, each schema is written inline, as a value object of its kind, and refers to another schema by name
- * when that one is in the module or registered, so shared and recursive schemas are written once. A name resolves
- * within the module, then in the registry. A schema that refers to itself must be named.
+ * when that one is in the module or registered in the store, so shared and recursive schemas are written once. A name
+ * resolves within the module, then in the store. A schema that refers to itself must be named.
  *
  * The translation goes through plain data, the form `Plain`, `JSON` and `YAML` share: `module` decodes the plain form
- * of the schemas, with the given builders, and `schemas` reads the plain form of the module.
+ * of the schemas in the store, and `schemas` reads the plain form of the module.
  */
 
 import { LookupError, ValueError } from "./Errors.js";
 import * as Plain from "./Plain.js";
 import type { PlainData, PlainMap } from "./Plain.js";
-import * as Proxies from "./Proxies.js";
 import { repr, sortedStrings } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
+import type * as Stores from "./Stores.js";
 
 export const MODULE = "Schemas.Module";
-Proxies.register(MODULE, Schemas.Module.Schema);
 
 type Schema = Schemas.OfAny.Data | Schemas.OfRelation.Data;
 
-/** A module holding `schemas`, by name, built with `builders`. */
-export function module(schemas: Map<string, Schema> | Record<string, Schema>,
-  builders: Plain.Builders = Proxies.Builders as unknown as Plain.Builders): unknown {
+/** A module holding `schemas`, by name, built in `store`. */
+export function module(store: Stores.Store, schemas: Map<string, Schema> | Record<string, Schema>): unknown {
   const named = schemas instanceof Map ? [...schemas] : Object.entries(schemas);
-  const writer = new Writer(new Map(named.map(([name, schema]) => [schema as unknown, name])));
+  const writer = new Writer(store, new Map(named.map(([name, schema]) => [schema as unknown, name])));
   const entries = named.map(([name, schema]) => new Map<string, PlainData>([["name", name], ["schema", writer.definition(schema)]]));
   const root = new Map<string, PlainData>([["schemas", entries]]);
-  return Plain.FromPlain(builders)(Schemas.Module.Schema,
+  return Plain.FromPlain(store)(Schemas.Module.Schema,
     new Map<string, PlainData>([["root", "s0"], ["objects", new Map([["s0", root]])]]));
 }
 
-/** The schemas `module` holds, by name. Names resolve within the module, then in the registry. */
-export function schemas(module: unknown): Map<string, Schema> {
-  const plain = Plain.ToPlain(Schemas.Module.Schema, module as never) as PlainMap;
+/** The schemas `module` holds, by name. Names resolve within the module, then in `store`. */
+export function schemas(store: Stores.Store, module: unknown): Map<string, Schema> {
+  const plain = Plain.ToPlain(store)(Schemas.Module.Schema, module as never) as PlainMap;
   const root = (plain.get("objects") as PlainMap).get(plain.get("root") as string) as PlainMap;
-  return new Reader((root.get("schemas") as PlainMap[] | undefined) ?? []).read();
+  return new Reader(store, (root.get("schemas") as PlainMap[] | undefined) ?? []).read();
 }
 
 // --- Schemas to plain data ---
@@ -52,18 +50,18 @@ export function schemas(module: unknown): Map<string, Schema> {
 /** A schema's plain form: a mapping from its kind to its contents, e.g. `{"native": {"format": "basic", ...}}`. */
 type Definition = PlainMap;
 
-/** Writes schemas as plain data, naming those in the module (`names`, by identity) and those registered. */
+/** Writes schemas as plain data, naming those in the module (`names`, by identity) and those in the store. */
 class Writer {
   /** The schemas being written inline, to refuse one that refers to itself. */
   private readonly inline = new Set<unknown>();
 
-  constructor(private readonly names: Map<unknown, string>) {}
+  constructor(private readonly store: Stores.Store, private readonly names: Map<unknown, string>) {}
 
   private nameOf(schema: unknown): string | null {
     const name = this.names.get(schema);
     if (name !== undefined) return name;
     try {
-      return Proxies.name_of(schema as never);
+      return this.store.name_of(schema);
     } catch {
       return null; // name_of throws only LookupError, for a schema not registered
     }
@@ -77,7 +75,7 @@ class Writer {
 
   /** A schema written inline. */
   definition(schema: unknown): Definition {
-    if (this.inline.has(schema)) throw new ValueError("a schema that refers to itself must be named, in the module or the registry");
+    if (this.inline.has(schema)) throw new ValueError("a schema that refers to itself must be named, in the module or the store");
     this.inline.add(schema);
     try {
       return this.contents(schema);
@@ -149,7 +147,7 @@ function contentsOf(definition: Definition): [string, PlainMap] {
 class Reader {
   private readonly defined = new Map<string, Schema>();
 
-  constructor(private readonly entries: PlainMap[]) {}
+  constructor(private readonly store: Stores.Store, private readonly entries: PlainMap[]) {}
 
   read(): Map<string, Schema> {
     for (const entry of this.entries) {
@@ -165,9 +163,9 @@ class Reader {
     const found = this.defined.get(name);
     if (found !== undefined) return found;
     try {
-      return Proxies.registered(name);
+      return this.store.registered(name);
     } catch {
-      throw new LookupError(`no schema named ${repr(name)} in the module or the registry`); // registered throws only LookupError
+      throw new LookupError(`no schema named ${repr(name)} in the module or the store`); // registered throws only LookupError
     }
   }
 

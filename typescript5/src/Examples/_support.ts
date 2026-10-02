@@ -1,6 +1,6 @@
 // Helpers shared by the examples.
 
-import { Plain, Reachable } from "@mbse/schemas/Framework";
+import { Plain, Proxies, Reachable } from "@mbse/schemas/Framework";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import type { PlainData, PlainMap } from "@mbse/schemas/Framework/Plain";
 import type { OfObject } from "@mbse/schemas/Framework/Schemas";
@@ -40,7 +40,7 @@ export function map(value: unknown): PlainData {
  * Reading entries back is not part of the API yet, so this reads them from a Reachable snapshot: its symbols are
  * assigned in first-reference order, the same order `Reachable.of` returns. */
 export function entries(schema: OfObject.Data, obj: Instance, adjacency: string): Map<string, unknown>[] {
-  const graph = Plain.ToPlain.Reachable(schema, obj);
+  const graph = Plain.ToPlain(Proxies.store_of(obj)).Reachable(schema, obj);
   const objects = Reachable.of(obj);
   const root = (graph.get("objects") as PlainMap).get(graph.get("root") as string) as PlainMap;
   const resolve = (value: PlainData): unknown =>

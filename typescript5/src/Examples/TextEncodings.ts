@@ -10,6 +10,8 @@ import { JSON, Plain, Proxies, Schemas, Validators, YAML } from "@mbse/schemas/F
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { assert, equal, raises, same_graph } from "./_support.js";
 
+const store = new Proxies.OfStore();
+
 // --- Schemas ---
 
 let Reading = new Schemas.OfObject.Builder().ref()
@@ -37,12 +39,12 @@ Station = new Schemas.OfObject.Builder(Station).relations((adj) => adj.name("rea
 Reading = new Schemas.OfObject.Builder(Reading).relations((adj) => adj.name("station").of(Readings).me("reading")).update();
 
 for (const [name, schema] of [["Reading", Reading], ["Station", Station], ["Readings", Readings]] as const) {
-  Proxies.register(name, schema);
+  store.register(name, schema);
 }
-const Builders = Proxies.Builders;
-const validate = Validators.Validate(Proxies.Builders);
-const from_json = JSON.FromJSON(Proxies.Builders);
-const from_yaml = YAML.FromYAML(Proxies.Builders);
+const Builders = store;
+const validate = Validators.Validate(store);
+const from_json = JSON.FromJSON(store);
+const from_yaml = YAML.FromYAML(store);
 /** A stock YAML 1.1 reader, standing in for PyYAML's `yaml.safe_load`. */
 const yaml11 = (text: string) => Y.parse(text, { version: "1.1", intAsBigInt: true, mapAsMap: true });
 
@@ -51,9 +53,9 @@ const yaml11 = (text: string) => Y.parse(text, { version: "1.1", intAsBigInt: tr
 for (const value of [0.0, -0.0, 1e308, 5e-324, 0.1, Infinity, -Infinity, NaN]) {
   const reading = Builders.Reading().value(value).create();
   for (const back of [
-    Plain.FromPlain(Proxies.Builders)(Reading, Plain.ToPlain(Reading, reading)),
-    from_json(Reading, JSON.ToJSON(Reading, reading)),
-    from_yaml(Reading, YAML.ToYAML(Reading, reading)),
+    Plain.FromPlain(store)(Reading, Plain.ToPlain(store)(Reading, reading)),
+    from_json(Reading, JSON.ToJSON(store)(Reading, reading)),
+    from_yaml(Reading, YAML.ToYAML(store)(Reading, reading)),
   ] as Instance[]) {
     if (Number.isNaN(value)) assert(Number.isNaN(back.value));
     else assert(Object.is(back.value, value));
@@ -61,7 +63,7 @@ for (const value of [0.0, -0.0, 1e308, 5e-324, 0.1, Infinity, -Infinity, NaN]) {
 }
 
 // Non-finite floats have a plain form, so JSON output stays strict (no NaN / Infinity literals).
-let text = JSON.ToJSON(Reading, Builders.Reading().value(NaN).create());
+let text = JSON.ToJSON(store)(Reading, Builders.Reading().value(NaN).create());
 assert(text.includes('"NaN"') && globalThis.JSON.parse(text));
 
 // --- Every native type at once, and the three encodings agree ---
@@ -74,12 +76,12 @@ const sample = Builders.Reading()
   .raw(new Uint8Array([0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff]))
   .note('日本語 🚀 \x00 "quoted" \\ back\nsecond line')
   .create();
-const plain = Plain.ToPlain(Reading, sample);
-assert(equal(JSON.loads(JSON.ToJSON(Reading, sample)), plain));
-assert(equal(YAML.loads(YAML.ToYAML(Reading, sample)), plain));
-assert(equal(JSON.loads(JSON.ToJSON(Reading, sample, { indent: 2 })), plain)); // formatting does not change content
+const plain = Plain.ToPlain(store)(Reading, sample);
+assert(equal(JSON.loads(JSON.ToJSON(store)(Reading, sample)), plain));
+assert(equal(YAML.loads(YAML.ToYAML(store)(Reading, sample)), plain));
+assert(equal(JSON.loads(JSON.ToJSON(store)(Reading, sample, { indent: 2 })), plain)); // formatting does not change content
 
-for (const back of [from_json(Reading, JSON.ToJSON(Reading, sample)), from_yaml(Reading, YAML.ToYAML(Reading, sample))] as Instance[]) {
+for (const back of [from_json(Reading, JSON.ToJSON(store)(Reading, sample)), from_yaml(Reading, YAML.ToYAML(store)(Reading, sample))] as Instance[]) {
   assert(back.observed === sample.observed && back.quality === sample.quality && back.valid === sample.valid &&
     equal(back.raw, sample.raw) && back.note === sample.note);
   assert(validate(Reading, back).length === 0);
@@ -92,16 +94,16 @@ const tricky = ["yes", "No", "on", "OFF", "true", "null", "~", "", "010", "0o17"
   "x #y", '"dq"', "'sq'", "@at", "`tick", "%pct", "!bang", "&amp", "*star", "|", ">", "{}", "[]", "<<"];
 for (const note of tricky) {
   const reading = Builders.Reading().note(note).create();
-  text = YAML.ToYAML(Reading, reading);
+  text = YAML.ToYAML(store)(Reading, reading);
   assert((from_yaml(Reading, text) as Instance).note === note, note);
   // The output is also read correctly by a stock YAML 1.1 loader.
-  assert(equal(yaml11(text), Plain.ToPlain(Reading, reading)), note);
+  assert(equal(yaml11(text), Plain.ToPlain(store)(Reading, reading)), note);
 }
 
 // WMO identifiers keep their leading zeros in both encodings.
 const paris = Builders.Station().wmo_id("07149").name("Paris-Orly").create();
-assert((from_json(Station, JSON.ToJSON(Station, paris)) as Instance).wmo_id === "07149");
-assert((from_yaml(Station, YAML.ToYAML(Station, paris)) as Instance).wmo_id === "07149");
+assert((from_json(Station, JSON.ToJSON(store)(Station, paris)) as Instance).wmo_id === "07149");
+assert((from_yaml(Station, YAML.ToYAML(store)(Station, paris)) as Instance).wmo_id === "07149");
 
 // --- Hand-written YAML follows the YAML 1.2 core schema ---
 
@@ -147,17 +149,17 @@ const lyon = Builders.Station()
   .readings((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(11.5).valid(true)).sensor("temp"))
   .readings((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(71.0).valid(true)).sensor("rh"))
   .create();
-const graph = Plain.ToPlain.Reachable(Station, lyon);
-for (const [encoded, decode] of [[JSON.ToJSON.Reachable(Station, lyon), from_json.Reachable],
-  [YAML.ToYAML.Reachable(Station, lyon), from_yaml.Reachable]] as const) {
+const graph = Plain.ToPlain(store).Reachable(Station, lyon);
+for (const [encoded, decode] of [[JSON.ToJSON(store).Reachable(Station, lyon), from_json.Reachable],
+  [YAML.ToYAML(store).Reachable(Station, lyon), from_yaml.Reachable]] as const) {
   const restored = decode(Station, encoded) as Instance;
   assert(restored !== lyon && restored.name === "Lyon-Saint-Exupéry");
-  assert(same_graph(Plain.ToPlain.Reachable(Station, restored), graph));
+  assert(same_graph(Plain.ToPlain(store).Reachable(Station, restored), graph));
   assert(validate.Reachable(Station, restored).length === 0);
 }
 
 // A single-object snapshot leaves references unresolved, in any encoding.
-raises(DecodeError, () => from_json(Station, JSON.ToJSON(Station, lyon)));
-raises(DecodeError, () => from_yaml(Station, YAML.ToYAML(Station, lyon)));
+raises(DecodeError, () => from_json(Station, JSON.ToJSON(store)(Station, lyon)));
+raises(DecodeError, () => from_yaml(Station, YAML.ToYAML(store)(Station, lyon)));
 
 console.log("TextEncodings: all checks passed");

@@ -1,9 +1,9 @@
 /**
  * JSON: a thin text encoding of `Plain` data.
  *
- * `ToJSON(schema, value)` returns JSON text; `FromJSON(builders)(schema, text)` rebuilds values with the given
- * implementation's builders. Both mirror `Plain`: calling them dispatches on the schema's kind, and `.OfNative`,
- * `.OfObject` and `.Reachable` are the specific forms.
+ * `ToJSON(store)(schema, value)` returns JSON text, naming the schemas of objects in `store`, and
+ * `FromJSON(store)(schema, text)` rebuilds values in `store`. Both mirror `Plain`: calling them dispatches on the
+ * schema's kind, and `.OfNative`, `.OfObject` and `.Reachable` are the specific forms.
  *
  * The encoding is strict JSON (RFC 8259). Output never contains NaN or Infinity, because `Schemas.OfNative` gives
  * non-finite floats a plain form. Input with NaN / Infinity literals or duplicate object keys is rejected.
@@ -19,6 +19,7 @@ import * as Plain from "./Plain.js";
 import type { PlainData, PlainMap } from "./Plain.js";
 import { pyFloat, repr, typeName } from "./Repr.js";
 import type * as Schemas from "./Schemas.js";
+import type * as Stores from "./Stores.js";
 import type { Native, Visitable } from "./Visitors.js";
 
 export interface DumpOptions {
@@ -269,25 +270,24 @@ export function loads(input: string | Uint8Array): PlainData {
 
 // --- Entry points ---
 
-function toJSONOfNative(schema: Schemas.OfNative.Data, value: Native, options: DumpOptions = {}): string {
-  return dumps(Plain.ToPlain.OfNative(schema, value), options);
+export interface ToJSONCall {
+  (schema: unknown, value: unknown, options?: DumpOptions): string;
+  OfNative(schema: Schemas.OfNative.Data, value: Native, options?: DumpOptions): string;
+  OfObject(schema: Schemas.OfObject.Data, value: Visitable, options?: DumpOptions): string;
+  Reachable(schema: Schemas.OfObject.Data, value: Visitable, options?: DumpOptions): string;
 }
 
-function toJSONOfObject(schema: Schemas.OfObject.Data, value: Visitable, options: DumpOptions = {}): string {
-  return dumps(Plain.ToPlain.OfObject(schema, value), options);
+/** Encodes values, naming the schemas of objects in `store`: `ToJSON(store)(schema, value)` dispatches on the schema's
+ * kind. */
+export function ToJSON(store: Stores.Store): ToJSONCall {
+  const plain = Plain.ToPlain(store);
+  const call = (schema: unknown, value: unknown, options: DumpOptions = {}): string => dumps(plain(schema, value), options);
+  return Object.assign(call, {
+    OfNative: (schema: Schemas.OfNative.Data, value: Native, options: DumpOptions = {}) => dumps(plain.OfNative(schema, value), options),
+    OfObject: (schema: Schemas.OfObject.Data, value: Visitable, options: DumpOptions = {}) => dumps(plain.OfObject(schema, value), options),
+    Reachable: (schema: Schemas.OfObject.Data, value: Visitable, options: DumpOptions = {}) => dumps(plain.Reachable(schema, value), options),
+  });
 }
-
-function toJSONReachable(schema: Schemas.OfObject.Data, value: Visitable, options: DumpOptions = {}): string {
-  return dumps(Plain.ToPlain.Reachable(schema, value), options);
-}
-
-/** `ToJSON(schema, value)` dispatches on the schema's kind. */
-export const ToJSON = Object.assign(
-  function ToJSON(schema: unknown, value: unknown, options: DumpOptions = {}): string {
-    return dumps(Plain.ToPlain(schema, value), options);
-  },
-  { OfNative: toJSONOfNative, OfObject: toJSONOfObject, Reachable: toJSONReachable },
-);
 
 export interface FromJSONCall {
   (schema: unknown, text: string | Uint8Array): unknown;
@@ -296,9 +296,9 @@ export interface FromJSONCall {
   Reachable(schema: Schemas.OfObject.Data, text: string | Uint8Array): unknown;
 }
 
-/** Decodes JSON, building objects with the given implementation's builders, e.g. `FromJSON(Proxies.Builders)`. */
-export function FromJSON(builders: Plain.Builders): FromJSONCall {
-  const plain = Plain.FromPlain(builders);
+/** Decodes JSON, building objects in `store`: `FromJSON(store)(schema, text)`. */
+export function FromJSON(store: Stores.Store): FromJSONCall {
+  const plain = Plain.FromPlain(store);
   const call = (schema: unknown, text: string | Uint8Array): unknown => plain(schema, loads(text));
   return Object.assign(call, {
     OfNative: (schema: Schemas.OfNative.Data, text: string | Uint8Array) => plain.OfNative(schema, loads(text)),

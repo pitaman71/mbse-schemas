@@ -1,8 +1,9 @@
 /**
  * Plain: conversion between values and plain data (maps, lists, strings, numbers, booleans, null).
  *
- * `ToPlain(schema, value)` and `FromPlain(builders)(schema, plain)` dispatch on the schema's kind;
- * `ToPlain.OfObject(...)` etc. are the per-kind forms. JSON and YAML are thin text encodings of plain data.
+ * `ToPlain(store)(schema, value)` and `FromPlain(store)(schema, plain)` dispatch on the schema's kind;
+ * `ToPlain(store).OfObject(...)` etc. are the per-kind forms. The store (see `Stores`) names the schemas of the objects
+ * written, and builds the objects read. JSON and YAML are thin text encodings of plain data.
  *
  * Plain data keeps Python's distinctions: an int is a `bigint` and a float is a `number`, and a mapping is a
  * `Map<string, PlainData>` (which keeps insertion order for every key, unlike object literals).
@@ -12,11 +13,10 @@
  * properties to plain values; the object's own link is implied. A reference is `{"$ref": symbol, "$schema": name}`:
  * object content carries no schema, so references carry the schema name, and the root schema is passed in.
  *
- * `ToPlain.OfObject` includes only the root object, so its references are unresolved and `FromPlain` rejects them.
- * `ToPlain.Reachable` also includes every object reachable through adjacencies (see `Reachable`).
+ * `ToPlain(store).OfObject` includes only the root object, so its references are unresolved and `FromPlain` rejects
+ * them. `ToPlain(store).Reachable` also includes every object reachable through adjacencies (see `Reachable`).
  *
- * The serializers are visitors: a value writes itself into them through `Visitable.accept`. `FromPlain` is
- * constructed with the builders to build with, e.g. `FromPlain(Proxies.Builders)`.
+ * The serializers are visitors: a value writes itself into them through `Visitable.accept`.
  *
  * A value object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties.
  * Union and intersection values are written the same way, with the union's branches or the intersection's parts as
@@ -30,6 +30,7 @@ import * as Proxies from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
 import { repr, sortedStrings, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
+import type * as Stores from "./Stores.js";
 import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIndexed, OfIntersection, OfItem, OfLink, OfNative, OfObject,
   OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
@@ -525,18 +526,11 @@ export class _ObjectWriter extends _RecordWriter implements OfObject {
 
 // --- Snapshots ---
 
-/** What `FromPlain` needs from an implementation, e.g. `Proxies.Builders`: `builders[name](instance)` returns a
- * builder for the schema registered as `name`. */
-export interface Builders {
-  schema(name: string): Schemas.OfObject.Data;
-  name_of(schema: Schemas.OfObject.Data): string;
-  /** The value `instance` holds in its property `name`, e.g. a value object. */
-  member(instance: unknown, name: string): unknown;
-}
-
 /** Assigns symbols 1:1 to object identities, in first-reference order, and writes the included objects. */
 class Snapshot {
   private readonly symbols = new Map<unknown, string>();
+
+  constructor(private readonly store: Stores.Store) {}
 
   private symbol(value: Visitable): string {
     let symbol = this.symbols.get(value.identity());
@@ -555,7 +549,7 @@ class Snapshot {
   };
 
   run(schema: Schemas.OfObject.Data, root: Visitable, include: Visitable[]): PlainMap {
-    if (Proxies.schema(root.schema_name()) !== schema) {
+    if (this.store.schema(root.schema_name()) !== schema) {
       throw new TypeError(`value is a ${repr(root.schema_name())}, not an instance of the given schema`);
     }
     if (!schema.ref) {
@@ -567,7 +561,7 @@ class Snapshot {
     const objects: PlainMap = new Map();
     for (const value of include) {
       const out: PlainMap = new Map();
-      value.accept(new _ObjectWriter(out, Proxies.schema(value.schema_name()), this.ref, symbol));
+      value.accept(new _ObjectWriter(out, this.store.schema(value.schema_name()), this.ref, symbol));
       objects.set(this.symbol(value), out);
     }
     for (const value of include) { // an object whose schema nothing else gives carries it: one linked only by value objects
@@ -785,7 +779,7 @@ type Decoded = Map<string, [Map<string, unknown>, Rows]>;
 /** Checks a snapshot against the schemas and decodes its values before anything is built. Returns the root symbol,
  * each reference object's schema name, the decoded reference objects, where each value object with a symbol is, and
  * the entries of value objects. Problems in the snapshot throw `DecodeError`. */
-function check(builders: Builders, schema: unknown, plain: unknown): [string, Map<string, string>, Decoded, Map<string, Found>, [Found, Rows][]] {
+function check(store: Stores.Store, schema: unknown, plain: unknown): [string, Map<string, string>, Decoded, Map<string, Found>, [Found, Rows][]] {
   if (!(schema instanceof Schemas.OfObject.Data)) {
     throw new TypeError(`the root schema must be an object schema, got ${schemaTypeName(schema)}`);
   }
@@ -805,7 +799,7 @@ function check(builders: Builders, schema: unknown, plain: unknown): [string, Ma
   }
 
   // Pass 1: infer each reference object's schema from the references to it.
-  const names = new Map<string, string>([[root, builders.name_of(schema)]]);
+  const names = new Map<string, string>([[root, store.name_of(schema)]]);
   const values: [string, Where][] = []; // references to value objects, checked once their symbols are known
   const found = (ref: PlainMap, where: Where): void => {
     const target = ref.get(REF) as string;
@@ -843,7 +837,7 @@ function check(builders: Builders, schema: unknown, plain: unknown): [string, Ma
     if (name === undefined) continue;
     let objectSchema: Schemas.OfObject.Data;
     try {
-      objectSchema = builders.schema(name);
+      objectSchema = store.schema(name);
     } catch (error) {
       if (error instanceof AttributeError || error instanceof LookupError || error instanceof TypeError) {
         throw new DecodeError(`no object schema registered as ${repr(name)}`, { path: path("objects", symbol) });
@@ -889,20 +883,18 @@ type BuilderLike = {
   adjacency(name: string, callback: Callback<OfAdjacency>): unknown;
 };
 
-function builderFor(builders: Builders, name: string, instance?: unknown): BuilderLike {
-  const factory = (builders as unknown as Record<string, (instance?: unknown) => BuilderLike>)[name] as
-    (instance?: unknown) => BuilderLike;
-  return instance === undefined ? factory() : factory(instance);
+function builderFor(store: Stores.Store, name: string, instance?: unknown): BuilderLike {
+  return (instance === undefined ? store.builder(name) : store.builder(name, instance)) as BuilderLike;
 }
 
-/** Rebuilds objects from an object snapshot using `builders`. Every reference must resolve within the snapshot:
+/** Rebuilds objects from an object snapshot in `store`. Every reference must resolve within the snapshot:
  * reference objects are built first, with the value objects they hold, then the entries are added. */
-function restore(builders: Builders, schema: Schemas.OfObject.Data, plain: unknown): unknown {
-  const [root, names, decoded, ids, entries] = check(builders, schema, plain);
+function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unknown): unknown {
+  const [root, names, decoded, ids, entries] = check(store, schema, plain);
 
   const created = new Map<string, unknown>();
   for (const [symbol, [properties]] of decoded) {
-    const builder = builderFor(builders, names.get(symbol) as string);
+    const builder = builderFor(store, names.get(symbol) as string);
     for (const [key, value] of properties) set(builder, key, value);
     created.set(symbol, builder.create());
   }
@@ -914,7 +906,7 @@ function restore(builders: Builders, schema: Schemas.OfObject.Data, plain: unkno
     let target = created.get(found.owner);
     for (const [key] of found.steps) { // a step into a keyed list is by position, as into any list
       if (typeof key === "number") target = target instanceof Proxies.OfIndexed.Map ? target.values()[key] : (target as readonly unknown[])[key];
-      else target = builders.member(target, key);
+      else target = store.member(target, key);
     }
     return target;
   };
@@ -922,7 +914,7 @@ function restore(builders: Builders, schema: Schemas.OfObject.Data, plain: unkno
   const nested = new Map<string, [Found, Rows][]>();
   for (const [found, rows] of entries) nested.set(found.owner, [...(nested.get(found.owner) ?? []), [found, rows]]);
   for (const [symbol, [, adjacencies]] of decoded) {
-    const builder = builderFor(builders, names.get(symbol) as string, created.get(symbol));
+    const builder = builderFor(store, names.get(symbol) as string, created.get(symbol));
     for (const [key, rows] of adjacencies) {
       for (const row of rows) builder.adjacency(key, (a) => a.add((x) => fill(x, row, resolve)));
     }
@@ -1002,25 +994,30 @@ function toPlainOfNative(schema: Schemas.OfNative.Data, value: Native): PlainDat
   return schema.to_plain(value);
 }
 
-/** Snapshot of `value` alone; its references to other objects are left unresolved. */
-function toPlainOfObject(schema: Schemas.OfObject.Data, value: Visitable): PlainMap {
-  return new Snapshot().run(schema, value, [value]);
+export interface ToPlainCall {
+  (schema: unknown, value: unknown): PlainData;
+  OfNative(schema: Schemas.OfNative.Data, value: Native): PlainData;
+  /** Snapshot of `value` alone; its references to other objects are left unresolved. */
+  OfObject(schema: Schemas.OfObject.Data, value: Visitable): PlainMap;
+  /** Snapshot of `value` and every object reachable from it through adjacencies (see `Reachable`). */
+  Reachable(schema: Schemas.OfObject.Data, value: Visitable): PlainMap;
 }
 
-/** Snapshot of `value` and every object reachable from it through adjacencies (see `Reachable`). */
-function toPlainReachable(schema: Schemas.OfObject.Data, value: Visitable): PlainMap {
-  return new Snapshot().run(schema, value, Reachable.of(value));
-}
-
-/** `ToPlain(schema, value)` dispatches on the schema's kind. */
-export const ToPlain = Object.assign(
-  function ToPlain(schema: unknown, value: unknown): PlainData {
+/** Serializes values to plain data, naming the schemas of objects in `store`: `ToPlain(store)(schema, value)`
+ * dispatches on the schema's kind. */
+export function ToPlain(store: Stores.Store): ToPlainCall {
+  const OfObject = (schema: Schemas.OfObject.Data, value: Visitable): PlainMap => new Snapshot(store).run(schema, value, [value]);
+  const call = (schema: unknown, value: unknown): PlainData => {
     if (schema instanceof Schemas.OfNative.Data) return toPlainOfNative(schema, value as Native);
-    if (schema instanceof Schemas.OfObject.Data) return toPlainOfObject(schema, value as Visitable);
+    if (schema instanceof Schemas.OfObject.Data) return OfObject(schema, value as Visitable);
     throw new NotImplementedError(`${schemaTypeName(schema)} is not supported by Plain yet`);
-  },
-  { OfNative: toPlainOfNative, OfObject: toPlainOfObject, Reachable: toPlainReachable },
-);
+  };
+  return Object.assign(call, {
+    OfNative: toPlainOfNative,
+    OfObject,
+    Reachable: (schema: Schemas.OfObject.Data, value: Visitable): PlainMap => new Snapshot(store).run(schema, value, Reachable.of(value)),
+  });
+}
 
 export interface FromPlainCall {
   (schema: unknown, plain: unknown): unknown;
@@ -1029,9 +1026,9 @@ export interface FromPlainCall {
   Reachable(schema: Schemas.OfObject.Data, plain: unknown): unknown;
 }
 
-/** Deserializes plain data, building objects with the given implementation's builders, e.g.
- * `FromPlain(Proxies.Builders)(schema, plain)`. Calling it dispatches on the schema's kind. */
-export function FromPlain(builders: Builders): FromPlainCall {
+/** Deserializes plain data, building objects in `store`: `FromPlain(store)(schema, plain)` dispatches on the schema's
+ * kind. */
+export function FromPlain(store: Stores.Store): FromPlainCall {
   const OfNative = (schema: Schemas.OfNative.Data, plain: unknown): Native => {
     try {
       return schema.from_plain(plain);
@@ -1039,7 +1036,7 @@ export function FromPlain(builders: Builders): FromPlainCall {
       throw (error as DecodeError).at("$"); // from_plain throws only DecodeError
     }
   };
-  const OfObject = (schema: Schemas.OfObject.Data, plain: unknown): unknown => restore(builders, schema, plain);
+  const OfObject = (schema: Schemas.OfObject.Data, plain: unknown): unknown => restore(store, schema, plain);
   const call = (schema: unknown, plain: unknown): unknown => {
     if (schema instanceof Schemas.OfNative.Data) return OfNative(schema, plain);
     if (schema instanceof Schemas.OfObject.Data) return OfObject(schema, plain);

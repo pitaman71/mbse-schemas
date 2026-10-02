@@ -1,8 +1,8 @@
 /**
  * Validators: check data against its schema, only when the caller asks.
  *
- * `Validate(registry)(schema, value)` returns a list of problems (empty when valid). It is constructed with a registry
- * that looks schemas up by name, e.g. `Proxies.Builders`. `Validate(registry).Reachable(schema, root)` checks the root
+ * `Validate(store)(schema, value)` returns a list of problems (empty when valid). It is constructed with the store that
+ * looks schemas up by name (see `Stores`). `Validate(store).Reachable(schema, root)` checks the root
  * and every object reachable from it.
  *
  * The validator is a visitor: each object writes itself into a recorder through `Visitable.accept`. Checks:
@@ -25,14 +25,9 @@ import { nativeKey } from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
 import { repr, sortedStrings, tokenName, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
+import type * as Stores from "./Stores.js";
 import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIndexed, OfIntersection, OfItem, OfLink, OfNative,
   OfObject, OfProperty, OfUnion, Visitable } from "./Visitors.js";
-
-/** Looks schemas up by name, e.g. `Proxies.Builders`. */
-export interface Registry {
-  schema(name: string): Schemas.OfObject.Data;
-  name_of(schema: Schemas.OfObject.Data): string;
-}
 
 // --- Recorders: Visitors that capture what an object writes into them ---
 
@@ -426,7 +421,7 @@ class Check {
   /** The links to value objects, checked once every value object has been seen. */
   private readonly valueLinks: [string, Schemas.OfRelation.Data, string, Visitable][] = [];
 
-  constructor(private readonly registry: Registry) {}
+  constructor(private readonly store: Stores.Store) {}
 
   private schema(label: string, schema: { validate(): string[] }): void {
     if (this.schemasChecked.has(schema)) return;
@@ -550,7 +545,7 @@ class Check {
         this.valueLinks.push([label, relation, name, target]);
         continue;
       }
-      const problem = filling(relation, name, target, this.registry.schema(target.schema_name()));
+      const problem = filling(relation, name, target, this.store.schema(target.schema_name()));
       if (problem !== null) problems.push(`${label}.${name}: ${problem}`);
     }
     for (const [name, item] of entry.values) {
@@ -632,15 +627,15 @@ export interface ValidateCall {
   Reachable(schema: Schemas.OfObject.Data, root: Visitable): string[];
 }
 
-/** Validates data against its schema. `Validate(registry)(schema, value)` dispatches on the schema's kind. */
-export function Validate(registry: Registry): ValidateCall {
+/** Validates data against its schema. `Validate(store)(schema, value)` dispatches on the schema's kind. */
+export function Validate(store: Stores.Store): ValidateCall {
   const run = (schema: Schemas.OfObject.Data, values: Visitable[]): string[] => {
     const root = values[0] as Visitable;
-    if (registry.schema(root.schema_name()) !== schema) {
+    if (store.schema(root.schema_name()) !== schema) {
       return [`the value is a ${repr(root.schema_name())}, not an instance of the given schema`];
     }
-    const check = new Check(registry);
-    values.forEach((value, i) => check.object(`${value.schema_name()}#${i}`, registry.schema(value.schema_name()), value));
+    const check = new Check(store);
+    values.forEach((value, i) => check.object(`${value.schema_name()}#${i}`, store.schema(value.schema_name()), value));
     check.links();
     check.uniques();
     return check.problems;

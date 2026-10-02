@@ -27,14 +27,14 @@ function read(entry: OfEntry): Row {
  */
 export function entries(obj: Proxies.Instance, adjacency: string): Row[] {
   const rows: Row[] = [];
-  Proxies.Builders[obj.schema_name()](obj).adjacency(adjacency, (a: OfAdjacency) => a.entries((e) => rows.push(read(e))));
+  Proxies.store_of(obj).builder(obj.schema_name(), obj).adjacency(adjacency, (a: OfAdjacency) => a.entries((e) => rows.push(read(e))));
   return rows;
 }
 
 /** Removes the entries of `obj`'s adjacency for which `where(row)` is true; `row` is as returned by `entries`.
  * Returns the updated object. (Case study 3.) */
 export function remove_entries(obj: Proxies.Instance, adjacency: string, where: (row: Row) => boolean): Proxies.Instance {
-  return Proxies.Builders[obj.schema_name()](obj)
+  return Proxies.store_of(obj).builder(obj.schema_name(), obj)
     .adjacency(adjacency, (a: OfAdjacency) => {
       const doomed: OfEntry[] = [];
       a.entries((e) => (where(read(e)) ? doomed.push(e) : undefined));

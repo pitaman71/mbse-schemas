@@ -1,6 +1,6 @@
 /** Shared helpers for the test notebooks. Each notebook runs in its own process, so registries start empty. */
 
-import { Plain, Reachable } from "@mbse/schemas/Framework";
+import { Plain, Proxies, Reachable } from "@mbse/schemas/Framework";
 import type { PlainData, PlainMap } from "@mbse/schemas/Framework/Plain";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import type { OfObject } from "@mbse/schemas/Framework/Schemas";
@@ -81,7 +81,7 @@ export function same(a: readonly unknown[], b: readonly unknown[]): boolean {
 /** An object's entries with references resolved to objects, read from a Reachable snapshot (symbols follow
  * `Reachable.of` order). */
 export function entries(schema: OfObject.Data, obj: Visitable, adjacency: string): Map<string, any>[] {
-  const graph = Plain.ToPlain.Reachable(schema, obj);
+  const graph = Plain.ToPlain(Proxies.store_of(obj)).Reachable(schema, obj);
   const objects = Reachable.of(obj);
   const root = (graph.get("objects") as PlainMap).get(graph.get("root") as string) as PlainMap;
   const resolve = (value: PlainData): unknown => (value instanceof Map ? objects[Number(String(value.get("$ref")).slice(1))] : value);
@@ -205,10 +205,19 @@ export const PROTOCOLS: Record<string, Record<string, number>> = {
   Visitable: { identity: 0, schema_name: 0, owner: 0, accept: 1 },
 };
 
+/** Parameter counts of the store protocol's methods, from Python's `Stores.Store`. */
+export const STORE_PROTOCOLS: Record<string, Record<string, number>> = {
+  Store: { schema: 1, registered: 1, name_of: 1, names: 0, builder: 2, member: 2, extent: 1 },
+};
+
+function methodsOf(protocol: string): Record<string, number> {
+  return PROTOCOLS[protocol] ?? STORE_PROTOCOLS[protocol] ?? {};
+}
+
 /** Methods of `protocol` that `implementation` lacks, or declares with a different number of parameters. */
 export function conformance_problems(implementation: { name: string; prototype: object }, protocol: string): string[] {
   const problems: string[] = [];
-  for (const [method, arity] of Object.entries(PROTOCOLS[protocol] ?? {})) {
+  for (const [method, arity] of Object.entries(methodsOf(protocol))) {
     const member = (implementation.prototype as Record<string, unknown>)[method];
     if (typeof member !== "function") {
       problems.push(`${implementation.name} lacks ${protocol}.${method}`);
@@ -221,7 +230,7 @@ export function conformance_problems(implementation: { name: string; prototype: 
 
 /** The same check on a live instance: catches instance attributes that shadow protocol methods. */
 export function instance_problems(instance: object, protocol: string): string[] {
-  return Object.keys(PROTOCOLS[protocol] ?? {})
+  return Object.keys(methodsOf(protocol))
     .filter((method) => typeof (instance as Record<string, unknown>)[method] !== "function")
     .map((method) => `${instance.constructor.name} instance: ${protocol}.${method} is not callable`);
 }

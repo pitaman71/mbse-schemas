@@ -26,6 +26,7 @@ function keyed(key: Schemas.OfAny.Spec, spec: Schemas.OfAny.Spec) {
 
 export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   const S = Schemas;
+  const store = new Proxies.OfStore();
 
   // --- address_book ---
   const Contact = new S.OfObject.Builder().ref().properties(text("given_name"), text("family_name"), text("birth_date")).create();
@@ -123,9 +124,9 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
     ["Notebook", Notebook], ["Note", Note], ["Pages", Pages],
     ["Card", Card], ["Deck", Deck], ["Holding", Holding],
     ["Hub", Hub], ["Line", Line], ["Board", Board], ["Panel", Panel], ["Cable", Cable]] as const) {
-    Proxies.register(name, schema);
+    store.register(name, schema);
   }
-  const B = Proxies.Builders;
+  const B = store;
 
   const home = B.Address().street1("10 Downing Street").locality("London").postal_code("SW1A 2AA").country_code("GB").create();
   const alice = B.Contact().given_name("Alice").family_name("Liddell").birth_date("1852-05-04")
@@ -216,7 +217,7 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
     Size: Schemas.OfNative.resolve((n) => n.token("ccpp", "size_t").bytes(8n)),
     Contact, Address, ContactAddresses, Person, Parentage, Card, Deck, Holding, Board, Panel,
   };
-  const module = Modules.module(schemas) as Instance;
+  const module = Modules.module(store, schemas) as Instance;
 
   return new Map<string, [Schemas.OfObject.Data, Instance]>([
     ["address_book", [Contact, alice]],

@@ -54,5 +54,8 @@ npm run portability                         # the core without Node (browser bun
   this checkout as it is, and pin a release with their `scripts/siblings.py pin`. A change that spans repositories is
   made in a workspace from a dependent's `scripts/siblings.py workspace <dir> --branch <name> --edit mbse-schemas`, so
   that parallel work elsewhere does not see it half-finished, and landed with its `scripts/siblings.py land <dir>`.
+  That tool is kept here, in [scripts/siblings.py](scripts/siblings.py), and each dependent's copy only runs it; its
+  tests are `python3 -m unittest discover -s scripts`. It is scaffolding while the repositories co-evolve unpublished:
+  keep it small.
 - Generated bindings will live in one repository per target language (e.g. mbse-cpp, mbse-python, mbse-typescript,
   mbse-systemverilog), each depending on this one.

@@ -99,6 +99,10 @@ The tutorial explains the reasoning behind each of these.
 
 ## Getting started
 
+mbse-expressions and mbse-programs depend on this repository as a sibling checkout: they expect it beside them, at
+`../mbse-schemas`, and pin the version they were tested with. A release is the tag `v<version>`, shared by the Python
+and TypeScript packages.
+
 Python (3.11+, managed with [uv](https://docs.astral.sh/uv/)):
 
 ```sh

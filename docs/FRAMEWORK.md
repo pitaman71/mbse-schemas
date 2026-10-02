@@ -146,9 +146,10 @@ configures the builder; it is not part of the resulting schema, which stays seri
 
 Instances of a user schema follow the same pattern. With the dynamic (proxy) implementation (see `python3/mbse/Schemas/Examples/AddressBook.py` and `typescript5/src/Examples/AddressBook.ts`):
 
-- `Proxies.register('Name', schema)` registers a schema under a global name. The name is a string, so it need not be a
-  valid identifier in any host language (e.g. dotted or versioned names).
-- `Proxies.Builders.Name(optional instance)` returns a builder for that schema with one fluent setter per property
+- `store = Proxies.OfStore()` makes a store (see Stores), and `store.register('Name', schema)` registers a schema in
+  it under a name. The name is a string, so it need not be a valid identifier in any host language (e.g. dotted or
+  versioned names).
+- `store.Name(optional instance)` returns a builder for that schema with one fluent setter per property
   (e.g. `.street1('foo')`), finalized by `create()` / `clone()` / `update()` as above.
 - Relation entries are added through the object builder's adjacency accessors, never through a relation builder
   (none is exposed to the caller). An accessor takes a `Spec` for the entry. The object fills its own link (`me`); the
@@ -183,18 +184,19 @@ This is known as the "builder pattern" and must be followed by proxies, generate
 Implementation is strictly typed in all languages - parameters, returns, etc.
 
 - `Visitors` : for each schema element `OfX`, `Visitors.OfX` defines a schema-agnostic interface for a handle that can traverse, analyze, and modify a data structure provided its schema object regardless of whether or not the source for that process knows the schema at compile time. `Visitors.OfAny` dispatches on kind through `as_<kind>(callback)` methods: each passes the kind's visitor to the callback and returns `self`, so calls chain; when reading, only the callback for the value's actual kind runs. More generally, visitors never return child visitors (properties, adjacencies, entries, links, union and intersection values); they pass them to callbacks. Every visitor method that is not a query returns `self`, so calls chain.
-- `Schemas` : for each schema element `OfX`, `Schemas.OfX.Data` is used to capture a schema. Schemas may be named (registered by a global name in `Factories.Directory`) or appear inline without a name.
-- `Factories` : for each schema element `OfX`, `Factories.OfX` is an interface for constructing an instance of schema element `OfX` and for fetching the corresponding schema itself. `Factories.Directory` describes a singleton object used to register schemas by a global name, which results in the creation of a singleton factory for that schema, and obtain the corresponding factory by a global name. `Factories.Directory` is also the sole source for `Visitors`: client code obtains visitors through `Factories` rather than instantiating classes that implement `Visitors` itself. This does not restrict which classes implement the `Visitors` protocol: builders and serializers (e.g. `Plain`, `JSON`) do. Proxies do not implement `Visitors`.
+- `Schemas` : for each schema element `OfX`, `Schemas.OfX.Data` is used to capture a schema. Schemas may be named (registered by a name in a store) or appear inline without a name.
+- `Stores` : `Stores.Store` is the protocol of a store, the root object through which schemas, builders and objects
+  are located (see Stores). Everything that looks a schema up by name takes a store.
 
 - `Mutations` : for each schema element `OfX`, `Mutations.OfX` is used to represent incremental changes to anything that has a schema,
   including schemas themselves (via their meta-schemas). Mutation types scale with the number of schema elements, not with the number of user schemas.
   The vocabulary for each kind is the obvious set for that kind (e.g. creating and deleting an `OfObject`, setting its
   properties, adding and removing `OfRelation` entries).
 
-- `Validators` : `Validators.Validate(registry)(schema, value)` checks data against its schema and returns a list of
+- `Validators` : `Validators.Validate(store)(schema, value)` checks data against its schema and returns a list of
   problems, each with a path (e.g. `Student#0.enrollments[1].credits: expected int, got bool`). `.Reachable(schema, root)`
-  checks everything reachable from the root. It is constructed with a registry that looks schemas up by name (e.g.
-  `Proxies.Builders`), and runs only when the caller asks. It checks the schemas' own `validate()`, exact native types
+  checks everything reachable from the root. It is constructed with the store that looks schemas up by name, and runs
+  only when the caller asks. It checks the schemas' own `validate()`, exact native types
   of properties and entry properties, that every link is set and filled by an object whose schema declares an
   adjacency via that link, `unique(...)` clauses over the entries seen, value objects' properties and entries
   recursively (a link to a value object is checked against its schema when its owner is validated too),
@@ -209,8 +211,9 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   into it, and compares it with another recording: `a.compare(b)` returns -1, 0, 1, or `None` when incomparable. See
   `EQUALITY.md`.
 
-- `Modules` : schemas as data. `Modules.module(schemas)` returns an object of the meta-schema `Schemas.Module.Schema`
-  holding schemas by name, and `Modules.schemas(module)` the schemas it holds. See Meta-schemas.
+- `Modules` : schemas as data. `Modules.module(store, schemas)` returns an object of the meta-schema
+  `Schemas.Module.Schema`, built in `store`, holding schemas by name, and `Modules.schemas(store, module)` the schemas
+  it holds. See Meta-schemas.
 
 - `Adapters` : translate between a language's own type declarations and schemas, so they are specific to each
   language. Python has `Adapters.Dataclasses`: `FromDataclass(cls)` returns the `OfObject` a dataclass describes and
@@ -223,6 +226,39 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   fields only for adjacencies via a relation's first link. Defaults, mandatoriness and nested classes (value
   objects) are left out or refused.
 
+## Stores
+
+A store is the root object of a body of data: it holds schemas by name, and the objects built with them. Code locates
+schemas, builders and objects through a store, never through a global. Implemented in `Proxies.OfStore` and
+`Bindings.OfStore`; envisioned also for generated (language-optimized) data structures, SQL and noSQL databases, and
+in-memory cache slices.
+
+- **`Stores.Store` is the protocol**, which every implementation of the framework meets:
+  - `schema(name)`: the object schema registered as `name` (`AttributeError` if none is; `TypeError` for a relation);
+    `registered(name)`: the object or relation schema (`LookupError` if none is); `name_of(schema)`: the name a schema
+    is registered under (`LookupError` if it is not); `names()`: every registered name, in registration order.
+  - `builder(name, instance=None)`: a builder for the object schema `name`, a `Visitors.OfObject` finalized by
+    `create()`, or by `clone()` / `update()` of `instance`.
+  - `member(instance, name)`: the value an instance holds in its property `name` (a value object, a union's branch).
+  - `extent(name)`: the reference objects of the schema `name` that the store holds, in the order they were made.
+- **A store holds its objects.** Every reference object built through a store, by a builder or by decoding, is in its
+  schema's extent, and lives as long as the store does (deleting objects is not built yet). Value objects are reached
+  through their owners, not extents. A store's relation entries are its own too.
+- **Stores are isolated.** Each store has its own schemas, objects and entries: two stores may register the same name,
+  and an object of one store cannot be linked to, or used as the source of a builder in, another ("the object belongs
+  to another store"). Tests and programs make the stores they need. Objects move between stores, or implementations,
+  as snapshots.
+- **Every store starts with the meta-schemas registered** (`Schemas.Module` and the schemas it refers to), so a store
+  can hold modules of schemas (see Meta-schemas).
+- **Everything that looks schemas up takes a store**: `Plain.ToPlain(store)` and `Plain.FromPlain(store)`, the JSON and
+  YAML forms, `Validators.Validate(store)`, `Modules.module(store, ...)` and `Modules.schemas(store, ...)`, and a
+  builder inferring the schema of an object it creates through a link (from the store's schemas).
+- **Queries are an extension.** The protocol locates schemas, builders and extents; selecting objects by a condition
+  belongs to [mbse-expressions](https://github.com/pitaman71/mbse-expressions), whose expressions are the conditions. A
+  store that can answer a query natively (a database) may do so behind the same extension.
+- **Implicit singletons will live in a store**: a store will hold the one instance of each singleton schema registered
+  in it.
+
 ## Proxies
 
 - `Proxies` : for each schema element `OfX`, `Proxies.OfX.Data` defines how the schema can be stored in memory as schema-independent types, and `Proxies.OfX.Builder`, like every builder, implements `Visitors.OfX`. Proxies themselves do not implement `Visitors`; if they have an interface for traversal, it is `Visitable` (a proxy accepts a visitor), not `Visitor`. `Proxies.OfX.Builder.validate` can be used to check the current state of the configured item. Validation is never implicit: it runs only when the caller invokes it.
@@ -231,7 +267,7 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
 
 `Proxies` gives any registered schema dynamic instances; `Bindings` gives a program's own classes, written or generated
 in its language, the same part in the framework: their instances are `Visitable`, they have builders that implement
-`Visitors.OfObject`, and a registry rebuilds them from snapshots. It is the core the generated bindings (mbse-python,
+`Visitors.OfObject`, and a store rebuilds them from snapshots. It is the core the generated bindings (mbse-python,
 mbse-typescript, ...) will share, and mbse-expressions' expressions are its first user.
 
 - **A binding pairs a reference object schema with a class.** `Bindings.Binding(schema, read, make)` is the schema, the
@@ -243,8 +279,8 @@ mbse-typescript, ...) will share, and mbse-expressions' expressions are its firs
 - **Everything else is generic.** `Bindings.accept(binding, instance, visitor)` writes an instance through the
   visitor protocols, so the class's `accept` is one line; `Bindings.Builder(binding, instance)` is a
   `Visitors.OfObject` over a state, with every value kind the schema declares (natives checked by type, value objects,
-  unions and lists through plain data), `create()`, `clone()` and `update()`; and `Bindings.Registry` gives
-  `Plain.FromPlain` the builders by schema name. A class's own builder derives from `Bindings.Builder` for its DSL.
+  unions and lists through plain data), `create()`, `clone()` and `update()`; and `Bindings.OfStore(bindings)` is a
+  store of bound classes (see Stores), whose extents hold the instances its builders make. A class's own builder derives from `Bindings.Builder` for its DSL.
 - **A binding may declare what the schema cannot**: `fixed` properties, whose value is the class's (a tag, such as an
   expression's `kind`), so that writing another raises; `exclusive` groups of properties, of which a state holds at
   most one, so that writing one clears the others (a literal's value, under the property named after its native type);
@@ -258,7 +294,7 @@ mbse-typescript, ...) will share, and mbse-expressions' expressions are its firs
 Both in-memory objects and mutations (see `Mutations`) are serializable.
 
 Over the wire, object content carries no schema. Association of an object with a schema is done dynamically, starting
-from the expected root schema, which is why deserializers such as `Plain.FromPlain(builders)(schema, ...)` take it as an
+from the expected root schema, which is why deserializers such as `Plain.FromPlain(store)(schema, ...)` take it as an
 argument, and continuing through property types and the branch written with each union value. Links are untyped, so a serialized
 reference to a linked reference object carries that object's schema name alongside its symbol. Consequently, a
 reference object that is linked from another object must have a named (registered) schema. A reference to a value
@@ -284,8 +320,9 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
 - Only a `create` mutation creates an object. A reference never creates one.
 
 - `Plain` : for each schema element `OfX`, `Plain.ToPlain.OfX` and `Plain.FromPlain.OfX` implement `Visitors.OfX` and
-  convert between values and plain data (dicts, lists, strings, numbers, booleans, null). `Plain.ToPlain(schema, value)`
-  and `Plain.FromPlain(builders)(schema, plain)` dispatch on the schema's kind. `Schemas.OfNative` converts natives to forms plain
+  convert between values and plain data (dicts, lists, strings, numbers, booleans, null). `Plain.ToPlain(store)(schema,
+  value)` and `Plain.FromPlain(store)(schema, plain)` dispatch on the schema's kind; the store names the schemas of the
+  objects written, and builds the objects read. `Schemas.OfNative` converts natives to forms plain
   data can hold (`bytes` as base64 text; non-finite floats as the strings `NaN`, `Infinity`, `-Infinity`), so text
   encodings never handle that themselves. An object's plain form includes its
   adjacencies; linked objects appear as transaction symbol references, not nested content. Deserializing a snapshot
@@ -297,10 +334,10 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
   included. `Plain.ToPlain.OfObject` includes only the root, so its references
   are unresolved; `Plain.ToPlain.Reachable` includes every object reachable through adjacencies. An entry appears under
   each object it links; on deserialization the duplicate is elided.
-- `JSON` : `JSON.ToJSON(schema, value)` returns JSON text and `JSON.FromJSON(builders)(schema, text)` rebuilds values;
+- `JSON` : `JSON.ToJSON(store)(schema, value)` returns JSON text and `JSON.FromJSON(store)(schema, text)` rebuilds values;
   both mirror `Plain` (`.OfNative`, `.OfObject`, `.Reachable`). Output is strict JSON (RFC 8259) with key order kept;
   input with NaN / Infinity literals or duplicate keys is rejected.
-- `YAML` : `YAML.ToYAML` / `YAML.FromYAML(builders)`, mirroring `JSON`. Requires PyYAML (the `yaml` extra), imported
+- `YAML` : `YAML.ToYAML(store)` / `YAML.FromYAML(store)`, mirroring `JSON`. Requires PyYAML (the `yaml` extra), imported
   only when used. Loading follows the YAML 1.2 core schema rather than PyYAML's YAML 1.1 defaults: only `true` /
   `false` are booleans, `010` is ten, `1:30` and unquoted dates are strings. Duplicate keys, multiple documents,
   non-string keys and non-plain values (e.g. `!!binary`, `!!set`) are rejected. Dumping quotes any string a YAML 1.1
@@ -341,7 +378,7 @@ properties). The terms are to replace "value object" and "object" throughout the
   ownership, and the schema says which kind it describes: `Schemas.OfObject.Builder().ref()` marks a *reference object
   schema*; an object schema without it is a *value object schema*. A singleton's schema is a reference object schema.
 - **A reference object** stands on its own: a snapshot writes it once among its `objects`, under its symbol. A
-  snapshot's root is a reference object, and `Proxies.Builders.<Name>()` makes only reference objects. A reference
+  snapshot's root is a reference object, and a store's builders (`store.<Name>()`) make only reference objects. A reference
   object schema is never a property's type, directly or as a union's branch or an intersection's part held by a
   property, nor an entry property's: `validate()` reports it ("a reference object schema cannot be a property's
   type"). Reference objects are reached through relations only.
@@ -367,7 +404,7 @@ properties). The terms are to replace "value object" and "object" throughout the
 - **Reachability goes through value objects**: their entries are followed as a reference object's are, and an object
   reached that is a value object brings in the reference object that owns it, which is where it is written.
 - **Decoding** rebuilds a value object through its owner's builder, and finds it again to link it with
-  `Builders.member(instance, name)`, the value an instance holds in a property (a union's branch, an intersection's
+  `Store.member(instance, name)`, the value an instance holds in a property (a union's branch, an intersection's
   part); a `$ref` to an `$id` resolves to that value object.
 - **Value objects compare deeply**: by their properties, recursively, and by their entries, whose links to reference
   objects compare by identity and to value objects deeply. Their identity does not take part. Reference objects
@@ -494,13 +531,13 @@ Native types and their widths are implemented, and written over the wire by thei
 Schemas are data: each schema kind's data has a meta-schema, `Schemas.OfX.Schema`, a value object schema, so schemas
 are written, read, validated and compared like any other objects.
 
-- **A module holds named schemas.** `Schemas.Module.Schema` is a reference object schema, registered as
+- **A module holds named schemas.** `Schemas.Module.Schema` is a reference object schema, registered in every store as
   `Schemas.Module`, whose `schemas` property is a list of `Schemas.Module.Entry` value objects, each a `name` and a
   `schema`, a `Schemas.Module.Definition`: a union of the schema kinds, `native`, `object`, `union`, `intersection`,
   `indexed` and `relation`. A snapshot of schemas is a snapshot of a module.
-- **`Modules` translates.** `Modules.module(schemas)` returns a module holding schemas given by name (a dict in Python;
-  a Map or a record in TypeScript), built with the given builders (`Proxies.Builders` by default), and
-  `Modules.schemas(module)` the schemas a module holds, by name. Both go through the module's plain form.
+- **`Modules` translates.** `Modules.module(store, schemas)` returns a module holding schemas given by name (a dict in
+  Python; a Map or a record in TypeScript), built in the store, and `Modules.schemas(store, module)` the schemas a
+  module holds, by name. Both go through the module's plain form.
 - **Within a module, schemas are value objects, nested inline**, and their members are lists of value objects, in
   declared order: an object schema's `properties` (`name`, `type`) and `adjacencies` (`name`, `relation`, `me`), with
   its `singleton` and `ref`; a union's `branches` and an intersection's `parts` (`name`, `type`); a relation's `links`
@@ -513,7 +550,7 @@ are written, read, validated and compared like any other objects.
   `Schemas.OfRelation.Ref`, a relation inline or named the same way.
 - **Names make schemas shared.** A schema refers by name to a schema in the module, or a registered one, and writes any
   other inline. Reading creates every named schema first, so names resolve to the same schema, recursive references
-  included: a name resolves within the module, then in the registry. A schema that refers to itself without a name is
+  included: a name resolves within the module, then in the store. A schema that refers to itself without a name is
   refused, and so are a name that resolves nowhere, a relation named as a type or something else named as a
   relation, and a name a module defines twice.
 - **Meta-schemas are defined in code**, never read from data. Modules are built by the builders of any implementation,
@@ -553,7 +590,7 @@ it is fixed here:
 | Keyed lists in proxies | `Mapping` (`m[key]`, iterates keys) | `Map`-shaped (`m.get(key)`, iterates entries) |
 | Schema data equality | `==` | `.equals()` |
 | Errors | built-in `TypeError`, `ValueError`, `AttributeError`, `KeyError`, `LookupError`, `NotImplementedError`; `Errors.DecodeError` | built-in `TypeError`; the others and `DecodeError` exported from `Errors`, with the same names |
-| Callable entry points | `Plain.ToPlain(...)`, `Plain.FromPlain(builders)(...)` (objects with `__call__`) | functions with the per-kind forms attached |
+| Callable entry points | `Plain.ToPlain(store)(...)`, `Plain.FromPlain(store)(...)` (objects with `__call__`) | functions with the per-kind forms attached |
 | Keyword arguments | `ToJSON(..., indent=2)` | options objects: `ToJSON(..., { indent: 2 })` |
 | Dynamic proxies | `__getattr__` | `Proxy`; JavaScript protocol probes (`then`, `toJSON`, symbols) are not schema lookups |
 | Object identity | `id(self)` | a counter, never reused |
@@ -579,14 +616,12 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Snapshots whose two ends disagree (F13) are accepted and restore the union of both ends' entries. Should
   deserialization reject them instead of leaving it to validation?
 
-- `Factories.Directory` global singleton: namespacing/versioning of global names, collision policy, and isolation for tests.
+- Names within a store: namespacing and versioning of schema names (dotted names are only a convention).
 - Where constraints are attached to a schema (e.g. an `OfObject`- or `OfRelation`-level list of expressions) and how
   they are declared in the builder DSL.
 - Equality edge cases listed in `EQUALITY.md` are proposals; confirm them.
-- Multi-object snapshot naming: confirm `Plain.ToPlain.Reachable(schema, value)` /
-  `Plain.FromPlain(builders).Reachable(schema, plain)` (still marked PROPOSED in the example).
-- `Plain.ToPlain` still looks up the schemas of non-root objects in the `Proxies` registry. Should it also be
-  constructed with an implementation's registry, like `FromPlain`?
+- Multi-object snapshot naming: confirm `Plain.ToPlain(store).Reachable(schema, value)` /
+  `Plain.FromPlain(store).Reachable(schema, plain)` (still marked PROPOSED in the example).
 - Snapshot determinism: must two serializations of the same state produce identical output? Entries are now written
   with links and properties in the relation's declared order, but symbols are numbered in first-reference order, and
   entry order within an adjacency depends on history, so a round trip can renumber symbols (see the `FamilyTree` and
@@ -595,8 +630,6 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Uniqueness is global to a relation, but `Validators.Validate(...).Reachable` checks it only over the entries
   reachable from what was validated. Entries in another component that share only property values can go unchecked.
   Is a relation-wide check needed?
-- Is `Factories` an interface, with `Proxies` as its dynamic implementation and generated bindings as typed
-  implementations of the same shape (`register`, `Builders.<Name>`)?
 - Builder syntax proposed by the draft `Schemas.py`, to confirm:
   - `unique` clauses: `.unique('parent', 'key')`, one call per clause.
   - Singletons: `Schemas.OfObject.Builder().singleton('GlobalName')`.
@@ -606,8 +639,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - `Schemas.OfAny.Data` is currently the union of the schema kinds' data (`OfNative`, `OfObject`, `OfUnion`,
   `OfIntersection`). There is no separate "any value" kind yet.
 - Reading an object's entries back (e.g. a contact's phones), and removing an entry through a builder.
-- Mixing implementations: may the same schema be used through both `Proxies` and generated bindings in one program, and
-  may instances pass between them? Intended to be legal under controlled conditions, not yet specified.
+- Mixing implementations within a store: a store has one implementation; objects pass between stores, and so between
+  implementations, as snapshots. May a store combine implementations, e.g. bound classes for some schemas and proxies
+  for the others?
 - Is "an owned child must be part of an ownership chain rooted in an object with a directory entry" still a
   well-formedness rule under symbol-based serialization?
 - Labeling objects outside snapshots: tools other than serializers (diffs, audit logs, debug dumps) have only
@@ -633,7 +667,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - `OfNative` wire conversion (including for literals in expressions) belongs to `Schemas.OfNative`.
 - Builder finalization is `create()` / `clone()` / `update()`; none validate.
 - A program's own classes take part through `Bindings`: a binding pairs a reference object schema with `read`, `make`
-  and `assign`, and the framework gives the rest (`accept`, builders, a registry), so classes and proxies are
+  and `assign`, and the framework gives the rest (`accept`, builders, a store), so classes and proxies are
   interchangeable wherever a `Visitable` and its builders are expected (see Typed bindings).
 - Validation, including well-formedness, runs only when the caller invokes it.
 - `Schemas.OfX.Schema` is the meta-schema for `Schemas.OfX.Data`; a module of schemas is an object of
@@ -658,8 +692,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Object identity on the wire uses transaction-local string symbols with a checkable 1:1 mapping; only `create` creates
   objects.
 - Transactions are flat; mutations may be nested.
-- "Sole source for `Visitors`" means client code obtains visitors via `Factories`; other classes may implement
-  `Visitors`.
+- Stores replace the `Factories` design and every registry: a store (`Stores.Store`) locates schemas, builders,
+  members and extents; it holds its objects, isolated from other stores' (see Stores). There is no global registry.
+  Queries are an extension in mbse-expressions.
 - `clone()` copies the source's adjacency entries to the clone.
 - Building a new object inline through a link (`x.phone(lambda y: ...)`) requires an unambiguous inference of its
   schema: exactly one registered object schema may declare an adjacency to that relation via that link; otherwise it
@@ -674,35 +709,35 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Visitors never return child visitors; they pass them to callbacks. Non-query visitor methods return `self`.
 - A `Schemas.OfAny.Builder` configured with `as_<kind>` finalizes to that kind's data (e.g. `Schemas.OfNative.Data`).
 - Builder methods are fluent and return `self`.
-- Instances of a registered schema are built through `Proxies.Builders.Name(optional instance)` (dynamic implementation),
-  which has one fluent setter per property.
+- Instances of a registered schema are built through `store.Name(optional instance)` (the dynamic implementation,
+  `Proxies.OfStore`), which has one fluent setter per property.
 - Instance properties are read as ordinary attributes (e.g. `addr1.street1`), read-only; changes go through a builder.
   Reading a property that is not set raises an error.
 - Instance setters take a `Spec`: `.street1('foo')` is equivalent to `.street1(lambda v: v.set('foo'))`.
 - A property is cleared with `.street2(lambda v: v.clear())`.
-- JSON and YAML are implemented as `JSON.ToJSON` / `JSON.FromJSON(builders)` and `YAML.ToYAML` /
-  `YAML.FromYAML(builders)`; YAML loads with the YAML 1.2 core schema.
+- JSON and YAML are implemented as `JSON.ToJSON(store)` / `JSON.FromJSON(store)` and `YAML.ToYAML(store)` /
+  `YAML.FromYAML(store)`; YAML loads with the YAML 1.2 core schema.
 - Non-finite floats are plain strings `NaN`, `Infinity`, `-Infinity`, so JSON output stays strict.
-- Serialization goes through one plain-data form, `Plain.ToPlain(schema, value)` / `Plain.FromPlain(builders)(schema, plain)`;
+- Serialization goes through one plain-data form, `Plain.ToPlain(store)(schema, value)` / `Plain.FromPlain(store)(schema, plain)`;
   JSON and YAML are thin text encodings of it.
-- `JSON.ToJSON(schema, value)` / `JSON.FromJSON(builders)(schema, text)` take the schema explicitly, dispatch on its kind
-  (equivalent to `JSON.ToJSON.OfX(...)`), and produce/consume a snapshot.
+- `JSON.ToJSON(store)(schema, value)` / `JSON.FromJSON(store)(schema, text)` take the schema explicitly, dispatch on its
+  kind (equivalent to `JSON.ToJSON(store).OfX(...)`), and produce/consume a snapshot.
 - Sub-structure arguments throughout the builder pattern are `Spec`s: a direct value, or a callable that takes and returns
   the corresponding builder (e.g. `of(...)` takes `Schemas.OfAny.Spec`; `as_native` takes `Schemas.OfNative.Spec`).
 - Both in-memory objects and mutations are serializable, so JSON/YAML cover both.
 - Implementations are equivalent: same API names and messages, byte-identical JSON, and a shared conformance corpus
   checked by each implementation's CONF suite (see Language bindings).
-- Data is validated by `Validators.Validate(registry)`, only when the caller asks; builders do not validate.
+- Data is validated by `Validators.Validate(store)`, only when the caller asks; builders do not validate.
 - Values are compared by `Comparison.OfX` visitors, one per `Visitors.OfX`: `a.compare(b)` is -1, 0, 1, or `None`
   when incomparable. Only `int`, `float`, `str` and `bytes` are ordered.
 - Decoding errors are normalized: every problem in decoded data raises `Errors.DecodeError` (a `ValueError`) with a
   one-line reason and a text or path location, identical across bindings except YAML syntax errors (see Decoding
   errors).
-- `Plain.FromPlain` is constructed with the builders of the implementation to build with, e.g.
-  `Plain.FromPlain(Proxies.Builders)(schema, plain)`.
+- `Plain.ToPlain` and `Plain.FromPlain` are constructed with a store, which names the schemas written and builds the
+  objects read: `Plain.FromPlain(store)(schema, plain)`.
 - Reachability is its own visitor, `Reachable.of(root)`, which returns the root and every reference object reachable
   through adjacencies, value objects' included, in first-reference order. `Plain.ToPlain.Reachable` uses it.
 - Over the wire, object content carries no schema. Association with a schema is dynamic, starting from the expected
-  root schema (hence `FromPlain(builders)(schema, ...)` takes it) and continuing through property types and the
+  root schema (hence `FromPlain(store)(schema, ...)` takes it) and continuing through property types and the
   branch written with each union value. Serialized references to linked reference objects carry the object's schema
   name; an object carries its own schema when nothing else gives it.

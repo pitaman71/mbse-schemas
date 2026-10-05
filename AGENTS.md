@@ -18,6 +18,10 @@ programs, languages or tools must agree on. Two equivalent implementations exist
 
 ## Invariants when changing code
 
+- **One vocabulary across the mbse repositories.** A kind's or schema's named members are *properties*, never
+  "fields" (a field is only the host language's class member that holds one). An element of an expression tree is
+  a *term* (mbse-expressions), and of a program tree a *syntax node* (mbse-programs); never a bare "node" in code,
+  docs or messages.
 - **The README opens with why.** Its first sentence or paragraph says, TL;DR style, why this repository exists, in
   the terms of `MBSE.md`; what it is comes after. Keep that opening true as the repository changes.
 - **Every human-facing document has navigation.** A `{previous, home, next}` line heads and ends each document in

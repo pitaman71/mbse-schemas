@@ -68,7 +68,7 @@ S.OfObject.Builder().name("crm.Contact")                    # a name, identifier
 # them as snapshots.
 store = Proxies.OfStore(); store.register(schema); B = store  # under schema.name; an unnamed schema is refused
 store.extent("Name"); store.singleton("Global")             # a schema's objects its singletons reach; a singleton
-Proxies.OfStore(random=Stores.PCG32(42)); store.random()    # a store equipped with a random source, for generators
+Stores.PCG32(42).split("key").next_u32()                 # a random source, given to whatever draws from it
 Proxies.store_of(obj)                                       # the store a proxy belongs to
 B.Name().prop(value).value_prop(lambda r: r.x(1)).adjacency_name(lambda e: e.link(obj).entry_prop(v)).create()
 B.Name(obj).prop(v).update()                                # change obj; .clone() makes a changed copy instead

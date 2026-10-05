@@ -13,10 +13,10 @@
  * `Catalog` holds schemas by name and the roots, as every store does, with the messages every store gives, and
  * computes extents from the roots; `META` holds the meta-schemas a store of proxies starts with.
  *
- * A store is equipped with a random source when it is made (`new Proxies.OfStore({ random: new PCG32(42n) })`), for
- * whatever draws from it, such as mbse-patterns' generators: `store.random()` gives it. `Random` is the protocol:
- * `next_u32()`, the next 32 random bits, and `split(key)`, an independent stream determined by the source's seed and
- * `key` alone, not by what was drawn before. `PCG32(seed, sequence)` is the reference source, specified exactly so that
+ * A random source is given to whatever draws from it, such as mbse-patterns' generators, not held by a store, which is
+ * data access alone: `Generate(store, weights, new PCG32(42n))`. `Random` is the protocol: `next_u32()`, the next 32
+ * random bits, and `split(key)`, an independent stream determined by the source's seed and `key` alone, not by what was
+ * drawn before. `PCG32(seed, sequence)` is the reference source, specified exactly so that
  * every implementation draws the same numbers: PCG-XSH-RR with a 64-bit state, seeded as the PCG paper's
  * `pcg32_srandom`; `split(key)` seeds a new PCG32, with the same sequence, from FNV-1a 64 of the key's UTF-8 bytes,
  * starting from the offset basis XOR the seed.
@@ -35,7 +35,7 @@ type RelationSchema = Schemas.OfRelation.Data;
 /** The meta-schemas a store of proxies starts with, each under its name, so that it can hold modules of schemas. */
 export const META: readonly ObjectSchema[] = [Schemas.Module.Schema];
 
-/** A source of random bits, which a store is equipped with. */
+/** A source of random bits, given to whatever draws from it. */
 export interface Random {
   /** The next 32 random bits, as an int from 0 to 2**32 - 1. */
   next_u32(): bigint;
@@ -99,8 +99,6 @@ export interface Store {
   /** The store's reference objects of the schema `name`: those reachable from its singletons, in first-reference
    * order. */
   extent(name: string): readonly Visitable[];
-  /** The random source the store was made with; `LookupError` if it was made without one. */
-  random(): Random;
 }
 
 /** Schemas by name: `register`, `schema`, `registered`, `name_of` and `names`, as every store has them; the roots, by
@@ -108,13 +106,6 @@ export interface Store {
 export class Catalog {
   readonly _schemas = new Map<string, ObjectSchema | RelationSchema>();
   readonly _singletons = new Map<string, Visitable>();
-
-  constructor(private readonly _random: Random | null = null) {}
-
-  random(): Random {
-    if (this._random === null) throw new LookupError("the store has no random source: give it one when it is made");
-    return this._random;
-  }
 
   /** Registers a schema under its name. */
   register(schema: ObjectSchema | RelationSchema): void {

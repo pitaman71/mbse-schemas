@@ -12,10 +12,10 @@ snapshots. Selecting objects by a condition is an extension, in mbse-expressions
 `Catalog` holds schemas by name and the roots, as every store does, with the messages every store gives, and computes
 extents from the roots; `META` holds the meta-schemas a store of proxies starts with.
 
-A store is equipped with a random source when it is made (`Proxies.OfStore(random=PCG32(42))`), for whatever draws
-from it, such as mbse-patterns' generators: `store.random()` gives it. `Random` is the protocol: `next_u32()`, the
-next 32 random bits, and `split(key)`, an independent stream determined by the source's seed and `key` alone, not by
-what was drawn before. `PCG32(seed, sequence)` is the reference source, specified exactly so that every implementation
+A random source is given to whatever draws from it, such as mbse-patterns' generators, not held by a store, which is
+data access alone: `Generate(store, weights, PCG32(42))`. `Random` is the protocol: `next_u32()`, the next 32 random
+bits, and `split(key)`, an independent stream determined by the source's seed and `key` alone, not by what was drawn
+before. `PCG32(seed, sequence)` is the reference source, specified exactly so that every implementation
 draws the same numbers: PCG-XSH-RR with a 64-bit state, seeded as the PCG paper's `pcg32_srandom`; `split(key)` seeds
 a new PCG32, with the same sequence, from FNV-1a 64 of the key's UTF-8 bytes, starting from the offset basis XOR the
 seed.
@@ -35,7 +35,7 @@ META = (Schemas.Module.Schema,)
 
 
 class Random(Protocol):
-    """A source of random bits, which a store is equipped with."""
+    """A source of random bits, given to whatever draws from it."""
 
     def next_u32(self) -> int:
         """The next 32 random bits, as an int from 0 to 2**32 - 1."""
@@ -119,24 +119,14 @@ class Store(Protocol):
         order."""
         ...
 
-    def random(self) -> Random:
-        """The random source the store was made with; `LookupError` if it was made without one."""
-        ...
-
 
 class Catalog:
     """Schemas by name: `register`, `schema`, `registered`, `name_of` and `names`, as every store has them; the roots, by
     global name (`singleton`), which an implementation fills; and `extent`, the reference objects reachable from them."""
 
-    def __init__(self, random: Random | None = None) -> None:
+    def __init__(self) -> None:
         self._schemas: dict[str, Schemas.OfObject.Data | Schemas.OfRelation.Data] = {}
         self._singletons: dict[str, Visitors.Visitable] = {}
-        self._random = random
-
-    def random(self) -> Random:
-        if self._random is None:
-            raise LookupError("the store has no random source: give it one when it is made")
-        return self._random
 
     def register(self, schema: Schemas.OfObject.Data | Schemas.OfRelation.Data) -> None:
         """Registers a schema under its name."""

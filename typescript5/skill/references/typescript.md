@@ -73,7 +73,7 @@ new S.OfIndexed.Builder().key(spec).of(spec).extent({ minimum: 1n }).create(); /
 new S.OfObject.Builder().name("crm.Contact");                     // a name, identifiers separated by dots, on any kind
 const store = new Proxies.OfStore(); store.register(schema); const B = store;   // under schema.name; stores are isolated
 store.extent("Name"); store.singleton("Global");           // a schema's objects its singletons reach; a singleton
-new Proxies.OfStore({ random: new Stores.PCG32(42n) });     // a store equipped with a random source, for generators
+new Stores.PCG32(42n).split("key").next_u32();             // a random source, given to whatever draws from it
 Proxies.store_of(obj);                                     // the store a proxy belongs to
 B.Name().prop(value).adjacencyName((e: any) => e.link(obj).entryProp(v)).create();
 B.Name(obj).prop(v).update();                              // .clone() makes a changed copy instead

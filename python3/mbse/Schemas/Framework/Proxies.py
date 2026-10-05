@@ -45,9 +45,8 @@ class OfStore(Stores.Catalog):
     `store.<Name>(optional instance)` is `store.builder(name, instance)`; use `builder` for names that are not
     identifiers, or that a method's name shadows."""
 
-    def __init__(self, random: Stores.Random | None = None) -> None:
-        """A store of proxies, equipped with `random` if given (see `Stores`)."""
-        super().__init__(random)
+    def __init__(self) -> None:
+        super().__init__()
         for schema in Stores.META:
             self.register(schema)
 

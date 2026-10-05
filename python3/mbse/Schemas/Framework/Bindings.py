@@ -351,8 +351,8 @@ class OfStore(Stores.Catalog):
     store is."""
 
     def __init__(self, builders: Iterable[tuple[Schemas.OfObject.Data, Callable[..., Any]]],
-                 relations: Iterable[Schemas.OfRelation.Data] = (), random: Stores.Random | None = None):
-        super().__init__(random)
+                 relations: Iterable[Schemas.OfRelation.Data] = ()):
+        super().__init__()
         self._factories: dict[str, Callable[..., Any]] = {}
         builders = list(builders)
         for schema, factory in builders:

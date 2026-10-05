@@ -80,9 +80,8 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [name: string]: any;
 
-  /** A store of proxies, equipped with `random` if given (see `Stores`). */
-  constructor(options: { random?: Stores.Random | null } = {}) {
-    super(options.random ?? null);
+  constructor() {
+    super();
     for (const schema of Stores.META) this.register(schema);
     return new Proxy(this, {
       get(t, prop, receiver) {

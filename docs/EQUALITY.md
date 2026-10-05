@@ -1,7 +1,10 @@
+<!-- nav -->
+[← Schemas Framework design](FRAMEWORK.md) · [Home](../README.md) · [Equivalence of the implementations →](EQUIVALENCE.md)
+
 # Equality
 
 How two values compare under a schema: when they are equal, when one orders before the other, and how the `Comparison`
-module implements it. This is part of the design in [`FRAMEWORK.md`](FRAMEWORK.md).
+module implements it. This is part of the design in the [framework design](FRAMEWORK.md).
 
 ## Equality under a schema
 
@@ -56,3 +59,8 @@ These edge cases are proposals; see Open questions in `FRAMEWORK.md`.
 - Strings compare by code point with no Unicode normalization.
 - Object identity holds only within one loaded graph. Objects from two separately loaded graphs can be matched through
   their key in a singleton's directory; objects without one cannot be matched.
+
+---
+
+<!-- nav -->
+[← Schemas Framework design](FRAMEWORK.md) · [Home](../README.md) · [Equivalence of the implementations →](EQUIVALENCE.md)

@@ -1,3 +1,6 @@
+<!-- nav -->
+[← 9 · When requirements change: evolving schemas (TypeScript)](../typescript5/tutorials/09_When_Requirements_Change.ipynb) · [Home](../README.md) · [Equality →](EQUALITY.md)
+
 # Schemas Framework
 
 A framework that allows programmers to encode data structure schema
@@ -106,7 +109,7 @@ Uniqueness gives only an upper bound. Requiring at least one entry is a separate
 ### Equality
 
 Equality is defined by the schema, never by host-language `==`, and ordering only for ordered native types. See
-[`EQUALITY.md`](EQUALITY.md) for the rules, hashing, ordering, the `Comparison` module, and the edge cases still to
+[Equality](EQUALITY.md) for the rules, hashing, ordering, the `Comparison` module, and the edge cases still to
 confirm.
 
 ## Builder pattern
@@ -782,3 +785,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   root schema (hence `FromPlain(store)(schema, ...)` takes it) and continuing through property types and the
   branch written with each union value. Serialized references to linked reference objects carry the object's schema
   name; an object carries its own schema when nothing else gives it.
+
+---
+
+<!-- nav -->
+[← 9 · When requirements change: evolving schemas (TypeScript)](../typescript5/tutorials/09_When_Requirements_Change.ipynb) · [Home](../README.md) · [Equality →](EQUALITY.md)

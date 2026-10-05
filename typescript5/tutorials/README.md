@@ -1,3 +1,6 @@
+<!-- nav -->
+[← 9 · When requirements change: evolving schemas (Python)](../../python3/tutorials/09_When_Requirements_Change.ipynb) · [Home](../../README.md) · [1 · A contact card →](01_A_Contact_Card.ipynb)
+
 # Tutorial: the schemas framework in nine case studies (TypeScript)
 
 This tutorial teaches the framework by solving real problems, one per notebook. Each case study builds on the ones
@@ -7,7 +10,7 @@ most of its choices (no arrays, no mandatory fields, no automatic validation, no
 It's written for TypeScript programmers who build applications with structured data: records, relationships, files and
 APIs. It's a port of the [Python tutorial](../../python3/tutorials/README.md), with the same case studies and the same
 reasoning. The code follows TypeScript idioms where the bindings differ, and the notebooks point those differences
-out. You don't need to have read the design document, [`../../docs/FRAMEWORK.md`](../../docs/FRAMEWORK.md), but it's
+out. You don't need to have read the [design document](../../docs/FRAMEWORK.md), but it's
 the reference for everything here.
 
 ## Running the notebooks
@@ -51,4 +54,9 @@ Expressions, which constraints will be made of, live in the separate
 
 Where the TypeScript binding differs from Python's (`BigInt` for integers, `.equals()`, `Map` for plain data,
 `(x: any)` on proxy callbacks, and so on), the notebooks say so as they go. The full list, with the reasons, is in
-[`EQUIVALENCE.md`](../../docs/EQUIVALENCE.md) under "Deliberate differences" and "Tutorials".
+[Equivalence](../../docs/EQUIVALENCE.md) under "Deliberate differences" and "Tutorials".
+
+---
+
+<!-- nav -->
+[← 9 · When requirements change: evolving schemas (Python)](../../python3/tutorials/09_When_Requirements_Change.ipynb) · [Home](../../README.md) · [1 · A contact card →](01_A_Contact_Card.ipynb)

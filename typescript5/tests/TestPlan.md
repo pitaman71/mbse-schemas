@@ -1,3 +1,6 @@
+<!-- nav -->
+[← TypeScript package](../README.md) · [Home](../../README.md)
+
 # Test plan — typescript5
 
 Scope: everything under `typescript5/src/Framework` (Errors, Repr, Visitors, Schemas, Proxies, Reachable, Plain, JSON,
@@ -133,3 +136,7 @@ keep it so:
   and YAML: 30 checks. It needs Deno on the PATH.
 - The notebooks, the test runner, the examples and `src/Conformance/write.ts` stay Node-only.
 
+---
+
+<!-- nav -->
+[← TypeScript package](../README.md) · [Home](../../README.md)

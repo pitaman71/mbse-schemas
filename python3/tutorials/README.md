@@ -1,3 +1,6 @@
+<!-- nav -->
+[← Why the mbse repositories exist](../../MBSE.md) · [Home](../../README.md) · [1 · A contact card →](01_A_Contact_Card.ipynb)
+
 # Tutorial: the schemas framework in nine case studies
 
 This tutorial teaches the framework by solving real problems, one per notebook. Each case study builds on the ones
@@ -6,8 +9,8 @@ most of its choices (no lists, no mandatory fields, no automatic validation, no 
 
 It's written for Python programmers who build applications with structured data: records, relationships, files and
 APIs. A TypeScript port with the same case studies is in
-[`../../typescript5/tutorials/`](../../typescript5/tutorials/README.md). You don't need to have read the design
-document, [`../../docs/FRAMEWORK.md`](../../docs/FRAMEWORK.md), but it's the reference for everything here.
+the [TypeScript tutorial](../../typescript5/tutorials/README.md). You don't need to have read the [design
+document](../../docs/FRAMEWORK.md), but it's the reference for everything here.
 
 ## Running the notebooks
 
@@ -54,3 +57,8 @@ Expressions, which constraints will be made of, live in the separate
 | `to_dict` per class, nested | One flat snapshot shape with symbols and schema-named references | Shared objects once, cycles safe, kinds preserved | 6 |
 | Lenient parsing | Exact types, strict JSON, YAML 1.2 | The same text means the same thing in every language | 6, 7 |
 | Reflection over classes | Visitors: objects write themselves into any tool | One protocol for serializers, validators and your tools | 2, 8 |
+
+---
+
+<!-- nav -->
+[← Why the mbse repositories exist](../../MBSE.md) · [Home](../../README.md) · [1 · A contact card →](01_A_Contact_Card.ipynb)

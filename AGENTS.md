@@ -17,6 +17,9 @@ programs, languages or tools must agree on. Two equivalent implementations exist
 
 ## Invariants when changing code
 
+- **Every human-facing document has navigation.** A `{previous, home, next}` line heads and ends each document in
+  reading order (README, MBSE.md, tutorials, design, conformance, packages and test plans); after adding, renaming or
+  retitling one, run `python3 scripts/nav.py`. Link text is human-readable, never a path.
 - **The two implementations are equivalent.** Change both in the same commit, with the same names, the same error
   classes and byte-identical messages. JSON output must be byte-identical: regenerate the corpora and let CONF-02
   compare them. A difference not listed in `docs/EQUIVALENCE.md` is a bug. Adapters (`python3/mbse/Schemas/Adapters`)

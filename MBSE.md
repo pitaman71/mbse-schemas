@@ -1,3 +1,6 @@
+<!-- nav -->
+[← mbse-schemas](README.md) · [Python tutorial →](python3/tutorials/README.md)
+
 # Why the mbse repositories exist
 
 The MBSE repositories are a major step towards reframing software, hardware, firmware, and cloud development through
@@ -18,3 +21,8 @@ documentation and coding keeps humans and AI agents in the loop.
 
 Each has two equivalent implementations, in Python and TypeScript, that write byte-identical JSON, and an `AGENTS.md`
 for the AI agents that work in it. Each builds on mbse-schemas, and lives beside the others as a sibling checkout.
+
+---
+
+<!-- nav -->
+[← mbse-schemas](README.md) · [Python tutorial →](python3/tutorials/README.md)

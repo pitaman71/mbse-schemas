@@ -1,3 +1,6 @@
+<!-- nav -->
+[← Equality](EQUALITY.md) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)
+
 # Equivalence of the implementations
 
 `python3/` and `typescript5/` implement the same framework (`FRAMEWORK.md`). This document defines what
@@ -177,3 +180,8 @@ When changing behavior:
 5. Run both suites under their coverage gates, the TypeScript one on every supported Node version (`nvm use 22`,
    `24`, `26`), and `npm run portability`. A new gap is closed in both suites under the same ID, or by removing the
    unreachable code from both.
+
+---
+
+<!-- nav -->
+[← Equality](EQUALITY.md) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)

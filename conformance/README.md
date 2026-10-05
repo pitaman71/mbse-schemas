@@ -1,3 +1,6 @@
+<!-- nav -->
+[← Equivalence of the implementations](../docs/EQUIVALENCE.md) · [Home](../README.md) · [Python package →](../python3/README.md)
+
 # Conformance corpus
 
 Each implementation builds the same corpus of schemas and objects, statement for statement
@@ -28,3 +31,8 @@ Regenerate:
 (cd python3 && uv run python -m mbse.Schemas.Conformance.write)
 (cd typescript5 && npm run conformance)
 ```
+
+---
+
+<!-- nav -->
+[← Equivalence of the implementations](../docs/EQUIVALENCE.md) · [Home](../README.md) · [Python package →](../python3/README.md)

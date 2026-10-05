@@ -1,3 +1,6 @@
+<!-- nav -->
+[Why the mbse repositories exist →](MBSE.md)
+
 # mbse-schemas
 
 `mbse-schemas` takes the graph-shaped modeling of [ORMs][orm] and [MBSE][mbse] and packages it as a portable library.
@@ -132,13 +135,13 @@ npx tsx src/Examples/AddressBook.ts                  # an example
 
 | Read | For |
 |---|---|
-| [`python3/tutorials/`](python3/tutorials/README.md), [`typescript5/tutorials/`](typescript5/tutorials/README.md) | Nine case studies, from a contact card to evolving schemas, in Python and in TypeScript. Start here. |
-| [`FRAMEWORK.md`](docs/FRAMEWORK.md) | The design: every element, rule and decision, plus the open questions |
-| [`EQUALITY.md`](docs/EQUALITY.md) | How values compare under a schema: equality, hashing, ordering, and the `Comparison` module |
-| [`EQUIVALENCE.md`](docs/EQUIVALENCE.md) | What "equivalent implementations" means, how it's checked, and where the languages deliberately differ |
-| [`python3/tests/TestPlan.md`](python3/tests/TestPlan.md), [`typescript5/tests/TestPlan.md`](typescript5/tests/TestPlan.md) | The test suites, the findings they produced, and what isn't testable yet |
-| [`conformance/`](conformance/README.md) | The shared corpus both implementations must read and write identically |
-| [`AGENTS.md`](AGENTS.md), [`skills/mbse-schemas/`](skills/mbse-schemas/SKILL.md), [`llms.txt`](llms.txt) | Guidance for AI agents, layered so each loads only what its task needs. The skill also ships inside both packages |
+| [Python tutorial](python3/tutorials/README.md), [TypeScript tutorial](typescript5/tutorials/README.md) | Nine case studies, from a contact card to evolving schemas, in Python and in TypeScript. Start here. |
+| [Framework design](docs/FRAMEWORK.md) | The design: every element, rule and decision, plus the open questions |
+| [Equality](docs/EQUALITY.md) | How values compare under a schema: equality, hashing, ordering, and the `Comparison` module |
+| [Equivalence](docs/EQUIVALENCE.md) | What "equivalent implementations" means, how it's checked, and where the languages deliberately differ |
+| [Python test plan](python3/tests/TestPlan.md), [TypeScript test plan](typescript5/tests/TestPlan.md) | The test suites, the findings they produced, and what isn't testable yet |
+| [Conformance corpus](conformance/README.md) | The shared corpus both implementations must read and write identically |
+| [Guide for AI agents](AGENTS.md), [Agent skill](skills/mbse-schemas/SKILL.md), [Summary for LLMs](llms.txt) | Guidance for AI agents, layered so each loads only what its task needs. The skill also ships inside both packages |
 
 ## Repository layout
 
@@ -178,3 +181,8 @@ depends on both. Generated bindings (typed code per schema) will be separate rep
 Designed but not built yet (see `docs/FRAMEWORK.md`):
 - mutations and transactions;
 - object deletion.
+
+---
+
+<!-- nav -->
+[Why the mbse repositories exist →](MBSE.md)

@@ -1,10 +1,13 @@
+<!-- nav -->
+[← Python test plan](../python3/tests/TestPlan.md) · [Home](../README.md) · [TypeScript test plan →](tests/TestPlan.md)
+
 # mbse-schemas (TypeScript)
 
 TypeScript implementation of the schemas framework, equivalent to `../python3`. The core (`src/Framework`) uses no
 Node APIs, so it runs in Node, browsers and Deno. New to the framework? Start with the tutorial,
-[`tutorials/README.md`](tutorials/README.md): nine case studies, from a contact card to evolving schemas. The design is in
-[`../docs/FRAMEWORK.md`](../docs/FRAMEWORK.md); the test plan, including the deliberate language differences, is in
-[`tests/TestPlan.md`](tests/TestPlan.md).
+[the tutorial](tutorials/README.md): nine case studies, from a contact card to evolving schemas. The design is in
+the [framework design document](../docs/FRAMEWORK.md); the [test plan](tests/TestPlan.md) includes the deliberate
+language differences.
 
 ```sh
 npm install
@@ -29,3 +32,8 @@ const store = new Proxies.OfStore();
 store.register(IntlAddress);
 const addr = store.IntlAddress().street1("10 Downing Street").create();
 ```
+
+---
+
+<!-- nav -->
+[← Python test plan](../python3/tests/TestPlan.md) · [Home](../README.md) · [TypeScript test plan →](tests/TestPlan.md)

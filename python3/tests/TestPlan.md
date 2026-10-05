@@ -1,3 +1,6 @@
+<!-- nav -->
+[← Python package](../README.md) · [Home](../../README.md) · [TypeScript package →](../../typescript5/README.md)
+
 # Test plan — python3
 
 Scope: everything implemented under `python3/mbse/Schemas/Framework` (Schemas, Visitors, Proxies, Reachable, Plain,
@@ -134,3 +137,8 @@ shared case in both languages, and code no test could reach was removed from bot
 - Meta-schemas (`Schemas.OfX.Schema`) and schema builders implementing `Visitors` (serializing schemas).
 - An "any value" `OfAny` kind.
 - Mixing implementations (proxies and generated bindings, which will live in separate repositories, one per target language).
+
+---
+
+<!-- nav -->
+[← Python package](../README.md) · [Home](../../README.md) · [TypeScript package →](../../typescript5/README.md)

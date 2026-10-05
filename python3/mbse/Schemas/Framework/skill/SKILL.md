@@ -19,6 +19,8 @@ byte-identical JSON.
 It is a poor fit for one-off, tree-shaped DTOs used by a single program, where a plain dataclass or interface is
 simpler.
 
+Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.com/pitaman71/mbse-schemas/blob/main/MBSE.md).
+
 ## Rules that prevent most mistakes
 
 1. **Links are relations; lists are values.** Objects are linked by an `OfRelation`, whose entries may carry

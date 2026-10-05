@@ -9,6 +9,7 @@ programs, languages or tools must agree on. Two equivalent implementations exist
 
 | You want to | Read |
 |---|---|
+| Learn it by example, from a contact card to evolving schemas | [python3/tutorials/README.md](python3/tutorials/README.md), nine case studies; the same in [typescript5/tutorials/](typescript5/tutorials/README.md) |
 | Know why the mbse repositories exist, and this one's part in them | [MBSE.md](MBSE.md) |
 | Use the library, or model something with it | [skills/mbse-schemas/SKILL.md](skills/mbse-schemas/SKILL.md), a skill. It loads its references only as needed |
 | Understand a design rule or an open question | [docs/FRAMEWORK.md](docs/FRAMEWORK.md), by section |
@@ -24,6 +25,9 @@ programs, languages or tools must agree on. Two equivalent implementations exist
   classes and byte-identical messages. JSON output must be byte-identical: regenerate the corpora and let CONF-02
   compare them. A difference not listed in `docs/EQUIVALENCE.md` is a bug. Adapters (`python3/mbse/Schemas/Adapters`)
   are the exception: each translates its own language's type declarations.
+- **Tutorials are tested too.** `pytest` and `npm run coverage` run `tutorials/` beside `tests/`; the two languages
+  tell the same case studies with the same outputs. Re-execute a tutorial after a change that alters its output, and
+  commit it with its outputs.
 - **Tests are Jupyter notebooks**, one suite per notebook, with the same case IDs in the same order in both
   languages. Each case is a markdown cell `## ID · title` followed by one code cell. Notebooks are JSON written with
   `indent=1`, `sort_keys=True` and `ensure_ascii=False`.

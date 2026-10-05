@@ -4,6 +4,10 @@
 
 Every collection is a relation (there are no list-valued properties), nothing is mandatory, validation runs only when asked, and native types are never coerced.
 
+## Why
+
+- [MBSE.md](https://github.com/pitaman71/mbse-schemas/blob/main/MBSE.md): executable specifications, and each mbse repository's part in them
+
 ## Using it
 
 - [Agent skill](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/SKILL.md): when to use it, the rules that prevent most mistakes, and references loaded per task

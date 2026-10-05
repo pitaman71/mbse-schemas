@@ -1,6 +1,8 @@
 # mbse-schemas
 
 `mbse-schemas` takes the graph-shaped modeling of [ORMs][orm] and [MBSE][mbse] and packages it as a portable library.
+It is the foundation of the mbse repositories' [executable specifications](MBSE.md): the one description of a system's
+data that every implementation language, document and tool shares.
 
 A schema is an ordinary value built with a fluent DSL, not a class. Objects link through relationships whose entries
 carry their own properties, like UML association classes or join tables with columns, and cardinality is declared.

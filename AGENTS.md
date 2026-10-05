@@ -9,6 +9,7 @@ programs, languages or tools must agree on. Two equivalent implementations exist
 
 | You want to | Read |
 |---|---|
+| Know why the mbse repositories exist, and this one's part in them | [MBSE.md](MBSE.md) |
 | Use the library, or model something with it | [skills/mbse-schemas/SKILL.md](skills/mbse-schemas/SKILL.md), a skill. It loads its references only as needed |
 | Understand a design rule or an open question | [docs/FRAMEWORK.md](docs/FRAMEWORK.md), by section |
 | Change the framework | this file, then [docs/EQUIVALENCE.md, Keeping them equivalent](docs/EQUIVALENCE.md#keeping-them-equivalent) |

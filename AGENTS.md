@@ -12,7 +12,7 @@ programs, languages or tools must agree on. Two equivalent implementations exist
 | Learn it by example, from a contact card to evolving schemas | [python3/tutorials/README.md](python3/tutorials/README.md), nine case studies; the same in [typescript5/tutorials/](typescript5/tutorials/README.md) |
 | Know why the mbse repositories exist, and this one's part in them | [MBSE.md](MBSE.md) |
 | Use the library, or model something with it | [skills/mbse-schemas/SKILL.md](skills/mbse-schemas/SKILL.md), a skill. It loads its references only as needed |
-| Understand a design rule or an open question | [docs/FRAMEWORK.md](docs/FRAMEWORK.md), by section |
+| Understand a design decision or an open question | [docs/FRAMEWORK.md](docs/FRAMEWORK.md), by section |
 | Change the framework | this file, then [docs/EQUIVALENCE.md, Keeping them equivalent](docs/EQUIVALENCE.md#keeping-them-equivalent) |
 | Find or add a test case | [python3/tests/TestPlan.md](python3/tests/TestPlan.md) (TypeScript's plan lists only its differences) |
 
@@ -21,7 +21,9 @@ programs, languages or tools must agree on. Two equivalent implementations exist
 - **One vocabulary across the mbse repositories.** A kind's or schema's named members are *properties*, never
   "fields" (a field is only the host language's class member that holds one). An element of an expression tree is
   a *term* (mbse-expressions), and of a program tree a *syntax node* (mbse-programs); never a bare "node" in code,
-  docs or messages.
+  docs or messages. What a specification requires is a *constraint*, never a "rule"; a constraint is checked,
+  resolved or generated from, never executed ([MBSE.md, What a specification is made
+  of](MBSE.md#what-a-specification-is-made-of)).
 - **The README opens with why.** Its first sentence or paragraph says, TL;DR style, why this repository exists, in
   the terms of `MBSE.md`; what it is comes after. Keep that opening true as the repository changes.
 - **Every human-facing document has navigation.** A `{previous, home, next}` line heads and ends each document in

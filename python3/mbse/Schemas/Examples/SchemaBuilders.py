@@ -1,4 +1,4 @@
-# Schema rules example: builder semantics, Spec forms, and on-demand validation.
+# Schema builders example: builder semantics, Spec forms, and on-demand validation.
 #
 # Nothing here builds instances; it exercises Schemas.OfX.Builder and Schemas.OfX.Data.validate().
 
@@ -198,4 +198,4 @@ assert Stamps.validate() == []
 assert Schemas.OfIntersection.Builder().parts(
     lambda p: p.name('stamp').of(Timestamped), lambda p: p.name('text').of(Text)).create().validate()  # mixed kinds
 
-print('SchemaRules: all checks passed')
+print('SchemaBuilders: all checks passed')

@@ -136,7 +136,7 @@ npx tsx src/Examples/AddressBook.ts                  # an example
 | Read | For |
 |---|---|
 | [Python tutorial](python3/tutorials/README.md), [TypeScript tutorial](typescript5/tutorials/README.md) | Nine case studies, from a contact card to evolving schemas, in Python and in TypeScript. Start here. |
-| [Framework design](docs/FRAMEWORK.md) | The design: every element, rule and decision, plus the open questions |
+| [Framework design](docs/FRAMEWORK.md) | The design: every element and decision, plus the open questions |
 | [Equality](docs/EQUALITY.md) | How values compare under a schema: equality, hashing, ordering, and the `Comparison` module |
 | [Equivalence](docs/EQUIVALENCE.md) | What "equivalent implementations" means, how it's checked, and where the languages deliberately differ |
 | [Python test plan](python3/tests/TestPlan.md), [TypeScript test plan](typescript5/tests/TestPlan.md) | The test suites, the findings they produced, and what isn't testable yet |

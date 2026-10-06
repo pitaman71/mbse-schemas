@@ -132,7 +132,7 @@ assert kinds(bob2, 'parents') == ['biological'] and names(bob2, 'mentors', 'ment
 assert names(ada, 'children', 'child') == ['Bob', 'Bob II', 'Dan']
 assert bob.given_name == 'Bob'
 
-# --- Entry rules ---
+# --- Building entries ---
 
 with raises(AttributeError):
     store.Person().parents(lambda x: x.child(bob))  # the object's own link ('child') is implied

@@ -126,7 +126,7 @@ assert(same(kinds(bob2, "parents"), ["biological"]) && same(names(bob2, "mentors
 assert(same(names(ada, "children", "child"), ["Bob", "Bob II", "Dan"]));
 assert(bob.given_name === "Bob");
 
-// --- Entry rules ---
+// --- Building entries ---
 
 raises(AttributeError, () => store.Person().parents((x: any) => x.child(bob))); // the object's own link ('child') is implied
 raises(AttributeError, () => store.Person().parents((x: any) => x.parent(ada).since("1990"))); // not a property of Parentage

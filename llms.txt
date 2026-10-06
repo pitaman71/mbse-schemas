@@ -10,14 +10,14 @@ Every collection is a relation (there are no list-valued properties), nothing is
 
 ## Using it
 
-- [Agent skill](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/SKILL.md): when to use it, the rules that prevent most mistakes, and references loaded per task
+- [Agent skill](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/SKILL.md): when to use it, the practices that prevent most mistakes, and references loaded per task
 - [Modeling guide](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/modeling.md): SysML, UML, ORM and JSON Schema concepts mapped to schema elements
 - [Python](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/python.md) and [TypeScript](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/typescript.md): a complete program, cheat sheet and traps
 - [Serialization](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/serialization.md): the snapshot format and strict decoding
 
 ## Design
 
-- [FRAMEWORK.md](https://github.com/pitaman71/mbse-schemas/blob/main/docs/FRAMEWORK.md): every element, rule and decision, plus the open questions
+- [FRAMEWORK.md](https://github.com/pitaman71/mbse-schemas/blob/main/docs/FRAMEWORK.md): every element and decision, plus the open questions
 - [EQUALITY.md](https://github.com/pitaman71/mbse-schemas/blob/main/docs/EQUALITY.md): equality, ordering and comparison under a schema
 
 ## Optional

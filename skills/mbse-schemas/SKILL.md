@@ -21,7 +21,7 @@ simpler.
 
 Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.com/pitaman71/mbse-schemas/blob/main/MBSE.md).
 
-## Rules that prevent most mistakes
+## Practices that prevent most mistakes
 
 1. **Links are relations; lists are values.** Objects are linked by an `OfRelation`, whose entries may carry
    properties. Each object sees a relation through one of its links (an *adjacency*, declared with `.me(link)`). A
@@ -52,7 +52,7 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
 | Save, load or exchange data: the snapshot format and strict decoding | [references/serialization.md](references/serialization.md) |
 | Constraints (expressions and evaluators) | the separate [mbse-expressions](https://github.com/pitaman71/mbse-expressions) package |
 
-Deeper material is in the repository: `docs/FRAMEWORK.md` holds every rule and open question, and nine tutorial case
+Deeper material is in the repository: `docs/FRAMEWORK.md` holds every decision and open question, and nine tutorial case
 studies explain the reasoning. The references link to the exact notebook or section you need. Links use
 `https://github.com/pitaman71/mbse-schemas/blob/main/<path>`; in a checkout, `<path>` is relative to the repository
 root.

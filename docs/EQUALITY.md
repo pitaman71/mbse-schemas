@@ -37,12 +37,12 @@ of them, lexicographically.
 
 ## Comparison
 
-The `Comparison` module implements these rules: for each element `OfX`, `Comparison.OfX` implements `Visitors.OfX` and records the value
-written into it, e.g. `Comparison.OfObject(schema, instance)`, which the instance fills through `accept`.
-`a.compare(b)` returns -1, 0 or 1, or `None` when the two are incomparable. The ordered natives are `int`, `float`, `str`
-and `bytes`: floats by value with `-0.0` before `0.0`, NaNs equal to each other and incomparable with other floats.
-Booleans, objects, entries and adjacencies are equal or incomparable. Absent equals absent and is incomparable with
-anything present. An adjacency compares its entries as a set, seen from its object. Value objects
+The `Comparison` module implements this equality: for each element `OfX`, `Comparison.OfX` implements `Visitors.OfX` and
+records the value written into it, e.g. `Comparison.OfObject(schema, instance)`, which the instance fills through
+`accept`. `a.compare(b)` returns -1, 0 or 1, or `None` when the two are incomparable. The ordered natives are `int`,
+`float`, `str` and `bytes`: floats by value with `-0.0` before `0.0`, NaNs equal to each other and incomparable with
+other floats. Booleans, objects, entries and adjacencies are equal or incomparable. Absent equals absent and is
+incomparable with anything present. An adjacency compares its entries as a set, seen from its object. Value objects
 compare by their properties and entries, links among them by path; union values are equal when they hold the same branch with equal values, and otherwise incomparable.
 Intersection values compare part by part, as value objects compare property by property. Lists compare item by item:
 the first pair not equal decides, and a list that is a prefix of another is less.

@@ -88,7 +88,7 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | YAML text | PyYAML's layout (folds long lines, `...` after a top-level scalar) | own block emitter (no folding, no end marker); values are identical | YML-04, YML-08, CONF-03 |
 | YAML dependency | optional extra, imported on first use | regular dependency | YML-11 |
 | Recursion | Python's recursion limit | no fixed limit; the traversal is iterative in both | RCH-07 |
-| YAML syntax errors | PyYAML's reason and position | the `yaml` package's reason and position; the framework's own rules match exactly (YML-06) | YML-06b |
+| YAML syntax errors | PyYAML's reason and position | the `yaml` package's reason and position; the framework's own profile matches exactly (YML-06) | YML-06b |
 | Reading JSON | `json` for valid input, the reference parser to report problems | the reference parser for all input | JSN-09 |
 | Byte-like subclasses | `bytearray` is not native (`got bytearray`) | `Buffer` is not native (`got Buffer`) | SCH-03, PRX-17 |
 | `Proxies.OfObject.Builder` | a class | a function returning the builder (`Proxies.OfObject.Data` is the class, so `instanceof` works) | PRX-16 |
@@ -99,7 +99,7 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 ## Findings
 
 The findings F1–F15 are shared with Python (see `python3/tests/TestPlan.md`). F1 (NEL) and F14 (single-letter YAML
-1.1 booleans) never occurred here: the TypeScript YAML emitter was written with both rules. F15 (a shadowed recorder
+1.1 booleans) never occurred here: the TypeScript YAML emitter was written with both in place. F15 (a shadowed recorder
 method) was the Python bug found while porting; VIS-06 checks it in both implementations.
 
 The supported Node versions (22, 24, 26 at the time of writing) are each run through `npm run coverage`: tests and

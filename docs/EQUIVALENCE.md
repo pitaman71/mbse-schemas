@@ -104,7 +104,7 @@ noticed.
 | YAML formatting | PyYAML's layout | own block emitter; no line folding, no `...` after a top-level scalar | values are what must match | YML-04, YML-08, CONF-03 |
 | YAML dependency | optional extra, imported on first use | regular dependency | npm has no optional extras in the same sense | YML-11 |
 | Randomized tests | Hypothesis | fast-check, fixed seed | the respective standard tools | PROP-01..05 |
-| YAML syntax errors | PyYAML's reason and position | the `yaml` package's reason and position | two parsers; the framework's own YAML rules are identical (YML-06) | YML-06b |
+| YAML syntax errors | PyYAML's reason and position | the `yaml` package's reason and position | two parsers; the framework's own YAML profile is identical (YML-06) | YML-06b |
 | YAML the parsers disagree on | e.g. a document after `...` without `---` is a syntax error | the same input is two documents | YAML 1.1 and 1.2 parsers; both reject it, differently | YML-06b |
 | Reading JSON | `json` reads valid input; the reference parser (`JSON._Parser`) reads input `json` rejects, to report the problem | the reference parser reads all input | speed in Python; JSN-09 checks the reference parser reads valid input exactly as `json` | JSN-09 |
 | Byte-like subclass named in errors | `bytearray` | `Buffer` | the nearest analogues | PRX-17 |

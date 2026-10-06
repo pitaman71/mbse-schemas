@@ -5,8 +5,8 @@
  * objects (`Proxies`), JSON and YAML (`Plain`, `JSON`, `YAML`), validation (`Validators`) and comparison
  * (`Comparison`).
  *
- * For AI agents: read `skill/SKILL.md` at the root of this package first. It says when to use this package, the rules
- * that prevent most mistakes, and which reference to load for a task. The design is in docs/FRAMEWORK.md at
+ * For AI agents: read `skill/SKILL.md` at the root of this package first. It says when to use this package, the
+ * practices that prevent most mistakes, and which reference to load for a task. The design is in docs/FRAMEWORK.md at
  * https://github.com/pitaman71/mbse-schemas.
  */
 

@@ -109,7 +109,7 @@ Uniqueness gives only an upper bound. Requiring at least one entry is a separate
 ### Equality
 
 Equality is defined by the schema, never by host-language `==`, and ordering only for ordered native types. See
-[Equality](EQUALITY.md) for the rules, hashing, ordering, the `Comparison` module, and the edge cases still to
+[Equality](EQUALITY.md) for its definition, hashing, ordering, the `Comparison` module, and the edge cases still to
 confirm.
 
 ## Builder pattern
@@ -390,16 +390,17 @@ Mistakes in the calling program keep their usual classes, e.g. a root schema tha
   before any builder is called.
 - Reasons and locations are identical in every binding, with one exception. For YAML syntax errors (and for
   constructs that one parser accepts and another rejects), the reason text and location come from each binding's
-  parser. The framework's own YAML rules are identical: one document, string keys, no duplicate keys, no tags except
+  parser. The framework's own YAML profile is identical: one document, string keys, no duplicate keys, no tags except
   `!`, `!!str`, `!!seq` and `!!map`, and no undefined aliases.
 - Bytes are decoded as UTF-8, UTF-16 or UTF-32, detected as JSON specifies (RFC 8259 and its predecessors) for both
   JSON and YAML input. Undecodable bytes give `input is not valid <encoding>`.
 
 ## Value objects and reference objects
 
-Implemented, except where a bullet says otherwise. This lifts the rule that a value object has no identity and no
-adjacencies, so that an object can be composed of parts that take part in relations (a component's ports, a schema's
-properties). The terms are to replace "value object" and "object" throughout the API's messages and these documents.
+Implemented, except where a bullet says otherwise. This lifts the earlier decision that a value object has no identity
+and no adjacencies, so that an object can be composed of parts that take part in relations (a component's ports, a
+schema's properties). The terms are to replace "value object" and "object" throughout the API's messages and these
+documents.
 
 - **Every object has an identity**, and any object can be linked by relations. What distinguishes the two kinds is
   ownership, and the schema says which kind it describes: `Schemas.OfObject.Builder().ref()` marks a *reference object
@@ -412,7 +413,7 @@ properties). The terms are to replace "value object" and "object" throughout the
 - **A value object** is held by a property whose schema is a value object schema, and belongs to that one owner, a
   reference object or another value object. Union and intersection values are value objects, and so are the objects they hold.
   `Visitable.owner()` gives a value object's owner, and None for a reference object.
-- **A value object may have adjacencies**, and its entries link it like any object. The rule "a value object cannot
+- **A value object may have adjacencies**, and its entries link it like any object. The decision "a value object cannot
   have adjacencies" is dropped. A value object's schema follows from its owner's, so a value object schema needs no
   registration, and a link to a value object carries no `$schema`: `{"$ref": "s3"}`.
 - **Ownership is exclusive and deep.** Editing a value object through its owner's builder keeps its identity. Setting
@@ -446,7 +447,7 @@ These replace the earlier design, in which a union's branches were chosen by pre
 `{"$branch": index, "$value": value}`, and an intersection's parts merged into one value.
 
 - **Every union branch and every intersection part has a name.** Names are required, unique within their union or
-  intersection, and are property names, subject to the same rules (see reserved names under Open questions).
+  intersection, and are property names, named as properties are (see reserved names under Open questions).
 - **Unpacked, a union is an object with exactly one of its variants present, and an intersection an object with all of
   its parts present.** This holds in proxies and over the wire (`Plain`, `JSON`, `YAML`): a union value is written
   `{"circle": {"radius": 2}}`, and an intersection value `{"Named": {"name": "a"}, "Dated": {"date": "..."}}`. A proxy
@@ -632,10 +633,14 @@ it is fixed here:
 | Object identity | `id(self)` | a counter, never reused |
 | Incomparable (`Comparison`) | `None` | `null` |
 | JSON | `json` with strict options | own reader and writer reproducing Python's output; ints and floats kept distinct |
-| YAML | PyYAML (optional extra), YAML 1.2 core loader | `yaml` package loader, own block emitter; the same quoting rules |
+| YAML | PyYAML (optional extra), YAML 1.2 core loader | `yaml` package loader, own block emitter; the same quoting |
 
 ## Open questions
 
+- **Where constraints attach.** A specification is constraints attached to the parts of a system they constrain, each
+  held by a property named `requires` ([MBSE.md](../MBSE.md#what-a-specification-is-made-of)); mbse-patterns'
+  predicates already hold theirs so. Which scopes a constraint attaches to (a schema, a property, a relation, an
+  interface, a whole specification), and how attached constraints combine into one conjunction, is not decided.
 - Sparse lists keyed by integers: an `int` key makes a list positional and dense. A sparse integer map needs a key of
   another schema (e.g. a value object holding the index), or a way to mark an `int` key as sparse.
 
@@ -677,7 +682,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   implementations, as snapshots. May a store combine implementations, e.g. bound classes for some schemas and proxies
   for the others?
 - Is "an owned child must be part of an ownership chain rooted in an object with a directory entry" still a
-  well-formedness rule under symbol-based serialization?
+  well-formedness constraint under symbol-based serialization?
 - Labeling objects outside snapshots: tools other than serializers (diffs, audit logs, debug dumps) have only
   `identity()`, an opaque in-memory value (`id(self)` in Python), to name an object. Snapshots label objects with
   symbols, but those are internal to a serialization. Should the framework expose a reusable, stable labeling, for
@@ -737,7 +742,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   members, singletons and extents; its data is what its singletons reach, and everything else is transient; it is
   isolated from other stores (see Stores). There is no global registry.
   Queries are mbse-patterns' (`Queries.QueryableStore`, and `Queries.Scan` over any store).
-- Constraints are kept beside the schemas, in mbse-patterns (sets of named rules about a schema, by its registered
+- Constraints are kept beside the schemas, in mbse-patterns (named predicates about a schema, by its registered
   name), not in them: this package does not depend on mbse-expressions, and several sets may apply to one schema.
 - `clone()` copies the source's adjacency entries to the clone.
 - Building a new object inline through a link (`x.phone(lambda y: ...)`) requires an unambiguous inference of its

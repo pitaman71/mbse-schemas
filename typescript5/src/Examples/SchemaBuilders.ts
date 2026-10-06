@@ -1,4 +1,4 @@
-// Schema rules example: builder semantics, Spec forms, and on-demand validation.
+// Schema builders example: builder semantics, Spec forms, and on-demand validation.
 //
 // Nothing here builds instances; it exercises Schemas.OfX.Builder and Schemas.OfX.Data.validate().
 
@@ -164,4 +164,4 @@ assert(Stamps.validate().length === 0);
 assert(new Schemas.OfIntersection.Builder().parts(
   (p) => p.name("stamp").of(Timestamped), (p) => p.name("text").of(Text)).create().validate().length > 0); // mixed kinds
 
-console.log("SchemaRules: all checks passed");
+console.log("SchemaBuilders: all checks passed");

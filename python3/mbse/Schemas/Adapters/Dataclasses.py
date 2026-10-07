@@ -186,7 +186,7 @@ class _Reader:
             outer = _name(node.value)
             native = _native_value(node) if outer in _CONTAINERS else None
             if native is not None:
-                self.objects[owner].properties[field] = native
+                self.objects[owner].properties[field] = Schemas.OfProperty.Data(field, native)
                 return
             if outer in _CONTAINERS:
                 self._container(owner, field, _CONTAINERS[outer], outer, node.slice)
@@ -201,7 +201,7 @@ class _Reader:
             raise TypeError(f"field {field!r}: a union needs a name per branch; unions are not translated")
         name = _name(node)
         if name in _NATIVES:
-            self.objects[owner].properties[field] = Schemas.OfNative.Data(_NATIVES[name])
+            self.objects[owner].properties[field] = Schemas.OfProperty.Data(field, Schemas.OfNative.Data(_NATIVES[name]))
         elif name in _COLLECTIONS:
             raise TypeError(f"field {field!r}: {name} needs a dataclass element type")
         elif name in self.trees:
@@ -212,16 +212,16 @@ class _Reader:
             raise TypeError(f"field {field!r}: {name} is neither a native type nor a dataclass being translated")
 
     def _container(self, owner: str, field: str, shape: str, outer: str, node: ast.expr) -> None:
-        properties: dict[str, Schemas.OfNative.Data] = {}
+        properties: dict[str, Schemas.OfProperty.Data] = {}
         if shape == "dict":
             key, element = node.elts if isinstance(node, ast.Tuple) and len(node.elts) == 2 else (None, node)
             if key is None or _name(key) not in _NATIVES:
                 raise TypeError(f"field {field!r}: {outer} needs a native key type and a dataclass value type")
-            properties[_KEY] = Schemas.OfNative.Data(_NATIVES[_name(key)])  # type: ignore[index]
+            properties[_KEY] = Schemas.OfProperty.Data(_KEY, Schemas.OfNative.Data(_NATIVES[_name(key)]))  # type: ignore[index]
         else:
             element = node
         if shape == "list":
-            properties[_INDEX] = Schemas.OfNative.Data(int)
+            properties[_INDEX] = Schemas.OfProperty.Data(_INDEX, Schemas.OfNative.Data(int))
         targets = [_name(n) for n in _alternatives(element)]
         for target in targets:
             if target not in self.trees:
@@ -349,7 +349,8 @@ def _container_annotation(adjacency: Schemas.OfAdjacency.Data, objects: Mapping[
     element = _either([_load(t) for t in targets])
     if not relation.properties:
         return ast.Subscript(value=_load("set"), slice=element, ctx=ast.Load())
-    (key, key_schema), *more = relation.properties.items()
+    (key, key_property), *more = relation.properties.items()
+    key_schema = key_property.type
     if more or relation.uniques != (frozenset({other}),) or not isinstance(key_schema, Schemas.OfNative.Data):
         raise TypeError(f"adjacency {adjacency.name!r}: only one native property and unique({other!r}) have a "
                         "container form")
@@ -390,7 +391,7 @@ class _ToDataclass:
                 raise TypeError(f"{name!r}: expected an object or relation schema, got {type(schema).__name__}")
         body: list[ast.stmt] = []
         for name, schema in objects.items():
-            fields = [_field(_identifier(p, "property"), _type_annotation(p, t)) for p, t in schema.properties.items()]
+            fields = [_field(_identifier(p, "property"), _type_annotation(p, prop.type)) for p, prop in schema.properties.items()]
             for adjacency in schema.adjacencies.values():
                 annotation = _container_annotation(adjacency, objects)
                 if annotation is not None:

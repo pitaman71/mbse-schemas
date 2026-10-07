@@ -35,6 +35,9 @@ The schema elements include:
                  A relation must not merge a relation and an object: a one-link relation whose entries carry
                  the data (e.g. a contact's phone numbers as entries holding `number`) is not legal. Model the
                  data as an `OfObject` and link it to its owner with a relation.
+- `OfProperty` : a property of an object or a relation's entries: its `name` and `type`, an `OfAny`. An object's or
+                 relation's `properties` map each name to its `OfProperty`, in declared order, so a property's type is
+                 `schema.properties['home'].type`.
 - `OfAdjacency` : declares that a particular `OfObject` is adjacent to an `OfRelation` via
                   a particular link name. Relations name their links without types
                   (`.links('contact', 'address')`); each object declares its adjacencies:
@@ -52,6 +55,11 @@ The schema elements include:
                      declare the same property, even with different types.
 - `OfIndexed` : a list of items, in order, each a value of one item schema of any kind but a reference object
                 schema (see Lists).
+
+Every element may be described: each kind of schema, each property, adjacency, union branch and intersection
+part takes `.description(text)` on its builder, and its data holds `description`, text or none. A description is
+documentation, for people and for generated code; validation reports one that is not text, and no validation,
+conversion or comparison of data reads it. A native's description is part of the native, as its name is.
 
 A property whose schema is an `OfObject` holds a *value object*: a read-only record of that
 schema's properties that belongs to its owner, copied with it and written nested in its owner's snapshot. It has an
@@ -567,11 +575,11 @@ are written, read, validated and compared like any other objects.
   name, built in the store, and `Modules.schemas(store, module)` the schemas a module holds, by name, each read back
   with its name. Both go through the module's plain form.
 - **Within a module, schemas are value objects, nested inline**, and their members are lists of value objects, in
-  declared order: an object schema's `properties` (`name`, `type`) and `adjacencies` (`name`, `relation`, `me`), with
-  its `singleton` and `ref`; a union's `branches` and an intersection's `parts` (`name`, `type`); a relation's `links`
-  (strings), `properties` and `uniques` (lists of strings, each sorted); and a list's `item`, `key` and `extent` (`minimum`,
-  `maximum`). A native is its token's
-  `format` and `name`, and its `bits` or `bytes`. What is absent, false or empty is left out.
+  declared order: an object schema's `properties` (`name`, `type`, `description`) and `adjacencies` (`name`,
+  `relation`, `me`, `description`), with its `singleton` and `ref`; a union's `branches` and an intersection's `parts`
+  (`name`, `type`, `description`); a relation's `links` (strings), `properties` and `uniques` (lists of strings, each
+  sorted); and a list's `item`, `key` and `extent` (`minimum`, `maximum`). A native is its token's `format` and `name`,
+  and its `bits` or `bytes`. Every kind ends with its `description`. What is absent, false or empty is left out.
 - **A type is a schema of any kind, inline, or a name**: `Schemas.OfAny.Schema`, a union of the kinds and `named`, a
   value object `{"name": ...}` (union branches are of one kind, so a name is a value object too). A property's type is
   `{"native": {"format": "basic", "name": "str"}}` or `{"named": {"name": "Phone"}}`, and an adjacency's relation is
@@ -694,6 +702,10 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Nothing is mandatory except as specified by a constraint: properties are optional by default, and mandatory
   participation in a relation is expressed as a constraint (directory membership is required by well-formedness).
 - `OfValue` is not a base class; renamed `OfAny`.
+- Every element may be described (0.6): schemas, properties, adjacencies, branches and parts hold an optional
+  `description`, written in modules and read back. So that a property can hold one, a property is an element,
+  `OfProperty.Data`, and `properties` maps a name to it rather than to its type, as a union's or intersection's
+  `properties` maps a name to its branch or part.
 - Names starting with `$` are reserved for the wire format's markers (`$ref`, `$schema`, `$id`): `validate()` reports
   a property, adjacency, link, branch or part name that starts with `$` ("name '$ref' is reserved: names starting with
   '$' belong to the wire format"), and a keyed list is written as a mapping only when its key's text can never start

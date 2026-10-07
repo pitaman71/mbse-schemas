@@ -71,6 +71,8 @@ new S.OfIntersection.Builder().parts((p) => p.name("stamp").of(spec), ...).creat
 new S.OfIndexed.Builder().of(spec).create();              // a list; in a property: (t) => t.as_indexed((i) => i.of(spec))
 new S.OfIndexed.Builder().key(spec).of(spec).extent({ minimum: 1n }).create(); // key: keyed; extent: bounds a positional list
 new S.OfObject.Builder().name("crm.Contact");                     // a name, identifiers separated by dots, on any kind
+new S.OfObject.Builder().description("A person we know");         // documentation, on any element: schema, property,
+schema.properties.get("home")?.type;                              // adjacency, branch or part; a property is an element
 const store = new Proxies.OfStore(); store.register(schema); const B = store;   // under schema.name; stores are isolated
 store.extent("Name"); store.singleton("Global");           // a schema's objects its singletons reach; a singleton
 new Stores.PCG32(42n).split("key").next_u32();             // a random source, given to whatever draws from it

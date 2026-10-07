@@ -80,7 +80,8 @@ function writeValue(visitor: OfAny, schema: Schemas.OfAny.Data, value: unknown):
  * each adjacency's entries. */
 export function accept(binding: Binding, instance: unknown, visitor: OfObject): void {
   const state = binding.read(instance);
-  for (const [name, schema] of binding.schema.properties) {
+  for (const [name, prop] of binding.schema.properties) {
+    const schema = prop.type as Schemas.OfAny.Data;
     const value = binding.fixed.has(name) ? binding.fixed.get(name) : state.values.get(name);
     if (value !== null && value !== undefined) visitor.property(name, (p) => p.value((a) => writeValue(a, schema, value)));
   }
@@ -95,7 +96,7 @@ function fill(visitor: OfEntry, relation: Schemas.OfRelation.Data, entry: Entry)
   for (const [link, target] of entry.links) visitor.link(link, (k) => k.set(target as Visitable));
   for (const [name, value] of entry.properties) {
     if (value !== null && value !== undefined) { // absent
-      const schema = relation.properties.get(name) as Schemas.OfAny.Data;
+      const schema = (relation.properties.get(name) as Schemas.OfProperty.Data).type as Schemas.OfAny.Data;
       visitor.property(name, (p) => p.value((a) => writeValue(a, schema, value)));
     }
   }
@@ -247,7 +248,7 @@ class _EntrySlot implements OfEntry {
   }
 
   private slot(name: string): OfProperty {
-    return slot(this.entry.properties, name, this.relation.properties.get(name) as Schemas.OfAny.Data);
+    return slot(this.entry.properties, name, (this.relation.properties.get(name) as Schemas.OfProperty.Data).type as Schemas.OfAny.Data);
   }
 
   property(name: string, callback: Callback<OfProperty>): this {
@@ -335,7 +336,7 @@ export class Builder implements OfObject {
   // Visitors.OfObject
 
   private field(name: string): OfProperty {
-    const schema = this.binding.schema.properties.get(name) as Schemas.OfAny.Data;
+    const schema = (this.binding.schema.properties.get(name) as Schemas.OfProperty.Data).type as Schemas.OfAny.Data;
     if (this.binding.fixed.has(name)) {
       return new _FixedSlot(name, schema as Schemas.OfNative.Data, this.binding.fixed.get(name) as Native);
     }

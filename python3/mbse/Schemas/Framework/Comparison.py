@@ -383,8 +383,9 @@ class OfProperty:
 class _Properties:
     """Named properties declared by a schema, recorded as `OfProperty`s."""
 
-    def __init__(self, schemas: dict[str, Schemas.OfAny.Data], paths: _Paths | None = None, path: Path = ()):
-        self._schemas, self._paths, self._path = schemas, paths, path
+    def __init__(self, properties: dict[str, Any], paths: _Paths | None = None, path: Path = ()):
+        self._schemas = {name: prop.type for name, prop in properties.items()}  # each property's type, by name
+        self._paths, self._path = paths, path
         self._slots: dict[str, OfProperty] = {}
 
     def each(self, callback: Callable[[Visitors.OfProperty], Any]) -> None:

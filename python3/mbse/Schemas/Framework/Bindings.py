@@ -80,7 +80,7 @@ def accept(binding: Binding, instance: Any, visitor: Visitors.OfObject) -> None:
     """Writes `instance` into `visitor`: its properties in the schema's order (the fixed ones from the binding), then
     each adjacency's entries."""
     state = binding.read(instance)
-    for name, schema in binding.schema.properties.items():
+    for name, schema in ((n, p.type) for n, p in binding.schema.properties.items()):
         value = binding.fixed[name] if name in binding.fixed else state.values.get(name)
         if value is not None:
             visitor.property(name, lambda p, s=schema, v=value: p.value(lambda a: _write_value(a, s, v)))
@@ -94,7 +94,7 @@ def _fill(visitor: Visitors.OfEntry, relation: Schemas.OfRelation.Data, entry: E
         visitor.link(link, lambda k, t=target: k.set(t))
     for name, value in entry.properties.items():
         if value is not None:  # absent
-            schema = relation.properties[name]
+            schema = relation.properties[name].type
             visitor.property(name, lambda p, s=schema, v=value: p.value(lambda a: _write_value(a, s, v)))
 
 
@@ -222,7 +222,7 @@ class _EntrySlot:
         return name in self._relation.properties and self._entry.properties.get(name) is not None
 
     def _slot(self, name: str) -> Any:
-        return _slot(self._entry.properties, name, self._relation.properties[name])
+        return _slot(self._entry.properties, name, self._relation.properties[name].type)
 
     def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _EntrySlot:
         if name not in self._relation.properties:
@@ -298,7 +298,7 @@ class Builder:
     # Visitors.OfObject
 
     def _field(self, name: str) -> Any:
-        schema = self.binding.schema.properties[name]
+        schema = self.binding.schema.properties[name].type
         if name in self.binding.fixed:
             return _FixedSlot(name, schema, self.binding.fixed[name])
         group = [other for other in self.binding.exclusive.get(name, ()) if other != name]

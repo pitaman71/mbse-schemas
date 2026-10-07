@@ -411,8 +411,12 @@ export class OfProperty implements Visitors.OfProperty {
 class Properties {
   private readonly slots = new Map<string, OfProperty>();
 
-  constructor(private readonly schemas: Map<string, Schemas.OfAny.Data>, private readonly paths: Paths | null = null,
-    private readonly path: Path = []) {}
+  private readonly schemas: Map<string, Schemas.OfAny.Data>; // each property's type, by name
+
+  constructor(properties: Map<string, { type: Schemas.OfAny.Data | null }>, private readonly paths: Paths | null = null,
+    private readonly path: Path = []) {
+    this.schemas = new Map([...properties].map(([name, prop]) => [name, prop.type as Schemas.OfAny.Data]));
+  }
 
   each(callback: Callback<Visitors.OfProperty>): void {
     for (const name of this.schemas.keys()) {

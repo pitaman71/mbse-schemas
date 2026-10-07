@@ -84,6 +84,11 @@ class _Builder(Generic[D]):
             setattr(self._source, name, value)
         return self._source
 
+    def description(self, text: str) -> Any:
+        """What the element is for, in prose: documentation, which no validation or comparison of data reads."""
+        self._fields["description"] = text
+        return self
+
 
 class _NamedBuilder(_Builder[D]):
     """A builder of a kind of schema, which may be named."""
@@ -102,6 +107,13 @@ def _name_problems(name: Any) -> list[str]:
     if name is None or (isinstance(name, str) and _DOTTED.match(name)):
         return []
     return [f"name {name!r} is not identifiers separated by dots, e.g. 'crm.Contact'"]
+
+
+def _description_problems(description: Any, where: str = "") -> list[str]:
+    """An element's description, when it has one, is text."""
+    if description is None or isinstance(description, str):
+        return []
+    return [f"{where}a description is text, got {type(description).__name__}"]
 
 
 def _reserved(names: Any) -> list[str]:
@@ -157,10 +169,12 @@ class _NativeData:
     bits: int | None
     bytes: int | None
     name: str | None
+    description: str | None
 
-    def __init__(self, token: Any = None, bits: int | None = None, bytes: int | None = None, name: str | None = None):
+    def __init__(self, token: Any = None, bits: int | None = None, bytes: int | None = None, name: str | None = None,
+                 description: str | None = None):
         self.token = _Token(BASIC, _BASIC_NAMES[token]) if isinstance(token, type) and token in _BASIC_NAMES else token
-        self.bits, self.bytes, self.name = bits, bytes, name
+        self.bits, self.bytes, self.name, self.description = bits, bytes, name, description
 
     @property
     def type(self) -> type[Native] | None:
@@ -174,7 +188,7 @@ class _NativeData:
         return self.type
 
     def validate(self) -> list[str]:
-        problems = _name_problems(self.name)
+        problems = _name_problems(self.name) + _description_problems(self.description)
         if not isinstance(self.token, _Token):
             problems.append(f"unsupported native type {self.token!r}")
         elif not (isinstance(self.token.format, str) and self.token.format and isinstance(self.token.name, str)
@@ -288,13 +302,14 @@ class OfNative:
         return _resolve(spec, _NativeData, _NativeBuilder)
 
 
-# --- OfProperty (auxiliary: a named property of an object or relation) ---
+# --- OfProperty: a named property of an object or relation ---
 
 
 @dataclass(eq=False)
 class _PropertyData:
     name: str = ""
     type: Any = None  # OfAny.Data
+    description: str | None = None
 
 
 class _PropertyBuilder(_Builder[_PropertyData]):
@@ -319,7 +334,7 @@ def _properties(fields: dict[str, Any], specs: tuple[OfProperty.Spec, ...]) -> N
     properties = fields.setdefault("properties", {})
     for spec in specs:
         prop = _resolve(spec, _PropertyData, _PropertyBuilder)
-        properties[prop.name] = prop.type
+        properties[prop.name] = prop
 
 
 # --- OfRelation ---
@@ -328,12 +343,14 @@ def _properties(fields: dict[str, Any], specs: tuple[OfProperty.Spec, ...]) -> N
 @dataclass(eq=False)
 class _RelationData:
     links: tuple[str, ...] = ()
-    properties: dict[str, Any] = field(default_factory=dict)  # name -> OfAny.Data
+    properties: dict[str, _PropertyData] = field(default_factory=dict)
     uniques: tuple[frozenset[str], ...] = ()
     name: str | None = None
+    description: str | None = None
 
     def validate(self) -> list[str]:
-        problems = _name_problems(self.name) + _reserved([*self.links, *self.properties])
+        problems = (_name_problems(self.name) + _description_problems(self.description)
+                    + _reserved([*self.links, *self.properties]))
         if len(self.links) < 2:
             problems.append("a relation needs at least two links; a one-link relation merges a relation and an object")
         if len(set(self.links)) != len(self.links):
@@ -346,8 +363,8 @@ class _RelationData:
             if unknown:
                 problems.append(f"unique({', '.join(sorted(unique))}) names unknown links or properties {sorted(unknown)}")
         for name, prop in self.properties.items():
-            problems += [f"property {name!r}: {p}" for p in _validate(prop) + _embedded_problems(prop)
-                         + _entry_value_problems(prop)]
+            problems += [f"property {name!r}: {p}" for p in _validate(prop.type) + _embedded_problems(prop.type)
+                         + _entry_value_problems(prop.type) + _description_problems(prop.description)]
         return problems
 
 
@@ -401,8 +418,12 @@ class _AdjacencyData:
     name: str = ""
     relation: _RelationData | None = None
     me: str = ""
+    description: str | None = None
 
     def validate(self) -> list[str]:
+        problems = _description_problems(self.description, f"adjacency {self.name!r}: ")
+        if problems:
+            return problems
         if self.relation is None:
             return [f"adjacency {self.name!r} has no relation"]
         if self.me not in self.relation.links:
@@ -445,11 +466,12 @@ _VALIDATING: set[int] = set()
 
 @dataclass(eq=False)
 class _ObjectData:
-    properties: dict[str, Any] = field(default_factory=dict)  # name -> OfAny.Data
+    properties: dict[str, _PropertyData] = field(default_factory=dict)
     adjacencies: dict[str, _AdjacencyData] = field(default_factory=dict)
     singleton: str | None = None
     ref: bool = False  # a reference object schema; otherwise a value object schema
     name: str | None = None
+    description: str | None = None
 
     def validate(self) -> list[str]:
         """The schema's problems. A value object schema may hold itself, through a list: its problems are reported once,
@@ -463,14 +485,16 @@ class _ObjectData:
             _VALIDATING.discard(id(self))
 
     def _problems(self) -> list[str]:
-        problems = _name_problems(self.name) + _reserved([*self.properties, *self.adjacencies])
+        problems = (_name_problems(self.name) + _description_problems(self.description)
+                    + _reserved([*self.properties, *self.adjacencies]))
         if self.singleton is not None and not self.ref:
             problems.append("a singleton's schema must be a reference object schema")
         clashes = set(self.properties) & set(self.adjacencies)
         if clashes:
             problems.append(f"names used as both property and adjacency: {sorted(clashes)}")
         for name, prop in self.properties.items():
-            problems += [f"property {name!r}: {p}" for p in _validate(prop) + _embedded_problems(prop)]
+            problems += [f"property {name!r}: {p}" for p in _validate(prop.type) + _embedded_problems(prop.type)
+                         + _description_problems(prop.description)]
         for adjacency in self.adjacencies.values():
             problems += adjacency.validate()
         return problems
@@ -523,6 +547,7 @@ class _MemberData:
 
     name: str = ""
     type: Any = None  # OfAny.Data
+    description: str | None = None
 
 
 class _MemberBuilder(_Builder[_MemberData]):
@@ -552,6 +577,7 @@ def _member_problems(a_kind: str, member: str, plural: str, members: tuple[_Memb
         elif m.name in seen:
             problems.append(f"{member} name {m.name!r} is used more than once")
         seen.add(m.name)
+        problems += _description_problems(m.description, f"{member} {m.name!r}: ")
     return problems
 
 
@@ -563,14 +589,16 @@ def _members(specs: tuple[Callable[[_MemberBuilder], _MemberBuilder], ...]) -> t
 class _UnionData:
     branches: tuple[_MemberData, ...] = ()
     name: str | None = None
+    description: str | None = None
 
     @property
-    def properties(self) -> dict[str, Any]:
+    def properties(self) -> dict[str, _MemberData]:
         """The branches by name: a union value is an object holding exactly one of them."""
-        return {branch.name: branch.type for branch in self.branches}
+        return {branch.name: branch for branch in self.branches}
 
     def validate(self) -> list[str]:
-        return _name_problems(self.name) + _member_problems("a union", "branch", "branches", self.branches)
+        return (_name_problems(self.name) + _description_problems(self.description)
+                + _member_problems("a union", "branch", "branches", self.branches))
 
 
 class _UnionBuilder(_NamedBuilder[_UnionData]):
@@ -597,14 +625,16 @@ class OfUnion:
 class _IntersectionData:
     parts: tuple[_MemberData, ...] = ()
     name: str | None = None
+    description: str | None = None
 
     @property
-    def properties(self) -> dict[str, Any]:
+    def properties(self) -> dict[str, _MemberData]:
         """The parts by name: an intersection value is an object holding every one of them."""
-        return {part.name: part.type for part in self.parts}
+        return {part.name: part for part in self.parts}
 
     def validate(self) -> list[str]:
-        return _name_problems(self.name) + _member_problems("an intersection", "part", "parts", self.parts)
+        return (_name_problems(self.name) + _description_problems(self.description)
+                + _member_problems("an intersection", "part", "parts", self.parts))
 
 
 class _IntersectionBuilder(_NamedBuilder[_IntersectionData]):
@@ -648,6 +678,7 @@ class _IndexedData:
     key: Any = None  # OfAny.Data, or None for a positional list
     extent: _Extent | None = None
     name: str | None = None
+    description: str | None = None
 
     @property
     def positional(self) -> bool:
@@ -667,7 +698,8 @@ class _IndexedData:
         return extent.maximum - extent.minimum + 1
 
     def validate(self) -> list[str]:
-        problems = _name_problems(self.name) + [f"item: {problem}" for problem in _validate(self.item)]
+        problems = (_name_problems(self.name) + _description_problems(self.description)
+                    + [f"item: {problem}" for problem in _validate(self.item)])
         if self.key is not None:
             key = _validate(self.key) + _embedded_problems(self.key, role="a key")
             problems += [f"key: {problem}" for problem in key + _entry_value_problems(self.key, "in a key")]
@@ -732,7 +764,7 @@ def _members_of(schema: Any) -> list[Any]:
     intersection's parts, a list's item."""
     if isinstance(schema, _IndexedData):
         return [schema.item]
-    return list(schema.properties.values()) if isinstance(schema, (_ObjectData, _UnionData, _IntersectionData)) else []
+    return [m.type for m in schema.properties.values()] if isinstance(schema, (_ObjectData, _UnionData, _IntersectionData)) else []
 
 
 def _embedded_problems(schema: Any, seen: frozenset[int] = frozenset(), role: str = "a property's type") -> list[str]:
@@ -831,27 +863,32 @@ def _Text(t: _AnyBuilder) -> _AnyBuilder:
 
 _Named = OfObject.Builder().properties(_named_text("name")).create()
 _AnySchema = OfUnion.Builder().create()  # a type; its branches, which refer back to it, are added below
-_PropertySchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("type").of(_AnySchema)).create()
+_PropertySchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("type").of(_AnySchema),
+                                                _named_text("description")).create()
 _NativeSchema = OfObject.Builder().properties(
     _named_text("format"), _named_text("name"), lambda p: p.name("bits").of(lambda t: t.as_native(int)),
-    lambda p: p.name("bytes").of(lambda t: t.as_native(int))).create()
+    lambda p: p.name("bytes").of(lambda t: t.as_native(int)), _named_text("description")).create()
 _RelationSchema = OfObject.Builder().properties(
     lambda p: p.name("links").of(_list_of(_Text)), lambda p: p.name("properties").of(_list_of(_PropertySchema)),
-    lambda p: p.name("uniques").of(_list_of(_list_of(_Text)))).create()
+    lambda p: p.name("uniques").of(_list_of(_list_of(_Text))), _named_text("description")).create()
 _RelationRef = OfUnion.Builder().branches(lambda b: b.name("relation").of(_RelationSchema),
                                           lambda b: b.name("named").of(_Named)).create()
 _AdjacencySchema = OfObject.Builder().properties(
-    _named_text("name"), lambda p: p.name("relation").of(_RelationRef), _named_text("me")).create()
+    _named_text("name"), lambda p: p.name("relation").of(_RelationRef), _named_text("me"),
+    _named_text("description")).create()
 _ObjectSchema = OfObject.Builder().properties(
     lambda p: p.name("properties").of(_list_of(_PropertySchema)),
     lambda p: p.name("adjacencies").of(_list_of(_AdjacencySchema)), _named_text("singleton"),
-    lambda p: p.name("ref").of(lambda t: t.as_native(bool))).create()
-_UnionSchema = OfObject.Builder().properties(lambda p: p.name("branches").of(_list_of(_PropertySchema))).create()
-_IntersectionSchema = OfObject.Builder().properties(lambda p: p.name("parts").of(_list_of(_PropertySchema))).create()
+    lambda p: p.name("ref").of(lambda t: t.as_native(bool)), _named_text("description")).create()
+_UnionSchema = OfObject.Builder().properties(lambda p: p.name("branches").of(_list_of(_PropertySchema)),
+                                             _named_text("description")).create()
+_IntersectionSchema = OfObject.Builder().properties(lambda p: p.name("parts").of(_list_of(_PropertySchema)),
+                                                    _named_text("description")).create()
 _ExtentSchema = OfObject.Builder().properties(lambda p: p.name("minimum").of(lambda t: t.as_native(int)),
                                               lambda p: p.name("maximum").of(lambda t: t.as_native(int))).create()
 _IndexedSchema = OfObject.Builder().properties(lambda p: p.name("item").of(_AnySchema), lambda p: p.name("key").of(_AnySchema),
-                                               lambda p: p.name("extent").of(_ExtentSchema)).create()
+                                               lambda p: p.name("extent").of(_ExtentSchema),
+                                               _named_text("description")).create()
 _KIND_SCHEMAS = (("native", _NativeSchema), ("object", _ObjectSchema), ("union", _UnionSchema),
                  ("intersection", _IntersectionSchema), ("indexed", _IndexedSchema))
 OfUnion.Builder(_AnySchema).branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],

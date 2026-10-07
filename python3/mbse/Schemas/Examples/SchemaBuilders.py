@@ -25,7 +25,7 @@ Named = (
     )
     .create()
 )
-assert Named.properties['first'] is Text and Named.properties['last'] is Text
+assert Named.properties['first'].type is Text and Named.properties['last'].type is Text
 
 # An OfAny builder with no kind selected cannot be finalized.
 with raises(ValueError):
@@ -72,7 +72,7 @@ Retyped = (
     .properties(lambda prop: prop.name('a').of(lambda t: t.as_native(int)))
     .clone()
 )
-assert Retyped.properties['a'] == Schemas.OfNative.Data(int) and first.properties['a'] is Text
+assert Retyped.properties['a'].type == Schemas.OfNative.Data(int) and first.properties['a'].type is Text
 
 # --- Relations and cardinality ---
 

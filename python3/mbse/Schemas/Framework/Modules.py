@@ -88,38 +88,47 @@ class _Writer:
             self._inline.discard(id(schema))
 
     def _members(self, members: Any) -> list[Definition]:
-        return [{"name": name, "type": self.reference(schema)} for name, schema in members]
+        """Properties, branches or parts: each its name, its type and its description, if any."""
+        return [_present(name=member.name, type=self.reference(member.type), description=member.description)
+                for member in members]
 
     def _contents(self, schema: Any) -> Definition:
         if isinstance(schema, Schemas.OfNative.Data):
             if not isinstance(schema.token, Schemas.OfNative.Token):
                 raise TypeError(f"unsupported native type {schema.token!r}")
             return _kind_of("native", format=schema.token.format, name=schema.token.name, bits=schema.bits,
-                            bytes=schema.bytes)
+                            bytes=schema.bytes, description=schema.description)
         if isinstance(schema, Schemas.OfObject.Data):
-            adjacencies = [{"name": name, "relation": self.reference(adjacency.relation), "me": adjacency.me}
+            adjacencies = [_present(name=name, relation=self.reference(adjacency.relation), me=adjacency.me,
+                                    description=adjacency.description)
                            for name, adjacency in schema.adjacencies.items()]
-            return _kind_of("object", properties=self._members(schema.properties.items()), adjacencies=adjacencies,
-                            singleton=schema.singleton, ref=schema.ref)
+            return _kind_of("object", properties=self._members(schema.properties.values()), adjacencies=adjacencies,
+                            singleton=schema.singleton, ref=schema.ref, description=schema.description)
         if isinstance(schema, Schemas.OfRelation.Data):
-            return _kind_of("relation", links=list(schema.links), properties=self._members(schema.properties.items()),
-                            uniques=[sorted(unique) for unique in schema.uniques])
+            return _kind_of("relation", links=list(schema.links), properties=self._members(schema.properties.values()),
+                            uniques=[sorted(unique) for unique in schema.uniques], description=schema.description)
         if isinstance(schema, Schemas.OfUnion.Data):
-            return _kind_of("union", branches=self._members((b.name, b.type) for b in schema.branches))
+            return _kind_of("union", branches=self._members(schema.branches), description=schema.description)
         if isinstance(schema, Schemas.OfIntersection.Data):
-            return _kind_of("intersection", parts=self._members((p.name, p.type) for p in schema.parts))
+            return _kind_of("intersection", parts=self._members(schema.parts), description=schema.description)
         if isinstance(schema, Schemas.OfIndexed.Data):
             extent = None if schema.extent is None else {
                 key: value for key, value in (("minimum", schema.extent.minimum), ("maximum", schema.extent.maximum))
                 if value is not None}
             return _kind_of("indexed", item=self.reference(schema.item),
-                            key=None if schema.key is None else self.reference(schema.key), extent=extent)
+                            key=None if schema.key is None else self.reference(schema.key), extent=extent,
+                            description=schema.description)
         raise TypeError(f"not a schema: {schema!r}")
 
 
 def _kind_of(kind: str, **contents: Any) -> Definition:
     """A schema's plain form, leaving out what is absent, false or empty, as a reader assumes."""
-    return {kind: {key: value for key, value in contents.items() if value is not None and value is not False and value != []}}
+    return {kind: _present(**contents)}
+
+
+def _present(**contents: Any) -> dict[str, Any]:
+    """`contents` without what is absent, false or empty."""
+    return {key: value for key, value in contents.items() if value is not None and value is not False and value != []}
 
 
 # --- Plain data to schemas ---
@@ -179,28 +188,32 @@ class _Reader:
             raise TypeError(f"{body['name']!r} is not a relation")
         return schema
 
-    def _members(self, members: list[dict[str, Any]]) -> list[tuple[str, Any]]:
-        return [(member["name"], self.type(member["type"])) for member in members]
+    def _members(self, members: list[dict[str, Any]], data: type) -> list[Any]:
+        """Properties, branches or parts, as elements of `data`'s kind."""
+        return [data(member["name"], self.type(member["type"]), member.get("description")) for member in members]
 
     def _fill(self, schema: Any, definition: Definition) -> Any:
         """Writes the contents of `definition` into `schema`, a blank schema of its kind, and returns it."""
         kind, body = _contents_of(definition)
+        schema.description = body.get("description")
+        properties = self._members(body.get("properties", []), Schemas.OfProperty.Data)
         if kind == "native":
             schema.token = Schemas.OfNative.Token(body["format"], body["name"])
             schema.bits, schema.bytes = body.get("bits"), body.get("bytes")
         elif kind == "object":
-            schema.properties = dict(self._members(body.get("properties", [])))
-            schema.adjacencies = {a["name"]: Schemas.OfAdjacency.Data(a["name"], self._relation(a["relation"]), a["me"])
+            schema.properties = {p.name: p for p in properties}
+            schema.adjacencies = {a["name"]: Schemas.OfAdjacency.Data(a["name"], self._relation(a["relation"]), a["me"],
+                                                                      a.get("description"))
                                   for a in body.get("adjacencies", [])}
             schema.singleton, schema.ref = body.get("singleton"), body.get("ref", False)
         elif kind == "relation":
             schema.links = tuple(body.get("links", []))
-            schema.properties = dict(self._members(body.get("properties", [])))
+            schema.properties = {p.name: p for p in properties}
             schema.uniques = tuple(frozenset(unique) for unique in body.get("uniques", []))
         elif kind == "union":
-            schema.branches = tuple(Schemas.OfUnion.Branch(n, t) for n, t in self._members(body.get("branches", [])))
+            schema.branches = tuple(self._members(body.get("branches", []), Schemas.OfUnion.Branch))
         elif kind == "intersection":
-            schema.parts = tuple(Schemas.OfIntersection.Part(n, t) for n, t in self._members(body.get("parts", [])))
+            schema.parts = tuple(self._members(body.get("parts", []), Schemas.OfIntersection.Part))
         else:
             schema.item = self.type(body["item"])
             schema.key = self.type(body["key"]) if "key" in body else None

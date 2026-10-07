@@ -310,10 +310,11 @@ class _PropertyWriter:
         return self
 
 
-def _property_schema(properties: dict[str, Schemas.OfAny.Data], name: str) -> Schemas.OfAny.Data:
+def _property_schema(properties: dict[str, Any], name: str) -> Schemas.OfAny.Data:
+    """The type of the property `name` (an `OfProperty`, or a union's or intersection's member)."""
     if name not in properties:
         raise KeyError(f"unknown property {name!r}")
-    return properties[name]
+    return properties[name].type
 
 
 class _LinkWriter:
@@ -354,7 +355,7 @@ class _EntryWriter:
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryWriter:
         for name in self._relation.properties:
             if name in self._entry:
-                callback(_PropertyWriter(self._entry, name, self._relation.properties[name], self._ref, _unlinked))
+                callback(_PropertyWriter(self._entry, name, self._relation.properties[name].type, self._ref, _unlinked))
         return self
 
     def has(self, name: str) -> bool:
@@ -405,7 +406,7 @@ class _RecordWriter:
         self._out, self._schema, self._ref, self._symbol = out, schema, ref, symbol
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> Any:
-        for name, schema in self._schema.properties.items():
+        for name, schema in ((n, p.type) for n, p in self._schema.properties.items()):
             if name in self._out:
                 callback(_PropertyWriter(self._out, name, schema, self._ref, self._symbol))
         return self
@@ -575,8 +576,8 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context:
         elif key in adjacencies and context is not None:
             rows[key] = _decode_rows(adjacencies[key], item, where, key)
         elif key in schema.properties:
-            values[key] = _decode(schema.properties[key], item, (*where, key), context,
-                                  (*steps, (key, type(schema.properties[key]))))
+            values[key] = _decode(schema.properties[key].type, item, (*where, key), context,
+                                  (*steps, (key, type(schema.properties[key].type))))
         else:
             raise DecodeError(f"{owner} has no {member} {key!r}", path=path(*where, key))
     if isinstance(schema, Schemas.OfUnion.Data) and len(values) != 1:
@@ -673,7 +674,7 @@ def _decode_rows(adjacency: Schemas.OfAdjacency.Data, value: PlainData, where: t
                     raise DecodeError("a link must be a reference", path=at)
                 row[name] = _Link(item[REF])
             elif name in relation.properties:
-                row[name] = _decode_entry_property(relation.properties[name], item, (*where, key, i, name))
+                row[name] = _decode_entry_property(relation.properties[name].type, item, (*where, key, i, name))
             else:
                 raise DecodeError(f"the relation has no link or property {name!r}", path=at)
         missing = [n for n in relation.links if n != adjacency.me and n not in entry]
@@ -766,8 +767,8 @@ def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
             if key in object_schema.adjacencies:
                 adjacencies[key] = _decode_rows(object_schema.adjacencies[key], value, where, key)
             elif key in object_schema.properties:
-                properties[key] = _decode(object_schema.properties[key], value, (*where, key), context,
-                                          ((key, type(object_schema.properties[key])),))
+                properties[key] = _decode(object_schema.properties[key].type, value, (*where, key), context,
+                                          ((key, type(object_schema.properties[key].type)),))
             else:
                 raise DecodeError(f"{names[symbol]!r} has no property or adjacency {key!r}", path=path(*where, key))
         decoded[symbol] = (properties, adjacencies)

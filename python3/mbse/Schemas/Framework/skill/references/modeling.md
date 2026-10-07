@@ -23,6 +23,7 @@ How to express an interface or data model with the schema elements. The same mod
 | Mixin, aspect, `allOf` | `OfIntersection`: named, same-kind parts; a value holds every one. Supported for property values. Objects with identity composed from aspects are not yet |
 | Singleton, global registry | `OfObject.Builder().singleton("Name")`, usually with a directory relation |
 | Port and connector | ports as a list of value objects in their component; connectors as a relation between ports, carrying the connection's properties |
+| Documentation, comment, `description` | `.description(text)` on the element's builder: a schema, property, adjacency, branch or part |
 | Enumeration of literals | a native (e.g. `str`); restricting its values needs constraints, which are planned |
 
 ## Decisions

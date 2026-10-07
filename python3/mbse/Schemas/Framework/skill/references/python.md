@@ -64,6 +64,8 @@ S.OfIndexed.Builder().key(spec).of(spec).create()           # a keyed list (a na
 schema.validate()                                           # the schema's own problems, [] when valid
 
 S.OfObject.Builder().name("crm.Contact")                    # a name, identifiers separated by dots, on any kind of schema
+S.OfObject.Builder().description("A person we know")        # documentation, on any element: schema, property, adjacency,
+schema.properties["home"].type                              # branch or part; a property is an element, its type inside
 # A store: register named object and relation schemas, then build through it. Stores are isolated; objects move between
 # them as snapshots.
 store = Proxies.OfStore(); store.register(schema); B = store  # under schema.name; an unnamed schema is refused

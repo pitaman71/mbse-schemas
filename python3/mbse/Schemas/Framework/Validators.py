@@ -410,7 +410,7 @@ class _Check:
             if name not in schema.properties:
                 self.problems.append(f"{label}.{name}: not a property of {value.schema_name()!r}")
                 continue
-            self.problems += self._value_problems(f"{label}.{name}", schema.properties[name], item)
+            self.problems += self._value_problems(f"{label}.{name}", schema.properties[name].type, item)
         for name, entries in record.adjacency_entries.items():
             if name not in schema.adjacencies:
                 self.problems.append(f"{label}.{name}: not an adjacency of {value.schema_name()!r}")
@@ -438,7 +438,7 @@ class _Check:
             if name not in schema.properties:
                 problems.append(f"{label}.{name}: not a {member} of {owner}")
             else:
-                problems += self._value_problems(f"{label}.{name}", schema.properties[name], value)
+                problems += self._value_problems(f"{label}.{name}", schema.properties[name].type, value)
         if kind == "union" and len(item.values) != 1:
             problems.append(f"{label}: a union value holds exactly one branch, got {len(item.values)}")
         missing = [name for name in schema.properties if name not in item.values] if kind == "intersection" else []
@@ -513,7 +513,7 @@ class _Check:
             if name not in relation.properties:
                 problems.append(f"{label}.{name}: not a property of the relation")
                 continue
-            problems += self._value_problems(f"{label}.{name}", relation.properties[name], item)
+            problems += self._value_problems(f"{label}.{name}", relation.properties[name].type, item)
         full = _Entry({n: t for n, t in links.items() if t is not None}, entry.values)
         _, seen = self._entries.setdefault(id(relation), (relation, {}))
         seen.setdefault(full.key(set(relation.links) | set(relation.properties)), full)

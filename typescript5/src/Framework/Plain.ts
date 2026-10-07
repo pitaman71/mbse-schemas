@@ -362,10 +362,11 @@ export class _PropertyWriter implements OfProperty {
   }
 }
 
-function propertySchema(properties: Map<string, Schemas.OfAny.Data>, name: string): Schemas.OfAny.Data {
+/** The type of the property `name` (an `OfProperty`, or a union's or intersection's member). */
+function propertySchema(properties: Map<string, { type: Schemas.OfAny.Data | null }>, name: string): Schemas.OfAny.Data {
   const found = properties.get(name);
   if (found === undefined) throw new KeyError(`unknown property ${repr(name)}`);
-  return found;
+  return found.type as Schemas.OfAny.Data;
 }
 
 /** `Visitors.OfLink` writing a reference into a plain entry. */
@@ -407,7 +408,8 @@ export class _EntryWriter implements OfEntry {
   }
 
   properties(callback: Callback<OfProperty>): _EntryWriter {
-    for (const [name, schema] of this.relation.properties) {
+    for (const [name, prop] of this.relation.properties) {
+      const schema = prop.type as Schemas.OfAny.Data;
       if (this.entry.has(name)) callback(new _PropertyWriter(this.entry, name, schema, this.ref, unlinked));
     }
     return this;
@@ -471,7 +473,8 @@ export class _RecordWriter implements OfUnion, OfIntersection {
     protected readonly symbol: Symbol) {}
 
   properties(callback: Callback<OfProperty>): this {
-    for (const [name, schema] of this.schema.properties) {
+    for (const [name, prop] of this.schema.properties) {
+      const schema = prop.type as Schemas.OfAny.Data;
       if (this.out.has(name)) callback(new _PropertyWriter(this.out, name, schema, this.ref, this.symbol));
     }
     return this;
@@ -642,7 +645,7 @@ function decode(schema: Schemas.OfAny.Data, plain: unknown, where: Where, contex
   const values = new Map<string, unknown>();
   const rows: Rows = new Map();
   for (const [key, item] of plain as PlainMap) {
-    const type = record.properties.get(key);
+    const type = record.properties.get(key)?.type as Schemas.OfAny.Data | undefined;
     const adjacency = adjacencies.get(key);
     if (key === ID && record instanceof Schemas.OfObject.Data && context !== null) {
       identify(item, context, steps, [...where, key]);
@@ -740,7 +743,7 @@ function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: 
     const row = new Map<string, Native | Link>();
     for (const [name, item] of entry as PlainMap) {
       const at = path(...where, key, i, name);
-      const entryType = relation.properties.get(name);
+      const entryType = relation.properties.get(name)?.type as Schemas.OfAny.Data | undefined;
       if (name === adjacency.me) throw new DecodeError(`${repr(name)} is this object's own link, which is implied`, { path: at });
       if (relation.links.includes(name)) {
         if (!isRef(item)) throw new DecodeError("a link must be a reference", { path: at });
@@ -852,7 +855,7 @@ function check(store: Stores.Store, schema: unknown, plain: unknown): [string, M
       if (key === SCHEMA) continue;
       const where: Where = ["objects", symbol];
       const adjacency = objectSchema.adjacencies.get(key);
-      const propertyType = objectSchema.properties.get(key);
+      const propertyType = objectSchema.properties.get(key)?.type as Schemas.OfAny.Data | undefined;
       if (adjacency !== undefined) {
         adjacencies.set(key, decodeRows(adjacency, value, where, key));
       } else if (propertyType !== undefined) {

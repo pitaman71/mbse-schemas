@@ -95,37 +95,38 @@ class Writer {
     }
   }
 
-  private members(members: Iterable<readonly [string, unknown]>): PlainMap[] {
-    return [...members].map(([name, schema]) => new Map<string, PlainData>([["name", name], ["type", this.reference(schema)]]));
+  /** Properties, branches or parts: each its name, its type and its description, if any. */
+  private members(members: Iterable<{ name: string; type: unknown; description: string | null }>): PlainMap[] {
+    return [...members].map((m) => present([["name", m.name], ["type", this.reference(m.type)], ["description", m.description]]));
   }
 
   private contents(schema: unknown): Definition {
     if (schema instanceof Schemas.OfNative.Data) {
       if (!(schema.token instanceof Schemas.OfNative.Token)) throw new TypeError(`unsupported native type ${repr(schema.token)}`);
       return kindOf("native", [["format", schema.token.format], ["name", schema.token.name], ["bits", schema.bits],
-        ["bytes", schema.bytes]]);
+        ["bytes", schema.bytes], ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfObject.Data) {
-      const adjacencies = [...schema.adjacencies].map(([name, adjacency]) => new Map<string, PlainData>([["name", name],
-        ["relation", this.reference(adjacency.relation)], ["me", adjacency.me]]));
-      return kindOf("object", [["properties", this.members(schema.properties)], ["adjacencies", adjacencies],
-        ["singleton", schema.singleton], ["ref", schema.ref]]);
+      const adjacencies = [...schema.adjacencies].map(([name, adjacency]) => present([["name", name],
+        ["relation", this.reference(adjacency.relation)], ["me", adjacency.me], ["description", adjacency.description]]));
+      return kindOf("object", [["properties", this.members(schema.properties.values())], ["adjacencies", adjacencies],
+        ["singleton", schema.singleton], ["ref", schema.ref], ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfRelation.Data) {
-      return kindOf("relation", [["links", [...schema.links]], ["properties", this.members(schema.properties)],
-        ["uniques", schema.uniques.map((unique) => sortedStrings(unique))]]);
+      return kindOf("relation", [["links", [...schema.links]], ["properties", this.members(schema.properties.values())],
+        ["uniques", schema.uniques.map((unique) => sortedStrings(unique))], ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfUnion.Data) {
-      return kindOf("union", [["branches", this.members(schema.branches.map((b) => [b.name, b.type] as const))]]);
+      return kindOf("union", [["branches", this.members(schema.branches)], ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfIntersection.Data) {
-      return kindOf("intersection", [["parts", this.members(schema.parts.map((p) => [p.name, p.type] as const))]]);
+      return kindOf("intersection", [["parts", this.members(schema.parts)], ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfIndexed.Data) {
       const extent = schema.extent === null ? null : new Map<string, PlainData>(
         ([["minimum", schema.extent.minimum], ["maximum", schema.extent.maximum]] as [string, PlainData][]).filter(([, v]) => v !== null));
       return kindOf("indexed", [["item", this.reference(schema.item)],
-        ["key", schema.key === null ? null : this.reference(schema.key)], ["extent", extent]]);
+        ["key", schema.key === null ? null : this.reference(schema.key)], ["extent", extent], ["description", schema.description]]);
     }
     throw new TypeError(`not a schema: ${repr(schema)}`);
   }
@@ -133,8 +134,12 @@ class Writer {
 
 /** A schema's plain form, leaving out what is absent, false or empty, as a reader assumes. */
 function kindOf(kind: string, contents: [string, PlainData][]): Definition {
-  const written = contents.filter(([, value]) => value !== null && value !== false && !(Array.isArray(value) && value.length === 0));
-  return new Map([[kind, new Map(written)]]);
+  return new Map([[kind, present(contents)]]);
+}
+
+/** `contents` without what is absent, false or empty. */
+function present(contents: [string, PlainData][]): PlainMap {
+  return new Map(contents.filter(([, value]) => value !== null && value !== false && !(Array.isArray(value) && value.length === 0)));
 }
 
 // --- Plain data to schemas ---
@@ -198,33 +203,39 @@ class Reader {
     return schema;
   }
 
-  private members(members: PlainData | undefined): [string, Schemas.OfAny.Data][] {
-    return ((members as PlainMap[] | undefined) ?? []).map((m) => [m.get("name") as string, this.type(m.get("type") as Definition)]);
+  /** Properties, branches or parts, as `make` builds them from their name, type and description. */
+  private members<M>(members: PlainData | undefined, make: (fields: { name: string; type: Schemas.OfAny.Data;
+    description: string | null }) => M): M[] {
+    return ((members as PlainMap[] | undefined) ?? []).map((m) => make({ name: m.get("name") as string,
+      type: this.type(m.get("type") as Definition), description: (m.get("description") as string | undefined) ?? null }));
   }
 
   /** Writes the contents of `definition` into `schema`, a blank schema of its kind, and returns it. */
   private fill(schema: Schema, definition: Definition): Schema {
     const [, body] = contentsOf(definition);
     const list = (key: string) => (body.get(key) as PlainData[] | undefined) ?? [];
+    schema.description = (body.get("description") as string | undefined) ?? null;
+    const properties = () => new Map(this.members(body.get("properties"), (f) => new Schemas.OfProperty.Data(f))
+      .map((p) => [p.name, p]));
     if (schema instanceof Schemas.OfNative.Data) {
       schema.token = new Schemas.OfNative.Token(body.get("format") as string, body.get("name") as string);
       schema.bits = (body.get("bits") as bigint | undefined) ?? null;
       schema.bytes = (body.get("bytes") as bigint | undefined) ?? null;
     } else if (schema instanceof Schemas.OfObject.Data) {
-      schema.properties = new Map(this.members(body.get("properties")));
+      schema.properties = properties();
       schema.adjacencies = new Map((list("adjacencies") as PlainMap[]).map((a) => [a.get("name") as string,
         new Schemas.OfAdjacency.Data({ name: a.get("name") as string, relation: this.relation(a.get("relation") as Definition),
-          me: a.get("me") as string })]));
+          me: a.get("me") as string, description: (a.get("description") as string | undefined) ?? null })]));
       schema.singleton = (body.get("singleton") as string | undefined) ?? null;
       schema.ref = (body.get("ref") as boolean | undefined) ?? false;
     } else if (schema instanceof Schemas.OfRelation.Data) {
       schema.links = list("links") as string[];
-      schema.properties = new Map(this.members(body.get("properties")));
+      schema.properties = properties();
       schema.uniques = (list("uniques") as string[][]).map((unique) => new Set(unique));
     } else if (schema instanceof Schemas.OfUnion.Data) {
-      schema.branches = this.members(body.get("branches")).map(([name, type]) => new Schemas.OfUnion.Branch({ name, type }));
+      schema.branches = this.members(body.get("branches"), (f) => new Schemas.OfUnion.Branch(f));
     } else if (schema instanceof Schemas.OfIntersection.Data) {
-      schema.parts = this.members(body.get("parts")).map(([name, type]) => new Schemas.OfIntersection.Part({ name, type }));
+      schema.parts = this.members(body.get("parts"), (f) => new Schemas.OfIntersection.Part(f));
     } else {
       const indexed = schema as Schemas.OfIndexed.Data;
       indexed.item = this.type(body.get("item") as Definition);

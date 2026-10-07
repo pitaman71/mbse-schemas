@@ -446,7 +446,7 @@ class Check {
     const record = schema as Schemas.OfObject.Data | Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
     const problems: string[] = [];
     for (const [name, value] of item.values) {
-      const type = record.properties.get(name);
+      const type = record.properties.get(name)?.type as Schemas.OfAny.Data | undefined;
       if (type === undefined) problems.push(`${label}.${name}: not a ${member} of ${owner}`);
       else problems.push(...this.valueProblems(`${label}.${name}`, type, value));
     }
@@ -511,7 +511,7 @@ class Check {
     const record = new _ObjectRecord();
     value.accept(record);
     for (const [name, item] of record.values) {
-      const propertyType = schema.properties.get(name);
+      const propertyType = schema.properties.get(name)?.type as Schemas.OfAny.Data | undefined;
       if (propertyType === undefined) {
         this.problems.push(`${label}.${name}: not a property of ${repr(value.schema_name())}`);
         continue;
@@ -549,7 +549,7 @@ class Check {
       if (problem !== null) problems.push(`${label}.${name}: ${problem}`);
     }
     for (const [name, item] of entry.values) {
-      const propertyType = relation.properties.get(name);
+      const propertyType = relation.properties.get(name)?.type as Schemas.OfAny.Data | undefined;
       if (propertyType === undefined) {
         problems.push(`${label}.${name}: not a property of the relation`);
         continue;

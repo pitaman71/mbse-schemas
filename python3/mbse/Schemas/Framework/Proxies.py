@@ -815,7 +815,7 @@ class _RecordBuilder:
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _RecordBuilder:
         for name in [n for n in self._schema.properties if n in self._values]:
-            callback(_PropertySlot(self._values, name, self._schema.properties[name], self._store))
+            callback(_PropertySlot(self._values, name, self._schema.properties[name].type, self._store))
         return self
 
     def has(self, name: str) -> bool:
@@ -827,7 +827,7 @@ class _RecordBuilder:
         if isinstance(self._schema, Schemas.OfUnion.Data):
             for other in [n for n in self._values if n != name]:
                 del self._values[other]
-        callback(_PropertySlot(self._values, name, self._schema.properties[name], self._store))
+        callback(_PropertySlot(self._values, name, self._schema.properties[name].type, self._store))
         return self
 
     def clear(self, name: str) -> _RecordBuilder:
@@ -859,7 +859,7 @@ class _RecordBuilder:
         if name.startswith("_"):
             raise AttributeError(name)
         if name in self._schema.properties:
-            return _setter(self, name, self._schema.properties[name])
+            return _setter(self, name, self._schema.properties[name].type)
         if name in self._adjacencies():
             return _adder(self, name)
         raise AttributeError(f"{name!r} is not a {self._member}")
@@ -940,7 +940,7 @@ class _EntryBuilder:
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryBuilder:
         for name in list(self._values):
-            callback(_PropertySlot(self._values, name, self._relation.properties.get(name), self._store))
+            callback(_PropertySlot(self._values, name, self._relation.properties[name].type if name in self._relation.properties else None, self._store))
         return self
 
     def has(self, name: str) -> bool:
@@ -949,7 +949,7 @@ class _EntryBuilder:
     def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryBuilder:
         if name not in self._relation.properties:
             raise AttributeError(f"{name!r} is not a property of this relation")
-        callback(_PropertySlot(self._values, name, self._relation.properties[name], self._store))
+        callback(_PropertySlot(self._values, name, self._relation.properties[name].type, self._store))
         return self
 
     def clear(self, name: str) -> _EntryBuilder:
@@ -976,7 +976,7 @@ class _EntryBuilder:
 
             return link_setter
         if name in self._relation.properties:
-            return _setter(self, name, self._relation.properties[name])
+            return _setter(self, name, self._relation.properties[name].type)
         raise AttributeError(name)
 
     def build(self, target: _ObjectData) -> _Entry:
@@ -1042,7 +1042,7 @@ class _ObjectBuilder:
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _ObjectBuilder:
         for name in list(self._values):
-            callback(_PropertySlot(self._values, name, self._schema.properties[name], self._store))
+            callback(_PropertySlot(self._values, name, self._schema.properties[name].type, self._store))
         return self
 
     def has(self, name: str) -> bool:
@@ -1051,7 +1051,7 @@ class _ObjectBuilder:
     def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _ObjectBuilder:
         if name not in self._schema.properties:
             raise AttributeError(f"{name!r} is not a property of {self._schema_name!r}")
-        callback(_PropertySlot(self._values, name, self._schema.properties[name], self._store))
+        callback(_PropertySlot(self._values, name, self._schema.properties[name].type, self._store))
         return self
 
     def clear(self, name: str) -> _ObjectBuilder:
@@ -1076,7 +1076,7 @@ class _ObjectBuilder:
         if name.startswith("_"):
             raise AttributeError(name)
         if name in self._schema.properties:
-            return _setter(self, name, self._schema.properties[name])
+            return _setter(self, name, self._schema.properties[name].type)
         if name in self._schema.adjacencies:
             return _adder(self, name)
         raise AttributeError(f"{name!r} is not a property or adjacency of {self._schema_name!r}")

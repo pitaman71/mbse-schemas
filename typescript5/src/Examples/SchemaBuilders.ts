@@ -24,7 +24,7 @@ const Named = new Schemas.OfObject.Builder()
     (prop) => prop.name("last").of(Text),
   )
   .create();
-assert(Named.properties.get("first") === Text && Named.properties.get("last") === Text);
+assert(Named.properties.get("first")?.type === Text && Named.properties.get("last")?.type === Text);
 
 // An OfAny builder with no kind selected cannot be finalized.
 raises(ValueError, () => new Schemas.OfAny.Builder().create());
@@ -56,7 +56,7 @@ assert([...first.properties.keys()].join() === "a" && [...second.properties.keys
 const Retyped = new Schemas.OfObject.Builder(first)
   .properties((prop) => prop.name("a").of((t) => t.as_native(BigInt)))
   .clone();
-assert((Retyped.properties.get("a") as Schemas.OfNative.Data).equals(new Schemas.OfNative.Data(BigInt)) && first.properties.get("a") === Text);
+assert((Retyped.properties.get("a")?.type as Schemas.OfNative.Data).equals(new Schemas.OfNative.Data(BigInt)) && first.properties.get("a")?.type === Text);
 
 // --- Relations and cardinality ---
 

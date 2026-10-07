@@ -1023,8 +1023,8 @@ export class RecordBuilderTarget implements ObjectVisitor {
   }
 
   properties(callback: Callback<OfProperty>): ObjectVisitor {
-    for (const [name, schema] of this.schema.properties) {
-      if (this.values.has(name)) callback(new _PropertySlot(this.values, name, schema, this.store));
+    for (const [name, prop] of this.schema.properties) {
+      if (this.values.has(name)) callback(new _PropertySlot(this.values, name, prop.type, this.store));
     }
     return this.proxy;
   }
@@ -1034,7 +1034,7 @@ export class RecordBuilderTarget implements ObjectVisitor {
   }
 
   property(name: string, callback: Callback<OfProperty>): ObjectVisitor {
-    const schema = this.schema.properties.get(name);
+    const schema = this.schema.properties.get(name)?.type;
     if (schema === undefined) throw new AttributeError(`${repr(name)} is not a ${this.member}`);
     if (this.schema instanceof Schemas.OfUnion.Data) {
       for (const other of [...this.values.keys()]) if (other !== name) this.values.delete(other);
@@ -1108,7 +1108,7 @@ function makeRecordBuilder(schema: RecordSchema, source?: ValueObject, store: Of
     get(t, prop, receiver) {
       if (typeof prop === "symbol") return Reflect.get(t, prop, receiver);
       if (RECORD_BUILDER_METHODS.has(prop)) return (t[prop as "has"] as (...a: unknown[]) => unknown).bind(t);
-      const schema = t.schema.properties.get(prop);
+      const schema = t.schema.properties.get(prop)?.type;
       if (schema !== undefined) return setter(t, t.proxy, prop, schema);
       if (t.adjacencyNames().includes(prop)) return adder(t, prop);
       if (_probes.has(prop)) return Reflect.get(t, prop, receiver);
@@ -1175,7 +1175,7 @@ export class _EntryBuilder implements OfEntry {
   }
 
   properties(callback: Callback<OfProperty>): _EntryBuilder {
-    for (const name of [...this.values.keys()]) callback(new _PropertySlot(this.values, name, this.relation.properties.get(name), this.store));
+    for (const name of [...this.values.keys()]) callback(new _PropertySlot(this.values, name, this.relation.properties.get(name)?.type, this.store));
     return this.proxy;
   }
 
@@ -1185,7 +1185,7 @@ export class _EntryBuilder implements OfEntry {
 
   property(name: string, callback: Callback<OfProperty>): _EntryBuilder {
     if (!this.relation.properties.has(name)) throw new AttributeError(`${repr(name)} is not a property of this relation`);
-    callback(new _PropertySlot(this.values, name, this.relation.properties.get(name), this.store));
+    callback(new _PropertySlot(this.values, name, this.relation.properties.get(name)?.type, this.store));
     return this.proxy;
   }
 
@@ -1211,7 +1211,7 @@ export class _EntryBuilder implements OfEntry {
         return this.proxy;
       };
     }
-    if (this.relation.properties.has(name)) return setter(this, this.proxy, name, this.relation.properties.get(name));
+    if (this.relation.properties.has(name)) return setter(this, this.proxy, name, (this.relation.properties.get(name) as Schemas.OfProperty.Data).type);
     return undefined;
   }
 
@@ -1303,7 +1303,7 @@ export class ObjectBuilderTarget implements ObjectVisitor {
     private readonly source?: Instance) {}
 
   properties(callback: Callback<OfProperty>): DynamicBuilder {
-    for (const name of [...this.values.keys()]) callback(new _PropertySlot(this.values, name, this.schema.properties.get(name), this.store));
+    for (const name of [...this.values.keys()]) callback(new _PropertySlot(this.values, name, this.schema.properties.get(name)?.type, this.store));
     return this.proxy;
   }
 
@@ -1313,7 +1313,7 @@ export class ObjectBuilderTarget implements ObjectVisitor {
 
   property(name: string, callback: Callback<OfProperty>): DynamicBuilder {
     if (!this.schema.properties.has(name)) throw new AttributeError(`${repr(name)} is not a property of ${repr(this.schemaName)}`);
-    callback(new _PropertySlot(this.values, name, this.schema.properties.get(name), this.store));
+    callback(new _PropertySlot(this.values, name, this.schema.properties.get(name)?.type, this.store));
     return this.proxy;
   }
 
@@ -1339,7 +1339,7 @@ export class ObjectBuilderTarget implements ObjectVisitor {
 
   dsl(name: string): ((spec: unknown) => unknown) | undefined {
     if (name.startsWith("_")) throw new AttributeError(name);
-    if (this.schema.properties.has(name)) return setter(this, this.proxy, name, this.schema.properties.get(name));
+    if (this.schema.properties.has(name)) return setter(this, this.proxy, name, (this.schema.properties.get(name) as Schemas.OfProperty.Data).type);
     if (this.schema.adjacencies.has(name)) return adder(this, name);
     return undefined;
   }

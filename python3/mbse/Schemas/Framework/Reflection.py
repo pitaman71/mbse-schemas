@@ -9,8 +9,9 @@ read it with `get` and quantify over its lists, so a symbol whose schema is a me
 predicate itself says which schemas match.
 
 `of(store)` is a store whose objects are the schemas `store` registers, and the named schemas they refer to: it
-registers the meta-schemas, and the extent of each is the schemas of its kind, in name order. The store's data is not
-read, nor its own meta-schemas (`Stores.META`). It builds nothing; schemas are built by their builders.
+registers the meta-schemas, and the extent of each is the schemas of its kind, in name order, as the store registers
+them when the extent is asked for. The store's data is not read, nor its own meta-schemas (`Stores.META`). It builds
+nothing; schemas are built by their builders.
 """
 
 from __future__ import annotations
@@ -83,9 +84,14 @@ class OfStore(Stores.Catalog):
         super().__init__()
         for meta in META:
             self.register(meta)
+        self.store = store
+
+    @property
+    def schemas(self) -> list[Any]:
+        """The schemas, read from the store's registry when asked, so that a schema registered later is among them."""
         own = {id(meta) for meta in Stores.META}
-        self.schemas = _named([schema for schema in (store.registered(name) for name in store.names())
-                               if id(schema) not in own])
+        return _named([schema for schema in (self.store.registered(name) for name in self.store.names())
+                       if id(schema) not in own])
 
     def extent(self, name: str) -> tuple[Any, ...]:
         self.schema(name)

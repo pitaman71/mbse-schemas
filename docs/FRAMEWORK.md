@@ -626,7 +626,8 @@ kind's meta-schema, the schema of the module form (`Schemas.OfObject.Schema`, na
   Everything within a schema is a value, read with `get`, quantified over and compared deeply (mbse-expressions' Basic).
 - **`Reflection.of(store)`** is a store whose objects are the schemas `store` registers and the named schemas they refer
   to, found by following the types and relations each refers to: it registers the meta-schemas, and each one's extent
-  is the schemas of its kind, in name order (names that tie in the order reached). It reads no data, and leaves out the
+  is the schemas of its kind, in name order (names that tie in the order reached), as the store registers them when
+  the extent is asked for, so a schema registered later is among them. It reads no data, and leaves out the
   store's own meta-schemas (`Stores.META`). It builds nothing; schemas are built by their builders.
 - **A native's token** is written `format` and `token` in a module (`{"native": {"format": "basic", "token": "str"}}`),
   so that `name` is a schema's name in every kind (0.8).

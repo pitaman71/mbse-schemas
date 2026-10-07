@@ -9,8 +9,9 @@
  * symbol whose schema is a meta-schema binds a schema, and the predicate itself says which schemas match.
  *
  * `of(store)` is a store whose objects are the schemas `store` registers, and the named schemas they refer to: it
- * registers the meta-schemas, and the extent of each is the schemas of its kind, in name order. The store's data is not
- * read, nor its own meta-schemas (`Stores.META`). It builds nothing; schemas are built by their builders.
+ * registers the meta-schemas, and the extent of each is the schemas of its kind, in name order, as the store registers
+ * them when the extent is asked for. The store's data is not read, nor its own meta-schemas (`Stores.META`). It builds
+ * nothing; schemas are built by their builders.
  */
 
 import * as Modules from "./Modules.js";
@@ -72,13 +73,15 @@ function named(roots: readonly Schema[]): Schema[] {
 
 /** The schemas `store` registers, and the named schemas they refer to, as the objects of their meta-schemas. */
 export class OfStore extends Stores.Catalog {
-  readonly schemas: readonly Schema[];
-
-  constructor(store: Stores.Store) {
+  constructor(readonly store: Stores.Store) {
     super();
     for (const meta of META) this.register(meta);
+  }
+
+  /** The schemas, read from the store's registry when asked, so that a schema registered later is among them. */
+  get schemas(): readonly Schema[] {
     const own = new Set<unknown>(Stores.META);
-    this.schemas = named([...store.names()].map((name) => store.registered(name)).filter((schema) => !own.has(schema)));
+    return named([...this.store.names()].map((name) => this.store.registered(name)).filter((schema) => !own.has(schema)));
   }
 
   override extent(name: string): readonly Visitable[] {

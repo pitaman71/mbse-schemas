@@ -165,3 +165,85 @@ export class Catalog {
       .map(([name]) => name);
   }
 }
+
+/** Stores combined into one: each name belongs to the one store that registers it, which gives its schema, builds its
+ * objects and reads their members; the singletons are all of theirs, and an extent is what they all reach, so the
+ * objects of one store may link to another's (a store of schemas and a store of syntax trees, say). A name that two of
+ * the stores register is refused. */
+export class Combined implements Store {
+  readonly stores: readonly Store[];
+  readonly #owners = new Map<string, Store>();
+
+  constructor(...stores: Store[]) {
+    this.stores = stores;
+    for (const store of stores) {
+      for (const name of store.names()) {
+        if (this.#owners.has(name)) throw new ValueError(`schema ${repr(name)} is registered by two of the stores`);
+        this.#owners.set(name, store);
+      }
+    }
+  }
+
+  private owner(name: string, error: new (message: string) => Error): Store {
+    const store = this.#owners.get(name);
+    if (store === undefined) throw new error(`no schema registered as ${repr(name)}`);
+    return store;
+  }
+
+  schema(name: string): ObjectSchema {
+    return this.owner(name, AttributeError).schema(name);
+  }
+
+  registered(name: string): ObjectSchema | RelationSchema {
+    return this.owner(name, LookupError).registered(name);
+  }
+
+  name_of(schema: unknown): string {
+    for (const [name, store] of this.#owners) if (store.registered(name) === schema) return name;
+    throw new LookupError("schema is not registered");
+  }
+
+  names(): readonly string[] {
+    return [...this.#owners.keys()];
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  builder(name: string, instance?: unknown): any {
+    return this.owner(name, AttributeError).builder(name, instance);
+  }
+
+  member(instance: unknown, name: string): unknown {
+    return this.owner((instance as Visitable).schema_name(), AttributeError).member(instance, name);
+  }
+
+  /** Every store's singletons, by global name, so that combined stores combine again. */
+  get _singletons(): ReadonlyMap<string, Visitable> {
+    return new Map(this.stores.flatMap((store) => [...roots(store)]));
+  }
+
+  singleton(name: string): Visitable {
+    const found = this._singletons.get(name);
+    if (found === undefined) throw new LookupError(`no singleton named ${repr(name)}`);
+    return found;
+  }
+
+  extent(name: string): readonly Visitable[] {
+    this.schema(name);
+    const seen = new Set<unknown>();
+    const found: Visitable[] = [];
+    for (const root of this._singletons.values()) {
+      for (const value of Reachable.of(root)) {
+        if (!seen.has(value.identity())) {
+          seen.add(value.identity());
+          if (value.schema_name() === name) found.push(value);
+        }
+      }
+    }
+    return found;
+  }
+}
+
+/** A store's singletons, by global name: a catalog's or a combined store's, or none. */
+function roots(store: Store): ReadonlyMap<string, Visitable> {
+  return (store as { _singletons?: ReadonlyMap<string, Visitable> })._singletons ?? new Map();
+}

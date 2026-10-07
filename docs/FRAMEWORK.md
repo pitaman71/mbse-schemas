@@ -261,6 +261,11 @@ in-memory cache slices.
     none).
   - `extent(name)`: the store's reference objects of the schema `name`: those reachable from its singletons, in
     first-reference order.
+- **Stores combine.** `Stores.Combined(*stores)` is one store of several: each name belongs to the one store that
+  registers it (a name two register is refused), which gives its schema, builds its objects and reads their members;
+  its singletons are all of theirs, and an extent is what they all reach, so the objects of one store may link to
+  another's, and combined stores combine again. A transform reads a store of schemas (`Reflection`) and writes a store
+  of syntax trees (mbse-programs) through one.
 - **A random source is given to whatever draws from it** (mbse-patterns' samplers and generators:
   `Generate(store, weights, Stores.PCG32(42))`), not held by a store, which is data access alone. `Stores.Random` is the
   protocol: `next_u32()`, the next 32 random bits, and
@@ -821,9 +826,6 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - `Schemas.OfAny.Data` is currently the union of the schema kinds' data (`OfNative`, `OfObject`, `OfUnion`,
   `OfIntersection`). There is no separate "any value" kind yet.
 - Reading an object's entries back (e.g. a contact's phones), and removing an entry through a builder.
-- Mixing implementations within a store: a store has one implementation; objects pass between stores, and so between
-  implementations, as snapshots. May a store combine implementations, e.g. bound classes for some schemas and proxies
-  for the others?
 - Is "an owned child must be part of an ownership chain rooted in an object with a directory entry" still a
   well-formedness constraint under symbol-based serialization?
 - Labeling objects outside snapshots: tools other than serializers (diffs, audit logs, debug dumps) have only
@@ -841,6 +843,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   and a term (a `Schemas.Form`, or a dialect's term) may stand where a width or an extent's bound does. A parameter is a
   variable whose binder is the schema; data of an application is data of its applied schema (`Schemas.structure`). See
   Parametrics, which also lists what is not built yet.
+- Stores of different implementations combine, by name (0.7.3): `Stores.Combined(*stores)`, each name its one store's,
+  the singletons all of theirs and the extents what they all reach. A store itself still has one implementation.
 - Reflection (0.7.2): schema data classes are bound to reference object schemas, so that a store's objects are the
   schemas themselves (`Reflection.store(schemas)`), for predicates, queries and transforms; modules keep their value
   object form for the wire (see Reflection: schemas as objects).

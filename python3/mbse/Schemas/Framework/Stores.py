@@ -28,7 +28,7 @@ from typing import Any, Protocol
 
 from . import Reachable, Schemas, Visitors
 
-__all__ = ["Store", "Catalog", "META", "Random", "PCG32"]
+__all__ = ["Store", "Catalog", "Combined", "META", "Random", "PCG32"]
 
 META = (Schemas.Module.Schema,)
 """The meta-schemas a store of proxies starts with, each under its name, so that it can hold modules of schemas."""
@@ -180,3 +180,73 @@ class Catalog:
         """The names of the object schemas that declare an adjacency to `relation` via `link`."""
         return [name for name, schema in self._schemas.items() if isinstance(schema, Schemas.OfObject.Data)
                 and any(a.relation is relation and a.me == link for a in schema.adjacencies.values())]
+
+
+class Combined:
+    """Stores combined into one: each name belongs to the one store that registers it, which gives its schema, builds its
+    objects and reads their members; the singletons are all of theirs, and an extent is what they all reach, so the
+    objects of one store may link to another's (a store of schemas and a store of syntax trees, say). A name that two of
+    the stores register is refused."""
+
+    def __init__(self, *stores: Any):
+        self.stores = stores
+        self._owners: dict[str, Any] = {}
+        for store in stores:
+            for name in store.names():
+                if name in self._owners:
+                    raise ValueError(f"schema {name!r} is registered by two of the stores")
+                self._owners[name] = store
+
+    def _owner(self, name: str, error: type[Exception]) -> Any:
+        if name not in self._owners:
+            raise error(f"no schema registered as {name!r}")
+        return self._owners[name]
+
+    def schema(self, name: str) -> Schemas.OfObject.Data:
+        return self._owner(name, AttributeError).schema(name)
+
+    def registered(self, name: str) -> Schemas.OfObject.Data | Schemas.OfRelation.Data:
+        return self._owner(name, LookupError).registered(name)
+
+    def name_of(self, schema: Any) -> str:
+        for name, store in self._owners.items():
+            if store.registered(name) is schema:
+                return name
+        raise LookupError("schema is not registered")
+
+    def names(self) -> tuple[str, ...]:
+        return tuple(self._owners)
+
+    def builder(self, name: str, instance: Any = None) -> Any:
+        return self._owner(name, AttributeError).builder(name, instance)
+
+    def member(self, instance: Any, name: str) -> Any:
+        return self._owner(instance.schema_name(), AttributeError).member(instance, name)
+
+    @property
+    def _singletons(self) -> dict[str, Visitors.Visitable]:
+        """Every store's singletons, by global name, so that combined stores combine again."""
+        return {name: root for store in self.stores for name, root in _roots(store).items()}
+
+    def singleton(self, name: str) -> Visitors.Visitable:
+        roots = self._singletons
+        if name not in roots:
+            raise LookupError(f"no singleton named {name!r}")
+        return roots[name]
+
+    def extent(self, name: str) -> tuple[Visitors.Visitable, ...]:
+        self.schema(name)
+        seen: set[Any] = set()
+        found: list[Visitors.Visitable] = []
+        for root in self._singletons.values():
+            for value in Reachable.of(root):
+                if value.identity() not in seen:
+                    seen.add(value.identity())
+                    if value.schema_name() == name:
+                        found.append(value)
+        return tuple(found)
+
+
+def _roots(store: Any) -> dict[str, Visitors.Visitable]:
+    """A store's singletons, by global name: a catalog's or a combined store's, or none."""
+    return getattr(store, "_singletons", {})

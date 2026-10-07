@@ -62,8 +62,9 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `20_Stores.ipynb` | STO | 5 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), a `Bindings.OfStore` lets JavaScript's probes through, and STO-05 builds its unplaced value object through the visitor protocol |
 | `21_Random.ipynb` | RND | 3 | as in Python; PCG32 computes on `bigint`s, and the UTF-8 bytes of keys are encoded without `TextEncoder` |
 | `22_Parametrics.ipynb` | PAR | 7 | as in Python; a form's attributes may be given as a Map or a record, and an extent's bounds as `{ minimum, maximum }`; an evaluator's scope is a `ReadonlyMap`, and an outcome is compared by its fields |
+| `23_Reflection.ipynb` | RFL | 4 | as in Python; a reflected schema's identity is a string (`"schema N"`) |
 
-Total: 189 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
+Total: 193 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

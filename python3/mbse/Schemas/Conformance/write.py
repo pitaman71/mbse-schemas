@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from mbse.Schemas.Conformance.Corpus import build
-from mbse.Schemas.Framework import JSON, YAML, Proxies
+from mbse.Schemas.Framework import JSON, YAML
 
 DEFAULT = Path(__file__).resolve().parents[4] / "conformance" / "python3"
 
@@ -18,8 +18,7 @@ def render(corpus: dict | None = None) -> dict[str, str]:
     """File name -> text for every case, as this implementation writes them. Pass an already built corpus to avoid
     registering its schemas twice."""
     files = {}
-    for case, (schema, root) in (corpus if corpus is not None else build()).items():
-        store = Proxies.store_of(root)
+    for case, (schema, root, store) in (corpus if corpus is not None else build()).items():
         files[f"{case}.json"] = JSON.ToJSON(store).Reachable(schema, root, indent=2) + "\n"
         files[f"{case}.yaml"] = YAML.ToYAML(store).Reachable(schema, root)
     return files

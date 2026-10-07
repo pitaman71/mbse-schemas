@@ -1,16 +1,17 @@
 /**
  * The conformance corpus: the same cases, built statement for statement in every implementation.
  *
- * `build()` registers the corpus schemas and returns `{case: [root schema, root object]}`. Each implementation writes
+ * `build()` registers the corpus schemas and returns `{case: [root schema, root object, store]}`, each case's store the
+ * one its root belongs to. Each implementation writes
  * its snapshots to `conformance/<implementation>/<case>.json` and `.yaml`, and checks them against every other
  * implementation's files (see the CONF test suite). Keep this module and `python3/mbse/Schemas/Conformance/Corpus.py` in
  * lockstep: same schemas, same names, same values, same order of statements.
  */
 
-import { Modules, Proxies, Schemas } from "../Framework/index.js";
+import { Modules, Proxies, Reflection, Schemas, Stores } from "../Framework/index.js";
 import type { Instance } from "../Framework/Proxies.js";
 
-export const CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded", "lists", "module"] as const;
+export const CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded", "lists", "module", "reflected"] as const;
 
 function text(name: string, native: unknown = String) {
   return (prop: Schemas.OfProperty.Builder) => prop.name(name).of((t) => t.as_native(native as never));
@@ -24,7 +25,7 @@ function keyed(key: Schemas.OfAny.Spec, spec: Schemas.OfAny.Spec) {
   return (t: Schemas.OfAny.Builder) => t.as_indexed((i) => i.key(key).of(spec));
 }
 
-export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
+export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.Store]> {
   const S = Schemas;
   const store = new Proxies.OfStore();
 
@@ -229,14 +230,18 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
   ];
   const module = Modules.module(store, schemas) as Instance;
 
-  return new Map<string, [Schemas.OfObject.Data, Instance]>([
-    ["address_book", [Contact, alice]],
-    ["natives", [Bag, bag]],
-    ["family", [Person, ada]],
-    ["enrollment", [Student, mia]],
-    ["yaml_strings", [Notebook, notebook]],
-    ["embedded", [Deck, deck]],
-    ["lists", [Board, board]],
-    ["module", [Schemas.Module.Schema, module]],
+  // --- reflected: the same schemas as the objects of a store of schemas ---
+  const reflected = Reflection.store(schemas);
+
+  return new Map<string, [Schemas.OfObject.Data, Instance, Stores.Store]>([
+    ["address_book", [Contact, alice, store]],
+    ["natives", [Bag, bag, store]],
+    ["family", [Person, ada, store]],
+    ["enrollment", [Student, mia, store]],
+    ["yaml_strings", [Notebook, notebook, store]],
+    ["embedded", [Deck, deck, store]],
+    ["lists", [Board, board, store]],
+    ["module", [Schemas.Module.Schema, module, store]],
+    ["reflected", [Reflection.Catalog.Schema, reflected.singleton(Reflection.CATALOG) as Instance, reflected]],
   ]);
 }

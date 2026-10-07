@@ -90,6 +90,7 @@ JSON.ToJSON(store).Reachable(schema, root); JSON.FromJSON(store).Reachable(schem
 Validators.Validate(store)(schema, obj); Validators.Validate(store).Reachable(schema, root);
 new Comparison.OfObject(schema, a).compare(new Comparison.OfObject(schema, b));   // -1, 0, 1 or null
 Modules.module(store, [Contact]); Modules.schemas(store, module);   // named schemas to a module, and back (a Map, by name)
+Reflection.store([Contact]).extent("Schemas.Object");              // schemas as a store's objects, to match
 ```
 
 ## Go deeper

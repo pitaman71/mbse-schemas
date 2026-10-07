@@ -1,6 +1,7 @@
 """The conformance corpus: the same cases, built statement for statement in every implementation.
 
-`build()` registers the corpus schemas and returns `{case: (root schema, root object)}`. Each implementation writes its
+`build()` registers the corpus schemas and returns `{case: (root schema, root object, store)}`, each case's store the one
+its root belongs to. Each implementation writes its
 snapshots to `conformance/<implementation>/<case>.json` and `.yaml`, and checks them against every other
 implementation's files (see the CONF test suite). Keep this module and `typescript5/src/Conformance/Corpus.ts` in
 lockstep: same schemas, same names, same values, same order of statements.
@@ -10,9 +11,9 @@ from __future__ import annotations
 
 import math
 
-from mbse.Schemas.Framework import Modules, Proxies, Schemas
+from mbse.Schemas.Framework import Modules, Proxies, Reflection, Schemas
 
-CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded", "lists", "module"]
+CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded", "lists", "module", "reflected"]
 
 
 def _text(name, native=str):
@@ -229,13 +230,17 @@ def build():
                Word, Grid, Square, Tricky, Applied]
     module = Modules.module(store, schemas)
 
+    # --- reflected: the same schemas as the objects of a store of schemas ---
+    reflected = Reflection.store(schemas)
+
     return {
-        "address_book": (Contact, alice),
-        "natives": (Bag, bag),
-        "family": (Person, ada),
-        "enrollment": (Student, mia),
-        "yaml_strings": (Notebook, notebook),
-        "embedded": (Deck, deck),
-        "lists": (Board, board),
-        "module": (S.Module.Schema, module),
+        "address_book": (Contact, alice, store),
+        "natives": (Bag, bag, store),
+        "family": (Person, ada, store),
+        "enrollment": (Student, mia, store),
+        "yaml_strings": (Notebook, notebook, store),
+        "embedded": (Deck, deck, store),
+        "lists": (Board, board, store),
+        "module": (S.Module.Schema, module, store),
+        "reflected": (Reflection.Catalog.Schema, reflected.singleton(Reflection.CATALOG), reflected),
     }

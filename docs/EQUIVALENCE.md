@@ -102,6 +102,7 @@ noticed.
 | Transient objects (Stores) | STO-02 checks that an object no singleton reaches is garbage-collected once the program drops it | not checked | JavaScript has no deterministic collection to observe; the same structure holds no strong reference to it | STO-02 |
 | Name collisions (F2) | `_values` is shadowed by an internal | not shadowed (private state); declared names win over JavaScript's own members | private fields exist | PRX-04 |
 | Object identity (F12) | `id(self)`, may be reused after collection | a counter, never reused | no object ids in JavaScript | PRX-02 |
+| A reflected schema's identity | `id(schema)` | `"schema N"`, a counter, never reused | no object ids in JavaScript | RFL-01 |
 | Lone surrogate encoded as UTF-8 | raises | replaced with U+FFFD | `TextEncoder` behavior | JSN-06 |
 | YAML formatting | PyYAML's layout | own block emitter; no line folding, no `...` after a top-level scalar | values are what must match | YML-04, YML-08, CONF-03 |
 | YAML dependency | optional extra, imported on first use | regular dependency | npm has no optional extras in the same sense | YML-11 |

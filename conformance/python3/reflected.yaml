@@ -1,0 +1,1334 @@
+root: s0
+objects:
+  s0:
+    schemas:
+    - schema:
+        $ref: s1
+        $schema: Schemas.Native
+      index: 0
+    - schema:
+        $ref: s2
+        $schema: Schemas.Native
+      index: 1
+    - schema:
+        $ref: s3
+        $schema: Schemas.Object
+      index: 2
+    - schema:
+        $ref: s4
+        $schema: Schemas.Object
+      index: 3
+    - schema:
+        $ref: s5
+        $schema: Schemas.Relation
+      index: 4
+    - schema:
+        $ref: s6
+        $schema: Schemas.Object
+      index: 5
+    - schema:
+        $ref: s7
+        $schema: Schemas.Relation
+      index: 6
+    - schema:
+        $ref: s8
+        $schema: Schemas.Object
+      index: 7
+    - schema:
+        $ref: s9
+        $schema: Schemas.Object
+      index: 8
+    - schema:
+        $ref: s10
+        $schema: Schemas.Relation
+      index: 9
+    - schema:
+        $ref: s11
+        $schema: Schemas.Object
+      index: 10
+    - schema:
+        $ref: s12
+        $schema: Schemas.Object
+      index: 11
+    - schema:
+        $ref: s13
+        $schema: Schemas.Native
+      index: 12
+    - schema:
+        $ref: s14
+        $schema: Schemas.Object
+      index: 13
+    - schema:
+        $ref: s15
+        $schema: Schemas.Apply
+      index: 14
+    - schema:
+        $ref: s16
+        $schema: Schemas.Object
+      index: 15
+    - schema:
+        $ref: s17
+        $schema: Schemas.Object
+      index: 16
+  s1:
+    name: Int32
+    format: basic
+    token: int
+    bits: 32
+  s2:
+    name: Size
+    format: ccpp
+    token: size_t
+    bytes: 8
+  s3:
+    name: Contact
+    ref: true
+    members:
+    - member:
+        $ref: s18
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+    - member:
+        $ref: s19
+        $schema: Schemas.Property
+      role: properties
+      index: 1
+    - member:
+        $ref: s20
+        $schema: Schemas.Property
+      role: properties
+      index: 2
+    - member:
+        $ref: s21
+        $schema: Schemas.Adjacency
+      role: adjacencies
+      index: 0
+    - member:
+        $ref: s22
+        $schema: Schemas.Adjacency
+      role: adjacencies
+      index: 1
+  s4:
+    name: Address
+    ref: true
+    members:
+    - member:
+        $ref: s23
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+    - member:
+        $ref: s24
+        $schema: Schemas.Property
+      role: properties
+      index: 1
+    - member:
+        $ref: s25
+        $schema: Schemas.Property
+      role: properties
+      index: 2
+    - member:
+        $ref: s26
+        $schema: Schemas.Property
+      role: properties
+      index: 3
+    - member:
+        $ref: s27
+        $schema: Schemas.Adjacency
+      role: adjacencies
+      index: 0
+  s5:
+    name: ContactAddresses
+    links:
+    - contact
+    - address
+    members:
+    - member:
+        $ref: s28
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+  s6:
+    name: Person
+    ref: true
+    members:
+    - member:
+        $ref: s29
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+    - member:
+        $ref: s30
+        $schema: Schemas.Property
+      role: properties
+      index: 1
+    - member:
+        $ref: s31
+        $schema: Schemas.Adjacency
+      role: adjacencies
+      index: 0
+    - member:
+        $ref: s32
+        $schema: Schemas.Adjacency
+      role: adjacencies
+      index: 1
+    - member:
+        $ref: s33
+        $schema: Schemas.Adjacency
+      role: adjacencies
+      index: 2
+    - member:
+        $ref: s34
+        $schema: Schemas.Adjacency
+      role: adjacencies
+      index: 3
+  s7:
+    name: Parentage
+    links:
+    - parent
+    - child
+    members:
+    - member:
+        $ref: s35
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+  s8:
+    name: Card
+    ref: true
+    members:
+    - member:
+        $ref: s36
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+    - member:
+        $ref: s37
+        $schema: Schemas.Property
+      role: properties
+      index: 1
+    - member:
+        $ref: s38
+        $schema: Schemas.Property
+      role: properties
+      index: 2
+    - member:
+        $ref: s39
+        $schema: Schemas.Property
+      role: properties
+      index: 3
+    - member:
+        $ref: s40
+        $schema: Schemas.Property
+      role: properties
+      index: 4
+    - member:
+        $ref: s41
+        $schema: Schemas.Adjacency
+      role: adjacencies
+      index: 0
+  s9:
+    name: Deck
+    ref: true
+    members:
+    - member:
+        $ref: s42
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+    - member:
+        $ref: s43
+        $schema: Schemas.Adjacency
+      role: adjacencies
+      index: 0
+  s10:
+    name: Holding
+    links:
+    - deck
+    - card
+  s11:
+    name: Board
+    ref: true
+    members:
+    - member:
+        $ref: s44
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+    - member:
+        $ref: s45
+        $schema: Schemas.Property
+      role: properties
+      index: 1
+    - member:
+        $ref: s46
+        $schema: Schemas.Property
+      role: properties
+      index: 2
+    - member:
+        $ref: s47
+        $schema: Schemas.Property
+      role: properties
+      index: 3
+    - member:
+        $ref: s48
+        $schema: Schemas.Property
+      role: properties
+      index: 4
+    - member:
+        $ref: s49
+        $schema: Schemas.Property
+      role: properties
+      index: 5
+    - member:
+        $ref: s50
+        $schema: Schemas.Property
+      role: properties
+      index: 6
+    - member:
+        $ref: s51
+        $schema: Schemas.Property
+      role: properties
+      index: 7
+    - member:
+        $ref: s52
+        $schema: Schemas.Property
+      role: properties
+      index: 8
+    - member:
+        $ref: s53
+        $schema: Schemas.Property
+      role: properties
+      index: 9
+    - member:
+        $ref: s54
+        $schema: Schemas.Property
+      role: properties
+      index: 10
+  s12:
+    name: Panel
+    ref: true
+    members:
+    - member:
+        $ref: s55
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+    - member:
+        $ref: s56
+        $schema: Schemas.Adjacency
+      role: adjacencies
+      index: 0
+  s13:
+    name: Word
+    format: basic
+    token: int
+    terms:
+      bits:
+        kind: variable
+        attributes:
+        - name: name
+          value:
+            str: w
+    members:
+    - member:
+        $ref: s57
+        $schema: Schemas.Parameter
+      role: parameters
+      index: 0
+  s14:
+    name: Grid
+    members:
+    - member:
+        $ref: s58
+        $schema: Schemas.Parameter
+      role: parameters
+      index: 0
+    - member:
+        $ref: s59
+        $schema: Schemas.Parameter
+      role: parameters
+      index: 1
+    - member:
+        $ref: s60
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+  s15:
+    name: Square
+    arguments:
+    - name: 'n'
+      term:
+        kind: variable
+        attributes:
+        - name: name
+          value:
+            str: m
+    - name: x
+      value:
+        bool: true
+    members:
+    - member:
+        $ref: s61
+        $schema: Schemas.Parameter
+      role: parameters
+      index: 0
+    types:
+    - type:
+        $ref: s14
+        $schema: Schemas.Object
+      role: of
+  s16:
+    name: Tricky
+    members:
+    - member:
+        $ref: s62
+        $schema: Schemas.Parameter
+      role: parameters
+      index: 0
+    - member:
+        $ref: s63
+        $schema: Schemas.Parameter
+      role: parameters
+      index: 1
+    - member:
+        $ref: s64
+        $schema: Schemas.Parameter
+      role: parameters
+      index: 2
+    - member:
+        $ref: s65
+        $schema: Schemas.Parameter
+      role: parameters
+      index: 3
+  s17:
+    name: Applied
+    members:
+    - member:
+        $ref: s66
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+    - member:
+        $ref: s67
+        $schema: Schemas.Property
+      role: properties
+      index: 1
+  s18:
+    name: given_name
+    types:
+    - type:
+        $ref: s68
+        $schema: Schemas.Native
+      role: type
+  s19:
+    name: family_name
+    types:
+    - type:
+        $ref: s69
+        $schema: Schemas.Native
+      role: type
+  s20:
+    name: birth_date
+    types:
+    - type:
+        $ref: s70
+        $schema: Schemas.Native
+      role: type
+  s21:
+    name: addresses
+    me: contact
+    types:
+    - type:
+        $ref: s5
+        $schema: Schemas.Relation
+      role: relation
+  s22:
+    name: phones
+    me: contact
+    types:
+    - type:
+        $ref: s71
+        $schema: Schemas.Relation
+      role: relation
+  s23:
+    name: street1
+    types:
+    - type:
+        $ref: s72
+        $schema: Schemas.Native
+      role: type
+  s24:
+    name: locality
+    types:
+    - type:
+        $ref: s73
+        $schema: Schemas.Native
+      role: type
+  s25:
+    name: postal_code
+    types:
+    - type:
+        $ref: s74
+        $schema: Schemas.Native
+      role: type
+  s26:
+    name: country_code
+    types:
+    - type:
+        $ref: s75
+        $schema: Schemas.Native
+      role: type
+  s27:
+    name: contacts
+    me: address
+    types:
+    - type:
+        $ref: s5
+        $schema: Schemas.Relation
+      role: relation
+  s28:
+    name: label
+    types:
+    - type:
+        $ref: s76
+        $schema: Schemas.Native
+      role: type
+  s29:
+    name: given_name
+    types:
+    - type:
+        $ref: s77
+        $schema: Schemas.Native
+      role: type
+  s30:
+    name: birth_date
+    types:
+    - type:
+        $ref: s78
+        $schema: Schemas.Native
+      role: type
+  s31:
+    name: children
+    me: parent
+    types:
+    - type:
+        $ref: s7
+        $schema: Schemas.Relation
+      role: relation
+  s32:
+    name: parents
+    me: child
+    types:
+    - type:
+        $ref: s7
+        $schema: Schemas.Relation
+      role: relation
+  s33:
+    name: mentees
+    me: mentor
+    types:
+    - type:
+        $ref: s79
+        $schema: Schemas.Relation
+      role: relation
+  s34:
+    name: mentors
+    me: mentee
+    types:
+    - type:
+        $ref: s79
+        $schema: Schemas.Relation
+      role: relation
+  s35:
+    name: kind
+    types:
+    - type:
+        $ref: s80
+        $schema: Schemas.Native
+      role: type
+  s36:
+    name: name
+    types:
+    - type:
+        $ref: s81
+        $schema: Schemas.Native
+      role: type
+  s37:
+    name: home
+    types:
+    - type:
+        $ref: s82
+        $schema: Schemas.Object
+      role: type
+  s38:
+    name: reach
+    types:
+    - type:
+        $ref: s83
+        $schema: Schemas.Union
+      role: type
+  s39:
+    name: ident
+    types:
+    - type:
+        $ref: s84
+        $schema: Schemas.Union
+      role: type
+  s40:
+    name: meta
+    types:
+    - type:
+        $ref: s85
+        $schema: Schemas.Intersection
+      role: type
+  s41:
+    name: decks
+    me: card
+    types:
+    - type:
+        $ref: s10
+        $schema: Schemas.Relation
+      role: relation
+  s42:
+    name: title
+    types:
+    - type:
+        $ref: s86
+        $schema: Schemas.Native
+      role: type
+  s43:
+    name: cards
+    me: deck
+    types:
+    - type:
+        $ref: s10
+        $schema: Schemas.Relation
+      role: relation
+  s44:
+    name: name
+    types:
+    - type:
+        $ref: s87
+        $schema: Schemas.Native
+      role: type
+  s45:
+    name: tags
+    types:
+    - type:
+        $ref: s88
+        $schema: Schemas.Indexed
+      role: type
+  s46:
+    name: blobs
+    types:
+    - type:
+        $ref: s89
+        $schema: Schemas.Indexed
+      role: type
+  s47:
+    name: grid
+    types:
+    - type:
+        $ref: s90
+        $schema: Schemas.Indexed
+      role: type
+  s48:
+    name: readings
+    types:
+    - type:
+        $ref: s91
+        $schema: Schemas.Indexed
+      role: type
+  s49:
+    name: sockets
+    types:
+    - type:
+        $ref: s92
+        $schema: Schemas.Indexed
+      role: type
+  s50:
+    name: banks
+    types:
+    - type:
+        $ref: s93
+        $schema: Schemas.Indexed
+      role: type
+  s51:
+    name: matrix
+    types:
+    - type:
+        $ref: s94
+        $schema: Schemas.Indexed
+      role: type
+  s52:
+    name: attrs
+    types:
+    - type:
+        $ref: s95
+        $schema: Schemas.Indexed
+      role: type
+  s53:
+    name: weights
+    types:
+    - type:
+        $ref: s96
+        $schema: Schemas.Indexed
+      role: type
+  s54:
+    name: cells
+    types:
+    - type:
+        $ref: s97
+        $schema: Schemas.Indexed
+      role: type
+  s55:
+    name: name
+    types:
+    - type:
+        $ref: s98
+        $schema: Schemas.Native
+      role: type
+  s56:
+    name: plugs
+    me: sink
+    types:
+    - type:
+        $ref: s99
+        $schema: Schemas.Relation
+      role: relation
+  s57:
+    name: w
+    types:
+    - type:
+        $ref: s100
+        $schema: Schemas.Native
+      role: type
+  s58:
+    name: 'n'
+    description: Its side
+    types:
+    - type:
+        $ref: s101
+        $schema: Schemas.Native
+      role: type
+  s59:
+    name: x
+  s60:
+    name: cells
+    types:
+    - type:
+        $ref: s102
+        $schema: Schemas.Indexed
+      role: type
+  s61:
+    name: m
+    types:
+    - type:
+        $ref: s103
+        $schema: Schemas.Native
+      role: type
+  s62:
+    name: a
+  s63:
+    name: b
+  s64:
+    name: c
+  s65:
+    name: d
+  s66:
+    name: big
+    types:
+    - type:
+        $ref: s104
+        $schema: Schemas.Apply
+      role: type
+  s67:
+    name: odd
+    types:
+    - type:
+        $ref: s105
+        $schema: Schemas.Apply
+      role: type
+  s68:
+    format: basic
+    token: str
+  s69:
+    format: basic
+    token: str
+  s70:
+    format: basic
+    token: str
+  s71:
+    name: ContactPhones
+    links:
+    - contact
+    - phone
+    members:
+    - member:
+        $ref: s106
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+  s72:
+    format: basic
+    token: str
+  s73:
+    format: basic
+    token: str
+  s74:
+    format: basic
+    token: str
+  s75:
+    format: basic
+    token: str
+  s76:
+    format: basic
+    token: str
+  s77:
+    format: basic
+    token: str
+  s78:
+    format: basic
+    token: str
+  s79:
+    name: Mentorship
+    links:
+    - mentor
+    - mentee
+  s80:
+    format: basic
+    token: str
+  s81:
+    format: basic
+    token: str
+  s82:
+    members:
+    - member:
+        $ref: s107
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+    - member:
+        $ref: s108
+        $schema: Schemas.Property
+      role: properties
+      index: 1
+    - member:
+        $ref: s109
+        $schema: Schemas.Adjacency
+      role: adjacencies
+      index: 0
+  s83:
+    members:
+    - member:
+        $ref: s110
+        $schema: Schemas.Member
+      role: branches
+      index: 0
+    - member:
+        $ref: s111
+        $schema: Schemas.Member
+      role: branches
+      index: 1
+  s84:
+    members:
+    - member:
+        $ref: s112
+        $schema: Schemas.Member
+      role: branches
+      index: 0
+    - member:
+        $ref: s113
+        $schema: Schemas.Member
+      role: branches
+      index: 1
+  s85:
+    members:
+    - member:
+        $ref: s114
+        $schema: Schemas.Member
+      role: parts
+      index: 0
+    - member:
+        $ref: s115
+        $schema: Schemas.Member
+      role: parts
+      index: 1
+  s86:
+    format: basic
+    token: str
+  s87:
+    format: basic
+    token: str
+  s88:
+    types:
+    - type:
+        $ref: s116
+        $schema: Schemas.Native
+      role: item
+  s89:
+    types:
+    - type:
+        $ref: s117
+        $schema: Schemas.Native
+      role: item
+  s90:
+    types:
+    - type:
+        $ref: s118
+        $schema: Schemas.Indexed
+      role: item
+  s91:
+    types:
+    - type:
+        $ref: s119
+        $schema: Schemas.Union
+      role: item
+  s92:
+    types:
+    - type:
+        $ref: s120
+        $schema: Schemas.Object
+      role: item
+  s93:
+    types:
+    - type:
+        $ref: s121
+        $schema: Schemas.Indexed
+      role: item
+  s94:
+    extent:
+      minimum: 1
+      maximum: 3
+    types:
+    - type:
+        $ref: s122
+        $schema: Schemas.Indexed
+      role: item
+  s95:
+    types:
+    - type:
+        $ref: s123
+        $schema: Schemas.Native
+      role: item
+    - type:
+        $ref: s124
+        $schema: Schemas.Native
+      role: key
+  s96:
+    types:
+    - type:
+        $ref: s125
+        $schema: Schemas.Native
+      role: item
+    - type:
+        $ref: s126
+        $schema: Schemas.Native
+      role: key
+  s97:
+    types:
+    - type:
+        $ref: s127
+        $schema: Schemas.Native
+      role: item
+    - type:
+        $ref: s128
+        $schema: Schemas.Object
+      role: key
+  s98:
+    format: basic
+    token: str
+  s99:
+    name: Cable
+    links:
+    - source
+    - sink
+  s100:
+    format: basic
+    token: int
+  s101:
+    format: basic
+    token: int
+  s102:
+    extent:
+      minimum: 1
+      terms:
+        maximum:
+          dialect: basic
+          kind: operation
+          attributes:
+          - name: name
+            value:
+              str: mul
+          arguments:
+          - kind: variable
+            attributes:
+            - name: name
+              value:
+                str: 'n'
+          - kind: variable
+            attributes:
+            - name: name
+              value:
+                str: 'n'
+    types:
+    - type:
+        $ref: s129
+        $schema: Schemas.Apply
+      role: item
+  s103:
+    format: basic
+    token: int
+  s104:
+    arguments:
+    - name: 'n'
+      value:
+        int: 1180591620717411303424
+    - name: x
+      value:
+        float: NaN
+    types:
+    - type:
+        $ref: s14
+        $schema: Schemas.Object
+      role: of
+  s105:
+    arguments:
+    - name: a
+      value:
+        float: -0.0
+    - name: b
+      value:
+        str: 日本語 🚀
+    - name: c
+      value:
+        bytes: AP8=
+    - name: d
+      value:
+        bool: false
+    types:
+    - type:
+        $ref: s16
+        $schema: Schemas.Object
+      role: of
+  s106:
+    name: label
+    types:
+    - type:
+        $ref: s130
+        $schema: Schemas.Native
+      role: type
+  s107:
+    name: number
+    types:
+    - type:
+        $ref: s131
+        $schema: Schemas.Native
+      role: type
+  s108:
+    name: label
+    types:
+    - type:
+        $ref: s132
+        $schema: Schemas.Native
+      role: type
+  s109:
+    name: hubs
+    me: phone
+    types:
+    - type:
+        $ref: s133
+        $schema: Schemas.Relation
+      role: relation
+  s110:
+    name: phone
+    types:
+    - type:
+        $ref: s82
+        $schema: Schemas.Object
+      role: type
+  s111:
+    name: email
+    types:
+    - type:
+        $ref: s134
+        $schema: Schemas.Object
+      role: type
+  s112:
+    name: number
+    types:
+    - type:
+        $ref: s135
+        $schema: Schemas.Native
+      role: type
+  s113:
+    name: code
+    types:
+    - type:
+        $ref: s136
+        $schema: Schemas.Native
+      role: type
+  s114:
+    name: stamp
+    types:
+    - type:
+        $ref: s137
+        $schema: Schemas.Object
+      role: type
+  s115:
+    name: audit
+    types:
+    - type:
+        $ref: s138
+        $schema: Schemas.Object
+      role: type
+  s116:
+    format: basic
+    token: str
+  s117:
+    format: basic
+    token: bytes
+  s118:
+    types:
+    - type:
+        $ref: s139
+        $schema: Schemas.Native
+      role: item
+  s119:
+    members:
+    - member:
+        $ref: s140
+        $schema: Schemas.Member
+      role: branches
+      index: 0
+    - member:
+        $ref: s141
+        $schema: Schemas.Member
+      role: branches
+      index: 1
+  s120:
+    members:
+    - member:
+        $ref: s142
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+    - member:
+        $ref: s143
+        $schema: Schemas.Adjacency
+      role: adjacencies
+      index: 0
+    - member:
+        $ref: s144
+        $schema: Schemas.Adjacency
+      role: adjacencies
+      index: 1
+  s121:
+    types:
+    - type:
+        $ref: s120
+        $schema: Schemas.Object
+      role: item
+  s122:
+    types:
+    - type:
+        $ref: s145
+        $schema: Schemas.Native
+      role: item
+  s123:
+    format: basic
+    token: float
+  s124:
+    format: basic
+    token: str
+  s125:
+    format: basic
+    token: str
+  s126:
+    format: basic
+    token: float
+  s127:
+    format: basic
+    token: int
+  s128:
+    members:
+    - member:
+        $ref: s146
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+    - member:
+        $ref: s147
+        $schema: Schemas.Property
+      role: properties
+      index: 1
+  s129:
+    arguments:
+    - name: w
+      value:
+        int: 8
+    types:
+    - type:
+        $ref: s13
+        $schema: Schemas.Native
+      role: of
+  s130:
+    format: basic
+    token: str
+  s131:
+    format: basic
+    token: str
+  s132:
+    format: basic
+    token: str
+  s133:
+    name: Line
+    links:
+    - hub
+    - phone
+  s134:
+    members:
+    - member:
+        $ref: s148
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+  s135:
+    format: basic
+    token: int
+  s136:
+    format: basic
+    token: str
+  s137:
+    members:
+    - member:
+        $ref: s149
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+  s138:
+    members:
+    - member:
+        $ref: s150
+        $schema: Schemas.Property
+      role: properties
+      index: 0
+    - member:
+        $ref: s151
+        $schema: Schemas.Property
+      role: properties
+      index: 1
+  s139:
+    format: basic
+    token: int
+  s140:
+    name: value
+    types:
+    - type:
+        $ref: s152
+        $schema: Schemas.Native
+      role: type
+  s141:
+    name: note
+    types:
+    - type:
+        $ref: s153
+        $schema: Schemas.Native
+      role: type
+  s142:
+    name: name
+    types:
+    - type:
+        $ref: s154
+        $schema: Schemas.Native
+      role: type
+  s143:
+    name: cables
+    me: source
+    types:
+    - type:
+        $ref: s99
+        $schema: Schemas.Relation
+      role: relation
+  s144:
+    name: plugs
+    me: sink
+    types:
+    - type:
+        $ref: s99
+        $schema: Schemas.Relation
+      role: relation
+  s145:
+    format: basic
+    token: int
+  s146:
+    name: r
+    types:
+    - type:
+        $ref: s155
+        $schema: Schemas.Native
+      role: type
+  s147:
+    name: c
+    types:
+    - type:
+        $ref: s156
+        $schema: Schemas.Native
+      role: type
+  s148:
+    name: address
+    types:
+    - type:
+        $ref: s157
+        $schema: Schemas.Native
+      role: type
+  s149:
+    name: updated
+    types:
+    - type:
+        $ref: s158
+        $schema: Schemas.Native
+      role: type
+  s150:
+    name: by
+    types:
+    - type:
+        $ref: s159
+        $schema: Schemas.Native
+      role: type
+  s151:
+    name: updated
+    types:
+    - type:
+        $ref: s160
+        $schema: Schemas.Native
+      role: type
+  s152:
+    format: basic
+    token: float
+  s153:
+    format: basic
+    token: str
+  s154:
+    format: basic
+    token: str
+  s155:
+    format: basic
+    token: int
+  s156:
+    format: basic
+    token: int
+  s157:
+    format: basic
+    token: str
+  s158:
+    format: basic
+    token: str
+  s159:
+    format: basic
+    token: str
+  s160:
+    format: basic
+    token: str

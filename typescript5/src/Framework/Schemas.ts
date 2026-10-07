@@ -130,6 +130,35 @@ abstract class NamedBuilder<D extends HasFields> extends Builder<D> {
   }
 }
 
+/** Filled by `Reflection`, which binds the schema data classes, so that this module need not import `Bindings`. */
+export const _REFLECTION: { accept: ((schema: unknown, visitor: unknown) => void) | null; names: Map<unknown, string> } = {
+  accept: null, names: new Map() };
+
+const IDENTITIES = new WeakMap<object, string>();
+let identities = 0;
+
+/** Schema data as an object of a store of schemas (see `Reflection`): a reference object, identified by a string unique
+ * to it (`"schema 3"`), as mbse-schemas keys identities by their text. */
+class Reflected {
+  identity(): string {
+    let identity = IDENTITIES.get(this);
+    if (identity === undefined) IDENTITIES.set(this, (identity = `schema ${++identities}`));
+    return identity;
+  }
+
+  schema_name(): string {
+    return _REFLECTION.names.get(this.constructor) as string;
+  }
+
+  owner(): null {
+    return null;
+  }
+
+  accept(visitor: unknown): void {
+    (_REFLECTION.accept as (schema: unknown, visitor: unknown) => void)(this, visitor);
+  }
+}
+
 /** Resolves a `Spec`: data is used as is; a callable is given a new builder and must return it. */
 function resolveSpec<D>(spec: unknown, isData: (value: unknown) => value is D, builder: () => { create(): unknown }): D {
   if (isData(spec)) return spec;
@@ -257,12 +286,13 @@ export namespace Form {
 
 /** A parameter of the schema that declares it: a variable, named, of a type (null for any), determined where the
  * schema is referred to (`OfApply`) and referred to within it by name, as a variable is. */
-class ParameterData implements HasFields {
+class ParameterData extends Reflected {
   name: string;
   type: AnyData | null;
   description: string | null;
 
   constructor(fields: { name?: string; type?: AnyData | null; description?: string | null } = {}) {
+    super();
     this.name = fields.name ?? "";
     this.type = fields.type ?? null;
     this.description = fields.description ?? null;
@@ -376,7 +406,7 @@ export interface Widths {
 
 /** A native type: a token, and optionally a width in bits or in bytes, an int or a term. A host type given in place of
  * the token (`new OfNative.Data(BigInt)`) is shorthand for the `basic` token of the same name. */
-class NativeData implements HasFields {
+class NativeData extends Reflected {
   token: unknown;
   bits: unknown;
   bytes: unknown;
@@ -385,6 +415,7 @@ class NativeData implements HasFields {
   parameters: Map<string, ParameterData>;
 
   constructor(token: unknown = null, widths: Widths = {}) {
+    super();
     this.token = NATIVE_NAMES.has(token) ? new TokenClass(BASIC, NATIVE_NAMES.get(token) as string) : token;
     this.bits = widths.bits ?? null;
     this.bytes = widths.bytes ?? null;
@@ -551,12 +582,13 @@ export namespace OfNative {
 
 // --- OfProperty: a named property of an object or relation ---
 
-class PropertyData implements HasFields {
+class PropertyData extends Reflected {
   name: string;
   type: AnyData | null;
   description: string | null;
 
   constructor(fields: { name?: string; type?: AnyData | null; description?: string | null } = {}) {
+    super();
     this.name = fields.name ?? "";
     this.type = fields.type ?? null;
     this.description = fields.description ?? null;
@@ -608,7 +640,7 @@ function addProperties(state: Record<string, unknown>, specs: readonly unknown[]
 
 // --- OfRelation ---
 
-class RelationData implements HasFields {
+class RelationData extends Reflected {
   links: readonly string[];
   properties: Map<string, PropertyData>;
   uniques: readonly ReadonlySet<string>[];
@@ -618,6 +650,7 @@ class RelationData implements HasFields {
 
   constructor(fields: { links?: readonly string[]; properties?: Map<string, PropertyData>; uniques?: readonly ReadonlySet<string>[];
     name?: string | null; description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
+    super();
     this.links = fields.links ?? [];
     this.properties = fields.properties ?? new Map();
     this.uniques = fields.uniques ?? [];
@@ -712,13 +745,14 @@ export namespace OfRelation {
 
 // --- OfAdjacency ---
 
-class AdjacencyData implements HasFields {
+class AdjacencyData extends Reflected {
   name: string;
   relation: RelationData | null;
   me: string;
   description: string | null;
 
   constructor(fields: { name?: string; relation?: RelationData | null; me?: string; description?: string | null } = {}) {
+    super();
     this.name = fields.name ?? "";
     this.relation = fields.relation ?? null;
     this.me = fields.me ?? "";
@@ -784,7 +818,7 @@ export namespace OfAdjacency {
 /** The object schemas being validated, so that one that holds itself is validated once. */
 const VALIDATING = new Set<unknown>();
 
-class ObjectData implements HasFields {
+class ObjectData extends Reflected {
   properties: Map<string, PropertyData>;
   adjacencies: Map<string, AdjacencyData>;
   singleton: string | null;
@@ -796,6 +830,7 @@ class ObjectData implements HasFields {
 
   constructor(fields: { properties?: Map<string, PropertyData>; adjacencies?: Map<string, AdjacencyData>; singleton?: string | null;
     ref?: boolean; name?: string | null; description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
+    super();
     this.properties = fields.properties ?? new Map();
     this.adjacencies = fields.adjacencies ?? new Map();
     this.singleton = fields.singleton ?? null;
@@ -895,12 +930,13 @@ export namespace OfObject {
 // --- OfUnion / OfIntersection ---
 
 /** A named member of a union (a branch) or of an intersection (a part). */
-class MemberData implements HasFields {
+class MemberData extends Reflected {
   name: string;
   type: AnyData | null;
   description: string | null;
 
   constructor(fields: { name?: string; type?: AnyData | null; description?: string | null } = {}) {
+    super();
     this.name = fields.name ?? "";
     this.type = fields.type ?? null;
     this.description = fields.description ?? null;
@@ -956,7 +992,7 @@ function byName(members: readonly MemberData[]): Map<string, MemberData> {
   return new Map(members.map((m) => [m.name, m]));
 }
 
-class UnionData implements HasFields {
+class UnionData extends Reflected {
   branches: readonly MemberData[];
   name: string | null;
   description: string | null;
@@ -964,6 +1000,7 @@ class UnionData implements HasFields {
 
   constructor(fields: { branches?: readonly MemberData[]; name?: string | null; description?: string | null;
     parameters?: Map<string, ParameterData> } = {}) {
+    super();
     this.branches = fields.branches ?? [];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
@@ -1017,7 +1054,7 @@ export namespace OfUnion {
   }
 }
 
-class IntersectionData implements HasFields {
+class IntersectionData extends Reflected {
   parts: readonly MemberData[];
   name: string | null;
   description: string | null;
@@ -1025,6 +1062,7 @@ class IntersectionData implements HasFields {
 
   constructor(fields: { parts?: readonly MemberData[]; name?: string | null; description?: string | null;
     parameters?: Map<string, ParameterData> } = {}) {
+    super();
     this.parts = fields.parts ?? [];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
@@ -1099,7 +1137,7 @@ class ExtentClass {
 /** A list: items of the item schema, in order. Without a key schema, or with a native `int` one, it is positional: its
  * keys are its positions, from its extent's minimum. With any other key schema it is keyed: its items are held by
  * unique keys of that schema, in insertion order. */
-class IndexedData implements HasFields {
+class IndexedData extends Reflected {
   item: AnyData | null;
   key: AnyData | null;
   extent: ExtentClass | null;
@@ -1109,6 +1147,7 @@ class IndexedData implements HasFields {
 
   constructor(fields: { item?: AnyData | null; key?: AnyData | null; extent?: ExtentClass | null; name?: string | null;
     description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
+    super();
     this.item = fields.item ?? null;
     this.key = fields.key ?? null;
     this.extent = fields.extent ?? null;
@@ -1212,7 +1251,7 @@ export namespace OfIndexed {
 
 /** A parametric schema applied to arguments: a type whose values are the applied schema's (`of`), with arguments for
  * its parameters by name, each a native value or a term. Parameters given no argument stay unbound. */
-class ApplyData implements HasFields {
+class ApplyData extends Reflected {
   of: AnyData | null;
   arguments: Map<string, unknown>;
   name: string | null;
@@ -1221,6 +1260,7 @@ class ApplyData implements HasFields {
 
   constructor(fields: { of?: AnyData | null; arguments?: Map<string, unknown>; name?: string | null; description?: string | null;
     parameters?: Map<string, ParameterData> } = {}) {
+    super();
     this.of = fields.of ?? null;
     this.arguments = fields.arguments ?? new Map();
     this.name = fields.name ?? null;

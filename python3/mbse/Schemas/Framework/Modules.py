@@ -24,7 +24,7 @@ the schemas in the store, and `schemas` reads the plain form of the module.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
 from . import Plain, Schemas, Stores
@@ -128,18 +128,26 @@ class _Writer:
             return _kind_of("intersection", parameters=parameters, parts=self._members(schema.parts),
                             description=schema.description)
         if isinstance(schema, Schemas.OfIndexed.Data):
-            extent = schema.extent
-            bounds = None if extent is None else _present(
-                minimum=_literal(extent.minimum), maximum=_literal(extent.maximum),
-                terms=_terms(minimum=extent.minimum, maximum=extent.maximum))
             return _kind_of("indexed", parameters=parameters, item=self.reference(schema.item),
-                            key=None if schema.key is None else self.reference(schema.key), extent=bounds,
+                            key=None if schema.key is None else self.reference(schema.key), extent=_extent(schema.extent),
                             description=schema.description)
         if isinstance(schema, Schemas.OfApply.Data):
             return _kind_of("apply", parameters=parameters, of=self.reference(schema.of),
-                            arguments=[_argument(name, value) for name, value in schema.arguments.items()],
-                            description=schema.description)
+                            arguments=_arguments(schema.arguments), description=schema.description)
         raise TypeError(f"not a schema: {schema!r}")
+
+
+def _extent(extent: Any) -> dict[str, Any] | None:
+    """An extent's plain form: its int bounds, and the terms that stand for the others; None for none."""
+    if extent is None:
+        return None
+    return _present(minimum=_literal(extent.minimum), maximum=_literal(extent.maximum),
+                    terms=_terms(minimum=extent.minimum, maximum=extent.maximum))
+
+
+def _arguments(arguments: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """An application's arguments' plain form, in order."""
+    return [_argument(name, value) for name, value in arguments.items()]
 
 
 def _literal(value: Any) -> Any:
@@ -290,14 +298,23 @@ class _Reader:
         elif kind == "indexed":
             schema.item = self.type(body["item"])
             schema.key = self.type(body["key"]) if "key" in body else None
-            extent = body.get("extent")
-            schema.extent = None if extent is None else Schemas.OfIndexed.Extent(self._slot(extent, "minimum", 0),
-                                                                                 self._slot(extent, "maximum"))
+            schema.extent = self.extent(body.get("extent"))
         else:
             schema.of = self.type(body["of"])
-            schema.arguments = {a["name"]: self._term(a["term"]) if "term" in a else _native_of(a["value"])
-                                for a in body.get("arguments", [])}
+            schema.arguments = self.arguments(body.get("arguments", []))
         return schema
+
+    def extent(self, plain: dict[str, Any] | None) -> Any:
+        """The extent a plain form describes, or None."""
+        return None if plain is None else Schemas.OfIndexed.Extent(self._slot(plain, "minimum", 0), self._slot(plain, "maximum"))
+
+    def arguments(self, plain: list[dict[str, Any]]) -> dict[str, Any]:
+        """The arguments a plain form describes, by name: native values, or terms."""
+        return {a["name"]: self._term(a["term"]) if "term" in a else _native_of(a["value"]) for a in plain}
+
+    def slot(self, body: dict[str, Any], slot: str) -> Any:
+        """A width: its int, or the term `terms` holds for it."""
+        return self._slot(body, slot)
 
 
 def _native_of(plain: dict[str, Any]) -> Any:

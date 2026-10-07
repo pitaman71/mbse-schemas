@@ -607,6 +607,31 @@ are written, read, validated and compared like any other objects.
   would clash with the visitor protocols (`properties(callback)`), are not involved.
 - **A schema may hold itself**, as a node holds a list of nodes. Validating it reports each problem once.
 
+## Reflection: schemas as objects
+
+A module holds schemas as value objects, nested, which is how schemas are written and read. To match, query and
+rewrite schemas as objects (mbse-patterns' predicates and transforms bind reference objects only), `Reflection` binds
+the schema data classes themselves to reference object schemas, as mbse-expressions binds its terms, so that a store's
+objects are the schemas: nothing is built from them, and nothing is read back.
+
+- **`Reflection.store(schemas)`** is a `Bindings.OfStore` whose singleton catalog (`Schemas.Catalog`) lists the schemas,
+  in order; what it reaches, the schemas and every schema and element they hold, is the store's data, so each kind's
+  extent is its schemas (`store.extent("Schemas.Object")`).
+- **Kinds and elements are objects.** `Schemas.Native`, `Schemas.Object`, `Schemas.Union`, `Schemas.Intersection`,
+  `Schemas.Indexed`, `Schemas.Apply` and `Schemas.Relation` are the kinds' meta-schemas; `Schemas.Property`,
+  `Schemas.Member` (a union's branch, an intersection's part), `Schemas.Parameter` and `Schemas.Adjacency` the
+  elements'. Their natives are properties (a native's token as `format` and `token`); an extent, a width's terms and an
+  application's arguments are values, in their module form.
+- **Relations hold the rest.** `Schemas.Members` links an `owner` to each `member` it holds, with its `role`
+  (`parameters`, `properties`, `branches`, `parts`, `adjacencies`) and `index`; `Schemas.Types` links a `user` to each
+  `type` it refers to, with its `role` (`type`, `item`, `key`, `of`, `relation`); `Schemas.Listed` links the catalog to
+  each schema. Each is written from the side that holds it; the other sides (`owners`, `users`, `listed`) are implied,
+  as an expression's `used_by` is.
+- **Schema data is `Visitable`**: `identity()` (Python's `id`, TypeScript's `"schema N"`), `schema_name()` (its
+  meta-schema's name), `owner()` (none) and `accept(visitor)`, which `Reflection` supplies, since this module cannot
+  import `Bindings`. So a store of schemas is written, read, validated and compared as any store, and a builder over a
+  schema (`store.builder("Schemas.Property", prop)`) updates the schema itself.
+
 ## Expressions
 
 Constraints are serializable expressions, kept beside the schemas in
@@ -816,6 +841,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   and a term (a `Schemas.Form`, or a dialect's term) may stand where a width or an extent's bound does. A parameter is a
   variable whose binder is the schema; data of an application is data of its applied schema (`Schemas.structure`). See
   Parametrics, which also lists what is not built yet.
+- Reflection (0.7.2): schema data classes are bound to reference object schemas, so that a store's objects are the
+  schemas themselves (`Reflection.store(schemas)`), for predicates, queries and transforms; modules keep their value
+  object form for the wire (see Reflection: schemas as objects).
 - Evaluation (0.7.1): terms are evaluated by an evaluator the caller gives, in lexical scopes; `Validators.Check` gives
   problems and unknowns, three-valued; `Schemas.equivalent` is equality after substitution.
 - Every element may be described (0.6): schemas, properties, adjacencies, branches and parts hold an optional

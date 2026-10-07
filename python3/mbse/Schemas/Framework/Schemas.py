@@ -141,6 +141,26 @@ def _reserved(names: Any) -> list[str]:
             for name in names if isinstance(name, str) and name.startswith("$")]
 
 
+_REFLECTION: dict[str, Any] = {"accept": None, "names": {}}
+"""Filled by `Reflection`, which binds the schema data classes, so that this module need not import `Bindings`."""
+
+
+class _Reflected:
+    """Schema data as an object of a store of schemas (see `Reflection`): a reference object, identified by itself."""
+
+    def identity(self) -> int:
+        return id(self)
+
+    def schema_name(self) -> str:
+        return _REFLECTION["names"][type(self)]
+
+    def owner(self) -> None:
+        return None
+
+    def accept(self, visitor: Any) -> None:
+        _REFLECTION["accept"](self, visitor)
+
+
 def _resolve(spec: Any, data: type, builder: Callable[[], Any]) -> Any:
     """Resolves a `Spec`: an instance of `data` is used as is; a callable is given a new builder and must return it."""
     if isinstance(spec, data):
@@ -220,7 +240,7 @@ class Form:
 
 
 @dataclass
-class _ParameterData:
+class _ParameterData(_Reflected):
     """A parameter of the schema that declares it: a variable, named, of a type (None for any), determined where the
     schema is referred to (`OfApply`) and referred to within it by name, as a variable is."""
 
@@ -279,7 +299,7 @@ _HOSTS = {_Token(fmt, name): host for host, name in _BASIC_NAMES.items() for fmt
 
 
 @dataclass(init=False)
-class _NativeData:
+class _NativeData(_Reflected):
     """A native type: a token, and optionally a width in bits or in bytes, an int or a term. A host type given in place
     of the token (`OfNative.Data(int)`) is shorthand for the `basic` token of the same name."""
 
@@ -429,7 +449,7 @@ class OfNative:
 
 
 @dataclass(eq=False)
-class _PropertyData:
+class _PropertyData(_Reflected):
     name: str = ""
     type: Any = None  # OfAny.Data
     description: str | None = None
@@ -464,7 +484,7 @@ def _properties(fields: dict[str, Any], specs: tuple[OfProperty.Spec, ...]) -> N
 
 
 @dataclass(eq=False)
-class _RelationData:
+class _RelationData(_Reflected):
     links: tuple[str, ...] = ()
     properties: dict[str, _PropertyData] = field(default_factory=dict)
     uniques: tuple[frozenset[str], ...] = ()
@@ -538,7 +558,7 @@ class OfRelation:
 
 
 @dataclass(eq=False)
-class _AdjacencyData:
+class _AdjacencyData(_Reflected):
     name: str = ""
     relation: _RelationData | None = None
     me: str = ""
@@ -589,7 +609,7 @@ _VALIDATING: set[int] = set()
 
 
 @dataclass(eq=False)
-class _ObjectData:
+class _ObjectData(_Reflected):
     properties: dict[str, _PropertyData] = field(default_factory=dict)
     adjacencies: dict[str, _AdjacencyData] = field(default_factory=dict)
     singleton: str | None = None
@@ -667,7 +687,7 @@ class OfObject:
 
 
 @dataclass(eq=False)
-class _MemberData:
+class _MemberData(_Reflected):
     """A named member of a union (a branch) or of an intersection (a part)."""
 
     name: str = ""
@@ -711,7 +731,7 @@ def _members(specs: tuple[Callable[[_MemberBuilder], _MemberBuilder], ...]) -> t
 
 
 @dataclass(eq=False)
-class _UnionData:
+class _UnionData(_Reflected):
     branches: tuple[_MemberData, ...] = ()
     name: str | None = None
     description: str | None = None
@@ -748,7 +768,7 @@ class OfUnion:
 
 
 @dataclass(eq=False)
-class _IntersectionData:
+class _IntersectionData(_Reflected):
     parts: tuple[_MemberData, ...] = ()
     name: str | None = None
     description: str | None = None
@@ -797,7 +817,7 @@ class _Extent:
 
 
 @dataclass(eq=False)
-class _IndexedData:
+class _IndexedData(_Reflected):
     """A list: items of the item schema, in order. Without a key schema, or with a native `int` one, it is positional:
     its keys are its positions, from its extent's minimum. With any other key schema it is keyed: its items are held by
     unique keys of that schema, in insertion order."""
@@ -885,7 +905,7 @@ class OfIndexed:
 
 
 @dataclass(eq=False)
-class _ApplyData:
+class _ApplyData(_Reflected):
     """A parametric schema applied to arguments: a type whose values are the applied schema's (`of`), with arguments
     for its parameters by name, each a native value or a term. Parameters given no argument stay unbound."""
 

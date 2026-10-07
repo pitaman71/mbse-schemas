@@ -6,13 +6,13 @@ objects:
       schema:
         native:
           format: basic
-          name: int
+          token: int
           bits: 32
     - name: Size
       schema:
         native:
           format: ccpp
-          name: size_t
+          token: size_t
           bytes: 8
     - name: Contact
       schema:
@@ -22,17 +22,17 @@ objects:
             type:
               native:
                 format: basic
-                name: str
+                token: str
           - name: family_name
             type:
               native:
                 format: basic
-                name: str
+                token: str
           - name: birth_date
             type:
               native:
                 format: basic
-                name: str
+                token: str
           adjacencies:
           - name: addresses
             relation:
@@ -53,22 +53,22 @@ objects:
             type:
               native:
                 format: basic
-                name: str
+                token: str
           - name: locality
             type:
               native:
                 format: basic
-                name: str
+                token: str
           - name: postal_code
             type:
               native:
                 format: basic
-                name: str
+                token: str
           - name: country_code
             type:
               native:
                 format: basic
-                name: str
+                token: str
           adjacencies:
           - name: contacts
             relation:
@@ -87,7 +87,7 @@ objects:
             type:
               native:
                 format: basic
-                name: str
+                token: str
     - name: Person
       schema:
         object:
@@ -96,12 +96,12 @@ objects:
             type:
               native:
                 format: basic
-                name: str
+                token: str
           - name: birth_date
             type:
               native:
                 format: basic
-                name: str
+                token: str
           adjacencies:
           - name: children
             relation:
@@ -135,7 +135,7 @@ objects:
             type:
               native:
                 format: basic
-                name: str
+                token: str
     - name: Card
       schema:
         object:
@@ -144,7 +144,7 @@ objects:
             type:
               native:
                 format: basic
-                name: str
+                token: str
           - name: home
             type:
               object:
@@ -153,12 +153,12 @@ objects:
                   type:
                     native:
                       format: basic
-                      name: str
+                      token: str
                 - name: label
                   type:
                     native:
                       format: basic
-                      name: str
+                      token: str
                 adjacencies:
                 - name: hubs
                   relation:
@@ -177,12 +177,12 @@ objects:
                         type:
                           native:
                             format: basic
-                            name: str
+                            token: str
                       - name: label
                         type:
                           native:
                             format: basic
-                            name: str
+                            token: str
                       adjacencies:
                       - name: hubs
                         relation:
@@ -197,7 +197,7 @@ objects:
                         type:
                           native:
                             format: basic
-                            name: str
+                            token: str
           - name: ident
             type:
               union:
@@ -206,12 +206,12 @@ objects:
                   type:
                     native:
                       format: basic
-                      name: int
+                      token: int
                 - name: code
                   type:
                     native:
                       format: basic
-                      name: str
+                      token: str
           - name: meta
             type:
               intersection:
@@ -224,7 +224,7 @@ objects:
                         type:
                           native:
                             format: basic
-                            name: str
+                            token: str
                 - name: audit
                   type:
                     object:
@@ -233,12 +233,12 @@ objects:
                         type:
                           native:
                             format: basic
-                            name: str
+                            token: str
                       - name: updated
                         type:
                           native:
                             format: basic
-                            name: str
+                            token: str
           adjacencies:
           - name: decks
             relation:
@@ -254,7 +254,7 @@ objects:
             type:
               native:
                 format: basic
-                name: str
+                token: str
           adjacencies:
           - name: cards
             relation:
@@ -276,21 +276,21 @@ objects:
             type:
               native:
                 format: basic
-                name: str
+                token: str
           - name: tags
             type:
               indexed:
                 item:
                   native:
                     format: basic
-                    name: str
+                    token: str
           - name: blobs
             type:
               indexed:
                 item:
                   native:
                     format: basic
-                    name: bytes
+                    token: bytes
           - name: grid
             type:
               indexed:
@@ -299,7 +299,7 @@ objects:
                     item:
                       native:
                         format: basic
-                        name: int
+                        token: int
           - name: readings
             type:
               indexed:
@@ -310,12 +310,12 @@ objects:
                       type:
                         native:
                           format: basic
-                          name: float
+                          token: float
                     - name: note
                       type:
                         native:
                           format: basic
-                          name: str
+                          token: str
           - name: sockets
             type:
               indexed:
@@ -326,7 +326,7 @@ objects:
                       type:
                         native:
                           format: basic
-                          name: str
+                          token: str
                     adjacencies:
                     - name: cables
                       relation:
@@ -350,7 +350,7 @@ objects:
                           type:
                             native:
                               format: basic
-                              name: str
+                              token: str
                         adjacencies:
                         - name: cables
                           relation:
@@ -370,7 +370,7 @@ objects:
                     item:
                       native:
                         format: basic
-                        name: int
+                        token: int
                 extent:
                   minimum: 1
                   maximum: 3
@@ -380,29 +380,29 @@ objects:
                 item:
                   native:
                     format: basic
-                    name: float
+                    token: float
                 key:
                   native:
                     format: basic
-                    name: str
+                    token: str
           - name: weights
             type:
               indexed:
                 item:
                   native:
                     format: basic
-                    name: str
+                    token: str
                 key:
                   native:
                     format: basic
-                    name: float
+                    token: float
           - name: cells
             type:
               indexed:
                 item:
                   native:
                     format: basic
-                    name: int
+                    token: int
                 key:
                   object:
                     properties:
@@ -410,12 +410,12 @@ objects:
                       type:
                         native:
                           format: basic
-                          name: int
+                          token: int
                     - name: c
                       type:
                         native:
                           format: basic
-                          name: int
+                          token: int
           ref: true
     - name: Panel
       schema:
@@ -425,7 +425,7 @@ objects:
             type:
               native:
                 format: basic
-                name: str
+                token: str
           adjacencies:
           - name: plugs
             relation:
@@ -441,9 +441,9 @@ objects:
             type:
               native:
                 format: basic
-                name: int
+                token: int
           format: basic
-          name: int
+          token: int
           terms:
             bits:
               kind: variable
@@ -459,7 +459,7 @@ objects:
             type:
               native:
                 format: basic
-                name: int
+                token: int
             description: Its side
           - name: x
           properties:
@@ -504,7 +504,7 @@ objects:
             type:
               native:
                 format: basic
-                name: int
+                token: int
           of:
             named:
               name: Grid

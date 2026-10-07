@@ -41,7 +41,7 @@ export function module(store: Stores.Store, schemas: Iterable<Schema>): unknown 
   if (named.some((schema) => schemaName(schema) === null)) {
     throw new ValueError("a module holds named schemas; name each with its builder's .name()");
   }
-  const writer = new Writer();
+  const writer = new _Writer();
   const entries = named.map((schema) => new Map<string, PlainData>([["name", schemaName(schema)], ["schema", writer.definition(schema)]]));
   const root = new Map<string, PlainData>([["schemas", entries]]);
   return Plain.FromPlain(store)(Schemas.Module.Schema,
@@ -62,7 +62,7 @@ export function schemas(store: Stores.Store, module: unknown, make: Make | null 
 /** The plain form of a type (`Schemas.OfAny.Schema`'s): `{"named": {"name": ...}}` for a named schema, else the
  * schema inline. */
 export function reference(schema: unknown): PlainMap {
-  return new Writer().reference(schema);
+  return new _Writer().reference(schema);
 }
 
 /** A schema's name, or null for an unnamed schema or anything else. */
@@ -82,7 +82,7 @@ export function resolve(store: Stores.Store, definition: PlainMap, make: Make | 
 type Definition = PlainMap;
 
 /** Writes schemas as plain data, referring to named schemas by name. */
-class Writer {
+export class _Writer {
   /** The schemas being written inline, to refuse one that refers to itself. */
   private readonly inline = new Set<unknown>();
 
@@ -115,7 +115,7 @@ class Writer {
     const parameters = declared instanceof Map ? this.members(declared.values()) : [];
     if (schema instanceof Schemas.OfNative.Data) {
       if (!(schema.token instanceof Schemas.OfNative.Token)) throw new TypeError(`unsupported native type ${repr(schema.token)}`);
-      return kindOf("native", [["parameters", parameters], ["format", schema.token.format], ["name", schema.token.name],
+      return kindOf("native", [["parameters", parameters], ["format", schema.token.format], ["token", schema.token.name],
         ["bits", _literal(schema.bits)], ["bytes", _literal(schema.bytes)],
         ["terms", _terms([["bits", schema.bits], ["bytes", schema.bytes]])], ["description", schema.description]]);
     }
@@ -152,24 +152,24 @@ class Writer {
 }
 
 /** An extent's plain form: its int bounds, and the terms that stand for the others; null for none. */
-export function _extent(extent: Schemas.OfIndexed.Extent | null): PlainMap | null {
+function _extent(extent: Schemas.OfIndexed.Extent | null): PlainMap | null {
   if (extent === null) return null;
   return present([["minimum", _literal(extent.minimum)], ["maximum", _literal(extent.maximum)],
     ["terms", _terms([["minimum", extent.minimum], ["maximum", extent.maximum]])]]);
 }
 
 /** An application's arguments' plain form, in order. */
-export function _arguments(args: ReadonlyMap<string, unknown>): PlainMap[] {
+function _arguments(args: ReadonlyMap<string, unknown>): PlainMap[] {
   return [...args].map(([name, value]) => argument(name, value));
 }
 
 /** A width or a bound, where it is not a term. */
-export function _literal(value: unknown): PlainData {
+function _literal(value: unknown): PlainData {
   return Schemas.Form.is_term(value) ? null : value as PlainData;
 }
 
 /** The forms of the slots that hold terms, by slot; null if none does. */
-export function _terms(slots: [string, unknown][]): PlainMap | null {
+function _terms(slots: [string, unknown][]): PlainMap | null {
   const held = slots.filter(([, value]) => Schemas.Form.is_term(value));
   return held.length === 0 ? null : new Map(held.map(([slot, value]) => [slot, form(value)]));
 }
@@ -226,7 +226,7 @@ function contentsOf(definition: Definition): [string, PlainMap] {
 
 /** Reads the schemas of a module's plain entries. Each named schema is created first, so that references to it,
  * recursive ones included, resolve to it. */
-export class _Reader {
+class _Reader {
   private readonly defined = new Map<string, Schema>();
 
   constructor(private readonly store: Stores.Store, private readonly entries: PlainMap[], private readonly make: Make | null = null) {}
@@ -307,7 +307,7 @@ export class _Reader {
     const properties = () => new Map(this.members(body.get("properties"), (f) => new Schemas.OfProperty.Data(f))
       .map((p) => [p.name, p]));
     if (schema instanceof Schemas.OfNative.Data) {
-      schema.token = new Schemas.OfNative.Token(body.get("format") as string, body.get("name") as string);
+      schema.token = new Schemas.OfNative.Token(body.get("format") as string, body.get("token") as string);
       schema.bits = this.slot(body, "bits");
       schema.bytes = this.slot(body, "bytes");
     } else if (schema instanceof Schemas.OfObject.Data) {

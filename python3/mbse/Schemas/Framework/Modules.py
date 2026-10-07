@@ -107,7 +107,7 @@ class _Writer:
         if isinstance(schema, Schemas.OfNative.Data):
             if not isinstance(schema.token, Schemas.OfNative.Token):
                 raise TypeError(f"unsupported native type {schema.token!r}")
-            return _kind_of("native", parameters=parameters, format=schema.token.format, name=schema.token.name,
+            return _kind_of("native", parameters=parameters, format=schema.token.format, token=schema.token.name,
                             bits=_literal(schema.bits), bytes=_literal(schema.bytes),
                             terms=_terms(bits=schema.bits, bytes=schema.bytes), description=schema.description)
         if isinstance(schema, Schemas.OfObject.Data):
@@ -279,7 +279,7 @@ class _Reader:
         schema.parameters = {p.name: p for p in self._members(body.get("parameters", []), Schemas.OfParameter.Data)}
         properties = self._members(body.get("properties", []), Schemas.OfProperty.Data)
         if kind == "native":
-            schema.token = Schemas.OfNative.Token(body["format"], body["name"])
+            schema.token = Schemas.OfNative.Token(body["format"], body["token"])
             schema.bits, schema.bytes = self._slot(body, "bits"), self._slot(body, "bytes")
         elif kind == "object":
             schema.properties = {p.name: p for p in properties}
@@ -311,10 +311,6 @@ class _Reader:
     def arguments(self, plain: list[dict[str, Any]]) -> dict[str, Any]:
         """The arguments a plain form describes, by name: native values, or terms."""
         return {a["name"]: self._term(a["term"]) if "term" in a else _native_of(a["value"]) for a in plain}
-
-    def slot(self, body: dict[str, Any], slot: str) -> Any:
-        """A width: its int, or the term `terms` holds for it."""
-        return self._slot(body, slot)
 
 
 def _native_of(plain: dict[str, Any]) -> Any:

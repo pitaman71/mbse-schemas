@@ -130,15 +130,14 @@ abstract class NamedBuilder<D extends HasFields> extends Builder<D> {
   }
 }
 
-/** Filled by `Reflection`, which binds the schema data classes, so that this module need not import `Bindings`. */
-export const _REFLECTION: { accept: ((schema: unknown, visitor: unknown) => void) | null; names: Map<unknown, string> } = {
-  accept: null, names: new Map() };
+/** Filled by `Reflection`, which writes a schema in its module form, so that this module need not import `Modules`. */
+export const _REFLECTION: { accept: ((schema: unknown, visitor: unknown) => void) | null } = { accept: null };
 
 const IDENTITIES = new WeakMap<object, string>();
 let identities = 0;
 
-/** Schema data as an object of a store of schemas (see `Reflection`): a reference object, identified by a string unique
- * to it (`"schema 3"`), as mbse-schemas keys identities by their text. */
+/** A schema as an object predicates match (see `Reflection`): a reference object, identified by a string unique to it
+ * (`"schema 3"`), as mbse-schemas keys identities by their text, whose schema is its kind's meta-schema. */
 class Reflected {
   identity(): string {
     let identity = IDENTITIES.get(this);
@@ -147,7 +146,7 @@ class Reflected {
   }
 
   schema_name(): string {
-    return _REFLECTION.names.get(this.constructor) as string;
+    return KIND_NAMES.get(this.constructor) as string;
   }
 
   owner(): null {
@@ -286,13 +285,12 @@ export namespace Form {
 
 /** A parameter of the schema that declares it: a variable, named, of a type (null for any), determined where the
  * schema is referred to (`OfApply`) and referred to within it by name, as a variable is. */
-class ParameterData extends Reflected {
+class ParameterData {
   name: string;
   type: AnyData | null;
   description: string | null;
 
   constructor(fields: { name?: string; type?: AnyData | null; description?: string | null } = {}) {
-    super();
     this.name = fields.name ?? "";
     this.type = fields.type ?? null;
     this.description = fields.description ?? null;
@@ -582,13 +580,12 @@ export namespace OfNative {
 
 // --- OfProperty: a named property of an object or relation ---
 
-class PropertyData extends Reflected {
+class PropertyData {
   name: string;
   type: AnyData | null;
   description: string | null;
 
   constructor(fields: { name?: string; type?: AnyData | null; description?: string | null } = {}) {
-    super();
     this.name = fields.name ?? "";
     this.type = fields.type ?? null;
     this.description = fields.description ?? null;
@@ -745,14 +742,13 @@ export namespace OfRelation {
 
 // --- OfAdjacency ---
 
-class AdjacencyData extends Reflected {
+class AdjacencyData {
   name: string;
   relation: RelationData | null;
   me: string;
   description: string | null;
 
   constructor(fields: { name?: string; relation?: RelationData | null; me?: string; description?: string | null } = {}) {
-    super();
     this.name = fields.name ?? "";
     this.relation = fields.relation ?? null;
     this.me = fields.me ?? "";
@@ -930,13 +926,12 @@ export namespace OfObject {
 // --- OfUnion / OfIntersection ---
 
 /** A named member of a union (a branch) or of an intersection (a part). */
-class MemberData extends Reflected {
+class MemberData {
   name: string;
   type: AnyData | null;
   description: string | null;
 
   constructor(fields: { name?: string; type?: AnyData | null; description?: string | null } = {}) {
-    super();
     this.name = fields.name ?? "";
     this.type = fields.type ?? null;
     this.description = fields.description ?? null;
@@ -1559,34 +1554,34 @@ const FormSchema = new ObjectBuilder().properties(
 new ObjectBuilder(FormSchema).properties((p) => p.name("arguments").of(listOf(FormSchema))).update();
 const WidthTerms = new ObjectBuilder().properties((p) => p.name("bits").of(FormSchema), (p) => p.name("bytes").of(FormSchema))
   .create();
-const NativeSchema = new ObjectBuilder().properties(
-  Parameters, namedText("format"), namedText("name"), (p) => p.name("bits").of(Int), (p) => p.name("bytes").of(Int),
+const NativeSchema = new ObjectBuilder().name("Schemas.Native").properties(
+  namedText("name"), Parameters, namedText("format"), namedText("token"), (p) => p.name("bits").of(Int), (p) => p.name("bytes").of(Int),
   (p) => p.name("terms").of(WidthTerms), namedText("description")).create();
-const RelationSchema = new ObjectBuilder().properties(
-  Parameters, (p) => p.name("links").of(listOf(Text)), (p) => p.name("properties").of(listOf(PropertySchema)),
+const RelationSchema = new ObjectBuilder().name("Schemas.Relation").properties(
+  namedText("name"), Parameters, (p) => p.name("links").of(listOf(Text)), (p) => p.name("properties").of(listOf(PropertySchema)),
   (p) => p.name("uniques").of(listOf(listOf(Text))), namedText("description")).create();
 const RelationRef = new UnionBuilder().branches((b) => b.name("relation").of(RelationSchema),
   (b) => b.name("named").of(NamedSchema)).create();
 const AdjacencySchema = new ObjectBuilder().properties(
   namedText("name"), (p) => p.name("relation").of(RelationRef), namedText("me"), namedText("description")).create();
-const ObjectSchema = new ObjectBuilder().properties(
-  Parameters, (p) => p.name("properties").of(listOf(PropertySchema)), (p) => p.name("adjacencies").of(listOf(AdjacencySchema)),
+const ObjectSchema = new ObjectBuilder().name("Schemas.Object").properties(
+  namedText("name"), Parameters, (p) => p.name("properties").of(listOf(PropertySchema)), (p) => p.name("adjacencies").of(listOf(AdjacencySchema)),
   namedText("singleton"), (p) => p.name("ref").of((t) => t.as_native(Boolean)), namedText("description")).create();
-const UnionSchema = new ObjectBuilder().properties(Parameters, (p) => p.name("branches").of(listOf(PropertySchema)),
-  namedText("description")).create();
-const IntersectionSchema = new ObjectBuilder().properties(Parameters, (p) => p.name("parts").of(listOf(PropertySchema)),
-  namedText("description")).create();
+const UnionSchema = new ObjectBuilder().name("Schemas.Union").properties(
+  namedText("name"), Parameters, (p) => p.name("branches").of(listOf(PropertySchema)), namedText("description")).create();
+const IntersectionSchema = new ObjectBuilder().name("Schemas.Intersection").properties(
+  namedText("name"), Parameters, (p) => p.name("parts").of(listOf(PropertySchema)), namedText("description")).create();
 const ExtentTerms = new ObjectBuilder().properties((p) => p.name("minimum").of(FormSchema),
   (p) => p.name("maximum").of(FormSchema)).create();
 const ExtentSchema = new ObjectBuilder().properties((p) => p.name("minimum").of(Int), (p) => p.name("maximum").of(Int),
   (p) => p.name("terms").of(ExtentTerms)).create();
-const IndexedSchema = new ObjectBuilder().properties(
-  Parameters, (p) => p.name("item").of(AnySchema), (p) => p.name("key").of(AnySchema),
+const IndexedSchema = new ObjectBuilder().name("Schemas.Indexed").properties(
+  namedText("name"), Parameters, (p) => p.name("item").of(AnySchema), (p) => p.name("key").of(AnySchema),
   (p) => p.name("extent").of(ExtentSchema), namedText("description")).create();
 const ArgumentSchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("value").of(NativeValue),
   (p) => p.name("term").of(FormSchema)).create();
-const ApplySchema = new ObjectBuilder().properties(
-  Parameters, (p) => p.name("of").of(AnySchema), (p) => p.name("arguments").of(listOf(ArgumentSchema)),
+const ApplySchema = new ObjectBuilder().name("Schemas.Apply").properties(
+  namedText("name"), Parameters, (p) => p.name("of").of(AnySchema), (p) => p.name("arguments").of(listOf(ArgumentSchema)),
   namedText("description")).create();
 const KIND_SCHEMAS: [string, ObjectData][] = [["native", NativeSchema], ["object", ObjectSchema], ["union", UnionSchema],
   ["intersection", IntersectionSchema], ["indexed", IndexedSchema], ["apply", ApplySchema]];
@@ -1611,6 +1606,9 @@ Form.Schema = FormSchema;
 Form.Value = NativeValue;
 OfAny.Schema = AnySchema;
 OfAny.Named = NamedSchema;
+const KIND_NAMES = new Map<unknown, string>([[NativeData, "Schemas.Native"], [ObjectData, "Schemas.Object"],
+  [UnionData, "Schemas.Union"], [IntersectionData, "Schemas.Intersection"], [IndexedData, "Schemas.Indexed"],
+  [ApplyData, "Schemas.Apply"], [RelationData, "Schemas.Relation"]]);
 
 /** A named set of schemas, as data. `Module.Schema` is the reference object schema of a module: its `schemas` are a
  * list of `Module.Entry` value objects, each a `name` and a `schema`, a `Module.Definition` (a schema of any kind,

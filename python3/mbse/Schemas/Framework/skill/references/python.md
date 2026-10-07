@@ -89,7 +89,7 @@ B.Name(obj).property("p", lambda p: ...).adjacency("a", lambda a: a.entries(...)
 
 # Schemas as data: a module holds schemas by name, as an object of S.Module.Schema.
 Modules.module(store, [Contact]); Modules.schemas(store, module)   # named schemas to a module, and back (by name)
-Reflection.store([Contact]).extent("Schemas.Object")        # schemas as a store's objects, to match and rewrite
+Reflection.of(store).extent("Schemas.Object")               # a store's schemas as objects, to match and rewrite
 Stores.Combined(schemas, trees)                             # stores of different implementations, as one
 
 # Everything else works for any schema.

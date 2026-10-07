@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import math
 
-from mbse.Schemas.Framework import Modules, Proxies, Reflection, Schemas
+from mbse.Schemas.Framework import Modules, Proxies, Schemas
 
-CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded", "lists", "module", "reflected"]
+CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded", "lists", "module"]
 
 
 def _text(name, native=str):
@@ -230,9 +230,6 @@ def build():
                Word, Grid, Square, Tricky, Applied]
     module = Modules.module(store, schemas)
 
-    # --- reflected: the same schemas as the objects of a store of schemas ---
-    reflected = Reflection.store(schemas)
-
     return {
         "address_book": (Contact, alice, store),
         "natives": (Bag, bag, store),
@@ -242,5 +239,4 @@ def build():
         "embedded": (Deck, deck, store),
         "lists": (Board, board, store),
         "module": (S.Module.Schema, module, store),
-        "reflected": (Reflection.Catalog.Schema, reflected.singleton(Reflection.CATALOG), reflected),
     }

@@ -141,18 +141,19 @@ def _reserved(names: Any) -> list[str]:
             for name in names if isinstance(name, str) and name.startswith("$")]
 
 
-_REFLECTION: dict[str, Any] = {"accept": None, "names": {}}
-"""Filled by `Reflection`, which binds the schema data classes, so that this module need not import `Bindings`."""
+_REFLECTION: dict[str, Any] = {"accept": None}
+"""Filled by `Reflection`, which writes a schema in its module form, so that this module need not import `Modules`."""
 
 
 class _Reflected:
-    """Schema data as an object of a store of schemas (see `Reflection`): a reference object, identified by itself."""
+    """A schema as an object predicates match (see `Reflection`): a reference object, identified by itself, whose schema
+    is its kind's meta-schema."""
 
     def identity(self) -> int:
         return id(self)
 
     def schema_name(self) -> str:
-        return _REFLECTION["names"][type(self)]
+        return _KIND_NAMES[type(self)]
 
     def owner(self) -> None:
         return None
@@ -240,7 +241,7 @@ class Form:
 
 
 @dataclass
-class _ParameterData(_Reflected):
+class _ParameterData:
     """A parameter of the schema that declares it: a variable, named, of a type (None for any), determined where the
     schema is referred to (`OfApply`) and referred to within it by name, as a variable is."""
 
@@ -449,7 +450,7 @@ class OfNative:
 
 
 @dataclass(eq=False)
-class _PropertyData(_Reflected):
+class _PropertyData:
     name: str = ""
     type: Any = None  # OfAny.Data
     description: str | None = None
@@ -558,7 +559,7 @@ class OfRelation:
 
 
 @dataclass(eq=False)
-class _AdjacencyData(_Reflected):
+class _AdjacencyData:
     name: str = ""
     relation: _RelationData | None = None
     me: str = ""
@@ -687,7 +688,7 @@ class OfObject:
 
 
 @dataclass(eq=False)
-class _MemberData(_Reflected):
+class _MemberData:
     """A named member of a union (a branch) or of an intersection (a part)."""
 
     name: str = ""
@@ -1175,11 +1176,11 @@ _FormSchema = OfObject.Builder().properties(
 OfObject.Builder(_FormSchema).properties(lambda p: p.name("arguments").of(_list_of(_FormSchema))).update()
 _WidthTerms = OfObject.Builder().properties(lambda p: p.name("bits").of(_FormSchema),
                                             lambda p: p.name("bytes").of(_FormSchema)).create()
-_NativeSchema = OfObject.Builder().properties(
-    _Parameters, _named_text("format"), _named_text("name"), lambda p: p.name("bits").of(_int),
+_NativeSchema = OfObject.Builder().name("Schemas.Native").properties(
+    _named_text("name"), _Parameters, _named_text("format"), _named_text("token"), lambda p: p.name("bits").of(_int),
     lambda p: p.name("bytes").of(_int), lambda p: p.name("terms").of(_WidthTerms), _named_text("description")).create()
-_RelationSchema = OfObject.Builder().properties(
-    _Parameters, lambda p: p.name("links").of(_list_of(_Text)),
+_RelationSchema = OfObject.Builder().name("Schemas.Relation").properties(
+    _named_text("name"), _Parameters, lambda p: p.name("links").of(_list_of(_Text)),
     lambda p: p.name("properties").of(_list_of(_PropertySchema)),
     lambda p: p.name("uniques").of(_list_of(_list_of(_Text))), _named_text("description")).create()
 _RelationRef = OfUnion.Builder().branches(lambda b: b.name("relation").of(_RelationSchema),
@@ -1187,26 +1188,28 @@ _RelationRef = OfUnion.Builder().branches(lambda b: b.name("relation").of(_Relat
 _AdjacencySchema = OfObject.Builder().properties(
     _named_text("name"), lambda p: p.name("relation").of(_RelationRef), _named_text("me"),
     _named_text("description")).create()
-_ObjectSchema = OfObject.Builder().properties(
-    _Parameters, lambda p: p.name("properties").of(_list_of(_PropertySchema)),
+_ObjectSchema = OfObject.Builder().name("Schemas.Object").properties(
+    _named_text("name"), _Parameters, lambda p: p.name("properties").of(_list_of(_PropertySchema)),
     lambda p: p.name("adjacencies").of(_list_of(_AdjacencySchema)), _named_text("singleton"),
     lambda p: p.name("ref").of(lambda t: t.as_native(bool)), _named_text("description")).create()
-_UnionSchema = OfObject.Builder().properties(_Parameters, lambda p: p.name("branches").of(_list_of(_PropertySchema)),
-                                             _named_text("description")).create()
-_IntersectionSchema = OfObject.Builder().properties(_Parameters, lambda p: p.name("parts").of(_list_of(_PropertySchema)),
-                                                    _named_text("description")).create()
+_UnionSchema = OfObject.Builder().name("Schemas.Union").properties(
+    _named_text("name"), _Parameters, lambda p: p.name("branches").of(_list_of(_PropertySchema)),
+    _named_text("description")).create()
+_IntersectionSchema = OfObject.Builder().name("Schemas.Intersection").properties(
+    _named_text("name"), _Parameters, lambda p: p.name("parts").of(_list_of(_PropertySchema)),
+    _named_text("description")).create()
 _ExtentTerms = OfObject.Builder().properties(lambda p: p.name("minimum").of(_FormSchema),
                                              lambda p: p.name("maximum").of(_FormSchema)).create()
 _ExtentSchema = OfObject.Builder().properties(lambda p: p.name("minimum").of(_int), lambda p: p.name("maximum").of(_int),
                                               lambda p: p.name("terms").of(_ExtentTerms)).create()
-_IndexedSchema = OfObject.Builder().properties(
-    _Parameters, lambda p: p.name("item").of(_AnySchema), lambda p: p.name("key").of(_AnySchema),
+_IndexedSchema = OfObject.Builder().name("Schemas.Indexed").properties(
+    _named_text("name"), _Parameters, lambda p: p.name("item").of(_AnySchema), lambda p: p.name("key").of(_AnySchema),
     lambda p: p.name("extent").of(_ExtentSchema), _named_text("description")).create()
 _ArgumentSchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("value").of(_NativeValue),
                                                 lambda p: p.name("term").of(_FormSchema)).create()
-_ApplySchema = OfObject.Builder().properties(
-    _Parameters, lambda p: p.name("of").of(_AnySchema), lambda p: p.name("arguments").of(_list_of(_ArgumentSchema)),
-    _named_text("description")).create()
+_ApplySchema = OfObject.Builder().name("Schemas.Apply").properties(
+    _named_text("name"), _Parameters, lambda p: p.name("of").of(_AnySchema),
+    lambda p: p.name("arguments").of(_list_of(_ArgumentSchema)), _named_text("description")).create()
 _KIND_SCHEMAS = (("native", _NativeSchema), ("object", _ObjectSchema), ("union", _UnionSchema),
                  ("intersection", _IntersectionSchema), ("indexed", _IndexedSchema), ("apply", _ApplySchema))
 OfUnion.Builder(_AnySchema).branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
@@ -1231,6 +1234,10 @@ Form.Schema = _FormSchema  # type: ignore[attr-defined]
 Form.Value = _NativeValue  # type: ignore[attr-defined]
 OfAny.Schema = _AnySchema  # type: ignore[attr-defined]
 OfAny.Named = _Named  # type: ignore[attr-defined]
+_KIND_NAMES: dict[type, str] = {
+    _NativeData: _NativeSchema.name, _ObjectData: _ObjectSchema.name, _UnionData: _UnionSchema.name,
+    _IntersectionData: _IntersectionSchema.name, _IndexedData: _IndexedSchema.name, _ApplyData: _ApplySchema.name,
+    _RelationData: _RelationSchema.name}
 
 
 class Module:

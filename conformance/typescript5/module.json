@@ -8,7 +8,7 @@
           "schema": {
             "native": {
               "format": "basic",
-              "name": "int",
+              "token": "int",
               "bits": 32
             }
           }
@@ -18,7 +18,7 @@
           "schema": {
             "native": {
               "format": "ccpp",
-              "name": "size_t",
+              "token": "size_t",
               "bytes": 8
             }
           }
@@ -33,7 +33,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "str"
+                      "token": "str"
                     }
                   }
                 },
@@ -42,7 +42,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "str"
+                      "token": "str"
                     }
                   }
                 },
@@ -51,7 +51,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "str"
+                      "token": "str"
                     }
                   }
                 }
@@ -90,7 +90,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "str"
+                      "token": "str"
                     }
                   }
                 },
@@ -99,7 +99,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "str"
+                      "token": "str"
                     }
                   }
                 },
@@ -108,7 +108,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "str"
+                      "token": "str"
                     }
                   }
                 },
@@ -117,7 +117,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "str"
+                      "token": "str"
                     }
                   }
                 }
@@ -151,7 +151,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "str"
+                      "token": "str"
                     }
                   }
                 }
@@ -169,7 +169,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "str"
+                      "token": "str"
                     }
                   }
                 },
@@ -178,7 +178,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "str"
+                      "token": "str"
                     }
                   }
                 }
@@ -239,7 +239,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "str"
+                      "token": "str"
                     }
                   }
                 }
@@ -257,7 +257,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "str"
+                      "token": "str"
                     }
                   }
                 },
@@ -271,7 +271,7 @@
                           "type": {
                             "native": {
                               "format": "basic",
-                              "name": "str"
+                              "token": "str"
                             }
                           }
                         },
@@ -280,7 +280,7 @@
                           "type": {
                             "native": {
                               "format": "basic",
-                              "name": "str"
+                              "token": "str"
                             }
                           }
                         }
@@ -314,7 +314,7 @@
                                   "type": {
                                     "native": {
                                       "format": "basic",
-                                      "name": "str"
+                                      "token": "str"
                                     }
                                   }
                                 },
@@ -323,7 +323,7 @@
                                   "type": {
                                     "native": {
                                       "format": "basic",
-                                      "name": "str"
+                                      "token": "str"
                                     }
                                   }
                                 }
@@ -352,7 +352,7 @@
                                   "type": {
                                     "native": {
                                       "format": "basic",
-                                      "name": "str"
+                                      "token": "str"
                                     }
                                   }
                                 }
@@ -374,7 +374,7 @@
                           "type": {
                             "native": {
                               "format": "basic",
-                              "name": "int"
+                              "token": "int"
                             }
                           }
                         },
@@ -383,7 +383,7 @@
                           "type": {
                             "native": {
                               "format": "basic",
-                              "name": "str"
+                              "token": "str"
                             }
                           }
                         }
@@ -406,7 +406,7 @@
                                   "type": {
                                     "native": {
                                       "format": "basic",
-                                      "name": "str"
+                                      "token": "str"
                                     }
                                   }
                                 }
@@ -424,7 +424,7 @@
                                   "type": {
                                     "native": {
                                       "format": "basic",
-                                      "name": "str"
+                                      "token": "str"
                                     }
                                   }
                                 },
@@ -433,7 +433,7 @@
                                   "type": {
                                     "native": {
                                       "format": "basic",
-                                      "name": "str"
+                                      "token": "str"
                                     }
                                   }
                                 }
@@ -471,7 +471,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "str"
+                      "token": "str"
                     }
                   }
                 }
@@ -512,7 +512,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "str"
+                      "token": "str"
                     }
                   }
                 },
@@ -523,7 +523,7 @@
                       "item": {
                         "native": {
                           "format": "basic",
-                          "name": "str"
+                          "token": "str"
                         }
                       }
                     }
@@ -536,7 +536,7 @@
                       "item": {
                         "native": {
                           "format": "basic",
-                          "name": "bytes"
+                          "token": "bytes"
                         }
                       }
                     }
@@ -551,7 +551,7 @@
                           "item": {
                             "native": {
                               "format": "basic",
-                              "name": "int"
+                              "token": "int"
                             }
                           }
                         }
@@ -571,7 +571,7 @@
                               "type": {
                                 "native": {
                                   "format": "basic",
-                                  "name": "float"
+                                  "token": "float"
                                 }
                               }
                             },
@@ -580,7 +580,7 @@
                               "type": {
                                 "native": {
                                   "format": "basic",
-                                  "name": "str"
+                                  "token": "str"
                                 }
                               }
                             }
@@ -602,7 +602,7 @@
                               "type": {
                                 "native": {
                                   "format": "basic",
-                                  "name": "str"
+                                  "token": "str"
                                 }
                               }
                             }
@@ -646,7 +646,7 @@
                                   "type": {
                                     "native": {
                                       "format": "basic",
-                                      "name": "str"
+                                      "token": "str"
                                     }
                                   }
                                 }
@@ -687,7 +687,7 @@
                           "item": {
                             "native": {
                               "format": "basic",
-                              "name": "int"
+                              "token": "int"
                             }
                           }
                         }
@@ -706,13 +706,13 @@
                       "item": {
                         "native": {
                           "format": "basic",
-                          "name": "float"
+                          "token": "float"
                         }
                       },
                       "key": {
                         "native": {
                           "format": "basic",
-                          "name": "str"
+                          "token": "str"
                         }
                       }
                     }
@@ -725,13 +725,13 @@
                       "item": {
                         "native": {
                           "format": "basic",
-                          "name": "str"
+                          "token": "str"
                         }
                       },
                       "key": {
                         "native": {
                           "format": "basic",
-                          "name": "float"
+                          "token": "float"
                         }
                       }
                     }
@@ -744,7 +744,7 @@
                       "item": {
                         "native": {
                           "format": "basic",
-                          "name": "int"
+                          "token": "int"
                         }
                       },
                       "key": {
@@ -755,7 +755,7 @@
                               "type": {
                                 "native": {
                                   "format": "basic",
-                                  "name": "int"
+                                  "token": "int"
                                 }
                               }
                             },
@@ -764,7 +764,7 @@
                               "type": {
                                 "native": {
                                   "format": "basic",
-                                  "name": "int"
+                                  "token": "int"
                                 }
                               }
                             }
@@ -789,7 +789,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "str"
+                      "token": "str"
                     }
                   }
                 }
@@ -819,13 +819,13 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "int"
+                      "token": "int"
                     }
                   }
                 }
               ],
               "format": "basic",
-              "name": "int",
+              "token": "int",
               "terms": {
                 "bits": {
                   "kind": "variable",
@@ -852,7 +852,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "int"
+                      "token": "int"
                     }
                   },
                   "description": "Its side"
@@ -941,7 +941,7 @@
                   "type": {
                     "native": {
                       "format": "basic",
-                      "name": "int"
+                      "token": "int"
                     }
                   }
                 }

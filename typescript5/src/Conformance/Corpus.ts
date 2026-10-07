@@ -8,10 +8,10 @@
  * lockstep: same schemas, same names, same values, same order of statements.
  */
 
-import { Modules, Proxies, Reflection, Schemas, Stores } from "../Framework/index.js";
+import { Modules, Proxies, Schemas, Stores } from "../Framework/index.js";
 import type { Instance } from "../Framework/Proxies.js";
 
-export const CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded", "lists", "module", "reflected"] as const;
+export const CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded", "lists", "module"] as const;
 
 function text(name: string, native: unknown = String) {
   return (prop: Schemas.OfProperty.Builder) => prop.name(name).of((t) => t.as_native(native as never));
@@ -230,9 +230,6 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   ];
   const module = Modules.module(store, schemas) as Instance;
 
-  // --- reflected: the same schemas as the objects of a store of schemas ---
-  const reflected = Reflection.store(schemas);
-
   return new Map<string, [Schemas.OfObject.Data, Instance, Stores.Store]>([
     ["address_book", [Contact, alice, store]],
     ["natives", [Bag, bag, store]],
@@ -242,6 +239,5 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
     ["embedded", [Deck, deck, store]],
     ["lists", [Board, board, store]],
     ["module", [Schemas.Module.Schema, module, store]],
-    ["reflected", [Reflection.Catalog.Schema, reflected.singleton(Reflection.CATALOG) as Instance, reflected]],
   ]);
 }

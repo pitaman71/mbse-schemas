@@ -184,9 +184,9 @@ class Catalog:
 
 class Combined:
     """Stores combined into one: each name belongs to the one store that registers it, which gives its schema, builds its
-    objects and reads their members; the singletons are all of theirs, and an extent is what they all reach, so the
-    objects of one store may link to another's (a store of schemas and a store of syntax trees, say). A name that two of
-    the stores register is refused."""
+    objects and reads their members; the singletons are all of theirs, and an extent is the owning store's and what
+    every store's singletons reach, so the objects of one store may link to another's (a store of schemas and a store
+    of syntax trees, say). A name that two of the stores register is refused."""
 
     def __init__(self, *stores: Any):
         self.stores = stores
@@ -235,15 +235,17 @@ class Combined:
         return roots[name]
 
     def extent(self, name: str) -> tuple[Visitors.Visitable, ...]:
-        self.schema(name)
+        """The owning store's extent, then the objects of the schema the other stores' singletons reach."""
+        owner = self._owner(name, AttributeError)
+        owner.schema(name)
         seen: set[Any] = set()
         found: list[Visitors.Visitable] = []
-        for root in self._singletons.values():
-            for value in Reachable.of(root):
-                if value.identity() not in seen:
-                    seen.add(value.identity())
-                    if value.schema_name() == name:
-                        found.append(value)
+        reached = (value for root in self._singletons.values() for value in Reachable.of(root))
+        for value in (*owner.extent(name), *reached):
+            if value.identity() not in seen:
+                seen.add(value.identity())
+                if value.schema_name() == name:
+                    found.append(value)
         return tuple(found)
 
 

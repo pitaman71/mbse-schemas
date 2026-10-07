@@ -263,9 +263,9 @@ in-memory cache slices.
     first-reference order.
 - **Stores combine.** `Stores.Combined(*stores)` is one store of several: each name belongs to the one store that
   registers it (a name two register is refused), which gives its schema, builds its objects and reads their members;
-  its singletons are all of theirs, and an extent is what they all reach, so the objects of one store may link to
-  another's, and combined stores combine again. A transform reads a store of schemas (`Reflection`) and writes a store
-  of syntax trees (mbse-programs) through one.
+  its singletons are all of theirs, and an extent is the owning store's and what every store's singletons reach, so the
+  objects of one store may link to another's, and combined stores combine again. A transform reads a store of schemas
+  (`Reflection.of`) and writes a store of syntax trees (mbse-programs) through one.
 - **A random source is given to whatever draws from it** (mbse-patterns' samplers and generators:
   `Generate(store, weights, Stores.PCG32(42))`), not held by a store, which is data access alone. `Stores.Random` is the
   protocol: `next_u32()`, the next 32 random bits, and
@@ -593,7 +593,7 @@ are written, read, validated and compared like any other objects.
   properties are written) and ends with its `description`. What is absent, false or empty is left out.
 - **A type is a schema of any kind, inline, or a name**: `Schemas.OfAny.Schema`, a union of the kinds and `named`, a
   value object `{"name": ...}` (union branches are of one kind, so a name is a value object too). A property's type is
-  `{"native": {"format": "basic", "name": "str"}}` or `{"named": {"name": "Phone"}}`, and an adjacency's relation is
+  `{"native": {"format": "basic", "token": "str"}}` or `{"named": {"name": "Phone"}}`, and an adjacency's relation is
   `Schemas.OfRelation.Ref`, a relation inline or named the same way.
 - **Names make schemas shared.** A schema refers by name to a schema in the module, or a registered one, and writes any
   other inline. Reading creates every named schema first, so names resolve to the same schema, recursive references
@@ -614,28 +614,22 @@ are written, read, validated and compared like any other objects.
 
 ## Reflection: schemas as objects
 
-A module holds schemas as value objects, nested, which is how schemas are written and read. To match, query and
-rewrite schemas as objects (mbse-patterns' predicates and transforms bind reference objects only), `Reflection` binds
-the schema data classes themselves to reference object schemas, as mbse-expressions binds its terms, so that a store's
-objects are the schemas: nothing is built from them, and nothing is read back.
+Codegen and other transforms (mbse-patterns) match schemas, not data: a predicate's symbol is declared with the schema
+of what it binds, and the predicate itself says which objects match. To bind a schema, a symbol is declared with its
+kind's meta-schema, the schema of the module form (`Schemas.OfObject.Schema`, named `Schemas.Object`, and the like for
+`Schemas.Native`, `Schemas.Union`, `Schemas.Intersection`, `Schemas.Indexed`, `Schemas.Apply` and `Schemas.Relation`).
 
-- **`Reflection.store(schemas)`** is a `Bindings.OfStore` whose singleton catalog (`Schemas.Catalog`) lists the schemas,
-  in order; what it reaches, the schemas and every schema and element they hold, is the store's data, so each kind's
-  extent is its schemas (`store.extent("Schemas.Object")`).
-- **Kinds and elements are objects.** `Schemas.Native`, `Schemas.Object`, `Schemas.Union`, `Schemas.Intersection`,
-  `Schemas.Indexed`, `Schemas.Apply` and `Schemas.Relation` are the kinds' meta-schemas; `Schemas.Property`,
-  `Schemas.Member` (a union's branch, an intersection's part), `Schemas.Parameter` and `Schemas.Adjacency` the
-  elements'. Their natives are properties (a native's token as `format` and `token`); an extent, a width's terms and an
-  application's arguments are values, in their module form.
-- **Relations hold the rest.** `Schemas.Members` links an `owner` to each `member` it holds, with its `role`
-  (`parameters`, `properties`, `branches`, `parts`, `adjacencies`) and `index`; `Schemas.Types` links a `user` to each
-  `type` it refers to, with its `role` (`type`, `item`, `key`, `of`, `relation`); `Schemas.Listed` links the catalog to
-  each schema. Each is written from the side that holds it; the other sides (`owners`, `users`, `listed`) are implied,
-  as an expression's `used_by` is.
-- **Schema data is `Visitable`**: `identity()` (Python's `id`, TypeScript's `"schema N"`), `schema_name()` (its
-  meta-schema's name), `owner()` (none) and `accept(visitor)`, which `Reflection` supplies, since this module cannot
-  import `Bindings`. So a store of schemas is written, read, validated and compared as any store, and a builder over a
-  schema (`store.builder("Schemas.Property", prop)`) updates the schema itself.
+- **A schema is a reference object of its kind's meta-schema**: `identity()` (Python's `id`, TypeScript's
+  `"schema N"`), `schema_name()` (the meta-schema's name), `owner()` (none) and `accept(visitor)`, which writes its
+  module form with its name (a module gives its entry the name): its properties, branches, parts and parameters inline,
+  a named schema it refers to by name. `Reflection` supplies `accept`, since this module cannot import `Modules`.
+  Everything within a schema is a value, read with `get`, quantified over and compared deeply (mbse-expressions' Basic).
+- **`Reflection.of(store)`** is a store whose objects are the schemas `store` registers and the named schemas they refer
+  to, found by following the types and relations each refers to: it registers the meta-schemas, and each one's extent
+  is the schemas of its kind, in name order (names that tie in the order reached). It reads no data, and leaves out the
+  store's own meta-schemas (`Stores.META`). It builds nothing; schemas are built by their builders.
+- **A native's token** is written `format` and `token` in a module (`{"native": {"format": "basic", "token": "str"}}`),
+  so that `name` is a schema's name in every kind (0.8).
 
 ## Expressions
 
@@ -845,9 +839,12 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   Parametrics, which also lists what is not built yet.
 - Stores of different implementations combine, by name (0.7.3): `Stores.Combined(*stores)`, each name its one store's,
   the singletons all of theirs and the extents what they all reach. A store itself still has one implementation.
-- Reflection (0.7.2): schema data classes are bound to reference object schemas, so that a store's objects are the
-  schemas themselves (`Reflection.store(schemas)`), for predicates, queries and transforms; modules keep their value
-  object form for the wire (see Reflection: schemas as objects).
+- Reflection (0.8): a schema is a reference object of its kind's meta-schema, the module form's, and writes its module
+  form with its name; `Reflection.of(store)` holds the schemas a store registers and those they refer to. It replaces
+  0.7.2's catalog and the elements bound as objects of their own, linked by relations: a predicate selects schemas
+  itself, reading and comparing what is within them as values, and a store's named schemas are its roots, so nothing
+  lists them again. A native's token is written `token`, so that `name` is a schema's name in every kind (see
+  Reflection: schemas as objects).
 - Evaluation (0.7.1): terms are evaluated by an evaluator the caller gives, in lexical scopes; `Validators.Check` gives
   problems and unknowns, three-valued; `Schemas.equivalent` is equality after substitution.
 - Every element may be described (0.6): schemas, properties, adjacencies, branches and parts hold an optional

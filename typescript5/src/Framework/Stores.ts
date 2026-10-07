@@ -167,9 +167,9 @@ export class Catalog {
 }
 
 /** Stores combined into one: each name belongs to the one store that registers it, which gives its schema, builds its
- * objects and reads their members; the singletons are all of theirs, and an extent is what they all reach, so the
- * objects of one store may link to another's (a store of schemas and a store of syntax trees, say). A name that two of
- * the stores register is refused. */
+ * objects and reads their members; the singletons are all of theirs, and an extent is the owning store's and what
+ * every store's singletons reach, so the objects of one store may link to another's (a store of schemas and a store of
+ * syntax trees, say). A name that two of the stores register is refused. */
 export class Combined implements Store {
   readonly stores: readonly Store[];
   readonly #owners = new Map<string, Store>();
@@ -227,16 +227,17 @@ export class Combined implements Store {
     return found;
   }
 
+  /** The owning store's extent, then the objects of the schema the other stores' singletons reach. */
   extent(name: string): readonly Visitable[] {
-    this.schema(name);
+    const owner = this.owner(name, AttributeError);
+    owner.schema(name);
     const seen = new Set<unknown>();
     const found: Visitable[] = [];
-    for (const root of this._singletons.values()) {
-      for (const value of Reachable.of(root)) {
-        if (!seen.has(value.identity())) {
-          seen.add(value.identity());
-          if (value.schema_name() === name) found.push(value);
-        }
+    const reached = [...this._singletons.values()].flatMap((root) => Reachable.of(root));
+    for (const value of [...owner.extent(name), ...reached]) {
+      if (!seen.has(value.identity())) {
+        seen.add(value.identity());
+        if (value.schema_name() === name) found.push(value);
       }
     }
     return found;

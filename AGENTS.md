@@ -76,8 +76,9 @@ npm run portability                         # the core without Node (browser bun
   tests are `python3 -m unittest discover -s scripts`. It is scaffolding while the repositories co-evolve unpublished:
   keep it small.
 - Generated code will live in one repository per target language family, mbse-codegen-ccpp, mbse-codegen-python,
-  mbse-codegen-typescript and mbse-codegen-verilog (Verilog and SystemVerilog), each rendering schemas (`Codegen/Types`),
-  expressions (`Codegen/Expressions`) and patterns (`Codegen/Patterns`) as idiomatic, performant source, through
-  mbse-programs' syntax trees, and keeping their parameters as the language's own (templates, `parameter`s). Each
-  generates step by step, every ambiguity a parameter of a step that a person or an agent resolves, or a policy the
-  caller chooses up front; the steps' framework may become a repository of its own, mbse-transforms.
+  mbse-codegen-typescript and mbse-codegen-verilog (Verilog and SystemVerilog), each rendering schemas
+  (`Codegen/Types`), expressions (`Codegen/Expressions`) and patterns (`Codegen/Patterns`) as idiomatic, performant
+  source, through mbse-programs' syntax trees, and keeping their parameters as the language's own (templates,
+  `parameter`s). Each generates step by step, every ambiguity a parameter of a step that a person or an agent resolves,
+  or a policy the caller chooses up front; the steps' framework will be mbse-patterns' `Transforms` (its
+  `docs/TRANSFORMS.md`).

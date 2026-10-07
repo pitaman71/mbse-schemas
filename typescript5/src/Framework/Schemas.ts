@@ -12,6 +12,10 @@
  * Every kind of schema may have a `name`, set by its builder's `.name("crm.Contact")`: identifiers separated by dots,
  * the part before the last dot its namespace. A named schema is referred to by its name wherever it is written (a
  * module, a predicate's symbols), and a store registers it under that name; an unnamed one is written inline.
+ *
+ * Every kind of schema may declare `parameters` (`OfParameter`), variables determined where the schema is referred to:
+ * `OfApply` applies a parametric schema to arguments. Where a literal width or extent stands, a term may stand instead:
+ * an expression term, such as mbse-expressions', or its neutral `Form`, which may refer to parameters.
  */
 
 import { fromBase64, toBase64 } from "./Bytes.js";
@@ -114,6 +118,16 @@ abstract class NamedBuilder<D extends HasFields> extends Builder<D> {
     this.state["name"] = name;
     return this;
   }
+
+  /** Parameters the schema declares, in order, e.g. `.parameters((p) => p.name("n").of(...))`. */
+  parameters(...specs: OfParameter.Spec[]): this {
+    const parameters = (this.state["parameters"] ??= new Map()) as Map<string, ParameterData>;
+    for (const spec of specs) {
+      const parameter = resolveSpec(spec, isParameterData, () => new ParameterBuilder());
+      parameters.set(parameter.name, parameter);
+    }
+    return this;
+  }
 }
 
 /** Resolves a `Spec`: data is used as is; a callable is given a new builder and must return it. */
@@ -131,6 +145,177 @@ function resolveSpec<D>(spec: unknown, isData: (value: unknown) => value is D, b
     return (built as { create(): D }).create();
   }
   throw new TypeError(`expected a schema or a callable taking its builder, got ${repr(spec)}`);
+}
+
+// --- Terms: expressions where a literal may stand ---
+
+/** A term's structure, in the neutral form mbse-expressions' terms give (`term.form()`): its `kind`, its native
+ * `attributes` by name, its ordered `arguments`, each a form, and the `dialect` it is read in, given at its root. A form
+ * is itself a term, which a module writes and reads back without knowing its dialect. */
+class FormData {
+  readonly kind: string;
+  readonly attributes: ReadonlyMap<string, Native>;
+  readonly arguments: readonly unknown[];
+  readonly dialect: string | null;
+
+  constructor(kind = "", attributes: ReadonlyMap<string, Native> | Record<string, Native> = new Map(),
+    args: readonly unknown[] = [], dialect: string | null = null) {
+    this.kind = kind;
+    this.attributes = attributes instanceof Map ? attributes : new Map(Object.entries(attributes));
+    this.arguments = args;
+    this.dialect = dialect;
+  }
+
+  /** The form of a term: a form as it is, or the form of a term of a dialect (`term.form()`, whose arguments are
+   * terms, and `term.dialect().name()`), its arguments' forms within it. */
+  static of(term: unknown): FormData {
+    if (term instanceof FormData) return term;
+    if (!isTerm(term)) throw new TypeError(`not a term: ${repr(term)}`);
+    const form = (term as ForeignTerm).form();
+    return new FormData(form.kind, new Map(form.attributes), form.arguments.map((a) => FormData.ofArgument(a)),
+      (term as ForeignTerm).dialect().name());
+  }
+
+  private static ofArgument(term: unknown): FormData {
+    const form = FormData.of(term);
+    return term instanceof FormData ? form : new FormData(form.kind, form.attributes, form.arguments, null);
+  }
+
+  equals(other: unknown): boolean {
+    return other instanceof FormData && other.kind === this.kind && other.dialect === this.dialect
+      && other.attributes.size === this.attributes.size
+      && [...this.attributes].every(([name, value]) => other.attributes.has(name) && sameNative(value, other.attributes.get(name)))
+      && other.arguments.length === this.arguments.length
+      && this.arguments.every((argument, i) => sameValue(argument, other.arguments[i]));
+  }
+
+  validate(): string[] {
+    const problems = typeof this.kind === "string" && this.kind !== "" ? [] : [`a term needs a kind, got ${repr(this.kind)}`];
+    if (this.dialect !== null && typeof this.dialect !== "string") problems.push(`a term's dialect is a name, got ${repr(this.dialect)}`);
+    for (const [name, value] of this.attributes) {
+      if (!isNative(value)) problems.push(`attribute ${repr(name)} is not a native value: ${repr(value)}`);
+    }
+    this.arguments.forEach((argument, i) => {
+      if (argument instanceof FormData) problems.push(...argument.validate().map((p) => `argument ${i}: ${p}`));
+      else problems.push(`argument ${i} is not a term: ${repr(argument)}`);
+    });
+    return problems;
+  }
+}
+
+/** A term of a dialect, as mbse-expressions' terms are: its form, whose arguments are terms, and its dialect. */
+interface ForeignTerm {
+  form(): { kind: string; attributes: ReadonlyMap<string, Native>; arguments: readonly unknown[] };
+  dialect(): { name(): string };
+}
+
+/** Whether `value` is a term: a form, or anything with a `form()` and a `dialect()`, as mbse-expressions' terms. */
+function isTerm(value: unknown): boolean {
+  if (value instanceof FormData) return true;
+  const term = value as { form?: unknown; dialect?: unknown } | null | undefined;
+  return term !== null && term !== undefined && typeof term === "object" && typeof term.form === "function"
+    && typeof term.dialect === "function";
+}
+
+function isNative(value: unknown): value is Native {
+  return NATIVE_TYPES.some((token) => isNativeOf(token, value));
+}
+
+/** Native values equal as Python's `==` finds them: the same type and value, bytes by content. */
+function sameNative(a: unknown, b: unknown): boolean {
+  if (a instanceof Uint8Array && b instanceof Uint8Array) return a.length === b.length && a.every((byte, i) => byte === b[i]);
+  return typeof a === typeof b && a === b;
+}
+
+/** A width, a bound or an argument equal to another: a form by structure, anything else as itself. */
+function sameValue(a: unknown, b: unknown): boolean {
+  return a instanceof FormData ? a.equals(b) : a === b;
+}
+
+/** Problems with a form standing for `what`; a term of a dialect is that dialect's to check. */
+function termProblems(value: unknown, what: string): string[] {
+  return value instanceof FormData ? value.validate().map((p) => `${what}: ${p}`) : [];
+}
+
+/** The neutral form of a term. `new Form.Data(kind, attributes, arguments, dialect)`; `Form.of(term)` gives a term's. */
+export namespace Form {
+  /** The meta-schema of a form: its `dialect`, `kind`, `attributes` and `arguments`. */
+  export let Schema: ObjectData;
+  /** A native value, by its basic type's name: `{"int": 3}`. */
+  export let Value: UnionData;
+  export const Data = FormData;
+  export type Data = FormData;
+  export function of(term: unknown): FormData {
+    return FormData.of(term);
+  }
+  export function is_term(value: unknown): boolean {
+    return isTerm(value);
+  }
+}
+
+// --- OfParameter: a variable a schema declares ---
+
+/** A parameter of the schema that declares it: a variable, named, of a type (null for any), determined where the
+ * schema is referred to (`OfApply`) and referred to within it by name, as a variable is. */
+class ParameterData implements HasFields {
+  name: string;
+  type: AnyData | null;
+  description: string | null;
+
+  constructor(fields: { name?: string; type?: AnyData | null; description?: string | null } = {}) {
+    this.name = fields.name ?? "";
+    this.type = fields.type ?? null;
+    this.description = fields.description ?? null;
+  }
+
+  equals(other: unknown): boolean {
+    return other instanceof ParameterData && other.name === this.name && other.description === this.description
+      && (this.type instanceof NativeData ? this.type.equals(other.type) : other.type === this.type);
+  }
+}
+
+class ParameterBuilder extends Builder<ParameterData> {
+  protected make(fields: Record<string, unknown>): ParameterData {
+    return new ParameterData(fields as ConstructorParameters<typeof ParameterData>[0]);
+  }
+
+  name(name: string): ParameterBuilder {
+    this.state["name"] = name;
+    return this;
+  }
+
+  of(spec: OfAny.Spec): ParameterBuilder {
+    this.state["type"] = OfAny.resolve(spec);
+    return this;
+  }
+}
+
+function isParameterData(value: unknown): value is ParameterData {
+  return value instanceof ParameterData;
+}
+
+export namespace OfParameter {
+  /** The meta-schema of a parameter: a named member's. */
+  export let Schema: ObjectData;
+  export const Data = ParameterData;
+  export type Data = ParameterData;
+  export const Builder = ParameterBuilder;
+  export type Builder = ParameterBuilder;
+  export type Spec = ParameterData | ((builder: ParameterBuilder) => ParameterBuilder);
+}
+
+function parameterProblems(parameters: ReadonlyMap<string, ParameterData>): string[] {
+  const problems = reserved([...parameters.keys()]);
+  for (const [name, parameter] of parameters) {
+    const typed = parameter.type === null ? [] : validateSchema(parameter.type);
+    problems.push(...[...typed, ...descriptionProblems(parameter.description)].map((p) => `parameter ${repr(name)}: ${p}`));
+  }
+  return problems;
+}
+
+/** Parameters equal as Python's dict equality finds them: the same names, each parameter equal. */
+function sameParameters(a: ReadonlyMap<string, ParameterData>, b: ReadonlyMap<string, ParameterData>): boolean {
+  return a.size === b.size && [...a].every(([name, parameter]) => parameter.equals(b.get(name)));
 }
 
 // --- OfNative ---
@@ -180,22 +365,24 @@ class TokenClass {
   }
 }
 
-/** The widths a native may have, in bits or in bytes, and its name. */
+/** The widths a native may have, in bits or in bytes (each a bigint or a term), its name, description and parameters. */
 export interface Widths {
-  bits?: bigint | null;
-  bytes?: bigint | null;
+  bits?: unknown;
+  bytes?: unknown;
   name?: string | null;
   description?: string | null;
+  parameters?: Map<string, ParameterData>;
 }
 
-/** A native type: a token, and optionally a width in bits or in bytes. A host type given in place of the token
- * (`new OfNative.Data(BigInt)`) is shorthand for the `basic` token of the same name. */
+/** A native type: a token, and optionally a width in bits or in bytes, an int or a term. A host type given in place of
+ * the token (`new OfNative.Data(BigInt)`) is shorthand for the `basic` token of the same name. */
 class NativeData implements HasFields {
   token: unknown;
-  bits: bigint | null;
-  bytes: bigint | null;
+  bits: unknown;
+  bytes: unknown;
   name: string | null;
   description: string | null;
+  parameters: Map<string, ParameterData>;
 
   constructor(token: unknown = null, widths: Widths = {}) {
     this.token = NATIVE_NAMES.has(token) ? new TokenClass(BASIC, NATIVE_NAMES.get(token) as string) : token;
@@ -203,6 +390,7 @@ class NativeData implements HasFields {
     this.bytes = widths.bytes ?? null;
     this.name = widths.name ?? null;
     this.description = widths.description ?? null;
+    this.parameters = widths.parameters ?? new Map();
   }
 
   /** The host type the token maps to, or null when this implementation cannot read the token. */
@@ -220,20 +408,22 @@ class NativeData implements HasFields {
   }
 
   equals(other: unknown): boolean {
-    return other instanceof NativeData && other.bits === this.bits && other.bytes === this.bytes && other.name === this.name
-      && other.description === this.description && (this.token instanceof TokenClass ? this.token.equals(other.token) : other.token === this.token);
+    return other instanceof NativeData && sameValue(this.bits, other.bits) && sameValue(this.bytes, other.bytes)
+      && other.name === this.name && other.description === this.description && sameParameters(this.parameters, other.parameters)
+      && (this.token instanceof TokenClass ? this.token.equals(other.token) : other.token === this.token);
   }
 
   validate(): string[] {
-    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description)];
+    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
     const token = this.token;
     if (!(token instanceof TokenClass)) problems.push(`unsupported native type ${repr(token)}`);
     else if (typeof token.format !== "string" || token.format === "" || typeof token.name !== "string" || token.name === "") {
       problems.push("a token needs a format and a name");
     } else if (token.format === BASIC && this.type === null) problems.push(`basic has no type ${repr(token.name)}`);
     for (const [unit, width] of [["bits", this.bits], ["bytes", this.bytes]] as const) {
-      if (width !== null && (typeof width !== "bigint" || width < 1n)) {
-        problems.push(`a width in ${unit} must be a positive int, got ${repr(width)}`);
+      if (isTerm(width)) problems.push(...termProblems(width, `a width in ${unit}`));
+      else if (width !== null && (typeof width !== "bigint" || width < 1n)) {
+        problems.push(`a width in ${unit} must be a positive int or a term, got ${repr(width)}`);
       }
     }
     if (this.bits !== null && this.bytes !== null) problems.push("a width is in bits or in bytes, not both");
@@ -306,8 +496,9 @@ class NativeData implements HasFields {
 
 class NativeBuilder extends NamedBuilder<NativeData> {
   protected make(fields: Record<string, unknown>): NativeData {
-    return new NativeData(fields["token"] ?? null, { bits: fields["bits"] as bigint | null, bytes: fields["bytes"] as bigint | null,
-      name: fields["name"] as string | null, description: fields["description"] as string | null });
+    return new NativeData(fields["token"] ?? null, { bits: fields["bits"], bytes: fields["bytes"],
+      name: fields["name"] as string | null, description: fields["description"] as string | null,
+      parameters: fields["parameters"] as Map<string, ParameterData> | undefined });
   }
 
   /** A host type: shorthand for the `basic` token of the same name. */
@@ -322,12 +513,13 @@ class NativeBuilder extends NamedBuilder<NativeData> {
     return this;
   }
 
-  bits(width: bigint): NativeBuilder {
+  /** A width in bits: a bigint, or a term. */
+  bits(width: unknown): NativeBuilder {
     this.state["bits"] = width;
     return this;
   }
 
-  bytes(width: bigint): NativeBuilder {
+  bytes(width: unknown): NativeBuilder {
     this.state["bytes"] = width;
     return this;
   }
@@ -422,14 +614,16 @@ class RelationData implements HasFields {
   uniques: readonly ReadonlySet<string>[];
   name: string | null;
   description: string | null;
+  parameters: Map<string, ParameterData>;
 
   constructor(fields: { links?: readonly string[]; properties?: Map<string, PropertyData>; uniques?: readonly ReadonlySet<string>[];
-    name?: string | null; description?: string | null } = {}) {
+    name?: string | null; description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
     this.links = fields.links ?? [];
     this.properties = fields.properties ?? new Map();
     this.uniques = fields.uniques ?? [];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
+    this.parameters = fields.parameters ?? new Map();
   }
 
 
@@ -439,7 +633,7 @@ class RelationData implements HasFields {
 
   validate(): string[] {
     const problems = [...nameProblems(this.name), ...descriptionProblems(this.description),
-      ...reserved([...this.links, ...this.properties.keys()])];
+      ...parameterProblems(this.parameters), ...reserved([...this.links, ...this.properties.keys()])];
     if (this.links.length < 2) {
       problems.push("a relation needs at least two links; a one-link relation merges a relation and an object");
     }
@@ -598,15 +792,17 @@ class ObjectData implements HasFields {
   ref: boolean;
   name: string | null;
   description: string | null;
+  parameters: Map<string, ParameterData>;
 
   constructor(fields: { properties?: Map<string, PropertyData>; adjacencies?: Map<string, AdjacencyData>; singleton?: string | null;
-    ref?: boolean; name?: string | null; description?: string | null } = {}) {
+    ref?: boolean; name?: string | null; description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
     this.properties = fields.properties ?? new Map();
     this.adjacencies = fields.adjacencies ?? new Map();
     this.singleton = fields.singleton ?? null;
     this.ref = fields.ref ?? false;
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
+    this.parameters = fields.parameters ?? new Map();
   }
 
 
@@ -628,7 +824,7 @@ class ObjectData implements HasFields {
 
   private problems(): string[] {
     const problems = [...nameProblems(this.name), ...descriptionProblems(this.description),
-      ...reserved([...this.properties.keys(), ...this.adjacencies.keys()])];
+      ...parameterProblems(this.parameters), ...reserved([...this.properties.keys(), ...this.adjacencies.keys()])];
     if (this.singleton !== null && !this.ref) problems.push("a singleton's schema must be a reference object schema");
     const clashes = [...this.properties.keys()].filter((name) => this.adjacencies.has(name));
     if (clashes.length > 0) {
@@ -741,7 +937,7 @@ function memberProblems(aKind: string, member: string, plural: string, members: 
   const kind = aKind.split(" ")[1];
   const problems = reserved(members.map((m) => m.name));
   if (members.length < 2) problems.push(`${aKind} needs at least two ${plural}`);
-  if (new Set(members.map((m) => kindOf(m.type))).size > 1) problems.push(`${kind} ${plural} must all be the same kind`);
+  if (new Set(members.map((m) => kindOf(structure(m.type)))).size > 1) problems.push(`${kind} ${plural} must all be the same kind`);
   const seen = new Set<string>();
   members.forEach((m, i) => {
     if (typeof m.name !== "string" || m.name === "") problems.push(`${member} ${i} has no name`);
@@ -764,11 +960,14 @@ class UnionData implements HasFields {
   branches: readonly MemberData[];
   name: string | null;
   description: string | null;
+  parameters: Map<string, ParameterData>;
 
-  constructor(fields: { branches?: readonly MemberData[]; name?: string | null; description?: string | null } = {}) {
+  constructor(fields: { branches?: readonly MemberData[]; name?: string | null; description?: string | null;
+    parameters?: Map<string, ParameterData> } = {}) {
     this.branches = fields.branches ?? [];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
+    this.parameters = fields.parameters ?? new Map();
   }
 
   /** The branches by name: a union value is an object holding exactly one of them. */
@@ -781,7 +980,7 @@ class UnionData implements HasFields {
   }
 
   validate(): string[] {
-    return [...nameProblems(this.name), ...descriptionProblems(this.description),
+    return [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters),
       ...memberProblems("a union", "branch", "branches", this.branches)];
   }
 }
@@ -822,11 +1021,14 @@ class IntersectionData implements HasFields {
   parts: readonly MemberData[];
   name: string | null;
   description: string | null;
+  parameters: Map<string, ParameterData>;
 
-  constructor(fields: { parts?: readonly MemberData[]; name?: string | null; description?: string | null } = {}) {
+  constructor(fields: { parts?: readonly MemberData[]; name?: string | null; description?: string | null;
+    parameters?: Map<string, ParameterData> } = {}) {
     this.parts = fields.parts ?? [];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
+    this.parameters = fields.parameters ?? new Map();
   }
 
   /** The parts by name: an intersection value is an object holding every one of them. */
@@ -839,7 +1041,7 @@ class IntersectionData implements HasFields {
   }
 
   validate(): string[] {
-    return [...nameProblems(this.name), ...descriptionProblems(this.description),
+    return [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters),
       ...memberProblems("an intersection", "part", "parts", this.parts)];
   }
 }
@@ -878,18 +1080,19 @@ export namespace OfIntersection {
 
 // --- OfIndexed ---
 
-/** The keys a positional list may have: `minimum` to `maximum`, inclusive; `maximum` null for no bound. */
+/** The keys a positional list may have: `minimum` to `maximum`, inclusive; `maximum` null for no bound. Either may be a
+ * term instead of a bigint. */
 class ExtentClass {
-  readonly minimum: bigint;
-  readonly maximum: bigint | null;
+  readonly minimum: unknown;
+  readonly maximum: unknown;
 
-  constructor(minimum: bigint = 0n, maximum: bigint | null = null) {
+  constructor(minimum: unknown = 0n, maximum: unknown = null) {
     this.minimum = minimum;
     this.maximum = maximum;
   }
 
   equals(other: unknown): boolean {
-    return other instanceof ExtentClass && other.minimum === this.minimum && other.maximum === this.maximum;
+    return other instanceof ExtentClass && sameValue(this.minimum, other.minimum) && sameValue(this.maximum, other.maximum);
   }
 }
 
@@ -902,26 +1105,29 @@ class IndexedData implements HasFields {
   extent: ExtentClass | null;
   name: string | null;
   description: string | null;
+  parameters: Map<string, ParameterData>;
 
   constructor(fields: { item?: AnyData | null; key?: AnyData | null; extent?: ExtentClass | null; name?: string | null;
-    description?: string | null } = {}) {
+    description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
     this.item = fields.item ?? null;
     this.key = fields.key ?? null;
     this.extent = fields.extent ?? null;
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
+    this.parameters = fields.parameters ?? new Map();
   }
 
   get positional(): boolean {
-    return this.key === null || (this.key instanceof NativeData && this.key.type === BigInt);
+    const key = structure(this.key);
+    return key === null || (key instanceof NativeData && key.type === BigInt);
   }
 
-  /** The first key of a positional list: its extent's minimum, or 0. */
+  /** The first key of a positional list: its extent's minimum, or 0 (also where the minimum is a term). */
   get minimum(): bigint {
     return this.extent !== null && typeof this.extent.minimum === "bigint" ? this.extent.minimum : 0n;
   }
 
-  /** How many items a positional list's extent holds, or null when it has no valid maximum. */
+  /** How many items a positional list's extent holds, or null when it has no valid int bounds. */
   get capacity(): bigint | null {
     const extent = this.extent;
     if (extent === null || typeof extent.maximum !== "bigint" || typeof extent.minimum !== "bigint") return null;
@@ -933,7 +1139,7 @@ class IndexedData implements HasFields {
   }
 
   validate(): string[] {
-    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description),
+    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters),
       ...validateSchema(this.item).map((problem) => `item: ${problem}`)];
     if (this.key !== null) {
       const key = [...validateSchema(this.key), ...embeddedProblems(this.key, new Set(), "a key"),
@@ -946,9 +1152,11 @@ class IndexedData implements HasFields {
 
   private extentProblems(extent: ExtentClass): string[] {
     const problems = this.positional ? [] : ["an extent bounds a positional list, whose keys are ints"];
-    if (typeof extent.minimum !== "bigint" || !(extent.maximum === null || typeof extent.maximum === "bigint")) {
-      problems.push(`an extent's minimum and maximum are ints, got ${repr(extent.minimum)} and ${repr(extent.maximum)}`);
-    } else if (extent.maximum !== null && extent.minimum > extent.maximum) {
+    problems.push(...termProblems(extent.minimum, "an extent's minimum"), ...termProblems(extent.maximum, "an extent's maximum"));
+    if (!(typeof extent.minimum === "bigint" || isTerm(extent.minimum))
+      || !(extent.maximum === null || typeof extent.maximum === "bigint" || isTerm(extent.maximum))) {
+      problems.push(`an extent's minimum and maximum are ints or terms, got ${repr(extent.minimum)} and ${repr(extent.maximum)}`);
+    } else if (typeof extent.minimum === "bigint" && typeof extent.maximum === "bigint" && extent.minimum > extent.maximum) {
       problems.push(`an extent's minimum ${extent.minimum} exceeds its maximum ${extent.maximum}`);
     }
     return problems;
@@ -972,8 +1180,8 @@ class IndexedBuilder extends NamedBuilder<IndexedData> {
     return this;
   }
 
-  /** The keys a positional list may have, `minimum` to `maximum`. */
-  extent(bounds: { minimum?: bigint; maximum?: bigint | null } = {}): IndexedBuilder {
+  /** The keys a positional list may have, `minimum` to `maximum`, each a bigint or a term. */
+  extent(bounds: { minimum?: unknown; maximum?: unknown } = {}): IndexedBuilder {
     this.state["extent"] = new ExtentClass(bounds.minimum ?? 0n, bounds.maximum ?? null);
     return this;
   }
@@ -1000,13 +1208,125 @@ export namespace OfIndexed {
   }
 }
 
+// --- OfApply: a parametric schema applied to arguments ---
+
+/** A parametric schema applied to arguments: a type whose values are the applied schema's (`of`), with arguments for
+ * its parameters by name, each a native value or a term. Parameters given no argument stay unbound. */
+class ApplyData implements HasFields {
+  of: AnyData | null;
+  arguments: Map<string, unknown>;
+  name: string | null;
+  description: string | null;
+  parameters: Map<string, ParameterData>;
+
+  constructor(fields: { of?: AnyData | null; arguments?: Map<string, unknown>; name?: string | null; description?: string | null;
+    parameters?: Map<string, ParameterData> } = {}) {
+    this.of = fields.of ?? null;
+    this.arguments = fields.arguments ?? new Map();
+    this.name = fields.name ?? null;
+    this.description = fields.description ?? null;
+    this.parameters = fields.parameters ?? new Map();
+  }
+
+  equals(other: unknown): boolean {
+    return other === this;
+  }
+
+  validate(): string[] {
+    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
+    if (!isAnyData(this.of)) return [...problems, `an application applies a schema, got ${repr(this.of)}`];
+    if (structure(this) === null) return [...problems, "an application cannot apply itself"];
+    for (const [name, value] of this.arguments) {
+      const parameter = this.of.parameters.get(name);
+      if (parameter === undefined) problems.push(`the applied schema has no parameter ${repr(name)}`);
+      else problems.push(...argumentProblems(parameter, value).map((p) => `argument ${repr(name)}: ${p}`));
+    }
+    return [...problems, ...validateSchema(this.of).map((problem) => `of: ${problem}`)];
+  }
+}
+
+/** An argument is a term, or a native value, of the parameter's type where that is a native type. */
+function argumentProblems(parameter: ParameterData, value: unknown): string[] {
+  if (isTerm(value)) return termProblems(value, "a term");
+  if (!isNative(value)) return [`an argument is a native value or a term, got ${repr(value)}`];
+  const host = parameter.type instanceof NativeData ? parameter.type.type : null;
+  return host !== null && !isNativeOf(host, value) ? [`expected ${tokenName(host)}, got ${typeName(value)}`] : [];
+}
+
+/** The schema that gives a type its structure: an application's applied schema (followed through applications), else
+ * the schema itself; null for an application that applies itself. Data of an application is data of its applied
+ * schema. */
+export function structure<T>(schema: T): T | AnyData | null {
+  const seen = new Set<unknown>();
+  let current: unknown = schema;
+  while (current instanceof ApplyData) {
+    if (seen.has(current)) return null;
+    seen.add(current);
+    current = current.of;
+  }
+  return current as T | AnyData | null;
+}
+
+class ApplyBuilder extends NamedBuilder<ApplyData> {
+  protected make(fields: Record<string, unknown>): ApplyData {
+    return new ApplyData(fields as ConstructorParameters<typeof ApplyData>[0]);
+  }
+
+  /** The parametric schema applied. */
+  of(spec: OfAny.Spec): ApplyBuilder {
+    this.state["of"] = OfAny.resolve(spec);
+    return this;
+  }
+
+  /** The argument for the parameter `name`: a native value or a term. */
+  argument(name: string, value: unknown): ApplyBuilder {
+    ((this.state["arguments"] ??= new Map()) as Map<string, unknown>).set(name, value);
+    return this;
+  }
+
+  /** Arguments for the applied schema's parameters, in their declared order. */
+  arguments(...values: unknown[]): ApplyBuilder {
+    const of = this.state["of"] as AnyData | undefined;
+    if (of === undefined) {
+      throw new ValueError("positional arguments are taken in the applied schema's parameter order; call .of() first");
+    }
+    const names = [...of.parameters.keys()];
+    if (values.length > names.length) {
+      throw new ValueError(`the applied schema has ${names.length} parameters, got ${values.length} arguments`);
+    }
+    values.forEach((value, i) => this.argument(names[i] as string, value));
+    return this;
+  }
+}
+
+function isApplyData(value: unknown): value is ApplyData {
+  return value instanceof ApplyData;
+}
+
+export namespace OfApply {
+  /** The meta-schema of applications. */
+  export let Schema: ObjectData;
+  /** The meta-schema of an argument: its parameter's `name`, and its native `value` or its `term`. */
+  export let Argument: ObjectData;
+  /** A parametric schema applied to arguments, where a type is expected. */
+  export const Data = ApplyData;
+  export type Data = ApplyData;
+  export const Builder = ApplyBuilder;
+  export type Builder = ApplyBuilder;
+  export type Spec = ApplyData | ((builder: ApplyBuilder) => ApplyBuilder);
+
+  export function resolve(spec: Spec | unknown): ApplyData {
+    return resolveSpec(spec, isApplyData, () => new ApplyBuilder());
+  }
+}
+
 // --- OfAny ---
 
-type AnyData = NativeData | ObjectData | UnionData | IntersectionData | IndexedData;
+type AnyData = NativeData | ObjectData | UnionData | IntersectionData | IndexedData | ApplyData;
 
 function isAnyData(value: unknown): value is AnyData {
   return value instanceof NativeData || value instanceof ObjectData || value instanceof UnionData ||
-    value instanceof IntersectionData || value instanceof IndexedData;
+    value instanceof IntersectionData || value instanceof IndexedData || value instanceof ApplyData;
 }
 
 function kindOf(value: unknown): unknown {
@@ -1019,8 +1339,9 @@ function validateSchema(schema: unknown): string[] {
 }
 
 /** The schemas of the values a value of `schema` holds: a value object's properties, a union's branches, an
- * intersection's parts, a list's item. */
-function membersOf(schema: unknown): unknown[] {
+ * intersection's parts, a list's item, through applications. */
+function membersOf(type: unknown): unknown[] {
+  const schema = structure(type);
   if (schema instanceof IndexedData) return [schema.item];
   return schema instanceof ObjectData || schema instanceof UnionData || schema instanceof IntersectionData
     ? [...schema.properties.values()].map((member) => member.type) : [];
@@ -1029,7 +1350,8 @@ function membersOf(schema: unknown): unknown[] {
 /** Problems with a property's schema as a value (or a key's, `role`): an object held by a property is a value object,
  * so its schema is not a reference object schema; nor are the schemas of the objects a union, an intersection or a list
  * holds. `seen` holds the schemas on the way, so that one that holds itself is checked once. */
-function embeddedProblems(schema: unknown, seen: ReadonlySet<unknown> = new Set(), role = "a property's type"): string[] {
+function embeddedProblems(type: unknown, seen: ReadonlySet<unknown> = new Set(), role = "a property's type"): string[] {
+  const schema = structure(type);
   if (schema instanceof ObjectData) return schema.ref ? [`a reference object schema cannot be ${role}`] : [];
   if (seen.has(schema)) return [];
   const inner = new Set([...seen, schema]);
@@ -1070,6 +1392,11 @@ class AnyBuilder {
 
   as_indexed(spec: OfIndexed.Spec): AnyBuilder {
     this.selected = OfIndexed.resolve(spec);
+    return this;
+  }
+
+  as_apply(spec: OfApply.Spec): AnyBuilder {
+    this.selected = OfApply.resolve(spec);
     return this;
   }
 
@@ -1136,33 +1463,51 @@ function listOf(spec: OfAny.Spec) {
 }
 
 const Text = (t: AnyBuilder) => t.as_native(String);
+const Int = (t: AnyBuilder) => t.as_native(BigInt);
 const NamedSchema = new ObjectBuilder().properties(namedText("name")).create();
 const AnySchema = new UnionBuilder().create(); // a type; its branches, which refer back to it, are added below
 const PropertySchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("type").of(AnySchema),
   namedText("description")).create();
+const Parameters = (p: PropertyBuilder) => p.name("parameters").of(listOf(PropertySchema));
+const NativeValue = new UnionBuilder().branches(
+  ...NATIVE_TYPES.map((host) => (b: MemberBuilder) => b.name(tokenName(host)).of((x) => x.as_native(host)))).create();
+const AttributeSchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("value").of(NativeValue)).create();
+const FormSchema = new ObjectBuilder().properties(
+  namedText("dialect"), namedText("kind"), (p) => p.name("attributes").of(listOf(AttributeSchema))).create();
+new ObjectBuilder(FormSchema).properties((p) => p.name("arguments").of(listOf(FormSchema))).update();
+const WidthTerms = new ObjectBuilder().properties((p) => p.name("bits").of(FormSchema), (p) => p.name("bytes").of(FormSchema))
+  .create();
 const NativeSchema = new ObjectBuilder().properties(
-  namedText("format"), namedText("name"), (p) => p.name("bits").of((t) => t.as_native(BigInt)),
-  (p) => p.name("bytes").of((t) => t.as_native(BigInt)), namedText("description")).create();
+  Parameters, namedText("format"), namedText("name"), (p) => p.name("bits").of(Int), (p) => p.name("bytes").of(Int),
+  (p) => p.name("terms").of(WidthTerms), namedText("description")).create();
 const RelationSchema = new ObjectBuilder().properties(
-  (p) => p.name("links").of(listOf(Text)), (p) => p.name("properties").of(listOf(PropertySchema)),
+  Parameters, (p) => p.name("links").of(listOf(Text)), (p) => p.name("properties").of(listOf(PropertySchema)),
   (p) => p.name("uniques").of(listOf(listOf(Text))), namedText("description")).create();
 const RelationRef = new UnionBuilder().branches((b) => b.name("relation").of(RelationSchema),
   (b) => b.name("named").of(NamedSchema)).create();
 const AdjacencySchema = new ObjectBuilder().properties(
   namedText("name"), (p) => p.name("relation").of(RelationRef), namedText("me"), namedText("description")).create();
 const ObjectSchema = new ObjectBuilder().properties(
-  (p) => p.name("properties").of(listOf(PropertySchema)), (p) => p.name("adjacencies").of(listOf(AdjacencySchema)),
+  Parameters, (p) => p.name("properties").of(listOf(PropertySchema)), (p) => p.name("adjacencies").of(listOf(AdjacencySchema)),
   namedText("singleton"), (p) => p.name("ref").of((t) => t.as_native(Boolean)), namedText("description")).create();
-const UnionSchema = new ObjectBuilder().properties((p) => p.name("branches").of(listOf(PropertySchema)),
+const UnionSchema = new ObjectBuilder().properties(Parameters, (p) => p.name("branches").of(listOf(PropertySchema)),
   namedText("description")).create();
-const IntersectionSchema = new ObjectBuilder().properties((p) => p.name("parts").of(listOf(PropertySchema)),
+const IntersectionSchema = new ObjectBuilder().properties(Parameters, (p) => p.name("parts").of(listOf(PropertySchema)),
   namedText("description")).create();
-const ExtentSchema = new ObjectBuilder().properties((p) => p.name("minimum").of((t) => t.as_native(BigInt)),
-  (p) => p.name("maximum").of((t) => t.as_native(BigInt))).create();
-const IndexedSchema = new ObjectBuilder().properties((p) => p.name("item").of(AnySchema), (p) => p.name("key").of(AnySchema),
+const ExtentTerms = new ObjectBuilder().properties((p) => p.name("minimum").of(FormSchema),
+  (p) => p.name("maximum").of(FormSchema)).create();
+const ExtentSchema = new ObjectBuilder().properties((p) => p.name("minimum").of(Int), (p) => p.name("maximum").of(Int),
+  (p) => p.name("terms").of(ExtentTerms)).create();
+const IndexedSchema = new ObjectBuilder().properties(
+  Parameters, (p) => p.name("item").of(AnySchema), (p) => p.name("key").of(AnySchema),
   (p) => p.name("extent").of(ExtentSchema), namedText("description")).create();
+const ArgumentSchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("value").of(NativeValue),
+  (p) => p.name("term").of(FormSchema)).create();
+const ApplySchema = new ObjectBuilder().properties(
+  Parameters, (p) => p.name("of").of(AnySchema), (p) => p.name("arguments").of(listOf(ArgumentSchema)),
+  namedText("description")).create();
 const KIND_SCHEMAS: [string, ObjectData][] = [["native", NativeSchema], ["object", ObjectSchema], ["union", UnionSchema],
-  ["intersection", IntersectionSchema], ["indexed", IndexedSchema]];
+  ["intersection", IntersectionSchema], ["indexed", IndexedSchema], ["apply", ApplySchema]];
 const kindBranches = KIND_SCHEMAS.map(([name, schema]) => (b: MemberBuilder) => b.name(name).of(schema));
 new UnionBuilder(AnySchema).branches(...kindBranches, (b) => b.name("named").of(NamedSchema)).update();
 const DefinitionSchema = new UnionBuilder().branches(...kindBranches, (b) => b.name("relation").of(RelationSchema)).create();
@@ -1177,6 +1522,11 @@ OfObject.Schema = ObjectSchema;
 OfUnion.Schema = UnionSchema;
 OfIntersection.Schema = IntersectionSchema;
 OfIndexed.Schema = IndexedSchema;
+OfParameter.Schema = PropertySchema;
+OfApply.Schema = ApplySchema;
+OfApply.Argument = ArgumentSchema;
+Form.Schema = FormSchema;
+Form.Value = NativeValue;
 OfAny.Schema = AnySchema;
 OfAny.Named = NamedSchema;
 

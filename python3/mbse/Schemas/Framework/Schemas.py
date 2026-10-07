@@ -10,6 +10,10 @@ callable that takes and returns the corresponding builder.
 Every kind of schema may have a `name`, set by its builder's `.name('crm.Contact')`: identifiers separated by dots, the
 part before the last dot its namespace. A named schema is referred to by its name wherever it is written (a module, a
 predicate's symbols), and a store registers it under that name; an unnamed one is written inline.
+
+Every kind of schema may declare `parameters` (`OfParameter`), variables determined where the schema is referred to:
+`OfApply` applies a parametric schema to arguments. Where a literal width or extent stands, a term may stand instead:
+an expression term, such as mbse-expressions', or its neutral `Form`, which may refer to parameters.
 """
 
 from __future__ import annotations
@@ -20,7 +24,7 @@ import copy
 import dataclasses
 import math
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar
 
@@ -37,6 +41,10 @@ __all__ = [
     "OfUnion",
     "OfIntersection",
     "OfIndexed",
+    "OfParameter",
+    "OfApply",
+    "Form",
+    "structure",
     "Module",
 ]
 
@@ -98,6 +106,14 @@ class _NamedBuilder(_Builder[D]):
         self._fields["name"] = name
         return self
 
+    def parameters(self, *specs: OfParameter.Spec) -> Any:
+        """Parameters the schema declares, in order, e.g. `.parameters(lambda p: p.name('n').of(...))`."""
+        parameters = self._fields.setdefault("parameters", {})
+        for spec in specs:
+            parameter = _resolve(spec, _ParameterData, _ParameterBuilder)
+            parameters[parameter.name] = parameter
+        return self
+
 
 _DOTTED = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*\Z")
 
@@ -137,6 +153,106 @@ def _resolve(spec: Any, data: type, builder: Callable[[], Any]) -> Any:
     raise TypeError(f"expected a schema or a callable taking its builder, got {spec!r}")
 
 
+# --- Terms: expressions where a literal may stand ---
+
+
+@dataclass(frozen=True)
+class _Form:
+    """A term's structure, in the neutral form mbse-expressions' terms give (`term.form()`): its `kind`, its native
+    `attributes` by name, its ordered `arguments`, each a form, and the `dialect` it is read in, given at its root.
+    A form is itself a term, which a module writes and reads back without knowing its dialect."""
+
+    kind: str = ""
+    attributes: Mapping[str, Native] = field(default_factory=dict)
+    arguments: tuple[Any, ...] = ()
+    dialect: str | None = None
+
+    @staticmethod
+    def of(term: Any) -> _Form:
+        """The form of a term: a form as it is, or the form of a term of a dialect (`term.form()`, whose arguments
+        are terms, and `term.dialect().name()`), its arguments' forms within it."""
+        if isinstance(term, _Form):
+            return term
+        if not _is_term(term):
+            raise TypeError(f"not a term: {term!r}")
+        form = term.form()
+        return _Form(form.kind, dict(form.attributes), tuple(_Form._of_argument(a) for a in form.arguments),
+                     term.dialect().name())
+
+    @staticmethod
+    def _of_argument(term: Any) -> _Form:
+        form = _Form.of(term)
+        return dataclasses.replace(form, dialect=None) if not isinstance(term, _Form) else form
+
+    def validate(self) -> list[str]:
+        problems = [] if isinstance(self.kind, str) and self.kind else [f"a term needs a kind, got {self.kind!r}"]
+        if self.dialect is not None and not isinstance(self.dialect, str):
+            problems.append(f"a term's dialect is a name, got {self.dialect!r}")
+        problems += [f"attribute {name!r} is not a native value: {value!r}" for name, value in self.attributes.items()
+                     if type(value) not in NATIVE_TYPES]
+        for i, argument in enumerate(self.arguments):
+            problems += ([f"argument {i}: {p}" for p in argument.validate()] if isinstance(argument, _Form)
+                         else [f"argument {i} is not a term: {argument!r}"])
+        return problems
+
+
+def _is_term(value: Any) -> bool:
+    """Whether `value` is a term: a form, or anything with a `form()` and a `dialect()`, as mbse-expressions' terms."""
+    return isinstance(value, _Form) or (callable(getattr(value, "form", None)) and callable(getattr(value, "dialect", None)))
+
+
+def _term_problems(value: Any, what: str) -> list[str]:
+    """Problems with a form standing for `what`; a term of a dialect is that dialect's to check."""
+    return [f"{what}: {p}" for p in value.validate()] if isinstance(value, _Form) else []
+
+
+class Form:
+    """The neutral form of a term. `Form(kind, attributes, arguments, dialect)`; `Form.of(term)` gives a term's."""
+
+    Data = _Form
+    of = staticmethod(_Form.of)
+    is_term = staticmethod(_is_term)
+
+
+# --- OfParameter: a variable a schema declares ---
+
+
+@dataclass
+class _ParameterData:
+    """A parameter of the schema that declares it: a variable, named, of a type (None for any), determined where the
+    schema is referred to (`OfApply`) and referred to within it by name, as a variable is."""
+
+    name: str = ""
+    type: Any = None  # OfAny.Data
+    description: str | None = None
+
+
+class _ParameterBuilder(_Builder[_ParameterData]):
+    _data = _ParameterData
+
+    def name(self, name: str) -> _ParameterBuilder:
+        self._fields["name"] = name
+        return self
+
+    def of(self, spec: OfAny.Spec) -> _ParameterBuilder:
+        self._fields["type"] = OfAny.resolve(spec)
+        return self
+
+
+class OfParameter:
+    Data = _ParameterData
+    Builder = _ParameterBuilder
+    Spec = _ParameterData | Callable[[_ParameterBuilder], _ParameterBuilder]
+
+
+def _parameter_problems(parameters: dict[str, _ParameterData]) -> list[str]:
+    problems = _reserved(parameters)
+    for name, parameter in parameters.items():
+        typed = [] if parameter.type is None else _validate(parameter.type)
+        problems += [f"parameter {name!r}: {p}" for p in typed + _description_problems(parameter.description)]
+    return problems
+
+
 # --- OfNative ---
 
 
@@ -162,19 +278,21 @@ _HOSTS = {_Token(fmt, name): host for host, name in _BASIC_NAMES.items() for fmt
 
 @dataclass(init=False)
 class _NativeData:
-    """A native type: a token, and optionally a width in bits or in bytes. A host type given in place of the token
-    (`OfNative.Data(int)`) is shorthand for the `basic` token of the same name."""
+    """A native type: a token, and optionally a width in bits or in bytes, an int or a term. A host type given in place
+    of the token (`OfNative.Data(int)`) is shorthand for the `basic` token of the same name."""
 
     token: Any
-    bits: int | None
-    bytes: int | None
+    bits: Any  # int, a term, or None
+    bytes: Any
     name: str | None
     description: str | None
+    parameters: dict[str, _ParameterData]
 
-    def __init__(self, token: Any = None, bits: int | None = None, bytes: int | None = None, name: str | None = None,
-                 description: str | None = None):
+    def __init__(self, token: Any = None, bits: Any = None, bytes: Any = None, name: str | None = None,
+                 description: str | None = None, parameters: dict[str, _ParameterData] | None = None):
         self.token = _Token(BASIC, _BASIC_NAMES[token]) if isinstance(token, type) and token in _BASIC_NAMES else token
         self.bits, self.bytes, self.name, self.description = bits, bytes, name, description
+        self.parameters = {} if parameters is None else parameters
 
     @property
     def type(self) -> type[Native] | None:
@@ -188,7 +306,7 @@ class _NativeData:
         return self.type
 
     def validate(self) -> list[str]:
-        problems = _name_problems(self.name) + _description_problems(self.description)
+        problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
         if not isinstance(self.token, _Token):
             problems.append(f"unsupported native type {self.token!r}")
         elif not (isinstance(self.token.format, str) and self.token.format and isinstance(self.token.name, str)
@@ -197,8 +315,10 @@ class _NativeData:
         elif self.token.format == BASIC and self.type is None:
             problems.append(f"basic has no type {self.token.name!r}")
         for unit, width in (("bits", self.bits), ("bytes", self.bytes)):
-            if width is not None and (type(width) is not int or width < 1):
-                problems.append(f"a width in {unit} must be a positive int, got {width!r}")
+            if _is_term(width):
+                problems += _term_problems(width, f"a width in {unit}")
+            elif width is not None and (type(width) is not int or width < 1):
+                problems.append(f"a width in {unit} must be a positive int or a term, got {width!r}")
         if self.bits is not None and self.bytes is not None:
             problems.append("a width is in bits or in bytes, not both")
         return problems
@@ -278,11 +398,12 @@ class _NativeBuilder(_NamedBuilder[_NativeData]):
         self._fields["token"] = _Token(format, name)
         return self
 
-    def bits(self, width: int) -> _NativeBuilder:
+    def bits(self, width: Any) -> _NativeBuilder:
+        """A width in bits: an int, or a term."""
         self._fields["bits"] = width
         return self
 
-    def bytes(self, width: int) -> _NativeBuilder:
+    def bytes(self, width: Any) -> _NativeBuilder:
         self._fields["bytes"] = width
         return self
 
@@ -347,10 +468,11 @@ class _RelationData:
     uniques: tuple[frozenset[str], ...] = ()
     name: str | None = None
     description: str | None = None
+    parameters: dict[str, _ParameterData] = field(default_factory=dict)
 
     def validate(self) -> list[str]:
         problems = (_name_problems(self.name) + _description_problems(self.description)
-                    + _reserved([*self.links, *self.properties]))
+                    + _parameter_problems(self.parameters) + _reserved([*self.links, *self.properties]))
         if len(self.links) < 2:
             problems.append("a relation needs at least two links; a one-link relation merges a relation and an object")
         if len(set(self.links)) != len(self.links):
@@ -472,6 +594,7 @@ class _ObjectData:
     ref: bool = False  # a reference object schema; otherwise a value object schema
     name: str | None = None
     description: str | None = None
+    parameters: dict[str, _ParameterData] = field(default_factory=dict)
 
     def validate(self) -> list[str]:
         """The schema's problems. A value object schema may hold itself, through a list: its problems are reported once,
@@ -486,7 +609,7 @@ class _ObjectData:
 
     def _problems(self) -> list[str]:
         problems = (_name_problems(self.name) + _description_problems(self.description)
-                    + _reserved([*self.properties, *self.adjacencies]))
+                    + _parameter_problems(self.parameters) + _reserved([*self.properties, *self.adjacencies]))
         if self.singleton is not None and not self.ref:
             problems.append("a singleton's schema must be a reference object schema")
         clashes = set(self.properties) & set(self.adjacencies)
@@ -568,7 +691,7 @@ def _member_problems(a_kind: str, member: str, plural: str, members: tuple[_Memb
     problems = _reserved(m.name for m in members)
     if len(members) < 2:
         problems.append(f"{a_kind} needs at least two {plural}")
-    if len({type(m.type) for m in members}) > 1:
+    if len({type(_structure(m.type)) for m in members}) > 1:
         problems.append(f"{kind} {plural} must all be the same kind")
     seen: set[str] = set()
     for i, m in enumerate(members):
@@ -590,6 +713,7 @@ class _UnionData:
     branches: tuple[_MemberData, ...] = ()
     name: str | None = None
     description: str | None = None
+    parameters: dict[str, _ParameterData] = field(default_factory=dict)
 
     @property
     def properties(self) -> dict[str, _MemberData]:
@@ -597,7 +721,7 @@ class _UnionData:
         return {branch.name: branch for branch in self.branches}
 
     def validate(self) -> list[str]:
-        return (_name_problems(self.name) + _description_problems(self.description)
+        return (_name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
                 + _member_problems("a union", "branch", "branches", self.branches))
 
 
@@ -626,6 +750,7 @@ class _IntersectionData:
     parts: tuple[_MemberData, ...] = ()
     name: str | None = None
     description: str | None = None
+    parameters: dict[str, _ParameterData] = field(default_factory=dict)
 
     @property
     def properties(self) -> dict[str, _MemberData]:
@@ -633,7 +758,7 @@ class _IntersectionData:
         return {part.name: part for part in self.parts}
 
     def validate(self) -> list[str]:
-        return (_name_problems(self.name) + _description_problems(self.description)
+        return (_name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
                 + _member_problems("an intersection", "part", "parts", self.parts))
 
 
@@ -662,10 +787,11 @@ class OfIntersection:
 
 @dataclass(frozen=True)
 class _Extent:
-    """The keys a positional list may have: `minimum` to `maximum`, inclusive; `maximum` None for no bound."""
+    """The keys a positional list may have: `minimum` to `maximum`, inclusive; `maximum` None for no bound. Either may
+    be a term instead of an int."""
 
-    minimum: int = 0
-    maximum: int | None = None
+    minimum: Any = 0
+    maximum: Any = None
 
 
 @dataclass(eq=False)
@@ -679,26 +805,28 @@ class _IndexedData:
     extent: _Extent | None = None
     name: str | None = None
     description: str | None = None
+    parameters: dict[str, _ParameterData] = field(default_factory=dict)
 
     @property
     def positional(self) -> bool:
-        return self.key is None or (isinstance(self.key, _NativeData) and self.key.type is int)
+        key = _structure(self.key)
+        return key is None or (isinstance(key, _NativeData) and key.type is int)
 
     @property
     def minimum(self) -> int:
-        """The first key of a positional list: its extent's minimum, or 0."""
+        """The first key of a positional list: its extent's minimum, or 0 (also where the minimum is a term)."""
         return self.extent.minimum if self.extent is not None and type(self.extent.minimum) is int else 0
 
     @property
     def capacity(self) -> int | None:
-        """How many items a positional list's extent holds, or None when it has no valid maximum."""
+        """How many items a positional list's extent holds, or None when it has no valid int bounds."""
         extent = self.extent
         if extent is None or type(extent.maximum) is not int or type(extent.minimum) is not int:
             return None
         return extent.maximum - extent.minimum + 1
 
     def validate(self) -> list[str]:
-        problems = (_name_problems(self.name) + _description_problems(self.description)
+        problems = (_name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
                     + [f"item: {problem}" for problem in _validate(self.item)])
         if self.key is not None:
             key = _validate(self.key) + _embedded_problems(self.key, role="a key")
@@ -709,9 +837,12 @@ class _IndexedData:
 
     def _extent_problems(self, extent: _Extent) -> list[str]:
         problems = [] if self.positional else ["an extent bounds a positional list, whose keys are ints"]
-        if type(extent.minimum) is not int or not (extent.maximum is None or type(extent.maximum) is int):
-            problems.append(f"an extent's minimum and maximum are ints, got {extent.minimum!r} and {extent.maximum!r}")
-        elif extent.maximum is not None and extent.minimum > extent.maximum:
+        bounds = (extent.minimum, extent.maximum)
+        problems += _term_problems(extent.minimum, "an extent's minimum") + _term_problems(extent.maximum, "an extent's maximum")
+        if not (type(extent.minimum) is int or _is_term(extent.minimum)) or not (
+                extent.maximum is None or type(extent.maximum) is int or _is_term(extent.maximum)):
+            problems.append(f"an extent's minimum and maximum are ints or terms, got {extent.minimum!r} and {extent.maximum!r}")
+        elif all(type(bound) is int for bound in bounds) and extent.minimum > extent.maximum:
             problems.append(f"an extent's minimum {extent.minimum} exceeds its maximum {extent.maximum}")
         return problems
 
@@ -729,8 +860,8 @@ class _IndexedBuilder(_NamedBuilder[_IndexedData]):
         self._fields["key"] = OfAny.resolve(spec)
         return self
 
-    def extent(self, minimum: int = 0, maximum: int | None = None) -> _IndexedBuilder:
-        """The keys a positional list may have, `minimum` to `maximum`."""
+    def extent(self, minimum: Any = 0, maximum: Any = None) -> _IndexedBuilder:
+        """The keys a positional list may have, `minimum` to `maximum`, each an int or a term."""
         self._fields["extent"] = _Extent(minimum, maximum)
         return self
 
@@ -748,9 +879,104 @@ class OfIndexed:
         return _resolve(spec, _IndexedData, _IndexedBuilder)
 
 
+# --- OfApply: a parametric schema applied to arguments ---
+
+
+@dataclass(eq=False)
+class _ApplyData:
+    """A parametric schema applied to arguments: a type whose values are the applied schema's (`of`), with arguments
+    for its parameters by name, each a native value or a term. Parameters given no argument stay unbound."""
+
+    of: Any = None  # OfAny.Data
+    arguments: dict[str, Any] = field(default_factory=dict)
+    name: str | None = None
+    description: str | None = None
+    parameters: dict[str, _ParameterData] = field(default_factory=dict)
+
+    def validate(self) -> list[str]:
+        problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
+        if not isinstance(self.of, _KINDS):
+            return [*problems, f"an application applies a schema, got {self.of!r}"]
+        if _structure(self) is None:
+            return [*problems, "an application cannot apply itself"]
+        for name, value in self.arguments.items():
+            parameter = self.of.parameters.get(name)
+            if parameter is None:
+                problems.append(f"the applied schema has no parameter {name!r}")
+            else:
+                problems += [f"argument {name!r}: {p}" for p in _argument_problems(parameter, value)]
+        return problems + [f"of: {problem}" for problem in _validate(self.of)]
+
+
+def _argument_problems(parameter: _ParameterData, value: Any) -> list[str]:
+    """An argument is a term, or a native value, of the parameter's type where that is a native type."""
+    if _is_term(value):
+        return _term_problems(value, "a term")
+    if type(value) not in NATIVE_TYPES:
+        return [f"an argument is a native value or a term, got {value!r}"]
+    host = parameter.type.type if isinstance(parameter.type, _NativeData) else None
+    return [f"expected {host.__name__}, got {type(value).__name__}"] if host is not None and type(value) is not host else []
+
+
+def _structure(schema: Any) -> Any:
+    """The schema that gives a type its structure: an application's applied schema, followed through applications,
+    else the schema itself; None for an application that applies itself."""
+    seen: set[int] = set()
+    while isinstance(schema, _ApplyData):
+        if id(schema) in seen:
+            return None
+        seen.add(id(schema))
+        schema = schema.of
+    return schema
+
+
+def structure(schema: Any) -> Any:
+    """The schema that gives a type its structure: an application's applied schema (followed through applications),
+    else the schema itself. Data of an application is data of its applied schema."""
+    return _structure(schema)
+
+
+class _ApplyBuilder(_NamedBuilder[_ApplyData]):
+    _data = _ApplyData
+
+    def of(self, spec: OfAny.Spec) -> _ApplyBuilder:
+        """The parametric schema applied."""
+        self._fields["of"] = OfAny.resolve(spec)
+        return self
+
+    def argument(self, name: str, value: Any) -> _ApplyBuilder:
+        """The argument for the parameter `name`: a native value or a term."""
+        self._fields.setdefault("arguments", {})[name] = value
+        return self
+
+    def arguments(self, *values: Any) -> _ApplyBuilder:
+        """Arguments for the applied schema's parameters, in their declared order."""
+        of = self._fields.get("of")
+        if of is None:
+            raise ValueError("positional arguments are taken in the applied schema's parameter order; call .of() first")
+        names = list(of.parameters)
+        if len(values) > len(names):
+            raise ValueError(f"the applied schema has {len(names)} parameters, got {len(values)} arguments")
+        for name, value in zip(names, values):
+            self.argument(name, value)
+        return self
+
+
+class OfApply:
+    """A parametric schema applied to arguments, where a type is expected."""
+
+    Data = _ApplyData
+    Builder = _ApplyBuilder
+    Spec = _ApplyData | Callable[[_ApplyBuilder], _ApplyBuilder]
+
+    @staticmethod
+    def resolve(spec: OfApply.Spec) -> _ApplyData:
+        return _resolve(spec, _ApplyData, _ApplyBuilder)
+
+
 # --- OfAny ---
 
-_KINDS = (_NativeData, _ObjectData, _UnionData, _IntersectionData, _IndexedData)
+_KINDS = (_NativeData, _ObjectData, _UnionData, _IntersectionData, _IndexedData, _ApplyData)
 
 
 def _validate(schema: Any) -> list[str]:
@@ -761,7 +987,8 @@ def _validate(schema: Any) -> list[str]:
 
 def _members_of(schema: Any) -> list[Any]:
     """The schemas of the values a value of `schema` holds: a value object's properties, a union's branches, an
-    intersection's parts, a list's item."""
+    intersection's parts, a list's item, through applications."""
+    schema = _structure(schema)
     if isinstance(schema, _IndexedData):
         return [schema.item]
     return [m.type for m in schema.properties.values()] if isinstance(schema, (_ObjectData, _UnionData, _IntersectionData)) else []
@@ -771,6 +998,7 @@ def _embedded_problems(schema: Any, seen: frozenset[int] = frozenset(), role: st
     """Problems with a property's schema as a value (or a key's, `role`): an object held by a property is a value
     object, so its schema is not a reference object schema; nor are the schemas of the objects a union, an intersection
     or a list holds. `seen` holds the schemas on the way, so that one that holds itself is checked once."""
+    schema = _structure(schema)
     if isinstance(schema, _ObjectData):
         return [f"a reference object schema cannot be {role}"] if schema.ref else []
     if id(schema) in seen:
@@ -806,6 +1034,10 @@ class _AnyBuilder:
         self._selected = OfIndexed.resolve(spec)
         return self
 
+    def as_apply(self, spec: OfApply.Spec) -> _AnyBuilder:
+        self._selected = OfApply.resolve(spec)
+        return self
+
     def _require_selected(self) -> OfAny.Data:
         if self._selected is None:
             raise ValueError("no kind selected; call an as_<kind> method")
@@ -835,7 +1067,7 @@ class _AnyBuilder:
 class OfAny:
     """Where a schema of any kind is expected. `OfAny.Data` is any schema kind's data."""
 
-    Data = _NativeData | _ObjectData | _UnionData | _IntersectionData | _IndexedData
+    Data = _NativeData | _ObjectData | _UnionData | _IntersectionData | _IndexedData | _ApplyData
     Builder = _AnyBuilder
     Spec = Data | Callable[[_AnyBuilder], _AnyBuilder]
 
@@ -861,15 +1093,29 @@ def _Text(t: _AnyBuilder) -> _AnyBuilder:
     return t.as_native(str)
 
 
+def _int(t: _AnyBuilder) -> _AnyBuilder:
+    return t.as_native(int)
+
+
 _Named = OfObject.Builder().properties(_named_text("name")).create()
 _AnySchema = OfUnion.Builder().create()  # a type; its branches, which refer back to it, are added below
 _PropertySchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("type").of(_AnySchema),
                                                 _named_text("description")).create()
+_Parameters: OfProperty.Spec = lambda p: p.name("parameters").of(_list_of(_PropertySchema))  # noqa: E731
+_NativeValue = OfUnion.Builder().branches(
+    *[lambda b, n=n, t=t: b.name(n).of(lambda x: x.as_native(t)) for t, n in _BASIC_NAMES.items()]).create()
+_AttributeSchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("value").of(_NativeValue)).create()
+_FormSchema = OfObject.Builder().properties(
+    _named_text("dialect"), _named_text("kind"), lambda p: p.name("attributes").of(_list_of(_AttributeSchema))).create()
+OfObject.Builder(_FormSchema).properties(lambda p: p.name("arguments").of(_list_of(_FormSchema))).update()
+_WidthTerms = OfObject.Builder().properties(lambda p: p.name("bits").of(_FormSchema),
+                                            lambda p: p.name("bytes").of(_FormSchema)).create()
 _NativeSchema = OfObject.Builder().properties(
-    _named_text("format"), _named_text("name"), lambda p: p.name("bits").of(lambda t: t.as_native(int)),
-    lambda p: p.name("bytes").of(lambda t: t.as_native(int)), _named_text("description")).create()
+    _Parameters, _named_text("format"), _named_text("name"), lambda p: p.name("bits").of(_int),
+    lambda p: p.name("bytes").of(_int), lambda p: p.name("terms").of(_WidthTerms), _named_text("description")).create()
 _RelationSchema = OfObject.Builder().properties(
-    lambda p: p.name("links").of(_list_of(_Text)), lambda p: p.name("properties").of(_list_of(_PropertySchema)),
+    _Parameters, lambda p: p.name("links").of(_list_of(_Text)),
+    lambda p: p.name("properties").of(_list_of(_PropertySchema)),
     lambda p: p.name("uniques").of(_list_of(_list_of(_Text))), _named_text("description")).create()
 _RelationRef = OfUnion.Builder().branches(lambda b: b.name("relation").of(_RelationSchema),
                                           lambda b: b.name("named").of(_Named)).create()
@@ -877,20 +1123,27 @@ _AdjacencySchema = OfObject.Builder().properties(
     _named_text("name"), lambda p: p.name("relation").of(_RelationRef), _named_text("me"),
     _named_text("description")).create()
 _ObjectSchema = OfObject.Builder().properties(
-    lambda p: p.name("properties").of(_list_of(_PropertySchema)),
+    _Parameters, lambda p: p.name("properties").of(_list_of(_PropertySchema)),
     lambda p: p.name("adjacencies").of(_list_of(_AdjacencySchema)), _named_text("singleton"),
     lambda p: p.name("ref").of(lambda t: t.as_native(bool)), _named_text("description")).create()
-_UnionSchema = OfObject.Builder().properties(lambda p: p.name("branches").of(_list_of(_PropertySchema)),
+_UnionSchema = OfObject.Builder().properties(_Parameters, lambda p: p.name("branches").of(_list_of(_PropertySchema)),
                                              _named_text("description")).create()
-_IntersectionSchema = OfObject.Builder().properties(lambda p: p.name("parts").of(_list_of(_PropertySchema)),
+_IntersectionSchema = OfObject.Builder().properties(_Parameters, lambda p: p.name("parts").of(_list_of(_PropertySchema)),
                                                     _named_text("description")).create()
-_ExtentSchema = OfObject.Builder().properties(lambda p: p.name("minimum").of(lambda t: t.as_native(int)),
-                                              lambda p: p.name("maximum").of(lambda t: t.as_native(int))).create()
-_IndexedSchema = OfObject.Builder().properties(lambda p: p.name("item").of(_AnySchema), lambda p: p.name("key").of(_AnySchema),
-                                               lambda p: p.name("extent").of(_ExtentSchema),
-                                               _named_text("description")).create()
+_ExtentTerms = OfObject.Builder().properties(lambda p: p.name("minimum").of(_FormSchema),
+                                             lambda p: p.name("maximum").of(_FormSchema)).create()
+_ExtentSchema = OfObject.Builder().properties(lambda p: p.name("minimum").of(_int), lambda p: p.name("maximum").of(_int),
+                                              lambda p: p.name("terms").of(_ExtentTerms)).create()
+_IndexedSchema = OfObject.Builder().properties(
+    _Parameters, lambda p: p.name("item").of(_AnySchema), lambda p: p.name("key").of(_AnySchema),
+    lambda p: p.name("extent").of(_ExtentSchema), _named_text("description")).create()
+_ArgumentSchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("value").of(_NativeValue),
+                                                lambda p: p.name("term").of(_FormSchema)).create()
+_ApplySchema = OfObject.Builder().properties(
+    _Parameters, lambda p: p.name("of").of(_AnySchema), lambda p: p.name("arguments").of(_list_of(_ArgumentSchema)),
+    _named_text("description")).create()
 _KIND_SCHEMAS = (("native", _NativeSchema), ("object", _ObjectSchema), ("union", _UnionSchema),
-                 ("intersection", _IntersectionSchema), ("indexed", _IndexedSchema))
+                 ("intersection", _IntersectionSchema), ("indexed", _IndexedSchema), ("apply", _ApplySchema))
 OfUnion.Builder(_AnySchema).branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
                                      lambda b: b.name("named").of(_Named)).update()
 _Definition = OfUnion.Builder().branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
@@ -906,6 +1159,11 @@ OfObject.Schema = _ObjectSchema  # type: ignore[attr-defined]
 OfUnion.Schema = _UnionSchema  # type: ignore[attr-defined]
 OfIntersection.Schema = _IntersectionSchema  # type: ignore[attr-defined]
 OfIndexed.Schema = _IndexedSchema  # type: ignore[attr-defined]
+OfParameter.Schema = _PropertySchema  # type: ignore[attr-defined]
+OfApply.Schema = _ApplySchema  # type: ignore[attr-defined]
+OfApply.Argument = _ArgumentSchema  # type: ignore[attr-defined]
+Form.Schema = _FormSchema  # type: ignore[attr-defined]
+Form.Value = _NativeValue  # type: ignore[attr-defined]
 OfAny.Schema = _AnySchema  # type: ignore[attr-defined]
 OfAny.Named = _Named  # type: ignore[attr-defined]
 

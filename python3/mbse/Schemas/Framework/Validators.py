@@ -422,6 +422,7 @@ class _Check:
     def _value_problems(self, label: str, schema: Schemas.OfAny.Data, item: Any) -> list[str]:
         """Problems with a property's value: its kind and type, recursively, and that a union value holds one branch
         and an intersection value every part."""
+        schema = Schemas.structure(schema)
         if isinstance(schema, Schemas.OfNative.Data):
             problem = _native_problem(schema, item)
             return [f"{label}: {problem}"] if problem else []

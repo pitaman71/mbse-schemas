@@ -66,8 +66,8 @@ export class Binding {
   }
 }
 
-function isNative(schema: unknown): schema is Schemas.OfNative.Data {
-  return schema instanceof Schemas.OfNative.Data;
+function isNative(schema: unknown): boolean {
+  return Schemas.structure(schema) instanceof Schemas.OfNative.Data;
 }
 
 /** Writes a state's value: a native as is, any other value from its plain form. */
@@ -112,8 +112,12 @@ function sameNative(a: unknown, b: unknown): boolean {
 /** `Visitors.OfProperty`, `OfAny` and `OfNative` over a native value in a map: present only with the schema's type;
  * setting checks the type, and clears the others of its exclusive group. */
 class _NativeSlot implements OfProperty, OfAny, OfNative {
+  protected readonly schema: Schemas.OfNative.Data;
+
   constructor(protected readonly values: Map<string, unknown>, protected readonly slotName: string,
-    protected readonly schema: Schemas.OfNative.Data, private readonly group: readonly string[] = []) {}
+    schema: unknown, private readonly group: readonly string[] = []) {
+    this.schema = Schemas.structure(schema) as Schemas.OfNative.Data;
+  }
 
   name(): string {
     return this.slotName;

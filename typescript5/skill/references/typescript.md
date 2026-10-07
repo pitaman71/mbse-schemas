@@ -73,6 +73,9 @@ new S.OfIndexed.Builder().key(spec).of(spec).extent({ minimum: 1n }).create(); /
 new S.OfObject.Builder().name("crm.Contact");                     // a name, identifiers separated by dots, on any kind
 new S.OfObject.Builder().description("A person we know");         // documentation, on any element: schema, property,
 schema.properties.get("home")?.type;                              // adjacency, branch or part; a property is an element
+new S.OfObject.Builder().parameters((p) => p.name("n").of(spec)); // parameters, on any kind of schema
+new S.OfApply.Builder().of(Matrix).arguments(2n, 3n);             // a type: a parametric schema applied; .argument("n", 3n)
+i.extent({ minimum: 1n, maximum: new S.Form.Data("variable", { name: "n" }) });  // a term where a bound stands
 const store = new Proxies.OfStore(); store.register(schema); const B = store;   // under schema.name; stores are isolated
 store.extent("Name"); store.singleton("Global");           // a schema's objects its singletons reach; a singleton
 new Stores.PCG32(42n).split("key").next_u32();             // a random source, given to whatever draws from it

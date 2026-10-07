@@ -701,8 +701,12 @@ export class _NativeSlot implements OfNative {
 /** `Visitors.OfAny` over one key of a value map, holding a value of `schema` (an entry property's schema is not
  * given: entry properties are native). */
 export class _AnySlot implements OfAny {
+  private readonly schema: unknown;
+
   constructor(private readonly values: Map<string, unknown>, private readonly slotName: string,
-    private readonly schema: unknown = null, private readonly store: OfStore | null = null) {}
+    schema: unknown = null, private readonly store: OfStore | null = null) {
+    this.schema = Schemas.structure(schema);
+  }
 
   as_native(callback: Callback<OfNative>): _AnySlot {
     callback(new _NativeSlot(this.values, this.slotName));
@@ -967,7 +971,8 @@ function setter<V extends PropertyHolder>(visitor: V, self: unknown, name: strin
 
 /** Writes `spec` (a value, or a callable taking the value's builder) as a value of `schema`. An array given for a list
  * replaces its items, each written the same way under the item schema. */
-function apply(visitor: OfAny, name: string, schema: unknown, spec: unknown): void {
+function apply(visitor: OfAny, name: string, type: unknown, spec: unknown): void {
+  const schema = Schemas.structure(type);
   if (schema instanceof Schemas.OfIndexed.Data) {
     if (typeof spec === "function") visitor.as_indexed(spec as Callback<IndexedVisitor>);
     else if (schema.positional && Array.isArray(spec)) visitor.as_indexed((items) => applyItems(items.clear(), name, schema.item, spec));

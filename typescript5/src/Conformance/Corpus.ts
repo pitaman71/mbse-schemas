@@ -204,11 +204,28 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance]> {
     (rows: any) => rows.item(1, (v: any) => v.as_indexed((row: any) => row.item(0, (w: any) => w.as_object(
       (o: any) => o.cables((x: any) => x.sink(board.sockets[0]))))))).update();
 
-  // --- module: the corpus's own schemas as data, with natives of widths and another format's token ---
+  // --- module: the corpus's own schemas as data, with natives of widths and another format's token, and parametric
+  // schemas: parameters, terms where a width or a bound stands, and applications with arguments of every native ---
+  const int_ = (t: Schemas.OfAny.Builder) => t.as_native(BigInt);
+  const n = new Schemas.Form.Data("variable", { name: "n" });
+  const Word = Schemas.OfNative.resolve((w) => w.name("Word").type(BigInt).parameters((p) => p.name("w").of(int_)).bits(
+    new Schemas.Form.Data("variable", { name: "w" })));
+  const Grid = new Schemas.OfObject.Builder().name("Grid").parameters((p) => p.name("n").of(int_).description("Its side"),
+    (p) => p.name("x")).properties(
+    (p) => p.name("cells").of((t) => t.as_indexed((i) => i.of((c) => c.as_apply((a) => a.of(Word).arguments(8n)))
+      .extent({ minimum: 1n, maximum: new Schemas.Form.Data("operation", { name: "mul" }, [n, n], "basic") })))).create();
+  const Square = new Schemas.OfApply.Builder().name("Square").parameters((p) => p.name("m").of(int_)).of(Grid).argument(
+    "n", new Schemas.Form.Data("variable", { name: "m" })).argument("x", true).create();
+  const Tricky = new Schemas.OfObject.Builder().name("Tricky").parameters(
+    ...[..."abcd"].map((x) => (p: Schemas.OfParameter.Builder) => p.name(x))).create();
+  const Applied = new Schemas.OfObject.Builder().name("Applied").properties(
+    (p) => p.name("big").of((t) => t.as_apply((a) => a.of(Grid).arguments(2n ** 70n, NaN))),
+    (p) => p.name("odd").of((t) => t.as_apply((a) => a.of(Tricky).arguments(-0.0, "日本語 🚀", new Uint8Array([0, 255]), false)))).create();
   const schemas = [
     Schemas.OfNative.resolve((n) => n.name("Int32").type(BigInt).bits(32n)),
     Schemas.OfNative.resolve((n) => n.name("Size").token("ccpp", "size_t").bytes(8n)),
     Contact, Address, ContactAddresses, Person, Parentage, Card, Deck, Holding, Board, Panel,
+    Word, Grid, Square, Tricky, Applied,
   ];
   const module = Modules.module(store, schemas) as Instance;
 

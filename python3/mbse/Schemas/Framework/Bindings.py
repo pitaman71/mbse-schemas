@@ -64,7 +64,7 @@ class Binding:
 
 
 def _native(schema: Any) -> bool:
-    return isinstance(schema, Schemas.OfNative.Data)
+    return isinstance(Schemas.structure(schema), Schemas.OfNative.Data)
 
 
 def _write_value(visitor: Visitors.OfAny, schema: Any, value: Any) -> None:
@@ -105,8 +105,9 @@ class _NativeSlot:
     """`Visitors.OfProperty`, `OfAny` and `OfNative` over a native value in a dict: present only with the schema's type;
     setting checks the type, and clears the others of its exclusive group."""
 
-    def __init__(self, values: dict[str, Any], name: str, schema: Schemas.OfNative.Data, group: Sequence[str] = ()):
-        self._values, self._name, self._schema, self._group = values, name, schema, group
+    def __init__(self, values: dict[str, Any], name: str, schema: Any, group: Sequence[str] = ()):
+        self._values, self._name, self._group = values, name, group
+        self._schema: Schemas.OfNative.Data = Schemas.structure(schema)
 
     def name(self) -> str:
         return self._name

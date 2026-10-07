@@ -206,10 +206,27 @@ def build():
         lambda rows: rows.item(1, lambda v: v.as_indexed(lambda row: row.item(0, lambda w: w.as_object(
             lambda o: o.cables(lambda x: x.sink(board.sockets[0]))))))).update()
 
-    # --- module: the corpus's own schemas as data, with natives of widths and another format's token ---
+    # --- module: the corpus's own schemas as data, with natives of widths and another format's token, and parametric
+    # schemas: parameters, terms where a width or a bound stands, and applications with arguments of every native ---
+    int_ = lambda t: t.as_native(int)  # noqa: E731
+    n = S.Form.Data("variable", {"name": "n"})
+    Word = S.OfNative.resolve(lambda w: w.name("Word").type(int).parameters(lambda p: p.name("w").of(int_)).bits(
+        S.Form.Data("variable", {"name": "w"})))
+    Grid = S.OfObject.Builder().name("Grid").parameters(lambda p: p.name("n").of(int_).description("Its side"),
+                                                        lambda p: p.name("x")).properties(
+        lambda p: p.name("cells").of(lambda t: t.as_indexed(lambda i: i.of(lambda c: c.as_apply(
+            lambda a: a.of(Word).arguments(8))).extent(1, S.Form.Data("operation", {"name": "mul"}, (n, n), "basic"))))).create()
+    Square = S.OfApply.Builder().name("Square").parameters(lambda p: p.name("m").of(int_)).of(Grid).argument(
+        "n", S.Form.Data("variable", {"name": "m"})).argument("x", True).create()
+    Tricky = S.OfObject.Builder().name("Tricky").parameters(*[lambda p, x=x: p.name(x) for x in "abcd"]).create()
+    Applied = S.OfObject.Builder().name("Applied").properties(
+        lambda p: p.name("big").of(lambda t: t.as_apply(lambda a: a.of(Grid).arguments(2**70, math.nan))),
+        lambda p: p.name("odd").of(lambda t: t.as_apply(lambda a: a.of(Tricky).arguments(-0.0, "日本語 🚀", b"\x00\xff", False)))
+    ).create()
     schemas = [S.OfNative.resolve(lambda n: n.name("Int32").type(int).bits(32)),
                S.OfNative.resolve(lambda n: n.name("Size").token("ccpp", "size_t").bytes(8)),
-               Contact, Address, ContactAddresses, Person, Parentage, Card, Deck, Holding, Board, Panel]
+               Contact, Address, ContactAddresses, Person, Parentage, Card, Deck, Holding, Board, Panel,
+               Word, Grid, Square, Tricky, Applied]
     module = Modules.module(store, schemas)
 
     return {

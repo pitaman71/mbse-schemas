@@ -115,9 +115,11 @@ class Paths {
 /** `Visitors.OfAny` recording a value of the kind its schema declares. */
 export class OfAny implements Visitors.OfAny {
   private value: OfNative | OfObject | OfUnion | OfIntersection | OfIndexed | null = null;
+  private readonly schema: Schemas.OfAny.Data;
 
-  constructor(private readonly schema: Schemas.OfAny.Data, private readonly paths: Paths | null = null,
-    private readonly path: Path = []) {}
+  constructor(schema: Schemas.OfAny.Data, private readonly paths: Paths | null = null, private readonly path: Path = []) {
+    this.schema = Schemas.structure(schema) as Schemas.OfAny.Data;
+  }
 
   /** @internal The native value recorded; a positional list reads its keys with it. */
   native(): Native {

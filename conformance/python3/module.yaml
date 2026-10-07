@@ -433,3 +433,133 @@ objects:
                 name: Cable
             me: sink
           ref: true
+    - name: Word
+      schema:
+        native:
+          parameters:
+          - name: w
+            type:
+              native:
+                format: basic
+                name: int
+          format: basic
+          name: int
+          terms:
+            bits:
+              kind: variable
+              attributes:
+              - name: name
+                value:
+                  str: w
+    - name: Grid
+      schema:
+        object:
+          parameters:
+          - name: 'n'
+            type:
+              native:
+                format: basic
+                name: int
+            description: Its side
+          - name: x
+          properties:
+          - name: cells
+            type:
+              indexed:
+                item:
+                  apply:
+                    of:
+                      named:
+                        name: Word
+                    arguments:
+                    - name: w
+                      value:
+                        int: 8
+                extent:
+                  minimum: 1
+                  terms:
+                    maximum:
+                      dialect: basic
+                      kind: operation
+                      attributes:
+                      - name: name
+                        value:
+                          str: mul
+                      arguments:
+                      - kind: variable
+                        attributes:
+                        - name: name
+                          value:
+                            str: 'n'
+                      - kind: variable
+                        attributes:
+                        - name: name
+                          value:
+                            str: 'n'
+    - name: Square
+      schema:
+        apply:
+          parameters:
+          - name: m
+            type:
+              native:
+                format: basic
+                name: int
+          of:
+            named:
+              name: Grid
+          arguments:
+          - name: 'n'
+            term:
+              kind: variable
+              attributes:
+              - name: name
+                value:
+                  str: m
+          - name: x
+            value:
+              bool: true
+    - name: Tricky
+      schema:
+        object:
+          parameters:
+          - name: a
+          - name: b
+          - name: c
+          - name: d
+    - name: Applied
+      schema:
+        object:
+          properties:
+          - name: big
+            type:
+              apply:
+                of:
+                  named:
+                    name: Grid
+                arguments:
+                - name: 'n'
+                  value:
+                    int: 1180591620717411303424
+                - name: x
+                  value:
+                    float: NaN
+          - name: odd
+            type:
+              apply:
+                of:
+                  named:
+                    name: Tricky
+                arguments:
+                - name: a
+                  value:
+                    float: -0.0
+                - name: b
+                  value:
+                    str: 日本語 🚀
+                - name: c
+                  value:
+                    bytes: AP8=
+                - name: d
+                  value:
+                    bool: false

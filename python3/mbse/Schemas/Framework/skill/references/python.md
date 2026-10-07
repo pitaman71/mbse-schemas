@@ -66,6 +66,9 @@ schema.validate()                                           # the schema's own p
 S.OfObject.Builder().name("crm.Contact")                    # a name, identifiers separated by dots, on any kind of schema
 S.OfObject.Builder().description("A person we know")        # documentation, on any element: schema, property, adjacency,
 schema.properties["home"].type                              # branch or part; a property is an element, its type inside
+S.OfObject.Builder().parameters(lambda p: p.name("n").of(spec))  # parameters, on any kind of schema
+S.OfApply.Builder().of(Matrix).arguments(2, 3)              # a type: a parametric schema applied; .argument("n", 3)
+i.extent(1, S.Form.Data("variable", {"name": "n"}))         # a term where a bound or a width stands, or a dialect's
 # A store: register named object and relation schemas, then build through it. Stores are isolated; objects move between
 # them as snapshots.
 store = Proxies.OfStore(); store.register(schema); B = store  # under schema.name; an unnamed schema is refused

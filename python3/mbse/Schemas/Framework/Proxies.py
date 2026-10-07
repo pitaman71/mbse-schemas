@@ -517,7 +517,8 @@ class _AnySlot:
     given: entry properties are native)."""
 
     def __init__(self, values: dict[str, Any], name: str, schema: Any = None, store: OfStore | None = None):
-        self._values, self._name, self._schema, self._store = values, name, schema, store
+        self._values, self._name, self._store = values, name, store
+        self._schema = Schemas.structure(schema)
 
     def as_native(self, callback: Callable[[Visitors.OfNative], Any]) -> _AnySlot:
         callback(_NativeSlot(self._values, self._name))
@@ -754,6 +755,7 @@ def _setter(visitor: Any, name: str, schema: Any = None) -> Callable[[Any], Any]
 def _apply(visitor: Visitors.OfAny, name: str, schema: Any, spec: Any) -> None:
     """Writes `spec` (a value, or a callable taking the value's builder) as a value of `schema`. A list or tuple given for
     a list replaces its items, each written the same way under the item schema."""
+    schema = Schemas.structure(schema)
     if isinstance(schema, Schemas.OfIndexed.Data):
         if callable(spec):
             visitor.as_indexed(spec)

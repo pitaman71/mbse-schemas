@@ -85,8 +85,12 @@ function unlinked(_value: Visitable): string | null {
  * intersection value), nested. `ref` writes references to linked objects, and `symbol` gives a value object's symbol
  * when something links to it. */
 export class _AnyWriter implements OfAny {
-  constructor(private readonly out: PlainMap, private readonly slotName: string, private readonly schema: Schemas.OfAny.Data,
-    private readonly ref: Ref, private readonly symbol: Symbol) {}
+  private readonly schema: Schemas.OfAny.Data;
+
+  constructor(private readonly out: PlainMap, private readonly slotName: string, schema: Schemas.OfAny.Data,
+    private readonly ref: Ref, private readonly symbol: Symbol) {
+    this.schema = Schemas.structure(schema) as Schemas.OfAny.Data;
+  }
 
   as_native(callback: Callback<OfNative>): _AnyWriter {
     if (!(this.schema instanceof Schemas.OfNative.Data)) throw new TypeError(`property ${repr(this.slotName)} is not native`);
@@ -205,7 +209,7 @@ const INT = new Schemas.OfNative.Data(BigInt);
 /** Whether a list is written as a mapping from its keys' text: a keyed list whose key is a native whose text never
  * starts with `$` (a float, a bool, bytes), so that no key reads as one of the wire format's markers. */
 function isTextKeyed(schema: Schemas.OfIndexed.Data): boolean {
-  const key = schema.key;
+  const key = Schemas.structure(schema.key);
   return !schema.positional && key instanceof Schemas.OfNative.Data &&
     (key.type === Number || key.type === Boolean || key.type === Uint8Array);
 }
@@ -256,14 +260,14 @@ export class _KeyedWriter implements OfIndexed {
 
   constructor(private readonly out: PlainMap | PlainData[], readonly slotName: string, private readonly schema: Schemas.OfIndexed.Data,
     readonly ref: Ref, private readonly symbol: Symbol) {
-    const key = schema.key as Schemas.OfNative.Data;
+    const key = Schemas.structure(schema.key) as Schemas.OfNative.Data;
     this.held = out instanceof Map ? [...out].map(([text, value]) => [key.to_plain(key.from_key(text)), value])
       : (out as PlainMap[]).map((entry) => [entry.get("key") as PlainData, entry.get("value") as PlainData]);
   }
 
   private flush(): _KeyedWriter {
     if (this.out instanceof Map) {
-      const key = this.schema.key as Schemas.OfNative.Data;
+      const key = Schemas.structure(this.schema.key) as Schemas.OfNative.Data;
       this.out.clear();
       for (const [k, v] of this.held) this.out.set(key.to_key(key.from_plain(k)), v);
     } else {
@@ -617,14 +621,16 @@ class Context {
   constructor(readonly owner: string, readonly ids: Map<string, Found>, readonly entries: [Found, Rows][]) {}
 }
 
+/** The kind of a type's values: its structure's (see `Schemas.structure`). */
 function kindOf(schema: Schemas.OfAny.Data): ValueKind {
-  return schema.constructor as ValueKind;
+  return (Schemas.structure(schema) as Schemas.OfAny.Data).constructor as ValueKind;
 }
 
 /** The value `plain` holds under `schema`, located at the path `where`: a native, a `DecodedRecord`, or an array of the
  * items' values. */
-function decode(schema: Schemas.OfAny.Data, plain: unknown, where: Where, context: Context | null = null,
+function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where, context: Context | null = null,
   steps: Steps = []): unknown {
+  const schema = Schemas.structure(type) as Schemas.OfAny.Data;
   if (schema instanceof Schemas.OfNative.Data) {
     try {
       return schema.from_plain(plain);
@@ -679,7 +685,7 @@ function decodeKeyed(schema: Schemas.OfIndexed.Data, plain: unknown, where: Wher
     return new DecodedKeyed([...(plain as PlainMap)].map(([text, value], i) => {
       let key: unknown;
       try {
-        key = (schema.key as Schemas.OfNative.Data).from_key(text);
+        key = (Schemas.structure(schema.key) as Schemas.OfNative.Data).from_key(text);
       } catch (error) {
         throw (error as DecodeError).at(path(...where, text)); // from_key throws only DecodeError
       }

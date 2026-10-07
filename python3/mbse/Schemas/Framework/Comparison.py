@@ -119,7 +119,7 @@ class OfAny:
     """`Visitors.OfAny` recording a value of the kind its schema declares."""
 
     def __init__(self, schema: Schemas.OfAny.Data, paths: _Paths | None = None, path: Path = ()):
-        self._schema, self._paths, self._path = schema, paths, path
+        self._schema, self._paths, self._path = Schemas.structure(schema), paths, path
         self._value: OfNative | OfObject | OfUnion | OfIntersection | OfIndexed | None = None
 
     def _absent(self) -> bool:

@@ -16,6 +16,9 @@
  * `reference(schema)` and `resolve(store, definition)` translate one type the same way, for data that refers to
  * schemas as a module's members do, e.g. the symbols of a predicate.
  *
+ * A term (where a width, an extent's bound or an argument stands) is written as its neutral form, `Schemas.Form`, and
+ * read back as one; `make`, given to `schemas` or `resolve`, makes a dialect's term of each form instead.
+ *
  * The translation goes through plain data, the form `Plain`, `JSON` and `YAML` share: `module` decodes the plain form
  * of the schemas in the store, and `schemas` reads the plain form of the module.
  */
@@ -26,6 +29,7 @@ import type { PlainData, PlainMap } from "./Plain.js";
 import { repr, sortedStrings } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type * as Stores from "./Stores.js";
+import type { Native } from "./Visitors.js";
 
 export const MODULE = "Schemas.Module";
 
@@ -44,11 +48,15 @@ export function module(store: Stores.Store, schemas: Iterable<Schema>): unknown 
     new Map<string, PlainData>([["root", "s0"], ["objects", new Map([["s0", root]])]]));
 }
 
-/** The schemas `module` holds, by name. Names resolve within the module, then in `store`. */
-export function schemas(store: Stores.Store, module: unknown): Map<string, Schema> {
+/** Makes a term of a `Schemas.Form` read from a module, e.g. a dialect's. */
+export type Make = (form: Schemas.Form.Data) => unknown;
+
+/** The schemas `module` holds, by name. Names resolve within the module, then in `store`. Terms are read as forms, or
+ * made by `make`. */
+export function schemas(store: Stores.Store, module: unknown, make: Make | null = null): Map<string, Schema> {
   const plain = Plain.ToPlain(store)(Schemas.Module.Schema, module as never) as PlainMap;
   const root = (plain.get("objects") as PlainMap).get(plain.get("root") as string) as PlainMap;
-  return new Reader(store, (root.get("schemas") as PlainMap[] | undefined) ?? []).read();
+  return new Reader(store, (root.get("schemas") as PlainMap[] | undefined) ?? [], make).read();
 }
 
 /** The plain form of a type (`Schemas.OfAny.Schema`'s): `{"named": {"name": ...}}` for a named schema, else the
@@ -64,8 +72,8 @@ function schemaName(schema: unknown): string | null {
 }
 
 /** The type a plain form describes: a name resolves in `store`, and an inline schema is read. */
-export function resolve(store: Stores.Store, definition: PlainMap): Schemas.OfAny.Data {
-  return new Reader(store, []).type(definition);
+export function resolve(store: Stores.Store, definition: PlainMap, make: Make | null = null): Schemas.OfAny.Data {
+  return new Reader(store, [], make).type(definition);
 }
 
 // --- Schemas to plain data ---
@@ -95,41 +103,88 @@ class Writer {
     }
   }
 
-  /** Properties, branches or parts: each its name, its type and its description, if any. */
+  /** Properties, branches, parts or parameters: each its name, its type (a parameter may have none) and its
+   * description, if any. */
   private members(members: Iterable<{ name: string; type: unknown; description: string | null }>): PlainMap[] {
-    return [...members].map((m) => present([["name", m.name], ["type", this.reference(m.type)], ["description", m.description]]));
+    return [...members].map((m) => present([["name", m.name], ["type", m.type === null ? null : this.reference(m.type)],
+      ["description", m.description]]));
   }
 
   private contents(schema: unknown): Definition {
+    const declared = (schema as { parameters?: unknown } | null)?.parameters;
+    const parameters = declared instanceof Map ? this.members(declared.values()) : [];
     if (schema instanceof Schemas.OfNative.Data) {
       if (!(schema.token instanceof Schemas.OfNative.Token)) throw new TypeError(`unsupported native type ${repr(schema.token)}`);
-      return kindOf("native", [["format", schema.token.format], ["name", schema.token.name], ["bits", schema.bits],
-        ["bytes", schema.bytes], ["description", schema.description]]);
+      return kindOf("native", [["parameters", parameters], ["format", schema.token.format], ["name", schema.token.name],
+        ["bits", literal(schema.bits)], ["bytes", literal(schema.bytes)],
+        ["terms", terms([["bits", schema.bits], ["bytes", schema.bytes]])], ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfObject.Data) {
       const adjacencies = [...schema.adjacencies].map(([name, adjacency]) => present([["name", name],
         ["relation", this.reference(adjacency.relation)], ["me", adjacency.me], ["description", adjacency.description]]));
-      return kindOf("object", [["properties", this.members(schema.properties.values())], ["adjacencies", adjacencies],
-        ["singleton", schema.singleton], ["ref", schema.ref], ["description", schema.description]]);
+      return kindOf("object", [["parameters", parameters], ["properties", this.members(schema.properties.values())],
+        ["adjacencies", adjacencies], ["singleton", schema.singleton], ["ref", schema.ref], ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfRelation.Data) {
-      return kindOf("relation", [["links", [...schema.links]], ["properties", this.members(schema.properties.values())],
+      return kindOf("relation", [["parameters", parameters], ["links", [...schema.links]],
+        ["properties", this.members(schema.properties.values())],
         ["uniques", schema.uniques.map((unique) => sortedStrings(unique))], ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfUnion.Data) {
-      return kindOf("union", [["branches", this.members(schema.branches)], ["description", schema.description]]);
+      return kindOf("union", [["parameters", parameters], ["branches", this.members(schema.branches)],
+        ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfIntersection.Data) {
-      return kindOf("intersection", [["parts", this.members(schema.parts)], ["description", schema.description]]);
+      return kindOf("intersection", [["parameters", parameters], ["parts", this.members(schema.parts)],
+        ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfIndexed.Data) {
-      const extent = schema.extent === null ? null : new Map<string, PlainData>(
-        ([["minimum", schema.extent.minimum], ["maximum", schema.extent.maximum]] as [string, PlainData][]).filter(([, v]) => v !== null));
-      return kindOf("indexed", [["item", this.reference(schema.item)],
-        ["key", schema.key === null ? null : this.reference(schema.key)], ["extent", extent], ["description", schema.description]]);
+      const extent = schema.extent;
+      const bounds = extent === null ? null : present([["minimum", literal(extent.minimum)], ["maximum", literal(extent.maximum)],
+        ["terms", terms([["minimum", extent.minimum], ["maximum", extent.maximum]])]]);
+      return kindOf("indexed", [["parameters", parameters], ["item", this.reference(schema.item)],
+        ["key", schema.key === null ? null : this.reference(schema.key)], ["extent", bounds], ["description", schema.description]]);
+    }
+    if (schema instanceof Schemas.OfApply.Data) {
+      return kindOf("apply", [["parameters", parameters], ["of", this.reference(schema.of)],
+        ["arguments", [...schema.arguments].map(([name, value]) => argument(name, value))], ["description", schema.description]]);
     }
     throw new TypeError(`not a schema: ${repr(schema)}`);
   }
+}
+
+/** A width or a bound, where it is not a term. */
+function literal(value: unknown): PlainData {
+  return Schemas.Form.is_term(value) ? null : value as PlainData;
+}
+
+/** The forms of the slots that hold terms, by slot; null if none does. */
+function terms(slots: [string, unknown][]): PlainMap | null {
+  const held = slots.filter(([, value]) => Schemas.Form.is_term(value));
+  return held.length === 0 ? null : new Map(held.map(([slot, value]) => [slot, form(value)]));
+}
+
+/** A term's plain form: its neutral form, `Schemas.Form.Schema`'s. */
+function form(term: unknown): PlainMap {
+  const neutral = Schemas.Form.of(term);
+  return present([["dialect", neutral.dialect], ["kind", neutral.kind],
+    ["attributes", [...neutral.attributes].map(([name, value]) => new Map<string, PlainData>([["name", name],
+      ["value", native(value, `attribute ${repr(name)} of a term`)]]))],
+    ["arguments", neutral.arguments.map((argument) => form(argument))]]);
+}
+
+/** A native value's plain form, as a `Schemas.Form.Value`: its basic type's branch, e.g. `{"int": 3}`. */
+function native(value: unknown, what: string): PlainMap {
+  const host = Schemas.NATIVE_TYPES.find((token) => Schemas.isNativeOf(token, value));
+  if (host === undefined) throw new TypeError(`${what} is not a native value: ${repr(value)}`);
+  const schema = new Schemas.OfNative.Data(host);
+  return new Map([[(schema.token as Schemas.OfNative.Token).name, schema.to_plain(value)]]);
+}
+
+/** An argument's plain form: its parameter's name, and its native `value` or its `term`. */
+function argument(name: string, value: unknown): PlainMap {
+  if (Schemas.Form.is_term(value)) return new Map<string, PlainData>([["name", name], ["term", form(value)]]);
+  return new Map<string, PlainData>([["name", name], ["value", native(value, `argument ${repr(name)}`)]]);
 }
 
 /** A schema's plain form, leaving out what is absent, false or empty, as a reader assumes. */
@@ -151,6 +206,7 @@ const BLANK: Record<string, () => Schema> = {
   union: () => new Schemas.OfUnion.Data(),
   intersection: () => new Schemas.OfIntersection.Data(),
   indexed: () => new Schemas.OfIndexed.Data(),
+  apply: () => new Schemas.OfApply.Data(),
 };
 
 /** A schema's kind and contents; a module's union values hold exactly one branch. */
@@ -163,7 +219,7 @@ function contentsOf(definition: Definition): [string, PlainMap] {
 class Reader {
   private readonly defined = new Map<string, Schema>();
 
-  constructor(private readonly store: Stores.Store, private readonly entries: PlainMap[]) {}
+  constructor(private readonly store: Stores.Store, private readonly entries: PlainMap[], private readonly make: Make | null = null) {}
 
   read(): Map<string, Schema> {
     for (const entry of this.entries) {
@@ -203,11 +259,32 @@ class Reader {
     return schema;
   }
 
-  /** Properties, branches or parts, as `make` builds them from their name, type and description. */
-  private members<M>(members: PlainData | undefined, make: (fields: { name: string; type: Schemas.OfAny.Data;
+  /** Properties, branches, parts or parameters, as `make` builds them from their name, type and description. */
+  private members<M>(members: PlainData | undefined, make: (fields: { name: string; type: Schemas.OfAny.Data | null;
     description: string | null }) => M): M[] {
     return ((members as PlainMap[] | undefined) ?? []).map((m) => make({ name: m.get("name") as string,
-      type: this.type(m.get("type") as Definition), description: (m.get("description") as string | undefined) ?? null }));
+      type: m.has("type") ? this.type(m.get("type") as Definition) : null,
+      description: (m.get("description") as string | undefined) ?? null }));
+  }
+
+  /** The term a plain form describes: a form, or what `make` makes of it. */
+  private term(plain: PlainMap): unknown {
+    const form = this.form(plain);
+    return this.make === null ? form : this.make(form);
+  }
+
+  private form(plain: PlainMap): Schemas.Form.Data {
+    const attributes = ((plain.get("attributes") as PlainMap[] | undefined) ?? [])
+      .map((a) => [a.get("name") as string, nativeOf(a.get("value") as PlainMap)] as [string, Native]);
+    return new Schemas.Form.Data(plain.get("kind") as string, new Map(attributes),
+      ((plain.get("arguments") as PlainMap[] | undefined) ?? []).map((argument) => this.form(argument)),
+      (plain.get("dialect") as string | undefined) ?? null);
+  }
+
+  /** A width or a bound: its int, or the term `terms` holds for it. */
+  private slot(body: PlainMap, slot: string, absent: unknown = null): unknown {
+    const terms = (body.get("terms") as PlainMap | undefined) ?? new Map();
+    return terms.has(slot) ? this.term(terms.get(slot) as PlainMap) : body.get(slot) ?? absent;
   }
 
   /** Writes the contents of `definition` into `schema`, a blank schema of its kind, and returns it. */
@@ -215,12 +292,14 @@ class Reader {
     const [, body] = contentsOf(definition);
     const list = (key: string) => (body.get(key) as PlainData[] | undefined) ?? [];
     schema.description = (body.get("description") as string | undefined) ?? null;
+    schema.parameters = new Map(this.members(body.get("parameters"), (f) => new Schemas.OfParameter.Data(f))
+      .map((p) => [p.name, p]));
     const properties = () => new Map(this.members(body.get("properties"), (f) => new Schemas.OfProperty.Data(f))
       .map((p) => [p.name, p]));
     if (schema instanceof Schemas.OfNative.Data) {
       schema.token = new Schemas.OfNative.Token(body.get("format") as string, body.get("name") as string);
-      schema.bits = (body.get("bits") as bigint | undefined) ?? null;
-      schema.bytes = (body.get("bytes") as bigint | undefined) ?? null;
+      schema.bits = this.slot(body, "bits");
+      schema.bytes = this.slot(body, "bytes");
     } else if (schema instanceof Schemas.OfObject.Data) {
       schema.properties = properties();
       schema.adjacencies = new Map((list("adjacencies") as PlainMap[]).map((a) => [a.get("name") as string,
@@ -236,14 +315,23 @@ class Reader {
       schema.branches = this.members(body.get("branches"), (f) => new Schemas.OfUnion.Branch(f));
     } else if (schema instanceof Schemas.OfIntersection.Data) {
       schema.parts = this.members(body.get("parts"), (f) => new Schemas.OfIntersection.Part(f));
-    } else {
-      const indexed = schema as Schemas.OfIndexed.Data;
-      indexed.item = this.type(body.get("item") as Definition);
-      indexed.key = body.has("key") ? this.type(body.get("key") as Definition) : null;
+    } else if (schema instanceof Schemas.OfIndexed.Data) {
+      schema.item = this.type(body.get("item") as Definition);
+      schema.key = body.has("key") ? this.type(body.get("key") as Definition) : null;
       const extent = body.get("extent") as PlainMap | undefined;
-      indexed.extent = extent === undefined ? null
-        : new Schemas.OfIndexed.Extent((extent.get("minimum") as bigint | undefined) ?? 0n, (extent.get("maximum") as bigint | undefined) ?? null);
+      schema.extent = extent === undefined ? null : new Schemas.OfIndexed.Extent(this.slot(extent, "minimum", 0n), this.slot(extent, "maximum"));
+    } else {
+      const apply = schema as Schemas.OfApply.Data;
+      apply.of = this.type(body.get("of") as Definition);
+      apply.arguments = new Map((list("arguments") as PlainMap[]).map((a) => [a.get("name") as string,
+        a.has("term") ? this.term(a.get("term") as PlainMap) : nativeOf(a.get("value") as PlainMap)]));
     }
     return schema;
   }
+}
+
+/** The native value of a `Schemas.Form.Value`'s plain form, e.g. `{"int": 3}`. */
+function nativeOf(plain: PlainMap): Native {
+  const [[name, value]] = [...plain] as [[string, PlainData]];
+  return new Schemas.OfNative.Data(new Schemas.OfNative.Token(Schemas.BASIC, name)).from_plain(value);
 }

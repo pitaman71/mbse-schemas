@@ -78,7 +78,8 @@ class _AnyWriter:
     when something links to it."""
 
     def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfAny.Data, ref: Ref, symbol: Symbol):
-        self._out, self._name, self._schema, self._ref, self._symbol = out, name, schema, ref, symbol
+        self._out, self._name, self._ref, self._symbol = out, name, ref, symbol
+        self._schema = Schemas.structure(schema)
 
     def as_native(self, callback: Callable[[Visitors.OfNative], Any]) -> _AnyWriter:
         if not isinstance(self._schema, Schemas.OfNative.Data):
@@ -184,8 +185,8 @@ _INT = Schemas.OfNative.Data(int)
 def _text_keyed(schema: Schemas.OfIndexed.Data) -> bool:
     """Whether a list is written as a mapping from its keys' text: a keyed list whose key is a native whose text never
     starts with `$` (a float, a bool, bytes), so that no key reads as one of the wire format's markers."""
-    return (not schema.positional and isinstance(schema.key, Schemas.OfNative.Data)
-            and schema.key.type in (float, bool, bytes))
+    key = Schemas.structure(schema.key)
+    return not schema.positional and isinstance(key, Schemas.OfNative.Data) and key.type in (float, bool, bytes)
 
 
 def _written_key(writer: Any, schema: Any, key: Callable[[Visitors.OfAny], Any]) -> PlainData:
@@ -220,14 +221,14 @@ class _KeyedWriter:
     def __init__(self, out: dict[str, PlainData] | list[PlainData], name: str, schema: Schemas.OfIndexed.Data, ref: Ref,
                  symbol: Symbol):
         self._out, self._name, self._schema, self._ref, self._symbol = out, name, schema, ref, symbol
-        key = schema.key
+        key = Schemas.structure(schema.key)
         self._pairs: list[list[PlainData]] = (
             [[key.to_plain(key.from_key(text)), value] for text, value in out.items()] if isinstance(out, dict)
             else [[entry["key"], entry["value"]] for entry in out])  # type: ignore[index]
 
     def _flush(self) -> _KeyedWriter:
         if isinstance(self._out, dict):
-            key = self._schema.key
+            key = Schemas.structure(self._schema.key)
             self._out.clear()
             self._out.update((key.to_key(key.from_plain(k)), v) for k, v in self._pairs)
         else:
@@ -552,6 +553,7 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context:
             steps: Steps = ()) -> Any:
     """The value `plain` holds under `schema`, located at the path `where`: a native, a `_Record`, or a list of the
     items' values."""
+    schema = Schemas.structure(schema)
     if isinstance(schema, Schemas.OfNative.Data):
         try:
             return schema.from_plain(plain)
@@ -560,7 +562,7 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context:
     if isinstance(schema, Schemas.OfIndexed.Data) and schema.positional:
         if not isinstance(plain, list):
             raise DecodeError(f"a list must be an array, got {type(plain).__name__}", path=path(*where))
-        return [_decode(schema.item, item, (*where, i), context, (*steps, (i, type(schema.item))))
+        return [_decode(schema.item, item, (*where, i), context, (*steps, (i, _kind(schema.item))))
                 for i, item in enumerate(plain)]
     if isinstance(schema, Schemas.OfIndexed.Data):
         return _decode_keyed(schema, plain, where, context, steps)
@@ -577,7 +579,7 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context:
             rows[key] = _decode_rows(adjacencies[key], item, where, key)
         elif key in schema.properties:
             values[key] = _decode(schema.properties[key].type, item, (*where, key), context,
-                                  (*steps, (key, type(schema.properties[key].type))))
+                                  (*steps, (key, _kind(schema.properties[key].type))))
         else:
             raise DecodeError(f"{owner} has no {member} {key!r}", path=path(*where, key))
     if isinstance(schema, Schemas.OfUnion.Data) and len(values) != 1:
@@ -585,6 +587,11 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context:
     if rows:
         context.entries.append((_Found(context.owner, steps), rows))  # type: ignore[union-attr]
     return _Record(schema, values)
+
+
+def _kind(schema: Schemas.OfAny.Data) -> type:
+    """The kind of a type's values: its structure's (see `Schemas.structure`)."""
+    return type(Schemas.structure(schema))
 
 
 class _Keyed(NamedTuple):
@@ -604,10 +611,10 @@ def _decode_keyed(schema: Schemas.OfIndexed.Data, plain: PlainData, where: tuple
         pairs = []
         for i, (text, value) in enumerate(plain.items()):
             try:
-                key = schema.key.from_key(text)
+                key = Schemas.structure(schema.key).from_key(text)
             except DecodeError as error:
                 raise error.at(path(*where, text)) from None
-            pairs.append((key, _decode(item, value, (*where, text), context, (*steps, (i, type(item))))))
+            pairs.append((key, _decode(item, value, (*where, text), context, (*steps, (i, _kind(item))))))
         return _Keyed(pairs)
     if not isinstance(plain, list):
         raise DecodeError(f"a keyed list must be an array, got {type(plain).__name__}", path=path(*where))
@@ -619,7 +626,7 @@ def _decode_keyed(schema: Schemas.OfIndexed.Data, plain: PlainData, where: tuple
         first = seen.setdefault(_decoded_key(key), i)
         if first != i:
             raise DecodeError(f"the same key as item {first}", path=path(*where, i, "key"))
-        pairs.append((key, _decode(item, entry["value"], (*where, i, "value"), context, (*steps, (i, type(item))))))
+        pairs.append((key, _decode(item, entry["value"], (*where, i, "value"), context, (*steps, (i, _kind(item))))))
     return _Keyed(pairs)
 
 
@@ -768,7 +775,7 @@ def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
                 adjacencies[key] = _decode_rows(object_schema.adjacencies[key], value, where, key)
             elif key in object_schema.properties:
                 properties[key] = _decode(object_schema.properties[key].type, value, (*where, key), context,
-                                          ((key, type(object_schema.properties[key].type)),))
+                                          ((key, _kind(object_schema.properties[key].type)),))
             else:
                 raise DecodeError(f"{names[symbol]!r} has no property or adjacency {key!r}", path=path(*where, key))
         decoded[symbol] = (properties, adjacencies)

@@ -431,7 +431,8 @@ class Check {
 
   /** Problems with a property's value: its kind and type, recursively, and that a union value holds one branch and an
    * intersection value every part. */
-  private valueProblems(label: string, schema: Schemas.OfAny.Data, item: unknown): string[] {
+  private valueProblems(label: string, type: Schemas.OfAny.Data, item: unknown): string[] {
+    const schema = Schemas.structure(type) as Schemas.OfAny.Data;
     if (schema instanceof Schemas.OfNative.Data) {
       const problem = nativeProblem(schema, item);
       return problem === null ? [] : [`${label}: ${problem}`];

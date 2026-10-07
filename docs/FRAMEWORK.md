@@ -38,6 +38,9 @@ The schema elements include:
 - `OfProperty` : a property of an object or a relation's entries: its `name` and `type`, an `OfAny`. An object's or
                  relation's `properties` map each name to its `OfProperty`, in declared order, so a property's type is
                  `schema.properties['home'].type`.
+- `OfParameter` : a parameter a schema of any kind declares: its `name`, `type` and `description`, a variable determined
+                  where the schema is referred to (see Parametrics).
+- `OfApply` : a parametric schema applied to arguments, a type whose values are the applied schema's (see Parametrics).
 - `OfAdjacency` : declares that a particular `OfObject` is adjacent to an `OfRelation` via
                   a particular link name. Relations name their links without types
                   (`.links('contact', 'address')`); each object declares its adjacencies:
@@ -570,7 +573,7 @@ are written, read, validated and compared like any other objects.
 - **A module holds named schemas.** `Schemas.Module.Schema` is a reference object schema, registered in every store of
   proxies as `Schemas.Module`, whose `schemas` property is a list of `Schemas.Module.Entry` value objects, each a `name` and a
   `schema`, a `Schemas.Module.Definition`: a union of the schema kinds, `native`, `object`, `union`, `intersection`,
-  `indexed` and `relation`. A snapshot of schemas is a snapshot of a module.
+  `indexed`, `apply` and `relation`. A snapshot of schemas is a snapshot of a module.
 - **`Modules` translates.** `Modules.module(store, schemas)` returns a module holding named schemas, each under its
   name, built in the store, and `Modules.schemas(store, module)` the schemas a module holds, by name, each read back
   with its name. Both go through the module's plain form.
@@ -578,8 +581,10 @@ are written, read, validated and compared like any other objects.
   declared order: an object schema's `properties` (`name`, `type`, `description`) and `adjacencies` (`name`,
   `relation`, `me`, `description`), with its `singleton` and `ref`; a union's `branches` and an intersection's `parts`
   (`name`, `type`, `description`); a relation's `links` (strings), `properties` and `uniques` (lists of strings, each
-  sorted); and a list's `item`, `key` and `extent` (`minimum`, `maximum`). A native is its token's `format` and `name`,
-  and its `bits` or `bytes`. Every kind ends with its `description`. What is absent, false or empty is left out.
+  sorted); a list's `item`, `key` and `extent` (`minimum`, `maximum`, and `terms` for a bound that is a term); and an
+  application's `of` and `arguments` (`name`, and a native `value` or a `term`). A native is its token's `format` and
+  `name`, its `bits` or `bytes`, and `terms` for a width that is a term. Every kind starts with its `parameters` (as
+  properties are written) and ends with its `description`. What is absent, false or empty is left out.
 - **A type is a schema of any kind, inline, or a name**: `Schemas.OfAny.Schema`, a union of the kinds and `named`, a
   value object `{"name": ...}` (union branches are of one kind, so a name is a value object too). A property's type is
   `{"native": {"format": "basic", "name": "str"}}` or `{"named": {"name": "Phone"}}`, and an adjacency's relation is
@@ -616,7 +621,7 @@ import one, so the dependency keeps pointing one way.
 
 ## Parametrics
 
-Status: a design for review; nothing is built. The decisions under Decided are made; the rest are proposals.
+Status: declaring, applying and writing parameters is built (0.7); evaluating them is a proposal (see Not yet built).
 
 A parameter is a variable of a schema, or of anything else that declares it, that is determined where that element is
 referred to, not by data. mbse-patterns' symbols are the other kind of variable: a predicate's symbol ranges over a
@@ -631,8 +636,8 @@ resolving constraints.
 - **A parameter is a variable whose binder is a schema** (or, elsewhere, a predicate, a statement, a definition).
   Its `OfParameter` declares it; a reference to it is an ordinary variable, mbse-expressions' `OfVariable` (or a
   dialect's `identifier`), resolved by name to the innermost binder that declares it, as a `let` or an `import`
-  resolves its names. A parameter shadows the same name declared further out. (This replaces an earlier decision, that a
-  reference holds its parameter by link: within a binder the name resolves to exactly one declaration, which is the
+  resolves its names. A parameter shadows the same name declared further out. (This replaces an earlier decision, that
+  a reference holds its parameter by link: within a binder the name resolves to exactly one declaration, which is the
   link, and a reference reads the same in a schema, in an expression and in a module.)
 - **Parameters stay parameters in generated code.** Each target language expresses them as its own construct (a C++
   template parameter, a SystemVerilog `parameter`), not as values substituted before generating.
@@ -640,40 +645,53 @@ resolving constraints.
   element's own parameters, and equality after substitution, each to the extent possible.
 - **Unknown is an outcome of validation.** Data checked against a schema whose unbound parameters it depends on is
   neither valid nor invalid there.
+- **A term in a schema is written as a nested form**, `Schemas.Form`: mbse-expressions' `Terms.Form` is this class.
 
-### Proposed
+### Built
 
-- **`Schemas.OfParameter` is an element**, like a property: a `name`, a `type` (a schema) and a `description`. It is
-  not a kind of schema, since no property's value is a parameter. Its type is usually a native: `int` for an extent or
-  a width. A parameter whose type is the meta-schema `Schemas.OfAny.Schema` is a type parameter, whose argument is a
-  schema (a C++ `typename`, a SystemVerilog `parameter type`).
-- **Any kind of schema binds parameters**: `.parameters(spec, ...)`, held in declared order as `parameters`, by name,
-  as properties are. A parameter's scope is its binder, inline schemas nested in it included. A variable that no
-  enclosing binder declares is free, and `validate()` reports it: a schema has no ambient scope to resolve it in. In the other repositories, expressions, predicates, statements and definitions
-  bind `OfParameter`s the same way.
-- **A parameter stands where a literal does.** Here that is an extent's `minimum` and `maximum` and a native's `bits`
-  and `bytes`: each takes an int or an expression term (below), a lone variable (`n`) being the simplest. Within a
-  module schemas nest inline, so a variable written by name resolves on reading to the same binder it did before.
-- **`Schemas.OfApply` refers to a parametric schema with arguments**: a type, `{"apply": {"of": {"named": {"name":
-  "Matrix"}}, "arguments": [{"name": "rows", "value": 3}, ...]}}`. Arguments are held by parameter, so named;
-  positional ones are a builder's convenience, taken in declared order. Applying with some arguments leaves the other
-  parameters unbound (partial binding); an argument may refer to a parameter of the element that holds the `OfApply`
-  (dependent arguments, `Matrix(rows=3, cols=n)`). A parametric schema used without `OfApply` has every parameter
-  unbound. mbse-patterns' `OfApply` applies a predicate the same way, so the two share a name.
-- **An argument is an int or an expression**, which may refer to parameters (`rows * cols`, or `n` alone). This
-  package does not depend on mbse-expressions, so a term is held as the object it is, of its own registered schema,
-  and evaluating one, a lone variable included, takes an evaluator from the caller (see Expressions), given the
+- **`Schemas.OfParameter` is an element**, like a property: a `name`, a `type` (a schema, or none for a parameter of
+  any type) and a `description`. It is not a kind of schema, since no property's value is a parameter. A native's
+  parameters are part of it, as its name is; a parameter compares by what it holds.
+- **Every kind of schema binds parameters**: `.parameters(spec, ...)`, held in declared order as `parameters`, by name,
+  as properties are. A parameter's scope is its binder, inline schemas nested in it included. `validate()` reports
+  reserved names and bad types and descriptions; it cannot see which names a term refers to, so a variable no
+  enclosing binder declares is for whoever understands the term's dialect to report (mbse-expressions).
+- **A term stands where a literal does**: an extent's `minimum` and `maximum` and a native's `bits` and `bytes` each
+  take an int or a term. A term is anything with `form()` and `dialect()`, as mbse-expressions' terms are, or a
+  `Schemas.Form`: `Form(kind, attributes, arguments, dialect)`, native attributes by name and forms as arguments, the
+  dialect given at the root. `Form.of(term)` gives a term's form. `validate()` checks a form's shape and leaves a
+  dialect's term to its dialect; bounds compare only when both are ints, and a list's `capacity` needs int bounds.
+- **`Schemas.OfApply` refers to a parametric schema with arguments**: a type, built by `.of(schema)` and
+  `.argument(name, value)` or `.arguments(*values)` (in the applied schema's parameter order), or `t.as_apply(...)`.
+  An argument is a native value or a term. Applying with some arguments leaves the others unbound (partial binding); an
+  argument may be a term over a parameter of the application's own (`Square[n] = Matrix(rows=n, cols=n)`, dependent
+  arguments). `validate()` reports unknown parameters, literal arguments of the wrong native type and arguments that
+  are neither, an application of itself, and the applied schema's own problems. An application is equal to itself
+  alone, as other schemas are. mbse-patterns' `OfApply` applies a predicate the same way, so the two share a name.
+- **Data of an application is data of its applied schema.** `Schemas.structure(type)` follows applications to the
+  schema that gives a type its structure; proxies, snapshots, validation, comparison and bound classes all read and
+  write through it, wherever a type stands: a property, an item, a key, a branch, a part, an entry property.
+- **Modules write all of it** (see Meta-schemas): a kind's `parameters` first, a width's or bound's term in the
+  holder's `terms` (`{"minimum": 1, "terms": {"maximum": {...}}}`), and an application as `{"apply": {"of": ...,
+  "arguments": [{"name": "rows", "value": {"int": 3}}, {"name": "cols", "term": {...}}]}}`. A form is
+  `{"dialect", "kind", "attributes": [{"name", "value"}], "arguments"}`, each attribute's and argument's native value
+  by its basic type (`{"float": "NaN"}`, `{"bytes": "AA=="}`). Reading gives forms back, or what the caller's `make`
+  makes of each (`Modules.schemas(store, module, make)`), e.g. a dialect's terms.
+
+### Not yet built
+
+- **An argument's value, and a term's, comes from an evaluator the caller gives** (see Expressions), with the
   arguments as its scope; without one, or with a parameter unbound, the value is unknown.
 - **Validation reports what it cannot decide.** `Validators.Validate` keeps returning definite problems, and also
-  reports unknowns, each with its path and why ("extent maximum: parameter 'n' is unbound"). A schema's `validate()`
-  checks scopes, arguments' names, and the types of literal arguments.
+  reports unknowns, each with its path and why ("extent maximum: parameter 'n' is unbound"). Today a bound that is a
+  term is not checked against data at all.
 - **Substitution is an operation, not a representation**: applying literal arguments gives the schema they determine,
   for proxies, validation and equality after substitution. Generated code keeps the parameters.
 
 ### Later, elsewhere
 
-- mbse-expressions: schemas as binders, so that `free` and validation's "bound" see their parameters, and an
-  evaluator for the terms schemas hold.
+- mbse-expressions: schemas as binders, so that `free` and validation's "bound" see their parameters; the free names of
+  the terms a schema holds; an evaluator for those terms; a `make` for modules.
 - mbse-patterns: a predicate's parameters become `OfParameter`s, and applying one binds its symbols and its parameters
   apart (today both are one positional list). Both are variables the predicate binds; they differ in what
   determines them, data or the application.
@@ -773,6 +791,10 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Nothing is mandatory except as specified by a constraint: properties are optional by default, and mandatory
   participation in a relation is expressed as a constraint (directory membership is required by well-formedness).
 - `OfValue` is not a base class; renamed `OfAny`.
+- Parameters (0.7): every kind of schema declares `OfParameter`s, `OfApply` applies a parametric schema to arguments,
+  and a term (a `Schemas.Form`, or a dialect's term) may stand where a width or an extent's bound does. A parameter is a
+  variable whose binder is the schema; data of an application is data of its applied schema (`Schemas.structure`). See
+  Parametrics, which also lists what is not built yet.
 - Every element may be described (0.6): schemas, properties, adjacencies, branches and parts hold an optional
   `description`, written in modules and read back. So that a property can hold one, a property is an element,
   `OfProperty.Data`, and `properties` maps a name to it rather than to its type, as a union's or intersection's

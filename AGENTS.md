@@ -23,7 +23,9 @@ programs, languages or tools must agree on. Two equivalent implementations exist
   a *term* (mbse-expressions), and of a program tree a *syntax node* (mbse-programs); never a bare "node" in code,
   docs or messages. What a specification requires is a *constraint*, never a "rule"; a constraint is checked,
   resolved or generated from, never executed ([MBSE.md, What a specification is made
-  of](MBSE.md#what-a-specification-is-made-of)).
+  of](MBSE.md#what-a-specification-is-made-of)). Across this many languages, terms collide (an SVA
+  `property`, a C++ template parameter, a SystemVerilog `constraint` block): wherever ours meets a language's own,
+  in docs and examples, qualify the colliding term with whose it is.
 - **The README opens with why.** Its first sentence or paragraph says, TL;DR style, why this repository exists, in
   the terms of `MBSE.md`; what it is comes after. Keep that opening true as the repository changes.
 - **Every human-facing document has navigation.** A `{previous, home, next}` line heads and ends each document in
@@ -73,5 +75,9 @@ npm run portability                         # the core without Node (browser bun
   That tool is kept here, in [scripts/siblings.py](scripts/siblings.py), and each dependent's copy only runs it; its
   tests are `python3 -m unittest discover -s scripts`. It is scaffolding while the repositories co-evolve unpublished:
   keep it small.
-- Generated bindings will live in one repository per target language (e.g. mbse-cpp, mbse-python, mbse-typescript,
-  mbse-systemverilog), each depending on this one.
+- Generated code will live in one repository per target language family, mbse-codegen-ccpp, mbse-codegen-python,
+  mbse-codegen-typescript and mbse-codegen-verilog (Verilog and SystemVerilog), each rendering schemas (`Codegen/Types`),
+  expressions (`Codegen/Expressions`) and patterns (`Codegen/Patterns`) as idiomatic, performant source, through
+  mbse-programs' syntax trees, and keeping their parameters as the language's own (templates, `parameter`s). Each
+  generates step by step, every ambiguity a parameter of a step that a person or an agent resolves, or a policy the
+  caller chooses up front; the steps' framework may become a repository of its own, mbse-transforms.

@@ -614,6 +614,73 @@ Nothing in this package evaluates expressions: a union value names its branch, s
 an evaluator. Anything here that comes to evaluate constraints will take an evaluator from its caller rather than
 import one, so the dependency keeps pointing one way.
 
+## Parametrics
+
+Status: a design for review; nothing is built. The decisions under Decided are made; the rest are proposals.
+
+A parameter is a variable of a schema, or of anything else that declares it, that is determined where that element is
+referred to, not by data. mbse-patterns' symbols are the other kind of variable: a predicate's symbol ranges over a
+store's data, and its parameters are given where the predicate is applied. In the terms of
+[MBSE.md](../MBSE.md#what-a-specification-is-made-of), an argument is a value constraint (`rows = 3`) and a parameter
+without one is an unrestricted variable, so inferring a shape (a concatenation's extent, the sum of its parts') is
+resolving constraints.
+
+### Decided
+
+- **No defaults.** A parameter given no argument stays unbound.
+- **A parameter is a variable whose binder is a schema** (or, elsewhere, a predicate, a statement, a definition).
+  Its `OfParameter` declares it; a reference to it is an ordinary variable, mbse-expressions' `OfVariable` (or a
+  dialect's `identifier`), resolved by name to the innermost binder that declares it, as a `let` or an `import`
+  resolves its names. A parameter shadows the same name declared further out. (This replaces an earlier decision, that a
+  reference holds its parameter by link: within a binder the name resolves to exactly one declaration, which is the
+  link, and a reference reads the same in a schema, in an expression and in a module.)
+- **Parameters stay parameters in generated code.** Each target language expresses them as its own construct (a C++
+  template parameter, a SystemVerilog `parameter`), not as values substituted before generating.
+- **At a reference**, named and positional arguments, partial binding, arguments that depend on the referring
+  element's own parameters, and equality after substitution, each to the extent possible.
+- **Unknown is an outcome of validation.** Data checked against a schema whose unbound parameters it depends on is
+  neither valid nor invalid there.
+
+### Proposed
+
+- **`Schemas.OfParameter` is an element**, like a property: a `name`, a `type` (a schema) and a `description`. It is
+  not a kind of schema, since no property's value is a parameter. Its type is usually a native: `int` for an extent or
+  a width. A parameter whose type is the meta-schema `Schemas.OfAny.Schema` is a type parameter, whose argument is a
+  schema (a C++ `typename`, a SystemVerilog `parameter type`).
+- **Any kind of schema binds parameters**: `.parameters(spec, ...)`, held in declared order as `parameters`, by name,
+  as properties are. A parameter's scope is its binder, inline schemas nested in it included. A variable that no
+  enclosing binder declares is free, and `validate()` reports it: a schema has no ambient scope to resolve it in. In the other repositories, expressions, predicates, statements and definitions
+  bind `OfParameter`s the same way.
+- **A parameter stands where a literal does.** Here that is an extent's `minimum` and `maximum` and a native's `bits`
+  and `bytes`: each takes an int or an expression term (below), a lone variable (`n`) being the simplest. Within a
+  module schemas nest inline, so a variable written by name resolves on reading to the same binder it did before.
+- **`Schemas.OfApply` refers to a parametric schema with arguments**: a type, `{"apply": {"of": {"named": {"name":
+  "Matrix"}}, "arguments": [{"name": "rows", "value": 3}, ...]}}`. Arguments are held by parameter, so named;
+  positional ones are a builder's convenience, taken in declared order. Applying with some arguments leaves the other
+  parameters unbound (partial binding); an argument may refer to a parameter of the element that holds the `OfApply`
+  (dependent arguments, `Matrix(rows=3, cols=n)`). A parametric schema used without `OfApply` has every parameter
+  unbound. mbse-patterns' `OfApply` applies a predicate the same way, so the two share a name.
+- **An argument is an int or an expression**, which may refer to parameters (`rows * cols`, or `n` alone). This
+  package does not depend on mbse-expressions, so a term is held as the object it is, of its own registered schema,
+  and evaluating one, a lone variable included, takes an evaluator from the caller (see Expressions), given the
+  arguments as its scope; without one, or with a parameter unbound, the value is unknown.
+- **Validation reports what it cannot decide.** `Validators.Validate` keeps returning definite problems, and also
+  reports unknowns, each with its path and why ("extent maximum: parameter 'n' is unbound"). A schema's `validate()`
+  checks scopes, arguments' names, and the types of literal arguments.
+- **Substitution is an operation, not a representation**: applying literal arguments gives the schema they determine,
+  for proxies, validation and equality after substitution. Generated code keeps the parameters.
+
+### Later, elsewhere
+
+- mbse-expressions: schemas as binders, so that `free` and validation's "bound" see their parameters, and an
+  evaluator for the terms schemas hold.
+- mbse-patterns: a predicate's parameters become `OfParameter`s, and applying one binds its symbols and its parameters
+  apart (today both are one positional list). Both are variables the predicate binds; they differ in what
+  determines them, data or the application.
+- mbse-programs: statements and definitions bind and refer to parameters.
+- mbse-codegen-*: a parametric schema as each language's own construct. Where a language has no value parameters
+  (Python, TypeScript), how to express one is a parameter of the generating step.
+
 ## Language bindings
 
 Two implementations exist: `python3/` and `typescript5/`. Their APIs use the same names (snake_case included), the
@@ -649,6 +716,10 @@ it is fixed here:
   held by a property named `requires` ([MBSE.md](../MBSE.md#what-a-specification-is-made-of)); mbse-patterns'
   predicates already hold theirs so. Which scopes a constraint attaches to (a schema, a property, a relation, an
   interface, a whole specification), and how attached constraints combine into one conjunction, is not decided.
+  The elements that bind parameters (see Parametrics) are likely the same scopes.
+- **Parametrics**, beyond the proposal (see Parametrics): type parameters now or later; equality of differently
+  written applications that substitute alike (`Matrix(n, n)` and `Square(n)`); and what proxies accept for data
+  whose shape depends on an unbound parameter.
 - Sparse lists keyed by integers: an `int` key makes a list positional and dense. A sparse integer map needs a key of
   another schema (e.g. a value object holding the index), or a way to mark an `int` key as sparse.
 

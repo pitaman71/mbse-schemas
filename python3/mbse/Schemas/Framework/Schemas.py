@@ -44,7 +44,9 @@ __all__ = [
     "OfParameter",
     "OfApply",
     "Form",
+    "Evaluate",
     "structure",
+    "equivalent",
     "Module",
 ]
 
@@ -934,6 +936,49 @@ def structure(schema: Any) -> Any:
     """The schema that gives a type its structure: an application's applied schema (followed through applications),
     else the schema itself. Data of an application is data of its applied schema."""
     return _structure(schema)
+
+
+Evaluate = Callable[[Any, Mapping[str, Any]], Any]
+"""An evaluator the caller gives: the value of a term with parameters' values by name (`evaluate(term, scope)`), or
+None where it is unknown, e.g. a parameter it refers to has no value. This package evaluates nothing itself."""
+
+_UNKNOWN = object()
+
+
+def _applied(schema: Any, evaluate: Evaluate | None) -> tuple[Any, dict[str, Any]]:
+    """The schema a type applies, followed through applications, and the values its parameters take: each
+    application's arguments, evaluated with the values the application around it gives its own parameters (an unknown
+    one as `_UNKNOWN`). A parameter given no argument is left out."""
+    values: dict[str, Any] = {}
+    seen: set[int] = set()
+    while isinstance(schema, _ApplyData) and id(schema) not in seen:
+        seen.add(id(schema))
+        scope = {name: value for name, value in values.items() if value is not _UNKNOWN}
+        values = {name: _evaluated(value, scope, evaluate) for name, value in schema.arguments.items()}
+        schema = schema.of
+    return schema, values
+
+
+def _evaluated(value: Any, scope: Mapping[str, Any], evaluate: Evaluate | None) -> Any:
+    """An argument's value: a native as it is, a term's as `evaluate` gives it, or `_UNKNOWN`."""
+    if not _is_term(value):
+        return value
+    result = None if evaluate is None else evaluate(value, scope)
+    return _UNKNOWN if result is None else result
+
+
+def equivalent(a: Any, b: Any, evaluate: Evaluate | None = None) -> bool | None:
+    """Whether two types are the same after substitution: they apply the same schema (natives by value, other schemas
+    by identity), and give its parameters the same values, a parameter unbound in both alike. `Square(4)` and
+    `Matrix(4, 4)` are, where `Square[n]` applies `Matrix(n, n)`. None when that depends on a value that is unknown:
+    a term with no evaluator, or one `evaluate` cannot evaluate."""
+    (base, values), (other, others) = _applied(a, evaluate), _applied(b, evaluate)
+    if base != other or set(values) != set(others):
+        return False
+    pairs = [(values[name], others[name]) for name in values]
+    if any(type(x) is not type(y) or x != y for x, y in pairs if x is not _UNKNOWN and y is not _UNKNOWN):
+        return False
+    return None if any(_UNKNOWN in pair for pair in pairs) else True
 
 
 class _ApplyBuilder(_NamedBuilder[_ApplyData]):

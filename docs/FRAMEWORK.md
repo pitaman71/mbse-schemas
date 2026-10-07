@@ -221,7 +221,8 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   themselves into it through `accept`. `Validators.properties_of(value)` returns the property values any object writes when
   visited (a list as a `ListRecord` of its items and keys), and `Validators.entries_of(value)` its entries by adjacency
   (each an `EntryRecord` of its other links' targets and its property values), for other modules and packages that
-  read objects (e.g. mbse-expressions' evaluators).
+  read objects (e.g. mbse-expressions' evaluators). `Validators.Check(store, evaluate)` checks the same and also reports
+  what it cannot decide, an extent over unbound parameters for one (see Parametrics).
 
 - `Comparison` : for each schema element `OfX`, `Comparison.OfX` implements `Visitors.OfX`, records the value written
   into it, and compares it with another recording: `a.compare(b)` returns -1, 0, 1, or `None` when incomparable. See
@@ -621,7 +622,8 @@ import one, so the dependency keeps pointing one way.
 
 ## Parametrics
 
-Status: declaring, applying and writing parameters is built (0.7); evaluating them is a proposal (see Not yet built).
+Status: declaring, applying and writing parameters is built (0.7), and so is evaluating them, through an evaluator
+the caller gives (0.7.1). What is not built yet is listed below.
 
 A parameter is a variable of a schema, or of anything else that declares it, that is determined where that element is
 referred to, not by data. mbse-patterns' symbols are the other kind of variable: a predicate's symbol ranges over a
@@ -678,15 +680,34 @@ resolving constraints.
   by its basic type (`{"float": "NaN"}`, `{"bytes": "AA=="}`). Reading gives forms back, or what the caller's `make`
   makes of each (`Modules.schemas(store, module, make)`), e.g. a dialect's terms.
 
+- **A term's value comes from an evaluator the caller gives** (`Schemas.Evaluate`, see Expressions):
+  `evaluate(term, scope)`, the scope the values of the parameters in scope by name, gives the term's value, or none
+  where it is unknown. This package evaluates nothing itself.
+- **Scopes are lexical.** Within a schema, its parameters are in scope, and so, for an unnamed schema, are those of the
+  schema it stands in; a named schema is a scope of its own. Its own parameters shadow those further out. An
+  application's arguments are evaluated in the scope the application stands in and become the values of the applied
+  schema's parameters; one with no value leaves its parameter unbound.
+- **Checking reports what it cannot decide.** `Validators.Check(store, evaluate)(schema, value)` gives an `Outcome` of
+  `problems` and `unknowns`, which `holds` true, false or unknown (None). A positional list's extent is evaluated where
+  the list stands: its minimum labels the items, and its bounds decide whether the items fit; where a bound has no value
+  (no evaluator, or `evaluate` gives none) whether they fit is unknown ("whether 3 items fit the extent is unknown: its
+  maximum has no value"), and a bound that is not an int is a problem. `Validators.Validate(store, evaluate)` gives the
+  problems alone: what is unknown is not a problem.
+- **Equality after substitution**: `Schemas.equivalent(a, b, evaluate)` follows applications to the schema they apply
+  and the values they give its parameters, each application's arguments evaluated with the values given its own
+  parameters, so `Square(4)` and `Matrix(4, 4)` are equivalent where `Square[n]` applies `Matrix(n, n)`. Two types are
+  equivalent when they apply the same schema (natives by value) with the same parameters bound to the same values; the
+  answer is None where it depends on a value that is unknown.
+
 ### Not yet built
 
-- **An argument's value, and a term's, comes from an evaluator the caller gives** (see Expressions), with the
-  arguments as its scope; without one, or with a parameter unbound, the value is unknown.
-- **Validation reports what it cannot decide.** `Validators.Validate` keeps returning definite problems, and also
-  reports unknowns, each with its path and why ("extent maximum: parameter 'n' is unbound"). Today a bound that is a
-  term is not checked against data at all.
-- **Substitution is an operation, not a representation**: applying literal arguments gives the schema they determine,
-  for proxies, validation and equality after substitution. Generated code keeps the parameters.
+- **Substitution as an operation**: applying literal arguments to give the schema they determine, for code that
+  needs a concrete schema. Nothing needs it yet: validation evaluates in scope, and equivalence compares values.
+  Generated code keeps the parameters.
+- **Proxies with parametric extents**: a proxy addresses a positional list's items from its extent's minimum, or from
+  0 where the minimum is a term (see Open questions).
+- **Symbolic equality**: two applications whose arguments are the same unevaluated terms (`Matrix(n, n)` within two
+  schemas) are not known to be equivalent.
 
 ### Later, elsewhere
 
@@ -795,6 +816,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   and a term (a `Schemas.Form`, or a dialect's term) may stand where a width or an extent's bound does. A parameter is a
   variable whose binder is the schema; data of an application is data of its applied schema (`Schemas.structure`). See
   Parametrics, which also lists what is not built yet.
+- Evaluation (0.7.1): terms are evaluated by an evaluator the caller gives, in lexical scopes; `Validators.Check` gives
+  problems and unknowns, three-valued; `Schemas.equivalent` is equality after substitution.
 - Every element may be described (0.6): schemas, properties, adjacencies, branches and parts hold an optional
   `description`, written in modules and read back. So that a property can hold one, a property is an element,
   `OfProperty.Data`, and `properties` maps a name to it rather than to its type, as a union's or intersection's

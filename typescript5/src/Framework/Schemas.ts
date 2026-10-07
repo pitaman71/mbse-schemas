@@ -1267,6 +1267,48 @@ export function structure<T>(schema: T): T | AnyData | null {
   return current as T | AnyData | null;
 }
 
+/** An evaluator the caller gives: the value of a term with parameters' values by name (`evaluate(term, scope)`), or
+ * null (or undefined) where it is unknown, e.g. a parameter it refers to has no value. This package evaluates nothing
+ * itself. */
+export type Evaluate = (term: unknown, scope: ReadonlyMap<string, unknown>) => unknown;
+
+const UNKNOWN = Symbol("unknown");
+
+/** The schema a type applies, followed through applications, and the values its parameters take: each application's
+ * arguments, evaluated with the values the application around it gives its own parameters (an unknown one as
+ * `UNKNOWN`). A parameter given no argument is left out. */
+function applied(schema: unknown, evaluate: Evaluate | null): [unknown, Map<string, unknown>] {
+  let values = new Map<string, unknown>();
+  const seen = new Set<unknown>();
+  let current = schema;
+  while (current instanceof ApplyData && !seen.has(current)) {
+    seen.add(current);
+    const scope = new Map([...values].filter(([, value]) => value !== UNKNOWN));
+    values = new Map([...current.arguments].map(([name, value]) => [name, evaluated(value, scope, evaluate)]));
+    current = current.of;
+  }
+  return [current, values];
+}
+
+/** An argument's value: a native as it is, a term's as `evaluate` gives it, or `UNKNOWN`. */
+function evaluated(value: unknown, scope: ReadonlyMap<string, unknown>, evaluate: Evaluate | null): unknown {
+  if (!isTerm(value)) return value;
+  return (evaluate === null ? null : evaluate(value, scope)) ?? UNKNOWN;
+}
+
+/** Whether two types are the same after substitution: they apply the same schema (natives by value, other schemas by
+ * identity), and give its parameters the same values, a parameter unbound in both alike. `Square(4)` and
+ * `Matrix(4, 4)` are, where `Square[n]` applies `Matrix(n, n)`. null when that depends on a value that is unknown: a
+ * term with no evaluator, or one `evaluate` cannot evaluate. */
+export function equivalent(a: unknown, b: unknown, evaluate: Evaluate | null = null): boolean | null {
+  const [[base, values], [other, others]] = [applied(a, evaluate), applied(b, evaluate)];
+  const same = base instanceof NativeData ? base.equals(other) : base === other;
+  if (!same || values.size !== others.size || [...values.keys()].some((name) => !others.has(name))) return false;
+  const pairs = [...values].map(([name, value]) => [value, others.get(name)]);
+  if (pairs.some(([x, y]) => x !== UNKNOWN && y !== UNKNOWN && !sameNative(x, y))) return false;
+  return pairs.some((pair) => pair.includes(UNKNOWN)) ? null : true;
+}
+
 class ApplyBuilder extends NamedBuilder<ApplyData> {
   protected make(fields: Record<string, unknown>): ApplyData {
     return new ApplyData(fields as ConstructorParameters<typeof ApplyData>[0]);

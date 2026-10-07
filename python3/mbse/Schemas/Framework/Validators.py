@@ -4,6 +4,12 @@
 looks schemas up by name (see `Stores`). `Validate(store).Reachable(schema, root)` checks the root and every object
 reachable from it.
 
+`Check(store)(schema, value)` checks the same, and also reports what it cannot decide: an `Outcome` of `problems` and
+`unknowns`, which `holds` true, false or unknown. A list's extent may be a term over parameters (see `Schemas.OfApply`):
+it is evaluated by the evaluator the caller gives (`Check(store, evaluate)`), with the values the applications on the
+way give the parameters in scope; without an evaluator, or where `evaluate` gives no value, whether the list fits is
+unknown.
+
 The validator is a visitor: each object writes itself into a recorder through `Visitable.accept`. Checks:
 
 - the schemas involved pass `validate()`;
@@ -20,13 +26,14 @@ The validator is a visitor: each object writes itself into a recorder through `V
 
 from __future__ import annotations
 
-from collections.abc import Callable, Hashable
+from collections.abc import Callable, Hashable, Mapping
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from . import Errors, Reachable, Schemas, Stores, Visitors
 from .Visitors import Native
 
-__all__ = ["Validate", "properties_of", "entries_of", "ListRecord", "EntryRecord"]
+__all__ = ["Validate", "Check", "Outcome", "properties_of", "entries_of", "ListRecord", "EntryRecord"]
 
 
 # --- Recorders: Visitors that capture what an object writes into them ---
@@ -369,6 +376,10 @@ def _value_key(value: Any) -> Hashable:
 
 
 _ABSENT = ("absent",)
+_NO_EVALUATOR, _NO_VALUE = object(), object()  # a term's value where there is no evaluator, or it gave none
+
+Scope = Mapping[str, Any]
+"""The values of the parameters in scope, by name; an unbound parameter has none."""
 
 
 class _Entry:
@@ -388,9 +399,10 @@ class _Entry:
 
 
 class _Check:
-    def __init__(self, store: Stores.Store):
-        self._store = store
+    def __init__(self, store: Stores.Store, evaluate: Schemas.Evaluate | None = None):
+        self._store, self._evaluate = store, evaluate
         self.problems: list[str] = []
+        self.unknowns: list[str] = []
         self._schemas_checked: set[int] = set()
         self._entries: dict[int, tuple[Schemas.OfRelation.Data, dict[Hashable, _Entry]]] = {}
         self._value_schemas: dict[Hashable, Schemas.OfObject.Data] = {}  # the schemas of the value objects seen
@@ -410,7 +422,7 @@ class _Check:
             if name not in schema.properties:
                 self.problems.append(f"{label}.{name}: not a property of {value.schema_name()!r}")
                 continue
-            self.problems += self._value_problems(f"{label}.{name}", schema.properties[name].type, item)
+            self.problems += self._value_problems(f"{label}.{name}", schema.properties[name].type, item, {})
         for name, entries in record.adjacency_entries.items():
             if name not in schema.adjacencies:
                 self.problems.append(f"{label}.{name}: not an adjacency of {value.schema_name()!r}")
@@ -419,17 +431,47 @@ class _Check:
             for i, entry in enumerate(entries):
                 self.problems += self._entry(f"{label}.{name}[{i}]", adjacency, value, entry)
 
-    def _value_problems(self, label: str, schema: Schemas.OfAny.Data, item: Any) -> list[str]:
+    def _value(self, value: Any, scope: Scope) -> Any:
+        """A bound's or an argument's value: an int as it is, a term's as the evaluator gives it with `scope`."""
+        if not Schemas.Form.is_term(value):
+            return value
+        if self._evaluate is None:
+            return _NO_EVALUATOR
+        result = self._evaluate(value, scope)
+        return _NO_VALUE if result is None else result
+
+    def _enter(self, schema: Any, scope: Scope) -> tuple[Any, Scope]:
+        """The schema that gives a type its structure, and the scope within it. A named schema is a scope of its own;
+        an unnamed one sees the scope it stands in. Its own parameters shadow those further out, unbound unless an
+        application gives them arguments, which are evaluated in the scope the application stands in. None for an
+        application that applies itself, a problem its schema reports."""
+        if Schemas.structure(schema) is None:
+            return None, scope
+        given: dict[str, Any] = {}
+        while True:
+            inner = {name: value for name, value in ({} if getattr(schema, "name", None) else scope).items()
+                     if name not in getattr(schema, "parameters", {})}
+            inner.update(given)
+            if not isinstance(schema, Schemas.OfApply.Data):
+                return schema, inner
+            values = {name: self._value(value, inner) for name, value in schema.arguments.items()}
+            given = {name: value for name, value in values.items() if value is not _NO_EVALUATOR and value is not _NO_VALUE}
+            schema, scope = schema.of, inner
+
+    def _value_problems(self, label: str, schema: Schemas.OfAny.Data, item: Any, scope: Scope) -> list[str]:
         """Problems with a property's value: its kind and type, recursively, and that a union value holds one branch
-        and an intersection value every part."""
-        schema = Schemas.structure(schema)
+        and an intersection value every part. `scope` holds the values of the parameters in scope where the type
+        stands."""
+        schema, scope = self._enter(schema, scope)
+        if schema is None:
+            return []
         if isinstance(schema, Schemas.OfNative.Data):
             problem = _native_problem(schema, item)
             return [f"{label}: {problem}"] if problem else []
         if isinstance(schema, Schemas.OfIndexed.Data):
             if not isinstance(item, _ListRecord):
                 return [f"{label}: expected a list, got {_kind(item)}"]
-            return self._positional(label, schema, item) if schema.positional else self._keyed(label, schema, item)
+            return self._positional(label, schema, item, scope) if schema.positional else self._keyed(label, schema, item, scope)
         kind = _KINDS[type(schema)]
         noun, owner, member = _RECORDS[kind]
         if not isinstance(item, _ObjectRecord) or item.kind != kind:
@@ -439,7 +481,7 @@ class _Check:
             if name not in schema.properties:
                 problems.append(f"{label}.{name}: not a {member} of {owner}")
             else:
-                problems += self._value_problems(f"{label}.{name}", schema.properties[name].type, value)
+                problems += self._value_problems(f"{label}.{name}", schema.properties[name].type, value, scope)
         if kind == "union" and len(item.values) != 1:
             problems.append(f"{label}: a union value holds exactly one branch, got {len(item.values)}")
         missing = [name for name in schema.properties if name not in item.values] if kind == "intersection" else []
@@ -449,18 +491,32 @@ class _Check:
             problems += self._value_entries(label, schema, item)
         return problems
 
-    def _positional(self, label: str, schema: Schemas.OfIndexed.Data, item: _ListRecord) -> list[str]:
-        """Problems with a positional list's items, labeled by key, and with its extent."""
+    def _positional(self, label: str, schema: Schemas.OfIndexed.Data, item: _ListRecord, scope: Scope) -> list[str]:
+        """Problems with a positional list's items, labeled by key (from the extent's minimum, or 0 where it has no
+        value), and with its extent, whose bounds are evaluated in `scope`."""
+        extent = schema.extent
+        minimum = 0 if extent is None else self._value(extent.minimum, scope)
+        start = minimum if type(minimum) is int else 0
         problems = [problem for i, value in enumerate(item.values)
-                    for problem in self._value_problems(f"{label}[{schema.minimum + i}]", schema.item, value)]
-        capacity = schema.capacity
-        if capacity is not None and len(item.values) > capacity:
-            extent = schema.extent
-            problems.append(f"{label}: {len(item.values)} items are more than the extent "
-                            f"{extent.minimum}..{extent.maximum} holds")  # type: ignore[union-attr]
+                    for problem in self._value_problems(f"{label}[{start + i}]", schema.item, value, scope)]
+        if extent is None or extent.maximum is None or not item.values:
+            return problems
+        bounds = {"minimum": minimum, "maximum": self._value(extent.maximum, scope)}
+        count = len(item.values)
+        unknown = [(name, value) for name, value in bounds.items() if value is _NO_EVALUATOR or value is _NO_VALUE]
+        wrong = [(name, value) for name, value in bounds.items() if type(value) is not int]
+        if unknown:
+            name, value = unknown[0]
+            why = "is a term, and no evaluator was given" if value is _NO_EVALUATOR else "has no value"
+            self.unknowns.append(f"{label}: whether {count} items fit the extent is unknown: its {name} {why}")
+        elif wrong:
+            name, value = wrong[0]
+            problems.append(f"{label}: the extent's {name} is {value!r}, not an int")
+        elif count > bounds["maximum"] - bounds["minimum"] + 1:
+            problems.append(f"{label}: {count} items are more than the extent {bounds['minimum']}..{bounds['maximum']} holds")
         return problems
 
-    def _keyed(self, label: str, schema: Schemas.OfIndexed.Data, item: _ListRecord) -> list[str]:
+    def _keyed(self, label: str, schema: Schemas.OfIndexed.Data, item: _ListRecord, scope: Scope) -> list[str]:
         """Problems with a keyed list's items, labeled by position: each key's, a key that appears twice, each value's."""
         problems: list[str] = []
         seen: dict[Hashable, int] = {}
@@ -469,11 +525,11 @@ class _Check:
             if key is None:
                 problems.append(f"{at}.key: not set")
             else:
-                problems += self._value_problems(f"{at}.key", schema.key, key)
+                problems += self._value_problems(f"{at}.key", schema.key, key, scope)
                 first = seen.setdefault(_value_key(key), i)
                 if first != i:
                     problems.append(f"{at}.key: the same key as item {first}")
-            problems += self._value_problems(at, schema.item, value)
+            problems += self._value_problems(at, schema.item, value, scope)
         return problems
 
     def _value_entries(self, label: str, schema: Schemas.OfObject.Data, item: _ObjectRecord) -> list[str]:
@@ -514,7 +570,7 @@ class _Check:
             if name not in relation.properties:
                 problems.append(f"{label}.{name}: not a property of the relation")
                 continue
-            problems += self._value_problems(f"{label}.{name}", relation.properties[name].type, item)
+            problems += self._value_problems(f"{label}.{name}", relation.properties[name].type, item, {})
         full = _Entry({n: t for n, t in links.items() if t is not None}, entry.values)
         _, seen = self._entries.setdefault(id(relation), (relation, {}))
         seen.setdefault(full.key(set(relation.links) | set(relation.properties)), full)
@@ -571,39 +627,75 @@ def entries_of(value: Visitors.Visitable) -> dict[str, list[_EntryRecord]]:
 
 
 
-class Validate:
-    """Validates data against its schema. `Validate(store)(schema, value)` dispatches on the schema's kind."""
+@dataclass(frozen=True)
+class Outcome:
+    """What a check found: the `problems`, each a reason the data is invalid, and the `unknowns`, each something that
+    could not be decided."""
 
-    def __init__(self, store: Stores.Store):
-        self._store = store
+    problems: list[str]
+    unknowns: list[str]
 
-    def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> list[str]:
+    @property
+    def holds(self) -> bool | None:
+        """Whether the data is valid: False with a problem, else None with an unknown, else True."""
+        return False if self.problems else None if self.unknowns else True
+
+
+class Check:
+    """Checks data against its schema: `Check(store)(schema, value)` gives an `Outcome`, dispatching on the schema's
+    kind. Terms where a list's extent stands are evaluated by `evaluate`, if given."""
+
+    def __init__(self, store: Stores.Store, evaluate: Schemas.Evaluate | None = None):
+        self._store, self._evaluate = store, evaluate
+
+    def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> Outcome:
         if isinstance(schema, Schemas.OfNative.Data):
             return self.OfNative(schema, value)
         if isinstance(schema, Schemas.OfObject.Data):
             return self.OfObject(schema, value)
         raise NotImplementedError(f"{type(schema).__name__} cannot be validated yet")
 
-    def OfNative(self, schema: Schemas.OfNative.Data, value: Native) -> list[str]:
-        problems = schema.validate()
+    def OfNative(self, schema: Schemas.OfNative.Data, value: Native) -> Outcome:
         problem = _native_problem(schema, value)
-        return problems + ([problem] if problem else [])
+        return Outcome(schema.validate() + ([problem] if problem else []), [])
 
-    def OfObject(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> list[str]:
+    def OfObject(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> Outcome:
         """Checks one object and its entries; uniqueness only over the entries it is part of."""
         return self._run(schema, [value])
 
-    def Reachable(self, schema: Schemas.OfObject.Data, root: Visitors.Visitable) -> list[str]:
+    def Reachable(self, schema: Schemas.OfObject.Data, root: Visitors.Visitable) -> Outcome:
         """Checks the root and every object reachable from it through adjacencies."""
         return self._run(schema, Reachable.of(root))
 
-    def _run(self, schema: Schemas.OfObject.Data, values: list[Visitors.Visitable]) -> list[str]:
+    def _run(self, schema: Schemas.OfObject.Data, values: list[Visitors.Visitable]) -> Outcome:
         root = values[0]
         if self._store.schema(root.schema_name()) is not schema:
-            return [f"the value is a {root.schema_name()!r}, not an instance of the given schema"]
-        check = _Check(self._store)
+            return Outcome([f"the value is a {root.schema_name()!r}, not an instance of the given schema"], [])
+        check = _Check(self._store, self._evaluate)
         for i, value in enumerate(values):
             check.object(f"{value.schema_name()}#{i}", self._store.schema(value.schema_name()), value)
         check.links()
         check.uniques()
-        return check.problems
+        return Outcome(check.problems, check.unknowns)
+
+
+class Validate:
+    """Validates data against its schema: `Validate(store)(schema, value)` gives the problems `Check` finds, so what
+    is unknown is not a problem."""
+
+    def __init__(self, store: Stores.Store, evaluate: Schemas.Evaluate | None = None):
+        self._check = Check(store, evaluate)
+
+    def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> list[str]:
+        return self._check(schema, value).problems
+
+    def OfNative(self, schema: Schemas.OfNative.Data, value: Native) -> list[str]:
+        return self._check.OfNative(schema, value).problems
+
+    def OfObject(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> list[str]:
+        """Checks one object and its entries; uniqueness only over the entries it is part of."""
+        return self._check.OfObject(schema, value).problems
+
+    def Reachable(self, schema: Schemas.OfObject.Data, root: Visitors.Visitable) -> list[str]:
+        """Checks the root and every object reachable from it through adjacencies."""
+        return self._check.Reachable(schema, root).problems

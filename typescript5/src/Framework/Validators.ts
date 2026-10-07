@@ -5,6 +5,12 @@
  * looks schemas up by name (see `Stores`). `Validate(store).Reachable(schema, root)` checks the root
  * and every object reachable from it.
  *
+ * `Check(store)(schema, value)` checks the same, and also reports what it cannot decide: an `Outcome` of `problems`
+ * and `unknowns`, which `holds` true, false or unknown. A list's extent may be a term over parameters (see
+ * `Schemas.OfApply`): it is evaluated by the evaluator the caller gives (`Check(store, evaluate)`), with the values the
+ * applications on the way give the parameters in scope; without an evaluator, or where `evaluate` gives no value,
+ * whether the list fits is unknown.
+ *
  * The validator is a visitor: each object writes itself into a recorder through `Visitable.accept`. Checks:
  *
  * - the schemas involved pass `validate()`;
@@ -412,8 +418,16 @@ class Entry {
   }
 }
 
-class Check {
+/** A term's value where there is no evaluator, or where it gave none. */
+const NO_EVALUATOR = Symbol("no evaluator");
+const NO_VALUE = Symbol("no value");
+
+/** The values of the parameters in scope, by name; an unbound parameter has none. */
+type Scope = ReadonlyMap<string, unknown>;
+
+class Checker {
   readonly problems: string[] = [];
+  readonly unknowns: string[] = [];
   private readonly schemasChecked = new Set<unknown>();
   private readonly entries = new Map<Schemas.OfRelation.Data, Map<string, Entry>>();
   /** The schemas of the value objects seen. */
@@ -421,7 +435,37 @@ class Check {
   /** The links to value objects, checked once every value object has been seen. */
   private readonly valueLinks: [string, Schemas.OfRelation.Data, string, Visitable][] = [];
 
-  constructor(private readonly store: Stores.Store) {}
+  constructor(private readonly store: Stores.Store, private readonly evaluate: Schemas.Evaluate | null = null) {}
+
+  /** A bound's or an argument's value: an int as it is, a term's as the evaluator gives it with `scope`. */
+  private value(value: unknown, scope: Scope): unknown {
+    if (!Schemas.Form.is_term(value)) return value;
+    if (this.evaluate === null) return NO_EVALUATOR;
+    return this.evaluate(value, scope) ?? NO_VALUE;
+  }
+
+  /** The schema that gives a type its structure, and the scope within it. A named schema is a scope of its own; an
+   * unnamed one sees the scope it stands in. Its own parameters shadow those further out, unbound unless an
+   * application gives them arguments, which are evaluated in the scope the application stands in. null for an
+   * application that applies itself, a problem its schema reports. */
+  private enter(type: Schemas.OfAny.Data, scope: Scope): [Schemas.OfAny.Data | null, Scope] {
+    if (Schemas.structure(type) === null) return [null, scope];
+    let schema = type;
+    let outer = scope;
+    let given = new Map<string, unknown>();
+    for (;;) {
+      const inner = new Map([...(schema.name ? new Map() : outer)].filter(([name]) => !schema.parameters.has(name)));
+      for (const [name, value] of given) inner.set(name, value);
+      if (!(schema instanceof Schemas.OfApply.Data)) return [schema, inner];
+      given = new Map();
+      for (const [name, argument] of schema.arguments) {
+        const value = this.value(argument, inner);
+        if (value !== NO_EVALUATOR && value !== NO_VALUE) given.set(name, value);
+      }
+      outer = inner;
+      schema = schema.of as Schemas.OfAny.Data;
+    }
+  }
 
   private schema(label: string, schema: { validate(): string[] }): void {
     if (this.schemasChecked.has(schema)) return;
@@ -430,16 +474,17 @@ class Check {
   }
 
   /** Problems with a property's value: its kind and type, recursively, and that a union value holds one branch and an
-   * intersection value every part. */
-  private valueProblems(label: string, type: Schemas.OfAny.Data, item: unknown): string[] {
-    const schema = Schemas.structure(type) as Schemas.OfAny.Data;
+   * intersection value every part. `scope` holds the values of the parameters in scope where the type stands. */
+  private valueProblems(label: string, type: Schemas.OfAny.Data, item: unknown, outer: Scope): string[] {
+    const [schema, scope] = this.enter(type, outer);
+    if (schema === null) return [];
     if (schema instanceof Schemas.OfNative.Data) {
       const problem = nativeProblem(schema, item);
       return problem === null ? [] : [`${label}: ${problem}`];
     }
     if (schema instanceof Schemas.OfIndexed.Data) {
       if (!(item instanceof _ListRecord)) return [`${label}: expected a list, got ${_kind(item)}`];
-      return schema.positional ? this.positional(label, schema, item) : this.keyed(label, schema, item);
+      return schema.positional ? this.positional(label, schema, item, scope) : this.keyed(label, schema, item, scope);
     }
     const expected = recordKind(schema);
     const [what, owner, member] = RECORDS[expected];
@@ -449,7 +494,7 @@ class Check {
     for (const [name, value] of item.values) {
       const type = record.properties.get(name)?.type as Schemas.OfAny.Data | undefined;
       if (type === undefined) problems.push(`${label}.${name}: not a ${member} of ${owner}`);
-      else problems.push(...this.valueProblems(`${label}.${name}`, type, value));
+      else problems.push(...this.valueProblems(`${label}.${name}`, type, value, scope));
     }
     if (expected === "union" && item.values.size !== 1) {
       problems.push(`${label}: a union value holds exactly one branch, got ${item.values.size}`);
@@ -460,20 +505,33 @@ class Check {
     return problems;
   }
 
-  /** Problems with a positional list's items, labeled by key, and with its extent. */
-  private positional(label: string, schema: Schemas.OfIndexed.Data, item: _ListRecord): string[] {
+  /** Problems with a positional list's items, labeled by key (from the extent's minimum, or 0 where it has no value),
+   * and with its extent, whose bounds are evaluated in `scope`. */
+  private positional(label: string, schema: Schemas.OfIndexed.Data, item: _ListRecord, scope: Scope): string[] {
     const itemSchema = schema.item as Schemas.OfAny.Data;
-    const problems = item.values.flatMap((value, i) => this.valueProblems(`${label}[${schema.minimum + BigInt(i)}]`, itemSchema, value));
-    const capacity = schema.capacity;
-    if (capacity !== null && BigInt(item.values.length) > capacity) {
-      const extent = schema.extent as Schemas.OfIndexed.Extent;
-      problems.push(`${label}: ${item.values.length} items are more than the extent ${extent.minimum}..${extent.maximum} holds`);
+    const extent = schema.extent;
+    const minimum = extent === null ? 0n : this.value(extent.minimum, scope);
+    const start = typeof minimum === "bigint" ? minimum : 0n;
+    const problems = item.values.flatMap((value, i) => this.valueProblems(`${label}[${start + BigInt(i)}]`, itemSchema, value, scope));
+    if (extent === null || extent.maximum === null || item.values.length === 0) return problems;
+    const bounds: [string, unknown][] = [["minimum", minimum], ["maximum", this.value(extent.maximum, scope)]];
+    const count = item.values.length;
+    const unknown = bounds.find(([, value]) => value === NO_EVALUATOR || value === NO_VALUE);
+    const wrong = bounds.find(([, value]) => typeof value !== "bigint");
+    if (unknown !== undefined) {
+      const why = unknown[1] === NO_EVALUATOR ? "is a term, and no evaluator was given" : "has no value";
+      this.unknowns.push(`${label}: whether ${count} items fit the extent is unknown: its ${unknown[0]} ${why}`);
+    } else if (wrong !== undefined) {
+      problems.push(`${label}: the extent's ${wrong[0]} is ${repr(wrong[1])}, not an int`);
+    } else {
+      const [low, high] = bounds.map(([, value]) => value as bigint) as [bigint, bigint];
+      if (BigInt(count) > high - low + 1n) problems.push(`${label}: ${count} items are more than the extent ${low}..${high} holds`);
     }
     return problems;
   }
 
   /** Problems with a keyed list's items, labeled by position: each key's, a key that appears twice, each value's. */
-  private keyed(label: string, schema: Schemas.OfIndexed.Data, item: _ListRecord): string[] {
+  private keyed(label: string, schema: Schemas.OfIndexed.Data, item: _ListRecord, scope: Scope): string[] {
     const problems: string[] = [];
     const seen = new Map<string, number>();
     item.values.forEach((value, i) => {
@@ -482,12 +540,12 @@ class Check {
       if (key === null) {
         problems.push(`${at}.key: not set`);
       } else {
-        problems.push(...this.valueProblems(`${at}.key`, schema.key as Schemas.OfAny.Data, key));
+        problems.push(...this.valueProblems(`${at}.key`, schema.key as Schemas.OfAny.Data, key, scope));
         const equality = valueKey(key);
         if (seen.has(equality)) problems.push(`${at}.key: the same key as item ${seen.get(equality)}`);
         else seen.set(equality, i);
       }
-      problems.push(...this.valueProblems(at, schema.item as Schemas.OfAny.Data, value));
+      problems.push(...this.valueProblems(at, schema.item as Schemas.OfAny.Data, value, scope));
     });
     return problems;
   }
@@ -517,7 +575,7 @@ class Check {
         this.problems.push(`${label}.${name}: not a property of ${repr(value.schema_name())}`);
         continue;
       }
-      this.problems.push(...this.valueProblems(`${label}.${name}`, propertyType, item));
+      this.problems.push(...this.valueProblems(`${label}.${name}`, propertyType, item, new Map()));
     }
     for (const [name, list] of record.adjacencyEntries) {
       const adjacency = schema.adjacencies.get(name);
@@ -555,7 +613,7 @@ class Check {
         problems.push(`${label}.${name}: not a property of the relation`);
         continue;
       }
-      problems.push(...this.valueProblems(`${label}.${name}`, propertyType, item));
+      problems.push(...this.valueProblems(`${label}.${name}`, propertyType, item, new Map()));
     }
     const full = new Entry(new Map([...links].filter(([, t]) => t !== null)) as Map<string, Visitable>, entry.values);
     let seen = this.entries.get(relation);
@@ -621,6 +679,54 @@ export function entries_of(value: Visitable | { accept(visitor: OfObject): void 
  * entry as `entries_of` reads it: its other links' targets in `targets`, and its property values in `values`. */
 export { _EntryRecord as EntryRecord, _ListRecord as ListRecord };
 
+/** What a check found: the `problems`, each a reason the data is invalid, and the `unknowns`, each something that
+ * could not be decided. */
+export class Outcome {
+  constructor(readonly problems: string[], readonly unknowns: string[]) {}
+
+  /** Whether the data is valid: false with a problem, else null with an unknown, else true. */
+  get holds(): boolean | null {
+    return this.problems.length > 0 ? false : this.unknowns.length > 0 ? null : true;
+  }
+}
+
+export interface CheckCall {
+  (schema: unknown, value: unknown): Outcome;
+  OfNative(schema: Schemas.OfNative.Data, value: unknown): Outcome;
+  OfObject(schema: Schemas.OfObject.Data, value: Visitable): Outcome;
+  Reachable(schema: Schemas.OfObject.Data, root: Visitable): Outcome;
+}
+
+/** Checks data against its schema: `Check(store)(schema, value)` gives an `Outcome`, dispatching on the schema's kind.
+ * Terms where a list's extent stands are evaluated by `evaluate`, if given. */
+export function Check(store: Stores.Store, evaluate: Schemas.Evaluate | null = null): CheckCall {
+  const run = (schema: Schemas.OfObject.Data, values: Visitable[]): Outcome => {
+    const root = values[0] as Visitable;
+    if (store.schema(root.schema_name()) !== schema) {
+      return new Outcome([`the value is a ${repr(root.schema_name())}, not an instance of the given schema`], []);
+    }
+    const check = new Checker(store, evaluate);
+    values.forEach((value, i) => check.object(`${value.schema_name()}#${i}`, store.schema(value.schema_name()), value));
+    check.links();
+    check.uniques();
+    return new Outcome(check.problems, check.unknowns);
+  };
+  const OfNative = (schema: Schemas.OfNative.Data, value: unknown): Outcome => {
+    const problem = nativeProblem(schema, value);
+    return new Outcome([...schema.validate(), ...(problem ? [problem] : [])], []);
+  };
+  /** Checks one object and its entries; uniqueness only over the entries it is part of. */
+  const OfObject = (schema: Schemas.OfObject.Data, value: Visitable): Outcome => run(schema, [value]);
+  /** Checks the root and every object reachable from it through adjacencies. */
+  const ReachableCheck = (schema: Schemas.OfObject.Data, root: Visitable): Outcome => run(schema, Reachable.of(root));
+  const call = (schema: unknown, value: unknown): Outcome => {
+    if (schema instanceof Schemas.OfNative.Data) return OfNative(schema, value);
+    if (schema instanceof Schemas.OfObject.Data) return OfObject(schema, value as Visitable);
+    throw new NotImplementedError(`${schemaTypeName(schema)} cannot be validated yet`);
+  };
+  return Object.assign(call, { OfNative, OfObject, Reachable: ReachableCheck });
+}
+
 export interface ValidateCall {
   (schema: unknown, value: unknown): string[];
   OfNative(schema: Schemas.OfNative.Data, value: unknown): string[];
@@ -628,32 +734,17 @@ export interface ValidateCall {
   Reachable(schema: Schemas.OfObject.Data, root: Visitable): string[];
 }
 
-/** Validates data against its schema. `Validate(store)(schema, value)` dispatches on the schema's kind. */
-export function Validate(store: Stores.Store): ValidateCall {
-  const run = (schema: Schemas.OfObject.Data, values: Visitable[]): string[] => {
-    const root = values[0] as Visitable;
-    if (store.schema(root.schema_name()) !== schema) {
-      return [`the value is a ${repr(root.schema_name())}, not an instance of the given schema`];
-    }
-    const check = new Check(store);
-    values.forEach((value, i) => check.object(`${value.schema_name()}#${i}`, store.schema(value.schema_name()), value));
-    check.links();
-    check.uniques();
-    return check.problems;
-  };
-  const OfNative = (schema: Schemas.OfNative.Data, value: unknown): string[] => {
-    const problem = nativeProblem(schema, value);
-    return [...schema.validate(), ...(problem ? [problem] : [])];
-  };
-  /** Checks one object and its entries; uniqueness only over the entries it is part of. */
-  const OfObject = (schema: Schemas.OfObject.Data, value: Visitable): string[] => run(schema, [value]);
-  /** Checks the root and every object reachable from it through adjacencies. */
-  const ReachableCheck = (schema: Schemas.OfObject.Data, root: Visitable): string[] => run(schema, Reachable.of(root));
-  const call = (schema: unknown, value: unknown): string[] => {
-    if (schema instanceof Schemas.OfNative.Data) return OfNative(schema, value);
-    if (schema instanceof Schemas.OfObject.Data) return OfObject(schema, value as Visitable);
-    throw new NotImplementedError(`${schemaTypeName(schema)} cannot be validated yet`);
-  };
-  return Object.assign(call, { OfNative, OfObject, Reachable: ReachableCheck });
+/** Validates data against its schema: `Validate(store)(schema, value)` gives the problems `Check` finds, so what is
+ * unknown is not a problem. */
+export function Validate(store: Stores.Store, evaluate: Schemas.Evaluate | null = null): ValidateCall {
+  const check = Check(store, evaluate);
+  const call = (schema: unknown, value: unknown): string[] => check(schema, value).problems;
+  return Object.assign(call, {
+    OfNative: (schema: Schemas.OfNative.Data, value: unknown) => check.OfNative(schema, value).problems,
+    /** Checks one object and its entries; uniqueness only over the entries it is part of. */
+    OfObject: (schema: Schemas.OfObject.Data, value: Visitable) => check.OfObject(schema, value).problems,
+    /** Checks the root and every object reachable from it through adjacencies. */
+    Reachable: (schema: Schemas.OfObject.Data, root: Visitable) => check.Reachable(schema, root).problems,
+  });
 }
 

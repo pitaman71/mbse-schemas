@@ -91,6 +91,7 @@ Validators.Validate(store)(schema, obj); Validators.Validate(store).Reachable(sc
 new Comparison.OfObject(schema, a).compare(new Comparison.OfObject(schema, b));   // -1, 0, 1 or null
 Modules.module(store, [Contact]); Modules.schemas(store, module);   // named schemas to a module, and back (a Map, by name)
 Reflection.of(store).extent("Schemas.Object");                     // a store's schemas as objects, to match
+Paths.of(store).of(obj); Paths.of(store).find(path);         // names that survive changes elsewhere: "book.Directory/contacts[0]"
 new Stores.Combined(schemas, trees);                              // stores of different implementations, as one
 ```
 

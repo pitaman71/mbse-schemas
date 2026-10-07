@@ -248,3 +248,5 @@ export class Combined implements Store {
 function roots(store: Store): ReadonlyMap<string, Visitable> {
   return (store as { _singletons?: ReadonlyMap<string, Visitable> })._singletons ?? new Map();
 }
+
+export { roots as _roots };

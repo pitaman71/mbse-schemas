@@ -632,6 +632,23 @@ kind's meta-schema, the schema of the module form (`Schemas.OfObject.Schema`, na
 - **A native's token** is written `format` and `token` in a module (`{"native": {"format": "basic", "token": "str"}}`),
   so that `name` is a schema's name in every kind (0.8).
 
+## Paths
+
+`Paths.of(store)` names every object a store's roots reach, so that diffs, traces and logs name objects across runs
+(mbse-patterns' transforms key their steps by paths).
+
+- **Roots are named.** A schema of a store of schemas (`Reflection.of`) is named by its name, and a singleton by its
+  global name; the schemas come first, in name order, then the singletons, in global-name order.
+- **Other objects are named by route**, the first that reaches them, breadth first through each object's entries
+  (adjacencies in their schema's order, entries in order). A step is `/adjacency[key]`: the entry's key is the property
+  values that a unique constraint of its relation declares with the object's own link (`phones[label="home"]`), else
+  its position (`items[0]`); an entry of a relation of more than two links names the link (`/enrolled[0].course`). A
+  key writes a string as JSON does, an integer in decimal and a boolean as `true` or `false`; another type makes the
+  key positional.
+- **A path survives** a change that does not touch the route: a property set, an object added elsewhere, an entry
+  added after a positional one. Renaming a root, or inserting an entry before a positional one, changes the paths
+  under it. `paths.find(path)` gives the object at a path; both raise `LookupError` for what they do not hold.
+
 ## Expressions
 
 Constraints are serializable expressions, kept beside the schemas in
@@ -823,14 +840,11 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Reading an object's entries back (e.g. a contact's phones), and removing an entry through a builder.
 - Is "an owned child must be part of an ownership chain rooted in an object with a directory entry" still a
   well-formedness constraint under symbol-based serialization?
-- Labeling objects outside snapshots: tools other than serializers (diffs, audit logs, debug dumps) have only
-  `identity()`, an opaque in-memory value (`id(self)` in Python), to name an object. Snapshots label objects with
-  symbols, but those are internal to a serialization. Should the framework expose a reusable, stable labeling, for
-  example the symbol numbering `Plain.ToPlain(store).Reachable` would assign, or a symbol table tools can share? Seen in the
-  tutorial's audit-log diff (`python3/tutorials/08_Tools_For_Every_Schema.ipynb`), which prints a raw object id.
 
 ### Resolved
 
+- Objects outside snapshots are named by paths (0.8.2): `Paths.of(store)`, from the store's named roots by route,
+  keyed by unique properties where a relation declares them. Snapshots keep their symbols.
 - Nothing is mandatory except as specified by a constraint: properties are optional by default, and mandatory
   participation in a relation is expressed as a constraint (directory membership is required by well-formedness).
 - `OfValue` is not a base class; renamed `OfAny`.

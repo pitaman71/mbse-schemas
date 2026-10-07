@@ -8,8 +8,8 @@ prevent most mistakes, and which reference to load for a task. The design is in 
 https://github.com/pitaman71/mbse-schemas.
 """
 
-from . import (JSON, YAML, Bindings, Comparison, Errors, Modules, Plain, Proxies, Reachable, Reflection, Schemas, Stores,
-               Validators, Visitors)
+from . import (JSON, YAML, Bindings, Comparison, Errors, Modules, Paths, Plain, Proxies, Reachable, Reflection, Schemas,
+               Stores, Validators, Visitors)
 
 __all__ = ["Errors", "Schemas", "Visitors", "Proxies", "Reachable", "Validators", "Comparison", "Plain", "JSON", "YAML",
-           "Modules", "Bindings", "Stores", "Reflection"]
+           "Modules", "Bindings", "Stores", "Reflection", "Paths"]

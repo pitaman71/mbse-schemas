@@ -237,17 +237,69 @@ def _write_adjacencies(visitor: Any, target: Any, schema: ObjectSchema) -> None:
 
 
 def _read(value: Any, name: str) -> Any:
-    """A property of an instance or record, or an adjacency's entries, as an attribute."""
+    """A property of an instance or record, or an adjacency's entries, as an attribute; a flat intersection's parts'
+    properties too, as its own."""
     values = object.__getattribute__(value, "_values")
-    if name in values:
-        return values[name]
     schema = object.__getattribute__(value, "_schema")
+    if name in values:
+        return _view(values[name], schema.properties[name].type)
     if name in schema.properties:
         return None  # not set: nothing is mandatory but by a constraint
+    part = _owning_part(schema, name)
+    if part is not None:
+        return None if part not in values else _read(values[part], name)
     adjacency = schema.adjacencies.get(name) if isinstance(schema, ObjectSchema) else None
     if adjacency is not None:
         return tuple(_linking(adjacency.relation, adjacency.me, value))
     raise AttributeError(name)
+
+
+def _owning_part(schema: Any, name: str) -> str | None:
+    """The part of a flat intersection whose object schema declares the property `name`, if any."""
+    if not (isinstance(schema, Schemas.OfIntersection.Data) and schema.flat):
+        return None
+    return next((part.name for part in schema.parts if name in Schemas.structure(part.type).properties), None)
+
+
+def _flattens(schema: Any) -> bool:
+    """Whether values of `schema` read otherwise than they are held: a flat union's, or a list's of such values."""
+    schema = Schemas.structure(schema)
+    if isinstance(schema, Schemas.OfUnion.Data):
+        return schema.flat
+    return isinstance(schema, Schemas.OfIndexed.Data) and _flattens(schema.item)
+
+
+def _view(value: Any, schema: Any) -> Any:
+    """A value as code reads it: a flat union's value as its branch's value, in a list too."""
+    if not _flattens(schema):
+        return value
+    schema = Schemas.structure(schema)
+    if isinstance(schema, Schemas.OfUnion.Data):
+        ((branch, held),) = object.__getattribute__(value, "_values").items()
+        return _view(held, schema.properties[branch].type)
+    if isinstance(value, _Map):
+        return _Map((key, _view(item, schema.item)) for key, item in value.items())
+    return tuple(_view(item, schema.item) for item in value)
+
+
+def _runtime(value: Any) -> Any:
+    """What tells a value apart at run time, as `Schemas` tells a flat union's branches apart: a native's type, a list, a
+    mapping, or a value object's schema."""
+    if isinstance(value, _RecordData):
+        return ("schema", id(object.__getattribute__(value, "_schema")))
+    if isinstance(value, (list, tuple)):
+        return ("list",)
+    if isinstance(value, Mapping):
+        return ("map",)
+    return ("native", type(value))
+
+
+def _branch(name: str, schema: Schemas.OfUnion.Data, value: Any) -> Schemas.OfUnion.Branch:
+    """The branch of a flat union whose type a value has."""
+    found = next((b for b in schema.branches if Schemas._runtime(b.type) == _runtime(value)), None)
+    if found is None:
+        raise TypeError(f"property {name!r}: a {type(value).__name__} is not a value of any branch of the flat union")
+    return found
 
 
 def _write_properties(visitor: Any, schema: ObjectSchema, values: dict[str, Any]) -> None:
@@ -790,6 +842,11 @@ def _apply(visitor: Visitors.OfAny, name: str, schema: Any, spec: Any) -> None:
         else:
             takes = "a list" if schema.positional else "a mapping, (key, value) pairs"
             raise TypeError(f"property {name!r} takes {takes} or a Spec, got {type(spec).__name__}")
+    elif isinstance(schema, Schemas.OfUnion.Data) and schema.flat and not callable(spec) and not (
+            isinstance(spec, _RecordData) and object.__getattribute__(spec, "_schema") is schema):
+        branch = _branch(name, schema, spec)  # a flat union's value: its branch's, told apart by type
+        _write_record(visitor, schema, lambda r: r.property(
+            branch.name, lambda p: p.value(lambda a: _apply(a, branch.name, branch.type, spec))))
     elif isinstance(schema, (Schemas.OfObject.Data, Schemas.OfUnion.Data, Schemas.OfIntersection.Data)):
         if callable(spec):
             _write_record(visitor, schema, spec)
@@ -887,6 +944,10 @@ class _RecordBuilder:
             return _setter(self, name, self._schema.properties[name].type)
         if name in self._adjacencies():
             return _adder(self, name)
+        part = _owning_part(self._schema, name)
+        if part is not None:  # a flat intersection's part's property: set in that part, from the value already set
+            setter = _setter(self, part, self._schema.properties[part].type)
+            return lambda spec: setter(lambda b: getattr(b, name)(spec))
         raise AttributeError(f"{name!r} is not a {self._member}")
 
     def build(self) -> _RecordData:

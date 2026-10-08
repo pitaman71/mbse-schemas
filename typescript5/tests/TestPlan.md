@@ -54,7 +54,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `11_Conformance.ipynb` | CONF | 4 | as in Python, from this side |
 | `12_Text.ipynb` | TXT | 4 | `Repr` produces Python's text: `repr`, float `repr`, type names (plus one row for a prototype-less object), code-point order |
 | `13_Comparison.ipynb` | CMP | 12 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
-| `14_Embedded.ipynb` | EMB | 10 | as in Python; the runtime's own probes (`then`, symbols) are not properties |
+| `14_Embedded.ipynb` | EMB | 11 | as in Python; the runtime's own probes (`then`, symbols) are not properties |
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
 | `17_Lists.ipynb` | LST | 15 | as in Python; a list reads as a frozen array and a keyed list as a `Map`-shaped `Proxies.OfIndexed.Map`; float keys that must keep `-0.0` are given as pairs |
 | `18_Modules.ipynb` | MOD | 6 | as in Python; schemas are given as a Map or a record, and read back as a Map |
@@ -65,7 +65,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `23_Reflection.ipynb` | RFL | 3 | as in Python; a reflected schema's identity is a string (`"schema N"`) |
 | `24_Paths.ipynb` | PTH | 3 | as in Python; an integer key is a `bigint` |
 
-Total: 197 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
+Total: 198 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

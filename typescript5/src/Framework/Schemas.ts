@@ -979,6 +979,48 @@ function memberProblems(aKind: string, member: string, plural: string, members: 
   return problems;
 }
 
+/** What tells a value of `schema` apart at run time: a native's host type, a list or a keyed list (whose items' types
+ * a value does not carry), or any other schema itself. */
+export function _runtime(schema: unknown): unknown {
+  const found = structure(schema);
+  if (found instanceof NativeData) {
+    const token = found.token as { format?: unknown; name?: unknown };
+    return found.type ?? `token ${String(token.format)}:${String(token.name)}`;
+  }
+  if (found instanceof IndexedData) return found.positional ? "list" : "map";
+  return found;
+}
+
+/** A flat union's branches are told apart by their values' types. */
+function flatUnionProblems(branches: readonly MemberData[]): string[] {
+  const problems: string[] = [];
+  const seen = new Map<unknown, string>();
+  for (const branch of branches) {
+    const key = _runtime(branch.type);
+    if (seen.has(key)) problems.push(`flat union: branches ${repr(seen.get(key))} and ${repr(branch.name)} are not told apart by type`);
+    else seen.set(key, branch.name);
+  }
+  return problems;
+}
+
+/** A flat intersection's parts are object schemas whose properties have distinct names: its own properties. */
+function flatIntersectionProblems(parts: readonly MemberData[]): string[] {
+  const problems: string[] = [];
+  const seen = new Map<string, string>();
+  for (const part of parts) {
+    const schema = structure(part.type);
+    if (!(schema instanceof ObjectData)) {
+      problems.push(`flat intersection: part ${repr(part.name)} is not an object schema`);
+      continue;
+    }
+    for (const named of schema.properties.keys()) {
+      if (seen.has(named)) problems.push(`flat intersection: parts ${repr(seen.get(named))} and ${repr(part.name)} both declare ${repr(named)}`);
+      else seen.set(named, part.name);
+    }
+  }
+  return problems;
+}
+
 function members(specs: readonly ((builder: MemberBuilder) => MemberBuilder)[]): MemberData[] {
   return specs.map((spec) => resolveSpec(spec, isMemberData, () => new MemberBuilder()));
 }
@@ -992,14 +1034,17 @@ class UnionData extends Reflected {
   name: string | null;
   description: string | null;
   parameters: Map<string, ParameterData>;
+  /** Whether a value reads as its branch's value, told apart by type, rather than as an object of one branch. */
+  flat: boolean;
 
   constructor(fields: { branches?: readonly MemberData[]; name?: string | null; description?: string | null;
-    parameters?: Map<string, ParameterData> } = {}) {
+    parameters?: Map<string, ParameterData>; flat?: boolean } = {}) {
     super();
     this.branches = fields.branches ?? [];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
     this.parameters = fields.parameters ?? new Map();
+    this.flat = fields.flat ?? false;
   }
 
   /** The branches by name: a union value is an object holding exactly one of them. */
@@ -1013,7 +1058,7 @@ class UnionData extends Reflected {
 
   validate(): string[] {
     return [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters),
-      ...memberProblems("a union", "branch", "branches", this.branches)];
+      ...memberProblems("a union", "branch", "branches", this.branches), ...(this.flat ? flatUnionProblems(this.branches) : [])];
   }
 }
 
@@ -1025,6 +1070,12 @@ class UnionBuilder extends NamedBuilder<UnionData> {
   /** Named branches, e.g. `.branches((b) => b.name("phone").of(Phone), ...)`. */
   branches(...specs: ((builder: MemberBuilder) => MemberBuilder)[]): UnionBuilder {
     this.state["branches"] = [...((this.state["branches"] as MemberData[] | undefined) ?? []), ...members(specs)];
+    return this;
+  }
+
+  /** A value reads as its branch's value, told apart by type (`Phone | Email`), not as an object of one branch. */
+  flat(flat = true): UnionBuilder {
+    this.state["flat"] = flat;
     return this;
   }
 }
@@ -1054,14 +1105,17 @@ class IntersectionData extends Reflected {
   name: string | null;
   description: string | null;
   parameters: Map<string, ParameterData>;
+  /** Whether a value reads its parts' properties as its own, rather than as an object of its parts. */
+  flat: boolean;
 
   constructor(fields: { parts?: readonly MemberData[]; name?: string | null; description?: string | null;
-    parameters?: Map<string, ParameterData> } = {}) {
+    parameters?: Map<string, ParameterData>; flat?: boolean } = {}) {
     super();
     this.parts = fields.parts ?? [];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
     this.parameters = fields.parameters ?? new Map();
+    this.flat = fields.flat ?? false;
   }
 
   /** The parts by name: an intersection value is an object holding every one of them. */
@@ -1075,7 +1129,7 @@ class IntersectionData extends Reflected {
 
   validate(): string[] {
     return [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters),
-      ...memberProblems("an intersection", "part", "parts", this.parts)];
+      ...memberProblems("an intersection", "part", "parts", this.parts), ...(this.flat ? flatIntersectionProblems(this.parts) : [])];
   }
 }
 
@@ -1087,6 +1141,12 @@ class IntersectionBuilder extends NamedBuilder<IntersectionData> {
   /** Named parts, e.g. `.parts((p) => p.name("stamp").of(Stamp), ...)`. */
   parts(...specs: ((builder: MemberBuilder) => MemberBuilder)[]): IntersectionBuilder {
     this.state["parts"] = [...((this.state["parts"] as MemberData[] | undefined) ?? []), ...members(specs)];
+    return this;
+  }
+
+  /** A value reads its parts' properties as its own (`x.name`), not as an object of its parts (`x.Named.name`). */
+  flat(flat = true): IntersectionBuilder {
+    this.state["flat"] = flat;
     return this;
   }
 }
@@ -1567,10 +1627,11 @@ const AdjacencySchema = new ObjectBuilder().properties(
 const ObjectSchema = new ObjectBuilder().name("Schemas.Object").properties(
   namedText("name"), Parameters, (p) => p.name("properties").of(listOf(PropertySchema)), (p) => p.name("adjacencies").of(listOf(AdjacencySchema)),
   namedText("singleton"), (p) => p.name("ref").of((t) => t.as_native(Boolean)), namedText("description")).create();
+const Flat = (p: PropertyBuilder) => p.name("flat").of((t) => t.as_native(Boolean));
 const UnionSchema = new ObjectBuilder().name("Schemas.Union").properties(
-  namedText("name"), Parameters, (p) => p.name("branches").of(listOf(PropertySchema)), namedText("description")).create();
+  namedText("name"), Parameters, (p) => p.name("branches").of(listOf(PropertySchema)), Flat, namedText("description")).create();
 const IntersectionSchema = new ObjectBuilder().name("Schemas.Intersection").properties(
-  namedText("name"), Parameters, (p) => p.name("parts").of(listOf(PropertySchema)), namedText("description")).create();
+  namedText("name"), Parameters, (p) => p.name("parts").of(listOf(PropertySchema)), Flat, namedText("description")).create();
 const ExtentTerms = new ObjectBuilder().properties((p) => p.name("minimum").of(FormSchema),
   (p) => p.name("maximum").of(FormSchema)).create();
 const ExtentSchema = new ObjectBuilder().properties((p) => p.name("minimum").of(Int), (p) => p.name("maximum").of(Int),

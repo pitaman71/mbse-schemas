@@ -91,6 +91,7 @@ JSON.ToJSON(store).Reachable(schema, root); JSON.FromJSON(store).Reachable(schem
 Validators.Validate(store)(schema, obj); Validators.Validate(store).Reachable(schema, root);
 new Comparison.OfObject(schema, a).compare(new Comparison.OfObject(schema, b));   // -1, 0, 1 or null
 Modules.module(store, [Contact]); Modules.schemas(store, module);   // named schemas to a module, and back (a Map, by name)
+new S.OfUnion.Builder().name("Code").branches(...).flat();  // flat: card.code is the branch's value, set by type
 Reflection.of(store).extent("Schemas.Object");                     // a store's schemas as objects, to match
 Paths.of(store).of(obj); Paths.of(store).find(path);         // names that survive changes elsewhere: "book.Directory/contacts[0]"
 new Stores.Combined(schemas, trees);                              // stores of different implementations, as one

@@ -224,10 +224,15 @@ def build():
         lambda p: p.name("big").of(lambda t: t.as_apply(lambda a: a.of(Grid).arguments(2**70, math.nan))),
         lambda p: p.name("odd").of(lambda t: t.as_apply(lambda a: a.of(Tricky).arguments(-0.0, "日本語 🚀", b"\x00\xff", False)))
     ).create()
+    Choice = S.OfUnion.Builder().name("Choice").branches(lambda b: b.name("n").of(lambda t: t.as_native(int)),
+                                                         lambda b: b.name("s").of(lambda t: t.as_native(str))).flat().create()
+    Marked = S.OfIntersection.Builder().name("Marked").parts(
+        lambda b: b.name("when").of(lambda t: t.as_object(lambda o: o.properties(_text("at", int)))),
+        lambda b: b.name("who").of(lambda t: t.as_object(lambda o: o.properties(_text("by"))))).flat().create()
     schemas = [S.OfNative.resolve(lambda n: n.name("Int32").type(int).bits(32)),
                S.OfNative.resolve(lambda n: n.name("Size").token("ccpp", "size_t").bytes(8)),
                Contact, Address, ContactAddresses, Person, Parentage, Card, Deck, Holding, Board, Panel,
-               Word, Grid, Square, Tricky, Applied]
+               Word, Grid, Square, Tricky, Applied, Choice, Marked]
     module = Modules.module(store, schemas)
 
     return {

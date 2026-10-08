@@ -475,9 +475,17 @@ These replace the earlier design, in which a union's branches were chosen by pre
 - **Unpacked, a union is an object with exactly one of its variants present, and an intersection an object with all of
   its parts present.** This holds in proxies and over the wire (`Plain`, `JSON`, `YAML`): a union value is written
   `{"circle": {"radius": 2}}`, and an intersection value `{"Named": {"name": "a"}, "Dated": {"date": "..."}}`. A proxy
-  reads a variant as a property (`shape.circle`) and a part the same way (`x.Named.name`). A proxy may later offer an
-  intersection's properties flattened (`x.name`), for the names that one part declares or that every part declaring
-  them declares with the same type; none does yet. The wire form is always per part.
+  reads a variant as a property (`shape.circle`) and a part the same way (`x.Named.name`), unless the schema is flat
+  (below). The wire form is always per branch and per part.
+- **A union or an intersection may be flat**, a configuration of its schema (`.flat()`, written `"flat": true` in a
+  module), which proxies and generated bindings alike honor, so that code reads either the same way. A flat union's
+  value reads as its branch's value (`card.reach` is the `Mail` or the `Call`, `ticket.code` the `int` or the
+  `str`), told apart by type; a builder takes a branch's value and picks the branch by its type, and a Spec as before.
+  A flat intersection's value reads its parts' properties as its own (`ticket.stamp.at`), and its builder sets them in
+  their part. `validate()` requires a flat union's branches to be told apart by type (distinct natives, distinct
+  schemas, one positional and one keyed list at most, since a list does not carry its items' types) and a flat
+  intersection's parts to be object schemas whose properties have distinct names. Values are held, written, read,
+  validated, compared and visited in the unpacked form, by branch and by part: flat is how code reads and builds them.
 - **A union value without a branch is no value.** Clearing a union's only branch clears the property, and a writer
   leaves out a union value written with no branch.
 - **There are no predicates.** A branch's `when` is dropped: which variant a value holds is data, so decoding and
@@ -849,6 +857,11 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   well-formedness constraint under symbol-based serialization?
 
 ### Resolved
+
+- Unions and intersections may be flat (0.9), configured on the schema so that proxies and generated bindings agree:
+  a flat union reads as its branch's value, told apart by type, as Python's `A | B` or TypeScript's `A | B` would hold
+  it, and a flat intersection's parts' properties as its own. The wire form stays per branch and per part, so decoding
+  needs no inference.
 
 - A property that is not set reads as `None` (0.8.4), not an error, on proxies, value objects and entries, so that code
   reads proxies and generated classes alike: no property holds `None` as a value, so `None` means absent, and absent

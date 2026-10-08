@@ -132,11 +132,11 @@ export class _Writer {
     }
     if (schema instanceof Schemas.OfUnion.Data) {
       return kindOf("union", [["parameters", parameters], ["branches", this.members(schema.branches)],
-        ["description", schema.description]]);
+        ["flat", schema.flat || null], ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfIntersection.Data) {
       return kindOf("intersection", [["parameters", parameters], ["parts", this.members(schema.parts)],
-        ["description", schema.description]]);
+        ["flat", schema.flat || null], ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfIndexed.Data) {
       return kindOf("indexed", [["parameters", parameters], ["item", this.reference(schema.item)],
@@ -323,8 +323,10 @@ class _Reader {
       schema.uniques = (list("uniques") as string[][]).map((unique) => new Set(unique));
     } else if (schema instanceof Schemas.OfUnion.Data) {
       schema.branches = this.members(body.get("branches"), (f) => new Schemas.OfUnion.Branch(f));
+      schema.flat = (body.get("flat") as boolean | undefined) ?? false;
     } else if (schema instanceof Schemas.OfIntersection.Data) {
       schema.parts = this.members(body.get("parts"), (f) => new Schemas.OfIntersection.Part(f));
+      schema.flat = (body.get("flat") as boolean | undefined) ?? false;
     } else if (schema instanceof Schemas.OfIndexed.Data) {
       schema.item = this.type(body.get("item") as Definition);
       schema.key = body.has("key") ? this.type(body.get("key") as Definition) : null;

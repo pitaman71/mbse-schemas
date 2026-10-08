@@ -342,16 +342,64 @@ function makeInstance(store: OfStore, schema: ObjectSchema, schemaName: string):
   return proxy;
 }
 
-/** A property of an instance or record, or an adjacency's entries, as an attribute. */
+/** A property of an instance or record, or an adjacency's entries, as an attribute; a flat intersection's parts'
+ * properties too, as its own. */
 function read(t: { values: Map<string, unknown>; schema: RecordSchema }, prop: string, receiver: unknown): unknown {
-  if (t.values.has(prop)) return t.values.get(prop);
+  if (t.values.has(prop)) return view(t.values.get(prop), (t.schema.properties.get(prop) as Schemas.OfProperty.Data).type);
   if (t.schema.properties.has(prop)) return null; // not set: nothing is mandatory but by a constraint
+  const part = owningPart(t.schema, prop);
+  if (part !== null) return t.values.has(part) ? (t.values.get(part) as Record<string, unknown>)[prop] : null;
   const adjacency = t.schema instanceof Schemas.OfObject.Data ? t.schema.adjacencies.get(prop) : undefined;
   if (adjacency !== undefined) {
     return Object.freeze(linking(adjacency.relation as RelationSchema, adjacency.me, receiver as Visitable).map((entry) => entry.view));
   }
   if (_probes.has(prop)) return Reflect.get(t, prop, receiver);
   throw new AttributeError(prop);
+}
+
+/** The part of a flat intersection whose object schema declares the property `prop`, if any. */
+function owningPart(schema: RecordSchema, prop: string): string | null {
+  if (!(schema instanceof Schemas.OfIntersection.Data && schema.flat)) return null;
+  const found = schema.parts.find((part) => (Schemas.structure(part.type) as { properties?: Map<string, unknown> }).properties?.has(prop));
+  return found === undefined ? null : found.name;
+}
+
+/** Whether values of `type` read otherwise than they are held: a flat union's, or a list's of such values. */
+function flattens(type: unknown): boolean {
+  const schema = Schemas.structure(type);
+  if (schema instanceof Schemas.OfUnion.Data) return schema.flat;
+  return schema instanceof Schemas.OfIndexed.Data && flattens(schema.item);
+}
+
+/** A value as code reads it: a flat union's value as its branch's value, in a list too. */
+function view(value: unknown, type: unknown): unknown {
+  if (!flattens(type)) return value;
+  const schema = Schemas.structure(type);
+  if (schema instanceof Schemas.OfUnion.Data) {
+    const [[branch, held]] = [...(recordTargets.get(value as object) as RecordTarget).values] as [[string, unknown]];
+    return view(held, (schema.properties.get(branch) as Schemas.OfUnion.Branch).type);
+  }
+  const item = (schema as Schemas.OfIndexed.Data).item;
+  if (value instanceof IndexedMap) return new IndexedMap(value.entries().map(([key, held]) => [key, view(held, item)] as const));
+  return Object.freeze((value as unknown[]).map((held) => view(held, item)));
+}
+
+/** What tells a value apart at run time, as `Schemas` tells a flat union's branches apart: a native's type, a list, a
+ * mapping, or a value object's schema. */
+function runtime(value: unknown): unknown {
+  if (isRecord(value)) return (recordTargets.get(value) as RecordTarget).schema;
+  if (Array.isArray(value)) return "list";
+  if (value instanceof Map || value instanceof IndexedMap) return "map";
+  return Schemas.NATIVE_TYPES.find((host) => Schemas.isNativeOf(host, value));
+}
+
+/** The branch of a flat union whose type a value has. */
+function branchOf(name: string, schema: Schemas.OfUnion.Data, value: unknown): Schemas.OfUnion.Branch {
+  const found = schema.branches.find((branch) => Schemas._runtime(branch.type) === runtime(value));
+  if (found === undefined) {
+    throw new TypeError(`property ${repr(name)}: a ${typeName(value)} is not a value of any branch of the flat union`);
+  }
+  return found;
 }
 
 type PropertyHolder = { property(name: string, callback: Callback<OfProperty>): unknown };
@@ -1011,6 +1059,10 @@ function apply(visitor: OfAny, name: string, type: unknown, spec: unknown): void
       const takes = schema.positional ? "a list" : "a mapping, (key, value) pairs";
       throw new TypeError(`property ${repr(name)} takes ${takes} or a Spec, got ${typeName(spec)}`);
     }
+  } else if (schema instanceof Schemas.OfUnion.Data && schema.flat && typeof spec !== "function"
+    && !(isRecord(spec) && (recordTargets.get(spec) as RecordTarget).schema === schema)) {
+    const branch = branchOf(name, schema, spec); // a flat union's value: its branch's, told apart by type
+    writeRecord(visitor, schema, (r) => r.property(branch.name, (p) => p.value((a) => apply(a, branch.name, branch.type, spec))));
   } else if (schema instanceof Schemas.OfObject.Data || schema instanceof Schemas.OfUnion.Data
     || schema instanceof Schemas.OfIntersection.Data) {
     if (typeof spec === "function") writeRecord(visitor, schema, spec as Callback<ObjectVisitor>);
@@ -1144,6 +1196,11 @@ function makeRecordBuilder(schema: RecordSchema, source?: ValueObject, store: Of
       const schema = t.schema.properties.get(prop)?.type;
       if (schema !== undefined) return setter(t, t.proxy, prop, schema);
       if (t.adjacencyNames().includes(prop)) return adder(t, prop);
+      const part = owningPart(t.schema, prop);
+      if (part !== null) { // a flat intersection's part's property: set in that part, from the value already set
+        const set = setter(t, t.proxy, part, (t.schema.properties.get(part) as Schemas.OfProperty.Data).type);
+        return (spec: unknown) => set((b: Record<string, (v: unknown) => unknown>) => (b[prop] as (v: unknown) => unknown)(spec));
+      }
       if (_probes.has(prop)) return Reflect.get(t, prop, receiver);
       throw new AttributeError(`${repr(prop)} is not a ${t.member}`);
     },

@@ -727,6 +727,45 @@ def _member_problems(a_kind: str, member: str, plural: str, members: tuple[_Memb
     return problems
 
 
+def _runtime(schema: Any) -> Any:
+    """What tells a value of `schema` apart at run time: a native's host type, a list or a keyed list (whose items'
+    types a value does not carry), or any other schema itself."""
+    schema = _structure(schema)
+    if isinstance(schema, _NativeData):
+        return ("native", schema.type if schema.type is not None else schema.token)
+    if isinstance(schema, _IndexedData):
+        return ("list",) if schema.positional else ("map",)
+    return ("schema", id(schema))
+
+
+def _flat_union_problems(branches: tuple[_MemberData, ...]) -> list[str]:
+    """A flat union's branches are told apart by their values' types."""
+    problems: list[str] = []
+    seen: dict[Any, str] = {}
+    for branch in branches:
+        key = _runtime(branch.type)
+        if key in seen:
+            problems.append(f"flat union: branches {seen[key]!r} and {branch.name!r} are not told apart by type")
+        seen.setdefault(key, branch.name)
+    return problems
+
+
+def _flat_intersection_problems(parts: tuple[_MemberData, ...]) -> list[str]:
+    """A flat intersection's parts are object schemas whose properties have distinct names: its own properties."""
+    problems: list[str] = []
+    seen: dict[str, str] = {}
+    for part in parts:
+        schema = _structure(part.type)
+        if not isinstance(schema, _ObjectData):
+            problems.append(f"flat intersection: part {part.name!r} is not an object schema")
+            continue
+        for name in schema.properties:
+            if name in seen:
+                problems.append(f"flat intersection: parts {seen[name]!r} and {part.name!r} both declare {name!r}")
+            seen.setdefault(name, part.name)
+    return problems
+
+
 def _members(specs: tuple[Callable[[_MemberBuilder], _MemberBuilder], ...]) -> tuple[_MemberData, ...]:
     return tuple(_resolve(spec, _MemberData, _MemberBuilder) for spec in specs)
 
@@ -737,6 +776,8 @@ class _UnionData(_Reflected):
     name: str | None = None
     description: str | None = None
     parameters: dict[str, _ParameterData] = field(default_factory=dict)
+    flat: bool = False
+    """Whether a value reads as its branch's value, told apart by type, rather than as an object of one branch."""
 
     @property
     def properties(self) -> dict[str, _MemberData]:
@@ -745,7 +786,8 @@ class _UnionData(_Reflected):
 
     def validate(self) -> list[str]:
         return (_name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
-                + _member_problems("a union", "branch", "branches", self.branches))
+                + _member_problems("a union", "branch", "branches", self.branches)
+                + (_flat_union_problems(self.branches) if self.flat else []))
 
 
 class _UnionBuilder(_NamedBuilder[_UnionData]):
@@ -754,6 +796,11 @@ class _UnionBuilder(_NamedBuilder[_UnionData]):
     def branches(self, *specs: Callable[[_MemberBuilder], _MemberBuilder]) -> _UnionBuilder:
         """Named branches, e.g. `.branches(lambda b: b.name('phone').of(Phone), ...)`."""
         self._fields["branches"] = (*self._fields.get("branches", ()), *_members(specs))
+        return self
+
+    def flat(self, flat: bool = True) -> _UnionBuilder:
+        """A value reads as its branch's value, told apart by type (`Phone | Email`), not as an object of one branch."""
+        self._fields["flat"] = flat
         return self
 
 
@@ -774,6 +821,8 @@ class _IntersectionData(_Reflected):
     name: str | None = None
     description: str | None = None
     parameters: dict[str, _ParameterData] = field(default_factory=dict)
+    flat: bool = False
+    """Whether a value reads its parts' properties as its own, rather than as an object of its parts."""
 
     @property
     def properties(self) -> dict[str, _MemberData]:
@@ -782,7 +831,8 @@ class _IntersectionData(_Reflected):
 
     def validate(self) -> list[str]:
         return (_name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
-                + _member_problems("an intersection", "part", "parts", self.parts))
+                + _member_problems("an intersection", "part", "parts", self.parts)
+                + (_flat_intersection_problems(self.parts) if self.flat else []))
 
 
 class _IntersectionBuilder(_NamedBuilder[_IntersectionData]):
@@ -791,6 +841,11 @@ class _IntersectionBuilder(_NamedBuilder[_IntersectionData]):
     def parts(self, *specs: Callable[[_MemberBuilder], _MemberBuilder]) -> _IntersectionBuilder:
         """Named parts, e.g. `.parts(lambda p: p.name('stamp').of(Stamp), ...)`."""
         self._fields["parts"] = (*self._fields.get("parts", ()), *_members(specs))
+        return self
+
+    def flat(self, flat: bool = True) -> _IntersectionBuilder:
+        """A value reads its parts' properties as its own (`x.name`), not as an object of its parts (`x.Named.name`)."""
+        self._fields["flat"] = flat
         return self
 
 
@@ -1192,11 +1247,12 @@ _ObjectSchema = OfObject.Builder().name("Schemas.Object").properties(
     _named_text("name"), _Parameters, lambda p: p.name("properties").of(_list_of(_PropertySchema)),
     lambda p: p.name("adjacencies").of(_list_of(_AdjacencySchema)), _named_text("singleton"),
     lambda p: p.name("ref").of(lambda t: t.as_native(bool)), _named_text("description")).create()
+_Flat: OfProperty.Spec = lambda p: p.name("flat").of(lambda t: t.as_native(bool))  # noqa: E731
 _UnionSchema = OfObject.Builder().name("Schemas.Union").properties(
-    _named_text("name"), _Parameters, lambda p: p.name("branches").of(_list_of(_PropertySchema)),
+    _named_text("name"), _Parameters, lambda p: p.name("branches").of(_list_of(_PropertySchema)), _Flat,
     _named_text("description")).create()
 _IntersectionSchema = OfObject.Builder().name("Schemas.Intersection").properties(
-    _named_text("name"), _Parameters, lambda p: p.name("parts").of(_list_of(_PropertySchema)),
+    _named_text("name"), _Parameters, lambda p: p.name("parts").of(_list_of(_PropertySchema)), _Flat,
     _named_text("description")).create()
 _ExtentTerms = OfObject.Builder().properties(lambda p: p.name("minimum").of(_FormSchema),
                                              lambda p: p.name("maximum").of(_FormSchema)).create()

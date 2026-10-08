@@ -123,10 +123,10 @@ class _Writer:
                             uniques=[sorted(unique) for unique in schema.uniques], description=schema.description)
         if isinstance(schema, Schemas.OfUnion.Data):
             return _kind_of("union", parameters=parameters, branches=self._members(schema.branches),
-                            description=schema.description)
+                            flat=schema.flat or None, description=schema.description)
         if isinstance(schema, Schemas.OfIntersection.Data):
             return _kind_of("intersection", parameters=parameters, parts=self._members(schema.parts),
-                            description=schema.description)
+                            flat=schema.flat or None, description=schema.description)
         if isinstance(schema, Schemas.OfIndexed.Data):
             return _kind_of("indexed", parameters=parameters, item=self.reference(schema.item),
                             key=None if schema.key is None else self.reference(schema.key), extent=_extent(schema.extent),
@@ -293,8 +293,10 @@ class _Reader:
             schema.uniques = tuple(frozenset(unique) for unique in body.get("uniques", []))
         elif kind == "union":
             schema.branches = tuple(self._members(body.get("branches", []), Schemas.OfUnion.Branch))
+            schema.flat = body.get("flat", False)
         elif kind == "intersection":
             schema.parts = tuple(self._members(body.get("parts", []), Schemas.OfIntersection.Part))
+            schema.flat = body.get("flat", False)
         elif kind == "indexed":
             schema.item = self.type(body["item"])
             schema.key = self.type(body["key"]) if "key" in body else None

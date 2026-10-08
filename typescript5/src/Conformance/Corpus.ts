@@ -222,11 +222,16 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   const Applied = new Schemas.OfObject.Builder().name("Applied").properties(
     (p) => p.name("big").of((t) => t.as_apply((a) => a.of(Grid).arguments(2n ** 70n, NaN))),
     (p) => p.name("odd").of((t) => t.as_apply((a) => a.of(Tricky).arguments(-0.0, "日本語 🚀", new Uint8Array([0, 255]), false)))).create();
+  const Choice = new S.OfUnion.Builder().name("Choice").branches((b) => b.name("n").of((t) => t.as_native(BigInt)),
+    (b) => b.name("s").of((t) => t.as_native(String))).flat().create();
+  const Marked = new S.OfIntersection.Builder().name("Marked").parts(
+    (b) => b.name("when").of((t) => t.as_object((o) => o.properties(text("at", BigInt)))),
+    (b) => b.name("who").of((t) => t.as_object((o) => o.properties(text("by"))))).flat().create();
   const schemas = [
     Schemas.OfNative.resolve((n) => n.name("Int32").type(BigInt).bits(32n)),
     Schemas.OfNative.resolve((n) => n.name("Size").token("ccpp", "size_t").bytes(8n)),
     Contact, Address, ContactAddresses, Person, Parentage, Card, Deck, Holding, Board, Panel,
-    Word, Grid, Square, Tricky, Applied,
+    Word, Grid, Square, Tricky, Applied, Choice, Marked,
   ];
   const module = Modules.module(store, schemas) as Instance;
 

@@ -563,3 +563,41 @@ objects:
                 - name: d
                   value:
                     bool: false
+    - name: Choice
+      schema:
+        union:
+          branches:
+          - name: 'n'
+            type:
+              native:
+                format: basic
+                token: int
+          - name: s
+            type:
+              native:
+                format: basic
+                token: str
+          flat: true
+    - name: Marked
+      schema:
+        intersection:
+          parts:
+          - name: when
+            type:
+              object:
+                properties:
+                - name: at
+                  type:
+                    native:
+                      format: basic
+                      token: int
+          - name: who
+            type:
+              object:
+                properties:
+                - name: by
+                  type:
+                    native:
+                      format: basic
+                      token: str
+          flat: true

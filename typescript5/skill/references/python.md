@@ -79,7 +79,8 @@ Stores.PCG32(42).split("key").next_u32()                 # a random source, give
 Proxies.store_of(obj)                                       # the store a proxy belongs to
 B.Name().prop(value).value_prop(lambda r: r.x(1)).adjacency_name(lambda e: e.link(obj).entry_prop(v)).create()
 B.Name(obj).prop(v).update()                                # change obj; .clone() makes a changed copy instead
-[(e.target, e.label) for e in irq.fanout]                   # an adjacency: its entries; links and properties as attributes
+[(e.target, e.label) for e in irq.fanout]                   # an adjacency: an Iterable of full entries (Proxies.OfEntry.Data),
+                                                            # every link the owner's own included; links and properties as attributes
 B.Name(obj).clear("prop").update()
 obj.prop                                                    # AttributeError when unset
 B.Name().union_prop(lambda u: u.phone(spec))                # a branch by name; obj.union_prop.phone reads it

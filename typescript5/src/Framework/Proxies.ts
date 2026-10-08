@@ -38,7 +38,7 @@ import { AttributeError, item, LookupError, NotImplementedError, ValueError } fr
 import { repr, sortedStrings, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import * as Stores from "./Stores.js";
-import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIndexed as IndexedVisitor, OfIntersection, OfItem, OfLink, OfNative,
+import type { Callback, Native, OfAdjacency, OfAny, OfEntry as EntryVisitor, OfIndexed as IndexedVisitor, OfIntersection, OfItem, OfLink, OfNative,
   OfObject as ObjectVisitor, OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
 type ObjectSchema = Schemas.OfObject.Data;
@@ -732,7 +732,7 @@ function isInstance(value: unknown): value is Instance {
   return typeof value === "object" && value !== null && instanceTargets.has(value);
 }
 
-function writeEntry(visitor: OfEntry, entry: Entry, adjacency: AdjacencySchema): void {
+function writeEntry(visitor: EntryVisitor, entry: Entry, adjacency: AdjacencySchema): void {
   const relation = adjacency.relation as RelationSchema;
   for (const name of relation.links) {
     if (name !== adjacency.me) {
@@ -1166,7 +1166,7 @@ export class RecordBuilderTarget implements ObjectVisitor {
 function adder(builder: { adjacency(name: string, callback: Callback<OfAdjacency>): unknown }, name: string) {
   return (spec: unknown): unknown => {
     if (typeof spec !== "function") throw new TypeError(`${repr(name)} takes an entry Spec, e.g. x => x.<link>(...)`);
-    return builder.adjacency(name, (a) => a.add(spec as Callback<OfEntry>));
+    return builder.adjacency(name, (a) => a.add(spec as Callback<EntryVisitor>));
   };
 }
 
@@ -1240,7 +1240,7 @@ const ENTRY_METHODS = new Set(["links", "link", "properties", "has", "property",
 
 /** `Visitors.OfEntry` for one entry being added through an adjacency. The object's own link (`me`) is filled when
  * the object builder is finalized. DSL: `.<link>(object or Spec)` and `.<property>(value or Spec)`. */
-export class _EntryBuilder implements OfEntry {
+export class _EntryBuilder implements EntryVisitor {
   readonly linkValues = new Map<string, LinkValue>();
   readonly values = new Map<string, Native>();
   proxy!: _EntryBuilder;
@@ -1357,12 +1357,12 @@ export class _AdjacencySlot implements OfAdjacency {
     return this.schema.me;
   }
 
-  entries(callback: Callback<OfEntry>): _AdjacencySlot {
+  entries(callback: Callback<EntryVisitor>): _AdjacencySlot {
     for (const entry of [...(this.builder.entries.get(this.adjacencyName) ?? [])]) callback(entry);
     return this;
   }
 
-  add(callback: Callback<OfEntry>): _AdjacencySlot {
+  add(callback: Callback<EntryVisitor>): _AdjacencySlot {
     const entry = makeEntryBuilder(this.schema.relation as RelationSchema, this.schema.me, this.builder.store);
     callback(entry);
     const list = this.builder.entries.get(this.adjacencyName) ?? [];
@@ -1371,7 +1371,7 @@ export class _AdjacencySlot implements OfAdjacency {
     return this;
   }
 
-  remove(entry: OfEntry): _AdjacencySlot {
+  remove(entry: EntryVisitor): _AdjacencySlot {
     const list = this.builder.entries.get(this.adjacencyName) ?? [];
     this.builder.entries.set(this.adjacencyName, list.filter((e) => e !== entry));
     return this;
@@ -1532,6 +1532,13 @@ export namespace OfObject {
   export function Builder(store: OfStore, schema: ObjectSchema, schemaName: string, instance?: Instance): DynamicBuilder {
     return makeObjectBuilder(store, schema, schemaName, instance);
   }
+}
+
+/** A relation's entries as proxies hold them: `Data`, an entry with every link, the owner's own included, and its
+ * properties, as an adjacency's iterable yields it (`entry instanceof Proxies.OfEntry.Data`). */
+export namespace OfEntry {
+  export const Data = Entry;
+  export type Data = Entry;
 }
 
 export namespace OfIndexed {

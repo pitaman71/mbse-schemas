@@ -310,8 +310,9 @@ in-memory cache slices.
   adjacency as one member named after it, the iterable of its entries in order (`contact.phones`, a tuple in Python
   and a frozen array in TypeScript). An entry is one object, shared by the objects it links, whose links and properties
   are read-only attributes (`entry.owner`, `entry.phone`, `entry.label`). Generated classes (mbse-codegen-*) have the
-  same members, so code that reads objects works on proxies and generated classes alike. Any iterable will do; a set
-  sorted by a comparator, which would serve retrieval, is an open question. On the wire, an entry is written in its
+  same members, so code that reads objects works on proxies and generated classes alike, as Resolved specifies
+  (Adjacencies): an entry is a `Proxies.OfEntry.Data`. Any iterable will do; a set sorted by a comparator, which
+  would serve retrieval, is an open question. On the wire, an entry is written in its
   adjacency's form, without the link the adjacency implies.
 
 ## Typed bindings
@@ -864,6 +865,13 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   well-formedness constraint under symbol-based serialization?
 
 ### Resolved
+
+- **Adjacencies, as specified:** "adjacencies are always stored in a class under the name of the adjacency and must
+  store an Iterable over full relation entries, such as `Proxies.OfEntry.Data` or generated equivalent." So: the one
+  member, named after the adjacency, in every implementation, proxies and every mbse-codegen-* alike; it holds an
+  Iterable (a tuple, a frozen array, or any other: the type is not part of the contract); each item is a full entry,
+  every link the owner's own included, and its properties, an object of `Proxies.OfEntry.Data` or of the generated
+  entry class. Only the wire form leaves out the link the adjacency implies (0.8.3, 0.9.1).
 
 - Unions and intersections may be flat (0.9), configured on the schema so that proxies and generated bindings agree:
   a flat union reads as its branch's value, told apart by type, as Python's `A | B` or TypeScript's `A | B` would hold

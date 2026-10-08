@@ -35,7 +35,7 @@ from typing import Any
 from . import Errors, Schemas, Stores, Visitors
 from .Visitors import Native
 
-__all__ = ["OfStore", "store_of", "OfObject", "OfIndexed"]
+__all__ = ["OfStore", "store_of", "OfObject", "OfEntry", "OfIndexed"]
 
 ObjectSchema = Schemas.OfObject.Data
 RelationSchema = Schemas.OfRelation.Data
@@ -1211,6 +1211,13 @@ class OfObject:
     Data = _ObjectData
     Builder = _ObjectBuilder
     Record = _RecordData
+
+
+class OfEntry:
+    """A relation's entries as proxies hold them: `Data`, an entry with every link, the owner's own included, and its
+    properties, as an adjacency's iterable yields it."""
+
+    Data = _Entry
 
 
 class OfIndexed:

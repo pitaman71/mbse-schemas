@@ -496,6 +496,9 @@ These replace the earlier design, in which a union's branches were chosen by pre
 - **Packed forms are the bindings'.** A generated binding may represent a union or intersection the way its language
   does (`std::variant` or RTTI in C++, a tagged union in SystemVerilog, a discriminated union in TypeScript); the
   unpacked form above is the neutral one.
+- **Intersections are how a schema inherits** another's properties and adjacencies, a part for each. Using them as
+  subtyping, upcast by projecting a part and downcast by its owner, is proposed in [Open-world
+  modeling](OPEN_WORLD.md).
 
 ## Lists
 
@@ -813,6 +816,10 @@ it is fixed here:
   predicates already hold theirs so. Which scopes a constraint attaches to (a schema, a property, a relation, an
   interface, a whole specification), and how attached constraints combine into one conjunction, is not decided.
   The elements that bind parameters (see Parametrics) are likely the same scopes.
+- **Open-world modeling**: independent extension of schemas a module does not own, by intersections as subtyping
+  (reference intersections, extents over parts), policies for undeclared properties (preserved, or extension
+  properties declared elsewhere), and evolution that keeps data valid. A proposal, with its decisions and the work
+  it entails, in [Open-world modeling](OPEN_WORLD.md).
 - **Parametrics**, beyond the proposal (see Parametrics): type parameters now or later; equality of differently
   written applications that substitute alike (`Matrix(n, n)` and `Square(n)`); and what proxies accept for data
   whose shape depends on an unbound parameter.

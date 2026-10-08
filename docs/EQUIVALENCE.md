@@ -1,5 +1,5 @@
 <!-- nav -->
-[← Equality](EQUALITY.md) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)
+[← Equality](EQUALITY.md) · [Home](../README.md) · [Open-world modeling →](OPEN_WORLD.md)
 
 # Equivalence of the implementations
 
@@ -187,4 +187,4 @@ When changing behavior:
 ---
 
 <!-- nav -->
-[← Equality](EQUALITY.md) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)
+[← Equality](EQUALITY.md) · [Home](../README.md) · [Open-world modeling →](OPEN_WORLD.md)

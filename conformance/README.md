@@ -1,5 +1,5 @@
 <!-- nav -->
-[← Equivalence of the implementations](../docs/EQUIVALENCE.md) · [Home](../README.md) · [Python package →](../python3/README.md)
+[← Open-world modeling](../docs/OPEN_WORLD.md) · [Home](../README.md) · [Python package →](../python3/README.md)
 
 # Conformance corpus
 
@@ -35,4 +35,4 @@ Regenerate:
 ---
 
 <!-- nav -->
-[← Equivalence of the implementations](../docs/EQUIVALENCE.md) · [Home](../README.md) · [Python package →](../python3/README.md)
+[← Open-world modeling](../docs/OPEN_WORLD.md) · [Home](../README.md) · [Python package →](../python3/README.md)

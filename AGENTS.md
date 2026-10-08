@@ -48,9 +48,9 @@ programs, languages or tools must agree on. Two equivalent implementations exist
   program that SKL-02 runs; tag fragments `python fragment` or `typescript fragment`.
 - **Behavior is decided in `docs/FRAMEWORK.md`.** Record new decisions under Resolved, and put what stays undecided
   under Open questions.
-  A decision the user specifies is recorded in the user's own words first, as the rule, then explained; never only
-  paraphrased, and never only as an example of what was built. Before writing or changing a design document, check it
-  against Resolved, and cite the Resolved entry rather than describe the decision again.
+  A decision the user specifies is recorded completely, every point and condition of it, as the rule; quoted where the
+  wording matters, never reduced to an example of what was built. Before writing or changing a design document, check
+  it against Resolved, and cite the Resolved entry rather than describe the decision again.
 
 ## Commands
 

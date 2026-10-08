@@ -577,7 +577,8 @@ Native types and their widths are implemented, and written over the wire by thei
 - **Native types are tokens, `{format, name}`** (`Schemas.OfNative.Token`). A format is a language or a neutral vocabulary; `basic` is the
   neutral one, with the names `bool`, `int`, `float`, `str` and `bytes` (the names of mbse-expressions' Basic
   dialect). `{format: 'python3', name: 'int'}` and `{format: 'typescript5', name: 'BigInt'}` are the host types of the
-  two implementations, and other formats name other languages' types (`{format: 'ccpp', name: 'int32_t'}`). An
+  two implementations (a `python3` token names one of the basic types, by Python's name for it: `bool`, `int`,
+  `float`, `str`, `bytes`; any other is a problem, "python3 has no type 'decimal.Decimal'"), and other formats name other languages' types (`{format: 'ccpp', name: 'int32_t'}`). An
   implementation reads `basic` tokens and its own format's; a token in any other format fails to decode
   (`Errors.DecodeError`). Responsible code keeps Basic on one side or both: it holds `basic` tokens in memory, or
   writes them over the wire. Snapshots written that way are byte-identical across implementations, and the conformance
@@ -869,6 +870,11 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   well-formedness constraint under symbol-based serialization?
 
 ### Resolved
+
+- **A `python3` token names a basic type** (0.10), as the user decided: a `python3` token that is not a basic type's
+  name should not be configurable in `OfNative`. Validation reports one ("python3 has no type 'decimal.Decimal'"), as
+  it does an unknown `basic` name, in both implementations. Code generators then never meet a Python native they
+  cannot hold.
 
 - **Adjacencies, as specified:** "adjacencies are always stored in a class under the name of the adjacency and must
   store an Iterable over full relation entries, such as `Proxies.OfEntry.Data` or generated equivalent." So: the one

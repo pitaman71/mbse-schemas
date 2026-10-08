@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mbse-schemas"
-version = "0.9.2"
+version = "0.10.0"
 description = "Neutral, language-independent schemas for interfaces and MBSE models: objects, relations, unions and intersections, with JSON/YAML and validation"
 keywords = ["schema", "mbse", "sysml", "interface", "data model", "orm", "serialization", "validation", "json", "yaml"]
 readme = "README.md"

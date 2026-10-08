@@ -335,8 +335,8 @@ class _NativeData(_Reflected):
         elif not (isinstance(self.token.format, str) and self.token.format and isinstance(self.token.name, str)
                   and self.token.name):
             problems.append("a token needs a format and a name")
-        elif self.token.format == BASIC and self.type is None:
-            problems.append(f"basic has no type {self.token.name!r}")
+        elif self.token.format in (BASIC, PYTHON3) and self.type is None:  # python3: the basic types, by Python's names
+            problems.append(f"{self.token.format} has no type {self.token.name!r}")
         for unit, width in (("bits", self.bits), ("bytes", self.bytes)):
             if _is_term(width):
                 problems += _term_problems(width, f"a width in {unit}")

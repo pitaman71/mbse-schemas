@@ -375,6 +375,7 @@ export function isNativeOf(token: unknown, value: unknown): boolean {
 
 export const BASIC = "basic";
 export const TYPESCRIPT5 = "typescript5";
+export const PYTHON3 = "python3";
 const OWN_TYPES: ReadonlyMap<string, NativeToken> = new Map<string, NativeToken>(
   NATIVE_TYPES.map((host) => [(host as { name: string }).name, host]));
 const BASIC_TYPES: ReadonlyMap<string, NativeToken> = new Map(NATIVE_TYPES.map((host) => [tokenName(host), host]));
@@ -448,7 +449,9 @@ class NativeData extends Reflected {
     if (!(token instanceof TokenClass)) problems.push(`unsupported native type ${repr(token)}`);
     else if (typeof token.format !== "string" || token.format === "" || typeof token.name !== "string" || token.name === "") {
       problems.push("a token needs a format and a name");
-    } else if (token.format === BASIC && this.type === null) problems.push(`basic has no type ${repr(token.name)}`);
+    } else if ((token.format === BASIC && this.type === null) || (token.format === PYTHON3 && !BASIC_TYPES.has(token.name))) {
+      problems.push(`${token.format} has no type ${repr(token.name)}`); // python3: the basic types, by Python's names
+    }
     for (const [unit, width] of [["bits", this.bits], ["bytes", this.bytes]] as const) {
       if (isTerm(width)) problems.push(...termProblems(width, `a width in ${unit}`));
       else if (width !== null && (typeof width !== "bigint" || width < 1n)) {

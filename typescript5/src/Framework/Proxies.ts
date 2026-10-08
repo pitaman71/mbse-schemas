@@ -14,7 +14,10 @@
  * A store holds its singletons, created when their schemas are registered (`store.singleton(globalName)`), and through
  * them its data (see `Stores`); an object nothing reachable from a singleton links is the program's to keep. A
  * relation's entries live on the objects they link, so they go with them. Adding an entry equal to an existing one is
- * elided. An object of one store cannot be linked to, or be a builder's source in, another.
+ * elided. An object of one store cannot be linked to, or be a builder's source in, another. An adjacency is a member
+ * named after it, the frozen array of its entries in the order they were added (`contact.phones`); an entry is shared
+ * by the objects it links, and its links and properties are read-only attributes (`entry.phone`, `entry.label`), so
+ * that code reads proxies as it reads generated classes.
  *
  * A property whose schema is an `OfObject` holds a value object: a read-only record with no identity
  * (`Proxies.OfObject.Record`), read with attributes like an instance and set with a Spec, e.g.
@@ -180,8 +183,28 @@ export function nativeKey(value: unknown): string {
   throw new TypeError(`an entry property must be a native value, a list or a value object, got ${typeName(value)}`);
 }
 
+/** An entry of a relation, shared by the objects it links: read through `view`, a proxy whose read-only attributes are
+ * its links and its properties (`entry.phone`, `entry.label`); reading a property that is not set throws
+ * AttributeError, as an object's does. */
 class Entry {
-  constructor(readonly links: Map<string, Visitable>, readonly properties: Map<string, Native>) {}
+  #view: unknown = null;
+
+  constructor(readonly relation: RelationSchema, readonly links: Map<string, Visitable>, readonly properties: Map<string, Native>) {}
+
+  get view(): unknown {
+    this.#view ??= new Proxy(this, {
+      get(t, prop, receiver) {
+        if (typeof prop === "symbol") return Reflect.get(t, prop, receiver);
+        if (t.links.has(prop)) return t.links.get(prop);
+        if (t.properties.has(prop)) return t.properties.get(prop);
+        if (t.relation.properties.has(prop)) throw new AttributeError(`property ${repr(prop)} is not set`);
+        if (_probes.has(prop)) return undefined;
+        throw new AttributeError(prop);
+      },
+      set: () => { throw new AttributeError("entries are read-only; use a builder"); },
+    });
+    return this.#view;
+  }
 
   key(): string {
     const links = [...this.links].map(([name, target]) => [name, target.identity()] as const).sort(byName);
@@ -318,10 +341,14 @@ function makeInstance(store: OfStore, schema: ObjectSchema, schemaName: string):
   return proxy;
 }
 
-/** A property of an instance or record, as an attribute. */
+/** A property of an instance or record, or an adjacency's entries, as an attribute. */
 function read(t: { values: Map<string, unknown>; schema: RecordSchema }, prop: string, receiver: unknown): unknown {
   if (t.values.has(prop)) return t.values.get(prop);
   if (t.schema.properties.has(prop)) throw new AttributeError(`property ${repr(prop)} is not set`);
+  const adjacency = t.schema instanceof Schemas.OfObject.Data ? t.schema.adjacencies.get(prop) : undefined;
+  if (adjacency !== undefined) {
+    return Object.freeze(linking(adjacency.relation as RelationSchema, adjacency.me, receiver as Visitable).map((entry) => entry.view));
+  }
   if (_probes.has(prop)) return Reflect.get(t, prop, receiver);
   throw new AttributeError(prop);
 }
@@ -1228,7 +1255,7 @@ export class _EntryBuilder implements OfEntry {
       if (value === undefined) throw new ValueError(`link ${repr(name)} is not set`);
       links.set(name, value instanceof ObjectBuilderTarget ? value.create() : value);
     }
-    return new Entry(links, settle(target, new Map(), this.values, new Map()) as Map<string, Native>); // its value objects belong to `target`
+    return new Entry(this.relation, links, settle(target, new Map(), this.values, new Map()) as Map<string, Native>); // its value objects belong to `target`
   }
 }
 

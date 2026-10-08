@@ -43,7 +43,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 |---|---|---|---|
 | `01_Schemas.ipynb` | SCH | 21 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array`, the own token format is `typescript5`, and widths are `bigint`s |
 | `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length` |
-| `03_Proxies.ipynb` | PRX | 17 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances and stores, `util.inspect` of instances and builders, and the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel) |
+| `03_Proxies.ipynb` | PRX | 18 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances and stores, `util.inspect` of instances and builders, and the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel) |
 | `04_Reachable.ipynb` | RCH | 10 | as in Python |
 | `05_Plain.ipynb` | PLN | 16 | as in Python; the same 26 malformed snapshots with byte-identical `DecodeError` paths and reasons |
 | `06_JSON.ipynb` | JSN | 11 | as in Python, including Python's exact output format; the 62-row JSN-09 table of `DecodeError`s is shared verbatim and matches exactly |
@@ -65,7 +65,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `23_Reflection.ipynb` | RFL | 3 | as in Python; a reflected schema's identity is a string (`"schema N"`) |
 | `24_Paths.ipynb` | PTH | 3 | as in Python; an integer key is a `bigint` |
 
-Total: 196 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
+Total: 197 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

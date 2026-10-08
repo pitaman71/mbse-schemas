@@ -9,7 +9,10 @@ Builders (`Proxies.OfObject.Builder`) implement `Visitors.OfObject`, like every 
 A store holds its singletons, created when their schemas are registered (`store.singleton(global_name)`), and through
 them its data (see `Stores`); an object nothing reachable from a singleton links is the program's to keep. A relation's
 entries live on the objects they link, so they go with them. Adding an entry equal to an existing one is elided. An
-object of one store cannot be linked to, or be a builder's source in, another.
+object of one store cannot be linked to, or be a builder's source in, another. An adjacency is a member named after it,
+the tuple of its entries in the order they were added (`contact.phones`); an entry is shared by the objects it links,
+and its links and properties are read-only attributes (`entry.phone`, `entry.label`), so that code reads proxies as it
+reads generated classes.
 
 A property whose schema is an `OfObject` holds a value object: a read-only record with no identity
 (`Proxies.OfObject.Record`), read with attributes like an instance and set with a Spec, e.g.
@@ -122,16 +125,32 @@ def _native_key(value: Any) -> Hashable:
 
 
 class _Entry:
-    __slots__ = ("links", "properties")
+    """An entry of a relation, shared by the objects it links: its links and its properties are read-only attributes
+    (`entry.phone`, `entry.label`), and reading a property that is not set raises AttributeError, as an object's does."""
 
-    def __init__(self, links: Mapping[str, _ObjectData], properties: Mapping[str, Native]):
-        self.links = dict(links)
-        self.properties = dict(properties)
+    __slots__ = ("_relation", "_links", "_properties")
 
-    def key(self) -> Hashable:
+    def __init__(self, relation: RelationSchema, links: Mapping[str, _ObjectData], properties: Mapping[str, Native]):
+        object.__setattr__(self, "_relation", relation)
+        object.__setattr__(self, "_links", dict(links))
+        object.__setattr__(self, "_properties", dict(properties))
+
+    def __getattr__(self, name: str) -> Any:
+        if name in self._links:
+            return self._links[name]
+        if name in self._properties:
+            return self._properties[name]
+        if name in self._relation.properties:
+            raise AttributeError(f"property {name!r} is not set")
+        raise AttributeError(name)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("entries are read-only; use a builder")
+
+    def _key(self) -> Hashable:
         return (
-            tuple(sorted((name, id(target)) for name, target in self.links.items())),
-            tuple(sorted((name, _native_key(value)) for name, value in self.properties.items())),
+            tuple(sorted((name, id(target)) for name, target in self._links.items())),
+            tuple(sorted((name, _native_key(value)) for name, value in self._properties.items())),
         )
 
 
@@ -142,22 +161,22 @@ def _table(target: Any, relation_id: int) -> dict[Hashable, _Entry]:
 
 def _add_entry(relation: RelationSchema, entry: _Entry) -> None:
     """Adds `entry` to every object it links, unless an equal entry is there already."""
-    key = entry.key()
-    if key in _table(next(iter(entry.links.values())), id(relation)):
+    key = entry._key()
+    if key in _table(next(iter(entry._links.values())), id(relation)):
         return
-    for target in entry.links.values():
+    for target in entry._links.values():
         _table(target, id(relation))[key] = entry
 
 
 def _linking(relation: RelationSchema, link: str, target: Any) -> list[_Entry]:
     """The entries of `relation` that link `target` via `link`, in the order they were added."""
-    return [entry for entry in _table(target, id(relation)).values() if entry.links.get(link) is target]
+    return [entry for entry in _table(target, id(relation)).values() if entry._links.get(link) is target]
 
 
 def _discard(relation_id: int, entries: list[_Entry]) -> None:
     for entry in entries:
-        key = entry.key()
-        for target in entry.links.values():
+        key = entry._key()
+        for target in entry._links.values():
             _table(target, relation_id).pop(key, None)
 
 
@@ -218,12 +237,16 @@ def _write_adjacencies(visitor: Any, target: Any, schema: ObjectSchema) -> None:
 
 
 def _read(value: Any, name: str) -> Any:
-    """A property of an instance or record, as an attribute."""
+    """A property of an instance or record, or an adjacency's entries, as an attribute."""
     values = object.__getattribute__(value, "_values")
     if name in values:
         return values[name]
-    if name in object.__getattribute__(value, "_schema").properties:
+    schema = object.__getattribute__(value, "_schema")
+    if name in schema.properties:
         raise AttributeError(f"property {name!r} is not set")
+    adjacency = schema.adjacencies.get(name) if isinstance(schema, ObjectSchema) else None
+    if adjacency is not None:
+        return tuple(_linking(adjacency.relation, adjacency.me, value))
     raise AttributeError(name)
 
 
@@ -479,10 +502,10 @@ def _write_entry(visitor: Visitors.OfEntry, entry: _Entry, adjacency: Schemas.Of
     relation = adjacency.relation
     for name in relation.links:
         if name != adjacency.me:
-            visitor.link(name, lambda k, target=entry.links[name]: k.set(target))
+            visitor.link(name, lambda k, target=entry._links[name]: k.set(target))
     for name in relation.properties:
-        if name in entry.properties:
-            value = entry.properties[name]
+        if name in entry._properties:
+            value = entry._properties[name]
             visitor.property(name, lambda p, value=value: p.value(lambda a: _write_value(a, value)))
 
 
@@ -887,8 +910,8 @@ def _load_entries(entries: dict[str, list[_EntryBuilder]], schema: ObjectSchema,
     for name, adjacency in schema.adjacencies.items():
         for entry in _linking(adjacency.relation, adjacency.me, source):
             builder = _EntryBuilder(adjacency.relation, adjacency.me, store)
-            builder._links = {link: target for link, target in entry.links.items() if link != adjacency.me}
-            builder._values = dict(entry.properties)
+            builder._links = {link: target for link, target in entry._links.items() if link != adjacency.me}
+            builder._values = dict(entry._properties)
             entries.setdefault(name, []).append(builder)
     for name, pending in object.__getattribute__(source, "_pending").items() if isinstance(source, _RecordData) else ():
         entries.setdefault(name, []).extend(pending)
@@ -990,7 +1013,7 @@ class _EntryBuilder:
                 raise ValueError(f"link {name!r} is not set")
             value = self._links[name]
             links[name] = value.create() if isinstance(value, _ObjectBuilder) else value
-        return _Entry(links, _settle(target, {}, self._values, {}))  # its value objects belong to `target`
+        return _Entry(self._relation, links, _settle(target, {}, self._values, {}))  # its value objects belong to `target`
 
 
 class _AdjacencySlot:

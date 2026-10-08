@@ -306,6 +306,13 @@ in-memory cache slices.
 ## Proxies
 
 - `Proxies` : for each schema element `OfX`, `Proxies.OfX.Data` defines how the schema can be stored in memory as schema-independent types, and `Proxies.OfX.Builder`, like every builder, implements `Visitors.OfX`. Proxies themselves do not implement `Visitors`; if they have an interface for traversal, it is `Visitable` (a proxy accepts a visitor), not `Visitor`. `Proxies.OfX.Builder.validate` can be used to check the current state of the configured item. Validation is never implicit: it runs only when the caller invokes it.
+- **Objects read alike, whatever implements them.** A proxy reads a property as an attribute (`contact.name`) and an
+  adjacency as one member named after it, the iterable of its entries in order (`contact.phones`, a tuple in Python
+  and a frozen array in TypeScript). An entry is one object, shared by the objects it links, whose links and properties
+  are read-only attributes (`entry.owner`, `entry.phone`, `entry.label`). Generated classes (mbse-codegen-*) have the
+  same members, so code that reads objects works on proxies and generated classes alike. Any iterable will do; a set
+  sorted by a comparator, which would serve retrieval, is an open question. On the wire, an entry is written in its
+  adjacency's form, without the link the adjacency implies.
 
 ## Typed bindings
 
@@ -842,6 +849,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   well-formedness constraint under symbol-based serialization?
 
 ### Resolved
+
+- Adjacencies are members (0.8.3): a proxy reads an adjacency as the entries it holds, and an entry's links and
+  properties as attributes, as generated classes will, so that code reads either without change.
 
 - Objects outside snapshots are named by paths (0.8.2): `Paths.of(store)`, from the store's named roots by route,
   keyed by unique properties where a relation declares them. Snapshots keep their symbols.

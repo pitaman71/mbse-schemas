@@ -188,8 +188,8 @@ Instances of a user schema follow the same pattern. With the dynamic (proxy) imp
 
 - A property is cleared (made absent) through the value builder: `.street2(lambda v: v.clear())`.
 - Instances expose their properties for reading as ordinary attributes (e.g. `addr1.street1`). This access is
-  read-only; changes go through a builder. Reading a property that is not set raises an error (`AttributeError` in
-  the Python binding).
+  read-only; changes go through a builder. A property that is not set reads as `None` (`null` in TypeScript): no
+  property holds `None` as a value, so it means absent, as in generated classes, whose fields default to `None`.
 
 To make schemas fully serializable, `Schemas.OfX.Builder` must implement `Visitors.OfX`.
 
@@ -850,6 +850,10 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 ### Resolved
 
+- A property that is not set reads as `None` (0.8.4), not an error, on proxies, value objects and entries, so that code
+  reads proxies and generated classes alike: no property holds `None` as a value, so `None` means absent, and absent
+  properties are still left out of what is written. Reading a name the schema does not declare still raises.
+
 - Adjacencies are members (0.8.3): a proxy reads an adjacency as the entries it holds, and an entry's links and
   properties as attributes, as generated classes will, so that code reads either without change.
 
@@ -943,7 +947,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Instances of a registered schema are built through `store.Name(optional instance)` (the dynamic implementation,
   `Proxies.OfStore`), which has one fluent setter per property.
 - Instance properties are read as ordinary attributes (e.g. `addr1.street1`), read-only; changes go through a builder.
-  Reading a property that is not set raises an error.
+  A property that is not set reads as `None` (`null` in TypeScript).
 - Instance setters take a `Spec`: `.street1('foo')` is equivalent to `.street1(lambda v: v.set('foo'))`.
 - A property is cleared with `.street2(lambda v: v.clear())`.
 - JSON and YAML are implemented as `JSON.ToJSON(store)` / `JSON.FromJSON(store)` and `YAML.ToYAML(store)` /

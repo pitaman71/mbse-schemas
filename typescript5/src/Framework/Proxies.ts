@@ -184,8 +184,8 @@ export function nativeKey(value: unknown): string {
 }
 
 /** An entry of a relation, shared by the objects it links: read through `view`, a proxy whose read-only attributes are
- * its links and its properties (`entry.phone`, `entry.label`); reading a property that is not set throws
- * AttributeError, as an object's does. */
+ * its links and its properties (`entry.phone`, `entry.label`); a property that is not set reads as `null`, as an
+ * object's does. */
 class Entry {
   #view: unknown = null;
 
@@ -197,7 +197,7 @@ class Entry {
         if (typeof prop === "symbol") return Reflect.get(t, prop, receiver);
         if (t.links.has(prop)) return t.links.get(prop);
         if (t.properties.has(prop)) return t.properties.get(prop);
-        if (t.relation.properties.has(prop)) throw new AttributeError(`property ${repr(prop)} is not set`);
+        if (t.relation.properties.has(prop)) return null; // not set: nothing is mandatory but by a constraint
         if (_probes.has(prop)) return undefined;
         throw new AttributeError(prop);
       },
@@ -329,7 +329,8 @@ function makeInstance(store: OfStore, schema: ObjectSchema, schemaName: string):
     },
     has(t, prop) {
       if (typeof prop === "symbol") return Reflect.has(t, prop);
-      return INSTANCE_METHODS.has(prop) || t.values.has(prop) || (_probes.has(prop) && Reflect.has(t, prop));
+      return INSTANCE_METHODS.has(prop) || t.values.has(prop) || t.schema.properties.has(prop) || t.schema.adjacencies.has(prop)
+        || (_probes.has(prop) && Reflect.has(t, prop)); // as Python's hasattr: what reads without error
     },
     set: readOnly,
     defineProperty: readOnly,
@@ -344,7 +345,7 @@ function makeInstance(store: OfStore, schema: ObjectSchema, schemaName: string):
 /** A property of an instance or record, or an adjacency's entries, as an attribute. */
 function read(t: { values: Map<string, unknown>; schema: RecordSchema }, prop: string, receiver: unknown): unknown {
   if (t.values.has(prop)) return t.values.get(prop);
-  if (t.schema.properties.has(prop)) throw new AttributeError(`property ${repr(prop)} is not set`);
+  if (t.schema.properties.has(prop)) return null; // not set: nothing is mandatory but by a constraint
   const adjacency = t.schema instanceof Schemas.OfObject.Data ? t.schema.adjacencies.get(prop) : undefined;
   if (adjacency !== undefined) {
     return Object.freeze(linking(adjacency.relation as RelationSchema, adjacency.me, receiver as Visitable).map((entry) => entry.view));
@@ -464,8 +465,8 @@ const recordTargets = new WeakMap<object, RecordTarget>();
 
 /** The state behind a value object: the value of a property whose schema is an `OfObject`, which may have
  * adjacencies, or a union or intersection value, whose properties are the branches or parts. It belongs to one owner
- * and has an identity of its own; its properties are read-only attributes, and reading one that is not set throws
- * AttributeError. Built but not yet placed in an owner, it holds its entries in `pending` until its owner is created
+ * and has an identity of its own; its properties are read-only attributes, and one that is not set reads as `null`.
+ * Built but not yet placed in an owner, it holds its entries in `pending` until its owner is created
  * or updated. */
 class RecordTarget {
   readonly id = ++nextIdentity;

@@ -2,7 +2,6 @@
 //
 // Lines marked PROPOSED use syntax that FRAMEWORK.md does not define yet.
 
-import { AttributeError } from "@mbse/schemas/Framework/Errors";
 import { JSON, Plain, Proxies, Schemas } from "@mbse/schemas/Framework";
 import { assert, equal } from "./_support.js";
 
@@ -121,22 +120,12 @@ assert(cloned !== addr1);
 assert(cloned.street2 === "shoe");
 assert(addr1.street2 === "baz");
 
-// clearing a property makes it absent; reading an absent property raises
+// clearing a property makes it absent; an absent property reads as null
 store.IntlAddress(addr1).street3((v: any) => v.clear()).update();
-try {
-  addr1.street3;
-  throw new Error("AssertionError: reading a cleared property must raise");
-} catch (error) {
-  if (!(error instanceof AttributeError)) throw error;
-}
+assert(addr1.street3 === null);
 
-// a property that was never set also raises
-try {
-  addr1.sorting_code;
-  throw new Error("AssertionError: reading an unset property must raise");
-} catch (error) {
-  if (!(error instanceof AttributeError)) throw error;
-}
+// a property that was never set reads as null too
+assert(addr1.sorting_code === null);
 
 // traditional property access (read only)
 console.log(`${addr1.street1}, ${addr1.locality} ${addr1.postal_code}, ${addr1.country_code}`);

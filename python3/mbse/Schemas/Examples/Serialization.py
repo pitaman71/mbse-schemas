@@ -94,8 +94,7 @@ assert restored.flag is False
 empty = store.Sample().label('').payload(b'').count(0).ratio(0.0).create()
 back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty))
 assert (back.label, back.payload, back.count, back.ratio) == ('', b'', 0, 0.0)
-with raises(AttributeError):
-    back.flag  # never set, so absent
+assert back.flag is None  # never set, so absent
 
 # An object with nothing set serializes to an empty object.
 blank = store.Sample().create()

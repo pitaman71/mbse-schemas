@@ -126,7 +126,7 @@ def _native_key(value: Any) -> Hashable:
 
 class _Entry:
     """An entry of a relation, shared by the objects it links: its links and its properties are read-only attributes
-    (`entry.phone`, `entry.label`), and reading a property that is not set raises AttributeError, as an object's does."""
+    (`entry.phone`, `entry.label`), and a property that is not set reads as None, as an object's does."""
 
     __slots__ = ("_relation", "_links", "_properties")
 
@@ -141,7 +141,7 @@ class _Entry:
         if name in self._properties:
             return self._properties[name]
         if name in self._relation.properties:
-            raise AttributeError(f"property {name!r} is not set")
+            return None  # not set: nothing is mandatory but by a constraint
         raise AttributeError(name)
 
     def __setattr__(self, name: str, value: object) -> None:
@@ -194,7 +194,7 @@ def _discard_target(target: Any) -> None:
 
 
 class _ObjectData:
-    """A proxy instance. Properties are read-only attributes; reading one that is not set raises AttributeError."""
+    """A proxy instance. Properties are read-only attributes; one that is not set reads as None."""
 
     __slots__ = ("_store", "_schema", "_schema_name", "_values", "_adjacent", "__weakref__")
 
@@ -243,7 +243,7 @@ def _read(value: Any, name: str) -> Any:
         return values[name]
     schema = object.__getattribute__(value, "_schema")
     if name in schema.properties:
-        raise AttributeError(f"property {name!r} is not set")
+        return None  # not set: nothing is mandatory but by a constraint
     adjacency = schema.adjacencies.get(name) if isinstance(schema, ObjectSchema) else None
     if adjacency is not None:
         return tuple(_linking(adjacency.relation, adjacency.me, value))
@@ -326,7 +326,7 @@ def _a(noun: str) -> str:
 class _RecordData:
     """A value object: the value of a property whose schema is an `OfObject`, which may have adjacencies, or a union or
     intersection value, whose properties are the branches or parts. It belongs to one owner and has an identity of its
-    own; its properties are read-only attributes, and reading one that is not set raises AttributeError. Built but not
+    own; its properties are read-only attributes, and one that is not set reads as None. Built but not
     yet placed in an owner, it holds its entries in `_pending` until its owner is created or updated."""
 
     __slots__ = ("_schema", "_values", "_owner", "_pending", "_source", "_copy_of", "_adjacent")

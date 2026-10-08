@@ -85,7 +85,7 @@ assert(restored.flag === false);
 const empty = store.Sample().label("").payload(bytes()).count(0n).ratio(0.0).create();
 const back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty)) as Instance;
 assert(back.label === "" && equal(back.payload, bytes()) && back.count === 0n && back.ratio === 0);
-raises(AttributeError, () => back.flag); // never set, so absent
+assert(back.flag === null); // never set, so absent
 
 // An object with nothing set serializes to an empty object.
 const blank = store.Sample().create();

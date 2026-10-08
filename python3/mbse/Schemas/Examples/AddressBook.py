@@ -155,22 +155,12 @@ assert cloned is not addr1
 assert cloned.street2 == 'shoe'
 assert addr1.street2 == 'baz'
 
-# clearing a property makes it absent; reading an absent property raises
+# clearing a property makes it absent; an absent property reads as None
 store.IntlAddress(addr1).street3(lambda v: v.clear()).update()
-try:
-    addr1.street3
-except AttributeError:
-    pass
-else:
-    raise AssertionError('reading a cleared property must raise')
+assert addr1.street3 is None
 
-# a property that was never set also raises
-try:
-    addr1.sorting_code
-except AttributeError:
-    pass
-else:
-    raise AssertionError('reading an unset property must raise')
+# a property that was never set reads as None too
+assert addr1.sorting_code is None
 
 # traditional property access (read only)
 print(f"{addr1.street1}, {addr1.locality} {addr1.postal_code}, {addr1.country_code}")

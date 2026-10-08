@@ -30,7 +30,8 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
    relations only. A *value object* is held by a property, or in a list, whose schema is an `OfObject`; it belongs to
    that owner and is copied with it, and it may have adjacencies.
 3. **Names starting with `$` are reserved** for the wire format (`$ref`, `$schema`, `$id`); `validate()` reports them.
-4. **Nothing is mandatory, and absent is not null.** Reading an unset property raises `AttributeError`. Cardinality
+4. **Nothing is mandatory, and absent reads as `None`** (`null` in TypeScript): no property holds `None` as a value,
+   and an absent one is left out of what is written. An undeclared name raises `AttributeError`. Cardinality
    is `unique(...)` on a relation. "At least one" constraints are not implemented yet.
 5. **Validation runs only when asked:** `Validators.Validate(store)(schema, value)`, or `.Reachable(...)` for a
    whole graph. It returns every problem, each with a path. Schemas have their own `.validate()`.

@@ -29,8 +29,9 @@ is read as a read-only mapping (`Proxies.OfIndexed.Map`) and set with a mapping 
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable, Hashable, Iterator, Mapping
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 from . import Errors, Schemas, Stores, Visitors
 from .Visitors import Native
@@ -109,10 +110,14 @@ def _same_store(store: OfStore | None, value: Any) -> None:
 
 def _native_key(value: Any) -> Hashable:
     """Equality key per EQUALITY.md: distinct native types never compare equal; floats compare by bit pattern; a value
-    object by its schema and properties, whatever its identity."""
+    object by its schema and properties, whatever its identity, and a generated value object (a dataclass instance,
+    mbse-codegen-python's) by its class and the fields it has set."""
     if isinstance(value, _RecordData):
         values = object.__getattribute__(value, "_values")
         return ("object", id(value._schema), tuple(sorted((n, _native_key(v)) for n, v in values.items())))
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        held = ((f.name, getattr(value, f.name)) for f in dataclasses.fields(value))
+        return ("object", id(type(value)), tuple(sorted((n, _native_key(v)) for n, v in held if v is not None)))
     if isinstance(value, _Map):
         return ("map", frozenset((_native_key(k), _native_key(v)) for k, v in value.items()))
     if isinstance(value, (tuple, list)):
@@ -331,9 +336,14 @@ def _write_pairs(visitor: Visitors.OfIndexed, items: _Map) -> None:
         visitor.put(lambda a, key=key: _write_value(a, key), lambda a, value=value: _write_value(a, value))
 
 
-class _Map(Mapping[Any, Any]):
+_K, _V = TypeVar("_K"), TypeVar("_V")
+
+
+class _Map(Mapping, Generic[_K, _V]):  # type: ignore[type-arg]
     """A keyed list as proxies read it: a read-only mapping, in insertion order. A key is looked up by schema equality:
-    a native by its exact type, a list given as a tuple or list, a value object by its schema and properties."""
+    a native by its exact type, a list given as a tuple or list, a value object by its schema and properties. It stands
+    alone, `Map(pairs)`, and is generic, `Map[float, str]`, so that generated code holds a keyed list as proxies do
+    where a `dict` cannot compare keys as schema equality does."""
 
     __slots__ = ("_pairs", "_index")
 

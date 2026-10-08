@@ -554,6 +554,10 @@ value. One kind, `OfIndexed`, covers both: `t.as_indexed(lambda i: i.key(spec).o
   `m.get(key)`, `key in m`, `len(m)`, and its keys, values and items. A key is given as a native, a tuple (or list) for
   a list, or a value object, which matches by structure. A setter takes a mapping or a sequence of `(key, value)`
   pairs, each a value, a value object or a Spec; a Spec receives the list's builder, as for any list.
+- **The mapping stands alone.** `Proxies.OfIndexed.Map(pairs)` builds one outside a store, generic in Python
+  (`Map[float, str]`), so that generated code (mbse-codegen-python) holds a keyed list as proxies do wherever its
+  language's own mapping cannot compare keys as schema equality does: a `float` key, a list, a value object. A key may
+  also be a generated value object, a dataclass instance in Python, compared by its class and the fields it has set.
 - **`Visitors.OfIndexed` addresses items by key** as well as by position: `pairs(callback)` calls `callback` with a
   `Visitors.OfItem` per item, whose `key(callback)` and `value(callback)` pass a `Visitors.OfAny` (a key read there is
   read-only: `put` and `discard` change keys); `at(key, callback)` passes the value of the item whose key `key` writes;

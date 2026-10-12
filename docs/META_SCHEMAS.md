@@ -66,7 +66,9 @@ skill regenerated. No release comes between phases.
    | mbse-codegen-python | `Types` without `OfIndexed` and `Proxies.OfIndexed.Map`; a relation keyed by integer-like properties promoted to an indexable, and to a dict or map where unambiguous; `Codegen.Defined`'s `unique(output, name)` corrected for the right reading, `unique(node)`, without which its paths are positional since phase 1 (TYP-03) |
 
    The dependents' suites are run in the workspace after each phase, and what a phase breaks is listed above. After
-   phase 1, mbse-patterns passes unchanged.
+   phase 1, mbse-patterns passes unchanged. Phase 2 breaks nothing more, though a dependent's relation that has no
+   `unique` clause and relied on equal entries being elided now keeps them, which its tests may not show: each
+   dependent's relations are reviewed for it here.
 
 7. **The release**: mbse-schemas 0.11.0 and a minor version of each dependent, landed together
    (`polyrepo.py land <dir>`).

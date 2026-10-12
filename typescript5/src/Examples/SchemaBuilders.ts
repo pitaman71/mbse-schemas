@@ -88,8 +88,9 @@ assert(Ownership.validate().length === 0 && Directory.validate().length === 0);
 // --- Validation catches problems, but only when asked ---
 
 // Building an invalid schema succeeds; validate() reports the problems.
-const OneLink = new Schemas.OfRelation.Builder().links("contact").create();
-assert(OneLink.validate().some((p) => p.includes("one-link")));
+const NoLinks = new Schemas.OfRelation.Builder().create();
+assert(NoLinks.validate().some((p) => p.includes("at least one link")));
+assert(new Schemas.OfRelation.Builder().links("contact").create().validate().length === 0); // one link: its entries hold values
 
 const Clash = new Schemas.OfRelation.Builder()
   .links("owner", "item")

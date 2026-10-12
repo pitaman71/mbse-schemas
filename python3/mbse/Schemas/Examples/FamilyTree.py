@@ -25,6 +25,7 @@ Parentage = (
     Schemas.OfRelation.Builder().name('Parentage')
     .links('parent', 'child')
     .properties(lambda prop: prop.name('kind').of(lambda t: t.as_native(str)))  # 'biological', 'adoptive'
+    .unique()  # a set of entries, with no other constraint: an entry equal to one held is that one
     .create()
 )
 

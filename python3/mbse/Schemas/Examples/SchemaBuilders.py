@@ -111,8 +111,9 @@ assert Ownership.validate() == [] and Directory.validate() == []
 # --- Validation catches problems, but only when asked ---
 
 # Building an invalid schema succeeds; validate() reports the problems.
-OneLink = Schemas.OfRelation.Builder().links('contact').create()
-assert any('one-link' in p for p in OneLink.validate())
+NoLinks = Schemas.OfRelation.Builder().create()
+assert any('at least one link' in p for p in NoLinks.validate())
+assert Schemas.OfRelation.Builder().links('contact').create().validate() == []  # one link: its entries hold values
 
 Clash = (
     Schemas.OfRelation.Builder()

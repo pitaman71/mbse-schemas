@@ -40,8 +40,12 @@ value objects linked by connectors.
 repeat. Use a relation to link objects that stand on their own, for maps and keyed lookup, and wherever `unique(...)`
 applies.
 
-**A relation must link objects.** A one-link relation whose entries carry the data (a contact's phone numbers as
-entries holding `number`) is not legal. Make the data an object and link it to its owner.
+**A one-link relation is a list.** Its entries hold values for their one owner (a contact's own phone numbers as
+entries holding `number`); declare it inline in the adjacency, `.of(lambda rel: rel.links("contact").properties(...))`.
+Data that several objects share is an object, linked to each.
+
+**Set or list comes from `unique`.** A relation with a `unique` clause holds a set, and an equal entry is elided; one
+without is open, its entries a list, equal entries kept. `.unique()` names nothing and only makes it a set.
 
 **Cardinality comes from `unique(S)`.** The links and properties outside `S` determine `S`, so they form a key. Pick
 from the patterns in

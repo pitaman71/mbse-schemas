@@ -23,8 +23,10 @@
  * - `OfLink`: equal when both link the same object (by identity), or, within two recordings, value objects at the same
  *   path from their roots (`home`, `reach.phone`); otherwise incomparable.
  * - `OfEntry`: equal when every link and property is equal; otherwise incomparable.
- * - `OfAdjacency`: its entries form a set, seen from one object (whose own link is implied), so adding an entry equal
- *   to one already there is elided. Equal when both hold equal entries; otherwise incomparable.
+ * - `OfAdjacency`: seen from one object (whose own link is implied), the entries of a relation with a `unique` clause
+ *   form a set, so adding an entry equal to one already there is elided, and two adjacencies are equal when both hold
+ *   equal entries; an open relation's are a list, equal entries kept, and two are equal when their entries are, in
+ *   order. Otherwise incomparable.
  *
  * `Visitors.OfRelation` has no implementation: it declares no way to write entries into it.
  */
@@ -550,7 +552,8 @@ export class OfAdjacency implements Visitors.OfAdjacency {
   add(callback: Callback<Visitors.OfEntry>): OfAdjacency {
     const entry = new OfEntry(this.schema.relation as Schemas.OfRelation.Data, this.schema.me, this.paths);
     callback(entry);
-    if (!this.list.some((existing) => entry.compare(existing) === 0)) this.list.push(entry);
+    const relation = this.schema.relation as Schemas.OfRelation.Data;
+    if (relation.open || !this.list.some((existing) => entry.compare(existing) === 0)) this.list.push(entry);
     return this;
   }
 
@@ -562,6 +565,7 @@ export class OfAdjacency implements Visitors.OfAdjacency {
   compare(other: OfAdjacency): Result {
     if (this.schema.relation !== other.schema.relation || this.schema.me !== other.schema.me) return null;
     if (this.list.length !== other.list.length) return null;
+    if ((this.schema.relation as Schemas.OfRelation.Data).open) return allEqual(this.list.map((e, i) => e.compare(other.list[i] as OfEntry)));
     return allEqual(this.list.map((e) => (other.list.some((o) => e.compare(o) === 0) ? 0 : null)));
   }
 }

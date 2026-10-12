@@ -26,6 +26,7 @@ let Person = new Schemas.OfObject.Builder().name("Person").ref()
 const Parentage = new Schemas.OfRelation.Builder().name("Parentage")
   .links("parent", "child")
   .properties((prop) => prop.name("kind").of((t) => t.as_native(String))) // 'biological', 'adoptive'
+  .unique() // a set of entries, with no other constraint: an entry equal to one held is that one
   .create();
 
 const Mentorship = new Schemas.OfRelation.Builder().name("Mentorship").links("mentor", "mentee").create();

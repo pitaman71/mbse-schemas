@@ -45,12 +45,12 @@ skill regenerated. No release comes between phases.
    `unique(S)` the right way round.
 2. **One-link relations and lists as relations**: a relation of one link; an open relation (no `unique`) is a list,
    `.unique()` naming nothing makes a set; reading counts an entry written under several ends once; value objects held
-   by a one-link relation's entries may have adjacencies; lists declared inline in their adjacency; the dataclasses
-   adapter maps `list[N]` and `dict[K, N]` to one-link relations.
+   by a one-link relation's entries may have adjacencies; lists declared inline in their adjacency.
 3. **The meta-schemas' lists as adjacencies**, in declaration order (the module format changes); a module's schemas
    keyed by name; `OfApply` binding by name only.
 4. **`OfIndexed` removed**, with `Proxies.OfIndexed.Map`, the list visitors and records, the keyed wire forms and
-   extents; `Check` and `Validate` evaluating no term. The Lists suite is rewritten.
+   extents; `Check` and `Validate` evaluating no term; the dataclasses adapter mapping `list[N]` and `dict[K, N]` to
+   one-link relations. The Lists suite is rewritten.
 5. **Meta-schemas as linked objects**: links built with a schema given as itself (`.<link>.of(schema, spec)`);
    `OfAny` removed, a type given as itself; every schema a reference object of its kind's meta-schema, every reference
    to one a link through a meta-relation, the ends at which a schema is referred to anonymous adjacencies (built here,

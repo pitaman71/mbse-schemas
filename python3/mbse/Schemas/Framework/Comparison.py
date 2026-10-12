@@ -21,8 +21,10 @@ record a value when constructed; an instance writes itself in through `Visitable
 - `OfLink`: equal when both link the same object (by identity), or, within two recordings, value objects at the same
   path from their roots (`home`, `reach.phone`); otherwise incomparable.
 - `OfEntry`: equal when every link and property is equal; otherwise incomparable.
-- `OfAdjacency`: its entries form a set, seen from one object (whose own link is implied), so adding an entry equal
-  to one already there is elided. Equal when both hold equal entries; otherwise incomparable.
+- `OfAdjacency`: seen from one object (whose own link is implied), the entries of a relation with a `unique` clause
+  form a set, so adding an entry equal to one already there is elided, and two adjacencies are equal when both hold
+  equal entries; an open relation's are a list, equal entries kept, and two are equal when their entries are, in
+  order. Otherwise incomparable.
 
 `Visitors.OfRelation` has no implementation: it declares no way to write
 entries into it.
@@ -489,7 +491,7 @@ class OfAdjacency:
     def add(self, callback: Callable[[Visitors.OfEntry], Any]) -> OfAdjacency:
         entry = OfEntry(self._schema.relation, self._schema.me, self._paths)
         callback(entry)
-        if not any(entry.compare(existing) == 0 for existing in self._entries):
+        if self._schema.relation.open or not any(entry.compare(existing) == 0 for existing in self._entries):
             self._entries.append(entry)
         return self
 
@@ -502,6 +504,8 @@ class OfAdjacency:
             return None
         if len(self._entries) != len(other._entries):
             return None
+        if self._schema.relation.open:
+            return _all_equal([e.compare(o) for e, o in zip(self._entries, other._entries)])
         return _all_equal([0 if any(e.compare(o) == 0 for o in other._entries) else None for e in self._entries])
 
 

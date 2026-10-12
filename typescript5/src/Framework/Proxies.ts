@@ -188,6 +188,8 @@ export function nativeKey(value: unknown): string {
 /** An entry of a relation, shared by the objects it links: read through `view`, a proxy whose read-only attributes are
  * its links and its properties (`entry.phone`, `entry.label`); a property that is not set reads as `null`, as an
  * object's does. */
+let nextEntry = 0;
+
 class Entry {
   #view: unknown = null;
 
@@ -208,7 +210,12 @@ class Entry {
     return this.#view;
   }
 
+  readonly id = ++nextEntry;
+
+  /** What the entry is held by: its value in a relation with a `unique` clause, a set, and itself in an open relation,
+   * a list from each end, which keeps equal entries. */
   key(): string {
+    if (this.relation.open) return `entry:${this.id}`;
     const links = [...this.links].map(([name, target]) => [name, target.identity()] as const).sort(byName);
     const props = [...this.properties].map(([name, value]) => [name, nativeKey(value)] as const).sort(byName);
     return JSON.stringify([links, props]);
@@ -720,7 +727,7 @@ function addPending(record: ValueObject, mapping: Mapping): void {
     for (const builder of builders) {
       const links = entryOf(builder).linkValues;
       for (const [link, target] of [...links]) if (mapping.has(target)) links.set(link, mapping.get(target) as LinkValue);
-      addEntry(relation, builder.build(record));
+      if (firstCopy(relation, entryOf(builder), record, mapping)) addEntry(relation, builder.build(record));
     }
   }
   state.pending = new Map();
@@ -779,8 +786,25 @@ function isInstance(value: unknown): value is Instance {
   return typeof value === "object" && value !== null && instanceTargets.has(value);
 }
 
+/** Whether an entry builder adds its entry: an entry rewritten from one already held (`source`), linking the same
+ * objects, is added once in one build, though every object it links gives it, which in an open relation would
+ * otherwise add it again. */
+function firstCopy(relation: RelationSchema, builder: _EntryBuilder, target: Visitable, mapping: Mapping): boolean {
+  const source = builder.source;
+  if (source === null || !relation.open) return true;
+  const links = new Map<string, unknown>([...builder.linkValues, [builder.me, target]]);
+  const key = `entry:${source.id}:${JSON.stringify([...links].map(([name, linked]) => [name, (linked as Visitable).identity()]).sort())}`;
+  if (mapping.has(key)) return false;
+  mapping.set(key, source);
+  return true;
+}
+
+/** Writes an entry's links and properties in the relation's declared order, whichever end built the entry. A proxy's
+ * entry builder remembers the entry it copies. */
 function writeEntry(visitor: EntryVisitor, entry: Entry, adjacency: AdjacencySchema): void {
   const relation = adjacency.relation as RelationSchema;
+  const builder = entryTargets.get(visitor as object);
+  if (builder !== undefined) builder.source = entry;
   for (const name of relation.links) {
     if (name !== adjacency.me) {
       const target = entry.links.get(name) as Instance;
@@ -1226,6 +1250,7 @@ function loadEntries(entries: Map<string, _EntryBuilder[]>, schema: ObjectSchema
       const state = entryOf(builder);
       for (const [link, target] of entry.links) if (link !== adjacency.me) state.linkValues.set(link, target as LinkValue);
       for (const [key, value] of entry.properties) state.values.set(key, value);
+      state.source = entry;
       entries.set(name, [...(entries.get(name) ?? []), builder]);
     }
   }
@@ -1290,9 +1315,11 @@ const ENTRY_METHODS = new Set(["links", "link", "properties", "has", "property",
 export class _EntryBuilder implements EntryVisitor {
   readonly linkValues = new Map<string, LinkValue>();
   readonly values = new Map<string, Native>();
+  /** The entry this one rewrites, when copied or loaded from one. */
+  source: Entry | null = null;
   proxy!: _EntryBuilder;
 
-  constructor(private readonly relation: RelationSchema, private readonly me: string, readonly store: OfStore | null = null) {}
+  constructor(private readonly relation: RelationSchema, readonly me: string, readonly store: OfStore | null = null) {}
 
   private checkLink(name: string): void {
     if (name === this.me || !this.relation.links.includes(name)) {
@@ -1360,7 +1387,9 @@ export class _EntryBuilder implements EntryVisitor {
       if (value === undefined) throw new ValueError(`link ${repr(name)} is not set`);
       links.set(name, value instanceof ObjectBuilderTarget ? value.create() : value);
     }
-    return new Entry(this.relation, links, settle(target, new Map(), this.values, new Map()) as Map<string, Native>); // its value objects belong to `target`
+    const source = this.source;
+    const held = source !== null && source.links.get(this.me) === target ? source.properties : new Map(); // an update keeps them
+    return new Entry(this.relation, links, settle(target, held, this.values, new Map()) as Map<string, Native>); // its value objects belong to `target`
   }
 }
 
@@ -1526,7 +1555,7 @@ export class ObjectBuilderTarget implements ObjectVisitor {
       for (const entry of entries) {
         const links = entryOf(entry).linkValues;
         for (const [link, linked] of [...links]) if (mapping.has(linked)) links.set(link, mapping.get(linked) as LinkValue);
-        addEntry(relation, entry.build(target));
+        if (firstCopy(relation, entryOf(entry), target, mapping)) addEntry(relation, entry.build(target));
       }
     }
     return target;

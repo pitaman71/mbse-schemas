@@ -393,12 +393,18 @@ export class _LinkWriter implements OfLink {
 
 /** `Visitors.OfEntry` writing one plain entry. */
 export class _EntryWriter implements OfEntry {
+  private readonly symbol: Symbol;
+
   constructor(
     private readonly entry: PlainMap,
     private readonly relation: Schemas.OfRelation.Data,
     private readonly me: string,
     private readonly ref: Ref,
-  ) {}
+    symbol: Symbol = unlinked,
+  ) {
+    // A one-link relation's entries are written once, so their value objects can be linked by their symbols.
+    this.symbol = relation.links.length === 1 ? symbol : unlinked;
+  }
 
   links(callback: Callback<OfLink>): _EntryWriter {
     for (const name of this.relation.links) if (name !== this.me) callback(new _LinkWriter(this.entry, name, this.ref));
@@ -414,7 +420,7 @@ export class _EntryWriter implements OfEntry {
   properties(callback: Callback<OfProperty>): _EntryWriter {
     for (const [name, prop] of this.relation.properties) {
       const schema = prop.type as Schemas.OfAny.Data;
-      if (this.entry.has(name)) callback(new _PropertyWriter(this.entry, name, schema, this.ref, unlinked));
+      if (this.entry.has(name)) callback(new _PropertyWriter(this.entry, name, schema, this.ref, this.symbol));
     }
     return this;
   }
@@ -424,7 +430,7 @@ export class _EntryWriter implements OfEntry {
   }
 
   property(name: string, callback: Callback<OfProperty>): _EntryWriter {
-    callback(new _PropertyWriter(this.entry, name, propertySchema(this.relation.properties, name), this.ref, unlinked));
+    callback(new _PropertyWriter(this.entry, name, propertySchema(this.relation.properties, name), this.ref, this.symbol));
     return this;
   }
 
@@ -441,6 +447,7 @@ export class _AdjacencyWriter implements OfAdjacency {
     private readonly adjacencyName: string,
     private readonly schema: Schemas.OfAdjacency.Data,
     private readonly ref: Ref,
+    private readonly symbol: Symbol = unlinked,
   ) {}
 
   name(): string {
@@ -453,14 +460,14 @@ export class _AdjacencyWriter implements OfAdjacency {
 
   entries(callback: Callback<OfEntry>): _AdjacencyWriter {
     for (const entry of this.list) {
-      callback(new _EntryWriter(entry, this.schema.relation as Schemas.OfRelation.Data, this.schema.me, this.ref));
+      callback(new _EntryWriter(entry, this.schema.relation as Schemas.OfRelation.Data, this.schema.me, this.ref, this.symbol));
     }
     return this;
   }
 
   add(callback: Callback<OfEntry>): _AdjacencyWriter {
     const entry: PlainMap = new Map();
-    callback(new _EntryWriter(entry, this.schema.relation as Schemas.OfRelation.Data, this.schema.me, this.ref));
+    callback(new _EntryWriter(entry, this.schema.relation as Schemas.OfRelation.Data, this.schema.me, this.ref, this.symbol));
     this.list.push(entry);
     return this;
   }
@@ -526,7 +533,7 @@ export class _ObjectWriter extends _RecordWriter implements OfObject {
     if (adjacency === undefined) throw new KeyError(`unknown adjacency ${repr(name)}`);
     let list = this.out.get(name) as PlainMap[] | undefined;
     if (list === undefined) this.out.set(name, (list = []));
-    callback(new _AdjacencyWriter(list, name, adjacency, this.ref));
+    callback(new _AdjacencyWriter(list, name, adjacency, this.ref, this.symbol));
     return this;
   }
 }
@@ -659,10 +666,12 @@ class DecodedRecord {
 
 type Where = (string | number)[];
 /** Per adjacency, its decoded entries: each maps links to `Link`s and properties to decoded values. */
-type Rows = Map<string, Map<string, Native | Link>[]>;
-/** The way from a reference object to a value object in it: each step a property name, or an index in a list, and the
- * kind of the value found there. */
-type Steps = readonly (readonly [string | number, ValueKind])[];
+type Rows = Map<string, Map<string, unknown>[]>;
+/** A step to a value object: a property name, an index in a list, or an entry of a one-link relation's adjacency (its
+ * name, its position and the property holding the value). */
+type Step = string | number | readonly [string, number, string];
+/** The way from a reference object to a value object in it, each step with the kind of the value found there. */
+type Steps = readonly (readonly [Step, ValueKind])[];
 type ValueKind = typeof Schemas.OfObject.Data | typeof Schemas.OfUnion.Data | typeof Schemas.OfIntersection.Data |
   typeof Schemas.OfIndexed.Data;
 
@@ -673,7 +682,7 @@ class Found {
 
 /** What decoding a reference object's values collects: the symbols of the value objects in it, and their entries. */
 class Context {
-  constructor(readonly owner: string, readonly ids: Map<string, Found>, readonly entries: [Found, Rows][]) {}
+  constructor(readonly owner: string, readonly ids: Map<string, Found>, readonly entries: [Found, Rows, Schemas.OfObject.Data][]) {}
 }
 
 /** The kind of a type's values: its structure's (see `Schemas.structure`). */
@@ -711,7 +720,7 @@ function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where, context:
     if (key === ID && record instanceof Schemas.OfObject.Data && context !== null) {
       identify(item, context, steps, [...where, key]);
     } else if (adjacency !== undefined && context !== null) {
-      rows.set(key, decodeRows(adjacency, item, where, key));
+      rows.set(key, decodeRows(adjacency, item, where, key, context, steps));
     } else if (type !== undefined) {
       values.set(key, decode(type, item, [...where, key], context, [...steps, [key, kindOf(type)]]));
     } else {
@@ -721,7 +730,7 @@ function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where, context:
   if (record instanceof Schemas.OfUnion.Data && values.size !== 1) {
     throw new DecodeError(`a union value holds exactly one branch, got ${values.size}`, { path: path(...where) });
   }
-  if (rows.size > 0) (context as Context).entries.push([new Found((context as Context).owner, steps), rows]);
+  if (rows.size > 0) (context as Context).entries.push([new Found((context as Context).owner, steps), rows, record as Schemas.OfObject.Data]);
   return new DecodedRecord(record, values);
 }
 
@@ -793,15 +802,18 @@ function decodeEntryProperty(schema: Schemas.OfAny.Data, plain: unknown, where: 
   return decode(schema, plain, where) as Native;
 }
 
-/** The entries of one adjacency, at `where` + `key`. */
-function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: Where, key: string): Map<string, Native | Link>[] {
+/** The entries of one adjacency, at `where` + `key`. The value objects a one-link relation's entries hold, which are
+ * written only with their one owner, may have symbols and entries of their own: `context` collects them, at `steps`
+ * from the owner through the entry. */
+function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: Where, key: string,
+  context: Context | null = null, steps: Steps = []): Map<string, unknown>[] {
   if (!Array.isArray(value)) throw new DecodeError("an adjacency must be a list of entries", { path: path(...where, key) });
   const relation = adjacency.relation as Schemas.OfRelation.Data;
   return value.map((entry, i) => {
     if (!(entry instanceof Map)) {
       throw new DecodeError(`an entry must be a mapping, got ${typeName(entry)}`, { path: path(...where, key, i) });
     }
-    const row = new Map<string, Native | Link>();
+    const row = new Map<string, unknown>();
     for (const [name, item] of entry as PlainMap) {
       const at = path(...where, key, i, name);
       const entryType = relation.properties.get(name)?.type as Schemas.OfAny.Data | undefined;
@@ -809,6 +821,8 @@ function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: 
       if (relation.links.includes(name)) {
         if (!isRef(item)) throw new DecodeError("a link must be a reference", { path: at });
         row.set(name, new Link(item.get(REF) as string));
+      } else if (entryType !== undefined && relation.links.length === 1 && context !== null) {
+        row.set(name, decode(entryType, item, [...where, key, i, name], context, [...steps, [[key, i, name], kindOf(entryType)]]));
       } else if (entryType !== undefined) {
         row.set(name, decodeEntryProperty(entryType, item, [...where, key, i, name]));
       } else {
@@ -843,7 +857,7 @@ type Decoded = Map<string, [Map<string, unknown>, Rows]>;
 /** Checks a snapshot against the schemas and decodes its values before anything is built. Returns the root symbol,
  * each reference object's schema name, the decoded reference objects, where each value object with a symbol is, and
  * the entries of value objects. Problems in the snapshot throw `DecodeError`. */
-function check(store: Stores.Store, schema: unknown, plain: unknown): [string, Map<string, string>, Decoded, Map<string, Found>, [Found, Rows][]] {
+function check(store: Stores.Store, schema: unknown, plain: unknown): [string, Map<string, string>, Decoded, Map<string, Found>, [Found, Rows, Schemas.OfObject.Data][]] {
   if (!(schema instanceof Schemas.OfObject.Data)) {
     throw new TypeError(`the root schema must be an object schema, got ${schemaTypeName(schema)}`);
   }
@@ -895,7 +909,7 @@ function check(store: Stores.Store, schema: unknown, plain: unknown): [string, M
   // Pass 2: check every key against the schemas and decode the values.
   const decoded: Decoded = new Map();
   const ids = new Map<string, Found>([...objects.keys()].map((symbol) => [symbol, new Found(symbol, [])]));
-  const entries: [Found, Rows][] = [];
+  const entries: [Found, Rows, Schemas.OfObject.Data][] = [];
   for (const [symbol, obj] of objects as Map<string, PlainMap>) {
     const name = names.get(symbol);
     if (name === undefined) continue;
@@ -918,7 +932,7 @@ function check(store: Stores.Store, schema: unknown, plain: unknown): [string, M
       const adjacency = objectSchema.adjacencies.get(key);
       const propertyType = objectSchema.properties.get(key)?.type as Schemas.OfAny.Data | undefined;
       if (adjacency !== undefined) {
-        adjacencies.set(key, decodeRows(adjacency, value, where, key));
+        adjacencies.set(key, decodeRows(adjacency, value, where, key, context));
       } else if (propertyType !== undefined) {
         properties.set(key, decode(propertyType, value, [...where, key], context, [[key, kindOf(propertyType)]]));
       } else {
@@ -955,13 +969,39 @@ function builderFor(store: Stores.Store, name: string, instance?: unknown): Buil
  * reference objects are built first, with the value objects they hold, then the entries are added. */
 function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unknown): unknown {
   const [root, names, decoded, ids, entries] = check(store, schema, plain);
+  const seen = new Map<string, number>();
+
+  /** The entries of an adjacency not already added through another: entries written under each object they link are
+   * one, by value where the relation has a `unique` clause, and, in an open relation, the k-th equal entry in one list
+   * is the k-th in another. */
+  const kept = (schema: Schemas.OfObject.Data, owner: string, key: string, rows: Map<string, unknown>[]): Map<string, unknown>[] => {
+    const adjacency = schema.adjacencies.get(key) as Schemas.OfAdjacency.Data;
+    const relation = adjacency.relation as Schemas.OfRelation.Data;
+    const counts = new Map<string, number>();
+    return rows.filter((row) => {
+      const rowKey = keyOfRow(relation, adjacency.me, owner, row);
+      const occurrence = (counts.get(rowKey) ?? -1) + 1;
+      counts.set(rowKey, occurrence);
+      const index = relation.open ? occurrence : 0;
+      if (index < (seen.get(rowKey) ?? 0)) return false;
+      seen.set(rowKey, index + 1);
+      return true;
+    });
+  };
+  const oneLink = (schema: Schemas.OfObject.Data, key: string): boolean =>
+    ((schema.adjacencies.get(key) as Schemas.OfAdjacency.Data).relation as Schemas.OfRelation.Data).links.length === 1;
 
   const created = new Map<string, unknown>();
-  for (const [symbol, [properties]] of decoded) {
+  for (const [symbol, [properties, adjacencies]] of decoded) {
     const name = names.get(symbol) as string;
-    const globalName = store.schema(name).singleton; // a singleton is the store's own instance, updated
+    const objectSchema = store.schema(name);
+    const globalName = objectSchema.singleton; // a singleton is the store's own instance, updated
     const builder = builderFor(store, name, globalName === null ? undefined : store.singleton(globalName));
     for (const [key, value] of properties) set(builder, key, value);
+    for (const [key, rows] of adjacencies) { // a one-link relation's entries are its owner's, as its properties are
+      if (!oneLink(objectSchema, key)) continue;
+      for (const row of kept(objectSchema, symbol, key, rows)) builder.adjacency(key, (a) => a.add((x) => fill(x, row, () => null)));
+    }
     created.set(symbol, globalName === null ? builder.create() : builder.update());
   }
 
@@ -971,23 +1011,58 @@ function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unkn
     const found = ids.get(symbol) as Found;
     let target = created.get(found.owner);
     for (const [key] of found.steps) { // a step into a keyed list is by position, as into any list
-      if (typeof key === "number") target = target instanceof Proxies.OfIndexed.Map ? target.values()[key] : (target as readonly unknown[])[key];
-      else target = store.member(target, key);
+      if (Array.isArray(key)) { // an entry's value
+        const [adjacency, position, name] = key as readonly [string, number, string];
+        target = ((store.member(target, adjacency) as readonly Record<string, unknown>[])[position] as Record<string, unknown>)[name];
+      } else if (typeof key === "number") {
+        target = target instanceof Proxies.OfIndexed.Map ? target.values()[key] : (target as readonly unknown[])[key];
+      } else {
+        target = store.member(target, key as string);
+      }
     }
     return target;
   };
 
-  const nested = new Map<string, [Found, Rows][]>();
-  for (const [found, rows] of entries) nested.set(found.owner, [...(nested.get(found.owner) ?? []), [found, rows]]);
+  const symbols = new Map([...ids].map(([symbol, found]) => [`${found.owner}:${JSON.stringify(found.steps.map(([k]) => k))}`, symbol]));
+  const nested = new Map<string, [Found, Rows, Schemas.OfObject.Data][]>();
+  for (const [found, rows, valueSchema] of entries) {
+    nested.set(found.owner, [...(nested.get(found.owner) ?? []), [found, rows, valueSchema]]);
+  }
   for (const [symbol, [, adjacencies]] of decoded) {
+    const objectSchema = store.schema(names.get(symbol) as string);
     const builder = builderFor(store, names.get(symbol) as string, created.get(symbol));
     for (const [key, rows] of adjacencies) {
-      for (const row of rows) builder.adjacency(key, (a) => a.add((x) => fill(x, row, resolve)));
+      if (oneLink(objectSchema, key)) continue;
+      for (const row of kept(objectSchema, symbol, key, rows)) builder.adjacency(key, (a) => a.add((x) => fill(x, row, resolve)));
     }
-    for (const [found, rows] of nested.get(symbol) ?? []) within(builder, found.steps, (v) => addRows(v, rows, resolve));
+    for (const [found, rows, valueSchema] of nested.get(symbol) ?? []) {
+      const at = `${found.owner}:${JSON.stringify(found.steps.map(([k]) => k))}`;
+      const owner = symbols.get(at) ?? `found:${at}`;
+      const listed = new Map([...rows].map(([key, list]) => [key, kept(valueSchema, owner, key, list)] as const));
+      // an edit with nothing to add would drop what another just added
+      if ([...listed.values()].some((list) => list.length > 0)) within(builder, found.steps, (v) => addRows(v, listed, resolve));
+    }
     builder.update();
   }
   return created.get(root);
+}
+
+/** An entry's value, read from one end: its links' symbols, the owner's included, and its properties' values. */
+function keyOfRow(relation: Schemas.OfRelation.Data, me: string, owner: string, row: Map<string, unknown>): string {
+  const links = [[me, owner], ...[...row].filter(([, v]) => v instanceof Link).map(([name, v]) => [name, (v as Link).symbol])]
+    .sort((a, b) => ((a[0] as string) < (b[0] as string) ? -1 : 1));
+  const values = [...row].filter(([, v]) => !(v instanceof Link)).map(([name, v]) => [name, decodedKey(v)])
+    .sort((a, b) => ((a[0] as string) < (b[0] as string) ? -1 : 1));
+  return JSON.stringify([schemaNumber(relation), links, values]);
+}
+
+const relationNumbers = new WeakMap<object, number>();
+let nextRelation = 0;
+
+/** A number for each relation, as Python's `id()` of it. */
+function schemaNumber(relation: object): number {
+  if (!relationNumbers.has(relation)) relationNumbers.set(relation, ++nextRelation);
+  return relationNumbers.get(relation) as number;
 }
 
 function addRows(visitor: OfObject, rows: Rows, resolve: (symbol: string) => unknown): void {
@@ -1002,7 +1077,7 @@ function within(visitor: BuilderLike | OfObject, steps: Steps, then: (visitor: O
     then(visitor as OfObject);
     return;
   }
-  const [[key, kind], ...rest] = steps as [readonly [string | number, ValueKind], ...Steps];
+  const [[key, kind], ...rest] = steps as [readonly [Step, ValueKind], ...Steps];
   const into = (a: OfAny): void => {
     const inner = (v: unknown) => within(v as OfObject, rest, then);
     if (kind === Schemas.OfUnion.Data) a.as_union(inner);
@@ -1010,8 +1085,16 @@ function within(visitor: BuilderLike | OfObject, steps: Steps, then: (visitor: O
     else if (kind === Schemas.OfIndexed.Data) a.as_indexed(inner);
     else a.as_object(inner);
   };
-  if (typeof key === "number") (visitor as unknown as OfIndexed).item(key, into);
-  else visitor.property(key, (p) => p.value(into));
+  if (Array.isArray(key)) { // an entry's value: the entry at its position, then its property
+    const [adjacency, position, name] = key as readonly [string, number, string];
+    const found: OfEntry[] = [];
+    visitor.adjacency(adjacency, (a) => a.entries((e) => found.push(e)));
+    (found[position] as OfEntry).property(name, (p) => p.value(into));
+  } else if (typeof key === "number") {
+    (visitor as unknown as OfIndexed).item(key, into);
+  } else {
+    visitor.property(key as string, (p) => p.value(into));
+  }
 }
 
 function set(visitor: { property(name: string, callback: Callback<OfProperty>): unknown }, name: string, value: unknown): void {
@@ -1043,7 +1126,7 @@ function writePairs(visitor: OfIndexed, pairs: readonly [unknown, unknown][]): v
   for (const [key, value] of pairs) visitor.put((a) => write(a, key), (a) => write(a, value));
 }
 
-function fill(visitor: OfEntry, row: Map<string, Native | Link>, resolve: (symbol: string) => unknown): void {
+function fill(visitor: OfEntry, row: Map<string, unknown>, resolve: (symbol: string) => unknown): void {
   for (const [key, value] of row) { // links map to target symbols; properties to decoded values
     if (value instanceof Link) {
       const target = resolve(value.symbol) as Visitable;

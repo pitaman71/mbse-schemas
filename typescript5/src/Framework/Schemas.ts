@@ -667,9 +667,7 @@ class RelationData extends Reflected {
   validate(): string[] {
     const problems = [...nameProblems(this.name), ...descriptionProblems(this.description),
       ...parameterProblems(this.parameters), ...reserved([...this.links, ...this.properties.keys()])];
-    if (this.links.length < 2) {
-      problems.push("a relation needs at least two links; a one-link relation merges a relation and an object");
-    }
+    if (this.links.length === 0) problems.push("a relation needs at least one link");
     if (new Set(this.links).size !== this.links.length) {
       problems.push(`duplicate link names in ${repr(new Tuple(this.links))}`);
     }
@@ -682,10 +680,17 @@ class RelationData extends Reflected {
       }
     }
     for (const [name, prop] of this.properties) {
-      problems.push(...[...validateSchema(prop.type), ...embeddedProblems(prop.type), ...entryValueProblems(prop.type),
+      const held = this.links.length > 1 ? entryValueProblems(prop.type) : []; // one owner: written once
+      problems.push(...[...validateSchema(prop.type), ...embeddedProblems(prop.type), ...held,
         ...descriptionProblems(prop.description)].map((p) => `property ${repr(name)}: ${p}`));
     }
     return problems;
+  }
+
+  /** Whether the relation is open: it has no `unique` clause, so from each end its entries are a list, in the order
+   * added, equal entries kept; with one, they are a set. */
+  get open(): boolean {
+    return this.uniques.length === 0;
   }
 
   /** The keys of the entries seen from the link `me`, one per `unique(S)` clause in declaration order whose complement
@@ -703,8 +708,8 @@ class RelationData extends Reflected {
   }
 }
 
-/** An entry property's value object has no adjacencies: an entry is written under each object it links, so its value
- * objects would be too, and nothing could link them once. Nor has a value object in a key (`held`), which compares by
+/** An entry property's value object has no adjacencies, where the entry links two objects or more: it is written
+ * under each, so its value objects would be too, and nothing could link them once. Nor has a value object in a key (`held`), which compares by
  * structure. `seen` holds the schemas on the way, so that a schema that holds itself is checked once. */
 function entryValueProblems(schema: unknown, held = "held by an entry", seen: ReadonlySet<unknown> = new Set()): string[] {
   if (seen.has(schema)) return [];

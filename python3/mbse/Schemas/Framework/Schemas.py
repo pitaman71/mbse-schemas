@@ -496,8 +496,8 @@ class _RelationData(_Reflected):
     def validate(self) -> list[str]:
         problems = (_name_problems(self.name) + _description_problems(self.description)
                     + _parameter_problems(self.parameters) + _reserved([*self.links, *self.properties]))
-        if len(self.links) < 2:
-            problems.append("a relation needs at least two links; a one-link relation merges a relation and an object")
+        if not self.links:
+            problems.append("a relation needs at least one link")
         if len(set(self.links)) != len(self.links):
             problems.append(f"duplicate link names in {self.links}")
         clashes = set(self.links) & set(self.properties)
@@ -508,9 +508,16 @@ class _RelationData(_Reflected):
             if unknown:
                 problems.append(f"unique({', '.join(sorted(unique))}) names unknown links or properties {sorted(unknown)}")
         for name, prop in self.properties.items():
+            held = _entry_value_problems(prop.type) if len(self.links) > 1 else []  # one owner: written once
             problems += [f"property {name!r}: {p}" for p in _validate(prop.type) + _embedded_problems(prop.type)
-                         + _entry_value_problems(prop.type) + _description_problems(prop.description)]
+                         + held + _description_problems(prop.description)]
         return problems
+
+    @property
+    def open(self) -> bool:
+        """Whether the relation is open: it has no `unique` clause, so from each end its entries are a list, in the order
+        added, equal entries kept; with one, they are a set."""
+        return not self.uniques
 
     def keys(self, me: str) -> list[tuple[str, ...]]:
         """The keys of the entries seen from the link `me`, one per `unique(S)` clause in declaration order whose
@@ -527,8 +534,8 @@ class _RelationData(_Reflected):
 
 
 def _entry_value_problems(schema: Any, held: str = "held by an entry", seen: frozenset[int] = frozenset()) -> list[str]:
-    """An entry property's value object has no adjacencies: an entry is written under each object it links, so its
-    value objects would be too, and nothing could link them once. Nor has a value object in a key (`held`), which
+    """An entry property's value object has no adjacencies, where the entry links two objects or more: it is written
+    under each, so its value objects would be too, and nothing could link them once. Nor has a value object in a key (`held`), which
     compares by structure. `seen` holds the schemas on the way, so that a schema that holds itself is checked once."""
     if id(schema) in seen:
         return []

@@ -32,9 +32,10 @@ The schema elements include:
                  is assumed unless declared by `unique` clauses (see Cardinality below). Relations completely subsume maps/dictionaries and pointers: since entries
                  carry properties, a map `a -> [key] -> b` is represented as a relation with
                  links `a` and `b` and property `key`.
-                 A relation must not merge a relation and an object: a one-link relation whose entries carry
-                 the data (e.g. a contact's phone numbers as entries holding `number`) is not legal. Model the
-                 data as an `OfObject` and link it to its owner with a relation.
+                 A relation may have one link: its entries hold values for their one owner, as a list does (a
+                 contact's own phone numbers as entries holding `number`), declared inline in the adjacency:
+                 `r.name("numbers").me("contact").of(lambda rel: rel.links("contact").properties(...))`. Data
+                 that several objects share is an `OfObject`, linked to each.
 - `OfProperty` : a property of an object or a relation's entries: its `name` and `type`, an `OfAny`. An object's or
                  relation's `properties` map each name to its `OfProperty`, in declared order, so a property's type is
                  `schema.properties['home'].type`.
@@ -95,7 +96,10 @@ Relation data must live either on object adjacencies or in a global table, and t
 
 ### Cardinality
 
-A relation's entries form a set: adding an entry equal to an existing one (see `EQUALITY.md`) is silently elided.
+Whether a relation's entries form a set or a list depends on `unique`. A relation with a `unique` clause holds a set:
+adding an entry equal to an existing one (see `EQUALITY.md`) is silently elided. One without is *open*: from each
+end its entries are a list, in the order added, equal entries kept, their index their position. `.unique()`, a
+clause naming nothing, constrains nothing else and makes a relation a set.
 
 No cardinality is assumed by default. A relation declares cardinality with zero or more `unique(S)` clauses, where `S`
 is a set of its links and properties. `unique(S)` means that the links and properties not in `S`, taken together,
@@ -394,7 +398,9 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
   `{"$ref": symbol}` to a value object. Symbols are assigned in the order objects are first referenced, value objects
   included. `Plain.ToPlain(store).OfObject` includes only the root, so its references
   are unresolved; `Plain.ToPlain(store).Reachable` includes every object reachable through adjacencies. An entry appears under
-  each object it links; on deserialization the duplicate is elided.
+  each object it links, and reading counts it once: by value where the relation has a `unique` clause, and in an open
+  relation the k-th entry equal to a given one in one list is the k-th in another. A one-link relation's entries
+  are written once, with their owner, so their value objects may have `$id`s and entries of their own.
 - `JSON` : `JSON.ToJSON(store)(schema, value)` returns JSON text and `JSON.FromJSON(store)(schema, text)` rebuilds values;
   both mirror `Plain` (`.OfNative`, `.OfObject`, `.Reachable`). Output is strict JSON (RFC 8259) with key order kept;
   input with NaN / Infinity literals or duplicate keys is rejected.
@@ -455,9 +461,10 @@ documents.
   objects (re-linked to the copies) and a copy of each entry that links them to objects outside. Clearing the property,
   or replacing its value, removes the value object and every entry linking it.
 - **Entry properties may be value objects, never reference objects.** Such a value object is owned by the object that
-  added its entry, is written nested in the entry, and keys and compares the entry by its properties. It cannot have
-  adjacencies, since an entry is written under each object it links ("a value object held by an entry cannot have
-  adjacencies").
+  added its entry, is written nested in the entry, and keys and compares the entry by its properties. Where the entry
+  links two objects or more, it cannot have adjacencies, since the entry is written under each object it links ("a
+  value object held by an entry cannot have adjacencies"); a one-link relation's entry is written once, so its value
+  objects may.
 - **Value objects are written nested**, inside their owner, with their adjacencies nested in them as a reference
   object's are. A value object that something links to carries its symbol, `"home": {"$id": "s3", "number": "1"}`,
   and is referred to by it, `{"$ref": "s3"}`; one that nothing links to has no `$id`. Symbols are
@@ -1015,7 +1022,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   `Schemas.Module.Schema`, translated by `Modules` (see Meta-schemas).
 - Mutations apply to anything with a schema; one vocabulary per schema kind.
 - A map `a -> [key] -> b` is a relation with links `a`, `b` and property `key`; named references work the same way.
-- A relation must not merge a relation and an object: one-link relations whose entries carry data are not legal.
+- A relation may have one link, its entries holding values for their one owner (relaxed from "a one-link relation
+  merges a relation and an object", as the user decided).
 - No relation builder is exposed to the caller; entries are added through adjacency accessors on the object builder,
   which take an entry `Spec`, e.g. `.addresses(lambda x: x.address(addr1).label('work'))`. A link takes an existing
   object or a `Spec` that builds a new one.
@@ -1025,8 +1033,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   `.relations(lambda adj: adj.name(...).of(Relation).me(link))`.
 - Lists are `OfIndexed`, a property's value: ordered items of one item schema, which belong to the list's owner (see
   Lists). Collections of linked objects, maps and keyed lookups are relations.
-- Cardinality is declared with `unique(S)` clauses; ownership is `unique(parent)`; relation entries form a set and
-  duplicates are elided.
+- Cardinality is declared with `unique(S)` clauses; ownership is `unique(parent)`; a relation with a `unique` clause
+  holds a set and duplicates are elided, and one without is open, its entries a list from each end.
 - An object may have more than one owner.
 - Entries linking a deleted object vanish with it.
 - Singletons declare a global name in their `OfObject` schema, exist implicitly (a store makes the one instance when the

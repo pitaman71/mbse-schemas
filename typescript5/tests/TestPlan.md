@@ -43,9 +43,9 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 |---|---|---|---|
 | `01_Schemas.ipynb` | SCH | 21 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array`, the own token format is `typescript5`, and widths are `bigint`s |
 | `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length` |
-| `03_Proxies.ipynb` | PRX | 19 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances and stores, `util.inspect` of instances and builders, and the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel) |
+| `03_Proxies.ipynb` | PRX | 20 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances and stores, `util.inspect` of instances and builders, and the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel) |
 | `04_Reachable.ipynb` | RCH | 10 | as in Python |
-| `05_Plain.ipynb` | PLN | 17 | as in Python; the same 26 malformed snapshots with byte-identical `DecodeError` paths and reasons |
+| `05_Plain.ipynb` | PLN | 18 | as in Python; the same 26 malformed snapshots with byte-identical `DecodeError` paths and reasons |
 | `06_JSON.ipynb` | JSN | 11 | as in Python, including Python's exact output format; the 62-row JSN-09 table of `DecodeError`s is shared verbatim and matches exactly |
 | `07_YAML.ipynb` | YML | 14 | as in Python; the `yaml` package in YAML 1.1 mode is the "stock 1.1 reader"; the shared YML-06 table matches exactly, syntax errors (YML-06b) carry the `yaml` package's reasons |
 | `08_Validators.ipynb` | VAL | 14 | as in Python, with byte-identical problem messages |
@@ -53,7 +53,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `10_Examples.ipynb` | EX | 1 | every example exits cleanly in its own process |
 | `11_Conformance.ipynb` | CONF | 4 | as in Python, from this side |
 | `12_Text.ipynb` | TXT | 4 | `Repr` produces Python's text: `repr`, float `repr`, type names (plus one row for a prototype-less object), code-point order |
-| `13_Comparison.ipynb` | CMP | 12 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
+| `13_Comparison.ipynb` | CMP | 13 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
 | `14_Embedded.ipynb` | EMB | 11 | as in Python; the runtime's own probes (`then`, symbols) are not properties |
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
 | `17_Lists.ipynb` | LST | 15 | as in Python; a list reads as a frozen array and a keyed list as a `Map`-shaped `Proxies.OfIndexed.Map`; float keys that must keep `-0.0` are given as pairs |
@@ -65,7 +65,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `23_Reflection.ipynb` | RFL | 3 | as in Python; a reflected schema's identity is a string (`"schema N"`) |
 | `24_Paths.ipynb` | PTH | 3 | as in Python; an integer key is a `bigint` |
 
-Total: 200 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
+Total: 203 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences
@@ -96,7 +96,7 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | Byte-like subclasses | `bytearray` is not native (`got bytearray`) | `Buffer` is not native (`got Buffer`) | SCH-03, PRX-17 |
 | `Proxies.OfObject.Builder` | a class | a function returning the builder (`Proxies.OfObject.Data` is the class, so `instanceof` works) | PRX-16 |
 | Objects without a class | none | `Object.create(null)` is named `object` | TXT-03 |
-| Incomparable | `None` | `null` | CMP-01..12 |
+| Incomparable | `None` | `null` | CMP-01..13 |
 | Message text helpers | built in | `Repr` exported | TXT-01..04 |
 
 ## Findings

@@ -114,7 +114,7 @@ noticed.
 | Byte-like subclass named in errors | `bytearray` | `Buffer` | the nearest analogues | PRX-17 |
 | `Proxies.OfObject.Builder` | a class, taking the store first | a function returning the builder, taking the store first; `Proxies.OfObject.Data` is the class | builders are `Proxy` objects | PRX-16 |
 | Objects without a class | none | `Object.create(null)` is named `object` | JavaScript-only | TXT-03 |
-| Incomparable (`Comparison`) | `None` | `null` | the respective "no value" | CMP-01..12 |
+| Incomparable (`Comparison`) | `None` | `null` | the respective "no value" | CMP-01..13 |
 | Message text helpers | none: `repr()` and `type(v).__name__` are built in | `Repr` (`repr`, `typeName`, `tokenName`, ...) exported, for packages that must word messages as Python does | JavaScript has no `repr` | TXT-01..04 |
 | Typing of the proxy DSL | untyped, like all Python | proxy builders and instances are typed loosely (`any` by name), so callbacks given to them are annotated `(x: any)`; schema builders and visitor handles are fully typed | the names come from schemas at runtime; per-schema types are the job of generated bindings | all proxy cases |
 | Test runner | pytest + nbmake | `tests/run-notebooks.ts` | no maintained TypeScript kernel is required to run headless | all |

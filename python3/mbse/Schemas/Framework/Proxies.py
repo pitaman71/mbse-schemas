@@ -8,7 +8,8 @@ Builders (`Proxies.OfObject.Builder`) implement `Visitors.OfObject`, like every 
 
 A store holds its singletons, created when their schemas are registered (`store.singleton(global_name)`), and through
 them its data (see `Stores`); an object nothing reachable from a singleton links is the program's to keep. A relation's
-entries live on the objects they link, so they go with them. Adding an entry equal to an existing one is elided. An
+entries live on the objects they link, so they go with them. Adding an entry equal to an existing one is elided where
+the relation has a `unique` clause; an open relation's entries are a list from each end, equal entries kept. An
 object of one store cannot be linked to, or be a builder's source in, another. An adjacency is a member named after it,
 the tuple of its entries in the order they were added (`contact.phones`), with `project(name)`, each entry's link or
 property, and `at(key)`, the entry with a key its relation declares; an entry is shared by the objects it links,
@@ -154,6 +155,10 @@ class _Entry:
         raise AttributeError("entries are read-only; use a builder")
 
     def _key(self) -> Hashable:
+        """What the entry is held by: its value in a relation with a `unique` clause, a set, and itself in an open
+        relation, a list from each end, which keeps equal entries."""
+        if self._relation.open:
+            return ("entry", id(self))
         return (
             tuple(sorted((name, id(target)) for name, target in self._links.items())),
             tuple(sorted((name, _native_key(value)) for name, value in self._properties.items())),
@@ -166,7 +171,7 @@ def _table(target: Any, relation_id: int) -> dict[Hashable, _Entry]:
 
 
 def _add_entry(relation: RelationSchema, entry: _Entry) -> None:
-    """Adds `entry` to every object it links, unless an equal entry is there already."""
+    """Adds `entry` to every object it links, unless the relation holds a set and an equal entry is there already."""
     key = entry._key()
     if key in _table(next(iter(entry._links.values())), id(relation)):
         return
@@ -543,7 +548,8 @@ def _add_pending(record: _RecordData, mapping: dict[int, Any]) -> None:
         relation = record._schema.adjacencies[name].relation
         for builder in builders:
             builder._links = {link: mapping.get(id(target), target) for link, target in builder._links.items()}
-            _add_entry(relation, builder.build(record))
+            if _first_copy(relation, builder, record, mapping):
+                _add_entry(relation, builder.build(record))
     object.__setattr__(record, "_pending", {})
 
 
@@ -597,9 +603,27 @@ def _remove(value: _RecordData) -> None:
     _discard_target(value)
 
 
+def _first_copy(relation: RelationSchema, builder: _EntryBuilder, target: Any, mapping: dict[Any, Any]) -> bool:
+    """Whether an entry builder adds its entry: an entry rewritten from one already held (`_source`), linking the same
+    objects, is added once in one build, though every object it links gives it, which in an open relation would
+    otherwise add it again."""
+    source = builder._source
+    if source is None or not relation.open:
+        return True
+    links = {**builder._links, builder._me: target}
+    key = ("entry", id(source), tuple(sorted((name, id(linked)) for name, linked in links.items())))
+    if key in mapping:
+        return False
+    mapping[key] = source
+    return True
+
+
 def _write_entry(visitor: Visitors.OfEntry, entry: _Entry, adjacency: Schemas.OfAdjacency.Data) -> None:
-    """Writes an entry's links and properties in the relation's declared order, whichever end built the entry."""
+    """Writes an entry's links and properties in the relation's declared order, whichever end built the entry. A proxy's
+    entry builder remembers the entry it copies."""
     relation = adjacency.relation
+    if isinstance(visitor, _EntryBuilder):
+        visitor._source = entry
     for name in relation.links:
         if name != adjacency.me:
             visitor.link(name, lambda k, target=entry._links[name]: k.set(target))
@@ -1021,6 +1045,7 @@ def _load_entries(entries: dict[str, list[_EntryBuilder]], schema: ObjectSchema,
             builder = _EntryBuilder(adjacency.relation, adjacency.me, store)
             builder._links = {link: target for link, target in entry._links.items() if link != adjacency.me}
             builder._values = dict(entry._properties)
+            builder._source = entry
             entries.setdefault(name, []).append(builder)
     for name, pending in object.__getattribute__(source, "_pending").items() if isinstance(source, _RecordData) else ():
         entries.setdefault(name, []).extend(pending)
@@ -1056,6 +1081,7 @@ class _EntryBuilder:
         self._relation, self._me, self._store = relation, me, store
         self._links: dict[str, _ObjectData | _ObjectBuilder] = {}
         self._values: dict[str, Native] = {}
+        self._source: _Entry | None = None  # the entry this one rewrites, when copied or loaded from one
 
     def _check_link(self, name: str) -> None:
         if name == self._me or name not in self._relation.links:
@@ -1122,7 +1148,9 @@ class _EntryBuilder:
                 raise ValueError(f"link {name!r} is not set")
             value = self._links[name]
             links[name] = value.create() if isinstance(value, _ObjectBuilder) else value
-        return _Entry(self._relation, links, _settle(target, {}, self._values, {}))  # its value objects belong to `target`
+        source = self._source
+        held = source._properties if source is not None and source._links.get(self._me) is target else {}  # an update keeps them
+        return _Entry(self._relation, links, _settle(target, held, self._values, {}))  # its value objects belong to `target`
 
 
 class _AdjacencySlot:
@@ -1251,7 +1279,8 @@ class _ObjectBuilder:
             relation = self._schema.adjacencies[name].relation
             for entry in entries:
                 entry._links = {link: mapping.get(id(t), t) for link, t in entry._links.items()}
-                _add_entry(relation, entry.build(target))
+                if _first_copy(relation, entry, target, mapping):
+                    _add_entry(relation, entry.build(target))
         return target
 
 

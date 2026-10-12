@@ -512,9 +512,9 @@ _ORDERED = (bool, int, float, str)
 
 
 def _sort_entries(schema: Any, plain: PlainData) -> None:
-    """Sorts the entries of each adjacency written in `plain`, a value of `schema`, nested value objects' too, by the
-    key their relation declares from the adjacency's end (`Schemas.OfRelation.Data.key`): where every entry has each
-    of its values, and each holds values of one ordered type (booleans false first, numbers by value, strings by code
+    """Sorts the entries of each adjacency written in `plain`, a value of `schema`, nested value objects' too (those
+    its entries hold among them), by the key their relation declares from the adjacency's end
+    (`Schemas.OfRelation.Data.key`): where every entry has each of its values, and each holds values of one ordered type (booleans false first, numbers by value, strings by code
     point). Otherwise, as where a key holds a link, entries keep the order they were written in."""
     schema = Schemas.structure(schema)
     if isinstance(schema, Schemas.OfIndexed.Data):
@@ -536,7 +536,13 @@ def _sort_entries(schema: Any, plain: PlainData) -> None:
             _sort_entries(prop.type, plain[name])
     for name, adjacency in schema.adjacencies.items() if isinstance(schema, Schemas.OfObject.Data) else ():
         entries, names = plain.get(name), adjacency.relation.key(adjacency.me)
-        if names is None or not isinstance(entries, list):
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:  # an entry's value objects, held by its properties
+            for held, prop in adjacency.relation.properties.items():
+                if held in entry:
+                    _sort_entries(prop.type, entry[held])
+        if names is None:
             continue
         keys = [tuple(entry.get(n) for n in names) for entry in entries]
         if all(len({type(key[i]) for key in keys}) == 1 and type(keys[0][i]) in _ORDERED for i in range(len(names))):
@@ -561,10 +567,18 @@ class _Record(NamedTuple):
 
     schema: Any
     values: dict[str, Any]
+    rows: dict[str, list[dict[str, Any]]] = {}  # entries decoded where no snapshot holds the value
 
     def accept(self, visitor: Visitors.OfObject) -> None:
         for name, value in self.values.items():
             _set(visitor, name, value)
+        for name, rows in self.rows.items():
+            for row in rows:
+                visitor.adjacency(name, lambda a, r=row: a.add(lambda x: _fill(x, r, _unresolved)))
+
+
+def _unresolved(symbol: str) -> Any:
+    raise DecodeError(f"unresolved reference {symbol!r}: no snapshot holds the value")
 
 
 Rows = dict[str, list[dict[str, Any]]]
@@ -615,11 +629,14 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context:
     adjacencies = schema.adjacencies if isinstance(schema, Schemas.OfObject.Data) else {}
     values: dict[str, Any] = {}
     rows: Rows = {}
+    held: Rows = {}  # entries where no snapshot holds the value, so none of their links resolves
     for key, item in plain.items():
         if key == ID and isinstance(schema, Schemas.OfObject.Data) and context is not None:
             _identify(item, context, steps, (*where, key))
         elif key in adjacencies and context is not None:
             rows[key] = _decode_rows(adjacencies[key], item, where, key, context, steps)
+        elif key in adjacencies:
+            held[key] = _decode_rows(adjacencies[key], item, where, key)
         elif key in schema.properties:
             values[key] = _decode(schema.properties[key].type, item, (*where, key), context,
                                   (*steps, (key, _kind(schema.properties[key].type))))
@@ -629,7 +646,7 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context:
         raise DecodeError(f"a union value holds exactly one branch, got {len(values)}", path=path(*where))
     if rows:
         context.entries.append((_Found(context.owner, steps), rows, schema))  # type: ignore[union-attr]
-    return _Record(schema, values)
+    return _Record(schema, values, held)
 
 
 def _kind(schema: Schemas.OfAny.Data) -> type:
@@ -678,7 +695,9 @@ def _decoded_key(value: Any) -> Hashable:
     if isinstance(value, _Keyed):
         return ("map", frozenset((_decoded_key(k), _decoded_key(v)) for k, v in value.pairs))
     if isinstance(value, _Record):
-        return ("record", tuple((name, _decoded_key(v)) for name, v in sorted(value.values.items())))
+        rows = tuple((name, tuple(tuple(sorted((key, _decoded_key(v)) for key, v in row.items())) for row in listed))
+                     for name, listed in sorted(value.rows.items()))
+        return ("record", tuple((name, _decoded_key(v)) for name, v in sorted(value.values.items())), rows)
     if isinstance(value, list):
         return ("list", tuple(_decoded_key(v) for v in value))
     return (type(value).__name__, value.hex() if isinstance(value, float) else value)
@@ -901,7 +920,8 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
             if len(object_schema.adjacencies[key].relation.links) > 1:
                 for row in kept(object_schema, symbol, key, rows):
                     builder.adjacency(key, lambda a, r=row: a.add(lambda x: _fill(x, r, resolve)))
-        for found, rows, value_schema in nested.get(symbol, []):
+        # outer value objects first: decoding found the inner ones first, and an inner one may be held by an outer one's entry
+        for found, rows, value_schema in sorted(nested.get(symbol, []), key=lambda held: len(held[0].steps)):
             owner = symbols.get((found.owner, found.steps), found)
             rows = {key: kept(value_schema, owner, key, listed) for key, listed in rows.items()}
             if any(rows.values()):  # an edit with nothing to add would drop what another just added

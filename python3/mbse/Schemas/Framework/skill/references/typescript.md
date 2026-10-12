@@ -74,7 +74,7 @@ new S.OfObject.Builder().name("crm.Contact");                     // a name, ide
 new S.OfObject.Builder().description("A person we know");         // documentation, on any element: schema, property,
 schema.properties.get("home")?.type;                              // adjacency, branch or part; a property is an element
 new S.OfObject.Builder().parameters((p) => p.name("n").of(spec)); // parameters, on any kind of schema
-new S.OfApply.Builder().of(Matrix).arguments(2n, 3n);             // a type: a parametric schema applied; .argument("n", 3n)
+new S.OfApply.Builder().of(Matrix).arguments({ rows: 2n, cols: 3n }); // a type: a parametric schema applied, by name; .argument("n", 3n)
 i.extent({ minimum: 1n, maximum: new S.Form.Data("variable", { name: "n" }) });  // a term where a bound stands
 Validators.Check(store, evaluate)(schema, obj).holds;             // true, false, or null where unknown
 S.equivalent(a, b, evaluate);                                     // the same after substitution: Square(4n) is Matrix(4n, 4n)

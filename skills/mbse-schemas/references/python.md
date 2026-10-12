@@ -67,7 +67,7 @@ S.OfObject.Builder().name("crm.Contact")                    # a name, identifier
 S.OfObject.Builder().description("A person we know")        # documentation, on any element: schema, property, adjacency,
 schema.properties["home"].type                              # branch or part; a property is an element, its type inside
 S.OfObject.Builder().parameters(lambda p: p.name("n").of(spec))  # parameters, on any kind of schema
-S.OfApply.Builder().of(Matrix).arguments(2, 3)              # a type: a parametric schema applied; .argument("n", 3)
+S.OfApply.Builder().of(Matrix).arguments(rows=2, cols=3)    # a type: a parametric schema applied, by name; .argument("n", 3)
 i.extent(1, S.Form.Data("variable", {"name": "n"}))         # a term where a bound or a width stands, or a dialect's
 Validators.Check(store, evaluate)(schema, obj).holds        # True, False, or None where unknown (extents over parameters)
 S.equivalent(a, b, evaluate)                                # the same after substitution: Square(4) is Matrix(4, 4)

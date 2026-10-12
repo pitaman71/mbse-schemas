@@ -118,9 +118,10 @@ class _Writer:
                             adjacencies=adjacencies,
                             singleton=schema.singleton, ref=schema.ref, description=schema.description)
         if isinstance(schema, Schemas.OfRelation.Data):
-            return _kind_of("relation", parameters=parameters, links=list(schema.links),
+            return _kind_of("relation", parameters=parameters, links=[{"name": link} for link in schema.links],
                             properties=self._members(schema.properties.values()),
-                            uniques=[sorted(unique) for unique in schema.uniques], description=schema.description)
+                            uniques=[{"clause": _present(names=[{"name": name} for name in sorted(unique)])}
+                                     for unique in schema.uniques], description=schema.description)
         if isinstance(schema, Schemas.OfUnion.Data):
             return _kind_of("union", parameters=parameters, branches=self._members(schema.branches),
                             flat=schema.flat or None, description=schema.description)
@@ -166,7 +167,7 @@ def _form(term: Any) -> dict[str, Any]:
     return _present(dialect=form.dialect, kind=form.kind,
                     attributes=[{"name": name, "value": _native(value, f"attribute {name!r} of a term")}
                                 for name, value in form.attributes.items()],
-                    arguments=[_form(argument) for argument in form.arguments])
+                    arguments=[{"term": _form(argument)} for argument in form.arguments])
 
 
 def _native(value: Any, what: str) -> dict[str, Any]:
@@ -252,8 +253,9 @@ class _Reader:
             raise TypeError(f"{body['name']!r} is not a relation")
         return schema
 
-    def _members(self, members: list[dict[str, Any]], data: type) -> list[Any]:
-        """Properties, branches, parts or parameters, as elements of `data`'s kind."""
+    def _members(self, members: list[dict[str, Any]], data: type, what: str) -> list[Any]:
+        """Properties, branches, parts or parameters (`what`), as elements of `data`'s kind."""
+        _once(members, what)
         return [data(member["name"], self.type(member["type"]) if "type" in member else None, member.get("description"))
                 for member in members]
 
@@ -263,8 +265,9 @@ class _Reader:
         return form if self._make is None else self._make(form)
 
     def _form(self, plain: dict[str, Any]) -> Any:
+        _once(plain.get("attributes", []), "attribute")
         return Schemas.Form.Data(plain["kind"], {a["name"]: _native_of(a["value"]) for a in plain.get("attributes", [])},
-                                 tuple(self._form(argument) for argument in plain.get("arguments", [])),
+                                 tuple(self._form(argument["term"]) for argument in plain.get("arguments", [])),
                                  plain.get("dialect"))
 
     def _slot(self, body: dict[str, Any], slot: str, absent: Any = None) -> Any:
@@ -276,26 +279,29 @@ class _Reader:
         """Writes the contents of `definition` into `schema`, a blank schema of its kind, and returns it."""
         kind, body = _contents_of(definition)
         schema.description = body.get("description")
-        schema.parameters = {p.name: p for p in self._members(body.get("parameters", []), Schemas.OfParameter.Data)}
-        properties = self._members(body.get("properties", []), Schemas.OfProperty.Data)
+        schema.parameters = {p.name: p for p in self._members(body.get("parameters", []), Schemas.OfParameter.Data, "parameter")}
+        properties = self._members(body.get("properties", []), Schemas.OfProperty.Data, "property")
         if kind == "native":
             schema.token = Schemas.OfNative.Token(body["format"], body["token"])
             schema.bits, schema.bytes = self._slot(body, "bits"), self._slot(body, "bytes")
         elif kind == "object":
             schema.properties = {p.name: p for p in properties}
+            _once(body.get("adjacencies", []), "adjacency")
             schema.adjacencies = {a["name"]: Schemas.OfAdjacency.Data(a["name"], self._relation(a["relation"]), a["me"],
                                                                       a.get("description"))
                                   for a in body.get("adjacencies", [])}
             schema.singleton, schema.ref = body.get("singleton"), body.get("ref", False)
         elif kind == "relation":
-            schema.links = tuple(body.get("links", []))
+            _once(body.get("links", []), "link")
+            schema.links = tuple(link["name"] for link in body.get("links", []))
             schema.properties = {p.name: p for p in properties}
-            schema.uniques = tuple(frozenset(unique) for unique in body.get("uniques", []))
+            schema.uniques = tuple(frozenset(name["name"] for name in unique["clause"].get("names", []))
+                                   for unique in body.get("uniques", []))
         elif kind == "union":
-            schema.branches = tuple(self._members(body.get("branches", []), Schemas.OfUnion.Branch))
+            schema.branches = tuple(self._members(body.get("branches", []), Schemas.OfUnion.Branch, "branch"))
             schema.flat = body.get("flat", False)
         elif kind == "intersection":
-            schema.parts = tuple(self._members(body.get("parts", []), Schemas.OfIntersection.Part))
+            schema.parts = tuple(self._members(body.get("parts", []), Schemas.OfIntersection.Part, "part"))
             schema.flat = body.get("flat", False)
         elif kind == "indexed":
             schema.item = self.type(body["item"])
@@ -312,7 +318,17 @@ class _Reader:
 
     def arguments(self, plain: list[dict[str, Any]]) -> dict[str, Any]:
         """The arguments a plain form describes, by name: native values, or terms."""
+        _once(plain, "argument")
         return {a["name"]: self._term(a["term"]) if "term" in a else _native_of(a["value"]) for a in plain}
+
+
+def _once(members: list[dict[str, Any]], what: str) -> None:
+    """Refuses a list of a schema's members that names one twice: a schema's lists are in declaration order, so
+    nothing but this keeps their names distinct."""
+    names = [member["name"] for member in members]
+    for name in names:
+        if names.count(name) > 1:
+            raise ValueError(f"{what} {name!r} is listed twice")
 
 
 def _native_of(plain: dict[str, Any]) -> Any:

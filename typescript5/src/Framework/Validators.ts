@@ -245,6 +245,12 @@ export class _EntryRecord implements OfEntry {
     this.values.delete(name);
     return this;
   }
+
+  /** Writes the recorded links and property values into `visitor`. */
+  replay(visitor: OfEntry): void {
+    for (const [name, target] of this.targets) visitor.link(name, (k) => k.set(target));
+    for (const [name, value] of this.values) visitor.property(name, (p) => p.value((a) => replay(a, value)));
+  }
 }
 
 export class _AdjacencyRecord implements OfAdjacency {
@@ -326,9 +332,12 @@ export class _ObjectRecord implements OfObject {
     return this;
   }
 
-  /** Writes the recorded property values back, so a recorded value object can be read like any object. */
+  /** Writes the recorded property values and entries back, so a recorded value object can be read like any object. */
   accept(visitor: OfObject): void {
     for (const [name, value] of this.values) visitor.property(name, (p) => p.value((a) => replay(a, value)));
+    for (const [name, list] of this.adjacencyEntries) {
+      for (const entry of list) visitor.adjacency(name, (a) => a.add((x) => entry.replay(x)));
+    }
   }
 }
 
@@ -392,7 +401,7 @@ function filling(relation: Schemas.OfRelation.Data, name: string, target: Visita
   return `${what} cannot fill link ${repr(name)}; its schema declares no adjacency to this relation via ${repr(name)}`;
 }
 
-/** Equality key per EQUALITY.md: a native's, or a value object's by its properties. */
+/** Equality key per EQUALITY.md: a native's, or a value object's by its properties and its entries, in order. */
 function valueKey(value: unknown): string {
   if (value instanceof _ListRecord && value.keys.some((key) => key !== null)) {
     return `map:${JSON.stringify(sortedStrings(value.values.map((v, i) => JSON.stringify([valueKey(value.keys[i]), valueKey(v)]))))}`;
@@ -401,7 +410,15 @@ function valueKey(value: unknown): string {
   if (value === null) return "none";
   if (!(value instanceof _ObjectRecord)) return nativeKey(value);
   const values = sortedStrings(value.values.keys()).map((name) => [name, valueKey(value.values.get(name))]);
-  return `object:${JSON.stringify(values)}`;
+  const entries = sortedStrings(value.adjacencyEntries.keys()).filter((name) => (value.adjacencyEntries.get(name) as _EntryRecord[]).length > 0)
+    .map((name) => [name, (value.adjacencyEntries.get(name) as _EntryRecord[]).map(entryKey)]);
+  return `object:${JSON.stringify(values)}:${JSON.stringify(entries)}`;
+}
+
+/** An entry's equality key: its links' targets by identity and its values by `valueKey`. */
+function entryKey(entry: _EntryRecord): [string[][], string[][]] {
+  return [sortedStrings(entry.targets.keys()).map((name) => [name, String((entry.targets.get(name) as Visitable).identity())]),
+    sortedStrings(entry.values.keys()).map((name) => [name, valueKey(entry.values.get(name))])];
 }
 
 class Entry {

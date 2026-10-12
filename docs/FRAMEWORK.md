@@ -229,7 +229,8 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   themselves into it through `accept`. `Validators.properties_of(value)` returns the property values any object writes when
   visited (a list as a `ListRecord` of its items and keys), and `Validators.entries_of(value)` its entries by adjacency
   (each an `EntryRecord` of its other links' targets and its property values), for other modules and packages that
-  read objects (e.g. mbse-expressions' evaluators). `Validators.Check(store, evaluate)` checks the same and also reports
+  read objects (e.g. mbse-expressions' evaluators). A value object read so writes its entries back through `accept`
+  as well as its properties, and compares by both. `Validators.Check(store, evaluate)` checks the same and also reports
   what it cannot decide, an extent over unbound parameters for one (see Parametrics).
 
 - `Comparison` : for each schema element `OfX`, `Comparison.OfX` implements `Visitors.OfX`, records the value written
@@ -339,7 +340,8 @@ mbse-typescript, ...) will share, and mbse-expressions' expressions are its firs
   source of truth, with two functions: `read(instance)` gives an instance's `State`, and `make(state)` builds an
   instance from one; `assign(instance, state)` writes a state into an existing instance, for `update()`.
 - **A state is the instance's data in the schema's terms**: each property's value, natives as natives and other values
-  (value objects, unions, lists) in their plain form; and each adjacency's entries, each an `Entry` of its links (the
+  (value objects, unions, lists) in their plain form, which no snapshot holds, so a reference in a value object's
+  entries does not resolve (`unresolved reference 's1': no snapshot holds the value`); and each adjacency's entries, each an `Entry` of its links (the
   linked instances) and its properties. The class keeps its own fields; the binding's two functions translate.
 - **Everything else is generic.** `Bindings.accept(binding, instance, visitor)` writes an instance through the
   visitor protocols, so the class's `accept` is one line; `Bindings.Builder(binding, instance)` is a
@@ -617,20 +619,25 @@ Schemas are data: each schema kind's data has a meta-schema, `Schemas.OfX.Schema
 are written, read, validated and compared like any other objects.
 
 - **A module holds named schemas.** `Schemas.Module.Schema` is a reference object schema, registered in every store of
-  proxies as `Schemas.Module`, whose `schemas` property is a list of `Schemas.Module.Entry` value objects, each a `name` and a
+  proxies as `Schemas.Module`, whose `schemas` are an adjacency to a one-link relation, each entry a `name` and a
   `schema`, a `Schemas.Module.Definition`: a union of the schema kinds, `native`, `object`, `union`, `intersection`,
-  `indexed`, `apply` and `relation`. A snapshot of schemas is a snapshot of a module.
+  `indexed`, `apply` and `relation`. The entries are keyed by name, so written sorted by it, and an entry written twice
+  is read once. A snapshot of schemas is a snapshot of a module. A module is a reference object, whose own adjacencies
+  do not compare ([Equality](EQUALITY.md)), so two modules are equal when their wire forms are.
 - **`Modules` translates.** `Modules.module(store, schemas)` returns a module holding named schemas, each under its
   name, built in the store, and `Modules.schemas(store, module)` the schemas a module holds, by name, each read back
   with its name. Both go through the module's plain form.
-- **Within a module, schemas are value objects, nested inline**, and their members are lists of value objects, in
-  declared order: an object schema's `properties` (`name`, `type`, `description`) and `adjacencies` (`name`,
-  `relation`, `me`, `description`), with its `singleton` and `ref`; a union's `branches` and an intersection's `parts`
-  (`name`, `type`, `description`); a relation's `links` (strings), `properties` and `uniques` (lists of strings, each
-  sorted); a list's `item`, `key` and `extent` (`minimum`, `maximum`, and `terms` for a bound that is a term); and an
-  application's `of` and `arguments` (`name`, and a native `value` or a `term`). A native is its token's `format` and
-  `name`, its `bits` or `bytes`, and `terms` for a width that is a term. Every kind starts with its `parameters` (as
-  properties are written) and ends with its `description`. What is absent, false or empty is left out.
+- **Within a module, schemas are value objects, nested inline**, and their members are adjacencies to one-link
+  relations of their own (each linking only its `owner`), lists in declared order: an object schema's `properties`
+  (`name`, `type`, `description`) and `adjacencies` (`name`, `relation`, `me`, `description`), with its `singleton`
+  and `ref`; a union's `branches` and an intersection's `parts` (`name`, `type`, `description`); a relation's `links`
+  (`name`), `properties` and `uniques` (a `clause`, whose `names` list the names it holds, sorted); a list's `item`,
+  `key` and `extent` (`minimum`, `maximum`, and `terms` for a bound that is a term); and an application's `of` and
+  `arguments` (`name`, and a native `value` or a `term`). A native is its token's `format` and `name`, its `bits` or
+  `bytes`, and `terms` for a width that is a term. A form's `attributes` (`name`, `value`) and `arguments` (`term`) are
+  lists the same way. Each kind's own properties come first, ending with its `description`, then its lists, starting
+  with its `parameters`. What is absent, false or empty is left out. Reading refuses a list that names a member twice
+  (`property 'p' is listed twice`), since the list itself no longer keeps names distinct.
 - **A type is a schema of any kind, inline, or a name**: `Schemas.OfAny.Schema`, a union of the kinds and `named`, a
   value object `{"name": ...}` (union branches are of one kind, so a name is a value object too). A property's type is
   `{"native": {"format": "basic", "token": "str"}}` or `{"named": {"name": "Phone"}}`, and an adjacency's relation is
@@ -661,8 +668,9 @@ kind's meta-schema, the schema of the module form (`Schemas.OfObject.Schema`, na
 
 - **A schema is a reference object of its kind's meta-schema**: `identity()` (Python's `id`, TypeScript's
   `"schema N"`), `schema_name()` (the meta-schema's name), `owner()` (none) and `accept(visitor)`, which writes its
-  module form with its name (a module gives its entry the name): its properties, branches, parts and parameters inline,
-  a named schema it refers to by name. `Reflection` supplies `accept`, since this module cannot import `Modules`.
+  module form with its name (a module gives its entry the name): its own properties, then its properties, branches,
+  parts and parameters as the entries of its adjacencies (read with `entries_of`), a named schema it refers to by
+  name. `Reflection` supplies `accept`, since this module cannot import `Modules`.
   Everything within a schema is a value, read with `get`, quantified over and compared deeply (mbse-expressions' Basic).
 - **`Reflection.of(store)`** is a store whose objects are the schemas `store` registers and the named schemas they refer
   to, found by following the types and relations each refers to: it registers the meta-schemas, and each one's extent
@@ -725,7 +733,7 @@ resolving constraints.
   link, and a reference reads the same in a schema, in an expression and in a module.)
 - **Parameters stay parameters in generated code.** Each target language expresses them as its own construct (a C++
   template parameter, a SystemVerilog `parameter`), not as values substituted before generating.
-- **At a reference**, named and positional arguments, partial binding, arguments that depend on the referring
+- **At a reference**, named arguments (positional ones went: `OfApply` binds by name only, Resolved), partial binding, arguments that depend on the referring
   element's own parameters, and equality after substitution, each to the extent possible.
 - **Unknown is an outcome of validation.** Data checked against a schema whose unbound parameters it depends on is
   neither valid nor invalid there.
@@ -746,7 +754,8 @@ resolving constraints.
   dialect given at the root. `Form.of(term)` gives a term's form. `validate()` checks a form's shape and leaves a
   dialect's term to its dialect; bounds compare only when both are ints, and a list's `capacity` needs int bounds.
 - **`Schemas.OfApply` refers to a parametric schema with arguments**: a type, built by `.of(schema)` and
-  `.argument(name, value)` or `.arguments(*values)` (in the applied schema's parameter order), or `t.as_apply(...)`.
+  `.argument(name, value)` or `.arguments(**values)` (TypeScript: `.arguments({ name: value })` or a `Map`), by
+  parameter name only, or `t.as_apply(...)`.
   An argument is a native value or a term. Applying with some arguments leaves the others unbound (partial binding); an
   argument may be a term over a parameter of the application's own (`Square[n] = Matrix(rows=n, cols=n)`, dependent
   arguments). `validate()` reports unknown parameters, literal arguments of the wrong native type and arguments that

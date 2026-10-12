@@ -598,8 +598,8 @@ function compareOrdered(a: unknown, b: unknown): number {
   return (a as number) < (b as number) ? -1 : (a as number) > (b as number) ? 1 : 0;
 }
 
-/** Sorts the entries of each adjacency written in `plain`, a value of `type`, nested value objects' too, by the key
- * their relation declares from the adjacency's end (`Schemas.OfRelation.Data.key`): where every entry has each of its
+/** Sorts the entries of each adjacency written in `plain`, a value of `type`, nested value objects' too (those its
+ * entries hold among them), by the key their relation declares from the adjacency's end (`Schemas.OfRelation.Data.key`): where every entry has each of its
  * values, and each holds values of one ordered type (booleans false first, numbers by value, strings by code point).
  * Otherwise, as where a key holds a link, entries keep the order they were written in. */
 function sortEntries(type: unknown, plain: PlainData | undefined): void {
@@ -624,8 +624,13 @@ function sortEntries(type: unknown, plain: PlainData | undefined): void {
   for (const [name, prop] of schema.properties) if (record.has(name)) sortEntries(prop.type, record.get(name));
   if (!(schema instanceof Schemas.OfObject.Data)) return;
   for (const [name, adjacency] of schema.adjacencies) {
-    const [entries, names] = [record.get(name), (adjacency.relation as Schemas.OfRelation.Data).key(adjacency.me)];
-    if (names === null || !Array.isArray(entries)) continue;
+    const relation = adjacency.relation as Schemas.OfRelation.Data;
+    const [entries, names] = [record.get(name), relation.key(adjacency.me)];
+    if (!Array.isArray(entries)) continue;
+    for (const entry of entries as PlainMap[]) { // an entry's value objects, held by its properties
+      for (const [held, prop] of relation.properties) if (entry.has(held)) sortEntries(prop.type, entry.get(held));
+    }
+    if (names === null) continue;
     const keys = (entries as PlainMap[]).map((entry) => names.map((n) => entry.get(n)));
     const ordered = names.every((_, i) => {
       const kinds = new Set(keys.map((key) => typeof key[i]));
@@ -657,11 +662,19 @@ class Link {
 /** A decoded value object (an object's, a union value or an intersection value); `accept` writes its properties into a
  * builder. Its entries are added once every object is built. */
 class DecodedRecord {
-  constructor(readonly schema: RecordSchema, readonly values: Map<string, unknown>) {}
+  /** `rows`: entries decoded where no snapshot holds the value. */
+  constructor(readonly schema: RecordSchema, readonly values: Map<string, unknown>, readonly rows: Rows = new Map()) {}
 
   accept(visitor: OfObject): void {
     for (const [name, value] of this.values) set(visitor, name, value);
+    for (const [name, rows] of this.rows) {
+      for (const row of rows) visitor.adjacency(name, (a) => a.add((x) => fill(x, row, unresolved)));
+    }
   }
+}
+
+function unresolved(symbol: string): never {
+  throw new DecodeError(`unresolved reference ${repr(symbol)}: no snapshot holds the value`);
 }
 
 type Where = (string | number)[];
@@ -714,6 +727,7 @@ function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where, context:
   const adjacencies = record instanceof Schemas.OfObject.Data ? record.adjacencies : new Map<string, Schemas.OfAdjacency.Data>();
   const values = new Map<string, unknown>();
   const rows: Rows = new Map();
+  const held: Rows = new Map(); // entries where no snapshot holds the value, so none of their links resolves
   for (const [key, item] of plain as PlainMap) {
     const type = record.properties.get(key)?.type as Schemas.OfAny.Data | undefined;
     const adjacency = adjacencies.get(key);
@@ -721,6 +735,8 @@ function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where, context:
       identify(item, context, steps, [...where, key]);
     } else if (adjacency !== undefined && context !== null) {
       rows.set(key, decodeRows(adjacency, item, where, key, context, steps));
+    } else if (adjacency !== undefined) {
+      held.set(key, decodeRows(adjacency, item, where, key));
     } else if (type !== undefined) {
       values.set(key, decode(type, item, [...where, key], context, [...steps, [key, kindOf(type)]]));
     } else {
@@ -731,7 +747,7 @@ function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where, context:
     throw new DecodeError(`a union value holds exactly one branch, got ${values.size}`, { path: path(...where) });
   }
   if (rows.size > 0) (context as Context).entries.push([new Found((context as Context).owner, steps), rows, record as Schemas.OfObject.Data]);
-  return new DecodedRecord(record, values);
+  return new DecodedRecord(record, values, held);
 }
 
 /** A decoded keyed list: its keys and values, in order. */
@@ -776,7 +792,10 @@ function decodedKey(value: unknown): string {
     return `map:${JSON.stringify(sortedStrings(value.pairs.map(([k, v]) => JSON.stringify([decodedKey(k), decodedKey(v)]))))}`;
   }
   if (value instanceof DecodedRecord) {
-    return `record:${JSON.stringify(sortedStrings(value.values.keys()).map((name) => [name, decodedKey(value.values.get(name))]))}`;
+    const rows = sortedStrings(value.rows.keys()).map((name) => [name, (value.rows.get(name) as Map<string, unknown>[]).map(
+      (row) => sortedStrings([...row.keys()]).map((key) => [key, decodedKey(row.get(key))]))]);
+    return `record:${JSON.stringify(sortedStrings(value.values.keys()).map((name) => [name, decodedKey(value.values.get(name))]))}`
+      + `:${JSON.stringify(rows)}`;
   }
   if (Array.isArray(value)) return `list:${JSON.stringify(value.map(decodedKey))}`;
   return Proxies.nativeKey(value);
@@ -1035,7 +1054,9 @@ function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unkn
       if (oneLink(objectSchema, key)) continue;
       for (const row of kept(objectSchema, symbol, key, rows)) builder.adjacency(key, (a) => a.add((x) => fill(x, row, resolve)));
     }
-    for (const [found, rows, valueSchema] of nested.get(symbol) ?? []) {
+    // outer value objects first: decoding found the inner ones first, and an inner one may be held by an outer one's entry
+    const outerFirst = [...(nested.get(symbol) ?? [])].sort((a, b) => a[0].steps.length - b[0].steps.length);
+    for (const [found, rows, valueSchema] of outerFirst) {
       const at = `${found.owner}:${JSON.stringify(found.steps.map(([k]) => k))}`;
       const owner = symbols.get(at) ?? `found:${at}`;
       const listed = new Map([...rows].map(([key, list]) => [key, kept(valueSchema, owner, key, list)] as const));

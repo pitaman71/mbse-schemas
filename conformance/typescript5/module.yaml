@@ -2,52 +2,10 @@ root: s0
 objects:
   s0:
     schemas:
-    - name: Int32
-      schema:
-        native:
-          format: basic
-          token: int
-          bits: 32
-    - name: Size
-      schema:
-        native:
-          format: ccpp
-          token: size_t
-          bytes: 8
-    - name: Contact
-      schema:
-        object:
-          properties:
-          - name: given_name
-            type:
-              native:
-                format: basic
-                token: str
-          - name: family_name
-            type:
-              native:
-                format: basic
-                token: str
-          - name: birth_date
-            type:
-              native:
-                format: basic
-                token: str
-          adjacencies:
-          - name: addresses
-            relation:
-              named:
-                name: ContactAddresses
-            me: contact
-          - name: phones
-            relation:
-              named:
-                name: ContactPhones
-            me: contact
-          ref: true
     - name: Address
       schema:
         object:
+          ref: true
           properties:
           - name: street1
             type:
@@ -75,202 +33,46 @@ objects:
               named:
                 name: ContactAddresses
             me: address
-          ref: true
-    - name: ContactAddresses
-      schema:
-        relation:
-          links:
-          - contact
-          - address
-          properties:
-          - name: label
-            type:
-              native:
-                format: basic
-                token: str
-    - name: Person
+    - name: Applied
       schema:
         object:
           properties:
-          - name: given_name
+          - name: big
             type:
-              native:
-                format: basic
-                token: str
-          - name: birth_date
+              apply:
+                of:
+                  named:
+                    name: Grid
+                arguments:
+                - name: 'n'
+                  value:
+                    int: 1180591620717411303424
+                - name: x
+                  value:
+                    float: NaN
+          - name: odd
             type:
-              native:
-                format: basic
-                token: str
-          adjacencies:
-          - name: children
-            relation:
-              named:
-                name: Parentage
-            me: parent
-          - name: parents
-            relation:
-              named:
-                name: Parentage
-            me: child
-          - name: mentees
-            relation:
-              named:
-                name: Mentorship
-            me: mentor
-          - name: mentors
-            relation:
-              named:
-                name: Mentorship
-            me: mentee
-          ref: true
-    - name: Parentage
-      schema:
-        relation:
-          links:
-          - parent
-          - child
-          properties:
-          - name: kind
-            type:
-              native:
-                format: basic
-                token: str
-    - name: Card
-      schema:
-        object:
-          properties:
-          - name: name
-            type:
-              native:
-                format: basic
-                token: str
-          - name: home
-            type:
-              object:
-                properties:
-                - name: number
-                  type:
-                    native:
-                      format: basic
-                      token: str
-                - name: label
-                  type:
-                    native:
-                      format: basic
-                      token: str
-                adjacencies:
-                - name: hubs
-                  relation:
-                    named:
-                      name: Line
-                  me: phone
-          - name: reach
-            type:
-              union:
-                branches:
-                - name: phone
-                  type:
-                    object:
-                      properties:
-                      - name: number
-                        type:
-                          native:
-                            format: basic
-                            token: str
-                      - name: label
-                        type:
-                          native:
-                            format: basic
-                            token: str
-                      adjacencies:
-                      - name: hubs
-                        relation:
-                          named:
-                            name: Line
-                        me: phone
-                - name: email
-                  type:
-                    object:
-                      properties:
-                      - name: address
-                        type:
-                          native:
-                            format: basic
-                            token: str
-          - name: ident
-            type:
-              union:
-                branches:
-                - name: number
-                  type:
-                    native:
-                      format: basic
-                      token: int
-                - name: code
-                  type:
-                    native:
-                      format: basic
-                      token: str
-          - name: meta
-            type:
-              intersection:
-                parts:
-                - name: stamp
-                  type:
-                    object:
-                      properties:
-                      - name: updated
-                        type:
-                          native:
-                            format: basic
-                            token: str
-                - name: audit
-                  type:
-                    object:
-                      properties:
-                      - name: by
-                        type:
-                          native:
-                            format: basic
-                            token: str
-                      - name: updated
-                        type:
-                          native:
-                            format: basic
-                            token: str
-          adjacencies:
-          - name: decks
-            relation:
-              named:
-                name: Holding
-            me: card
-          ref: true
-    - name: Deck
-      schema:
-        object:
-          properties:
-          - name: title
-            type:
-              native:
-                format: basic
-                token: str
-          adjacencies:
-          - name: cards
-            relation:
-              named:
-                name: Holding
-            me: deck
-          ref: true
-    - name: Holding
-      schema:
-        relation:
-          links:
-          - deck
-          - card
+              apply:
+                of:
+                  named:
+                    name: Tricky
+                arguments:
+                - name: a
+                  value:
+                    float: -0.0
+                - name: b
+                  value:
+                    str: '日本語 🚀'
+                - name: c
+                  value:
+                    bytes: 'AP8='
+                - name: d
+                  value:
+                    bool: false
     - name: Board
       schema:
         object:
+          ref: true
           properties:
           - name: name
             type:
@@ -416,41 +218,190 @@ objects:
                         native:
                           format: basic
                           token: int
-          ref: true
-    - name: Panel
+    - name: Card
       schema:
         object:
+          ref: true
           properties:
           - name: name
             type:
               native:
                 format: basic
                 token: str
+          - name: home
+            type:
+              object:
+                properties:
+                - name: number
+                  type:
+                    native:
+                      format: basic
+                      token: str
+                - name: label
+                  type:
+                    native:
+                      format: basic
+                      token: str
+                adjacencies:
+                - name: hubs
+                  relation:
+                    named:
+                      name: Line
+                  me: phone
+          - name: reach
+            type:
+              union:
+                branches:
+                - name: phone
+                  type:
+                    object:
+                      properties:
+                      - name: number
+                        type:
+                          native:
+                            format: basic
+                            token: str
+                      - name: label
+                        type:
+                          native:
+                            format: basic
+                            token: str
+                      adjacencies:
+                      - name: hubs
+                        relation:
+                          named:
+                            name: Line
+                        me: phone
+                - name: email
+                  type:
+                    object:
+                      properties:
+                      - name: address
+                        type:
+                          native:
+                            format: basic
+                            token: str
+          - name: ident
+            type:
+              union:
+                branches:
+                - name: number
+                  type:
+                    native:
+                      format: basic
+                      token: int
+                - name: code
+                  type:
+                    native:
+                      format: basic
+                      token: str
+          - name: meta
+            type:
+              intersection:
+                parts:
+                - name: stamp
+                  type:
+                    object:
+                      properties:
+                      - name: updated
+                        type:
+                          native:
+                            format: basic
+                            token: str
+                - name: audit
+                  type:
+                    object:
+                      properties:
+                      - name: by
+                        type:
+                          native:
+                            format: basic
+                            token: str
+                      - name: updated
+                        type:
+                          native:
+                            format: basic
+                            token: str
           adjacencies:
-          - name: plugs
+          - name: decks
             relation:
               named:
-                name: Cable
-            me: sink
-          ref: true
-    - name: Word
+                name: Holding
+            me: card
+    - name: Choice
       schema:
-        native:
-          parameters:
-          - name: w
+        union:
+          flat: true
+          branches:
+          - name: 'n'
             type:
               native:
                 format: basic
                 token: int
-          format: basic
-          token: int
-          terms:
-            bits:
-              kind: variable
-              attributes:
-              - name: name
-                value:
-                  str: w
+          - name: s
+            type:
+              native:
+                format: basic
+                token: str
+    - name: Contact
+      schema:
+        object:
+          ref: true
+          properties:
+          - name: given_name
+            type:
+              native:
+                format: basic
+                token: str
+          - name: family_name
+            type:
+              native:
+                format: basic
+                token: str
+          - name: birth_date
+            type:
+              native:
+                format: basic
+                token: str
+          adjacencies:
+          - name: addresses
+            relation:
+              named:
+                name: ContactAddresses
+            me: contact
+          - name: phones
+            relation:
+              named:
+                name: ContactPhones
+            me: contact
+    - name: ContactAddresses
+      schema:
+        relation:
+          links:
+          - name: contact
+          - name: address
+          properties:
+          - name: label
+            type:
+              native:
+                format: basic
+                token: str
+    - name: Deck
+      schema:
+        object:
+          ref: true
+          properties:
+          - name: title
+            type:
+              native:
+                format: basic
+                token: str
+          adjacencies:
+          - name: cards
+            relation:
+              named:
+                name: Holding
+            me: deck
     - name: Grid
       schema:
         object:
@@ -486,101 +437,34 @@ objects:
                         value:
                           str: mul
                       arguments:
-                      - kind: variable
-                        attributes:
-                        - name: name
-                          value:
-                            str: 'n'
-                      - kind: variable
-                        attributes:
-                        - name: name
-                          value:
-                            str: 'n'
-    - name: Square
+                      - term:
+                          kind: variable
+                          attributes:
+                          - name: name
+                            value:
+                              str: 'n'
+                      - term:
+                          kind: variable
+                          attributes:
+                          - name: name
+                            value:
+                              str: 'n'
+    - name: Holding
       schema:
-        apply:
-          parameters:
-          - name: m
-            type:
-              native:
-                format: basic
-                token: int
-          of:
-            named:
-              name: Grid
-          arguments:
-          - name: 'n'
-            term:
-              kind: variable
-              attributes:
-              - name: name
-                value:
-                  str: m
-          - name: x
-            value:
-              bool: true
-    - name: Tricky
+        relation:
+          links:
+          - name: deck
+          - name: card
+    - name: Int32
       schema:
-        object:
-          parameters:
-          - name: a
-          - name: b
-          - name: c
-          - name: d
-    - name: Applied
-      schema:
-        object:
-          properties:
-          - name: big
-            type:
-              apply:
-                of:
-                  named:
-                    name: Grid
-                arguments:
-                - name: 'n'
-                  value:
-                    int: 1180591620717411303424
-                - name: x
-                  value:
-                    float: NaN
-          - name: odd
-            type:
-              apply:
-                of:
-                  named:
-                    name: Tricky
-                arguments:
-                - name: a
-                  value:
-                    float: -0.0
-                - name: b
-                  value:
-                    str: '日本語 🚀'
-                - name: c
-                  value:
-                    bytes: 'AP8='
-                - name: d
-                  value:
-                    bool: false
-    - name: Choice
-      schema:
-        union:
-          branches:
-          - name: 'n'
-            type:
-              native:
-                format: basic
-                token: int
-          - name: s
-            type:
-              native:
-                format: basic
-                token: str
-          flat: true
+        native:
+          format: basic
+          token: int
+          bits: 32
     - name: Marked
       schema:
         intersection:
+          flat: true
           parts:
           - name: when
             type:
@@ -600,4 +484,122 @@ objects:
                     native:
                       format: basic
                       token: str
-          flat: true
+    - name: Panel
+      schema:
+        object:
+          ref: true
+          properties:
+          - name: name
+            type:
+              native:
+                format: basic
+                token: str
+          adjacencies:
+          - name: plugs
+            relation:
+              named:
+                name: Cable
+            me: sink
+    - name: Parentage
+      schema:
+        relation:
+          links:
+          - name: parent
+          - name: child
+          properties:
+          - name: kind
+            type:
+              native:
+                format: basic
+                token: str
+    - name: Person
+      schema:
+        object:
+          ref: true
+          properties:
+          - name: given_name
+            type:
+              native:
+                format: basic
+                token: str
+          - name: birth_date
+            type:
+              native:
+                format: basic
+                token: str
+          adjacencies:
+          - name: children
+            relation:
+              named:
+                name: Parentage
+            me: parent
+          - name: parents
+            relation:
+              named:
+                name: Parentage
+            me: child
+          - name: mentees
+            relation:
+              named:
+                name: Mentorship
+            me: mentor
+          - name: mentors
+            relation:
+              named:
+                name: Mentorship
+            me: mentee
+    - name: Size
+      schema:
+        native:
+          format: ccpp
+          token: size_t
+          bytes: 8
+    - name: Square
+      schema:
+        apply:
+          of:
+            named:
+              name: Grid
+          parameters:
+          - name: m
+            type:
+              native:
+                format: basic
+                token: int
+          arguments:
+          - name: 'n'
+            term:
+              kind: variable
+              attributes:
+              - name: name
+                value:
+                  str: m
+          - name: x
+            value:
+              bool: true
+    - name: Tricky
+      schema:
+        object:
+          parameters:
+          - name: a
+          - name: b
+          - name: c
+          - name: d
+    - name: Word
+      schema:
+        native:
+          format: basic
+          token: int
+          terms:
+            bits:
+              kind: variable
+              attributes:
+              - name: name
+                value:
+                  str: w
+          parameters:
+          - name: w
+            type:
+              native:
+                format: basic
+                token: int

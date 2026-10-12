@@ -61,7 +61,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `19_Bindings.ipynb` | BND | 4 | as in Python; a binding's options are an object with `fixed` a `Map`, states, entries and stores hold `Map`s |
 | `20_Stores.ipynb` | STO | 6 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), a `Bindings.OfStore` lets JavaScript's probes through, and STO-05 builds its unplaced value object through the visitor protocol |
 | `21_Random.ipynb` | RND | 3 | as in Python; PCG32 computes on `bigint`s, and the UTF-8 bytes of keys are encoded without `TextEncoder` |
-| `22_Parametrics.ipynb` | PAR | 7 | as in Python; a form's attributes may be given as a Map or a record, and an extent's bounds as `{ minimum, maximum }`; an evaluator's scope is a `ReadonlyMap`, and an outcome is compared by its fields |
+| `22_Parametrics.ipynb` | PAR | 7 | as in Python; an application's arguments, and a form's attributes, may be given as a Map or a record, and an extent's bounds as `{ minimum, maximum }`; an evaluator's scope is a `ReadonlyMap`, and an outcome is compared by its fields |
 | `23_Reflection.ipynb` | RFL | 3 | as in Python; a reflected schema's identity is a string (`"schema N"`) |
 | `24_Paths.ipynb` | PTH | 3 | as in Python; an integer key is a `bigint` |
 

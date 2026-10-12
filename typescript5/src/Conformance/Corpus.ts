@@ -213,15 +213,15 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
     new Schemas.Form.Data("variable", { name: "w" })));
   const Grid = new Schemas.OfObject.Builder().name("Grid").parameters((p) => p.name("n").of(int_).description("Its side"),
     (p) => p.name("x")).properties(
-    (p) => p.name("cells").of((t) => t.as_indexed((i) => i.of((c) => c.as_apply((a) => a.of(Word).arguments(8n)))
+    (p) => p.name("cells").of((t) => t.as_indexed((i) => i.of((c) => c.as_apply((a) => a.of(Word).arguments({ w: 8n })))
       .extent({ minimum: 1n, maximum: new Schemas.Form.Data("operation", { name: "mul" }, [n, n], "basic") })))).create();
   const Square = new Schemas.OfApply.Builder().name("Square").parameters((p) => p.name("m").of(int_)).of(Grid).argument(
     "n", new Schemas.Form.Data("variable", { name: "m" })).argument("x", true).create();
   const Tricky = new Schemas.OfObject.Builder().name("Tricky").parameters(
     ...[..."abcd"].map((x) => (p: Schemas.OfParameter.Builder) => p.name(x))).create();
   const Applied = new Schemas.OfObject.Builder().name("Applied").properties(
-    (p) => p.name("big").of((t) => t.as_apply((a) => a.of(Grid).arguments(2n ** 70n, NaN))),
-    (p) => p.name("odd").of((t) => t.as_apply((a) => a.of(Tricky).arguments(-0.0, "日本語 🚀", new Uint8Array([0, 255]), false)))).create();
+    (p) => p.name("big").of((t) => t.as_apply((a) => a.of(Grid).arguments({ n: 2n ** 70n, x: NaN }))),
+    (p) => p.name("odd").of((t) => t.as_apply((a) => a.of(Tricky).arguments({ a: -0.0, b: "日本語 🚀", c: new Uint8Array([0, 255]), d: false })))).create();
   const Choice = new S.OfUnion.Builder().name("Choice").branches((b) => b.name("n").of((t) => t.as_native(BigInt)),
     (b) => b.name("s").of((t) => t.as_native(String))).flat().create();
   const Marked = new S.OfIntersection.Builder().name("Marked").parts(

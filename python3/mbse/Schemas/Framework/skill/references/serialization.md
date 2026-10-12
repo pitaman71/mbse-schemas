@@ -30,16 +30,18 @@ and TypeScript write byte-identical JSON, and each reads the other's.
 
 ## Schemas as data
 
-A module is an object holding schemas by name, so schemas save, load, validate and compare like any data:
+A module is an object holding schemas by name, so schemas save, load and validate like any data (two modules are
+equal when their wire forms are):
 
 ```python fragment
 text = JSON.ToJSON(store)(S.Module.Schema, Modules.module(store, [Contact, Phone]))
 schemas = Modules.schemas(store, JSON.FromJSON(store)(S.Module.Schema, text))   # {"Contact": ..., "Phone": ...}
 ```
 
-Each schema in a module is an entry, its name and its definition inline by kind (`{"object": {...}}`). A schema refers to
-a named schema by its name (`{"named": {"name": "Phone"}}`) and writes an unnamed one inline; a name resolves within the
-module, then in the store. A schema that refers to itself must be named.
+Each schema in a module is an entry, its name and its definition inline by kind (`{"object": {...}}`), sorted by name. A
+schema's own lists (properties, links, branches, parameters, ...) are entries too, `[{"name": ..., "type": ...}]`, in
+declaration order. A schema refers to a named schema by its name (`{"named": {"name": "Phone"}}`) and writes an unnamed
+one inline; a name resolves within the module, then in the store. A schema that refers to itself must be named.
 
 ## Calls
 

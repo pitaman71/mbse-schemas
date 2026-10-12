@@ -226,6 +226,13 @@ class _EntryRecord:
         self.values.pop(name, None)
         return self
 
+    def replay(self, visitor: Visitors.OfEntry) -> None:
+        """Writes the recorded links and property values into `visitor`."""
+        for name, target in self.targets.items():
+            visitor.link(name, lambda k, target=target: k.set(target))
+        for name, value in self.values.items():
+            visitor.property(name, lambda p, value=value: p.value(lambda a: _replay(a, value)))
+
 
 class _AdjacencyRecord:
     def __init__(self, name: str, entries: list[_EntryRecord]):
@@ -297,9 +304,13 @@ class _ObjectRecord:
         return self
 
     def accept(self, visitor: Visitors.OfObject) -> None:
-        """Writes the recorded property values back, so a recorded value object can be read like any object."""
+        """Writes the recorded property values and entries back, so a recorded value object can be read like any
+        object."""
         for name, value in self.values.items():
             visitor.property(name, lambda p, value=value: p.value(lambda a: _replay(a, value)))
+        for name, entries in self.adjacency_entries.items():
+            for entry in entries:
+                visitor.adjacency(name, lambda a, entry=entry: a.add(entry.replay))
 
 
 def _replay(visitor: Visitors.OfAny, value: Any) -> None:
@@ -363,9 +374,11 @@ def _filling(relation: Schemas.OfRelation.Data, name: str, target: Visitors.Visi
 
 def _value_key(value: Any) -> Hashable:
     """Equality key per EQUALITY.md: distinct native types never compare equal; floats compare by bit pattern; a value
-    object by its properties."""
+    object by its properties and its entries, in order."""
     if isinstance(value, _ObjectRecord):
-        return ("object", tuple(sorted((name, _value_key(v)) for name, v in value.values.items())))
+        entries = tuple((name, tuple(_entry_key(entry) for entry in listed))
+                        for name, listed in sorted(value.adjacency_entries.items()) if listed)
+        return ("object", tuple(sorted((name, _value_key(v)) for name, v in value.values.items())), entries)
     if isinstance(value, _ListRecord) and any(key is not None for key in value.keys):
         return ("map", frozenset((_value_key(k), _value_key(v)) for k, v in zip(value.keys, value.values)))
     if isinstance(value, _ListRecord):
@@ -373,6 +386,12 @@ def _value_key(value: Any) -> Hashable:
     if isinstance(value, float):
         return ("float", value.hex())
     return (type(value).__name__, value)
+
+
+def _entry_key(entry: _EntryRecord) -> Hashable:
+    """An entry's equality key: its links' targets by identity and its values by `_value_key`."""
+    return (tuple(sorted((name, target.identity()) for name, target in entry.targets.items())),
+            tuple(sorted((name, _value_key(v)) for name, v in entry.values.items())))
 
 
 _ABSENT = ("absent",)

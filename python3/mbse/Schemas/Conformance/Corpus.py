@@ -216,13 +216,13 @@ def build():
     Grid = S.OfObject.Builder().name("Grid").parameters(lambda p: p.name("n").of(int_).description("Its side"),
                                                         lambda p: p.name("x")).properties(
         lambda p: p.name("cells").of(lambda t: t.as_indexed(lambda i: i.of(lambda c: c.as_apply(
-            lambda a: a.of(Word).arguments(8))).extent(1, S.Form.Data("operation", {"name": "mul"}, (n, n), "basic"))))).create()
+            lambda a: a.of(Word).arguments(w=8))).extent(1, S.Form.Data("operation", {"name": "mul"}, (n, n), "basic"))))).create()
     Square = S.OfApply.Builder().name("Square").parameters(lambda p: p.name("m").of(int_)).of(Grid).argument(
         "n", S.Form.Data("variable", {"name": "m"})).argument("x", True).create()
     Tricky = S.OfObject.Builder().name("Tricky").parameters(*[lambda p, x=x: p.name(x) for x in "abcd"]).create()
     Applied = S.OfObject.Builder().name("Applied").properties(
-        lambda p: p.name("big").of(lambda t: t.as_apply(lambda a: a.of(Grid).arguments(2**70, math.nan))),
-        lambda p: p.name("odd").of(lambda t: t.as_apply(lambda a: a.of(Tricky).arguments(-0.0, "日本語 🚀", b"\x00\xff", False)))
+        lambda p: p.name("big").of(lambda t: t.as_apply(lambda a: a.of(Grid).arguments(n=2**70, x=math.nan))),
+        lambda p: p.name("odd").of(lambda t: t.as_apply(lambda a: a.of(Tricky).arguments(a=-0.0, b="日本語 🚀", c=b"\x00\xff", d=False)))
     ).create()
     Choice = S.OfUnion.Builder().name("Choice").branches(lambda b: b.name("n").of(lambda t: t.as_native(int)),
                                                          lambda b: b.name("s").of(lambda t: t.as_native(str))).flat().create()

@@ -60,7 +60,7 @@ skill regenerated. No release comes between phases.
 
    | Repository | Adapts |
    |---|---|
-   | mbse-expressions | Basic's operations on lists (its EXPRESSIONS.md, Resolved): `get` of an adjacency, `project`, `at`, the quantifiers over them; the rest of Basic's collection operations and their translator rules removed |
+   | mbse-expressions | Basic's operations on lists (its EXPRESSIONS.md, Resolved): `get` and `has` of an adjacency and `project` (built in phase 3), `at` (open: how Basic knows an adjacency's key), the quantifiers over them; the rest of Basic's collection operations and their translator rules removed, once the predicates below no longer use them |
    | mbse-patterns | `Predicates` lists (`_LIST`, `GIVEN`) as relations; `Modules.reference` and `resolve` replaced by links; meta-schema names in `Reflection` (`Schemas.Indexed` gone, `Schemas.Module` changed); transform paths, keyed as `Paths` now keys them |
    | mbse-programs | `Syntax`'s `as_indexed`; `OfApply` arguments by name; the conformance corpora regenerated, since a syntax node's children are written sorted by their key (`property`, `index`) since phase 1 (CONF-01) |
    | mbse-codegen-python | `Types` without `OfIndexed` and `Proxies.OfIndexed.Map`; a relation keyed by integer-like properties promoted to an indexable, and to a dict or map where unambiguous; `Codegen.Defined`'s `unique(output, name)` corrected for the right reading, `unique(node)`, without which its paths are positional since phase 1 (TYP-03) |
@@ -68,7 +68,11 @@ skill regenerated. No release comes between phases.
    The dependents' suites are run in the workspace after each phase, and what a phase breaks is listed above. After
    phase 1, mbse-patterns passes unchanged. Phase 2 breaks nothing more, though a dependent's relation that has no
    `unique` clause and relied on equal entries being elided now keeps them, which its tests may not show: each
-   dependent's relations are reviewed for it here.
+   dependent's relations are reviewed for it here. Phase 3 dropped the members' meta-schemas with the scalars branch
+   (restored: FRAMEWORK.md, Meta-schemas, "Each member keeps its own meta-schema"), and moved a schema's lists to
+   adjacencies, which predicates read with `get` and `has` (mbse-patterns' TRF-07, mbse-codegen-python's TYP-02 and
+   SKL-02); mbse-expressions' first step of decision C, `get` and `has` of an adjacency and `project`, was built then
+   to keep them evaluating, and its removals stay here. After it, the dependents fail only as after phase 1.
 
 7. **The release**: mbse-schemas 0.11.0 and a minor version of each dependent, landed together
    (`polyrepo.py land <dir>`).

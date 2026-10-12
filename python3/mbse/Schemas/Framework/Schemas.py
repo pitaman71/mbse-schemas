@@ -140,6 +140,13 @@ def _reserved(names: Any) -> list[str]:
             for name in names if isinstance(name, str) and name.startswith("$")]
 
 
+def _visited(names: Any) -> list[str]:
+    """Problems with properties, adjacencies and links named `as_*`, which object and entry visitors keep for their own
+    methods, so that no name a schema defines collides with them in data instances and builders."""
+    return [f"name {name!r} is reserved: names starting with 'as_' belong to the visitor protocol"
+            for name in names if isinstance(name, str) and name.startswith("as_")]
+
+
 _REFLECTION: dict[str, Any] = {"accept": None}
 """Filled by `Reflection`, which writes a schema in its module form, so that this module need not import `Modules`."""
 
@@ -474,7 +481,8 @@ class _RelationData(_Reflected):
 
     def validate(self) -> list[str]:
         problems = (_name_problems(self.name) + _description_problems(self.description)
-                    + _parameter_problems(self.parameters) + _reserved([*self.links, *self.properties]))
+                    + _parameter_problems(self.parameters) + _reserved([*self.links, *self.properties])
+                    + _visited([*self.links, *self.properties]))
         if not self.links:
             problems.append("a relation needs at least one link")
         if len(set(self.links)) != len(self.links):
@@ -631,7 +639,8 @@ class _ObjectData(_Reflected):
 
     def _problems(self) -> list[str]:
         problems = (_name_problems(self.name) + _description_problems(self.description)
-                    + _parameter_problems(self.parameters) + _reserved([*self.properties, *self.adjacencies]))
+                    + _parameter_problems(self.parameters) + _reserved([*self.properties, *self.adjacencies])
+                    + _visited([*self.properties, *self.adjacencies]))
         if self.singleton is not None and not self.ref:
             problems.append("a singleton's schema must be a reference object schema")
         clashes = set(self.properties) & set(self.adjacencies)

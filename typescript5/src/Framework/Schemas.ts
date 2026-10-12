@@ -31,6 +31,13 @@ function reserved(names: readonly unknown[]): string[] {
     .map((name) => `name ${repr(name)} is reserved: names starting with '$' belong to the wire format`);
 }
 
+/** Problems with properties, adjacencies and links named `as_*`, which object and entry visitors keep for their own
+ * methods, so that no name a schema defines collides with them in data instances and builders. */
+function visited(names: readonly unknown[]): string[] {
+  return names.filter((name): name is string => typeof name === "string" && name.startsWith("as_"))
+    .map((name) => `name ${repr(name)} is reserved: names starting with 'as_' belong to the visitor protocol`);
+}
+
 export const NATIVE_TYPES: readonly NativeToken[] = [BigInt, Number, String, Boolean, Uint8Array];
 
 const DOTTED = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;
@@ -642,7 +649,8 @@ class RelationData extends Reflected {
 
   validate(): string[] {
     const problems = [...nameProblems(this.name), ...descriptionProblems(this.description),
-      ...parameterProblems(this.parameters), ...reserved([...this.links, ...this.properties.keys()])];
+      ...parameterProblems(this.parameters), ...reserved([...this.links, ...this.properties.keys()]),
+      ...visited([...this.links, ...this.properties.keys()])];
     if (this.links.length === 0) problems.push("a relation needs at least one link");
     if (new Set(this.links).size !== this.links.length) {
       problems.push(`duplicate link names in ${repr(new Tuple(this.links))}`);
@@ -853,7 +861,8 @@ class ObjectData extends Reflected {
 
   private problems(): string[] {
     const problems = [...nameProblems(this.name), ...descriptionProblems(this.description),
-      ...parameterProblems(this.parameters), ...reserved([...this.properties.keys(), ...this.adjacencies.keys()])];
+      ...parameterProblems(this.parameters), ...reserved([...this.properties.keys(), ...this.adjacencies.keys()]),
+      ...visited([...this.properties.keys(), ...this.adjacencies.keys()])];
     if (this.singleton !== null && !this.ref) problems.push("a singleton's schema must be a reference object schema");
     const clashes = [...this.properties.keys()].filter((name) => this.adjacencies.has(name));
     if (clashes.length > 0) {

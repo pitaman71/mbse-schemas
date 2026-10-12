@@ -86,6 +86,8 @@ B.Name().prop(value).adjacencyName((e: any) => e.link(obj).entryProp(v)).create(
 B.Name(obj).prop(v).update();                              // .clone() makes a changed copy instead
 irq.fanout.map((e: any) => [e.target, e.label]);             // an adjacency: an Iterable of full entries (Proxies.OfEntry.Data),
                                                               // every link the owner's own included; links and properties as attributes
+irq.fanout.project("target");                                 // each entry's link or property, in order (Proxies.OfAdjacency.Data)
+contact.phones.at("home");                                    // the entry by the key its relation's unique clause gives this end
 B.Name().listProp(["a", "b"]).create();                    // a list of items; obj.listProp is a frozen array
 B.Name().attrs(new Map([["gain", 1.5]])).create();          // a keyed list; obj.attrs.get("gain"). Give -0.0 keys as [key, value] pairs
 JSON.ToJSON(store).Reachable(schema, root); JSON.FromJSON(store).Reachable(schema, text);

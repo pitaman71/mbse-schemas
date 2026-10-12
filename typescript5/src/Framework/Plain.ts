@@ -28,7 +28,7 @@
 import { AttributeError, DecodeError, item, KeyError, LookupError, NotImplementedError, path, ValueError } from "./Errors.js";
 import * as Proxies from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
-import { repr, sortedStrings, typeName } from "./Repr.js";
+import { compareStrings, repr, sortedStrings, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type * as Stores from "./Stores.js";
 import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIndexed, OfIntersection, OfItem, OfLink, OfNative, OfObject,
@@ -568,7 +568,9 @@ class Snapshot {
     const objects: PlainMap = new Map();
     for (const value of include) {
       const out: PlainMap = new Map();
-      value.accept(new _ObjectWriter(out, this.store.schema(value.schema_name()), this.ref, symbol));
+      const schema = this.store.schema(value.schema_name());
+      value.accept(new _ObjectWriter(out, schema, this.ref, symbol));
+      sortEntries(schema, out);
       objects.set(this.symbol(value), out);
     }
     for (const value of include) { // an object whose schema nothing else gives carries it: one linked only by value objects
@@ -578,6 +580,59 @@ class Snapshot {
       }
     }
     return new Map<string, PlainData>([["root", this.symbol(root)], ["objects", objects]]);
+  }
+}
+
+const ORDERED = new Set(["boolean", "bigint", "number", "string"]);
+
+/** The order of two values of one ordered type: booleans false first, numbers by value, strings by code point. */
+function compareOrdered(a: unknown, b: unknown): number {
+  if (typeof a === "string") return compareStrings(a, b as string);
+  return (a as number) < (b as number) ? -1 : (a as number) > (b as number) ? 1 : 0;
+}
+
+/** Sorts the entries of each adjacency written in `plain`, a value of `type`, nested value objects' too, by the key
+ * their relation declares from the adjacency's end (`Schemas.OfRelation.Data.key`): where every entry has each of its
+ * values, and each holds values of one ordered type (booleans false first, numbers by value, strings by code point).
+ * Otherwise, as where a key holds a link, entries keep the order they were written in. */
+function sortEntries(type: unknown, plain: PlainData | undefined): void {
+  const schema = Schemas.structure(type);
+  if (schema instanceof Schemas.OfIndexed.Data) {
+    if (plain instanceof Map) { // keyed by text
+      for (const item of plain.values()) sortEntries(schema.item, item);
+    } else if (schema.positional) {
+      for (const item of plain as PlainData[]) sortEntries(schema.item, item);
+    } else {
+      for (const pair of plain as PlainMap[]) { // {key, value}, as written
+        sortEntries(schema.key, pair.get("key"));
+        sortEntries(schema.item, pair.get("value"));
+      }
+    }
+    return;
+  }
+  if (!(schema instanceof Schemas.OfObject.Data || schema instanceof Schemas.OfUnion.Data || schema instanceof Schemas.OfIntersection.Data)) {
+    return;
+  }
+  const record = plain as PlainMap;
+  for (const [name, prop] of schema.properties) if (record.has(name)) sortEntries(prop.type, record.get(name));
+  if (!(schema instanceof Schemas.OfObject.Data)) return;
+  for (const [name, adjacency] of schema.adjacencies) {
+    const [entries, names] = [record.get(name), (adjacency.relation as Schemas.OfRelation.Data).key(adjacency.me)];
+    if (names === null || !Array.isArray(entries)) continue;
+    const keys = (entries as PlainMap[]).map((entry) => names.map((n) => entry.get(n)));
+    const ordered = names.every((_, i) => {
+      const kinds = new Set(keys.map((key) => typeof key[i]));
+      return kinds.size === 1 && ORDERED.has([...kinds][0] as string);
+    });
+    if (ordered) {
+      (entries as PlainMap[]).sort((a, b) => {
+        for (const n of names) {
+          const order = compareOrdered(a.get(n), b.get(n));
+          if (order !== 0) return order;
+        }
+        return 0;
+      });
+    }
   }
 }
 

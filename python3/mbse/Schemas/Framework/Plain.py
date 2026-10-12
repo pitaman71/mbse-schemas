@@ -493,13 +493,50 @@ class _Snapshot:
         objects: dict[str, PlainData] = {}
         for value in include:
             out: dict[str, PlainData] = {}
-            value.accept(_ObjectWriter(out, self._store.schema(value.schema_name()), self._ref, symbol))
+            schema = self._store.schema(value.schema_name())
+            value.accept(_ObjectWriter(out, schema, self._ref, symbol))
+            _sort_entries(schema, out)
             objects[self._symbol(value)] = out
         for value in include:  # an object whose schema nothing else gives carries it: one linked only by value objects
             key = self._symbol(value)
             if value is not root and key not in self._typed:
                 objects[key] = {SCHEMA: value.schema_name(), **objects[key]}  # type: ignore[dict-item]
         return {"root": self._symbol(root), "objects": objects}
+
+
+_ORDERED = (bool, int, float, str)
+
+
+def _sort_entries(schema: Any, plain: PlainData) -> None:
+    """Sorts the entries of each adjacency written in `plain`, a value of `schema`, nested value objects' too, by the
+    key their relation declares from the adjacency's end (`Schemas.OfRelation.Data.key`): where every entry has each
+    of its values, and each holds values of one ordered type (booleans false first, numbers by value, strings by code
+    point). Otherwise, as where a key holds a link, entries keep the order they were written in."""
+    schema = Schemas.structure(schema)
+    if isinstance(schema, Schemas.OfIndexed.Data):
+        if isinstance(plain, dict):  # keyed by text
+            for item in plain.values():
+                _sort_entries(schema.item, item)
+        elif schema.positional:
+            for item in plain:  # type: ignore[union-attr]
+                _sort_entries(schema.item, item)
+        else:
+            for pair in plain:  # type: ignore[union-attr]  # {key, value}, as written
+                _sort_entries(schema.key, pair["key"])  # type: ignore[index]
+                _sort_entries(schema.item, pair["value"])  # type: ignore[index]
+        return
+    if not isinstance(schema, (Schemas.OfObject.Data, Schemas.OfUnion.Data, Schemas.OfIntersection.Data)):
+        return
+    for name, prop in schema.properties.items():
+        if name in plain:
+            _sort_entries(prop.type, plain[name])
+    for name, adjacency in schema.adjacencies.items() if isinstance(schema, Schemas.OfObject.Data) else ():
+        entries, names = plain.get(name), adjacency.relation.key(adjacency.me)
+        if names is None or not isinstance(entries, list):
+            continue
+        keys = [tuple(entry.get(n) for n in names) for entry in entries]
+        if all(len({type(key[i]) for key in keys}) == 1 and type(keys[0][i]) in _ORDERED for i in range(len(names))):
+            entries.sort(key=lambda entry: tuple(entry[n] for n in names))
 
 
 def _is_ref(value: PlainData) -> bool:

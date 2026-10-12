@@ -4,10 +4,11 @@
 named by its name, and a singleton by its global name; any other object by the first route that reaches it from them,
 in order: the schemas in name order, then the singletons in global-name order, then breadth first through each
 object's entries, adjacency by adjacency in its schema's order, each adjacency's entries in order. A route's step is
-`/adjacency[key]`: an entry's key is the property values that a unique constraint of its relation declares with the
-object's own link (`phones[label="home"]`), else its position among the adjacency's entries (`items[0]`). An entry of
-a relation of more than two links names the link it follows (`/enrolled[0].course`). A key writes a string as JSON
-does, an integer in decimal and a boolean as `true` or `false`; a value of any other type makes the key positional.
+`/adjacency[key]`: an entry's key is the values of the first key of properties its relation declares from the object's
+own link (`Schemas.OfRelation.Data.keys`: `phones[label="home"]`), else its position among the adjacency's entries
+(`items[0]`). An entry of a relation of more than two links names the link it follows (`/enrolled[0].course`). A key
+writes a string as JSON does, an integer in decimal and a boolean as `true` or `false`; a value of any other type makes
+the key positional.
 
 A path names the same object after a change that does not touch the route to it: a property set, or an object added
 elsewhere. Renaming a schema or a singleton, or inserting an entry before a positional one, changes the paths under it.
@@ -47,13 +48,12 @@ def _text(value: Any) -> str | None:
 
 
 def _key(relation: Any, me: str, values: dict[str, Any], position: int) -> str:
-    """An entry's key: the values of the first unique constraint, in name order, that holds the object's own link and
-    otherwise only properties the entry has, of types a path writes; else its position."""
-    for unique in sorted(sorted(u) for u in relation.uniques):
-        rest = [name for name in unique if name != me]
-        texts = [_text(values.get(name)) for name in rest]
-        if me in unique and rest and all(name in relation.properties for name in rest) and None not in texts:
-            return ",".join(f"{name}={text}" for name, text in zip(rest, texts))
+    """An entry's key: the values of the first key its relation declares from the object's own link
+    (`Schemas.OfRelation.Data.keys`) of properties the entry has, of types a path writes; else its position."""
+    for names in relation.keys(me):
+        texts = [_text(values.get(name)) for name in names]
+        if all(name in relation.properties for name in names) and None not in texts:
+            return ",".join(f"{name}={text}" for name, text in zip(names, texts))
     return str(position)
 
 

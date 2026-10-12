@@ -512,6 +512,19 @@ class _RelationData(_Reflected):
                          + _entry_value_problems(prop.type) + _description_problems(prop.description)]
         return problems
 
+    def keys(self, me: str) -> list[tuple[str, ...]]:
+        """The keys of the entries seen from the link `me`, one per `unique(S)` clause in declaration order whose
+        complement holds `me` and something else: that complement less `me`, in declaration order. `unique(S)` makes
+        the links and properties outside `S` determine `S`, so from `me`'s end each key picks out one entry."""
+        names = [*self.links, *self.properties]
+        rests = [[name for name in names if name not in unique] for unique in self.uniques]
+        return [tuple(name for name in rest if name != me) for rest in rests if me in rest and len(rest) > 1]
+
+    def key(self, me: str) -> tuple[str, ...] | None:
+        """The first of `keys(me)`, which an adjacency from `me` is indexed by (`at`); None when there is none."""
+        keys = self.keys(me)
+        return keys[0] if keys else None
+
 
 def _entry_value_problems(schema: Any, held: str = "held by an entry", seen: frozenset[int] = frozenset()) -> list[str]:
     """An entry property's value object has no adjacencies: an entry is written under each object it links, so its

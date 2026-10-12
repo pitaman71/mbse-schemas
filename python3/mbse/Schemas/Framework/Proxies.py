@@ -10,7 +10,8 @@ A store holds its singletons, created when their schemas are registered (`store.
 them its data (see `Stores`); an object nothing reachable from a singleton links is the program's to keep. A relation's
 entries live on the objects they link, so they go with them. Adding an entry equal to an existing one is elided. An
 object of one store cannot be linked to, or be a builder's source in, another. An adjacency is a member named after it,
-the tuple of its entries in the order they were added (`contact.phones`); an entry is shared by the objects it links,
+the tuple of its entries in the order they were added (`contact.phones`), with `project(name)`, each entry's link or
+property, and `at(key)`, the entry with a key its relation declares; an entry is shared by the objects it links,
 and its links and properties are read-only attributes (`entry.phone`, `entry.label`), so that code reads proxies as it
 reads generated classes.
 
@@ -36,7 +37,7 @@ from typing import Any, Generic, TypeVar
 from . import Errors, Schemas, Stores, Visitors
 from .Visitors import Native
 
-__all__ = ["OfStore", "store_of", "OfObject", "OfEntry", "OfIndexed"]
+__all__ = ["OfStore", "store_of", "OfObject", "OfEntry", "OfAdjacency", "OfIndexed"]
 
 ObjectSchema = Schemas.OfObject.Data
 RelationSchema = Schemas.OfRelation.Data
@@ -255,8 +256,45 @@ def _read(value: Any, name: str) -> Any:
         return None if part not in values else _read(values[part], name)
     adjacency = schema.adjacencies.get(name) if isinstance(schema, ObjectSchema) else None
     if adjacency is not None:
-        return tuple(_linking(adjacency.relation, adjacency.me, value))
+        return _Adjacency(_linking(adjacency.relation, adjacency.me, value), adjacency)
     raise AttributeError(name)
+
+
+class _Adjacency(tuple):  # type: ignore[type-arg]
+    """An adjacency as proxies read it: the tuple of its entries, in the order they were added, indexed by position.
+    `project(name)` gives each entry's link or property `name`, in order, and `at(key)` the entry with the key its
+    relation declares (`Schemas.OfRelation.Data.key`). Names are arguments, so no link or property can collide."""
+
+    _schema: Schemas.OfAdjacency.Data
+
+    def __new__(cls, entries: Any, schema: Schemas.OfAdjacency.Data) -> _Adjacency:
+        adjacency = super().__new__(cls, entries)
+        adjacency._schema = schema
+        return adjacency
+
+    def project(self, name: str) -> tuple[Any, ...]:
+        """Each entry's link or property `name`, in order; None for a property an entry does not set."""
+        relation = self._schema.relation
+        if name not in relation.links and name not in relation.properties:
+            raise KeyError(f"{name!r} is not a link or property of the relation")
+        return tuple(getattr(entry, name) for entry in self)
+
+    def at(self, key: Any) -> _Entry:
+        """The entry whose key is `key`: one value for a key of one link or property, else a tuple of them in
+        declaration order. `KeyError` for none, `TypeError` when the relation declares no key from this end."""
+        names = self._schema.relation.key(self._schema.me)
+        if names is None:
+            raise TypeError("the relation declares no key from this end; index by position")
+        wanted = key if len(names) > 1 else (key,)
+        if not isinstance(wanted, tuple) or len(wanted) != len(names):
+            raise KeyError(f"a key of {list(names)} is a tuple of {len(names)} values, got {key!r}")
+        links = self._schema.relation.links
+        for entry in self:
+            held = [getattr(entry, name) for name in names]
+            if all(h is v if name in links else h is not None and _native_key(h) == _native_key(v)
+                   for name, h, v in zip(names, held, wanted)):  # a target by identity, a value by schema equality
+                return entry
+        raise KeyError(f"no entry has the key {key!r}")
 
 
 def _owning_part(schema: Any, name: str) -> str | None:
@@ -1221,6 +1259,12 @@ class OfObject:
     Data = _ObjectData
     Builder = _ObjectBuilder
     Record = _RecordData
+
+
+class OfAdjacency:
+    """An adjacency as proxies read it: `Data`, the tuple of its entries, with `project(name)` and `at(key)`."""
+
+    Data = _Adjacency
 
 
 class OfEntry:

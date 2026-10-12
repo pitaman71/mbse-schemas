@@ -81,6 +81,8 @@ B.Name().prop(value).value_prop(lambda r: r.x(1)).adjacency_name(lambda e: e.lin
 B.Name(obj).prop(v).update()                                # change obj; .clone() makes a changed copy instead
 [(e.target, e.label) for e in irq.fanout]                   # an adjacency: an Iterable of full entries (Proxies.OfEntry.Data),
                                                             # every link the owner's own included; links and properties as attributes
+irq.fanout.project("target")                                # each entry's link or property, in order (Proxies.OfAdjacency.Data)
+contact.phones.at("home")                                   # the entry by the key its relation's unique clause gives this end
 B.Name(obj).clear("prop").update()
 obj.prop                                                    # AttributeError when unset
 B.Name().union_prop(lambda u: u.phone(spec))                # a branch by name; obj.union_prop.phone reads it

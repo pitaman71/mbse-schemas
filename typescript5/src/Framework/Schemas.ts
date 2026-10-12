@@ -687,6 +687,20 @@ class RelationData extends Reflected {
     }
     return problems;
   }
+
+  /** The keys of the entries seen from the link `me`, one per `unique(S)` clause in declaration order whose complement
+   * holds `me` and something else: that complement less `me`, in declaration order. `unique(S)` makes the links and
+   * properties outside `S` determine `S`, so from `me`'s end each key picks out one entry. */
+  keys(me: string): string[][] {
+    const names = [...this.links, ...this.properties.keys()];
+    return this.uniques.map((unique) => names.filter((name) => !unique.has(name)))
+      .filter((rest) => rest.includes(me) && rest.length > 1).map((rest) => rest.filter((name) => name !== me));
+  }
+
+  /** The first of `keys(me)`, which an adjacency from `me` is indexed by (`at`); null when there is none. */
+  key(me: string): string[] | null {
+    return this.keys(me)[0] ?? null;
+  }
 }
 
 /** An entry property's value object has no adjacencies: an entry is written under each object it links, so its value

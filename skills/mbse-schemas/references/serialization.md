@@ -53,6 +53,8 @@ module, then in the store. A schema that refers to itself must be named.
 
 - JSON is strict. YAML is read with the 1.2 core schema, so `no` is a string (no "Norway problem").
 - Nothing is coerced: `1`, `1.0` and `true` are different values, and a wrong type is an error.
+- An adjacency's entries are written sorted by the key its relation declares from that end, where the key's values
+  are ordered (numbers, strings, booleans); otherwise in the order they were added.
 - Every problem in the input raises `DecodeError` (a `ValueError`) with a one-line reason and a location: a line and
   column for text, or a path such as `$.objects.s0.signal.width`. The reasons are identical in both languages, except
   for YAML syntax errors.

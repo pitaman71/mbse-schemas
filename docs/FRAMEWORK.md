@@ -101,6 +101,10 @@ No cardinality is assumed by default. A relation declares cardinality with zero 
 is a set of its links and properties. `unique(S)` means that the links and properties not in `S`, taken together,
 determine the values of `S`: any two entries that agree on everything outside `S` must also agree on `S`.
 Equivalently, the links and properties outside `S` form a key. Each clause is a separate constraint, so any combination of keys can be expressed.
+Seen from one link, `me`, a clause whose complement holds `me` keys the entries by the rest of that complement:
+`Schemas.OfRelation.Data.keys(me)` lists those keys in declaration order, and `key(me)` is the first, which an
+adjacency is indexed by (`at`), its entries sorted by on the wire, and `Paths` name them by (the first key a path
+can write).
 
 - Pure ownership, where each child has at most one parent:
   `.links(parent, child).unique(parent)`
@@ -312,8 +316,13 @@ in-memory cache slices.
   are read-only attributes (`entry.owner`, `entry.phone`, `entry.label`). Generated classes (mbse-codegen-*) have the
   same members, so code that reads objects works on proxies and generated classes alike, as Resolved specifies
   (Adjacencies): an entry is a `Proxies.OfEntry.Data`. Any iterable will do; a set sorted by a comparator, which
-  would serve retrieval, is an open question. On the wire, an entry is written in its
-  adjacency's form, without the link the adjacency implies.
+  would serve retrieval, is an open question. A proxy's adjacency (`Proxies.OfAdjacency.Data`) also has
+  `project(name)`, each entry's link or property `name` in order, and `at(key)`, the entry with the key its relation
+  declares from this end (`Schemas.OfRelation.Data.key`), a `KeyError` for none and a `TypeError` where the relation
+  declares none (in TypeScript it replaces the array's own `at(index)`). On the wire, an entry is written in its
+  adjacency's form, without the link the adjacency implies, and an adjacency's entries are written sorted by that key
+  where every entry holds it as values of one ordered type (booleans false first, numbers by value, strings by code
+  point), and in the order they were added otherwise (a key holding a link, an entry without one).
 
 ## Typed bindings
 
@@ -664,9 +673,9 @@ kind's meta-schema, the schema of the module form (`Schemas.OfObject.Schema`, na
 - **Roots are named.** A schema of a store of schemas (`Reflection.of`) is named by its name, and a singleton by its
   global name; the schemas come first, in name order, then the singletons, in global-name order.
 - **Other objects are named by route**, the first that reaches them, breadth first through each object's entries
-  (adjacencies in their schema's order, entries in order). A step is `/adjacency[key]`: the entry's key is the property
-  values that a unique constraint of its relation declares with the object's own link (`phones[label="home"]`), else
-  its position (`items[0]`); an entry of a relation of more than two links names the link (`/enrolled[0].course`). A
+  (adjacencies in their schema's order, entries in order). A step is `/adjacency[key]`: the entry's key is the values
+  of the first key of properties its relation declares from the object's own link (`Schemas.OfRelation.Data.keys`:
+  `phones[label="home"]`), else its position (`items[0]`); an entry of a relation of more than two links names the link (`/enrolled[0].course`). A
   key writes a string as JSON does, an integer in decimal and a boolean as `true` or `false`; another type makes the
   key positional.
 - **A path survives** a change that does not touch the route: a property set, an object added elsewhere, an entry
@@ -850,10 +859,11 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Multi-object snapshot naming: confirm `Plain.ToPlain(store).Reachable(schema, value)` /
   `Plain.FromPlain(store).Reachable(schema, plain)` (still marked PROPOSED in the example).
 - Snapshot determinism: must two serializations of the same state produce identical output? Entries are now written
-  with links and properties in the relation's declared order, but symbols are numbered in first-reference order, and
-  entry order within an adjacency depends on history, so a round trip can renumber symbols (see the `FamilyTree` and
-  `University` examples, which compare snapshots up to renumbering). Full determinism would need a canonical entry
-  order.
+  with links and properties in the relation's declared order, and an adjacency's entries sorted by its key where the
+  key is of ordered values, but symbols are numbered in first-reference order, and other adjacencies' entry order
+  depends on history, so a round trip can renumber symbols (see the `FamilyTree` and `University` examples, which
+  compare snapshots up to renumbering). Full determinism would need a canonical order for entries keyed by links, or
+  not keyed at all.
 - Uniqueness is global to a relation, but `Validators.Validate(...).Reachable` checks it only over the entries
   reachable from what was validated. Entries in another component that share only property values can go unchecked.
   Is a relation-wide check needed?

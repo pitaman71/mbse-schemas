@@ -15,7 +15,9 @@
  * them its data (see `Stores`); an object nothing reachable from a singleton links is the program's to keep. A
  * relation's entries live on the objects they link, so they go with them. Adding an entry equal to an existing one is
  * elided. An object of one store cannot be linked to, or be a builder's source in, another. An adjacency is a member
- * named after it, the frozen array of its entries in the order they were added (`contact.phones`); an entry is shared
+ * named after it, the frozen array of its entries in the order they were added (`contact.phones`), with
+ * `project(name)`, each entry's link or property, and `at(key)`, the entry with a key its relation declares (which
+ * replaces the array's own `at(index)`; index it with `[i]`); an entry is shared
  * by the objects it links, and its links and properties are read-only attributes (`entry.phone`, `entry.label`), so
  * that code reads proxies as it reads generated classes.
  *
@@ -34,11 +36,11 @@
 
 
 import { toHex } from "./Bytes.js";
-import { AttributeError, item, LookupError, NotImplementedError, ValueError } from "./Errors.js";
-import { repr, sortedStrings, typeName } from "./Repr.js";
+import { AttributeError, item, KeyError, LookupError, NotImplementedError, ValueError } from "./Errors.js";
+import { repr, sortedStrings, Tuple, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import * as Stores from "./Stores.js";
-import type { Callback, Native, OfAdjacency, OfAny, OfEntry as EntryVisitor, OfIndexed as IndexedVisitor, OfIntersection, OfItem, OfLink, OfNative,
+import type { Callback, Native, OfAdjacency as AdjacencyVisitor, OfAny, OfEntry as EntryVisitor, OfIndexed as IndexedVisitor, OfIntersection, OfItem, OfLink, OfNative,
   OfObject as ObjectVisitor, OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
 type ObjectSchema = Schemas.OfObject.Data;
@@ -351,10 +353,55 @@ function read(t: { values: Map<string, unknown>; schema: RecordSchema }, prop: s
   if (part !== null) return t.values.has(part) ? (t.values.get(part) as Record<string, unknown>)[prop] : null;
   const adjacency = t.schema instanceof Schemas.OfObject.Data ? t.schema.adjacencies.get(prop) : undefined;
   if (adjacency !== undefined) {
-    return Object.freeze(linking(adjacency.relation as RelationSchema, adjacency.me, receiver as Visitable).map((entry) => entry.view));
+    return new Adjacency(linking(adjacency.relation as RelationSchema, adjacency.me, receiver as Visitable).map((entry) => entry.view), adjacency);
   }
   if (_probes.has(prop)) return Reflect.get(t, prop, receiver);
   throw new AttributeError(prop);
+}
+
+/** An adjacency as proxies read it: the frozen array of its entries, in the order they were added, indexed by position.
+ * `project(name)` gives each entry's link or property `name`, in order, and `at(key)` the entry with the key its
+ * relation declares (`Schemas.OfRelation.Data.key`). Names are arguments, so no link or property can collide. */
+class Adjacency extends Array<any> { // eslint-disable-line @typescript-eslint/no-explicit-any
+  static override get [Symbol.species](): ArrayConstructor {
+    return Array; // what `map` and `filter` make is a plain array
+  }
+
+  readonly #schema: AdjacencySchema;
+
+  constructor(entries: readonly unknown[], schema: AdjacencySchema) {
+    super();
+    this.#schema = schema;
+    this.push(...entries);
+    Object.freeze(this);
+  }
+
+  /** Each entry's link or property `name`, in order; null for a property an entry does not set. */
+  project(name: string): readonly unknown[] {
+    const relation = this.#schema.relation as RelationSchema;
+    if (!relation.links.includes(name) && !relation.properties.has(name)) {
+      throw new KeyError(`${repr(name)} is not a link or property of the relation`);
+    }
+    return Object.freeze([...this].map((entry) => (entry as Record<string, unknown>)[name]));
+  }
+
+  /** The entry whose key is `key`: one value for a key of one link or property, else an array of them in declaration
+   * order. `KeyError` for none, `TypeError` when the relation declares no key from this end. */
+  override at(key: unknown): any { // eslint-disable-line @typescript-eslint/no-explicit-any
+    const relation = this.#schema.relation as RelationSchema;
+    const names = relation.key(this.#schema.me);
+    if (names === null) throw new TypeError("the relation declares no key from this end; index by position");
+    const wanted = names.length > 1 ? key : [key];
+    if (!Array.isArray(wanted) || wanted.length !== names.length) {
+      throw new KeyError(`a key of ${repr(names)} is a tuple of ${names.length} values, got ${repr(key)}`);
+    }
+    for (const entry of this) {
+      const held: unknown[] = names.map((name) => (entry as Record<string, unknown>)[name]);
+      if (names.every((name, i) => relation.links.includes(name) ? held[i] === wanted[i]
+        : held[i] !== null && nativeKey(held[i]) === nativeKey(wanted[i]))) return entry; // a target by identity, a value by schema equality
+    }
+    throw new KeyError(`no entry has the key ${repr(Array.isArray(key) ? new Tuple(key) : key)}`);
+  }
 }
 
 /** The part of a flat intersection whose object schema declares the property `prop`, if any. */
@@ -1138,12 +1185,12 @@ export class RecordBuilderTarget implements ObjectVisitor {
     return this.schema instanceof Schemas.OfObject.Data ? [...this.schema.adjacencies.keys()] : [];
   }
 
-  adjacencies(callback: Callback<OfAdjacency>): ObjectVisitor {
+  adjacencies(callback: Callback<AdjacencyVisitor>): ObjectVisitor {
     for (const name of this.adjacencyNames()) callback(new _AdjacencySlot(this, name));
     return this.proxy;
   }
 
-  adjacency(name: string, callback: Callback<OfAdjacency>): ObjectVisitor {
+  adjacency(name: string, callback: Callback<AdjacencyVisitor>): ObjectVisitor {
     const names = this.adjacencyNames();
     if (names.length === 0) throw new AttributeError(`${withArticle(noun(this.schema))} has no adjacencies, got ${repr(name)}`);
     if (!names.includes(name)) throw new AttributeError(`${repr(name)} is not an adjacency of the ${noun(this.schema)}`);
@@ -1163,7 +1210,7 @@ export class RecordBuilderTarget implements ObjectVisitor {
 }
 
 /** DSL adder for an adjacency: `.<adjacency>((x) => x.<link>(...))`. */
-function adder(builder: { adjacency(name: string, callback: Callback<OfAdjacency>): unknown }, name: string) {
+function adder(builder: { adjacency(name: string, callback: Callback<AdjacencyVisitor>): unknown }, name: string) {
   return (spec: unknown): unknown => {
     if (typeof spec !== "function") throw new TypeError(`${repr(name)} takes an entry Spec, e.g. x => x.<link>(...)`);
     return builder.adjacency(name, (a) => a.add(spec as Callback<EntryVisitor>));
@@ -1342,7 +1389,7 @@ function makeEntryBuilder(relation: RelationSchema, me: string, store: OfStore |
 }
 
 /** `Visitors.OfAdjacency` over one adjacency of an object builder. */
-export class _AdjacencySlot implements OfAdjacency {
+export class _AdjacencySlot implements AdjacencyVisitor {
   private readonly schema: AdjacencySchema;
 
   constructor(private readonly builder: ObjectBuilderTarget | RecordBuilderTarget, private readonly adjacencyName: string) {
@@ -1412,12 +1459,12 @@ export class ObjectBuilderTarget implements ObjectVisitor {
     return this.proxy;
   }
 
-  adjacencies(callback: Callback<OfAdjacency>): DynamicBuilder {
+  adjacencies(callback: Callback<AdjacencyVisitor>): DynamicBuilder {
     for (const name of this.schema.adjacencies.keys()) callback(new _AdjacencySlot(this, name));
     return this.proxy;
   }
 
-  adjacency(name: string, callback: Callback<OfAdjacency>): DynamicBuilder {
+  adjacency(name: string, callback: Callback<AdjacencyVisitor>): DynamicBuilder {
     if (!this.schema.adjacencies.has(name)) throw new AttributeError(`${repr(name)} is not an adjacency of ${repr(this.schemaName)}`);
     callback(new _AdjacencySlot(this, name));
     return this.proxy;
@@ -1532,6 +1579,12 @@ export namespace OfObject {
   export function Builder(store: OfStore, schema: ObjectSchema, schemaName: string, instance?: Instance): DynamicBuilder {
     return makeObjectBuilder(store, schema, schemaName, instance);
   }
+}
+
+/** An adjacency as proxies read it: `Data`, the frozen array of its entries, with `project(name)` and `at(key)`. */
+export namespace OfAdjacency {
+  export const Data = Adjacency;
+  export type Data = Adjacency;
 }
 
 /** A relation's entries as proxies hold them: `Data`, an entry with every link, the owner's own included, and its

@@ -638,6 +638,10 @@ are written, read, validated and compared like any other objects.
   lists the same way. Each kind's own properties come first, ending with its `description`, then its lists, starting
   with its `parameters`. What is absent, false or empty is left out. Reading refuses a list that names a member twice
   (`property 'p' is listed twice`), since the list itself no longer keeps names distinct.
+- **Each member keeps its own meta-schema**, as every `Schemas.OfX.Schema` does: `Schemas.OfProperty.Schema` (a
+  property's, a union's branch's, an intersection's part's and, as `Schemas.OfParameter.Schema`, a parameter's `name`,
+  `type` and `description`), `Schemas.OfAdjacency.Schema` and `Schemas.OfApply.Argument`. A member list's entries hold
+  exactly the properties its member's meta-schema declares, of the same types, so the two cannot drift apart.
 - **A type is a schema of any kind, inline, or a name**: `Schemas.OfAny.Schema`, a union of the kinds and `named`, a
   value object `{"name": ...}` (union branches are of one kind, so a name is a value object too). A property's type is
   `{"native": {"format": "basic", "token": "str"}}` or `{"named": {"name": "Phone"}}`, and an adjacency's relation is

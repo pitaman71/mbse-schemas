@@ -1242,7 +1242,9 @@ def _int(t: _AnyBuilder) -> _AnyBuilder:
 
 _Named = OfObject.Builder().properties(_named_text("name")).create()
 _AnySchema = OfUnion.Builder().create()  # a type; its branches, which refer back to it, are added below
-_MEMBER = {"name": _Text, "type": _AnySchema, "description": _Text}
+_PropertySchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("type").of(_AnySchema),
+                                                _named_text("description")).create()
+_MEMBER = {name: prop.type for name, prop in _PropertySchema.properties.items()}  # a member's entry holds a property's
 _Parameters = _listing("parameters", _MEMBER)
 _NativeValue = OfUnion.Builder().branches(
     *[lambda b, n=n, t=t: b.name(n).of(lambda x: x.as_native(t)) for t, n in _BASIC_NAMES.items()]).create()
@@ -1262,11 +1264,14 @@ _RelationSchema = OfObject.Builder().name("Schemas.Relation").properties(
     _listing("uniques", {"clause": _Clause})).create()
 _RelationRef = OfUnion.Builder().branches(lambda b: b.name("relation").of(_RelationSchema),
                                           lambda b: b.name("named").of(_Named)).create()
+_AdjacencySchema = OfObject.Builder().properties(
+    _named_text("name"), lambda p: p.name("relation").of(_RelationRef), _named_text("me"),
+    _named_text("description")).create()
 _ObjectSchema = OfObject.Builder().name("Schemas.Object").properties(
     _named_text("name"), _named_text("singleton"), lambda p: p.name("ref").of(lambda t: t.as_native(bool)),
     _named_text("description")).relations(
     _Parameters, _listing("properties", _MEMBER),
-    _listing("adjacencies", {"name": _Text, "relation": _RelationRef, "me": _Text, "description": _Text})).create()
+    _listing("adjacencies", {name: prop.type for name, prop in _AdjacencySchema.properties.items()})).create()
 _Flat: OfProperty.Spec = lambda p: p.name("flat").of(lambda t: t.as_native(bool))  # noqa: E731
 _UnionSchema = OfObject.Builder().name("Schemas.Union").properties(
     _named_text("name"), _Flat, _named_text("description")).relations(_Parameters, _listing("branches", _MEMBER)).create()
@@ -1279,9 +1284,11 @@ _ExtentSchema = OfObject.Builder().properties(lambda p: p.name("minimum").of(_in
 _IndexedSchema = OfObject.Builder().name("Schemas.Indexed").properties(
     _named_text("name"), lambda p: p.name("item").of(_AnySchema), lambda p: p.name("key").of(_AnySchema),
     lambda p: p.name("extent").of(_ExtentSchema), _named_text("description")).relations(_Parameters).create()
+_ArgumentSchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("value").of(_NativeValue),
+                                                lambda p: p.name("term").of(_FormSchema)).create()
 _ApplySchema = OfObject.Builder().name("Schemas.Apply").properties(
     _named_text("name"), lambda p: p.name("of").of(_AnySchema), _named_text("description")).relations(
-    _Parameters, _listing("arguments", {"name": _Text, "value": _NativeValue, "term": _FormSchema})).create()
+    _Parameters, _listing("arguments", {name: prop.type for name, prop in _ArgumentSchema.properties.items()})).create()
 _KIND_SCHEMAS = (("native", _NativeSchema), ("object", _ObjectSchema), ("union", _UnionSchema),
                  ("intersection", _IntersectionSchema), ("indexed", _IndexedSchema), ("apply", _ApplySchema))
 OfUnion.Builder(_AnySchema).branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
@@ -1290,6 +1297,9 @@ _Definition = OfUnion.Builder().branches(*[lambda b, n=n, s=s: b.name(n).of(s) f
                                          lambda b: b.name("relation").of(_RelationSchema)).create()
 
 OfNative.Schema = _NativeSchema  # type: ignore[attr-defined]
+OfProperty.Schema = _PropertySchema  # type: ignore[attr-defined]
+OfAdjacency.Schema = _AdjacencySchema  # type: ignore[attr-defined]
+OfParameter.Schema = _PropertySchema  # type: ignore[attr-defined]
 OfRelation.Schema = _RelationSchema  # type: ignore[attr-defined]
 OfRelation.Ref = _RelationRef  # type: ignore[attr-defined]
 OfObject.Schema = _ObjectSchema  # type: ignore[attr-defined]
@@ -1297,6 +1307,7 @@ OfUnion.Schema = _UnionSchema  # type: ignore[attr-defined]
 OfIntersection.Schema = _IntersectionSchema  # type: ignore[attr-defined]
 OfIndexed.Schema = _IndexedSchema  # type: ignore[attr-defined]
 OfApply.Schema = _ApplySchema  # type: ignore[attr-defined]
+OfApply.Argument = _ArgumentSchema  # type: ignore[attr-defined]
 Form.Schema = _FormSchema  # type: ignore[attr-defined]
 Form.Value = _NativeValue  # type: ignore[attr-defined]
 OfAny.Schema = _AnySchema  # type: ignore[attr-defined]

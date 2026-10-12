@@ -323,6 +323,8 @@ function isParameterData(value: unknown): value is ParameterData {
 }
 
 export namespace OfParameter {
+  /** The meta-schema of a parameter: a named member's. */
+  export let Schema: ObjectData;
   export const Data = ParameterData;
   export type Data = ParameterData;
   export const Builder = ParameterBuilder;
@@ -619,6 +621,8 @@ function isPropertyData(value: unknown): value is PropertyData {
 }
 
 export namespace OfProperty {
+  /** The meta-schema of a named member: a property, a union's branch or an intersection's part. */
+  export let Schema: ObjectData;
   export const Data = PropertyData;
   export type Data = PropertyData;
   export const Builder = PropertyBuilder;
@@ -817,6 +821,8 @@ function isAdjacencyData(value: unknown): value is AdjacencyData {
 }
 
 export namespace OfAdjacency {
+  /** The meta-schema of adjacencies. */
+  export let Schema: ObjectData;
   /** Declares that an `OfObject` is adjacent to an `OfRelation` via a particular link. */
   export const Data = AdjacencyData;
   export type Data = AdjacencyData;
@@ -1451,6 +1457,8 @@ function isApplyData(value: unknown): value is ApplyData {
 export namespace OfApply {
   /** The meta-schema of applications. */
   export let Schema: ObjectData;
+  /** The meta-schema of an argument: its parameter's `name`, and its native `value` or its `term`. */
+  export let Argument: ObjectData;
   /** A parametric schema applied to arguments, where a type is expected. */
   export const Data = ApplyData;
   export type Data = ApplyData;
@@ -1615,7 +1623,12 @@ const Text = (t: AnyBuilder) => t.as_native(String);
 const Int = (t: AnyBuilder) => t.as_native(BigInt);
 const NamedSchema = new ObjectBuilder().properties(namedText("name")).create();
 const AnySchema = new UnionBuilder().create(); // a type; its branches, which refer back to it, are added below
-const MEMBER: [string, OfAny.Spec][] = [["name", Text], ["type", AnySchema], ["description", Text]];
+const PropertySchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("type").of(AnySchema),
+  namedText("description")).create();
+/** The fields of an object schema's properties, which an entry listing its members holds. */
+const fieldsOf = (schema: ObjectData): [string, OfAny.Spec][] =>
+  [...schema.properties].map(([name, prop]) => [name, prop.type as OfAny.Data]); // the meta-schemas type every property
+const MEMBER = fieldsOf(PropertySchema); // a member's entry holds a property's
 const Parameters = listing("parameters", MEMBER);
 const NativeValue = new UnionBuilder().branches(
   ...NATIVE_TYPES.map((host) => (b: MemberBuilder) => b.name(tokenName(host)).of((x) => x.as_native(host)))).create();
@@ -1633,10 +1646,12 @@ const RelationSchema = new ObjectBuilder().name("Schemas.Relation").properties(n
     listing("uniques", [["clause", ClauseSchema]])).create();
 const RelationRef = new UnionBuilder().branches((b) => b.name("relation").of(RelationSchema),
   (b) => b.name("named").of(NamedSchema)).create();
+const AdjacencySchema = new ObjectBuilder().properties(
+  namedText("name"), (p) => p.name("relation").of(RelationRef), namedText("me"), namedText("description")).create();
 const ObjectSchema = new ObjectBuilder().name("Schemas.Object").properties(
   namedText("name"), namedText("singleton"), (p) => p.name("ref").of((t) => t.as_native(Boolean)), namedText("description"))
   .relations(Parameters, listing("properties", MEMBER),
-    listing("adjacencies", [["name", Text], ["relation", RelationRef], ["me", Text], ["description", Text]])).create();
+    listing("adjacencies", fieldsOf(AdjacencySchema))).create();
 const Flat = (p: PropertyBuilder) => p.name("flat").of((t) => t.as_native(Boolean));
 const UnionSchema = new ObjectBuilder().name("Schemas.Union").properties(namedText("name"), Flat, namedText("description"))
   .relations(Parameters, listing("branches", MEMBER)).create();
@@ -1649,9 +1664,11 @@ const ExtentSchema = new ObjectBuilder().properties((p) => p.name("minimum").of(
 const IndexedSchema = new ObjectBuilder().name("Schemas.Indexed").properties(
   namedText("name"), (p) => p.name("item").of(AnySchema), (p) => p.name("key").of(AnySchema),
   (p) => p.name("extent").of(ExtentSchema), namedText("description")).relations(Parameters).create();
+const ArgumentSchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("value").of(NativeValue),
+  (p) => p.name("term").of(FormSchema)).create();
 const ApplySchema = new ObjectBuilder().name("Schemas.Apply").properties(
   namedText("name"), (p) => p.name("of").of(AnySchema), namedText("description")).relations(
-  Parameters, listing("arguments", [["name", Text], ["value", NativeValue], ["term", FormSchema]])).create();
+  Parameters, listing("arguments", fieldsOf(ArgumentSchema))).create();
 const KIND_SCHEMAS: [string, ObjectData][] = [["native", NativeSchema], ["object", ObjectSchema], ["union", UnionSchema],
   ["intersection", IntersectionSchema], ["indexed", IndexedSchema], ["apply", ApplySchema]];
 const kindBranches = KIND_SCHEMAS.map(([name, schema]) => (b: MemberBuilder) => b.name(name).of(schema));
@@ -1659,13 +1676,17 @@ new UnionBuilder(AnySchema).branches(...kindBranches, (b) => b.name("named").of(
 const DefinitionSchema = new UnionBuilder().branches(...kindBranches, (b) => b.name("relation").of(RelationSchema)).create();
 
 OfNative.Schema = NativeSchema;
+OfProperty.Schema = PropertySchema;
 OfRelation.Schema = RelationSchema;
 OfRelation.Ref = RelationRef;
+OfAdjacency.Schema = AdjacencySchema;
 OfObject.Schema = ObjectSchema;
 OfUnion.Schema = UnionSchema;
 OfIntersection.Schema = IntersectionSchema;
 OfIndexed.Schema = IndexedSchema;
+OfParameter.Schema = PropertySchema;
 OfApply.Schema = ApplySchema;
+OfApply.Argument = ArgumentSchema;
 Form.Schema = FormSchema;
 Form.Value = NativeValue;
 OfAny.Schema = AnySchema;

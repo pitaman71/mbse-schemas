@@ -8,12 +8,12 @@ two functions: `read(instance)` gives an instance's `State`, and `make(state)` b
 - `accept(binding, instance, visitor)` writes an instance through the visitor protocols, so a class's `accept` is one
   line.
 - `Builder(binding, instance)` is a `Visitors.OfObject` over a state, with every value kind the schema declares:
-  natives (checked by type), and value objects, unions and lists (through their plain form). It is finalized by
+  scalars (checked by type), and value objects, unions and lists (through their plain form). It is finalized by
   `create()`, `clone()` and `update()`, none validating. A class's own builder derives from it for its DSL.
 - `OfStore(builders, relations)` is a store of bound classes (see `Stores`): their schemas and builders by name, and the instance
   of each singleton schema, made by its builder.
 
-A state holds each property's value, natives as natives and other values in their plain form (an absent property has
+A state holds each property's value, scalars as scalars and other values in their plain form (an absent property has
 no key, and a builder drops the keys whose value is None), and each adjacency's
 entries, each an `Entry` of its links (the linked instances) and its properties. A binding may also declare `fixed`
 properties, whose value is the class's (a tag), so that writing another raises; `exclusive` groups of properties, of
@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import Plain, Schemas, Stores, Visitors
-from .Visitors import Native
+from .Visitors import Scalar
 
 __all__ = ["Entry", "State", "Binding", "Builder", "OfStore", "accept"]
 
@@ -43,7 +43,7 @@ class Entry:
 
 @dataclass
 class State:
-    """An instance's data in its schema's terms: property values by name (natives as natives, other values in their
+    """An instance's data in its schema's terms: property values by name (scalars as scalars, other values in their
     plain form; an absent property has no key), and entries by adjacency name."""
 
     values: dict[str, Any] = field(default_factory=dict)
@@ -54,7 +54,7 @@ class Binding:
     """A class bound to a reference object schema, through `read`, `make` and `assign`."""
 
     def __init__(self, schema: Schemas.OfObject.Data, read: Callable[[Any], State], make: Callable[[State], Any],
-                 assign: Callable[[Any, State], Any] | None = None, *, fixed: Mapping[str, Native] | None = None,
+                 assign: Callable[[Any, State], Any] | None = None, *, fixed: Mapping[str, Scalar] | None = None,
                  exclusive: Iterable[Sequence[str]] = (), implied: Iterable[str] = ()):
         self.schema, self.read, self.make = schema, read, make
         self.assign = assign or (lambda instance, state: instance)
@@ -63,14 +63,14 @@ class Binding:
         self.implied = frozenset(implied)
 
 
-def _native(schema: Any) -> bool:
-    return isinstance(Schemas.structure(schema), Schemas.OfNative.Data)
+def _scalar(schema: Any) -> bool:
+    return isinstance(Schemas.structure(schema), Schemas.OfScalar.Data)
 
 
 def _write_value(visitor: Visitors.OfAny, schema: Any, value: Any) -> None:
-    """Writes a state's value: a native as is, any other value from its plain form."""
-    if _native(schema):
-        visitor.as_native(lambda n: n.set(value))
+    """Writes a state's value: a scalar as is, any other value from its plain form."""
+    if _scalar(schema):
+        visitor.as_scalar(lambda n: n.set(value))
     else:
         decoded = Plain._decode(schema, value, ())
         Plain._write(visitor, decoded)
@@ -101,13 +101,13 @@ def _fill(visitor: Visitors.OfEntry, relation: Schemas.OfRelation.Data, entry: E
 # --- Builders: Visitors over a state ---
 
 
-class _NativeSlot:
-    """`Visitors.OfProperty`, `OfAny` and `OfNative` over a native value in a dict: present only with the schema's type;
+class _ScalarSlot:
+    """`Visitors.OfProperty`, `OfAny` and `OfScalar` over a scalar value in a dict: present only with the schema's type;
     setting checks the type, and clears the others of its exclusive group."""
 
     def __init__(self, values: dict[str, Any], name: str, schema: Any, group: Sequence[str] = ()):
         self._values, self._name, self._group = values, name, group
-        self._schema: Schemas.OfNative.Data = Schemas.structure(schema)
+        self._schema: Schemas.OfScalar.Data = Schemas.structure(schema)
 
     def name(self) -> str:
         return self._name
@@ -115,12 +115,12 @@ class _NativeSlot:
     def has(self) -> bool:
         return type(self._values.get(self._name)) is self._schema.type
 
-    def get(self) -> Native:
+    def get(self) -> Scalar:
         if not self.has():
             raise AttributeError(f"property {self._name!r} is not set")
         return self._values[self._name]
 
-    def set(self, value: Native) -> _NativeSlot:
+    def set(self, value: Scalar) -> _ScalarSlot:
         host = self._schema.host()
         if type(value) is not host:
             raise TypeError(f"expected {host.__name__}, got {type(value).__name__}")
@@ -129,32 +129,32 @@ class _NativeSlot:
         self._values[self._name] = value
         return self
 
-    def clear(self) -> _NativeSlot:
+    def clear(self) -> _ScalarSlot:
         self._values.pop(self._name, None)
         return self
 
-    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _NativeSlot:
+    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _ScalarSlot:
         callback(self)
         return self
 
-    def as_native(self, callback: Callable[[Visitors.OfNative], Any]) -> _NativeSlot:
+    def as_scalar(self, callback: Callable[[Visitors.OfScalar], Any]) -> _ScalarSlot:
         callback(self)
         return self
 
-    def _not_native(self, callback: Any) -> _NativeSlot:
-        raise TypeError(f"property {self._name!r} is native")
+    def _not_scalar(self, callback: Any) -> _ScalarSlot:
+        raise TypeError(f"property {self._name!r} is scalar")
 
-    as_object = as_union = as_intersection = _not_native
+    as_object = as_union = as_intersection = _not_scalar
 
 
-class _FixedSlot(_NativeSlot):
+class _FixedSlot(_ScalarSlot):
     """A fixed property: it always holds the binding's value, and writing another raises."""
 
-    def __init__(self, name: str, schema: Schemas.OfNative.Data, value: Native):
+    def __init__(self, name: str, schema: Schemas.OfScalar.Data, value: Scalar):
         super().__init__({name: value}, name, schema)
         self._fixed = value
 
-    def set(self, value: Native) -> _FixedSlot:
+    def set(self, value: Scalar) -> _FixedSlot:
         host = self._schema.host()
         if type(value) is not host:
             raise TypeError(f"expected {host.__name__}, got {type(value).__name__}")
@@ -167,9 +167,9 @@ class _FixedSlot(_NativeSlot):
 
 
 def _slot(values: dict[str, Any], name: str, schema: Any, group: Sequence[str] = ()) -> Any:
-    """The handle of the property `name`: a native's, or a plain writer for any other value."""
-    if _native(schema):
-        return _NativeSlot(values, name, schema, group)
+    """The handle of the property `name`: a scalar's, or a plain writer for any other value."""
+    if _scalar(schema):
+        return _ScalarSlot(values, name, schema, group)
     return Plain._PropertyWriter(values, name, schema, lambda target: {}, Plain._unlinked)
 
 

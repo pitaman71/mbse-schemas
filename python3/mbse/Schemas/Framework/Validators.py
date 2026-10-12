@@ -10,8 +10,8 @@ reachable from it.
 The validator is a visitor: each object writes itself into a recorder through `Visitable.accept`. Checks:
 
 - the schemas involved pass `validate()`;
-- each property value has exactly its schema's native type (distinct native types are never interchangeable);
-- each entry sets every link, its property values have their native types, and each linked object's schema declares
+- each property value has exactly its schema's scalar type (distinct scalar types are never interchangeable);
+- each entry sets every link, its property values have their scalar types, and each linked object's schema declares
   an adjacency to that relation via that link;
 - `unique(S)` clauses hold over the entries seen: entries that agree on everything outside `S` agree on `S`.
   Uniqueness is checked only over the entries reachable from what was validated.
@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from . import Reachable, Schemas, Stores, Visitors
-from .Visitors import Native
+from .Visitors import Scalar
 
 __all__ = ["Validate", "Check", "Outcome", "properties_of", "entries_of", "EntryRecord"]
 
@@ -36,7 +36,7 @@ __all__ = ["Validate", "Check", "Outcome", "properties_of", "entries_of", "Entry
 
 
 class _Value:
-    """`Visitors.OfProperty` / `OfAny` / `OfNative` recording one value into a dict: a native, or a value object, a
+    """`Visitors.OfProperty` / `OfAny` / `OfScalar` recording one value into a dict: a scalar, or a value object, a
     union value or an intersection value (an `_ObjectRecord` of that kind)."""
 
     def __init__(self, values: dict[str, Any], name: str):
@@ -48,10 +48,10 @@ class _Value:
     def has(self) -> bool:
         return self._name in self._values
 
-    def get(self) -> Native:
+    def get(self) -> Scalar:
         return self._values[self._name]
 
-    def set(self, value: Native) -> _Value:
+    def set(self, value: Scalar) -> _Value:
         self._values[self._name] = value
         return self
 
@@ -63,7 +63,7 @@ class _Value:
         callback(self)
         return self
 
-    def as_native(self, callback: Callable[[Visitors.OfNative], Any]) -> _Value:
+    def as_scalar(self, callback: Callable[[Visitors.OfScalar], Any]) -> _Value:
         callback(self)
         return self
 
@@ -227,7 +227,7 @@ def _replay(visitor: Visitors.OfAny, value: Any) -> None:
     elif isinstance(value, _ObjectRecord):
         visitor.as_object(lambda o: value.accept(o))
     else:
-        visitor.as_native(lambda n: n.set(value))
+        visitor.as_scalar(lambda n: n.set(value))
 
 
 # --- Checks ---
@@ -250,10 +250,10 @@ def _kind(value: Any) -> str:
     return type(value).__name__
 
 
-def _native_problem(schema: Schemas.OfNative.Data, value: Any) -> str | None:
+def _scalar_problem(schema: Schemas.OfScalar.Data, value: Any) -> str | None:
     if schema.type is None:  # an unsupported type is the schema's own problem, reported by its validate()
         token = schema.token
-        return f"{token} has no type in this implementation" if isinstance(token, Schemas.OfNative.Token) else None
+        return f"{token} has no type in this implementation" if isinstance(token, Schemas.OfScalar.Token) else None
     if type(value) is not schema.type:
         return f"expected {schema.type.__name__}, got {_kind(value)}"
     return None
@@ -269,7 +269,7 @@ def _filling(relation: Schemas.OfRelation.Data, name: str, target: Visitors.Visi
 
 
 def _value_key(value: Any) -> Hashable:
-    """Equality key per EQUALITY.md: distinct native types never compare equal; floats compare by bit pattern; a value
+    """Equality key per EQUALITY.md: distinct scalar types never compare equal; floats compare by bit pattern; a value
     object by its properties and its entries, in order."""
     if isinstance(value, _ObjectRecord):
         entries = tuple((name, tuple(_entry_key(entry) for entry in listed))
@@ -345,8 +345,8 @@ class _Check:
         schema = Schemas.structure(schema)
         if schema is None:
             return []
-        if isinstance(schema, Schemas.OfNative.Data):
-            problem = _native_problem(schema, item)
+        if isinstance(schema, Schemas.OfScalar.Data):
+            problem = _scalar_problem(schema, item)
             return [f"{label}: {problem}"] if problem else []
         kind = _KINDS[type(schema)]
         noun, owner, member = _RECORDS[kind]
@@ -482,14 +482,14 @@ class Check:
         self._store = store
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> Outcome:
-        if isinstance(schema, Schemas.OfNative.Data):
-            return self.OfNative(schema, value)
+        if isinstance(schema, Schemas.OfScalar.Data):
+            return self.OfScalar(schema, value)
         if isinstance(schema, Schemas.OfObject.Data):
             return self.OfObject(schema, value)
         raise NotImplementedError(f"{type(schema).__name__} cannot be validated yet")
 
-    def OfNative(self, schema: Schemas.OfNative.Data, value: Native) -> Outcome:
-        problem = _native_problem(schema, value)
+    def OfScalar(self, schema: Schemas.OfScalar.Data, value: Scalar) -> Outcome:
+        problem = _scalar_problem(schema, value)
         return Outcome(schema.validate() + ([problem] if problem else []), [])
 
     def OfObject(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> Outcome:
@@ -522,8 +522,8 @@ class Validate:
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> list[str]:
         return self._check(schema, value).problems
 
-    def OfNative(self, schema: Schemas.OfNative.Data, value: Native) -> list[str]:
-        return self._check.OfNative(schema, value).problems
+    def OfScalar(self, schema: Schemas.OfScalar.Data, value: Scalar) -> list[str]:
+        return self._check.OfScalar(schema, value).problems
 
     def OfObject(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> list[str]:
         """Checks one object and its entries; uniqueness only over the entries it is part of."""

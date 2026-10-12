@@ -16,23 +16,23 @@ const store = new Proxies.OfStore();
 
 let Reading = new Schemas.OfObject.Builder().name("Reading").ref()
   .properties(
-    (prop) => prop.name("observed").of((t) => t.as_native(String)), // ISO 8601, e.g. '2026-09-28T12:00:00Z'
-    (prop) => prop.name("value").of((t) => t.as_native(Number)),
-    (prop) => prop.name("quality").of((t) => t.as_native(BigInt)),
-    (prop) => prop.name("valid").of((t) => t.as_native(Boolean)),
-    (prop) => prop.name("raw").of((t) => t.as_native(Uint8Array)),
-    (prop) => prop.name("note").of((t) => t.as_native(String)),
+    (prop) => prop.name("observed").of((t) => t.as_scalar(String)), // ISO 8601, e.g. '2026-09-28T12:00:00Z'
+    (prop) => prop.name("value").of((t) => t.as_scalar(Number)),
+    (prop) => prop.name("quality").of((t) => t.as_scalar(BigInt)),
+    (prop) => prop.name("valid").of((t) => t.as_scalar(Boolean)),
+    (prop) => prop.name("raw").of((t) => t.as_scalar(Uint8Array)),
+    (prop) => prop.name("note").of((t) => t.as_scalar(String)),
   )
   .create();
 let Station = new Schemas.OfObject.Builder().name("Station").ref()
   .properties(
-    (prop) => prop.name("wmo_id").of((t) => t.as_native(String)), // e.g. '03772'; leading zeros matter
-    (prop) => prop.name("name").of((t) => t.as_native(String)),
+    (prop) => prop.name("wmo_id").of((t) => t.as_scalar(String)), // e.g. '03772'; leading zeros matter
+    (prop) => prop.name("name").of((t) => t.as_scalar(String)),
   )
   .create();
 const Readings = new Schemas.OfRelation.Builder().name("Readings")
   .links("station", "reading")
-  .properties((prop) => prop.name("sensor").of((t) => t.as_native(String)))
+  .properties((prop) => prop.name("sensor").of((t) => t.as_scalar(String)))
   .unique("station", "sensor") // each reading comes from one sensor of one station
   .create();
 Station = new Schemas.OfObject.Builder(Station).relations((adj) => adj.name("readings").of(Readings).me("station")).update();
@@ -65,7 +65,7 @@ for (const value of [0.0, -0.0, 1e308, 5e-324, 0.1, Infinity, -Infinity, NaN]) {
 let text = JSON.ToJSON(store)(Reading, store.Reading().value(NaN).create());
 assert(text.includes('"NaN"') && globalThis.JSON.parse(text));
 
-// --- Every native type at once, and the three encodings agree ---
+// --- Every scalar type at once, and the three encodings agree ---
 
 const sample = store.Reading()
   .observed("2026-09-28T12:00:00Z")

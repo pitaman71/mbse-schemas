@@ -10,20 +10,20 @@ Components own ports, wires connect ports and carry a label, and each port descr
 from mbse.Schemas.Framework import JSON, Proxies, Schemas as S, Validators
 
 
-def native(name, type_):
-    return lambda p: p.name(name).of(lambda t: t.as_native(type_))
+def scalar(name, type_):
+    return lambda p: p.name(name).of(lambda t: t.as_scalar(type_))
 
 
 # A value with no identity: a value object.
-Signal = S.OfObject.Builder().properties(native("width", int), native("unit", str)).create()
+Signal = S.OfObject.Builder().properties(scalar("width", int), scalar("unit", str)).create()
 
 # Things with identity: object schemas.
-Component = S.OfObject.Builder().name("Component").ref().properties(native("name", str)).create()
-Port = S.OfObject.Builder().name("Port").ref().properties(native("name", str), lambda p: p.name("signal").of(Signal)).create()
+Component = S.OfObject.Builder().name("Component").ref().properties(scalar("name", str)).create()
+Port = S.OfObject.Builder().name("Port").ref().properties(scalar("name", str), lambda p: p.name("signal").of(Signal)).create()
 
 # Every collection is a relation. unique("owner"): entries that agree on the port agree on the owner.
 Ownership = S.OfRelation.Builder().name("Ownership").links("owner", "port").unique("owner").create()
-Wire = S.OfRelation.Builder().name("Wire").links("source", "target").properties(native("label", str)).create()
+Wire = S.OfRelation.Builder().name("Wire").links("source", "target").properties(scalar("label", str)).create()
 
 # Each object sees a relation through one of its links (an adjacency).
 S.OfObject.Builder(Component).relations(lambda r: r.name("ports").of(Ownership).me("owner")).update()
@@ -51,8 +51,8 @@ assert Validators.Validate(B).Reachable(Component, copy) == []
 
 ```python fragment
 # Schemas: values built with fluent builders. A Spec is a schema or a callable taking a builder.
-S.OfNative.Data(int)                                        # natives: int, float, str, bool, bytes (basic tokens)
-S.OfNative.resolve(lambda n: n.token("ccpp", "int32_t").bits(32))   # any format's token; a width in bits or bytes
+S.OfScalar.Data(int)                                        # scalars: int, float, str, bool, bytes (basic tokens)
+S.OfScalar.resolve(lambda n: n.token("ccpp", "int32_t").bits(32))   # any format's token; a width in bits or bytes
 S.OfObject.Builder().ref().properties(spec, ...).relations(spec, ...).create()   # .ref(): a reference object schema
 S.OfObject.Builder().properties(spec, ...).create()        # a value object schema, for a property's type
 S.OfObject.Builder(existing).relations(...).update()        # add adjacencies once the relations exist
@@ -106,7 +106,7 @@ Validators.Validate(store)(schema, obj); Validators.Validate(store).Reachable(sc
 Validators.properties_of(obj)                               # {name: value} of the properties that are set
 Comparison.OfObject(schema, a).compare(Comparison.OfObject(schema, b))   # -1, 0, 1, or None if incomparable
 
-# Dataclasses: native fields are properties; list/dict of natives and set/list/dict of dataclasses are relations.
+# Dataclasses: scalar fields are properties; list/dict of scalars and set/list/dict of dataclasses are relations.
 # Defaults, mandatoriness and nesting are not translated.
 from mbse.Schemas.Adapters.Dataclasses import FromDataclass, ToDataclass
 FromDataclass.model(Contact)       # {"Contact": ..., "Address": ..., "ContactAddresses": ...}, named, ready to register
@@ -116,7 +116,7 @@ ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromD
 ## Traps
 
 - `True` is not an `int`, and `1.0` is not an `int`. Validation reports `expected int, got bool`.
-- A two-link entry's properties hold natives and value objects without adjacencies; a one-link entry's value objects
+- A two-link entry's properties hold scalars and value objects without adjacencies; a one-link entry's value objects
   may have adjacencies. Link an object for anything richer.
 - Setting a value object into a property or an entry copies it. Edit one in place through a Spec instead.
 - A schema's name is its own (`.name("crm.Contact")`), the same in every store that registers it. Registering an

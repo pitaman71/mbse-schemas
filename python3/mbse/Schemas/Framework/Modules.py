@@ -34,7 +34,7 @@ __all__ = ["MODULE", "module", "schemas", "reference", "resolve"]
 MODULE = "Schemas.Module"
 
 Definition = dict[str, Any]
-"""A schema's plain form: a mapping from its kind to its contents, e.g. `{"native": {"format": "basic", ...}}`."""
+"""A schema's plain form: a mapping from its kind to its contents, e.g. `{"scalar": {"format": "basic", ...}}`."""
 
 
 def module(store: Stores.Store, schemas: Iterable[Any]) -> Any:
@@ -104,10 +104,10 @@ class _Writer:
 
     def _contents(self, schema: Any) -> Definition:
         parameters = self._members(schema.parameters.values()) if hasattr(schema, "parameters") else []
-        if isinstance(schema, Schemas.OfNative.Data):
-            if not isinstance(schema.token, Schemas.OfNative.Token):
-                raise TypeError(f"unsupported native type {schema.token!r}")
-            return _kind_of("native", parameters=parameters, format=schema.token.format, token=schema.token.name,
+        if isinstance(schema, Schemas.OfScalar.Data):
+            if not isinstance(schema.token, Schemas.OfScalar.Token):
+                raise TypeError(f"unsupported scalar type {schema.token!r}")
+            return _kind_of("scalar", parameters=parameters, format=schema.token.format, token=schema.token.name,
                             bits=_literal(schema.bits), bytes=_literal(schema.bytes),
                             terms=_terms(bits=schema.bits, bytes=schema.bytes), description=schema.description)
         if isinstance(schema, Schemas.OfObject.Data):
@@ -153,24 +153,24 @@ def _form(term: Any) -> dict[str, Any]:
     """A term's plain form: its neutral form, `Schemas.Form.Schema`'s."""
     form = Schemas.Form.of(term)
     return _present(dialect=form.dialect, kind=form.kind,
-                    attributes=[{"name": name, "value": _native(value, f"attribute {name!r} of a term")}
+                    attributes=[{"name": name, "value": _scalar(value, f"attribute {name!r} of a term")}
                                 for name, value in form.attributes.items()],
                     arguments=[{"term": _form(argument)} for argument in form.arguments])
 
 
-def _native(value: Any, what: str) -> dict[str, Any]:
-    """A native value's plain form, as a `Schemas.Form.Value`: its basic type's branch, e.g. `{"int": 3}`."""
-    if type(value) not in Schemas.NATIVE_TYPES:
-        raise TypeError(f"{what} is not a native value: {value!r}")
-    native = Schemas.OfNative.Data(type(value))
-    return {native.token.name: native.to_plain(value)}
+def _scalar(value: Any, what: str) -> dict[str, Any]:
+    """A scalar value's plain form, as a `Schemas.Form.Value`: its basic type's branch, e.g. `{"int": 3}`."""
+    if type(value) not in Schemas.SCALAR_TYPES:
+        raise TypeError(f"{what} is not a scalar value: {value!r}")
+    scalar = Schemas.OfScalar.Data(type(value))
+    return {scalar.token.name: scalar.to_plain(value)}
 
 
 def _argument(name: str, value: Any) -> dict[str, Any]:
-    """An argument's plain form: its parameter's name, and its native `value` or its `term`."""
+    """An argument's plain form: its parameter's name, and its scalar `value` or its `term`."""
     if Schemas.Form.is_term(value):
         return {"name": name, "term": _form(value)}
-    return {"name": name, "value": _native(value, f"argument {name!r}")}
+    return {"name": name, "value": _scalar(value, f"argument {name!r}")}
 
 
 def _kind_of(kind: str, **contents: Any) -> Definition:
@@ -186,7 +186,7 @@ def _present(**contents: Any) -> dict[str, Any]:
 # --- Plain data to schemas ---
 
 
-_BLANK = {"native": Schemas.OfNative.Data, "object": Schemas.OfObject.Data, "relation": Schemas.OfRelation.Data,
+_BLANK = {"scalar": Schemas.OfScalar.Data, "object": Schemas.OfObject.Data, "relation": Schemas.OfRelation.Data,
           "union": Schemas.OfUnion.Data, "intersection": Schemas.OfIntersection.Data, "apply": Schemas.OfApply.Data}
 
 
@@ -253,7 +253,7 @@ class _Reader:
 
     def _form(self, plain: dict[str, Any]) -> Any:
         _once(plain.get("attributes", []), "attribute")
-        return Schemas.Form.Data(plain["kind"], {a["name"]: _native_of(a["value"]) for a in plain.get("attributes", [])},
+        return Schemas.Form.Data(plain["kind"], {a["name"]: _scalar_of(a["value"]) for a in plain.get("attributes", [])},
                                  tuple(self._form(argument["term"]) for argument in plain.get("arguments", [])),
                                  plain.get("dialect"))
 
@@ -268,8 +268,8 @@ class _Reader:
         schema.description = body.get("description")
         schema.parameters = {p.name: p for p in self._members(body.get("parameters", []), Schemas.OfParameter.Data, "parameter")}
         properties = self._members(body.get("properties", []), Schemas.OfProperty.Data, "property")
-        if kind == "native":
-            schema.token = Schemas.OfNative.Token(body["format"], body["token"])
+        if kind == "scalar":
+            schema.token = Schemas.OfScalar.Token(body["format"], body["token"])
             schema.bits, schema.bytes = self._slot(body, "bits"), self._slot(body, "bytes")
         elif kind == "object":
             schema.properties = {p.name: p for p in properties}
@@ -296,9 +296,9 @@ class _Reader:
         return schema
 
     def arguments(self, plain: list[dict[str, Any]]) -> dict[str, Any]:
-        """The arguments a plain form describes, by name: native values, or terms."""
+        """The arguments a plain form describes, by name: scalar values, or terms."""
         _once(plain, "argument")
-        return {a["name"]: self._term(a["term"]) if "term" in a else _native_of(a["value"]) for a in plain}
+        return {a["name"]: self._term(a["term"]) if "term" in a else _scalar_of(a["value"]) for a in plain}
 
 
 def _once(members: list[dict[str, Any]], what: str) -> None:
@@ -310,7 +310,7 @@ def _once(members: list[dict[str, Any]], what: str) -> None:
             raise ValueError(f"{what} {name!r} is listed twice")
 
 
-def _native_of(plain: dict[str, Any]) -> Any:
-    """The native value of a `Schemas.Form.Value`'s plain form, e.g. `{"int": 3}`."""
+def _scalar_of(plain: dict[str, Any]) -> Any:
+    """The scalar value of a `Schemas.Form.Value`'s plain form, e.g. `{"int": 3}`."""
     ((name, value),) = plain.items()
-    return Schemas.OfNative.Data(Schemas.OfNative.Token(Schemas.BASIC, name)).from_plain(value)
+    return Schemas.OfScalar.Data(Schemas.OfScalar.Token(Schemas.BASIC, name)).from_plain(value)

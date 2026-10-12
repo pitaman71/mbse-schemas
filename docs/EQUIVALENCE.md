@@ -37,7 +37,7 @@
 | The TypeScript core runs without Node (browsers, Deno) and still produces the identical corpus | `tsconfig.core.json`, `npm run portability` (see the TypeScript test plan) |
 
 The corpus (`python3/mbse/Schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`) builds eight cases
-statement for statement: an address book, native edge values, a family with a cycle and a self-loop, a three-link
+statement for statement: an address book, scalar edge values, a family with a cycle and a self-loop, a three-link
 relation, strings that YAML readers misread, value objects with union and intersection values, lists, and a module of
 the corpus's own schemas. See `conformance/README.md`.
 
@@ -79,9 +79,9 @@ noticed.
 | Area | Python | TypeScript | Why | Cases |
 |---|---|---|---|---|
 | Import path | `mbse.Schemas.Framework`, in the `mbse` namespace package that related packages share | `@mbse/schemas/Framework`, in the `@mbse` scope | a module specifier is a path, not a dotted name; a scope is the nearest equivalent | all |
-| Native host types | `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` | JavaScript's constructors are its runtime type objects | SCH-01..05 |
+| Scalar host types | `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` | JavaScript's constructors are its runtime type objects | SCH-01..05 |
 | Own token format | `python3` tokens are read | `typescript5` tokens are read | each implementation reads `basic` tokens and its own language's | SCH-18 |
-| Native widths | `int` | `bigint`, as every int in the data model | a width becomes data once schemas serialize | SCH-18 |
+| Scalar widths | `int` | `bigint`, as every int in the data model | a width becomes data once schemas serialize | SCH-18 |
 | Integers | `int` | `bigint` | `number` cannot tell `1` from `1.0` and rounds above 2^53 | SCH-03, JSN-05, JSN-07 |
 | Plain mappings | `dict` | `Map<string, PlainData>` | object literals reorder integer-like keys and mishandle `__proto__` | SCH-11, PLN-02 |
 | Schema data equality | `==` | `.equals()` | no operator overloading | SCH-01, SCH-15 |
@@ -95,7 +95,7 @@ noticed.
 | Keyword arguments | `indent=2` | `{ indent: 2 }` | no keyword arguments | JSN-04 |
 | Arguments of an application by name | `.arguments(rows=2, cols=3)` | `.arguments({ rows: 2n, cols: 3n })`, or a `Map` | no keyword arguments | PAR-03 |
 | Finalizer arguments | extra arguments raise `TypeError` | checked explicitly | JavaScript ignores extra arguments | SCH-09, PRX-04 |
-| Subclasses of natives | rejected | boxed primitives and `Buffer` rejected | the nearest analogues | SCH-03 |
+| Subclasses of scalars | rejected | boxed primitives and `Buffer` rejected | the nearest analogues | SCH-03 |
 | Unknown attribute on a proxy | `AttributeError` | `AttributeError`, except JavaScript protocol probes (`then`, `toJSON`, `constructor`, symbols) | awaiting or printing a proxy must not throw | PRX-02 |
 | A store's builders by name (`store.<Name>()`) | `__getattr__`; an unknown name raises `AttributeError` | the store is a `Proxy`; an unknown name throws `AttributeError`, except the protocol probes; `Proxies.OfStore.builder` returns `any`, as proxy builders are typed loosely | as for proxies | STO-01, STO-04 |
 | A random source | `Stores.PCG32(42)`; `next_u32()` gives an `int` | `new Stores.PCG32(42n)`; `next_u32()` gives a `bigint` | integers are `bigint`s | RND-01..03 |
@@ -152,7 +152,7 @@ Normalizing decoding errors (see FRAMEWORK.md, "Decoding errors") found more, al
   rejected, and TypeScript's UTF-32 decoder accepted surrogate code points. Both now decode strictly (JSN-09).
 - TypeScript's YAML parser accepted control characters that PyYAML rejects; both now reject them with PyYAML's
   message (YML-06).
-- `FromPlain` converted native values while building, so a bad value in a later object left earlier objects built.
+- `FromPlain` converted scalar values while building, so a bad value in a later object left earlier objects built.
   Values are now decoded while checking, before any builder is called (PLN-14).
 - A duplicate key written as an alias was located at the anchor in Python and at the alias in TypeScript; both now
   locate keys where they are written (YML-06).
@@ -161,14 +161,14 @@ Equalizing coverage found more differences, all fixed in the direction noted and
 
 - Python's `JSON.dumps` and `YAML.dumps` accepted non-plain data (JSON turned `1` keys into `"1"`; YAML wrote tags);
   both now refuse it with TypeScript's messages (JSN-10, YML-13).
-- Entry properties that are not native values were accepted by TypeScript, and by Python unless unhashable (then a bare
-  `unhashable type` error); both now raise `an entry property must be a native value or a value object, got X` (PRX-17).
+- Entry properties that are not scalar values were accepted by TypeScript, and by Python unless unhashable (then a bare
+  `unhashable type` error); both now raise `an entry property must be a scalar value or a value object, got X` (PRX-17).
 - Proxies accepted a non-proxy as a builder's source in Python; now refused in both (PRX-16).
 - Parse-error messages and positions differed in TypeScript for bad escapes, trailing commas, oversized integers and
   UTF-32 input; they now match Python's `json` (JSN-09). Python's advice about `sys.set_int_max_str_digits()` is
   dropped from its message, as it does not apply to TypeScript.
 - Classes named in TypeScript messages appeared as `Array`, `Map`, `Object`; they now appear as Python's `list`,
-  `dict`, `object`, e.g. `unsupported native type <class 'list'>` (SCH-12, TXT-01, TXT-03).
+  `dict`, `object`, e.g. `unsupported scalar type <class 'list'>` (SCH-12, TXT-01, TXT-03).
 
 ## Keeping them equivalent
 

@@ -1,7 +1,7 @@
 # University example: a three-link relation, entry property equality, and schema inference through links.
 #
 # Covers a ternary relation (student, course, term) with ISO 8601 dates, entries distinguished by float / int / bool
-# values, an ambiguous link that refuses inline creation, the builder not validating native types, and round trips.
+# values, an ambiguous link that refuses inline creation, the builder not validating scalar types, and round trips.
 
 import math
 
@@ -12,7 +12,7 @@ store = Proxies.OfStore()
 
 
 def text(name):
-    return lambda prop: prop.name(name).of(lambda t: t.as_native(str))
+    return lambda prop: prop.name(name).of(lambda t: t.as_scalar(str))
 
 
 # --- Schemas ---
@@ -32,9 +32,9 @@ Enrollment = (
     Schemas.OfRelation.Builder().name('Enrollment')
     .links('student', 'course', 'term')
     .properties(
-        lambda prop: prop.name('credits').of(lambda t: t.as_native(int)),
-        lambda prop: prop.name('score').of(lambda t: t.as_native(float)),
-        lambda prop: prop.name('audit').of(lambda t: t.as_native(bool)),
+        lambda prop: prop.name('credits').of(lambda t: t.as_scalar(int)),
+        lambda prop: prop.name('score').of(lambda t: t.as_scalar(float)),
+        lambda prop: prop.name('audit').of(lambda t: t.as_scalar(bool)),
     )
     .unique('score', 'audit', 'credits')  # (student, course, term) determine the rest
     .create()
@@ -115,13 +115,13 @@ assert len(entries(Student, noah, 'enrollments')) == 3
 
 zoe = store.Student().name('Zoe').create()
 enroll(zoe, credits=1)
-enroll(zoe, credits=True)  # the builder does not validate native types, and True is a different value from 1
+enroll(zoe, credits=True)  # the builder does not validate scalar types, and True is a different value from 1
 
 
 def credits_of(entry):
     found = []
     if entry.has('credits'):
-        entry.property('credits', lambda p: p.value(lambda v: v.as_native(lambda n: found.append(n.get()))))
+        entry.property('credits', lambda p: p.value(lambda v: v.as_scalar(lambda n: found.append(n.get()))))
     return found[0] if found else None
 
 
@@ -129,7 +129,7 @@ values = []
 store.Student(zoe).adjacency('enrollments', lambda a: a.entries(lambda e: values.append(credits_of(e))))
 assert len(values) == 2 and {type(v) for v in values} == {int, bool}
 
-# Serializing checks native types: a bool where the schema says int is rejected, and so is anything reaching it.
+# Serializing checks scalar types: a bool where the schema says int is rejected, and so is anything reaching it.
 with raises(TypeError):
     Plain.ToPlain(store)(Student, zoe)
 with raises(TypeError):

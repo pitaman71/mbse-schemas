@@ -8,7 +8,7 @@ by instantiating them. Builders and serializers implement these protocols; proxi
 Child handles (properties, adjacencies, entries, links, kind-specific values) are never returned: they are passed to a
 callback. Every method that is not a query returns `self`, so calls chain.
 
-The value builders used in the DSL are handles: in `.street1(lambda v: v.set('foo'))`, `v` is a `Visitors.OfNative`.
+The value builders used in the DSL are handles: in `.street1(lambda v: v.set('foo'))`, `v` is a `Visitors.OfScalar`.
 """
 
 from __future__ import annotations
@@ -17,9 +17,9 @@ from collections.abc import Callable, Hashable
 from typing import Any, Protocol
 
 __all__ = [
-    "Native",
+    "Scalar",
     "OfAny",
-    "OfNative",
+    "OfScalar",
     "OfProperty",
     "OfObject",
     "OfAdjacency",
@@ -31,7 +31,7 @@ __all__ = [
     "Visitable",
 ]
 
-Native = int | float | str | bool | bytes
+Scalar = int | float | str | bool | bytes
 
 
 class OfAny(Protocol):
@@ -42,7 +42,7 @@ class OfAny(Protocol):
     selects the kind.
     """
 
-    def as_native(self, callback: Callable[[OfNative], Any]) -> OfAny: ...
+    def as_scalar(self, callback: Callable[[OfScalar], Any]) -> OfAny: ...
 
     def as_object(self, callback: Callable[[OfObject], Any]) -> OfAny: ...
 
@@ -51,16 +51,16 @@ class OfAny(Protocol):
     def as_intersection(self, callback: Callable[[OfIntersection], Any]) -> OfAny: ...
 
 
-class OfNative(Protocol):
-    """A native value. Reading an absent value raises."""
+class OfScalar(Protocol):
+    """A scalar value. Reading an absent value raises."""
 
     def has(self) -> bool: ...
 
-    def get(self) -> Native: ...
+    def get(self) -> Scalar: ...
 
-    def set(self, value: Native) -> OfNative: ...
+    def set(self, value: Scalar) -> OfScalar: ...
 
-    def clear(self) -> OfNative: ...
+    def clear(self) -> OfScalar: ...
 
 
 class OfProperty(Protocol):

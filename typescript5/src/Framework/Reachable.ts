@@ -6,18 +6,18 @@
  * reached brings in the reference object that owns it (`Visitable.owner()`), where it is written.
  * `Reachable.targets(objects)` gives the identities of every object their entries link, value objects included. The
  * collector is a visitor: each object writes itself into it through `Visitable.accept`, and the collector records the
- * targets of the links it is given. It needs no schema: native property values are ignored.
+ * targets of the links it is given. It needs no schema: scalar property values are ignored.
  */
 
 import { AttributeError, NotImplementedError } from "./Errors.js";
-import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfNative, OfObject,
+import type { Callback, Scalar, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfScalar, OfObject,
   OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
 type Found = (target: Visitable) => void;
 
-/** `Visitors.OfNative` / `OfAny` / `OfProperty` that discards native property values, and collects the entries of value
+/** `Visitors.OfScalar` / `OfAny` / `OfProperty` that discards scalar property values, and collects the entries of value
  * objects. */
-export class _Ignored implements OfNative, OfAny, OfProperty {
+export class _Ignored implements OfScalar, OfAny, OfProperty {
   constructor(private readonly propertyName: string, private readonly found: Found) {}
 
   name(): string {
@@ -28,11 +28,11 @@ export class _Ignored implements OfNative, OfAny, OfProperty {
     return false;
   }
 
-  get(): Native {
+  get(): Scalar {
     throw new AttributeError("reachability does not record property values");
   }
 
-  set(_value: Native): _Ignored {
+  set(_value: Scalar): _Ignored {
     return this;
   }
 
@@ -45,7 +45,7 @@ export class _Ignored implements OfNative, OfAny, OfProperty {
     return this;
   }
 
-  as_native(callback: Callback<OfNative>): _Ignored {
+  as_scalar(callback: Callback<OfScalar>): _Ignored {
     callback(this);
     return this;
   }

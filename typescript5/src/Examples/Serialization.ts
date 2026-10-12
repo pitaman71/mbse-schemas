@@ -1,4 +1,4 @@
-// Serialization example: native values at their edges, strict native types, malformed snapshots, and a store.
+// Serialization example: scalar values at their edges, strict scalar types, malformed snapshots, and a store.
 //
 // Uses ISO 4217 currencies: a price list maps a product -> [currency] -> money.
 
@@ -15,30 +15,30 @@ const store = new Proxies.OfStore();
 
 const Sample = new Schemas.OfObject.Builder().name("Sample").ref()
   .properties(
-    (prop) => prop.name("label").of((t) => t.as_native(String)),
-    (prop) => prop.name("payload").of((t) => t.as_native(Uint8Array)),
-    (prop) => prop.name("count").of((t) => t.as_native(BigInt)),
-    (prop) => prop.name("ratio").of((t) => t.as_native(Number)),
-    (prop) => prop.name("flag").of((t) => t.as_native(Boolean)),
+    (prop) => prop.name("label").of((t) => t.as_scalar(String)),
+    (prop) => prop.name("payload").of((t) => t.as_scalar(Uint8Array)),
+    (prop) => prop.name("count").of((t) => t.as_scalar(BigInt)),
+    (prop) => prop.name("ratio").of((t) => t.as_scalar(Number)),
+    (prop) => prop.name("flag").of((t) => t.as_scalar(Boolean)),
   )
   .create();
 
 let Currency = new Schemas.OfObject.Builder().name("iso4217.Currency").ref()
   .properties(
-    (prop) => prop.name("code").of((t) => t.as_native(String)), // ISO 4217 alpha, e.g. 'JPY'
-    (prop) => prop.name("numeric").of((t) => t.as_native(String)), // ISO 4217 numeric, e.g. '392'; keeps zeros
-    (prop) => prop.name("minor_units").of((t) => t.as_native(BigInt)), // 0 for JPY, 2 for EUR, 3 for BHD
+    (prop) => prop.name("code").of((t) => t.as_scalar(String)), // ISO 4217 alpha, e.g. 'JPY'
+    (prop) => prop.name("numeric").of((t) => t.as_scalar(String)), // ISO 4217 numeric, e.g. '392'; keeps zeros
+    (prop) => prop.name("minor_units").of((t) => t.as_scalar(BigInt)), // 0 for JPY, 2 for EUR, 3 for BHD
   )
   .create();
-let Product = new Schemas.OfObject.Builder().name("Product").ref().properties((prop) => prop.name("sku").of((t) => t.as_native(String))).create();
+let Product = new Schemas.OfObject.Builder().name("Product").ref().properties((prop) => prop.name("sku").of((t) => t.as_scalar(String))).create();
 let Money = new Schemas.OfObject.Builder().name("Money").ref()
-  .properties((prop) => prop.name("amount").of((t) => t.as_native(BigInt))) // in minor units
+  .properties((prop) => prop.name("amount").of((t) => t.as_scalar(BigInt))) // in minor units
   .create();
 
 // product -> [currency] -> money
 const Prices = new Schemas.OfRelation.Builder().name("Prices")
   .links("product", "price")
-  .properties((prop) => prop.name("currency").of((t) => t.as_native(String)))
+  .properties((prop) => prop.name("currency").of((t) => t.as_scalar(String)))
   .unique("price")
   .create();
 // Which currency a money amount is in.
@@ -61,7 +61,7 @@ for (const schema of [Sample, Currency, Product, Money, Prices, Denomination]) {
 const bytes = (...values: number[]) => new Uint8Array(values);
 const repeat = (b: Uint8Array, n: number) => new Uint8Array(Array.from({ length: n }, () => [...b]).flat());
 
-// --- Native values at their edges ---
+// --- Scalar values at their edges ---
 
 const edge = store.Sample()
   .label('日本語 🚀 \u0000 "quoted" \\ back') // non-ASCII, emoji, NUL, quotes, backslash
@@ -92,18 +92,18 @@ const blank = store.Sample().create();
 assert(equal(Plain.ToPlain(store)(Sample, blank), map({ root: "s0", objects: { s0: {} } })));
 
 // Per-kind entry points.
-const bytesSchema = new Schemas.OfNative.Data(Uint8Array);
-assert(Plain.ToPlain(store)(bytesSchema, bytes(1)) === "AQ==" && Plain.ToPlain(store).OfNative(bytesSchema, bytes(1)) === "AQ==");
-assert(Plain.FromPlain(store).OfNative(new Schemas.OfNative.Data(BigInt), 7n) === 7n);
+const bytesSchema = new Schemas.OfScalar.Data(Uint8Array);
+assert(Plain.ToPlain(store)(bytesSchema, bytes(1)) === "AQ==" && Plain.ToPlain(store).OfScalar(bytesSchema, bytes(1)) === "AQ==");
+assert(Plain.FromPlain(store).OfScalar(new Schemas.OfScalar.Data(BigInt), 7n) === 7n);
 
-// --- Strict native types ---
+// --- Strict scalar types ---
 
-// Distinct native types are never coerced into each other, in either direction. Reading a wrong type is a problem in
+// Distinct scalar types are never coerced into each other, in either direction. Reading a wrong type is a problem in
 // the data: a DecodeError (a ValueError) located by a path, here the root.
 const from_plain = Plain.FromPlain(store);
-for (const [native, bad] of [[BigInt, true], [BigInt, 1.0], [BigInt, "1"], [Number, 1n], [Boolean, 0n], [String, bytes(0x78)],
+for (const [scalar, bad] of [[BigInt, true], [BigInt, 1.0], [BigInt, "1"], [Number, 1n], [Boolean, 0n], [String, bytes(0x78)],
   [String, null]] as const) {
-  raises(DecodeError, () => from_plain(new Schemas.OfNative.Data(native), bad));
+  raises(DecodeError, () => from_plain(new Schemas.OfScalar.Data(scalar), bad));
 }
 raises(DecodeError, () => from_plain(bytesSchema, new TextEncoder().encode("raw"))); // bytes arrive as base64 text
 raises(DecodeError, () => from_plain(bytesSchema, "not base64!"));
@@ -117,7 +117,7 @@ raises(TypeError, () => Plain.ToPlain(store)(Sample, sloppy));
 const validate = Validators.Validate(store);
 assert(equal(validate(Sample, sloppy), ["Sample#0.count: expected int, got str"]));
 assert(validate(Sample, edge).length === 0 && validate(Sample, blank).length === 0);
-assert(equal(validate(new Schemas.OfNative.Data(BigInt), true), ["expected int, got bool"]));
+assert(equal(validate(new Schemas.OfScalar.Data(BigInt), true), ["expected int, got bool"]));
 
 // --- A map: product -> [currency] -> money ---
 

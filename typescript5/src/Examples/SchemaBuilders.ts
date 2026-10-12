@@ -8,16 +8,16 @@ import { assert, raises } from "./_support.js";
 
 // --- Spec forms ---
 
-// A native Spec is a type directly, or a callable that takes and returns an OfNative.Builder.
-const direct = new Schemas.OfAny.Builder().as_native(String).create();
-const configured = new Schemas.OfAny.Builder().as_native((n) => n.type(String)).create();
-assert(direct.equals(configured) && configured.equals(new Schemas.OfNative.Data(String)));
+// A scalar Spec is a type directly, or a callable that takes and returns an OfScalar.Builder.
+const direct = new Schemas.OfAny.Builder().as_scalar(String).create();
+const configured = new Schemas.OfAny.Builder().as_scalar((n) => n.type(String)).create();
+assert(direct.equals(configured) && configured.equals(new Schemas.OfScalar.Data(String)));
 
 // Finalizing an OfAny builder yields the selected kind's data, not a wrapper.
-assert(direct.constructor === Schemas.OfNative.Data);
+assert(direct.constructor === Schemas.OfScalar.Data);
 
 // An OfAny Spec may also be existing schema data, reused as is (not copied).
-const Text = new Schemas.OfNative.Data(String);
+const Text = new Schemas.OfScalar.Data(String);
 const Named = new Schemas.OfObject.Builder()
   .properties(
     (prop) => prop.name("first").of(Text),
@@ -54,16 +54,16 @@ assert([...first.properties.keys()].join() === "a" && [...second.properties.keys
 
 // Redefining a property replaces it.
 const Retyped = new Schemas.OfObject.Builder(first)
-  .properties((prop) => prop.name("a").of((t) => t.as_native(BigInt)))
+  .properties((prop) => prop.name("a").of((t) => t.as_scalar(BigInt)))
   .clone();
-assert((Retyped.properties.get("a")?.type as Schemas.OfNative.Data).equals(new Schemas.OfNative.Data(BigInt)) && first.properties.get("a")?.type === Text);
+assert((Retyped.properties.get("a")?.type as Schemas.OfScalar.Data).equals(new Schemas.OfScalar.Data(BigInt)) && first.properties.get("a")?.type === Text);
 
 // --- Relations and cardinality ---
 
 // A map a -> [key] -> b: a relation with links a, b and property key. ISO 4217 currency codes as keys.
 const Product = new Schemas.OfObject.Builder().properties((prop) => prop.name("sku").of(Text)).create();
 const Money = new Schemas.OfObject.Builder()
-  .properties((prop) => prop.name("minor_units").of((t) => t.as_native(BigInt))) // e.g. cents
+  .properties((prop) => prop.name("minor_units").of((t) => t.as_scalar(BigInt))) // e.g. cents
   .create();
 const Prices = new Schemas.OfRelation.Builder()
   .links("product", "price")
@@ -116,8 +116,8 @@ const NameClash = new Schemas.OfObject.Builder()
 assert(NameClash.validate().some((p) => p.includes("both property and adjacency")));
 
 for (const unsupported of [Array, Map, Uint16Array]) { // the JavaScript counterparts of complex, list, bytearray
-  assert(new Schemas.OfNative.Data(unsupported).validate().length > 0);
-  const bad = new Schemas.OfObject.Builder().properties((prop) => prop.name("x").of((t) => t.as_native(unsupported as never))).create();
+  assert(new Schemas.OfScalar.Data(unsupported).validate().length > 0);
+  const bad = new Schemas.OfObject.Builder().properties((prop) => prop.name("x").of((t) => t.as_scalar(unsupported as never))).create();
   assert(bad.validate().length > 0, unsupported.name);
 }
 
@@ -156,7 +156,7 @@ assert(SingleBranch.validate().some((p) => p.includes("at least two")));
 // Intersections combine same-kind schemas as named parts. Each part keeps its own properties, so two parts may
 // declare the same property, even with different types.
 const Timestamped = new Schemas.OfObject.Builder().properties((prop) => prop.name("updated").of(Text)).create();
-const EpochStamped = new Schemas.OfObject.Builder().properties((prop) => prop.name("updated").of((t) => t.as_native(BigInt))).create();
+const EpochStamped = new Schemas.OfObject.Builder().properties((prop) => prop.name("updated").of((t) => t.as_scalar(BigInt))).create();
 const Stamps = new Schemas.OfIntersection.Builder()
   .parts((p) => p.name("text").of(Timestamped), (p) => p.name("epoch").of(EpochStamped))
   .create();

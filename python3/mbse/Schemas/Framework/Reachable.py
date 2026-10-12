@@ -5,7 +5,7 @@ referenced. Value objects are followed too: their entries are collected like a r
 reached brings in the reference object that owns it (`Visitable.owner()`), where it is written. `Reachable.targets(
 objects)` gives the identities of every object their entries link, value objects included. The collector is a
 visitor: each object writes itself into it through `Visitable.accept`, and the collector records the targets of the
-links it is given. It needs no schema: native property values are ignored.
+links it is given. It needs no schema: scalar property values are ignored.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from collections.abc import Callable, Hashable
 from typing import Any
 
 from . import Visitors
-from .Visitors import Native
+from .Visitors import Scalar
 
 __all__ = ["of", "targets"]
 
@@ -22,7 +22,7 @@ _Found = Callable[[Visitors.Visitable], None]
 
 
 class _Ignored:
-    """`Visitors.OfNative` / `OfAny` / `OfProperty` that discards native property values, and collects the entries of
+    """`Visitors.OfScalar` / `OfAny` / `OfProperty` that discards scalar property values, and collects the entries of
     value objects."""
 
     def __init__(self, name: str, found: _Found):
@@ -34,10 +34,10 @@ class _Ignored:
     def has(self) -> bool:
         return False
 
-    def get(self) -> Native:
+    def get(self) -> Scalar:
         raise AttributeError("reachability does not record property values")
 
-    def set(self, value: Native) -> _Ignored:
+    def set(self, value: Scalar) -> _Ignored:
         return self
 
     def clear(self) -> _Ignored:
@@ -47,7 +47,7 @@ class _Ignored:
         callback(self)
         return self
 
-    def as_native(self, callback: Callable[[Visitors.OfNative], Any]) -> _Ignored:
+    def as_scalar(self, callback: Callable[[Visitors.OfScalar], Any]) -> _Ignored:
         callback(self)
         return self
 

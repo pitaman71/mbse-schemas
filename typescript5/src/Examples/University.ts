@@ -1,7 +1,7 @@
 // University example: a three-link relation, entry property equality, and schema inference through links.
 //
 // Covers a ternary relation (student, course, term) with ISO 8601 dates, entries distinguished by float / int / bool
-// values, an ambiguous link that refuses inline creation, the builder not validating native types, and round trips.
+// values, an ambiguous link that refuses inline creation, the builder not validating scalar types, and round trips.
 
 import { ValueError } from "@mbse/schemas/Framework/Errors";
 import { Plain, Proxies, Reachable, Schemas, Validators } from "@mbse/schemas/Framework";
@@ -13,7 +13,7 @@ import { assert, entries, raises, same_graph } from "./_support.js";
 const store = new Proxies.OfStore();
 
 function text(name: string) {
-  return (prop: Schemas.OfProperty.Builder) => prop.name(name).of((t) => t.as_native(String));
+  return (prop: Schemas.OfProperty.Builder) => prop.name(name).of((t) => t.as_scalar(String));
 }
 
 // --- Schemas ---
@@ -30,9 +30,9 @@ let Room = new Schemas.OfObject.Builder().name("Room").ref().properties(text("bu
 const Enrollment = new Schemas.OfRelation.Builder().name("Enrollment")
   .links("student", "course", "term")
   .properties(
-    (prop) => prop.name("credits").of((t) => t.as_native(BigInt)),
-    (prop) => prop.name("score").of((t) => t.as_native(Number)),
-    (prop) => prop.name("audit").of((t) => t.as_native(Boolean)),
+    (prop) => prop.name("credits").of((t) => t.as_scalar(BigInt)),
+    (prop) => prop.name("score").of((t) => t.as_scalar(Number)),
+    (prop) => prop.name("audit").of((t) => t.as_scalar(Boolean)),
   )
   .unique("score", "audit", "credits") // (student, course, term) determine the rest
   .create();
@@ -105,11 +105,11 @@ assert(entries(Student, noah, "enrollments").length === 3);
 
 const zoe = store.Student().name("Zoe").create();
 enroll(zoe, { credits: 1n });
-enroll(zoe, { credits: true }); // the builder does not validate native types, and true is a different value from 1n
+enroll(zoe, { credits: true }); // the builder does not validate scalar types, and true is a different value from 1n
 
 function credits_of(entry: OfEntry): unknown {
   const found: unknown[] = [];
-  if (entry.has("credits")) entry.property("credits", (p) => p.value((v) => v.as_native((n) => found.push(n.get()))));
+  if (entry.has("credits")) entry.property("credits", (p) => p.value((v) => v.as_scalar((n) => found.push(n.get()))));
   return found.length > 0 ? found[0] : null;
 }
 
@@ -117,7 +117,7 @@ const values: unknown[] = [];
 store.Student(zoe).adjacency("enrollments", (a: any) => a.entries((e: OfEntry) => values.push(credits_of(e))));
 assert(values.length === 2 && same(sortedStrings(new Set(values.map((v) => typeof v))), ["bigint", "boolean"]));
 
-// Serializing checks native types: a bool where the schema says int is rejected, and so is anything reaching it.
+// Serializing checks scalar types: a bool where the schema says int is rejected, and so is anything reaching it.
 raises(TypeError, () => Plain.ToPlain(store)(Student, zoe));
 raises(TypeError, () => Plain.ToPlain(store).Reachable(Term, fall));
 

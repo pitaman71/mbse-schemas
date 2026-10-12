@@ -7,7 +7,7 @@ How to express an interface or data model with the schema elements. The same mod
 | Concept (SysML / UML / ORM / JSON Schema) | Element |
 |---|---|
 | Block, class, entity, table row: anything with identity | registered `OfObject` marked `.ref()` |
-| Primitive attribute, value property | `OfNative` property |
+| Primitive attribute, value property | `OfScalar` property |
 | Structured value without identity (UML datatype, SysML value type with parts, ICD signal description) | value object: a property whose schema is an `OfObject` |
 | Association, reference property, pointer, foreign key | `OfRelation` linking the objects, with an adjacency on each side |
 | Association class, association block, join table with columns | `OfRelation` with properties |
@@ -15,8 +15,8 @@ How to express an interface or data model with the schema elements. The same mod
 | Multiplicity upper bound (0..1) | a `unique(...)` clause |
 | Multiplicity lower bound (1, 1..*) | not expressible yet: constraints are planned |
 | Qualified association, map, dictionary | relation with a key property: `.unique("owner", "key")` |
-| Ordered list of values or parts (tags, a component's ports) | a one-link relation, inline in its adjacency, whose entries hold the value: `r.name("tags").me("owner").of(lambda rel: rel.links("owner").properties(text("value")))`, natives or value objects |
-| Dictionary, associative array, sparse tensor (values by key) | the same with a key property and `unique` over the value: `.properties(text("key"), text("value")).unique("value")`; the key may be a native or a value object (e.g. `{row, col}`), and several properties (`i`, `j`) key a matrix |
+| Ordered list of values or parts (tags, a component's ports) | a one-link relation, inline in its adjacency, whose entries hold the value: `r.name("tags").me("owner").of(lambda rel: rel.links("owner").properties(text("value")))`, scalars or value objects |
+| Dictionary, associative array, sparse tensor (values by key) | the same with a key property and `unique` over the value: `.properties(text("key"), text("value")).unique("value")`; the key may be a scalar or a value object (e.g. `{row, col}`), and several properties (`i`, `j`) key a matrix |
 | Fixed-size array, dense tensor dimension | a list keyed by an integer property; its bounds are a constraint on that property's type, which is planned |
 | Ordered list of shared objects | relation with an index property: `.links("owner", "item").properties(index).unique("owner", "index")` |
 | Tagged union, variant, `oneOf`, `xsd:choice` | `OfUnion`: named, same-kind branches; a value holds exactly one |
@@ -24,9 +24,9 @@ How to express an interface or data model with the schema elements. The same mod
 | Singleton, global registry | `OfObject.Builder().singleton("Name")`, usually with a directory relation |
 | Port and connector | ports as value objects in a list of their component; connectors as a relation between ports, carrying the connection's properties |
 | Template, generic, parameterized block or type (UML/SysML template parameters, C++ templates, SystemVerilog `parameter`s) | `.parameters(...)` on the schema; a use of it with arguments is an `OfApply` (`S.OfApply.Builder().of(Matrix).arguments(rows=2, cols=3)`, by parameter name) |
-| Bit width given by a parameter | a term where the native's width stands: `.bits(w)`. An array's size or a tensor's shape is a constraint on its index properties' types, which is planned |
+| Bit width given by a parameter | a term where the scalar's width stands: `.bits(w)`. An array's size or a tensor's shape is a constraint on its index properties' types, which is planned |
 | Documentation, comment, `description` | `.description(text)` on the element's builder: a schema, property, adjacency, branch or part |
-| Enumeration of literals | a native (e.g. `str`); restricting its values needs constraints, which are planned |
+| Enumeration of literals | a scalar (e.g. `str`); restricting its values needs constraints, which are planned |
 
 ## Decisions
 

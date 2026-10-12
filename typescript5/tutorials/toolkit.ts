@@ -14,7 +14,7 @@ export type Row = Record<string, any>;
 function read(entry: OfEntry): Row {
   const row: Row = {};
   entry.links((link) => link.target((target) => (row[link.name()] = target)));
-  entry.properties((prop) => prop.value((v) => v.as_native((n) => (row[prop.name()] = n.get()))));
+  entry.properties((prop) => prop.value((v) => v.as_scalar((n) => (row[prop.name()] = n.get()))));
   return row;
 }
 

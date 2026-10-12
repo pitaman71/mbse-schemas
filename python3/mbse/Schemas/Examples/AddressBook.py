@@ -11,15 +11,15 @@ store = Proxies.OfStore()
 IntlAddress = (
     Schemas.OfObject.Builder().name('IntlAddress').ref()
     .properties(
-        lambda prop: prop.name('street1').of(lambda t: t.as_native(str)),
-        lambda prop: prop.name('street2').of(lambda t: t.as_native(str)),
-        lambda prop: prop.name('street3').of(lambda t: t.as_native(str)),
-        lambda prop: prop.name('dependent_locality').of(lambda t: t.as_native(str)),  # neighborhood, district
-        lambda prop: prop.name('locality').of(lambda t: t.as_native(str)),  # city, town, post town
-        lambda prop: prop.name('administrative_area').of(lambda t: t.as_native(str)),  # state, province, prefecture
-        lambda prop: prop.name('postal_code').of(lambda t: t.as_native(str)),
-        lambda prop: prop.name('sorting_code').of(lambda t: t.as_native(str)),  # e.g. French CEDEX
-        lambda prop: prop.name('country_code').of(lambda t: t.as_native(str)),  # ISO 3166-1 alpha-2
+        lambda prop: prop.name('street1').of(lambda t: t.as_scalar(str)),
+        lambda prop: prop.name('street2').of(lambda t: t.as_scalar(str)),
+        lambda prop: prop.name('street3').of(lambda t: t.as_scalar(str)),
+        lambda prop: prop.name('dependent_locality').of(lambda t: t.as_scalar(str)),  # neighborhood, district
+        lambda prop: prop.name('locality').of(lambda t: t.as_scalar(str)),  # city, town, post town
+        lambda prop: prop.name('administrative_area').of(lambda t: t.as_scalar(str)),  # state, province, prefecture
+        lambda prop: prop.name('postal_code').of(lambda t: t.as_scalar(str)),
+        lambda prop: prop.name('sorting_code').of(lambda t: t.as_scalar(str)),  # e.g. French CEDEX
+        lambda prop: prop.name('country_code').of(lambda t: t.as_scalar(str)),  # ISO 3166-1 alpha-2
     )
     .create()
 )
@@ -27,10 +27,10 @@ IntlAddress = (
 Contact = (
     Schemas.OfObject.Builder().name('Contact').ref()
     .properties(
-        lambda prop: prop.name('given_name').of(lambda t: t.as_native(str)),
-        lambda prop: prop.name('family_name').of(lambda t: t.as_native(str)),
-        lambda prop: prop.name('birth_date').of(lambda t: t.as_native(str)),  # ISO 8601 calendar date, YYYY-MM-DD
-        lambda prop: prop.name('preferred_language').of(lambda t: t.as_native(str)),  # BCP 47 tag, e.g. 'fr-CA'
+        lambda prop: prop.name('given_name').of(lambda t: t.as_scalar(str)),
+        lambda prop: prop.name('family_name').of(lambda t: t.as_scalar(str)),
+        lambda prop: prop.name('birth_date').of(lambda t: t.as_scalar(str)),  # ISO 8601 calendar date, YYYY-MM-DD
+        lambda prop: prop.name('preferred_language').of(lambda t: t.as_scalar(str)),  # BCP 47 tag, e.g. 'fr-CA'
     )
     .create()
 )
@@ -38,7 +38,7 @@ Contact = (
 PhoneNumber = (
     Schemas.OfObject.Builder().name('PhoneNumber').ref()
     .properties(
-        lambda prop: prop.name('number').of(lambda t: t.as_native(str)),  # ITU-T E.164, e.g. '+14155550100'
+        lambda prop: prop.name('number').of(lambda t: t.as_scalar(str)),  # ITU-T E.164, e.g. '+14155550100'
     )
     .create()
 )
@@ -46,7 +46,7 @@ PhoneNumber = (
 EmailAddress = (
     Schemas.OfObject.Builder().name('EmailAddress').ref()
     .properties(
-        lambda prop: prop.name('address').of(lambda t: t.as_native(str)),  # RFC 5322 addr-spec
+        lambda prop: prop.name('address').of(lambda t: t.as_scalar(str)),  # RFC 5322 addr-spec
     )
     .create()
 )
@@ -57,7 +57,7 @@ ContactAddresses = (
     Schemas.OfRelation.Builder().name('ContactAddresses')
     .links('contact', 'address')
     .properties(
-        lambda prop: prop.name('label').of(lambda t: t.as_native(str)),  # e.g. 'home', 'work'
+        lambda prop: prop.name('label').of(lambda t: t.as_scalar(str)),  # e.g. 'home', 'work'
     )
     .create()
 )
@@ -66,7 +66,7 @@ ContactPhones = (
     Schemas.OfRelation.Builder().name('ContactPhones')
     .links('contact', 'phone')
     .properties(
-        lambda prop: prop.name('label').of(lambda t: t.as_native(str)),  # e.g. 'mobile', 'work'
+        lambda prop: prop.name('label').of(lambda t: t.as_scalar(str)),  # e.g. 'mobile', 'work'
     )
     .create()
 )
@@ -75,7 +75,7 @@ ContactEmails = (
     Schemas.OfRelation.Builder().name('ContactEmails')
     .links('contact', 'email')
     .properties(
-        lambda prop: prop.name('label').of(lambda t: t.as_native(str)),  # e.g. 'personal', 'work'
+        lambda prop: prop.name('label').of(lambda t: t.as_scalar(str)),  # e.g. 'personal', 'work'
     )
     .create()
 )

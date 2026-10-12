@@ -220,8 +220,8 @@ class ToYAML:
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> str:
         return dumps(self._plain(schema, value))
 
-    def OfNative(self, schema: Schemas.OfNative.Data, value: Any) -> str:
-        return dumps(self._plain.OfNative(schema, value))
+    def OfScalar(self, schema: Schemas.OfScalar.Data, value: Any) -> str:
+        return dumps(self._plain.OfScalar(schema, value))
 
     def OfObject(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> str:
         return dumps(self._plain.OfObject(schema, value))
@@ -239,8 +239,8 @@ class FromYAML:
     def __call__(self, schema: Schemas.OfAny.Data, text: str | bytes) -> Any:
         return self._plain(schema, loads(text))
 
-    def OfNative(self, schema: Schemas.OfNative.Data, text: str | bytes) -> Any:
-        return self._plain.OfNative(schema, loads(text))
+    def OfScalar(self, schema: Schemas.OfScalar.Data, text: str | bytes) -> Any:
+        return self._plain.OfScalar(schema, loads(text))
 
     def OfObject(self, schema: Schemas.OfObject.Data, text: str | bytes) -> Any:
         return self._plain.OfObject(schema, loads(text))

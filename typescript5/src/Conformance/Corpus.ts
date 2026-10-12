@@ -11,10 +11,10 @@
 import { Modules, Proxies, Schemas, Stores } from "../Framework/index.js";
 import type { Instance } from "../Framework/Proxies.js";
 
-export const CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded", "lists", "module"] as const;
+export const CASES = ["address_book", "scalars", "family", "enrollment", "yaml_strings", "embedded", "lists", "module"] as const;
 
-function text(name: string, native: unknown = String) {
-  return (prop: Schemas.OfProperty.Builder) => prop.name(name).of((t) => t.as_native(native as never));
+function text(name: string, scalar: unknown = String) {
+  return (prop: Schemas.OfProperty.Builder) => prop.name(name).of((t) => t.as_scalar(scalar as never));
 }
 
 /** An adjacency `name` to a one-link relation of its own, whose entries hold `properties`: a list, or keyed where
@@ -61,7 +61,7 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   new S.OfObject.Builder(Address).relations((a) => a.name("contacts").of(ContactAddresses).me("address")).update();
   new S.OfObject.Builder(Phone).relations((a) => a.name("contacts").of(ContactPhones).me("phone")).update();
 
-  // --- natives ---
+  // --- scalars ---
   const Bag = new S.OfObject.Builder().name("Bag").ref().properties(text("name")).create();
   const Sample = new S.OfObject.Builder().name("Sample").ref().properties(text("label"), text("payload", Uint8Array), text("count", BigInt),
     text("ratio", Number), text("flag", Boolean)).create();
@@ -96,15 +96,15 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   new S.OfObject.Builder(Note).relations((a) => a.name("notebooks").of(Pages).me("note")).update();
 
   // --- embedded: value objects (value objects, one linked through a relation), union values of objects and of
-  // natives, and an intersection value; a card reached only through its value object carries its schema ---
+  // scalars, and an intersection value; a card reached only through its value object carries its schema ---
   const Line = new Schemas.OfRelation.Builder().name("Line").links("hub", "phone").create();
   const CardPhone = new Schemas.OfObject.Builder().properties(text("number"), text("label")).relations(
     (a) => a.name("hubs").of(Line).me("phone")).create();
   const CardEmail = new Schemas.OfObject.Builder().properties(text("address")).create();
   const Reach = new Schemas.OfUnion.Builder().branches((b) => b.name("phone").of(CardPhone),
     (b) => b.name("email").of(CardEmail)).create();
-  const Ident = new Schemas.OfUnion.Builder().branches((b) => b.name("number").of((t) => t.as_native(BigInt)),
-    (b) => b.name("code").of((t) => t.as_native(String))).create();
+  const Ident = new Schemas.OfUnion.Builder().branches((b) => b.name("number").of((t) => t.as_scalar(BigInt)),
+    (b) => b.name("code").of((t) => t.as_scalar(String))).create();
   const CardStamp = new Schemas.OfObject.Builder().properties(text("updated")).create();
   const CardAudit = new Schemas.OfObject.Builder().properties(text("by"), text("updated")).create();
   const CardMeta = new Schemas.OfIntersection.Builder().parts((p) => p.name("stamp").of(CardStamp),
@@ -116,15 +116,15 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   new Schemas.OfObject.Builder(Card).relations((a) => a.name("decks").of(Holding).me("card")).update();
   const Hub = new Schemas.OfObject.Builder().name("Hub").ref().properties(text("name")).relations((a) => a.name("phones").of(Line).me("hub")).create();
 
-  // --- lists: one-link relations, open (lists) or keyed by what a `unique` clause leaves out: of natives, of lists,
+  // --- lists: one-link relations, open (lists) or keyed by what a `unique` clause leaves out: of scalars, of lists,
   // of union values and of value objects, which link each other and a reference object; keyed by text, by a float, by
   // a value object and by a pair of ints ---
   const Cable = new Schemas.OfRelation.Builder().name("Cable").links("source", "sink").create();
   const Socket = new Schemas.OfObject.Builder().properties(text("name")).relations(
     (a) => a.name("cables").of(Cable).me("source"), (a) => a.name("plugs").of(Cable).me("sink")).create();
   const Coord = new Schemas.OfObject.Builder().properties(text("r", BigInt), text("c", BigInt)).create();
-  const Reading = new Schemas.OfUnion.Builder().branches((b) => b.name("value").of((t) => t.as_native(Number)),
-    (b) => b.name("note").of((t) => t.as_native(String))).create();
+  const Reading = new Schemas.OfUnion.Builder().branches((b) => b.name("value").of((t) => t.as_scalar(Number)),
+    (b) => b.name("note").of((t) => t.as_scalar(String))).create();
   const Row = new Schemas.OfObject.Builder().relations(list("values", [text("value", BigInt)])).create();
   const Bank = new Schemas.OfObject.Builder().relations(list("sockets", [held("socket", Socket)])).create();
   const Board = new Schemas.OfObject.Builder().name("Board").ref().properties(text("name")).relations(
@@ -240,15 +240,15 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
     "sockets", (a: any) => first(a, 0, wireSpare)))));
   B.Board(board).adjacency("sockets", (a: any) => first(a, 0, wireIn)).adjacency("banks", (a: any) => first(a, 1, bank)).update();
 
-  // --- module: the corpus's own schemas as data, with natives of widths and another format's token, and parametric
-  // schemas: parameters, terms where a width stands, and applications with arguments of every native ---
-  const int_ = (t: Schemas.OfAny.Builder) => t.as_native(BigInt);
+  // --- module: the corpus's own schemas as data, with scalars of widths and another format's token, and parametric
+  // schemas: parameters, terms where a width stands, and applications with arguments of every scalar ---
+  const int_ = (t: Schemas.OfAny.Builder) => t.as_scalar(BigInt);
   const n = new Schemas.Form.Data("variable", { name: "n" });
-  const Word = Schemas.OfNative.resolve((w) => w.name("Word").type(BigInt).parameters((p) => p.name("w").of(int_)).bits(
+  const Word = Schemas.OfScalar.resolve((w) => w.name("Word").type(BigInt).parameters((p) => p.name("w").of(int_)).bits(
     new Schemas.Form.Data("variable", { name: "w" })));
   const Grid = new Schemas.OfObject.Builder().name("Grid").parameters((p) => p.name("n").of(int_).description("Its side"),
     (p) => p.name("x")).properties(
-    (p) => p.name("mask").of((t) => t.as_native((w) => w.type(BigInt).bits(
+    (p) => p.name("mask").of((t) => t.as_scalar((w) => w.type(BigInt).bits(
       new Schemas.Form.Data("operation", { name: "mul" }, [n, n], "basic"))))).relations(
     list("cells", [held("cell", (c) => c.as_apply((a) => a.of(Word).arguments({ w: 8n })))])).create();
   const Square = new Schemas.OfApply.Builder().name("Square").parameters((p) => p.name("m").of(int_)).of(Grid).argument(
@@ -258,14 +258,14 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   const Applied = new Schemas.OfObject.Builder().name("Applied").properties(
     (p) => p.name("big").of((t) => t.as_apply((a) => a.of(Grid).arguments({ n: 2n ** 70n, x: NaN }))),
     (p) => p.name("odd").of((t) => t.as_apply((a) => a.of(Tricky).arguments({ a: -0.0, b: "日本語 🚀", c: new Uint8Array([0, 255]), d: false })))).create();
-  const Choice = new S.OfUnion.Builder().name("Choice").branches((b) => b.name("n").of((t) => t.as_native(BigInt)),
-    (b) => b.name("s").of((t) => t.as_native(String))).flat().create();
+  const Choice = new S.OfUnion.Builder().name("Choice").branches((b) => b.name("n").of((t) => t.as_scalar(BigInt)),
+    (b) => b.name("s").of((t) => t.as_scalar(String))).flat().create();
   const Marked = new S.OfIntersection.Builder().name("Marked").parts(
     (b) => b.name("when").of((t) => t.as_object((o) => o.properties(text("at", BigInt)))),
     (b) => b.name("who").of((t) => t.as_object((o) => o.properties(text("by"))))).flat().create();
   const schemas = [
-    Schemas.OfNative.resolve((n) => n.name("Int32").type(BigInt).bits(32n)),
-    Schemas.OfNative.resolve((n) => n.name("Size").token("ccpp", "size_t").bytes(8n)),
+    Schemas.OfScalar.resolve((n) => n.name("Int32").type(BigInt).bits(32n)),
+    Schemas.OfScalar.resolve((n) => n.name("Size").token("ccpp", "size_t").bytes(8n)),
     Contact, Address, ContactAddresses, Person, Parentage, Card, Deck, Holding, Board, Panel,
     Word, Grid, Square, Tricky, Applied, Choice, Marked,
   ];
@@ -273,7 +273,7 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
 
   return new Map<string, [Schemas.OfObject.Data, Instance, Stores.Store]>([
     ["address_book", [Contact, alice, store]],
-    ["natives", [Bag, bag, store]],
+    ["scalars", [Bag, bag, store]],
     ["family", [Person, ada, store]],
     ["enrollment", [Student, mia, store]],
     ["yaml_strings", [Notebook, notebook, store]],

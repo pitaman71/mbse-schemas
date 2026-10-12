@@ -28,7 +28,7 @@ from typing import Any, NamedTuple, Protocol
 
 from . import Reachable, Schemas, Stores, Visitors
 from .Errors import DecodeError, path
-from .Visitors import Native
+from .Visitors import Scalar
 
 __all__ = ["PlainData", "ToPlain", "FromPlain"]
 
@@ -42,23 +42,23 @@ ID = "$id"
 # --- Writers: Visitors that write plain data ---
 
 
-class _NativeWriter:
-    """`Visitors.OfNative` writing one key of a plain dict."""
+class _ScalarWriter:
+    """`Visitors.OfScalar` writing one key of a plain dict."""
 
-    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfNative.Data):
+    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfScalar.Data):
         self._out, self._name, self._schema = out, name, schema
 
     def has(self) -> bool:
         return self._name in self._out
 
-    def get(self) -> Native:
+    def get(self) -> Scalar:
         return self._schema.from_plain(self._out[self._name])
 
-    def set(self, value: Native) -> _NativeWriter:
+    def set(self, value: Scalar) -> _ScalarWriter:
         self._out[self._name] = self._schema.to_plain(value)
         return self
 
-    def clear(self) -> _NativeWriter:
+    def clear(self) -> _ScalarWriter:
         self._out.pop(self._name, None)
         return self
 
@@ -72,7 +72,7 @@ def _unlinked(value: Visitors.Visitable) -> str | None:
 
 
 class _AnyWriter:
-    """`Visitors.OfAny` writing one key of a plain dict: a native, or a value object (an object's, a union value or an
+    """`Visitors.OfAny` writing one key of a plain dict: a scalar, or a value object (an object's, a union value or an
     intersection value), nested. `ref` writes references to linked objects, and `symbol` gives a value object's symbol
     when something links to it."""
 
@@ -80,10 +80,10 @@ class _AnyWriter:
         self._out, self._name, self._ref, self._symbol = out, name, ref, symbol
         self._schema = Schemas.structure(schema)
 
-    def as_native(self, callback: Callable[[Visitors.OfNative], Any]) -> _AnyWriter:
-        if not isinstance(self._schema, Schemas.OfNative.Data):
-            raise TypeError(f"property {self._name!r} is not native")
-        callback(_NativeWriter(self._out, self._name, self._schema))
+    def as_scalar(self, callback: Callable[[Visitors.OfScalar], Any]) -> _AnyWriter:
+        if not isinstance(self._schema, Schemas.OfScalar.Data):
+            raise TypeError(f"property {self._name!r} is not scalar")
+        callback(_ScalarWriter(self._out, self._name, self._schema))
         return self
 
     def as_object(self, callback: Callable[[Visitors.OfObject], Any]) -> _AnyWriter:
@@ -415,9 +415,9 @@ class _Context:
 
 def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context: _Context | None = None,
             steps: Steps = ()) -> Any:
-    """The value `plain` holds under `schema`, located at the path `where`: a native or a `_Record`."""
+    """The value `plain` holds under `schema`, located at the path `where`: a scalar or a `_Record`."""
     schema = Schemas.structure(schema)
-    if isinstance(schema, Schemas.OfNative.Data):
+    if isinstance(schema, Schemas.OfScalar.Data):
         try:
             return schema.from_plain(plain)
         except DecodeError as error:
@@ -479,7 +479,7 @@ _RECORDS = {
 
 
 def _decode_entry_property(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple) -> Any:
-    """An entry property's value: a native or a value object, which has no symbol or adjacencies of its own."""
+    """An entry property's value: a scalar or a value object, which has no symbol or adjacencies of its own."""
     return _decode(schema, plain, where)
 
 
@@ -741,7 +741,7 @@ def _set(visitor: Any, name: str, value: Any) -> None:
 
 
 def _write(visitor: Visitors.OfAny, value: Any) -> None:
-    """Writes a decoded value: a native, a value object, union value or intersection value."""
+    """Writes a decoded value: a scalar, a value object, union value or intersection value."""
     if isinstance(value, _Record):
         if isinstance(value.schema, Schemas.OfUnion.Data):
             visitor.as_union(lambda u: value.accept(u))
@@ -750,7 +750,7 @@ def _write(visitor: Visitors.OfAny, value: Any) -> None:
         else:
             visitor.as_object(lambda o: value.accept(o))
     else:
-        visitor.as_native(lambda n: n.set(value))
+        visitor.as_scalar(lambda n: n.set(value))
 
 
 def _fill(visitor: Visitors.OfEntry, row: dict[str, Any], resolve: Callable[[str], Any]) -> None:
@@ -772,14 +772,14 @@ class ToPlain:
         self._store = store
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> PlainData:
-        if isinstance(schema, Schemas.OfNative.Data):
-            return self.OfNative(schema, value)
+        if isinstance(schema, Schemas.OfScalar.Data):
+            return self.OfScalar(schema, value)
         if isinstance(schema, Schemas.OfObject.Data):
             return self.OfObject(schema, value)
         raise NotImplementedError(f"{type(schema).__name__} is not supported by Plain yet")
 
     @staticmethod
-    def OfNative(schema: Schemas.OfNative.Data, value: Native) -> PlainData:
+    def OfScalar(schema: Schemas.OfScalar.Data, value: Scalar) -> PlainData:
         return schema.to_plain(value)
 
     def OfObject(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> PlainData:
@@ -799,14 +799,14 @@ class FromPlain:
         self._store = store
 
     def __call__(self, schema: Schemas.OfAny.Data, plain: PlainData) -> Any:
-        if isinstance(schema, Schemas.OfNative.Data):
-            return self.OfNative(schema, plain)
+        if isinstance(schema, Schemas.OfScalar.Data):
+            return self.OfScalar(schema, plain)
         if isinstance(schema, Schemas.OfObject.Data):
             return self.OfObject(schema, plain)
         raise NotImplementedError(f"{type(schema).__name__} is not supported by Plain yet")
 
     @staticmethod
-    def OfNative(schema: Schemas.OfNative.Data, plain: PlainData) -> Native:
+    def OfScalar(schema: Schemas.OfScalar.Data, plain: PlainData) -> Scalar:
         try:
             return schema.from_plain(plain)
         except DecodeError as error:

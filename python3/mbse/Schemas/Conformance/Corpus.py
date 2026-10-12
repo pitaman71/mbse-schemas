@@ -13,11 +13,11 @@ import math
 
 from mbse.Schemas.Framework import Modules, Proxies, Schemas
 
-CASES = ["address_book", "natives", "family", "enrollment", "yaml_strings", "embedded", "lists", "module"]
+CASES = ["address_book", "scalars", "family", "enrollment", "yaml_strings", "embedded", "lists", "module"]
 
 
-def _text(name, native=str):
-    return lambda prop: prop.name(name).of(lambda t: t.as_native(native))
+def _text(name, scalar=str):
+    return lambda prop: prop.name(name).of(lambda t: t.as_scalar(scalar))
 
 
 def _list(name, *properties, unique=()):
@@ -70,7 +70,7 @@ def build():
     S.OfObject.Builder(Address).relations(lambda a: a.name("contacts").of(ContactAddresses).me("address")).update()
     S.OfObject.Builder(Phone).relations(lambda a: a.name("contacts").of(ContactPhones).me("phone")).update()
 
-    # --- natives ---
+    # --- scalars ---
     Bag = S.OfObject.Builder().name("Bag").ref().properties(_text("name")).create()
     Sample = S.OfObject.Builder().name("Sample").ref().properties(_text("label"), _text("payload", bytes), _text("count", int),
                                              _text("ratio", float), _text("flag", bool)).create()
@@ -105,15 +105,15 @@ def build():
     S.OfObject.Builder(Note).relations(lambda a: a.name("notebooks").of(Pages).me("note")).update()
 
     # --- embedded: value objects (value objects, one linked through a relation), union values of objects and of
-    # natives, and an intersection value; a card reached only through its value object carries its schema ---
+    # scalars, and an intersection value; a card reached only through its value object carries its schema ---
     Line = S.OfRelation.Builder().name("Line").links("hub", "phone").create()
     CardPhone = S.OfObject.Builder().properties(_text("number"), _text("label")).relations(
         lambda a: a.name("hubs").of(Line).me("phone")).create()
     CardEmail = S.OfObject.Builder().properties(_text("address")).create()
     Reach = S.OfUnion.Builder().branches(lambda b: b.name("phone").of(CardPhone),
                                          lambda b: b.name("email").of(CardEmail)).create()
-    Ident = S.OfUnion.Builder().branches(lambda b: b.name("number").of(lambda t: t.as_native(int)),
-                                         lambda b: b.name("code").of(lambda t: t.as_native(str))).create()
+    Ident = S.OfUnion.Builder().branches(lambda b: b.name("number").of(lambda t: t.as_scalar(int)),
+                                         lambda b: b.name("code").of(lambda t: t.as_scalar(str))).create()
     CardStamp = S.OfObject.Builder().properties(_text("updated")).create()
     CardAudit = S.OfObject.Builder().properties(_text("by"), _text("updated")).create()
     CardMeta = S.OfIntersection.Builder().parts(lambda p: p.name("stamp").of(CardStamp),
@@ -126,15 +126,15 @@ def build():
     S.OfObject.Builder(Card).relations(lambda a: a.name("decks").of(Holding).me("card")).update()
     Hub = S.OfObject.Builder().name("Hub").ref().properties(_text("name")).relations(lambda a: a.name("phones").of(Line).me("hub")).create()
 
-    # --- lists: one-link relations, open (lists) or keyed by what a `unique` clause leaves out: of natives, of lists,
+    # --- lists: one-link relations, open (lists) or keyed by what a `unique` clause leaves out: of scalars, of lists,
     # of union values and of value objects, which link each other and a reference object; keyed by text, by a float, by
     # a value object and by a pair of ints ---
     Cable = S.OfRelation.Builder().name("Cable").links("source", "sink").create()
     Socket = S.OfObject.Builder().properties(_text("name")).relations(
         lambda a: a.name("cables").of(Cable).me("source"), lambda a: a.name("plugs").of(Cable).me("sink")).create()
     Coord = S.OfObject.Builder().properties(_text("r", int), _text("c", int)).create()
-    Reading = S.OfUnion.Builder().branches(lambda b: b.name("value").of(lambda t: t.as_native(float)),
-                                           lambda b: b.name("note").of(lambda t: t.as_native(str))).create()
+    Reading = S.OfUnion.Builder().branches(lambda b: b.name("value").of(lambda t: t.as_scalar(float)),
+                                           lambda b: b.name("note").of(lambda t: t.as_scalar(str))).create()
     Row = S.OfObject.Builder().relations(_list("values", _text("value", int))).create()
     Bank = S.OfObject.Builder().relations(_list("sockets", _held("socket", Socket))).create()
     Board = S.OfObject.Builder().name("Board").ref().properties(_text("name")).relations(
@@ -255,15 +255,15 @@ def build():
     B.Board(board).adjacency("sockets", lambda a: _first(a, 0, wire_in)).adjacency(
         "banks", lambda a: _first(a, 1, bank)).update()
 
-    # --- module: the corpus's own schemas as data, with natives of widths and another format's token, and parametric
-    # schemas: parameters, terms where a width stands, and applications with arguments of every native ---
-    int_ = lambda t: t.as_native(int)  # noqa: E731
+    # --- module: the corpus's own schemas as data, with scalars of widths and another format's token, and parametric
+    # schemas: parameters, terms where a width stands, and applications with arguments of every scalar ---
+    int_ = lambda t: t.as_scalar(int)  # noqa: E731
     n = S.Form.Data("variable", {"name": "n"})
-    Word = S.OfNative.resolve(lambda w: w.name("Word").type(int).parameters(lambda p: p.name("w").of(int_)).bits(
+    Word = S.OfScalar.resolve(lambda w: w.name("Word").type(int).parameters(lambda p: p.name("w").of(int_)).bits(
         S.Form.Data("variable", {"name": "w"})))
     Grid = S.OfObject.Builder().name("Grid").parameters(lambda p: p.name("n").of(int_).description("Its side"),
                                                         lambda p: p.name("x")).properties(
-        lambda p: p.name("mask").of(lambda t: t.as_native(lambda w: w.type(int).bits(
+        lambda p: p.name("mask").of(lambda t: t.as_scalar(lambda w: w.type(int).bits(
             S.Form.Data("operation", {"name": "mul"}, (n, n), "basic"))))).relations(
         _list("cells", _held("cell", lambda c: c.as_apply(lambda a: a.of(Word).arguments(w=8))))).create()
     Square = S.OfApply.Builder().name("Square").parameters(lambda p: p.name("m").of(int_)).of(Grid).argument(
@@ -273,20 +273,20 @@ def build():
         lambda p: p.name("big").of(lambda t: t.as_apply(lambda a: a.of(Grid).arguments(n=2**70, x=math.nan))),
         lambda p: p.name("odd").of(lambda t: t.as_apply(lambda a: a.of(Tricky).arguments(a=-0.0, b="日本語 🚀", c=b"\x00\xff", d=False)))
     ).create()
-    Choice = S.OfUnion.Builder().name("Choice").branches(lambda b: b.name("n").of(lambda t: t.as_native(int)),
-                                                         lambda b: b.name("s").of(lambda t: t.as_native(str))).flat().create()
+    Choice = S.OfUnion.Builder().name("Choice").branches(lambda b: b.name("n").of(lambda t: t.as_scalar(int)),
+                                                         lambda b: b.name("s").of(lambda t: t.as_scalar(str))).flat().create()
     Marked = S.OfIntersection.Builder().name("Marked").parts(
         lambda b: b.name("when").of(lambda t: t.as_object(lambda o: o.properties(_text("at", int)))),
         lambda b: b.name("who").of(lambda t: t.as_object(lambda o: o.properties(_text("by"))))).flat().create()
-    schemas = [S.OfNative.resolve(lambda n: n.name("Int32").type(int).bits(32)),
-               S.OfNative.resolve(lambda n: n.name("Size").token("ccpp", "size_t").bytes(8)),
+    schemas = [S.OfScalar.resolve(lambda n: n.name("Int32").type(int).bits(32)),
+               S.OfScalar.resolve(lambda n: n.name("Size").token("ccpp", "size_t").bytes(8)),
                Contact, Address, ContactAddresses, Person, Parentage, Card, Deck, Holding, Board, Panel,
                Word, Grid, Square, Tricky, Applied, Choice, Marked]
     module = Modules.module(store, schemas)
 
     return {
         "address_book": (Contact, alice, store),
-        "natives": (Bag, bag, store),
+        "scalars": (Bag, bag, store),
         "family": (Person, ada, store),
         "enrollment": (Student, mia, store),
         "yaml_strings": (Notebook, notebook, store),

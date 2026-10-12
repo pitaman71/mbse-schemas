@@ -6,8 +6,8 @@
  * `sortedStrings` follows Python's code point ordering of `str`.
  */
 
-/** Native tokens and their framework names. */
-export const NATIVE_NAMES: ReadonlyMap<unknown, string> = new Map<unknown, string>([
+/** Scalar tokens and their framework names. */
+export const SCALAR_NAMES: ReadonlyMap<unknown, string> = new Map<unknown, string>([
   [BigInt, "int"],
   [Number, "float"],
   [String, "str"],
@@ -17,14 +17,14 @@ export const NATIVE_NAMES: ReadonlyMap<unknown, string> = new Map<unknown, strin
 
 /** Python's names for the JavaScript classes that correspond to its built-in containers. */
 const CLASS_NAMES: ReadonlyMap<unknown, string> = new Map<unknown, string>([
-  ...NATIVE_NAMES,
+  ...SCALAR_NAMES,
   [Array, "list"],
   [Map, "dict"],
   [Set, "set"],
   [Object, "object"],
 ]);
 
-/** Python's `type(value).__name__`, using the framework's names for native values. */
+/** Python's `type(value).__name__`, using the framework's names for scalar values. */
 export function typeName(value: unknown): string {
   if (value === null || value === undefined) return "NoneType";
   switch (typeof value) {
@@ -43,7 +43,7 @@ export function typeName(value: unknown): string {
   return constructor === undefined ? "object" : tokenName(constructor);
 }
 
-/** The name of a native token (`BigInt` is 'int'), Python's name for a built-in container class, or the class's own
+/** The name of a scalar token (`BigInt` is 'int'), Python's name for a built-in container class, or the class's own
  * name. */
 export function tokenName(token: unknown): string {
   return CLASS_NAMES.get(token) ?? (token as { name: string }).name;

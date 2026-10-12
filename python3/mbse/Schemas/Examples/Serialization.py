@@ -1,4 +1,4 @@
-# Serialization example: native values at their edges, strict native types, malformed snapshots, and a store.
+# Serialization example: scalar values at their edges, strict scalar types, malformed snapshots, and a store.
 #
 # Uses ISO 4217 currencies: a price list maps a product -> [currency] -> money.
 
@@ -16,11 +16,11 @@ store = Proxies.OfStore()
 Sample = (
     Schemas.OfObject.Builder().name('Sample').ref()
     .properties(
-        lambda prop: prop.name('label').of(lambda t: t.as_native(str)),
-        lambda prop: prop.name('payload').of(lambda t: t.as_native(bytes)),
-        lambda prop: prop.name('count').of(lambda t: t.as_native(int)),
-        lambda prop: prop.name('ratio').of(lambda t: t.as_native(float)),
-        lambda prop: prop.name('flag').of(lambda t: t.as_native(bool)),
+        lambda prop: prop.name('label').of(lambda t: t.as_scalar(str)),
+        lambda prop: prop.name('payload').of(lambda t: t.as_scalar(bytes)),
+        lambda prop: prop.name('count').of(lambda t: t.as_scalar(int)),
+        lambda prop: prop.name('ratio').of(lambda t: t.as_scalar(float)),
+        lambda prop: prop.name('flag').of(lambda t: t.as_scalar(bool)),
     )
     .create()
 )
@@ -28,16 +28,16 @@ Sample = (
 Currency = (
     Schemas.OfObject.Builder().name('iso4217.Currency').ref()
     .properties(
-        lambda prop: prop.name('code').of(lambda t: t.as_native(str)),  # ISO 4217 alpha, e.g. 'JPY'
-        lambda prop: prop.name('numeric').of(lambda t: t.as_native(str)),  # ISO 4217 numeric, e.g. '392'; keeps zeros
-        lambda prop: prop.name('minor_units').of(lambda t: t.as_native(int)),  # 0 for JPY, 2 for EUR, 3 for BHD
+        lambda prop: prop.name('code').of(lambda t: t.as_scalar(str)),  # ISO 4217 alpha, e.g. 'JPY'
+        lambda prop: prop.name('numeric').of(lambda t: t.as_scalar(str)),  # ISO 4217 numeric, e.g. '392'; keeps zeros
+        lambda prop: prop.name('minor_units').of(lambda t: t.as_scalar(int)),  # 0 for JPY, 2 for EUR, 3 for BHD
     )
     .create()
 )
-Product = Schemas.OfObject.Builder().name('Product').ref().properties(lambda prop: prop.name('sku').of(lambda t: t.as_native(str))).create()
+Product = Schemas.OfObject.Builder().name('Product').ref().properties(lambda prop: prop.name('sku').of(lambda t: t.as_scalar(str))).create()
 Money = (
     Schemas.OfObject.Builder().name('Money').ref()
-    .properties(lambda prop: prop.name('amount').of(lambda t: t.as_native(int)))  # in minor units
+    .properties(lambda prop: prop.name('amount').of(lambda t: t.as_scalar(int)))  # in minor units
     .create()
 )
 
@@ -45,7 +45,7 @@ Money = (
 Prices = (
     Schemas.OfRelation.Builder().name('Prices')
     .links('product', 'price')
-    .properties(lambda prop: prop.name('currency').of(lambda t: t.as_native(str)))
+    .properties(lambda prop: prop.name('currency').of(lambda t: t.as_scalar(str)))
     .unique('price')
     .create()
 )
@@ -68,7 +68,7 @@ for schema in [Sample, Currency, Product, Money, Prices, Denomination]:
     assert schema.validate() == [], (schema.name, schema.validate())
     store.register(schema)
 
-# --- Native values at their edges ---
+# --- Scalar values at their edges ---
 
 edge = (
     store.Sample()
@@ -101,21 +101,21 @@ blank = store.Sample().create()
 assert Plain.ToPlain(store)(Sample, blank) == {'root': 's0', 'objects': {'s0': {}}}
 
 # Per-kind entry points.
-assert Plain.ToPlain(store)(Schemas.OfNative.Data(bytes), b'\x01') == Plain.ToPlain(store).OfNative(Schemas.OfNative.Data(bytes), b'\x01') == 'AQ=='
-assert Plain.FromPlain(store).OfNative(Schemas.OfNative.Data(int), 7) == 7
+assert Plain.ToPlain(store)(Schemas.OfScalar.Data(bytes), b'\x01') == Plain.ToPlain(store).OfScalar(Schemas.OfScalar.Data(bytes), b'\x01') == 'AQ=='
+assert Plain.FromPlain(store).OfScalar(Schemas.OfScalar.Data(int), 7) == 7
 
-# --- Strict native types ---
+# --- Strict scalar types ---
 
-# Distinct native types are never coerced into each other, in either direction. Reading a wrong type is a problem in
+# Distinct scalar types are never coerced into each other, in either direction. Reading a wrong type is a problem in
 # the data: a DecodeError (a ValueError) located by a path, here the root.
 from_plain = Plain.FromPlain(store)
-for native, bad in [(int, True), (int, 1.0), (int, '1'), (float, 1), (bool, 0), (str, b'x'), (str, None)]:
+for scalar, bad in [(int, True), (int, 1.0), (int, '1'), (float, 1), (bool, 0), (str, b'x'), (str, None)]:
     with raises(DecodeError):
-        from_plain(Schemas.OfNative.Data(native), bad)
+        from_plain(Schemas.OfScalar.Data(scalar), bad)
 with raises(DecodeError):
-    from_plain(Schemas.OfNative.Data(bytes), b'raw')  # bytes arrive as base64 text
+    from_plain(Schemas.OfScalar.Data(bytes), b'raw')  # bytes arrive as base64 text
 with raises(DecodeError):
-    from_plain(Schemas.OfNative.Data(bytes), 'not base64!')
+    from_plain(Schemas.OfScalar.Data(bytes), 'not base64!')
 
 # The builder does not validate; the serializer does.
 sloppy = store.Sample().count('3').create()
@@ -127,7 +127,7 @@ with raises(TypeError):
 validate = Validators.Validate(store)
 assert validate(Sample, sloppy) == ['Sample#0.count: expected int, got str']
 assert validate(Sample, edge) == [] and validate(Sample, blank) == []
-assert validate(Schemas.OfNative.Data(int), True) == ['expected int, got bool']
+assert validate(Schemas.OfScalar.Data(int), True) == ['expected int, got bool']
 
 # --- A map: product -> [currency] -> money ---
 

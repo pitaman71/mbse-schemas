@@ -1,7 +1,7 @@
 # mbse-schemas in TypeScript
 
 Import from `@mbse/schemas/Framework`, and error classes from `@mbse/schemas/Framework/Errors`. The API mirrors
-Python name for name, snake_case included (`as_native`, `properties_of`). It runs on Node 22+, in browsers and in
+Python name for name, snake_case included (`as_scalar`, `properties_of`). It runs on Node 22+, in browsers and in
 Deno.
 
 ## A complete program
@@ -12,18 +12,18 @@ It writes the same JSON as the Python version, byte for byte.
 ```typescript
 import { JSON, Proxies, Schemas as S, Validators } from "@mbse/schemas/Framework";
 
-const native = (name: string, type: S.OfNative.Spec) => (p: S.OfProperty.Builder) => p.name(name).of((t) => t.as_native(type));
+const scalar = (name: string, type: S.OfScalar.Spec) => (p: S.OfProperty.Builder) => p.name(name).of((t) => t.as_scalar(type));
 
 // A value with no identity: a value object.
-const Signal = new S.OfObject.Builder().properties(native("width", BigInt), native("unit", String)).create();
+const Signal = new S.OfObject.Builder().properties(scalar("width", BigInt), scalar("unit", String)).create();
 
 // Things with identity: object schemas.
-const Component = new S.OfObject.Builder().name("Component").ref().properties(native("name", String)).create();
-const Port = new S.OfObject.Builder().name("Port").ref().properties(native("name", String), (p) => p.name("signal").of(Signal)).create();
+const Component = new S.OfObject.Builder().name("Component").ref().properties(scalar("name", String)).create();
+const Port = new S.OfObject.Builder().name("Port").ref().properties(scalar("name", String), (p) => p.name("signal").of(Signal)).create();
 
 // Every collection is a relation. unique("owner"): entries that agree on the port agree on the owner.
 const Ownership = new S.OfRelation.Builder().name("Ownership").links("owner", "port").unique("owner").create();
-const Wire = new S.OfRelation.Builder().name("Wire").links("source", "target").properties(native("label", String)).create();
+const Wire = new S.OfRelation.Builder().name("Wire").links("source", "target").properties(scalar("label", String)).create();
 
 // Each object sees a relation through one of its links (an adjacency).
 new S.OfObject.Builder(Component).relations((r) => r.name("ports").of(Ownership).me("owner")).update();
@@ -50,7 +50,7 @@ if (Validators.Validate(B).Reachable(Component, copy).length > 0) throw new Erro
 
 | Python | TypeScript |
 |---|---|
-| `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` as native types. An `int` value is a `bigint` (`7n`); `7` is a float |
+| `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` as scalar types. An `int` value is a `bigint` (`7n`); `7` is a float |
 | `None` (absent, unknown, incomparable) | `null` |
 | `dict` plain data | `Map<string, PlainData>` (`Plain.ToPlain` returns Maps) |
 | `Schemas.OfObject.Builder()` | `new S.OfObject.Builder()` (schema builders are classes) |
@@ -65,7 +65,7 @@ new S.OfObject.Builder().ref().properties(spec, ...).relations(spec, ...).create
 new S.OfObject.Builder().properties(spec, ...).create();  // a value object schema, for a property's type
 new S.OfObject.Builder(existing).relations(...).update();   // add adjacencies once the relations exist
 new S.OfRelation.Builder().links("a", "b").properties(spec, ...).unique("a").create();
-S.OfNative.resolve((n) => n.token("ccpp", "int32_t").bits(32n));   // any format's token; a width in bits or bytes
+S.OfScalar.resolve((n) => n.token("ccpp", "int32_t").bits(32n));   // any format's token; a width in bits or bytes
 new S.OfUnion.Builder().branches((b) => b.name("phone").of(spec), ...).create();
 new S.OfIntersection.Builder().parts((p) => p.name("stamp").of(spec), ...).create();
 r.name("tags").me("owner").of((rel) => rel.links("owner").properties(text("value")));   // a list: a one-link relation inline

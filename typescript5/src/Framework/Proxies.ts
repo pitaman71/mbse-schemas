@@ -36,7 +36,7 @@ import { AttributeError, KeyError, ValueError } from "./Errors.js";
 import { repr, sortedStrings, Tuple, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import * as Stores from "./Stores.js";
-import type { Callback, Native, OfAdjacency as AdjacencyVisitor, OfAny, OfEntry as EntryVisitor, OfIntersection, OfLink, OfNative,
+import type { Callback, Scalar, OfAdjacency as AdjacencyVisitor, OfAny, OfEntry as EntryVisitor, OfIntersection, OfLink, OfScalar,
   OfObject as ObjectVisitor, OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
 type ObjectSchema = Schemas.OfObject.Data;
@@ -155,12 +155,12 @@ function schemaId(schema: object): number {
   return schemaIds.get(schema) as number;
 }
 
-/** Equality key per EQUALITY.md: distinct native types never compare equal; floats compare by bit pattern; a value
+/** Equality key per EQUALITY.md: distinct scalar types never compare equal; floats compare by bit pattern; a value
  * object by its schema and properties, whatever its identity. */
-export function nativeKey(value: unknown): string {
+export function scalarKey(value: unknown): string {
   if (isRecord(value)) {
     const state = stateOf(value);
-    const values = sortedStrings(state.values.keys()).map((name) => [name, nativeKey(state.values.get(name))]);
+    const values = sortedStrings(state.values.keys()).map((name) => [name, scalarKey(state.values.get(name))]);
     return `object:${schemaId(state.schema)}:${JSON.stringify(values)}`;
   }
   if (typeof value === "number") {
@@ -174,7 +174,7 @@ export function nativeKey(value: unknown): string {
   if (value instanceof Uint8Array && Object.getPrototypeOf(value) === Uint8Array.prototype) {
     return `bytes:${toHex(value)}`;
   }
-  throw new TypeError(`an entry property must be a native value or a value object, got ${typeName(value)}`);
+  throw new TypeError(`an entry property must be a scalar value or a value object, got ${typeName(value)}`);
 }
 
 /** An entry of a relation, shared by the objects it links: read through `view`, a proxy whose read-only attributes are
@@ -185,7 +185,7 @@ let nextEntry = 0;
 class Entry {
   #view: unknown = null;
 
-  constructor(readonly relation: RelationSchema, readonly links: Map<string, Visitable>, readonly properties: Map<string, Native>) {}
+  constructor(readonly relation: RelationSchema, readonly links: Map<string, Visitable>, readonly properties: Map<string, Scalar>) {}
 
   get view(): unknown {
     this.#view ??= new Proxy(this, {
@@ -209,7 +209,7 @@ class Entry {
   key(): string {
     if (this.relation.open) return `entry:${this.id}`;
     const links = [...this.links].map(([name, target]) => [name, target.identity()] as const).sort(byName);
-    const props = [...this.properties].map(([name, value]) => [name, nativeKey(value)] as const).sort(byName);
+    const props = [...this.properties].map(([name, value]) => [name, scalarKey(value)] as const).sort(byName);
     return JSON.stringify([links, props]);
   }
 }
@@ -397,7 +397,7 @@ class Adjacency extends Array<any> { // eslint-disable-line @typescript-eslint/n
     for (const entry of this) {
       const held: unknown[] = names.map((name) => (entry as Record<string, unknown>)[name]);
       if (names.every((name, i) => relation.links.includes(name) ? held[i] === wanted[i]
-        : held[i] !== null && nativeKey(held[i]) === nativeKey(wanted[i]))) return entry; // a target by identity, a value by schema equality
+        : held[i] !== null && scalarKey(held[i]) === scalarKey(wanted[i]))) return entry; // a target by identity, a value by schema equality
     }
     throw new KeyError(`no entry has the key ${repr(Array.isArray(key) ? new Tuple(key) : key)}`);
   }
@@ -420,11 +420,11 @@ function view(value: unknown, type: unknown): unknown {
   return view(held, (schema.properties.get(branch) as Schemas.OfUnion.Branch).type);
 }
 
-/** What tells a value apart at run time, as `Schemas` tells a flat union's branches apart: a native's type, or a value
+/** What tells a value apart at run time, as `Schemas` tells a flat union's branches apart: a scalar's type, or a value
  * object's schema. */
 function runtime(value: unknown): unknown {
   if (isRecord(value)) return (recordTargets.get(value) as RecordTarget).schema;
-  return Schemas.NATIVE_TYPES.find((host) => Schemas.isNativeOf(host, value));
+  return Schemas.SCALAR_TYPES.find((host) => Schemas.isScalarOf(host, value));
 }
 
 /** The branch of a flat union whose type a value has. */
@@ -448,10 +448,10 @@ function writeProperties(visitor: PropertyHolder, schema: RecordSchema, values: 
   }
 }
 
-/** Writes a native, a value object, a union value or an intersection value into a `Visitors.OfAny`. */
+/** Writes a scalar, a value object, a union value or an intersection value into a `Visitors.OfAny`. */
 function writeValue(visitor: OfAny, value: unknown): void {
   if (isRecord(value)) writeRecord(visitor, (recordTargets.get(value) as RecordTarget).schema, (r) => value.accept(r));
-  else visitor.as_native((n) => n.set(value as Native));
+  else visitor.as_scalar((n) => n.set(value as Scalar));
 }
 
 function writeRecord(visitor: OfAny, schema: RecordSchema, callback: Callback<ObjectVisitor>): void {
@@ -710,32 +710,32 @@ function writeEntry(visitor: EntryVisitor, entry: Entry, adjacency: AdjacencySch
 
 // --- Builders ---
 
-/** `Visitors.OfNative` over one key of a value map. */
-export class _NativeSlot implements OfNative {
+/** `Visitors.OfScalar` over one key of a value map. */
+export class _ScalarSlot implements OfScalar {
   constructor(private readonly values: Map<string, unknown>, private readonly slotName: string) {}
 
   has(): boolean {
     return this.values.has(this.slotName);
   }
 
-  get(): Native {
+  get(): Scalar {
     if (!this.values.has(this.slotName)) throw new AttributeError(`property ${repr(this.slotName)} is not set`);
-    return this.values.get(this.slotName) as Native;
+    return this.values.get(this.slotName) as Scalar;
   }
 
-  set(value: Native): _NativeSlot {
+  set(value: Scalar): _ScalarSlot {
     this.values.set(this.slotName, value);
     return this;
   }
 
-  clear(): _NativeSlot {
+  clear(): _ScalarSlot {
     this.values.delete(this.slotName);
     return this;
   }
 }
 
 /** `Visitors.OfAny` over one key of a value map, holding a value of `schema` (an entry property's schema is not
- * given: entry properties are native). */
+ * given: entry properties are scalar). */
 export class _AnySlot implements OfAny {
   private readonly schema: unknown;
 
@@ -744,8 +744,8 @@ export class _AnySlot implements OfAny {
     this.schema = Schemas.structure(schema);
   }
 
-  as_native(callback: Callback<OfNative>): _AnySlot {
-    callback(new _NativeSlot(this.values, this.slotName));
+  as_scalar(callback: Callback<OfScalar>): _AnySlot {
+    callback(new _ScalarSlot(this.values, this.slotName));
     return this;
   }
 
@@ -805,7 +805,7 @@ export class _PropertySlot implements OfProperty {
 }
 
 /** DSL setter for a property of `schema`: `.name(value)`, or `.name(Spec)` where the Spec receives the value's builder:
- * a `Visitors.OfNative` (`v.set(...)`), or the builder of a value object, a union value or an intersection value,
+ * a `Visitors.OfScalar` (`v.set(...)`), or the builder of a value object, a union value or an intersection value,
  * which starts from the value already set. A value object given as the value replaces the one set. */
 function setter<V extends PropertyHolder>(visitor: V, self: unknown, name: string, schema: unknown = null) {
   return (spec: unknown): unknown => {
@@ -828,7 +828,7 @@ function apply(visitor: OfAny, name: string, type: unknown, spec: unknown): void
     else if (isRecord(spec)) writeRecord(visitor, schema, (r) => spec.accept(r));
     else throw new TypeError(`property ${repr(name)} takes ${withArticle(noun(schema))} or a Spec, got ${typeName(spec)}`);
   } else {
-    visitor.as_native(typeof spec === "function" ? (spec as Callback<OfNative>) : (n) => n.set(spec as Native));
+    visitor.as_scalar(typeof spec === "function" ? (spec as Callback<OfScalar>) : (n) => n.set(spec as Scalar));
   }
 }
 
@@ -990,7 +990,7 @@ const ENTRY_METHODS = new Set(["links", "link", "properties", "has", "property",
  * the object builder is finalized. DSL: `.<link>(object or Spec)` and `.<property>(value or Spec)`. */
 export class _EntryBuilder implements EntryVisitor {
   readonly linkValues = new Map<string, LinkValue>();
-  readonly values = new Map<string, Native>();
+  readonly values = new Map<string, Scalar>();
   /** The entry this one rewrites, when copied or loaded from one. */
   source: Entry | null = null;
   proxy!: _EntryBuilder;
@@ -1064,13 +1064,13 @@ export class _EntryBuilder implements EntryVisitor {
   /** Stages the value objects the entry holds for `target`, before any is placed (see `stage`). */
   stage(target: Visitable, mapping: Mapping): void {
     const kept = this.kept(target);
-    for (const [name, value] of [...this.values]) this.values.set(name, stage(kept.get(name), value, mapping) as Native);
+    for (const [name, value] of [...this.values]) this.values.set(name, stage(kept.get(name), value, mapping) as Scalar);
   }
 
   /** Places the staged value objects the entry holds as `target`'s. */
   place(target: Visitable, mapping: Mapping): void {
     const kept = this.kept(target);
-    for (const [name, value] of [...this.values]) this.values.set(name, finish(target, kept.get(name), value, mapping) as Native);
+    for (const [name, value] of [...this.values]) this.values.set(name, finish(target, kept.get(name), value, mapping) as Scalar);
   }
 
   /** The entry, linking `target`, holding its values as placed. */
@@ -1326,4 +1326,4 @@ export namespace OfEntry {
 
 /** Internal classes, exposed for protocol conformance tests. */
 export const _internals = { ObjectTarget, ObjectBuilderTarget, RecordBuilderTarget, _EntryBuilder, _AdjacencySlot, _LinkSlot,
-  _PropertySlot, _AnySlot, _NativeSlot };
+  _PropertySlot, _AnySlot, _ScalarSlot };

@@ -75,12 +75,12 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | Area | Python | TypeScript | Cases |
 |---|---|---|---|
 | int / float | `int` / `float` | `bigint` / `number` (keeps int and float distinct, unbounded ints) | SCH-03, JSN-05, JSN-07 |
-| Native host types | `str`, `int`, ... | `String`, `BigInt`, `Number`, `Boolean`, `Uint8Array` | SCH-01..05 |
+| Scalar host types | `str`, `int`, ... | `String`, `BigInt`, `Number`, `Boolean`, `Uint8Array` | SCH-01..05 |
 | Own token format | `python3` | `typescript5` | SCH-18 |
 | Plain mappings | `dict` | `Map<string, PlainData>` (keeps order for every key, incl. `"2"` and `"__proto__"`) | SCH-11, PLN-02 |
 | Schema equality | `==` on data | `.equals()` (no operator overloading) | SCH-01, SCH-15 |
 | Schemas by name (`Modules`) | `dict` | `Map` or record in, `Map` out | MOD-02, MOD-03 |
-| Subclasses of natives | `int` subclasses rejected | boxed primitives and `Buffer` rejected | SCH-03 |
+| Subclasses of scalars | `int` subclasses rejected | boxed primitives and `Buffer` rejected | SCH-03 |
 | Missing attribute | `AttributeError` for any name | `AttributeError`, except JavaScript protocol probes (`then`, `toJSON`, `constructor`, symbols) | PRX-02 |
 | Name collisions (F2) | `_values` shadowed by an internal | internals are private: not shadowed; declared names win over JavaScript's own members | PRX-04 |
 | Identity (F12) | `id(self)`, may be reused after collection | a counter, never reused | PRX-02 |
@@ -91,7 +91,7 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | Recursion | Python's recursion limit | no fixed limit; the traversal is iterative in both | RCH-07 |
 | YAML syntax errors | PyYAML's reason and position | the `yaml` package's reason and position; the framework's own profile matches exactly (YML-06) | YML-06b |
 | Reading JSON | `json` for valid input, the reference parser to report problems | the reference parser for all input | JSN-09 |
-| Byte-like subclasses | `bytearray` is not native (`got bytearray`) | `Buffer` is not native (`got Buffer`) | SCH-03, PRX-17 |
+| Byte-like subclasses | `bytearray` is not scalar (`got bytearray`) | `Buffer` is not scalar (`got Buffer`) | SCH-03, PRX-17 |
 | `Proxies.OfObject.Builder` | a class | a function returning the builder (`Proxies.OfObject.Data` is the class, so `instanceof` works) | PRX-16 |
 | Objects without a class | none | `Object.create(null)` is named `object` | TXT-03 |
 | Incomparable | `None` | `null` | CMP-01..13 |

@@ -30,7 +30,7 @@ import * as Reachable from "./Reachable.js";
 import { compareStrings, repr, sortedStrings, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type * as Stores from "./Stores.js";
-import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfNative, OfObject,
+import type { Callback, Scalar, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfScalar, OfObject,
   OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
 export type PlainData = null | boolean | bigint | number | string | PlainData[] | PlainMap;
@@ -42,7 +42,7 @@ export const ID = "$id";
 
 /** The Python class name of a schema's data (`_ObjectData`, ...), so messages match the Python implementation. */
 export function schemaTypeName(schema: unknown): string {
-  const kinds = [Schemas.OfNative.Data, Schemas.OfObject.Data, Schemas.OfRelation.Data, Schemas.OfAdjacency.Data,
+  const kinds = [Schemas.OfScalar.Data, Schemas.OfObject.Data, Schemas.OfRelation.Data, Schemas.OfAdjacency.Data,
     Schemas.OfUnion.Data, Schemas.OfIntersection.Data] as const;
   for (const kind of kinds) if (schema instanceof kind) return "_" + kind.name;
   return typeName(schema);
@@ -50,24 +50,24 @@ export function schemaTypeName(schema: unknown): string {
 
 // --- Writers: Visitors that write plain data ---
 
-/** `Visitors.OfNative` writing one key of a plain map. */
-export class _NativeWriter implements OfNative {
-  constructor(private readonly out: PlainMap, private readonly slotName: string, private readonly schema: Schemas.OfNative.Data) {}
+/** `Visitors.OfScalar` writing one key of a plain map. */
+export class _ScalarWriter implements OfScalar {
+  constructor(private readonly out: PlainMap, private readonly slotName: string, private readonly schema: Schemas.OfScalar.Data) {}
 
   has(): boolean {
     return this.out.has(this.slotName);
   }
 
-  get(): Native {
+  get(): Scalar {
     return this.schema.from_plain(this.out.get(this.slotName));
   }
 
-  set(value: Native): _NativeWriter {
+  set(value: Scalar): _ScalarWriter {
     this.out.set(this.slotName, this.schema.to_plain(value));
     return this;
   }
 
-  clear(): _NativeWriter {
+  clear(): _ScalarWriter {
     this.out.delete(this.slotName);
     return this;
   }
@@ -80,7 +80,7 @@ function unlinked(_value: Visitable): string | null {
   return null;
 }
 
-/** `Visitors.OfAny` writing one key of a plain map: a native, or a value object (an object's, a union value or an
+/** `Visitors.OfAny` writing one key of a plain map: a scalar, or a value object (an object's, a union value or an
  * intersection value), nested. `ref` writes references to linked objects, and `symbol` gives a value object's symbol
  * when something links to it. */
 export class _AnyWriter implements OfAny {
@@ -91,9 +91,9 @@ export class _AnyWriter implements OfAny {
     this.schema = Schemas.structure(schema) as Schemas.OfAny.Data;
   }
 
-  as_native(callback: Callback<OfNative>): _AnyWriter {
-    if (!(this.schema instanceof Schemas.OfNative.Data)) throw new TypeError(`property ${repr(this.slotName)} is not native`);
-    callback(new _NativeWriter(this.out, this.slotName, this.schema));
+  as_scalar(callback: Callback<OfScalar>): _AnyWriter {
+    if (!(this.schema instanceof Schemas.OfScalar.Data)) throw new TypeError(`property ${repr(this.slotName)} is not scalar`);
+    callback(new _ScalarWriter(this.out, this.slotName, this.schema));
     return this;
   }
 
@@ -474,11 +474,11 @@ function kindOf(schema: Schemas.OfAny.Data): ValueKind {
   return (Schemas.structure(schema) as Schemas.OfAny.Data).constructor as ValueKind;
 }
 
-/** The value `plain` holds under `schema`, located at the path `where`: a native or a `DecodedRecord`. */
+/** The value `plain` holds under `schema`, located at the path `where`: a scalar or a `DecodedRecord`. */
 function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where, context: Context | null = null,
   steps: Steps = []): unknown {
   const schema = Schemas.structure(type) as Schemas.OfAny.Data;
-  if (schema instanceof Schemas.OfNative.Data) {
+  if (schema instanceof Schemas.OfScalar.Data) {
     try {
       return schema.from_plain(plain);
     } catch (error) {
@@ -522,7 +522,7 @@ function decodedKey(value: unknown): string {
     return `record:${JSON.stringify(sortedStrings(value.values.keys()).map((name) => [name, decodedKey(value.values.get(name))]))}`
       + `:${JSON.stringify(rows)}`;
   }
-  return Proxies.nativeKey(value);
+  return Proxies.scalarKey(value);
 }
 
 function identify(symbol: unknown, context: Context, steps: Steps, where: Where): void {
@@ -540,9 +540,9 @@ function recordNames(schema: RecordSchema): [string, string, string] {
   return ["a value object", "the value object", "property"];
 }
 
-/** An entry property's value: a native or a value object, which has no symbol or adjacencies of its own. */
-function decodeEntryProperty(schema: Schemas.OfAny.Data, plain: unknown, where: Where): Native {
-  return decode(schema, plain, where) as Native;
+/** An entry property's value: a scalar or a value object, which has no symbol or adjacencies of its own. */
+function decodeEntryProperty(schema: Schemas.OfAny.Data, plain: unknown, where: Where): Scalar {
+  return decode(schema, plain, where) as Scalar;
 }
 
 /** The entries of one adjacency, at `where` + `key`. The value objects a one-link relation's entries hold, which are
@@ -857,7 +857,7 @@ function set(visitor: { property(name: string, callback: Callback<OfProperty>): 
   visitor.property(name, (p) => p.value((a) => write(a, value)));
 }
 
-/** Writes a decoded value: a native, a value object, union value or intersection value. */
+/** Writes a decoded value: a scalar, a value object, union value or intersection value. */
 function write(visitor: OfAny, value: unknown): void {
   if (value instanceof DecodedRecord && value.schema instanceof Schemas.OfUnion.Data) {
     visitor.as_union((u) => value.accept(u as unknown as OfObject));
@@ -866,7 +866,7 @@ function write(visitor: OfAny, value: unknown): void {
   } else if (value instanceof DecodedRecord) {
     visitor.as_object((o) => value.accept(o));
   } else {
-    visitor.as_native((n) => n.set(value as Native));
+    visitor.as_scalar((n) => n.set(value as Scalar));
   }
 }
 
@@ -883,13 +883,13 @@ function fill(visitor: OfEntry, row: Map<string, unknown>, resolve: (symbol: str
 
 // --- Entry points ---
 
-function toPlainOfNative(schema: Schemas.OfNative.Data, value: Native): PlainData {
+function toPlainOfScalar(schema: Schemas.OfScalar.Data, value: Scalar): PlainData {
   return schema.to_plain(value);
 }
 
 export interface ToPlainCall {
   (schema: unknown, value: unknown): PlainData;
-  OfNative(schema: Schemas.OfNative.Data, value: Native): PlainData;
+  OfScalar(schema: Schemas.OfScalar.Data, value: Scalar): PlainData;
   /** Snapshot of `value` alone; its references to other objects are left unresolved. */
   OfObject(schema: Schemas.OfObject.Data, value: Visitable): PlainMap;
   /** Snapshot of `value` and every object reachable from it through adjacencies (see `Reachable`). */
@@ -901,12 +901,12 @@ export interface ToPlainCall {
 export function ToPlain(store: Stores.Store): ToPlainCall {
   const OfObject = (schema: Schemas.OfObject.Data, value: Visitable): PlainMap => new Snapshot(store).run(schema, value, [value]);
   const call = (schema: unknown, value: unknown): PlainData => {
-    if (schema instanceof Schemas.OfNative.Data) return toPlainOfNative(schema, value as Native);
+    if (schema instanceof Schemas.OfScalar.Data) return toPlainOfScalar(schema, value as Scalar);
     if (schema instanceof Schemas.OfObject.Data) return OfObject(schema, value as Visitable);
     throw new NotImplementedError(`${schemaTypeName(schema)} is not supported by Plain yet`);
   };
   return Object.assign(call, {
-    OfNative: toPlainOfNative,
+    OfScalar: toPlainOfScalar,
     OfObject,
     Reachable: (schema: Schemas.OfObject.Data, value: Visitable): PlainMap => new Snapshot(store).run(schema, value, Reachable.of(value)),
   });
@@ -914,7 +914,7 @@ export function ToPlain(store: Stores.Store): ToPlainCall {
 
 export interface FromPlainCall {
   (schema: unknown, plain: unknown): unknown;
-  OfNative(schema: Schemas.OfNative.Data, plain: unknown): Native;
+  OfScalar(schema: Schemas.OfScalar.Data, plain: unknown): Scalar;
   OfObject(schema: Schemas.OfObject.Data, plain: unknown): unknown;
   Reachable(schema: Schemas.OfObject.Data, plain: unknown): unknown;
 }
@@ -922,7 +922,7 @@ export interface FromPlainCall {
 /** Deserializes plain data, building objects in `store`: `FromPlain(store)(schema, plain)` dispatches on the schema's
  * kind. */
 export function FromPlain(store: Stores.Store): FromPlainCall {
-  const OfNative = (schema: Schemas.OfNative.Data, plain: unknown): Native => {
+  const OfScalar = (schema: Schemas.OfScalar.Data, plain: unknown): Scalar => {
     try {
       return schema.from_plain(plain);
     } catch (error) {
@@ -931,11 +931,11 @@ export function FromPlain(store: Stores.Store): FromPlainCall {
   };
   const OfObject = (schema: Schemas.OfObject.Data, plain: unknown): unknown => restore(store, schema, plain);
   const call = (schema: unknown, plain: unknown): unknown => {
-    if (schema instanceof Schemas.OfNative.Data) return OfNative(schema, plain);
+    if (schema instanceof Schemas.OfScalar.Data) return OfScalar(schema, plain);
     if (schema instanceof Schemas.OfObject.Data) return OfObject(schema, plain);
     throw new NotImplementedError(`${schemaTypeName(schema)} is not supported by Plain yet`);
   };
-  return Object.assign(call, { OfNative, OfObject, Reachable: OfObject });
+  return Object.assign(call, { OfScalar, OfObject, Reachable: OfObject });
 }
 
 /** For `Bindings`: a value's decoded form from its plain form, writing a decoded value, and a symbol for none. */

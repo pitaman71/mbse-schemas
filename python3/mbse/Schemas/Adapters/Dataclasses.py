@@ -13,9 +13,9 @@ several at once, by name. Both directions go through `ast` trees and never throu
 
 Only types are translated, one flat class to one object schema:
 
-- Fields map to properties, in order, including inherited fields. Field types map to native schemas: `int`, `float`,
-  `str`, `bool` and `bytes`. A list of natives (`list[str]`) maps to an adjacency to a one-link relation of its own,
-  inline, whose entries hold a `value`, in order; a dict of natives by a native key (`dict[str, float]`) to one whose
+- Fields map to properties, in order, including inherited fields. Field types map to scalar schemas: `int`, `float`,
+  `str`, `bool` and `bytes`. A list of scalars (`list[str]`) maps to an adjacency to a one-link relation of its own,
+  inline, whose entries hold a `value`, in order; a dict of scalars by a scalar key (`dict[str, float]`) to one whose
   entries hold a `key` and a `value`, keyed by `key` (`unique("value")`). A list of lists is not translated: its inner
   lists would need a value object schema of their own.
 - A container of dataclasses maps to an adjacency. The field `addresses: set[Address]` of `Contact` becomes the
@@ -29,7 +29,7 @@ Only types are translated, one flat class to one object schema:
   which types may fill it.
 - Defaults and mandatoriness are not translated: `FromDataclass` ignores field defaults, and `ToDataclass` writes
   fields without defaults.
-- Anything else raises `TypeError`: other collections, sets of natives, lists of lists, a union in a dataclass field (it does
+- Anything else raises `TypeError`: other collections, sets of scalars, lists of lists, a union in a dataclass field (it does
   not name its branches), and nested dataclasses and other type definitions (value objects, and union and
   intersection values, in a schema), which are handled separately.
 """
@@ -50,7 +50,7 @@ from mbse.Schemas.Framework import Schemas
 
 __all__ = ["FromDataclass", "ToDataclass"]
 
-_NATIVES: dict[str, type] = {t.__name__: t for t in (int, float, str, bool, bytes)}
+_SCALARS: dict[str, type] = {t.__name__: t for t in (int, float, str, bool, bytes)}
 _CONTAINERS = {"list": "list", "List": "list", "set": "set", "Set": "set", "frozenset": "set", "FrozenSet": "set",
                "dict": "dict", "Dict": "dict"}
 _COLLECTIONS = frozenset({
@@ -59,7 +59,7 @@ _COLLECTIONS = frozenset({
 })
 _NOT_FIELDS = frozenset({"ClassVar", "InitVar"})
 _OWNER, _ITEM, _INDEX, _KEY, _VALUE = "owner", "item", "index", "key", "value"
-_RESERVED = frozenset({"dataclass", *_NATIVES, *_CONTAINERS})
+_RESERVED = frozenset({"dataclass", *_SCALARS, *_CONTAINERS})
 
 Model = dict[str, "Schemas.OfObject.Data | Schemas.OfRelation.Data"]
 
@@ -185,9 +185,9 @@ class _Reader:
     def _field(self, owner: str, field: str, node: ast.expr) -> None:
         if isinstance(node, ast.Subscript):
             outer = _name(node.value)
-            natives = _natives(field, node) if outer in _CONTAINERS else None
-            if natives is not None:
-                self._adjacency(owner, Schemas.OfAdjacency.Data(name=field, relation=natives, me=_OWNER))
+            scalars = _scalars(field, node) if outer in _CONTAINERS else None
+            if scalars is not None:
+                self._adjacency(owner, Schemas.OfAdjacency.Data(name=field, relation=scalars, me=_OWNER))
                 return
             if outer in _CONTAINERS:
                 self._container(owner, field, _CONTAINERS[outer], outer, node.slice)
@@ -201,8 +201,8 @@ class _Reader:
         if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
             raise TypeError(f"field {field!r}: a union needs a name per branch; unions are not translated")
         name = _name(node)
-        if name in _NATIVES:
-            self.objects[owner].properties[field] = Schemas.OfProperty.Data(field, Schemas.OfNative.Data(_NATIVES[name]))
+        if name in _SCALARS:
+            self.objects[owner].properties[field] = Schemas.OfProperty.Data(field, Schemas.OfScalar.Data(_SCALARS[name]))
         elif name in _COLLECTIONS:
             raise TypeError(f"field {field!r}: {name} needs a dataclass element type")
         elif name in self.trees:
@@ -210,19 +210,19 @@ class _Reader:
         elif name is None:
             raise TypeError(f"field {field!r}: the annotation is not a type")
         else:
-            raise TypeError(f"field {field!r}: {name} is neither a native type nor a dataclass being translated")
+            raise TypeError(f"field {field!r}: {name} is neither a scalar type nor a dataclass being translated")
 
     def _container(self, owner: str, field: str, shape: str, outer: str, node: ast.expr) -> None:
         properties: dict[str, Schemas.OfProperty.Data] = {}
         if shape == "dict":
             key, element = node.elts if isinstance(node, ast.Tuple) and len(node.elts) == 2 else (None, node)
-            if key is None or _name(key) not in _NATIVES:
-                raise TypeError(f"field {field!r}: {outer} needs a native key type and a dataclass value type")
-            properties[_KEY] = Schemas.OfProperty.Data(_KEY, Schemas.OfNative.Data(_NATIVES[_name(key)]))  # type: ignore[index]
+            if key is None or _name(key) not in _SCALARS:
+                raise TypeError(f"field {field!r}: {outer} needs a scalar key type and a dataclass value type")
+            properties[_KEY] = Schemas.OfProperty.Data(_KEY, Schemas.OfScalar.Data(_SCALARS[_name(key)]))  # type: ignore[index]
         else:
             element = node
         if shape == "list":
-            properties[_INDEX] = Schemas.OfProperty.Data(_INDEX, Schemas.OfNative.Data(int))
+            properties[_INDEX] = Schemas.OfProperty.Data(_INDEX, Schemas.OfScalar.Data(int))
         targets = [_name(n) for n in _alternatives(element)]
         for target in targets:
             if target not in self.trees:
@@ -246,23 +246,23 @@ class _Reader:
         adjacencies[adjacency.name] = adjacency
 
 
-def _native(node: ast.expr) -> Schemas.OfNative.Data | None:
+def _scalar(node: ast.expr) -> Schemas.OfScalar.Data | None:
     name = _name(node)
-    return Schemas.OfNative.Data(_NATIVES[name]) if name in _NATIVES else None
+    return Schemas.OfScalar.Data(_SCALARS[name]) if name in _SCALARS else None
 
 
-def _natives(field: str, node: ast.Subscript) -> Schemas.OfRelation.Data | None:
-    """The one-link relation a list of natives (`value`) or a dict of them by a native key (`key`, `value`) becomes;
+def _scalars(field: str, node: ast.Subscript) -> Schemas.OfRelation.Data | None:
+    """The one-link relation a list of scalars (`value`) or a dict of them by a scalar key (`key`, `value`) becomes;
     None for a container of anything else. A list of lists raises `TypeError`."""
     shape = _CONTAINERS[_name(node.value)]  # type: ignore[index]
     if shape == "list" and isinstance(node.slice, ast.Subscript) and _name(node.slice.value) in _CONTAINERS:
         raise TypeError(f"field {field!r}: a list of lists is not translated; an inner list needs a value object schema")
     pair = node.slice.elts if shape == "dict" and isinstance(node.slice, ast.Tuple) else []
-    if shape == "list" and _native(node.slice) is not None:
-        properties = {_VALUE: Schemas.OfProperty.Data(_VALUE, _native(node.slice))}
+    if shape == "list" and _scalar(node.slice) is not None:
+        properties = {_VALUE: Schemas.OfProperty.Data(_VALUE, _scalar(node.slice))}
         return Schemas.OfRelation.Data(links=(_OWNER,), properties=properties)
-    if len(pair) == 2 and _native(pair[0]) is not None and _native(pair[1]) is not None:
-        properties = {_KEY: Schemas.OfProperty.Data(_KEY, _native(pair[0])), _VALUE: Schemas.OfProperty.Data(_VALUE, _native(pair[1]))}
+    if len(pair) == 2 and _scalar(pair[0]) is not None and _scalar(pair[1]) is not None:
+        properties = {_KEY: Schemas.OfProperty.Data(_KEY, _scalar(pair[0])), _VALUE: Schemas.OfProperty.Data(_VALUE, _scalar(pair[1]))}
         return Schemas.OfRelation.Data(links=(_OWNER,), properties=properties, uniques=(frozenset({_VALUE}),))
     return None
 
@@ -325,7 +325,7 @@ FromDataclass = _FromDataclass()
 
 def _type_annotation(prop: str, schema: Any) -> ast.expr:
     """An expression tree for the type of a property's values."""
-    if isinstance(schema, Schemas.OfNative.Data):
+    if isinstance(schema, Schemas.OfScalar.Data):
         return _load(schema.host().__name__)
     noun = ("a union value" if isinstance(schema, Schemas.OfUnion.Data) else
             "an intersection value" if isinstance(schema, Schemas.OfIntersection.Data) else "a value object")
@@ -337,7 +337,7 @@ def _container_annotation(adjacency: Schemas.OfAdjacency.Data, objects: Mapping[
     """The container type an adjacency is viewed as, or None for an adjacency that only declares a link's types."""
     relation = adjacency.relation
     if relation is not None and len(relation.links) == 1:
-        return _natives_annotation(adjacency)
+        return _scalars_annotation(adjacency)
     if relation is None or len(relation.links) != 2:
         raise TypeError(f"adjacency {adjacency.name!r}: only a relation with one link or two has a container form")
     if adjacency.me != relation.links[0]:
@@ -353,8 +353,8 @@ def _container_annotation(adjacency: Schemas.OfAdjacency.Data, objects: Mapping[
         return ast.Subscript(value=_load("set"), slice=element, ctx=ast.Load())
     (key, key_property), *more = relation.properties.items()
     key_schema = key_property.type
-    if more or relation.uniques != (frozenset({other}),) or not isinstance(key_schema, Schemas.OfNative.Data):
-        raise TypeError(f"adjacency {adjacency.name!r}: only one native property and unique({other!r}) have a "
+    if more or relation.uniques != (frozenset({other}),) or not isinstance(key_schema, Schemas.OfScalar.Data):
+        raise TypeError(f"adjacency {adjacency.name!r}: only one scalar property and unique({other!r}) have a "
                         "container form")
     if key == _INDEX and key_schema.host() is int:
         return ast.Subscript(value=_load("list"), slice=element, ctx=ast.Load())
@@ -362,19 +362,19 @@ def _container_annotation(adjacency: Schemas.OfAdjacency.Data, objects: Mapping[
                          ctx=ast.Load()), ctx=ast.Load())
 
 
-def _natives_annotation(adjacency: Schemas.OfAdjacency.Data) -> ast.expr:
-    """`list[N]` for a one-link relation whose entries hold a native `value`, in order; `dict[K, N]` for one whose
-    entries hold a native `key` and `value`, keyed by `key`."""
+def _scalars_annotation(adjacency: Schemas.OfAdjacency.Data) -> ast.expr:
+    """`list[N]` for a one-link relation whose entries hold a scalar `value`, in order; `dict[K, N]` for one whose
+    entries hold a scalar `key` and `value`, keyed by `key`."""
     relation = adjacency.relation
     held = {name: prop.type for name, prop in relation.properties.items()}
-    if all(isinstance(t, Schemas.OfNative.Data) for t in held.values()):
+    if all(isinstance(t, Schemas.OfScalar.Data) for t in held.values()):
         if list(held) == [_VALUE] and not relation.uniques:
             return ast.Subscript(value=_load("list"), slice=_load(held[_VALUE].host().__name__), ctx=ast.Load())
         if list(held) == [_KEY, _VALUE] and relation.uniques == (frozenset({_VALUE}),):
             pair = ast.Tuple(elts=[_load(held[_KEY].host().__name__), _load(held[_VALUE].host().__name__)], ctx=ast.Load())
             return ast.Subscript(value=_load("dict"), slice=pair, ctx=ast.Load())
-    raise TypeError(f"adjacency {adjacency.name!r}: a one-link relation has a container form only as a list of a native "
-                    "value or a dict of one by a native key")
+    raise TypeError(f"adjacency {adjacency.name!r}: a one-link relation has a container form only as a list of a scalar "
+                    "value or a dict of one by a scalar key")
 
 
 class _ToDataclass:

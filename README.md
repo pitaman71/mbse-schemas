@@ -33,15 +33,15 @@ from `mbse.Schemas.Framework`, TypeScript from `@mbse/schemas/Framework`.
 ```python
 from mbse.Schemas.Framework import JSON, Proxies, Schemas, Validators
 
-Contact = Schemas.OfObject.Builder().name('Contact').ref().properties(lambda p: p.name('name').of(lambda t: t.as_native(str))).create()
-Address = Schemas.OfObject.Builder().name('Address').ref().properties(lambda p: p.name('street').of(lambda t: t.as_native(str))).create()
+Contact = Schemas.OfObject.Builder().name('Contact').ref().properties(lambda p: p.name('name').of(lambda t: t.as_scalar(str))).create()
+Address = Schemas.OfObject.Builder().name('Address').ref().properties(lambda p: p.name('street').of(lambda t: t.as_scalar(str))).create()
 
 # Collections are relations: entries link objects and carry their own properties.
 ContactAddresses = (
     Schemas.OfRelation.Builder()
     .name('ContactAddresses')
     .links('contact', 'address')
-    .properties(lambda p: p.name('label').of(lambda t: t.as_native(str)))
+    .properties(lambda p: p.name('label').of(lambda t: t.as_scalar(str)))
     .create()
 )
 Schemas.OfObject.Builder(Contact).relations(lambda adj: adj.name('addresses').of(ContactAddresses).me('contact')).update()

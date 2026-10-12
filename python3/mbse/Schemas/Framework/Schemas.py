@@ -29,11 +29,11 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar
 
 from .Errors import DecodeError
-from .Visitors import Native
+from .Visitors import Scalar
 
 __all__ = [
     "OfAny",
-    "OfNative",
+    "OfScalar",
     "OfProperty",
     "OfObject",
     "OfAdjacency",
@@ -49,7 +49,7 @@ __all__ = [
     "Module",
 ]
 
-NATIVE_TYPES: tuple[type[Native], ...] = (int, float, str, bool, bytes)
+SCALAR_TYPES: tuple[type[Scalar], ...] = (int, float, str, bool, bytes)
 
 D = TypeVar("D")
 
@@ -173,7 +173,7 @@ def _resolve(spec: Any, data: type, builder: Callable[[], Any]) -> Any:
     if isinstance(spec, data):
         return spec
     if isinstance(spec, type):
-        raise TypeError(f"a class is not a Spec here; for a native type use lambda t: t.as_native({spec.__name__})")
+        raise TypeError(f"a class is not a Spec here; for a scalar type use lambda t: t.as_scalar({spec.__name__})")
     if callable(spec):
         built = spec(builder())
         if built is None or not callable(getattr(built, "create", None)):
@@ -187,12 +187,12 @@ def _resolve(spec: Any, data: type, builder: Callable[[], Any]) -> Any:
 
 @dataclass(frozen=True)
 class _Form:
-    """A term's structure, in the neutral form mbse-expressions' terms give (`term.form()`): its `kind`, its native
+    """A term's structure, in the neutral form mbse-expressions' terms give (`term.form()`): its `kind`, its scalar
     `attributes` by name, its ordered `arguments`, each a form, and the `dialect` it is read in, given at its root.
     A form is itself a term, which a module writes and reads back without knowing its dialect."""
 
     kind: str = ""
-    attributes: Mapping[str, Native] = field(default_factory=dict)
+    attributes: Mapping[str, Scalar] = field(default_factory=dict)
     arguments: tuple[Any, ...] = ()
     dialect: str | None = None
 
@@ -217,8 +217,8 @@ class _Form:
         problems = [] if isinstance(self.kind, str) and self.kind else [f"a term needs a kind, got {self.kind!r}"]
         if self.dialect is not None and not isinstance(self.dialect, str):
             problems.append(f"a term's dialect is a name, got {self.dialect!r}")
-        problems += [f"attribute {name!r} is not a native value: {value!r}" for name, value in self.attributes.items()
-                     if type(value) not in NATIVE_TYPES]
+        problems += [f"attribute {name!r} is not a scalar value: {value!r}" for name, value in self.attributes.items()
+                     if type(value) not in SCALAR_TYPES]
         for i, argument in enumerate(self.arguments):
             problems += ([f"argument {i}: {p}" for p in argument.validate()] if isinstance(argument, _Form)
                          else [f"argument {i} is not a term: {argument!r}"])
@@ -282,7 +282,7 @@ def _parameter_problems(parameters: dict[str, _ParameterData]) -> list[str]:
     return problems
 
 
-# --- OfNative ---
+# --- OfScalar ---
 
 
 BASIC, PYTHON3 = "basic", "python3"
@@ -291,7 +291,7 @@ _BASIC_NAMES = {bool: "bool", int: "int", float: "float", str: "str", bytes: "by
 
 @dataclass(frozen=True)
 class _Token:
-    """A native type, named in a format: `basic`, the neutral vocabulary (`bool`, `int`, `float`, `str`, `bytes`), a
+    """A scalar type, named in a format: `basic`, the neutral vocabulary (`bool`, `int`, `float`, `str`, `bytes`), a
     language's (`python3`, `typescript5`, `ccpp`, ...), or any other."""
 
     format: str = BASIC
@@ -306,9 +306,9 @@ _HOSTS = {_Token(fmt, name): host for host, name in _BASIC_NAMES.items() for fmt
 
 
 @dataclass(init=False)
-class _NativeData(_Reflected):
-    """A native type: a token, and optionally a width in bits or in bytes, an int or a term. A host type given in place
-    of the token (`OfNative.Data(int)`) is shorthand for the `basic` token of the same name."""
+class _ScalarData(_Reflected):
+    """A scalar type: a token, and optionally a width in bits or in bytes, an int or a term. A host type given in place
+    of the token (`OfScalar.Data(int)`) is shorthand for the `basic` token of the same name."""
 
     token: Any
     bits: Any  # int, a term, or None
@@ -324,11 +324,11 @@ class _NativeData(_Reflected):
         self.parameters = {} if parameters is None else parameters
 
     @property
-    def type(self) -> type[Native] | None:
+    def type(self) -> type[Scalar] | None:
         """The host type the token maps to, or None when this implementation cannot read the token."""
         return _HOSTS.get(self.token) if isinstance(self.token, _Token) else None
 
-    def host(self) -> type[Native]:
+    def host(self) -> type[Scalar]:
         """The host type the token maps to; raises TypeError when this implementation cannot read the token."""
         if self.type is None:
             raise TypeError(f"{self.token} has no type in this implementation")
@@ -337,7 +337,7 @@ class _NativeData(_Reflected):
     def validate(self) -> list[str]:
         problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
         if not isinstance(self.token, _Token):
-            problems.append(f"unsupported native type {self.token!r}")
+            problems.append(f"unsupported scalar type {self.token!r}")
         elif not (isinstance(self.token.format, str) and self.token.format and isinstance(self.token.name, str)
                   and self.token.name):
             problems.append("a token needs a format and a name")
@@ -352,8 +352,8 @@ class _NativeData(_Reflected):
             problems.append("a width is in bits or in bytes, not both")
         return problems
 
-    def to_plain(self, value: Native) -> int | float | str | bool:
-        """Converts a native value to plain data that every text encoding can hold: `bytes` become base64 text, and
+    def to_plain(self, value: Scalar) -> int | float | str | bool:
+        """Converts a scalar value to plain data that every text encoding can hold: `bytes` become base64 text, and
         non-finite floats become the strings 'NaN', 'Infinity' and '-Infinity'."""
         host = self.host()
         if type(value) is not host:
@@ -364,14 +364,14 @@ class _NativeData(_Reflected):
             return "NaN" if math.isnan(value) else "Infinity" if value > 0 else "-Infinity"
         return value
 
-    def _host_for_decoding(self) -> type[Native]:
+    def _host_for_decoding(self) -> type[Scalar]:
         """The host type, or `Errors.DecodeError` when this implementation cannot read the token."""
         if self.type is None:
             raise DecodeError(f"{self.token} has no type in this implementation")
         return self.type
 
-    def from_plain(self, plain: object) -> Native:
-        """Converts plain data back to a native value. Distinct native types are never coerced into each other.
+    def from_plain(self, plain: object) -> Scalar:
+        """Converts plain data back to a scalar value. Distinct scalar types are never coerced into each other.
         Plain data that does not hold such a value, or a token this implementation cannot read, raises
         `Errors.DecodeError`."""
         host = self._host_for_decoding()
@@ -394,42 +394,42 @@ class _NativeData(_Reflected):
 _NON_FINITE = {"NaN": math.nan, "Infinity": math.inf, "-Infinity": -math.inf}
 
 
-class _NativeBuilder(_NamedBuilder[_NativeData]):
-    _data = _NativeData
+class _ScalarBuilder(_NamedBuilder[_ScalarData]):
+    _data = _ScalarData
 
-    def type(self, native: type[Native]) -> _NativeBuilder:
+    def type(self, scalar: type[Scalar]) -> _ScalarBuilder:
         """A host type: shorthand for the `basic` token of the same name."""
-        self._fields["token"] = _NativeData(native).token
+        self._fields["token"] = _ScalarData(scalar).token
         return self
 
-    def token(self, format: str, name: str) -> _NativeBuilder:
+    def token(self, format: str, name: str) -> _ScalarBuilder:
         """A token in any format, e.g. `.token('ccpp', 'int32_t')`."""
         self._fields["token"] = _Token(format, name)
         return self
 
-    def bits(self, width: Any) -> _NativeBuilder:
+    def bits(self, width: Any) -> _ScalarBuilder:
         """A width in bits: an int, or a term."""
         self._fields["bits"] = width
         return self
 
-    def bytes(self, width: Any) -> _NativeBuilder:
+    def bytes(self, width: Any) -> _ScalarBuilder:
         self._fields["bytes"] = width
         return self
 
 
-class OfNative:
-    """A native value. Conversion to and from the wire format is the responsibility of this element."""
+class OfScalar:
+    """A scalar value. Conversion to and from the wire format is the responsibility of this element."""
 
-    Data = _NativeData
-    Builder = _NativeBuilder
+    Data = _ScalarData
+    Builder = _ScalarBuilder
     Token = _Token
-    Spec = type | Callable[[_NativeBuilder], _NativeBuilder]
+    Spec = type | Callable[[_ScalarBuilder], _ScalarBuilder]
 
     @staticmethod
-    def resolve(spec: OfNative.Spec) -> _NativeData:
+    def resolve(spec: OfScalar.Spec) -> _ScalarData:
         if isinstance(spec, type):
-            return _NativeData(spec)
-        return _resolve(spec, _NativeData, _NativeBuilder)
+            return _ScalarData(spec)
+        return _resolve(spec, _ScalarData, _ScalarBuilder)
 
 
 # --- OfProperty: a named property of an object or relation ---
@@ -736,10 +736,10 @@ def _member_problems(a_kind: str, member: str, plural: str, members: tuple[_Memb
 
 
 def _runtime(schema: Any) -> Any:
-    """What tells a value of `schema` apart at run time: a native's host type, or any other schema itself."""
+    """What tells a value of `schema` apart at run time: a scalar's host type, or any other schema itself."""
     schema = _structure(schema)
-    if isinstance(schema, _NativeData):
-        return ("native", schema.type if schema.type is not None else schema.token)
+    if isinstance(schema, _ScalarData):
+        return ("scalar", schema.type if schema.type is not None else schema.token)
     return ("schema", id(schema))
 
 
@@ -871,7 +871,7 @@ class OfIntersection:
 @dataclass(eq=False)
 class _ApplyData(_Reflected):
     """A parametric schema applied to arguments: a type whose values are the applied schema's (`of`), with arguments
-    for its parameters by name, each a native value or a term. Parameters given no argument stay unbound."""
+    for its parameters by name, each a scalar value or a term. Parameters given no argument stay unbound."""
 
     of: Any = None  # OfAny.Data
     arguments: dict[str, Any] = field(default_factory=dict)
@@ -895,12 +895,12 @@ class _ApplyData(_Reflected):
 
 
 def _argument_problems(parameter: _ParameterData, value: Any) -> list[str]:
-    """An argument is a term, or a native value, of the parameter's type where that is a native type."""
+    """An argument is a term, or a scalar value, of the parameter's type where that is a scalar type."""
     if _is_term(value):
         return _term_problems(value, "a term")
-    if type(value) not in NATIVE_TYPES:
-        return [f"an argument is a native value or a term, got {value!r}"]
-    host = parameter.type.type if isinstance(parameter.type, _NativeData) else None
+    if type(value) not in SCALAR_TYPES:
+        return [f"an argument is a scalar value or a term, got {value!r}"]
+    host = parameter.type.type if isinstance(parameter.type, _ScalarData) else None
     return [f"expected {host.__name__}, got {type(value).__name__}"] if host is not None and type(value) is not host else []
 
 
@@ -944,7 +944,7 @@ def _applied(schema: Any, evaluate: Evaluate | None) -> tuple[Any, dict[str, Any
 
 
 def _evaluated(value: Any, scope: Mapping[str, Any], evaluate: Evaluate | None) -> Any:
-    """An argument's value: a native as it is, a term's as `evaluate` gives it, or `_UNKNOWN`."""
+    """An argument's value: a scalar as it is, a term's as `evaluate` gives it, or `_UNKNOWN`."""
     if not _is_term(value):
         return value
     result = None if evaluate is None else evaluate(value, scope)
@@ -952,7 +952,7 @@ def _evaluated(value: Any, scope: Mapping[str, Any], evaluate: Evaluate | None) 
 
 
 def equivalent(a: Any, b: Any, evaluate: Evaluate | None = None) -> bool | None:
-    """Whether two types are the same after substitution: they apply the same schema (natives by value, other schemas
+    """Whether two types are the same after substitution: they apply the same schema (scalars by value, other schemas
     by identity), and give its parameters the same values, a parameter unbound in both alike. `Square(4)` and
     `Matrix(4, 4)` are, where `Square[n]` applies `Matrix(n, n)`. None when that depends on a value that is unknown:
     a term with no evaluator, or one `evaluate` cannot evaluate."""
@@ -974,7 +974,7 @@ class _ApplyBuilder(_NamedBuilder[_ApplyData]):
         return self
 
     def argument(self, name: str, value: Any) -> _ApplyBuilder:
-        """The argument for the parameter `name`: a native value or a term."""
+        """The argument for the parameter `name`: a scalar value or a term."""
         self._fields.setdefault("arguments", {})[name] = value
         return self
 
@@ -999,7 +999,7 @@ class OfApply:
 
 # --- OfAny ---
 
-_KINDS = (_NativeData, _ObjectData, _UnionData, _IntersectionData, _ApplyData)
+_KINDS = (_ScalarData, _ObjectData, _UnionData, _IntersectionData, _ApplyData)
 
 
 def _validate(schema: Any) -> list[str]:
@@ -1035,8 +1035,8 @@ class _AnyBuilder:
         self._source = instance
         self._selected: OfAny.Data | None = None
 
-    def as_native(self, spec: OfNative.Spec) -> _AnyBuilder:
-        self._selected = OfNative.resolve(spec)
+    def as_scalar(self, spec: OfScalar.Spec) -> _AnyBuilder:
+        self._selected = OfScalar.resolve(spec)
         return self
 
     def as_object(self, spec: OfObject.Spec) -> _AnyBuilder:
@@ -1084,7 +1084,7 @@ class _AnyBuilder:
 class OfAny:
     """Where a schema of any kind is expected. `OfAny.Data` is any schema kind's data."""
 
-    Data = _NativeData | _ObjectData | _UnionData | _IntersectionData | _ApplyData
+    Data = _ScalarData | _ObjectData | _UnionData | _IntersectionData | _ApplyData
     Builder = _AnyBuilder
     Spec = Data | Callable[[_AnyBuilder], _AnyBuilder]
 
@@ -1099,7 +1099,7 @@ class OfAny:
 
 
 def _named_text(name: str) -> OfProperty.Spec:
-    return lambda p: p.name(name).of(lambda t: t.as_native(str))
+    return lambda p: p.name(name).of(lambda t: t.as_scalar(str))
 
 
 def _listing(adjacency: str, fields: dict[str, Any], keyed: bool = False) -> Callable[[Any], Any]:
@@ -1115,11 +1115,11 @@ def _listing(adjacency: str, fields: dict[str, Any], keyed: bool = False) -> Cal
 
 
 def _Text(t: _AnyBuilder) -> _AnyBuilder:
-    return t.as_native(str)
+    return t.as_scalar(str)
 
 
 def _int(t: _AnyBuilder) -> _AnyBuilder:
-    return t.as_native(int)
+    return t.as_scalar(int)
 
 
 _Named = OfObject.Builder().properties(_named_text("name")).create()
@@ -1128,14 +1128,14 @@ _PropertySchema = OfObject.Builder().properties(_named_text("name"), lambda p: p
                                                 _named_text("description")).create()
 _MEMBER = {name: prop.type for name, prop in _PropertySchema.properties.items()}  # a member's entry holds a property's
 _Parameters = _listing("parameters", _MEMBER)
-_NativeValue = OfUnion.Builder().branches(
-    *[lambda b, n=n, t=t: b.name(n).of(lambda x: x.as_native(t)) for t, n in _BASIC_NAMES.items()]).create()
+_ScalarValue = OfUnion.Builder().branches(
+    *[lambda b, n=n, t=t: b.name(n).of(lambda x: x.as_scalar(t)) for t, n in _BASIC_NAMES.items()]).create()
 _FormSchema = OfObject.Builder().properties(_named_text("dialect"), _named_text("kind")).relations(
-    _listing("attributes", {"name": _Text, "value": _NativeValue})).create()
+    _listing("attributes", {"name": _Text, "value": _ScalarValue})).create()
 OfObject.Builder(_FormSchema).relations(_listing("arguments", {"term": _FormSchema})).update()
 _WidthTerms = OfObject.Builder().properties(lambda p: p.name("bits").of(_FormSchema),
                                             lambda p: p.name("bytes").of(_FormSchema)).create()
-_NativeSchema = OfObject.Builder().name("Schemas.Native").properties(
+_ScalarSchema = OfObject.Builder().name("Schemas.Scalar").properties(
     _named_text("name"), _named_text("format"), _named_text("token"), lambda p: p.name("bits").of(_int),
     lambda p: p.name("bytes").of(_int), lambda p: p.name("terms").of(_WidthTerms), _named_text("description")).relations(
     _Parameters).create()
@@ -1150,28 +1150,28 @@ _AdjacencySchema = OfObject.Builder().properties(
     _named_text("name"), lambda p: p.name("relation").of(_RelationRef), _named_text("me"),
     _named_text("description")).create()
 _ObjectSchema = OfObject.Builder().name("Schemas.Object").properties(
-    _named_text("name"), _named_text("singleton"), lambda p: p.name("ref").of(lambda t: t.as_native(bool)),
+    _named_text("name"), _named_text("singleton"), lambda p: p.name("ref").of(lambda t: t.as_scalar(bool)),
     _named_text("description")).relations(
     _Parameters, _listing("properties", _MEMBER),
     _listing("adjacencies", {name: prop.type for name, prop in _AdjacencySchema.properties.items()})).create()
-_Flat: OfProperty.Spec = lambda p: p.name("flat").of(lambda t: t.as_native(bool))  # noqa: E731
+_Flat: OfProperty.Spec = lambda p: p.name("flat").of(lambda t: t.as_scalar(bool))  # noqa: E731
 _UnionSchema = OfObject.Builder().name("Schemas.Union").properties(
     _named_text("name"), _Flat, _named_text("description")).relations(_Parameters, _listing("branches", _MEMBER)).create()
 _IntersectionSchema = OfObject.Builder().name("Schemas.Intersection").properties(
     _named_text("name"), _Flat, _named_text("description")).relations(_Parameters, _listing("parts", _MEMBER)).create()
-_ArgumentSchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("value").of(_NativeValue),
+_ArgumentSchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("value").of(_ScalarValue),
                                                 lambda p: p.name("term").of(_FormSchema)).create()
 _ApplySchema = OfObject.Builder().name("Schemas.Apply").properties(
     _named_text("name"), lambda p: p.name("of").of(_AnySchema), _named_text("description")).relations(
     _Parameters, _listing("arguments", {name: prop.type for name, prop in _ArgumentSchema.properties.items()})).create()
-_KIND_SCHEMAS = (("native", _NativeSchema), ("object", _ObjectSchema), ("union", _UnionSchema),
+_KIND_SCHEMAS = (("scalar", _ScalarSchema), ("object", _ObjectSchema), ("union", _UnionSchema),
                  ("intersection", _IntersectionSchema), ("apply", _ApplySchema))
 OfUnion.Builder(_AnySchema).branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
                                      lambda b: b.name("named").of(_Named)).update()
 _Definition = OfUnion.Builder().branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
                                          lambda b: b.name("relation").of(_RelationSchema)).create()
 
-OfNative.Schema = _NativeSchema  # type: ignore[attr-defined]
+OfScalar.Schema = _ScalarSchema  # type: ignore[attr-defined]
 OfProperty.Schema = _PropertySchema  # type: ignore[attr-defined]
 OfAdjacency.Schema = _AdjacencySchema  # type: ignore[attr-defined]
 OfParameter.Schema = _PropertySchema  # type: ignore[attr-defined]
@@ -1183,11 +1183,11 @@ OfIntersection.Schema = _IntersectionSchema  # type: ignore[attr-defined]
 OfApply.Schema = _ApplySchema  # type: ignore[attr-defined]
 OfApply.Argument = _ArgumentSchema  # type: ignore[attr-defined]
 Form.Schema = _FormSchema  # type: ignore[attr-defined]
-Form.Value = _NativeValue  # type: ignore[attr-defined]
+Form.Value = _ScalarValue  # type: ignore[attr-defined]
 OfAny.Schema = _AnySchema  # type: ignore[attr-defined]
 OfAny.Named = _Named  # type: ignore[attr-defined]
 _KIND_NAMES: dict[type, str] = {
-    _NativeData: _NativeSchema.name, _ObjectData: _ObjectSchema.name, _UnionData: _UnionSchema.name,
+    _ScalarData: _ScalarSchema.name, _ObjectData: _ObjectSchema.name, _UnionData: _UnionSchema.name,
     _IntersectionData: _IntersectionSchema.name, _ApplyData: _ApplySchema.name,
     _RelationData: _RelationSchema.name}
 

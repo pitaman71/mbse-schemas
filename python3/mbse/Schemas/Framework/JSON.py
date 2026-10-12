@@ -1,10 +1,10 @@
 """JSON: a thin text encoding of `Plain` data.
 
 `ToJSON(store)(schema, value)` returns JSON text, naming the schemas of objects in `store`, and
-`FromJSON(store)(schema, text)` rebuilds values in `store`. Both mirror `Plain`: calling them dispatches on the schema's kind, and `.OfNative`,
+`FromJSON(store)(schema, text)` rebuilds values in `store`. Both mirror `Plain`: calling them dispatches on the schema's kind, and `.OfScalar`,
 `.OfObject` and `.Reachable` are the specific forms.
 
-The encoding is strict JSON (RFC 8259). Output never contains NaN or Infinity, because `Schemas.OfNative` gives
+The encoding is strict JSON (RFC 8259). Output never contains NaN or Infinity, because `Schemas.OfScalar` gives
 non-finite floats a plain form. Input with NaN / Infinity literals or duplicate object keys is rejected.
 
 Input problems raise `Errors.DecodeError` with a line and column. `json` reads valid input quickly; when it fails,
@@ -239,8 +239,8 @@ class ToJSON:
     def __call__(self, schema: Schemas.OfAny.Data, value: Any, *, indent: int | None = None) -> str:
         return dumps(self._plain(schema, value), indent=indent)
 
-    def OfNative(self, schema: Schemas.OfNative.Data, value: Any, *, indent: int | None = None) -> str:
-        return dumps(self._plain.OfNative(schema, value), indent=indent)
+    def OfScalar(self, schema: Schemas.OfScalar.Data, value: Any, *, indent: int | None = None) -> str:
+        return dumps(self._plain.OfScalar(schema, value), indent=indent)
 
     def OfObject(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable, *, indent: int | None = None) -> str:
         return dumps(self._plain.OfObject(schema, value), indent=indent)
@@ -258,8 +258,8 @@ class FromJSON:
     def __call__(self, schema: Schemas.OfAny.Data, text: str | bytes) -> Any:
         return self._plain(schema, loads(text))
 
-    def OfNative(self, schema: Schemas.OfNative.Data, text: str | bytes) -> Any:
-        return self._plain.OfNative(schema, loads(text))
+    def OfScalar(self, schema: Schemas.OfScalar.Data, text: str | bytes) -> Any:
+        return self._plain.OfScalar(schema, loads(text))
 
     def OfObject(self, schema: Schemas.OfObject.Data, text: str | bytes) -> Any:
         return self._plain.OfObject(schema, loads(text))

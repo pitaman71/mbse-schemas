@@ -23,7 +23,7 @@ import type { PlainData, PlainMap } from "./Plain.js";
 import { pyFloat, repr, typeName } from "./Repr.js";
 import type * as Schemas from "./Schemas.js";
 import type * as Stores from "./Stores.js";
-import type { Native, Visitable } from "./Visitors.js";
+import type { Scalar, Visitable } from "./Visitors.js";
 
 // --- Dumping ---
 
@@ -282,7 +282,7 @@ export function loads(input: string | Uint8Array): PlainData {
 
 export interface ToYAMLCall {
   (schema: unknown, value: unknown): string;
-  OfNative(schema: Schemas.OfNative.Data, value: Native): string;
+  OfScalar(schema: Schemas.OfScalar.Data, value: Scalar): string;
   OfObject(schema: Schemas.OfObject.Data, value: Visitable): string;
   Reachable(schema: Schemas.OfObject.Data, value: Visitable): string;
 }
@@ -293,7 +293,7 @@ export function ToYAML(store: Stores.Store): ToYAMLCall {
   const plain = Plain.ToPlain(store);
   const call = (schema: unknown, value: unknown): string => dumps(plain(schema, value));
   return Object.assign(call, {
-    OfNative: (schema: Schemas.OfNative.Data, value: Native) => dumps(plain.OfNative(schema, value)),
+    OfScalar: (schema: Schemas.OfScalar.Data, value: Scalar) => dumps(plain.OfScalar(schema, value)),
     OfObject: (schema: Schemas.OfObject.Data, value: Visitable) => dumps(plain.OfObject(schema, value)),
     Reachable: (schema: Schemas.OfObject.Data, value: Visitable) => dumps(plain.Reachable(schema, value)),
   });
@@ -301,7 +301,7 @@ export function ToYAML(store: Stores.Store): ToYAMLCall {
 
 export interface FromYAMLCall {
   (schema: unknown, text: string | Uint8Array): unknown;
-  OfNative(schema: Schemas.OfNative.Data, text: string | Uint8Array): Native;
+  OfScalar(schema: Schemas.OfScalar.Data, text: string | Uint8Array): Scalar;
   OfObject(schema: Schemas.OfObject.Data, text: string | Uint8Array): unknown;
   Reachable(schema: Schemas.OfObject.Data, text: string | Uint8Array): unknown;
 }
@@ -311,7 +311,7 @@ export function FromYAML(store: Stores.Store): FromYAMLCall {
   const plain = Plain.FromPlain(store);
   const call = (schema: unknown, text: string | Uint8Array): unknown => plain(schema, loads(text));
   return Object.assign(call, {
-    OfNative: (schema: Schemas.OfNative.Data, text: string | Uint8Array) => plain.OfNative(schema, loads(text)),
+    OfScalar: (schema: Schemas.OfScalar.Data, text: string | Uint8Array) => plain.OfScalar(schema, loads(text)),
     OfObject: (schema: Schemas.OfObject.Data, text: string | Uint8Array) => plain.OfObject(schema, loads(text)),
     Reachable: (schema: Schemas.OfObject.Data, text: string | Uint8Array) => plain.Reachable(schema, loads(text)),
   });

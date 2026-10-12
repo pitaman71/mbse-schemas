@@ -19,7 +19,7 @@ def entries(obj, adjacency):
         row = {}
         entry.links(lambda link: link.target(lambda target: row.__setitem__(link.name(), target)))
         entry.properties(
-            lambda prop: prop.value(lambda v: v.as_native(lambda n: row.__setitem__(prop.name(), n.get())))
+            lambda prop: prop.value(lambda v: v.as_scalar(lambda n: row.__setitem__(prop.name(), n.get())))
         )
         rows.append(row)
 
@@ -38,7 +38,7 @@ def remove_entries(obj, adjacency, where):
             row = {}
             entry.links(lambda link: link.target(lambda target: row.__setitem__(link.name(), target)))
             entry.properties(
-                lambda prop: prop.value(lambda v: v.as_native(lambda n: row.__setitem__(prop.name(), n.get())))
+                lambda prop: prop.value(lambda v: v.as_scalar(lambda n: row.__setitem__(prop.name(), n.get())))
             )
             if where(row):
                 doomed.append(entry)

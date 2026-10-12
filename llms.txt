@@ -2,7 +2,7 @@
 
 > Neutral, language-independent schemas for interfaces and data models: objects, relations whose entries carry properties, unions and intersections. One schema value drives in-memory objects, JSON and YAML, validation and comparison, with equivalent Python (`mbse.Schemas.Framework`) and TypeScript (`@mbse/schemas/Framework`) implementations that write byte-identical JSON. Aimed at model-based systems engineering (MBSE) and any interface several programs or languages must agree on.
 
-Every collection is a relation (there are no list-valued properties), nothing is mandatory, validation runs only when asked, and native types are never coerced.
+Every collection is a relation (there are no list-valued properties), nothing is mandatory, validation runs only when asked, and scalar types are never coerced.
 
 ## Why
 

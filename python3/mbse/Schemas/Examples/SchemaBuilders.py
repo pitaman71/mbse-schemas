@@ -7,16 +7,16 @@ from mbse.Schemas.Examples._support import raises
 
 # --- Spec forms ---
 
-# A native Spec is a type directly, or a callable that takes and returns an OfNative.Builder.
-direct = Schemas.OfAny.Builder().as_native(str).create()
-configured = Schemas.OfAny.Builder().as_native(lambda n: n.type(str)).create()
-assert direct == configured == Schemas.OfNative.Data(str)
+# A scalar Spec is a type directly, or a callable that takes and returns an OfScalar.Builder.
+direct = Schemas.OfAny.Builder().as_scalar(str).create()
+configured = Schemas.OfAny.Builder().as_scalar(lambda n: n.type(str)).create()
+assert direct == configured == Schemas.OfScalar.Data(str)
 
 # Finalizing an OfAny builder yields the selected kind's data, not a wrapper.
-assert type(direct) is Schemas.OfNative.Data
+assert type(direct) is Schemas.OfScalar.Data
 
 # An OfAny Spec may also be existing schema data, reused as is (not copied).
-Text = Schemas.OfNative.Data(str)
+Text = Schemas.OfScalar.Data(str)
 Named = (
     Schemas.OfObject.Builder()
     .properties(
@@ -69,10 +69,10 @@ assert list(first.properties) == ['a'] and list(second.properties) == ['a', 'b']
 # Redefining a property replaces it.
 Retyped = (
     Schemas.OfObject.Builder(first)
-    .properties(lambda prop: prop.name('a').of(lambda t: t.as_native(int)))
+    .properties(lambda prop: prop.name('a').of(lambda t: t.as_scalar(int)))
     .clone()
 )
-assert Retyped.properties['a'].type == Schemas.OfNative.Data(int) and first.properties['a'].type is Text
+assert Retyped.properties['a'].type == Schemas.OfScalar.Data(int) and first.properties['a'].type is Text
 
 # --- Relations and cardinality ---
 
@@ -80,7 +80,7 @@ assert Retyped.properties['a'].type == Schemas.OfNative.Data(int) and first.prop
 Product = Schemas.OfObject.Builder().properties(lambda prop: prop.name('sku').of(Text)).create()
 Money = (
     Schemas.OfObject.Builder()
-    .properties(lambda prop: prop.name('minor_units').of(lambda t: t.as_native(int)))  # e.g. cents
+    .properties(lambda prop: prop.name('minor_units').of(lambda t: t.as_scalar(int)))  # e.g. cents
     .create()
 )
 Prices = (
@@ -145,8 +145,8 @@ NameClash = (
 assert any('both property and adjacency' in p for p in NameClash.validate())
 
 for unsupported in (complex, list, bytearray):
-    assert Schemas.OfNative.Data(unsupported).validate()  # type: ignore  # deliberate misuse
-    bad = Schemas.OfObject.Builder().properties(lambda prop: prop.name('x').of(lambda t: t.as_native(unsupported))).create()
+    assert Schemas.OfScalar.Data(unsupported).validate()  # type: ignore  # deliberate misuse
+    bad = Schemas.OfObject.Builder().properties(lambda prop: prop.name('x').of(lambda t: t.as_scalar(unsupported))).create()
     assert bad.validate(), unsupported
 
 # --- Singletons ---
@@ -188,7 +188,7 @@ assert any('at least two' in p for p in SingleBranch.validate())
 # Intersections combine same-kind schemas as named parts. Each part keeps its own properties, so two parts may
 # declare the same property, even with different types.
 Timestamped = Schemas.OfObject.Builder().properties(lambda prop: prop.name('updated').of(Text)).create()
-EpochStamped = Schemas.OfObject.Builder().properties(lambda prop: prop.name('updated').of(lambda t: t.as_native(int))).create()
+EpochStamped = Schemas.OfObject.Builder().properties(lambda prop: prop.name('updated').of(lambda t: t.as_scalar(int))).create()
 Stamps = (
     Schemas.OfIntersection.Builder()
     .parts(lambda p: p.name('text').of(Timestamped), lambda p: p.name('epoch').of(EpochStamped))

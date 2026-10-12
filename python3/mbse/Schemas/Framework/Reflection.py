@@ -1,7 +1,7 @@
 """Reflection: schemas as the objects predicates match.
 
 A schema is an object of its kind's meta-schema, the schema of its module form (`Schemas.OfObject.Schema`, named
-'Schemas.Object', and the like for natives, unions, intersections, applications and relations): it is a reference
+'Schemas.Object', and the like for scalars, unions, intersections, applications and relations): it is a reference
 object identified by itself, and writes itself through `accept` as a module writes it, with its name (which a module
 gives its entry), its properties, branches, parts and parameters as the entries of its adjacencies, and a named schema
 it refers to by name (`{"named": {"name": ...}}`). Predicates (mbse-patterns) read it with `get` and quantify over its
@@ -24,7 +24,7 @@ from . import Modules, Plain, Schemas, Stores, Validators
 __all__ = ["META", "of", "OfStore"]
 
 META: tuple[Schemas.OfObject.Data, ...] = (
-    Schemas.OfNative.Schema, Schemas.OfObject.Schema, Schemas.OfUnion.Schema,  # type: ignore[attr-defined]
+    Schemas.OfScalar.Schema, Schemas.OfObject.Schema, Schemas.OfUnion.Schema,  # type: ignore[attr-defined]
     Schemas.OfIntersection.Schema, Schemas.OfApply.Schema,  # type: ignore[attr-defined]
     Schemas.OfRelation.Schema)  # type: ignore[attr-defined]
 """The meta-schemas of the kinds of named schemas."""

@@ -22,20 +22,20 @@ def raises(*errors: type[BaseException], match: str | None = None) -> Iterator[N
     raise AssertionError(f"expected one of {[e.__name__ for e in errors]}")
 
 
-def text(name: str, native: type = str):
-    """Property Spec for a native-typed property."""
-    return lambda prop: prop.name(name).of(lambda t: t.as_native(native))
+def text(name: str, scalar: type = str):
+    """Property Spec for a scalar-typed property."""
+    return lambda prop: prop.name(name).of(lambda t: t.as_scalar(scalar))
 
 
 def set_property(visitor: Any, name: str, value: Any) -> None:
-    """Writes a native property through the visitor protocols (works for property names the DSL cannot reach)."""
-    visitor.property(name, lambda p: p.value(lambda a: a.as_native(lambda n: n.set(value))))
+    """Writes a scalar property through the visitor protocols (works for property names the DSL cannot reach)."""
+    visitor.property(name, lambda p: p.value(lambda a: a.as_scalar(lambda n: n.set(value))))
 
 
 def get_property(visitor: Any, name: str) -> Any:
-    """Reads a native property through the visitor protocols."""
+    """Reads a scalar property through the visitor protocols."""
     found: list[Any] = []
-    visitor.property(name, lambda p: p.value(lambda a: a.as_native(lambda n: found.append(n.get()))))
+    visitor.property(name, lambda p: p.value(lambda a: a.as_scalar(lambda n: found.append(n.get()))))
     return found[0]
 
 
@@ -104,8 +104,8 @@ def same_graph(a: dict, b: dict) -> bool:
 class Fake:
     """A minimal hand-written `Visitors.Visitable`, independent of Proxies.
 
-    `values` maps property names to native values. `adjacencies` maps adjacency names to lists of entries; an entry
-    maps link names to `Fake` objects and property names to native values. Nothing is checked against a schema, so
+    `values` maps property names to scalar values. `adjacencies` maps adjacency names to lists of entries; an entry
+    maps link names to `Fake` objects and property names to scalar values. Nothing is checked against a schema, so
     fakes can express data that proxies would never produce.
     """
 

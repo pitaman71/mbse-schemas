@@ -16,16 +16,16 @@ const store = new Proxies.OfStore();
 
 let Person = new Schemas.OfObject.Builder().name("Person").ref()
   .properties(
-    (prop) => prop.name("given_name").of((t) => t.as_native(String)),
-    (prop) => prop.name("family_name").of((t) => t.as_native(String)),
-    (prop) => prop.name("birth_date").of((t) => t.as_native(String)), // ISO 8601 calendar date
+    (prop) => prop.name("given_name").of((t) => t.as_scalar(String)),
+    (prop) => prop.name("family_name").of((t) => t.as_scalar(String)),
+    (prop) => prop.name("birth_date").of((t) => t.as_scalar(String)), // ISO 8601 calendar date
   )
   .create();
 
 // Both links of these relations are filled by Person objects.
 const Parentage = new Schemas.OfRelation.Builder().name("Parentage")
   .links("parent", "child")
-  .properties((prop) => prop.name("kind").of((t) => t.as_native(String))) // 'biological', 'adoptive'
+  .properties((prop) => prop.name("kind").of((t) => t.as_scalar(String))) // 'biological', 'adoptive'
   .unique() // a set of entries, with no other constraint: an entry equal to one held is that one
   .create();
 
@@ -98,7 +98,7 @@ assert(entries(Person, bob, "parents").length === 3 && !(entries(Person, bob, "p
 
 function kind_of(entry: OfEntry): unknown {
   const found: unknown[] = [];
-  if (entry.has("kind")) entry.property("kind", (p) => p.value((v) => v.as_native((n) => found.push(n.get()))));
+  if (entry.has("kind")) entry.property("kind", (p) => p.value((v) => v.as_scalar((n) => found.push(n.get()))));
   return found.length > 0 ? found[0] : null;
 }
 

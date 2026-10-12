@@ -7,7 +7,7 @@
  * callable that takes and returns the corresponding builder.
  *
  * `validate()` on each `Data` returns a list of problems and runs only when the caller asks. `equals()` stands in for
- * Python's `==`: by value for `OfNative.Data`, by identity for the other kinds.
+ * Python's `==`: by value for `OfScalar.Data`, by identity for the other kinds.
  *
  * Every kind of schema may have a `name`, set by its builder's `.name("crm.Contact")`: identifiers separated by dots,
  * the part before the last dot its namespace. A named schema is referred to by its name wherever it is written (a
@@ -21,8 +21,8 @@
 import { fromBase64, toBase64 } from "./Bytes.js";
 import { DecodeError, ValueError } from "./Errors.js";
 import type { PlainData } from "./Plain.js";
-import { isClassLike, NATIVE_NAMES, repr, sortedStrings, tokenName, Tuple, typeName } from "./Repr.js";
-import type { Native, NativeToken } from "./Visitors.js";
+import { isClassLike, SCALAR_NAMES, repr, sortedStrings, tokenName, Tuple, typeName } from "./Repr.js";
+import type { Scalar, ScalarToken } from "./Visitors.js";
 
 /** Problems with names that start with `$`, which the wire format keeps for its own markers (`$ref`, `$schema`,
  * `$id`). */
@@ -38,7 +38,7 @@ function visited(names: readonly unknown[]): string[] {
     .map((name) => `name ${repr(name)} is reserved: names starting with 'as_' belong to the visitor protocol`);
 }
 
-export const NATIVE_TYPES: readonly NativeToken[] = [BigInt, Number, String, Boolean, Uint8Array];
+export const SCALAR_TYPES: readonly ScalarToken[] = [BigInt, Number, String, Boolean, Uint8Array];
 
 const DOTTED = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;
 
@@ -170,7 +170,7 @@ function resolveSpec<D>(spec: unknown, isData: (value: unknown) => value is D, b
   if (isData(spec)) return spec;
   if (isClassLike(spec)) {
     const name = (spec as { name: string }).name;
-    throw new TypeError(`a class is not a Spec here; for a native type use t => t.as_native(${name})`);
+    throw new TypeError(`a class is not a Spec here; for a scalar type use t => t.as_scalar(${name})`);
   }
   if (typeof spec === "function") {
     const built = (spec as (b: unknown) => unknown)(builder());
@@ -184,16 +184,16 @@ function resolveSpec<D>(spec: unknown, isData: (value: unknown) => value is D, b
 
 // --- Terms: expressions where a literal may stand ---
 
-/** A term's structure, in the neutral form mbse-expressions' terms give (`term.form()`): its `kind`, its native
+/** A term's structure, in the neutral form mbse-expressions' terms give (`term.form()`): its `kind`, its scalar
  * `attributes` by name, its ordered `arguments`, each a form, and the `dialect` it is read in, given at its root. A form
  * is itself a term, which a module writes and reads back without knowing its dialect. */
 class FormData {
   readonly kind: string;
-  readonly attributes: ReadonlyMap<string, Native>;
+  readonly attributes: ReadonlyMap<string, Scalar>;
   readonly arguments: readonly unknown[];
   readonly dialect: string | null;
 
-  constructor(kind = "", attributes: ReadonlyMap<string, Native> | Record<string, Native> = new Map(),
+  constructor(kind = "", attributes: ReadonlyMap<string, Scalar> | Record<string, Scalar> = new Map(),
     args: readonly unknown[] = [], dialect: string | null = null) {
     this.kind = kind;
     this.attributes = attributes instanceof Map ? attributes : new Map(Object.entries(attributes));
@@ -219,7 +219,7 @@ class FormData {
   equals(other: unknown): boolean {
     return other instanceof FormData && other.kind === this.kind && other.dialect === this.dialect
       && other.attributes.size === this.attributes.size
-      && [...this.attributes].every(([name, value]) => other.attributes.has(name) && sameNative(value, other.attributes.get(name)))
+      && [...this.attributes].every(([name, value]) => other.attributes.has(name) && sameScalar(value, other.attributes.get(name)))
       && other.arguments.length === this.arguments.length
       && this.arguments.every((argument, i) => sameValue(argument, other.arguments[i]));
   }
@@ -228,7 +228,7 @@ class FormData {
     const problems = typeof this.kind === "string" && this.kind !== "" ? [] : [`a term needs a kind, got ${repr(this.kind)}`];
     if (this.dialect !== null && typeof this.dialect !== "string") problems.push(`a term's dialect is a name, got ${repr(this.dialect)}`);
     for (const [name, value] of this.attributes) {
-      if (!isNative(value)) problems.push(`attribute ${repr(name)} is not a native value: ${repr(value)}`);
+      if (!isScalar(value)) problems.push(`attribute ${repr(name)} is not a scalar value: ${repr(value)}`);
     }
     this.arguments.forEach((argument, i) => {
       if (argument instanceof FormData) problems.push(...argument.validate().map((p) => `argument ${i}: ${p}`));
@@ -240,7 +240,7 @@ class FormData {
 
 /** A term of a dialect, as mbse-expressions' terms are: its form, whose arguments are terms, and its dialect. */
 interface ForeignTerm {
-  form(): { kind: string; attributes: ReadonlyMap<string, Native>; arguments: readonly unknown[] };
+  form(): { kind: string; attributes: ReadonlyMap<string, Scalar>; arguments: readonly unknown[] };
   dialect(): { name(): string };
 }
 
@@ -252,12 +252,12 @@ function isTerm(value: unknown): boolean {
     && typeof term.dialect === "function";
 }
 
-function isNative(value: unknown): value is Native {
-  return NATIVE_TYPES.some((token) => isNativeOf(token, value));
+function isScalar(value: unknown): value is Scalar {
+  return SCALAR_TYPES.some((token) => isScalarOf(token, value));
 }
 
-/** Native values equal as Python's `==` finds them: the same type and value, bytes by content. */
-function sameNative(a: unknown, b: unknown): boolean {
+/** Scalar values equal as Python's `==` finds them: the same type and value, bytes by content. */
+function sameScalar(a: unknown, b: unknown): boolean {
   if (a instanceof Uint8Array && b instanceof Uint8Array) return a.length === b.length && a.every((byte, i) => byte === b[i]);
   return typeof a === typeof b && a === b;
 }
@@ -276,7 +276,7 @@ function termProblems(value: unknown, what: string): string[] {
 export namespace Form {
   /** The meta-schema of a form: its `dialect`, `kind`, `attributes` and `arguments`. */
   export let Schema: ObjectData;
-  /** A native value, by its basic type's name: `{"int": 3}`. */
+  /** A scalar value, by its basic type's name: `{"int": 3}`. */
   export let Value: UnionData;
   export const Data = FormData;
   export type Data = FormData;
@@ -305,7 +305,7 @@ class ParameterData {
 
   equals(other: unknown): boolean {
     return other instanceof ParameterData && other.name === this.name && other.description === this.description
-      && (this.type instanceof NativeData ? this.type.equals(other.type) : other.type === this.type);
+      && (this.type instanceof ScalarData ? this.type.equals(other.type) : other.type === this.type);
   }
 }
 
@@ -353,7 +353,7 @@ function sameParameters(a: ReadonlyMap<string, ParameterData>, b: ReadonlyMap<st
   return a.size === b.size && [...a].every(([name, parameter]) => parameter.equals(b.get(name)));
 }
 
-// --- OfNative ---
+// --- OfScalar ---
 
 const NON_FINITE: ReadonlyMap<string, number> = new Map([
   ["NaN", NaN],
@@ -363,8 +363,8 @@ const NON_FINITE: ReadonlyMap<string, number> = new Map([
 
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
-/** True when `value` has exactly the native type `token` (subclasses and boxed primitives are not the same type). */
-export function isNativeOf(token: unknown, value: unknown): boolean {
+/** True when `value` has exactly the scalar type `token` (subclasses and boxed primitives are not the same type). */
+export function isScalarOf(token: unknown, value: unknown): boolean {
   switch (token) {
     case BigInt:
       return typeof value === "bigint";
@@ -383,11 +383,11 @@ export function isNativeOf(token: unknown, value: unknown): boolean {
 export const BASIC = "basic";
 export const TYPESCRIPT5 = "typescript5";
 export const PYTHON3 = "python3";
-const OWN_TYPES: ReadonlyMap<string, NativeToken> = new Map<string, NativeToken>(
-  NATIVE_TYPES.map((host) => [(host as { name: string }).name, host]));
-const BASIC_TYPES: ReadonlyMap<string, NativeToken> = new Map(NATIVE_TYPES.map((host) => [tokenName(host), host]));
+const OWN_TYPES: ReadonlyMap<string, ScalarToken> = new Map<string, ScalarToken>(
+  SCALAR_TYPES.map((host) => [(host as { name: string }).name, host]));
+const BASIC_TYPES: ReadonlyMap<string, ScalarToken> = new Map(SCALAR_TYPES.map((host) => [tokenName(host), host]));
 
-/** A native type, named in a format: `basic`, the neutral vocabulary (`bool`, `int`, `float`, `str`, `bytes`), a
+/** A scalar type, named in a format: `basic`, the neutral vocabulary (`bool`, `int`, `float`, `str`, `bytes`), a
  * language's (`python3`, `typescript5`, `ccpp`, ...), or any other. */
 class TokenClass {
   constructor(readonly format: string = BASIC, readonly name: string = "") {}
@@ -401,7 +401,7 @@ class TokenClass {
   }
 }
 
-/** The widths a native may have, in bits or in bytes (each a bigint or a term), its name, description and parameters. */
+/** The widths a scalar may have, in bits or in bytes (each a bigint or a term), its name, description and parameters. */
 export interface Widths {
   bits?: unknown;
   bytes?: unknown;
@@ -410,9 +410,9 @@ export interface Widths {
   parameters?: Map<string, ParameterData>;
 }
 
-/** A native type: a token, and optionally a width in bits or in bytes, an int or a term. A host type given in place of
- * the token (`new OfNative.Data(BigInt)`) is shorthand for the `basic` token of the same name. */
-class NativeData extends Reflected {
+/** A scalar type: a token, and optionally a width in bits or in bytes, an int or a term. A host type given in place of
+ * the token (`new OfScalar.Data(BigInt)`) is shorthand for the `basic` token of the same name. */
+class ScalarData extends Reflected {
   token: unknown;
   bits: unknown;
   bytes: unknown;
@@ -422,7 +422,7 @@ class NativeData extends Reflected {
 
   constructor(token: unknown = null, widths: Widths = {}) {
     super();
-    this.token = NATIVE_NAMES.has(token) ? new TokenClass(BASIC, NATIVE_NAMES.get(token) as string) : token;
+    this.token = SCALAR_NAMES.has(token) ? new TokenClass(BASIC, SCALAR_NAMES.get(token) as string) : token;
     this.bits = widths.bits ?? null;
     this.bytes = widths.bytes ?? null;
     this.name = widths.name ?? null;
@@ -431,21 +431,21 @@ class NativeData extends Reflected {
   }
 
   /** The host type the token maps to, or null when this implementation cannot read the token. */
-  get type(): NativeToken | null {
+  get type(): ScalarToken | null {
     if (!(this.token instanceof TokenClass)) return null;
     const hosts = this.token.format === BASIC ? BASIC_TYPES : this.token.format === TYPESCRIPT5 ? OWN_TYPES : null;
     return hosts?.get(this.token.name) ?? null;
   }
 
   /** The host type the token maps to; throws TypeError when this implementation cannot read the token. */
-  host(): NativeToken {
+  host(): ScalarToken {
     const host = this.type;
     if (host === null) throw new TypeError(`${String(this.token)} has no type in this implementation`);
     return host;
   }
 
   equals(other: unknown): boolean {
-    return other instanceof NativeData && sameValue(this.bits, other.bits) && sameValue(this.bytes, other.bytes)
+    return other instanceof ScalarData && sameValue(this.bits, other.bits) && sameValue(this.bytes, other.bytes)
       && other.name === this.name && other.description === this.description && sameParameters(this.parameters, other.parameters)
       && (this.token instanceof TokenClass ? this.token.equals(other.token) : other.token === this.token);
   }
@@ -453,7 +453,7 @@ class NativeData extends Reflected {
   validate(): string[] {
     const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
     const token = this.token;
-    if (!(token instanceof TokenClass)) problems.push(`unsupported native type ${repr(token)}`);
+    if (!(token instanceof TokenClass)) problems.push(`unsupported scalar type ${repr(token)}`);
     else if (typeof token.format !== "string" || token.format === "" || typeof token.name !== "string" || token.name === "") {
       problems.push("a token needs a format and a name");
     } else if ((token.format === BASIC && this.type === null) || (token.format === PYTHON3 && !BASIC_TYPES.has(token.name))) {
@@ -469,11 +469,11 @@ class NativeData extends Reflected {
     return problems;
   }
 
-  /** Converts a native value to plain data that every text encoding can hold: `bytes` become base64 text, and
+  /** Converts a scalar value to plain data that every text encoding can hold: `bytes` become base64 text, and
    * non-finite floats become the strings 'NaN', 'Infinity' and '-Infinity'. */
   to_plain(value: unknown): PlainData {
     const host = this.host();
-    if (!isNativeOf(host, value)) throw new TypeError(`expected ${tokenName(host)}, got ${typeName(value)}`);
+    if (!isScalarOf(host, value)) throw new TypeError(`expected ${tokenName(host)}, got ${typeName(value)}`);
     if (value instanceof Uint8Array) return toBase64(value);
     if (typeof value === "number" && !Number.isFinite(value)) {
       return Number.isNaN(value) ? "NaN" : value > 0 ? "Infinity" : "-Infinity";
@@ -482,15 +482,15 @@ class NativeData extends Reflected {
   }
 
   /** The host type, or `DecodeError` when this implementation cannot read the token. */
-  private hostForDecoding(): NativeToken {
+  private hostForDecoding(): ScalarToken {
     if (this.type === null) throw new DecodeError(`${String(this.token)} has no type in this implementation`);
     return this.type;
   }
 
-  /** Converts plain data back to a native value. Distinct native types are never coerced into each other.
+  /** Converts plain data back to a scalar value. Distinct scalar types are never coerced into each other.
    * Plain data that does not hold such a value, or a token this implementation cannot read, throws
    * `Errors.DecodeError`. */
-  from_plain(plain: unknown): Native {
+  from_plain(plain: unknown): Scalar {
     const host = this.hostForDecoding();
     if (host === Uint8Array) {
       if (typeof plain !== "string") throw new DecodeError(`expected base64 text for bytes, got ${typeName(plain)}`);
@@ -504,63 +504,63 @@ class NativeData extends Reflected {
       }
       return value;
     }
-    if (!isNativeOf(host, plain)) throw new DecodeError(`expected ${tokenName(host)}, got ${typeName(plain)}`);
-    return plain as Native;
+    if (!isScalarOf(host, plain)) throw new DecodeError(`expected ${tokenName(host)}, got ${typeName(plain)}`);
+    return plain as Scalar;
   }
 }
 
-class NativeBuilder extends NamedBuilder<NativeData> {
-  protected make(fields: Record<string, unknown>): NativeData {
-    return new NativeData(fields["token"] ?? null, { bits: fields["bits"], bytes: fields["bytes"],
+class ScalarBuilder extends NamedBuilder<ScalarData> {
+  protected make(fields: Record<string, unknown>): ScalarData {
+    return new ScalarData(fields["token"] ?? null, { bits: fields["bits"], bytes: fields["bytes"],
       name: fields["name"] as string | null, description: fields["description"] as string | null,
       parameters: fields["parameters"] as Map<string, ParameterData> | undefined });
   }
 
   /** A host type: shorthand for the `basic` token of the same name. */
-  type(native: unknown): NativeBuilder {
-    this.state["token"] = new NativeData(native).token;
+  type(scalar: unknown): ScalarBuilder {
+    this.state["token"] = new ScalarData(scalar).token;
     return this;
   }
 
   /** A token in any format, e.g. `.token("ccpp", "int32_t")`. */
-  token(format: string, name: string): NativeBuilder {
+  token(format: string, name: string): ScalarBuilder {
     this.state["token"] = new TokenClass(format, name);
     return this;
   }
 
   /** A width in bits: a bigint, or a term. */
-  bits(width: unknown): NativeBuilder {
+  bits(width: unknown): ScalarBuilder {
     this.state["bits"] = width;
     return this;
   }
 
-  bytes(width: unknown): NativeBuilder {
+  bytes(width: unknown): ScalarBuilder {
     this.state["bytes"] = width;
     return this;
   }
 }
 
-function isNativeData(value: unknown): value is NativeData {
-  return value instanceof NativeData;
+function isScalarData(value: unknown): value is ScalarData {
+  return value instanceof ScalarData;
 }
 
-export namespace OfNative {
-  /** The meta-schema of native schemas: a token's `format` and `name`, and a width in `bits` or `bytes`. */
+export namespace OfScalar {
+  /** The meta-schema of scalar schemas: a token's `format` and `name`, and a width in `bits` or `bytes`. */
   export let Schema: ObjectData;
-  /** A native value. Conversion to and from the wire format is the responsibility of this element. */
-  export const Data = NativeData;
-  export type Data = NativeData;
-  export const Builder = NativeBuilder;
-  export type Builder = NativeBuilder;
+  /** A scalar value. Conversion to and from the wire format is the responsibility of this element. */
+  export const Data = ScalarData;
+  export type Data = ScalarData;
+  export const Builder = ScalarBuilder;
+  export type Builder = ScalarBuilder;
   export const Token = TokenClass;
   export type Token = TokenClass;
-  export type Spec = NativeToken | NativeData | ((builder: NativeBuilder) => NativeBuilder);
+  export type Spec = ScalarToken | ScalarData | ((builder: ScalarBuilder) => ScalarBuilder);
 
-  export function resolve(spec: (builder: NativeBuilder) => NativeBuilder): NativeData;
-  export function resolve(spec: Spec | unknown): NativeData;
-  export function resolve(spec: Spec | unknown): NativeData {
-    if (isClassLike(spec) || NATIVE_NAMES.has(spec)) return new NativeData(spec);
-    return resolveSpec(spec, isNativeData, () => new NativeBuilder());
+  export function resolve(spec: (builder: ScalarBuilder) => ScalarBuilder): ScalarData;
+  export function resolve(spec: Spec | unknown): ScalarData;
+  export function resolve(spec: Spec | unknown): ScalarData {
+    if (isClassLike(spec) || SCALAR_NAMES.has(spec)) return new ScalarData(spec);
+    return resolveSpec(spec, isScalarData, () => new ScalarBuilder());
   }
 }
 
@@ -986,10 +986,10 @@ function memberProblems(aKind: string, member: string, plural: string, members: 
   return problems;
 }
 
-/** What tells a value of `schema` apart at run time: a native's host type, or any other schema itself. */
+/** What tells a value of `schema` apart at run time: a scalar's host type, or any other schema itself. */
 export function _runtime(schema: unknown): unknown {
   const found = structure(schema);
-  if (found instanceof NativeData) {
+  if (found instanceof ScalarData) {
     const token = found.token as { format?: unknown; name?: unknown };
     return found.type ?? `token ${String(token.format)}:${String(token.name)}`;
   }
@@ -1179,7 +1179,7 @@ export namespace OfIntersection {
 // --- OfApply: a parametric schema applied to arguments ---
 
 /** A parametric schema applied to arguments: a type whose values are the applied schema's (`of`), with arguments for
- * its parameters by name, each a native value or a term. Parameters given no argument stay unbound. */
+ * its parameters by name, each a scalar value or a term. Parameters given no argument stay unbound. */
 class ApplyData extends Reflected {
   of: AnyData | null;
   arguments: Map<string, unknown>;
@@ -1214,12 +1214,12 @@ class ApplyData extends Reflected {
   }
 }
 
-/** An argument is a term, or a native value, of the parameter's type where that is a native type. */
+/** An argument is a term, or a scalar value, of the parameter's type where that is a scalar type. */
 function argumentProblems(parameter: ParameterData, value: unknown): string[] {
   if (isTerm(value)) return termProblems(value, "a term");
-  if (!isNative(value)) return [`an argument is a native value or a term, got ${repr(value)}`];
-  const host = parameter.type instanceof NativeData ? parameter.type.type : null;
-  return host !== null && !isNativeOf(host, value) ? [`expected ${tokenName(host)}, got ${typeName(value)}`] : [];
+  if (!isScalar(value)) return [`an argument is a scalar value or a term, got ${repr(value)}`];
+  const host = parameter.type instanceof ScalarData ? parameter.type.type : null;
+  return host !== null && !isScalarOf(host, value) ? [`expected ${tokenName(host)}, got ${typeName(value)}`] : [];
 }
 
 /** The schema that gives a type its structure: an application's applied schema (followed through applications), else
@@ -1259,22 +1259,22 @@ function applied(schema: unknown, evaluate: Evaluate | null): [unknown, Map<stri
   return [current, values];
 }
 
-/** An argument's value: a native as it is, a term's as `evaluate` gives it, or `UNKNOWN`. */
+/** An argument's value: a scalar as it is, a term's as `evaluate` gives it, or `UNKNOWN`. */
 function evaluated(value: unknown, scope: ReadonlyMap<string, unknown>, evaluate: Evaluate | null): unknown {
   if (!isTerm(value)) return value;
   return (evaluate === null ? null : evaluate(value, scope)) ?? UNKNOWN;
 }
 
-/** Whether two types are the same after substitution: they apply the same schema (natives by value, other schemas by
+/** Whether two types are the same after substitution: they apply the same schema (scalars by value, other schemas by
  * identity), and give its parameters the same values, a parameter unbound in both alike. `Square(4)` and
  * `Matrix(4, 4)` are, where `Square[n]` applies `Matrix(n, n)`. null when that depends on a value that is unknown: a
  * term with no evaluator, or one `evaluate` cannot evaluate. */
 export function equivalent(a: unknown, b: unknown, evaluate: Evaluate | null = null): boolean | null {
   const [[base, values], [other, others]] = [applied(a, evaluate), applied(b, evaluate)];
-  const same = base instanceof NativeData ? base.equals(other) : base === other;
+  const same = base instanceof ScalarData ? base.equals(other) : base === other;
   if (!same || values.size !== others.size || [...values.keys()].some((name) => !others.has(name))) return false;
   const pairs = [...values].map(([name, value]) => [value, others.get(name)]);
-  if (pairs.some(([x, y]) => x !== UNKNOWN && y !== UNKNOWN && !sameNative(x, y))) return false;
+  if (pairs.some(([x, y]) => x !== UNKNOWN && y !== UNKNOWN && !sameScalar(x, y))) return false;
   return pairs.some((pair) => pair.includes(UNKNOWN)) ? null : true;
 }
 
@@ -1289,7 +1289,7 @@ class ApplyBuilder extends NamedBuilder<ApplyData> {
     return this;
   }
 
-  /** The argument for the parameter `name`: a native value or a term. */
+  /** The argument for the parameter `name`: a scalar value or a term. */
   argument(name: string, value: unknown): ApplyBuilder {
     ((this.state["arguments"] ??= new Map()) as Map<string, unknown>).set(name, value);
     return this;
@@ -1309,7 +1309,7 @@ function isApplyData(value: unknown): value is ApplyData {
 export namespace OfApply {
   /** The meta-schema of applications. */
   export let Schema: ObjectData;
-  /** The meta-schema of an argument: its parameter's `name`, and its native `value` or its `term`. */
+  /** The meta-schema of an argument: its parameter's `name`, and its scalar `value` or its `term`. */
   export let Argument: ObjectData;
   /** A parametric schema applied to arguments, where a type is expected. */
   export const Data = ApplyData;
@@ -1325,10 +1325,10 @@ export namespace OfApply {
 
 // --- OfAny ---
 
-type AnyData = NativeData | ObjectData | UnionData | IntersectionData | ApplyData;
+type AnyData = ScalarData | ObjectData | UnionData | IntersectionData | ApplyData;
 
 function isAnyData(value: unknown): value is AnyData {
-  return value instanceof NativeData || value instanceof ObjectData || value instanceof UnionData ||
+  return value instanceof ScalarData || value instanceof ObjectData || value instanceof UnionData ||
     value instanceof IntersectionData || value instanceof ApplyData;
 }
 
@@ -1370,10 +1370,10 @@ class AnyBuilder {
     this.selected = undefined;
   }
 
-  as_native(spec: (builder: NativeBuilder) => NativeBuilder): AnyBuilder;
-  as_native(spec: OfNative.Spec): AnyBuilder;
-  as_native(spec: OfNative.Spec): AnyBuilder {
-    this.selected = OfNative.resolve(spec);
+  as_scalar(spec: (builder: ScalarBuilder) => ScalarBuilder): AnyBuilder;
+  as_scalar(spec: OfScalar.Spec): AnyBuilder;
+  as_scalar(spec: OfScalar.Spec): AnyBuilder {
+    this.selected = OfScalar.resolve(spec);
     return this;
   }
 
@@ -1452,7 +1452,7 @@ export namespace OfAny {
 // --- Meta-schemas: the schemas of schema data, so that schemas are written, read, validated and compared as objects ---
 
 function namedText(name: string) {
-  return (p: PropertyBuilder) => p.name(name).of((t) => t.as_native(String));
+  return (p: PropertyBuilder) => p.name(name).of((t) => t.as_scalar(String));
 }
 
 /** An adjacency listing elements of a schema: a one-link relation of its own (`owner`), each entry holding `fields`.
@@ -1465,8 +1465,8 @@ function listing(adjacency: string, fields: [string, OfAny.Spec][], keyed = fals
   });
 }
 
-const Text = (t: AnyBuilder) => t.as_native(String);
-const Int = (t: AnyBuilder) => t.as_native(BigInt);
+const Text = (t: AnyBuilder) => t.as_scalar(String);
+const Int = (t: AnyBuilder) => t.as_scalar(BigInt);
 const NamedSchema = new ObjectBuilder().properties(namedText("name")).create();
 const AnySchema = new UnionBuilder().create(); // a type; its branches, which refer back to it, are added below
 const PropertySchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("type").of(AnySchema),
@@ -1476,14 +1476,14 @@ const fieldsOf = (schema: ObjectData): [string, OfAny.Spec][] =>
   [...schema.properties].map(([name, prop]) => [name, prop.type as OfAny.Data]); // the meta-schemas type every property
 const MEMBER = fieldsOf(PropertySchema); // a member's entry holds a property's
 const Parameters = listing("parameters", MEMBER);
-const NativeValue = new UnionBuilder().branches(
-  ...NATIVE_TYPES.map((host) => (b: MemberBuilder) => b.name(tokenName(host)).of((x) => x.as_native(host)))).create();
+const ScalarValue = new UnionBuilder().branches(
+  ...SCALAR_TYPES.map((host) => (b: MemberBuilder) => b.name(tokenName(host)).of((x) => x.as_scalar(host)))).create();
 const FormSchema = new ObjectBuilder().properties(namedText("dialect"), namedText("kind")).relations(
-  listing("attributes", [["name", Text], ["value", NativeValue]])).create();
+  listing("attributes", [["name", Text], ["value", ScalarValue]])).create();
 new ObjectBuilder(FormSchema).relations(listing("arguments", [["term", FormSchema]])).update();
 const WidthTerms = new ObjectBuilder().properties((p) => p.name("bits").of(FormSchema), (p) => p.name("bytes").of(FormSchema))
   .create();
-const NativeSchema = new ObjectBuilder().name("Schemas.Native").properties(
+const ScalarSchema = new ObjectBuilder().name("Schemas.Scalar").properties(
   namedText("name"), namedText("format"), namedText("token"), (p) => p.name("bits").of(Int), (p) => p.name("bytes").of(Int),
   (p) => p.name("terms").of(WidthTerms), namedText("description")).relations(Parameters).create();
 const ClauseSchema = new ObjectBuilder().relations(listing("names", [["name", Text]])).create();
@@ -1495,26 +1495,26 @@ const RelationRef = new UnionBuilder().branches((b) => b.name("relation").of(Rel
 const AdjacencySchema = new ObjectBuilder().properties(
   namedText("name"), (p) => p.name("relation").of(RelationRef), namedText("me"), namedText("description")).create();
 const ObjectSchema = new ObjectBuilder().name("Schemas.Object").properties(
-  namedText("name"), namedText("singleton"), (p) => p.name("ref").of((t) => t.as_native(Boolean)), namedText("description"))
+  namedText("name"), namedText("singleton"), (p) => p.name("ref").of((t) => t.as_scalar(Boolean)), namedText("description"))
   .relations(Parameters, listing("properties", MEMBER),
     listing("adjacencies", fieldsOf(AdjacencySchema))).create();
-const Flat = (p: PropertyBuilder) => p.name("flat").of((t) => t.as_native(Boolean));
+const Flat = (p: PropertyBuilder) => p.name("flat").of((t) => t.as_scalar(Boolean));
 const UnionSchema = new ObjectBuilder().name("Schemas.Union").properties(namedText("name"), Flat, namedText("description"))
   .relations(Parameters, listing("branches", MEMBER)).create();
 const IntersectionSchema = new ObjectBuilder().name("Schemas.Intersection").properties(
   namedText("name"), Flat, namedText("description")).relations(Parameters, listing("parts", MEMBER)).create();
-const ArgumentSchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("value").of(NativeValue),
+const ArgumentSchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("value").of(ScalarValue),
   (p) => p.name("term").of(FormSchema)).create();
 const ApplySchema = new ObjectBuilder().name("Schemas.Apply").properties(
   namedText("name"), (p) => p.name("of").of(AnySchema), namedText("description")).relations(
   Parameters, listing("arguments", fieldsOf(ArgumentSchema))).create();
-const KIND_SCHEMAS: [string, ObjectData][] = [["native", NativeSchema], ["object", ObjectSchema], ["union", UnionSchema],
+const KIND_SCHEMAS: [string, ObjectData][] = [["scalar", ScalarSchema], ["object", ObjectSchema], ["union", UnionSchema],
   ["intersection", IntersectionSchema], ["apply", ApplySchema]];
 const kindBranches = KIND_SCHEMAS.map(([name, schema]) => (b: MemberBuilder) => b.name(name).of(schema));
 new UnionBuilder(AnySchema).branches(...kindBranches, (b) => b.name("named").of(NamedSchema)).update();
 const DefinitionSchema = new UnionBuilder().branches(...kindBranches, (b) => b.name("relation").of(RelationSchema)).create();
 
-OfNative.Schema = NativeSchema;
+OfScalar.Schema = ScalarSchema;
 OfProperty.Schema = PropertySchema;
 OfRelation.Schema = RelationSchema;
 OfRelation.Ref = RelationRef;
@@ -1526,10 +1526,10 @@ OfParameter.Schema = PropertySchema;
 OfApply.Schema = ApplySchema;
 OfApply.Argument = ArgumentSchema;
 Form.Schema = FormSchema;
-Form.Value = NativeValue;
+Form.Value = ScalarValue;
 OfAny.Schema = AnySchema;
 OfAny.Named = NamedSchema;
-const KIND_NAMES = new Map<unknown, string>([[NativeData, "Schemas.Native"], [ObjectData, "Schemas.Object"],
+const KIND_NAMES = new Map<unknown, string>([[ScalarData, "Schemas.Scalar"], [ObjectData, "Schemas.Object"],
   [UnionData, "Schemas.Union"], [IntersectionData, "Schemas.Intersection"],
   [ApplyData, "Schemas.Apply"], [RelationData, "Schemas.Relation"]]);
 

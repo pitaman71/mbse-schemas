@@ -9,22 +9,22 @@
  * Child handles (properties, adjacencies, entries, links, kind-specific values) are never returned: they are passed
  * to a callback. Every method that is not a query returns `this`, so calls chain.
  *
- * The value builders used in the DSL are handles: in `.street1(v => v.set('foo'))`, `v` is a `Visitors.OfNative`.
+ * The value builders used in the DSL are handles: in `.street1(v => v.set('foo'))`, `v` is a `Visitors.OfScalar`.
  */
 
-/** A native value: int is `bigint`, float is `number`, str is `string`, bool is `boolean`, bytes is `Uint8Array`. */
-export type Native = bigint | number | string | boolean | Uint8Array;
+/** A scalar value: int is `bigint`, float is `number`, str is `string`, bool is `boolean`, bytes is `Uint8Array`. */
+export type Scalar = bigint | number | string | boolean | Uint8Array;
 
-/** The DSL's markers for native types: `BigInt` (int), `Number` (float), `String`, `Boolean`, `Uint8Array` (bytes). */
-export type NativeToken =
+/** The DSL's markers for scalar types: `BigInt` (int), `Number` (float), `String`, `Boolean`, `Uint8Array` (bytes). */
+export type ScalarToken =
   | BigIntConstructor
   | NumberConstructor
   | StringConstructor
   | BooleanConstructor
   | Uint8ArrayConstructor;
 
-/** The value type a native token stands for. */
-export type NativeOf<T> = T extends BigIntConstructor
+/** The value type a scalar token stands for. */
+export type ScalarOf<T> = T extends BigIntConstructor
   ? bigint
   : T extends NumberConstructor
     ? number
@@ -46,18 +46,18 @@ export type Callback<V> = (visitor: V) => unknown;
  * selects the kind.
  */
 export interface OfAny {
-  as_native(callback: Callback<OfNative>): OfAny;
+  as_scalar(callback: Callback<OfScalar>): OfAny;
   as_object(callback: Callback<OfObject>): OfAny;
   as_union(callback: Callback<OfUnion>): OfAny;
   as_intersection(callback: Callback<OfIntersection>): OfAny;
 }
 
-/** A native value. Reading an absent value raises. */
-export interface OfNative {
+/** A scalar value. Reading an absent value raises. */
+export interface OfScalar {
   has(): boolean;
-  get(): Native;
-  set(value: Native): OfNative;
-  clear(): OfNative;
+  get(): Scalar;
+  set(value: Scalar): OfScalar;
+  clear(): OfScalar;
 }
 
 /** One named property of an object or entry. Reading the value of an absent property raises. */
@@ -161,8 +161,8 @@ export interface Visitable {
 
 /** Method names each protocol declares, for runtime conformance checks (TypeScript interfaces vanish at runtime). */
 export const PROTOCOL_METHODS = {
-  OfAny: ["as_native", "as_object", "as_union", "as_intersection"],
-  OfNative: ["has", "get", "set", "clear"],
+  OfAny: ["as_scalar", "as_object", "as_union", "as_intersection"],
+  OfScalar: ["has", "get", "set", "clear"],
   OfProperty: ["name", "has", "value", "clear"],
   OfObject: ["properties", "has", "property", "clear", "adjacencies", "adjacency", "identify"],
   OfAdjacency: ["name", "me", "entries", "add", "remove"],

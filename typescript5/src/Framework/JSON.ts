@@ -3,9 +3,9 @@
  *
  * `ToJSON(store)(schema, value)` returns JSON text, naming the schemas of objects in `store`, and
  * `FromJSON(store)(schema, text)` rebuilds values in `store`. Both mirror `Plain`: calling them dispatches on the
- * schema's kind, and `.OfNative`, `.OfObject` and `.Reachable` are the specific forms.
+ * schema's kind, and `.OfScalar`, `.OfObject` and `.Reachable` are the specific forms.
  *
- * The encoding is strict JSON (RFC 8259). Output never contains NaN or Infinity, because `Schemas.OfNative` gives
+ * The encoding is strict JSON (RFC 8259). Output never contains NaN or Infinity, because `Schemas.OfScalar` gives
  * non-finite floats a plain form. Input with NaN / Infinity literals or duplicate object keys is rejected.
  *
  * `dumps` writes exactly what Python's `json.dumps(..., ensure_ascii=False, allow_nan=False)` writes, so both
@@ -20,7 +20,7 @@ import type { PlainData, PlainMap } from "./Plain.js";
 import { pyFloat, repr, typeName } from "./Repr.js";
 import type * as Schemas from "./Schemas.js";
 import type * as Stores from "./Stores.js";
-import type { Native, Visitable } from "./Visitors.js";
+import type { Scalar, Visitable } from "./Visitors.js";
 
 export interface DumpOptions {
   indent?: number | null;
@@ -272,7 +272,7 @@ export function loads(input: string | Uint8Array): PlainData {
 
 export interface ToJSONCall {
   (schema: unknown, value: unknown, options?: DumpOptions): string;
-  OfNative(schema: Schemas.OfNative.Data, value: Native, options?: DumpOptions): string;
+  OfScalar(schema: Schemas.OfScalar.Data, value: Scalar, options?: DumpOptions): string;
   OfObject(schema: Schemas.OfObject.Data, value: Visitable, options?: DumpOptions): string;
   Reachable(schema: Schemas.OfObject.Data, value: Visitable, options?: DumpOptions): string;
 }
@@ -283,7 +283,7 @@ export function ToJSON(store: Stores.Store): ToJSONCall {
   const plain = Plain.ToPlain(store);
   const call = (schema: unknown, value: unknown, options: DumpOptions = {}): string => dumps(plain(schema, value), options);
   return Object.assign(call, {
-    OfNative: (schema: Schemas.OfNative.Data, value: Native, options: DumpOptions = {}) => dumps(plain.OfNative(schema, value), options),
+    OfScalar: (schema: Schemas.OfScalar.Data, value: Scalar, options: DumpOptions = {}) => dumps(plain.OfScalar(schema, value), options),
     OfObject: (schema: Schemas.OfObject.Data, value: Visitable, options: DumpOptions = {}) => dumps(plain.OfObject(schema, value), options),
     Reachable: (schema: Schemas.OfObject.Data, value: Visitable, options: DumpOptions = {}) => dumps(plain.Reachable(schema, value), options),
   });
@@ -291,7 +291,7 @@ export function ToJSON(store: Stores.Store): ToJSONCall {
 
 export interface FromJSONCall {
   (schema: unknown, text: string | Uint8Array): unknown;
-  OfNative(schema: Schemas.OfNative.Data, text: string | Uint8Array): Native;
+  OfScalar(schema: Schemas.OfScalar.Data, text: string | Uint8Array): Scalar;
   OfObject(schema: Schemas.OfObject.Data, text: string | Uint8Array): unknown;
   Reachable(schema: Schemas.OfObject.Data, text: string | Uint8Array): unknown;
 }
@@ -301,7 +301,7 @@ export function FromJSON(store: Stores.Store): FromJSONCall {
   const plain = Plain.FromPlain(store);
   const call = (schema: unknown, text: string | Uint8Array): unknown => plain(schema, loads(text));
   return Object.assign(call, {
-    OfNative: (schema: Schemas.OfNative.Data, text: string | Uint8Array) => plain.OfNative(schema, loads(text)),
+    OfScalar: (schema: Schemas.OfScalar.Data, text: string | Uint8Array) => plain.OfScalar(schema, loads(text)),
     OfObject: (schema: Schemas.OfObject.Data, text: string | Uint8Array) => plain.OfObject(schema, loads(text)),
     Reachable: (schema: Schemas.OfObject.Data, text: string | Uint8Array) => plain.Reachable(schema, loads(text)),
   });

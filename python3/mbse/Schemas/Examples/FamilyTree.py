@@ -13,9 +13,9 @@ store = Proxies.OfStore()
 Person = (
     Schemas.OfObject.Builder().name('Person').ref()
     .properties(
-        lambda prop: prop.name('given_name').of(lambda t: t.as_native(str)),
-        lambda prop: prop.name('family_name').of(lambda t: t.as_native(str)),
-        lambda prop: prop.name('birth_date').of(lambda t: t.as_native(str)),  # ISO 8601 calendar date
+        lambda prop: prop.name('given_name').of(lambda t: t.as_scalar(str)),
+        lambda prop: prop.name('family_name').of(lambda t: t.as_scalar(str)),
+        lambda prop: prop.name('birth_date').of(lambda t: t.as_scalar(str)),  # ISO 8601 calendar date
     )
     .create()
 )
@@ -24,7 +24,7 @@ Person = (
 Parentage = (
     Schemas.OfRelation.Builder().name('Parentage')
     .links('parent', 'child')
-    .properties(lambda prop: prop.name('kind').of(lambda t: t.as_native(str)))  # 'biological', 'adoptive'
+    .properties(lambda prop: prop.name('kind').of(lambda t: t.as_scalar(str)))  # 'biological', 'adoptive'
     .unique()  # a set of entries, with no other constraint: an entry equal to one held is that one
     .create()
 )
@@ -103,7 +103,7 @@ assert len(entries(Person, bob, 'parents')) == 3 and 'kind' not in entries(Perso
 def kind_of(entry):
     found = []
     if entry.has('kind'):
-        entry.property('kind', lambda p: p.value(lambda v: v.as_native(lambda n: found.append(n.get()))))
+        entry.property('kind', lambda p: p.value(lambda v: v.as_scalar(lambda n: found.append(n.get()))))
     return found[0] if found else None
 
 

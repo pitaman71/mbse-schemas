@@ -11,36 +11,36 @@ const store = new Proxies.OfStore();
 
 let IntlAddress = new Schemas.OfObject.Builder().name("IntlAddress").ref()
   .properties(
-    (prop) => prop.name("street1").of((t) => t.as_native(String)),
-    (prop) => prop.name("street2").of((t) => t.as_native(String)),
-    (prop) => prop.name("street3").of((t) => t.as_native(String)),
-    (prop) => prop.name("dependent_locality").of((t) => t.as_native(String)), // neighborhood, district
-    (prop) => prop.name("locality").of((t) => t.as_native(String)), // city, town, post town
-    (prop) => prop.name("administrative_area").of((t) => t.as_native(String)), // state, province, prefecture
-    (prop) => prop.name("postal_code").of((t) => t.as_native(String)),
-    (prop) => prop.name("sorting_code").of((t) => t.as_native(String)), // e.g. French CEDEX
-    (prop) => prop.name("country_code").of((t) => t.as_native(String)), // ISO 3166-1 alpha-2
+    (prop) => prop.name("street1").of((t) => t.as_scalar(String)),
+    (prop) => prop.name("street2").of((t) => t.as_scalar(String)),
+    (prop) => prop.name("street3").of((t) => t.as_scalar(String)),
+    (prop) => prop.name("dependent_locality").of((t) => t.as_scalar(String)), // neighborhood, district
+    (prop) => prop.name("locality").of((t) => t.as_scalar(String)), // city, town, post town
+    (prop) => prop.name("administrative_area").of((t) => t.as_scalar(String)), // state, province, prefecture
+    (prop) => prop.name("postal_code").of((t) => t.as_scalar(String)),
+    (prop) => prop.name("sorting_code").of((t) => t.as_scalar(String)), // e.g. French CEDEX
+    (prop) => prop.name("country_code").of((t) => t.as_scalar(String)), // ISO 3166-1 alpha-2
   )
   .create();
 
 let Contact = new Schemas.OfObject.Builder().name("Contact").ref()
   .properties(
-    (prop) => prop.name("given_name").of((t) => t.as_native(String)),
-    (prop) => prop.name("family_name").of((t) => t.as_native(String)),
-    (prop) => prop.name("birth_date").of((t) => t.as_native(String)), // ISO 8601 calendar date, YYYY-MM-DD
-    (prop) => prop.name("preferred_language").of((t) => t.as_native(String)), // BCP 47 tag, e.g. 'fr-CA'
+    (prop) => prop.name("given_name").of((t) => t.as_scalar(String)),
+    (prop) => prop.name("family_name").of((t) => t.as_scalar(String)),
+    (prop) => prop.name("birth_date").of((t) => t.as_scalar(String)), // ISO 8601 calendar date, YYYY-MM-DD
+    (prop) => prop.name("preferred_language").of((t) => t.as_scalar(String)), // BCP 47 tag, e.g. 'fr-CA'
   )
   .create();
 
 let PhoneNumber = new Schemas.OfObject.Builder().name("PhoneNumber").ref()
   .properties(
-    (prop) => prop.name("number").of((t) => t.as_native(String)), // ITU-T E.164, e.g. '+14155550100'
+    (prop) => prop.name("number").of((t) => t.as_scalar(String)), // ITU-T E.164, e.g. '+14155550100'
   )
   .create();
 
 let EmailAddress = new Schemas.OfObject.Builder().name("EmailAddress").ref()
   .properties(
-    (prop) => prop.name("address").of((t) => t.as_native(String)), // RFC 5322 addr-spec
+    (prop) => prop.name("address").of((t) => t.as_scalar(String)), // RFC 5322 addr-spec
   )
   .create();
 
@@ -49,21 +49,21 @@ let EmailAddress = new Schemas.OfObject.Builder().name("EmailAddress").ref()
 const ContactAddresses = new Schemas.OfRelation.Builder().name("ContactAddresses")
   .links("contact", "address")
   .properties(
-    (prop) => prop.name("label").of((t) => t.as_native(String)), // e.g. 'home', 'work'
+    (prop) => prop.name("label").of((t) => t.as_scalar(String)), // e.g. 'home', 'work'
   )
   .create();
 
 const ContactPhones = new Schemas.OfRelation.Builder().name("ContactPhones")
   .links("contact", "phone")
   .properties(
-    (prop) => prop.name("label").of((t) => t.as_native(String)), // e.g. 'mobile', 'work'
+    (prop) => prop.name("label").of((t) => t.as_scalar(String)), // e.g. 'mobile', 'work'
   )
   .create();
 
 const ContactEmails = new Schemas.OfRelation.Builder().name("ContactEmails")
   .links("contact", "email")
   .properties(
-    (prop) => prop.name("label").of((t) => t.as_native(String)), // e.g. 'personal', 'work'
+    (prop) => prop.name("label").of((t) => t.as_scalar(String)), // e.g. 'personal', 'work'
   )
   .create();
 

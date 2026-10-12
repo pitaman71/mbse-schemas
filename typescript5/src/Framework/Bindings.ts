@@ -9,12 +9,12 @@
  * - `accept(binding, instance, visitor)` writes an instance through the visitor protocols, so a class's `accept` is
  *   one line.
  * - `new Builder(binding, instance)` is a `Visitors.OfObject` over a state, with every value kind the schema declares:
- *   natives (checked by type), and value objects, unions and lists (through their plain form). It is finalized by
+ *   scalars (checked by type), and value objects, unions and lists (through their plain form). It is finalized by
  *   `create()`, `clone()` and `update()`, none validating. A class's own builder derives from it for its DSL.
  * - `OfStore(builders)` is a store of bound classes (see `Stores`): their schemas and builders by name, and the
  *   instance of each singleton schema, made by its builder.
  *
- * A state holds each property's value, natives as natives and other values in their plain form (an absent property
+ * A state holds each property's value, scalars as scalars and other values in their plain form (an absent property
  * has no key, and a builder drops the keys whose value is null), and each adjacency's entries, each an `Entry` of its
  * links (the linked instances) and its properties. A binding may also declare `fixed` properties, whose value is the
  * class's (a tag), so that writing another throws; `exclusive` groups of properties, of which a state holds at most
@@ -28,7 +28,7 @@ import { repr, tokenName, typeName } from "./Repr.js";
 import { _probes } from "./Proxies.js";
 import * as Schemas from "./Schemas.js";
 import * as Stores from "./Stores.js";
-import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfNative, OfObject,
+import type { Callback, Scalar, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfScalar, OfObject,
   OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
 /** One entry of an adjacency, seen from the instance: its other links and its properties. */
@@ -36,7 +36,7 @@ export class Entry {
   constructor(readonly links: Map<string, unknown> = new Map(), readonly properties: Map<string, unknown> = new Map()) {}
 }
 
-/** An instance's data in its schema's terms: property values by name (natives as natives, other values in their
+/** An instance's data in its schema's terms: property values by name (scalars as scalars, other values in their
  * plain form; an absent property has no key), and entries by adjacency name. */
 export class State {
   constructor(public values: Map<string, unknown> = new Map(), readonly entries: Map<string, Entry[]> = new Map()) {}
@@ -44,7 +44,7 @@ export class State {
 
 /** What a binding may declare beyond its functions. */
 export interface Options {
-  fixed?: ReadonlyMap<string, Native>;
+  fixed?: ReadonlyMap<string, Scalar>;
   exclusive?: Iterable<readonly string[]>;
   implied?: Iterable<string>;
 }
@@ -52,7 +52,7 @@ export interface Options {
 /** A class bound to a reference object schema, through `read`, `make` and `assign`. */
 export class Binding {
   readonly assign: (instance: any, state: State) => any;
-  readonly fixed: ReadonlyMap<string, Native>;
+  readonly fixed: ReadonlyMap<string, Scalar>;
   readonly exclusive: ReadonlyMap<string, readonly string[]>;
   readonly implied: ReadonlySet<string>;
 
@@ -66,13 +66,13 @@ export class Binding {
   }
 }
 
-function isNative(schema: unknown): boolean {
-  return Schemas.structure(schema) instanceof Schemas.OfNative.Data;
+function isScalar(schema: unknown): boolean {
+  return Schemas.structure(schema) instanceof Schemas.OfScalar.Data;
 }
 
-/** Writes a state's value: a native as is, any other value from its plain form. */
+/** Writes a state's value: a scalar as is, any other value from its plain form. */
 function writeValue(visitor: OfAny, schema: Schemas.OfAny.Data, value: unknown): void {
-  if (isNative(schema)) visitor.as_native((n) => n.set(value as Native));
+  if (isScalar(schema)) visitor.as_scalar((n) => n.set(value as Scalar));
   else Plain._write(visitor, Plain._decode(schema, value, []));
 }
 
@@ -102,21 +102,21 @@ function fill(visitor: OfEntry, relation: Schemas.OfRelation.Data, entry: Entry)
   }
 }
 
-function sameNative(a: unknown, b: unknown): boolean {
+function sameScalar(a: unknown, b: unknown): boolean {
   if (a instanceof Uint8Array && b instanceof Uint8Array) return a.length === b.length && a.every((x, i) => x === b[i]);
   return a === b;
 }
 
 // --- Builders: Visitors over a state ---
 
-/** `Visitors.OfProperty`, `OfAny` and `OfNative` over a native value in a map: present only with the schema's type;
+/** `Visitors.OfProperty`, `OfAny` and `OfScalar` over a scalar value in a map: present only with the schema's type;
  * setting checks the type, and clears the others of its exclusive group. */
-class _NativeSlot implements OfProperty, OfAny, OfNative {
-  protected readonly schema: Schemas.OfNative.Data;
+class _ScalarSlot implements OfProperty, OfAny, OfScalar {
+  protected readonly schema: Schemas.OfScalar.Data;
 
   constructor(protected readonly values: Map<string, unknown>, protected readonly slotName: string,
     schema: unknown, private readonly group: readonly string[] = []) {
-    this.schema = Schemas.structure(schema) as Schemas.OfNative.Data;
+    this.schema = Schemas.structure(schema) as Schemas.OfScalar.Data;
   }
 
   name(): string {
@@ -124,20 +124,20 @@ class _NativeSlot implements OfProperty, OfAny, OfNative {
   }
 
   has(): boolean {
-    return Schemas.isNativeOf(this.schema.type, this.values.get(this.slotName));
+    return Schemas.isScalarOf(this.schema.type, this.values.get(this.slotName));
   }
 
-  get(): Native {
+  get(): Scalar {
     if (!this.has()) throw new AttributeError(`property ${repr(this.slotName)} is not set`);
-    return this.values.get(this.slotName) as Native;
+    return this.values.get(this.slotName) as Scalar;
   }
 
-  protected check(value: Native): void {
+  protected check(value: Scalar): void {
     const host = this.schema.host();
-    if (!Schemas.isNativeOf(host, value)) throw new TypeError(`expected ${tokenName(host)}, got ${typeName(value)}`);
+    if (!Schemas.isScalarOf(host, value)) throw new TypeError(`expected ${tokenName(host)}, got ${typeName(value)}`);
   }
 
-  set(value: Native): this {
+  set(value: Scalar): this {
     this.check(value);
     for (const other of this.group) this.values.delete(other);
     this.values.set(this.slotName, value);
@@ -154,33 +154,33 @@ class _NativeSlot implements OfProperty, OfAny, OfNative {
     return this;
   }
 
-  as_native(callback: Callback<OfNative>): this {
+  as_scalar(callback: Callback<OfScalar>): this {
     callback(this);
     return this;
   }
 
   as_object(_callback: Callback<OfObject>): this {
-    throw new TypeError(`property ${repr(this.slotName)} is native`);
+    throw new TypeError(`property ${repr(this.slotName)} is scalar`);
   }
 
   as_union(_callback: Callback<OfUnion>): this {
-    throw new TypeError(`property ${repr(this.slotName)} is native`);
+    throw new TypeError(`property ${repr(this.slotName)} is scalar`);
   }
 
   as_intersection(_callback: Callback<OfIntersection>): this {
-    throw new TypeError(`property ${repr(this.slotName)} is native`);
+    throw new TypeError(`property ${repr(this.slotName)} is scalar`);
   }
 }
 
 /** A fixed property: it always holds the binding's value, and writing another throws. */
-class _FixedSlot extends _NativeSlot {
-  constructor(name: string, schema: Schemas.OfNative.Data, private readonly fixed: Native) {
+class _FixedSlot extends _ScalarSlot {
+  constructor(name: string, schema: Schemas.OfScalar.Data, private readonly fixed: Scalar) {
     super(new Map([[name, fixed]]), name, schema);
   }
 
-  override set(value: Native): this {
+  override set(value: Scalar): this {
     this.check(value);
-    if (!sameNative(value, this.fixed)) {
+    if (!sameScalar(value, this.fixed)) {
       throw new ValueError(`expected ${this.slotName} ${repr(this.fixed)}, got ${repr(value)}`);
     }
     return this;
@@ -191,10 +191,10 @@ class _FixedSlot extends _NativeSlot {
   }
 }
 
-/** The handle of the property `name`: a native's, or a plain writer for any other value. */
+/** The handle of the property `name`: a scalar's, or a plain writer for any other value. */
 function slot(values: Map<string, unknown>, name: string, schema: Schemas.OfAny.Data,
   group: readonly string[] = []): OfProperty {
-  if (isNative(schema)) return new _NativeSlot(values, name, schema, group);
+  if (isScalar(schema)) return new _ScalarSlot(values, name, schema, group);
   return new Plain._PropertyWriter(values as Plain.PlainMap, name, schema, () => new Map(), Plain._unlinked);
 }
 
@@ -338,7 +338,7 @@ export class Builder implements OfObject {
   private field(name: string): OfProperty {
     const schema = (this.binding.schema.properties.get(name) as Schemas.OfProperty.Data).type as Schemas.OfAny.Data;
     if (this.binding.fixed.has(name)) {
-      return new _FixedSlot(name, schema as Schemas.OfNative.Data, this.binding.fixed.get(name) as Native);
+      return new _FixedSlot(name, schema as Schemas.OfScalar.Data, this.binding.fixed.get(name) as Scalar);
     }
     const group = (this.binding.exclusive.get(name) ?? []).filter((other) => other !== name);
     return slot(this.state.values, name, schema, group);

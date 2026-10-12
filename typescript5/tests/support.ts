@@ -26,20 +26,20 @@ export function raises(errors: Function | Function[], block: () => unknown, matc
   throw new Error(`AssertionError: expected one of ${expected.map((e) => e.name).join(", ")}`);
 }
 
-/** Property Spec for a native-typed property. */
-export function text(name: string, native: unknown = String) {
-  return (prop: any) => prop.name(name).of((t: any) => t.as_native(native));
+/** Property Spec for a scalar-typed property. */
+export function text(name: string, scalar: unknown = String) {
+  return (prop: any) => prop.name(name).of((t: any) => t.as_scalar(scalar));
 }
 
-/** Writes a native property through the visitor protocols (works for property names the DSL cannot reach). */
+/** Writes a scalar property through the visitor protocols (works for property names the DSL cannot reach). */
 export function set_property(visitor: any, name: string, value: unknown): void {
-  visitor.property(name, (p: any) => p.value((a: any) => a.as_native((n: any) => n.set(value))));
+  visitor.property(name, (p: any) => p.value((a: any) => a.as_scalar((n: any) => n.set(value))));
 }
 
-/** Reads a native property through the visitor protocols. */
+/** Reads a scalar property through the visitor protocols. */
 export function get_property(visitor: any, name: string): unknown {
   const found: unknown[] = [];
-  visitor.property(name, (p: any) => p.value((a: any) => a.as_native((n: any) => found.push(n.get()))));
+  visitor.property(name, (p: any) => p.value((a: any) => a.as_scalar((n: any) => found.push(n.get()))));
   return found[0];
 }
 
@@ -144,8 +144,8 @@ export function same_graph(a: PlainData, b: PlainData): boolean {
 /**
  * A minimal hand-written `Visitors.Visitable`, independent of Proxies.
  *
- * `values` maps property names to native values. `adjacencies` maps adjacency names to lists of entries; an entry
- * maps link names to `Fake` objects and property names to native values. Nothing is checked against a schema, so
+ * `values` maps property names to scalar values. `adjacencies` maps adjacency names to lists of entries; an entry
+ * maps link names to `Fake` objects and property names to scalar values. Nothing is checked against a schema, so
  * fakes can express data that proxies would never produce.
  */
 export class Fake implements Visitable {
@@ -190,8 +190,8 @@ function write(entry: any, item: Record<string, unknown>): void {
 
 /** Parameter counts of every protocol method, from Python's signatures (TypeScript interfaces vanish at runtime). */
 export const PROTOCOLS: Record<string, Record<string, number>> = {
-  OfAny: { as_native: 1, as_object: 1, as_union: 1, as_intersection: 1 },
-  OfNative: { has: 0, get: 0, set: 1, clear: 0 },
+  OfAny: { as_scalar: 1, as_object: 1, as_union: 1, as_intersection: 1 },
+  OfScalar: { has: 0, get: 0, set: 1, clear: 0 },
   OfProperty: { name: 0, has: 0, value: 1, clear: 0 },
   OfObject: { properties: 1, has: 1, property: 2, clear: 1, adjacencies: 1, adjacency: 2, identify: 1 },
   OfAdjacency: { name: 0, me: 0, entries: 1, add: 1, remove: 1 },

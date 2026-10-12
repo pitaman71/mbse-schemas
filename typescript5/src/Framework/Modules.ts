@@ -29,7 +29,7 @@ import type { PlainData, PlainMap } from "./Plain.js";
 import { repr, sortedStrings } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type * as Stores from "./Stores.js";
-import type { Native } from "./Visitors.js";
+import type { Scalar } from "./Visitors.js";
 
 export const MODULE = "Schemas.Module";
 
@@ -78,7 +78,7 @@ export function resolve(store: Stores.Store, definition: PlainMap, make: Make | 
 
 // --- Schemas to plain data ---
 
-/** A schema's plain form: a mapping from its kind to its contents, e.g. `{"native": {"format": "basic", ...}}`. */
+/** A schema's plain form: a mapping from its kind to its contents, e.g. `{"scalar": {"format": "basic", ...}}`. */
 type Definition = PlainMap;
 
 /** Writes schemas as plain data, referring to named schemas by name. */
@@ -113,9 +113,9 @@ export class _Writer {
   private contents(schema: unknown): Definition {
     const declared = (schema as { parameters?: unknown } | null)?.parameters;
     const parameters = declared instanceof Map ? this.members(declared.values()) : [];
-    if (schema instanceof Schemas.OfNative.Data) {
-      if (!(schema.token instanceof Schemas.OfNative.Token)) throw new TypeError(`unsupported native type ${repr(schema.token)}`);
-      return kindOf("native", [["parameters", parameters], ["format", schema.token.format], ["token", schema.token.name],
+    if (schema instanceof Schemas.OfScalar.Data) {
+      if (!(schema.token instanceof Schemas.OfScalar.Token)) throw new TypeError(`unsupported scalar type ${repr(schema.token)}`);
+      return kindOf("scalar", [["parameters", parameters], ["format", schema.token.format], ["token", schema.token.name],
         ["bits", _literal(schema.bits)], ["bytes", _literal(schema.bytes)],
         ["terms", _terms([["bits", schema.bits], ["bytes", schema.bytes]])], ["description", schema.description]]);
     }
@@ -168,22 +168,22 @@ function form(term: unknown): PlainMap {
   const neutral = Schemas.Form.of(term);
   return present([["dialect", neutral.dialect], ["kind", neutral.kind],
     ["attributes", [...neutral.attributes].map(([name, value]) => new Map<string, PlainData>([["name", name],
-      ["value", native(value, `attribute ${repr(name)} of a term`)]]))],
+      ["value", scalar(value, `attribute ${repr(name)} of a term`)]]))],
     ["arguments", neutral.arguments.map((argument) => new Map([["term", form(argument)]]))]]);
 }
 
-/** A native value's plain form, as a `Schemas.Form.Value`: its basic type's branch, e.g. `{"int": 3}`. */
-function native(value: unknown, what: string): PlainMap {
-  const host = Schemas.NATIVE_TYPES.find((token) => Schemas.isNativeOf(token, value));
-  if (host === undefined) throw new TypeError(`${what} is not a native value: ${repr(value)}`);
-  const schema = new Schemas.OfNative.Data(host);
-  return new Map([[(schema.token as Schemas.OfNative.Token).name, schema.to_plain(value)]]);
+/** A scalar value's plain form, as a `Schemas.Form.Value`: its basic type's branch, e.g. `{"int": 3}`. */
+function scalar(value: unknown, what: string): PlainMap {
+  const host = Schemas.SCALAR_TYPES.find((token) => Schemas.isScalarOf(token, value));
+  if (host === undefined) throw new TypeError(`${what} is not a scalar value: ${repr(value)}`);
+  const schema = new Schemas.OfScalar.Data(host);
+  return new Map([[(schema.token as Schemas.OfScalar.Token).name, schema.to_plain(value)]]);
 }
 
-/** An argument's plain form: its parameter's name, and its native `value` or its `term`. */
+/** An argument's plain form: its parameter's name, and its scalar `value` or its `term`. */
 function argument(name: string, value: unknown): PlainMap {
   if (Schemas.Form.is_term(value)) return new Map<string, PlainData>([["name", name], ["term", form(value)]]);
-  return new Map<string, PlainData>([["name", name], ["value", native(value, `argument ${repr(name)}`)]]);
+  return new Map<string, PlainData>([["name", name], ["value", scalar(value, `argument ${repr(name)}`)]]);
 }
 
 /** A schema's plain form, leaving out what is absent, false or empty, as a reader assumes. */
@@ -199,7 +199,7 @@ function present(contents: [string, PlainData][]): PlainMap {
 // --- Plain data to schemas ---
 
 const BLANK: Record<string, () => Schema> = {
-  native: () => new Schemas.OfNative.Data(),
+  scalar: () => new Schemas.OfScalar.Data(),
   object: () => new Schemas.OfObject.Data(),
   relation: () => new Schemas.OfRelation.Data(),
   union: () => new Schemas.OfUnion.Data(),
@@ -275,7 +275,7 @@ class _Reader {
   private form(plain: PlainMap): Schemas.Form.Data {
     once((plain.get("attributes") as PlainMap[] | undefined) ?? [], "attribute");
     const attributes = ((plain.get("attributes") as PlainMap[] | undefined) ?? [])
-      .map((a) => [a.get("name") as string, nativeOf(a.get("value") as PlainMap)] as [string, Native]);
+      .map((a) => [a.get("name") as string, scalarOf(a.get("value") as PlainMap)] as [string, Scalar]);
     return new Schemas.Form.Data(plain.get("kind") as string, new Map(attributes),
       ((plain.get("arguments") as PlainMap[] | undefined) ?? []).map((argument) => this.form(argument.get("term") as PlainMap)),
       (plain.get("dialect") as string | undefined) ?? null);
@@ -296,8 +296,8 @@ class _Reader {
       .map((p) => [p.name, p]));
     const properties = () => new Map(this.members(body.get("properties"), "property", (f) => new Schemas.OfProperty.Data(f))
       .map((p) => [p.name, p]));
-    if (schema instanceof Schemas.OfNative.Data) {
-      schema.token = new Schemas.OfNative.Token(body.get("format") as string, body.get("token") as string);
+    if (schema instanceof Schemas.OfScalar.Data) {
+      schema.token = new Schemas.OfScalar.Token(body.get("format") as string, body.get("token") as string);
       schema.bits = this.slot(body, "bits");
       schema.bytes = this.slot(body, "bytes");
     } else if (schema instanceof Schemas.OfObject.Data) {
@@ -328,11 +328,11 @@ class _Reader {
     return schema;
   }
 
-  /** The arguments a plain form describes, by name: native values, or terms. */
+  /** The arguments a plain form describes, by name: scalar values, or terms. */
   arguments(plain: readonly PlainMap[]): Map<string, unknown> {
     once(plain, "argument");
     return new Map(plain.map((a) => [a.get("name") as string,
-      a.has("term") ? this.term(a.get("term") as PlainMap) : nativeOf(a.get("value") as PlainMap)]));
+      a.has("term") ? this.term(a.get("term") as PlainMap) : scalarOf(a.get("value") as PlainMap)]));
   }
 }
 
@@ -345,8 +345,8 @@ function once(members: readonly PlainMap[], what: string): void {
   }
 }
 
-/** The native value of a `Schemas.Form.Value`'s plain form, e.g. `{"int": 3}`. */
-function nativeOf(plain: PlainMap): Native {
+/** The scalar value of a `Schemas.Form.Value`'s plain form, e.g. `{"int": 3}`. */
+function scalarOf(plain: PlainMap): Scalar {
   const [[name, value]] = [...plain] as [[string, PlainData]];
-  return new Schemas.OfNative.Data(new Schemas.OfNative.Token(Schemas.BASIC, name)).from_plain(value);
+  return new Schemas.OfScalar.Data(new Schemas.OfScalar.Token(Schemas.BASIC, name)).from_plain(value);
 }

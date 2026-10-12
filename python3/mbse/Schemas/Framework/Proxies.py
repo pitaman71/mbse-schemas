@@ -31,7 +31,7 @@ from collections.abc import Callable, Hashable, Mapping
 from typing import Any
 
 from . import Schemas, Stores, Visitors
-from .Visitors import Native
+from .Visitors import Scalar
 
 __all__ = ["OfStore", "store_of", "OfObject", "OfEntry", "OfAdjacency"]
 
@@ -105,14 +105,14 @@ def _same_store(store: OfStore | None, value: Any) -> None:
 # --- Relation entries ---
 
 
-def _native_key(value: Any) -> Hashable:
-    """Equality key per EQUALITY.md: distinct native types never compare equal; floats compare by bit pattern; a value
+def _scalar_key(value: Any) -> Hashable:
+    """Equality key per EQUALITY.md: distinct scalar types never compare equal; floats compare by bit pattern; a value
     object by its schema and properties, whatever its identity."""
     if isinstance(value, _RecordData):
         values = object.__getattribute__(value, "_values")
-        return ("object", id(value._schema), tuple(sorted((n, _native_key(v)) for n, v in values.items())))
+        return ("object", id(value._schema), tuple(sorted((n, _scalar_key(v)) for n, v in values.items())))
     if type(value) not in (int, float, str, bool, bytes):
-        raise TypeError(f"an entry property must be a native value or a value object, got {type(value).__name__}")
+        raise TypeError(f"an entry property must be a scalar value or a value object, got {type(value).__name__}")
     if isinstance(value, float):
         return ("float", value.hex())
     return (type(value).__name__, value)
@@ -125,7 +125,7 @@ class _Entry:
 
     __slots__ = ("_relation", "_links", "_properties")
 
-    def __init__(self, relation: RelationSchema, links: Mapping[str, _ObjectData], properties: Mapping[str, Native]):
+    def __init__(self, relation: RelationSchema, links: Mapping[str, _ObjectData], properties: Mapping[str, Scalar]):
         object.__setattr__(self, "_relation", relation)
         object.__setattr__(self, "_links", dict(links))
         object.__setattr__(self, "_properties", dict(properties))
@@ -149,7 +149,7 @@ class _Entry:
             return ("entry", id(self))
         return (
             tuple(sorted((name, id(target)) for name, target in self._links.items())),
-            tuple(sorted((name, _native_key(value)) for name, value in self._properties.items())),
+            tuple(sorted((name, _scalar_key(value)) for name, value in self._properties.items())),
         )
 
 
@@ -284,7 +284,7 @@ class _Adjacency(tuple):  # type: ignore[type-arg]
         links = self._schema.relation.links
         for entry in self:
             held = [getattr(entry, name) for name in names]
-            if all(h is v if name in links else h is not None and _native_key(h) == _native_key(v)
+            if all(h is v if name in links else h is not None and _scalar_key(h) == _scalar_key(v)
                    for name, h, v in zip(names, held, wanted)):  # a target by identity, a value by schema equality
                 return entry
         raise KeyError(f"no entry has the key {key!r}")
@@ -307,11 +307,11 @@ def _view(value: Any, schema: Any) -> Any:
 
 
 def _runtime(value: Any) -> Any:
-    """What tells a value apart at run time, as `Schemas` tells a flat union's branches apart: a native's type, or a
+    """What tells a value apart at run time, as `Schemas` tells a flat union's branches apart: a scalar's type, or a
     value object's schema."""
     if isinstance(value, _RecordData):
         return ("schema", id(object.__getattribute__(value, "_schema")))
-    return ("native", type(value))
+    return ("scalar", type(value))
 
 
 def _branch(name: str, schema: Schemas.OfUnion.Data, value: Any) -> Schemas.OfUnion.Branch:
@@ -330,11 +330,11 @@ def _write_properties(visitor: Any, schema: ObjectSchema, values: dict[str, Any]
 
 
 def _write_value(visitor: Visitors.OfAny, value: Any) -> None:
-    """Writes a native, a value object, a union value or an intersection value into a `Visitors.OfAny`."""
+    """Writes a scalar, a value object, a union value or an intersection value into a `Visitors.OfAny`."""
     if isinstance(value, _RecordData):
         _write_record(visitor, object.__getattribute__(value, "_schema"), lambda r: value.accept(r))
     else:
-        visitor.as_native(lambda n: n.set(value))
+        visitor.as_scalar(lambda n: n.set(value))
 
 
 def _noun(schema: Any) -> str:
@@ -534,39 +534,39 @@ def _write_entry(visitor: Visitors.OfEntry, entry: _Entry, adjacency: Schemas.Of
 # --- Builders ---
 
 
-class _NativeSlot:
-    """`Visitors.OfNative` over one key of a value dict."""
+class _ScalarSlot:
+    """`Visitors.OfScalar` over one key of a value dict."""
 
-    def __init__(self, values: dict[str, Native], name: str):
+    def __init__(self, values: dict[str, Scalar], name: str):
         self._values, self._name = values, name
 
     def has(self) -> bool:
         return self._name in self._values
 
-    def get(self) -> Native:
+    def get(self) -> Scalar:
         if self._name not in self._values:
             raise AttributeError(f"property {self._name!r} is not set")
         return self._values[self._name]
 
-    def set(self, value: Native) -> _NativeSlot:
+    def set(self, value: Scalar) -> _ScalarSlot:
         self._values[self._name] = value
         return self
 
-    def clear(self) -> _NativeSlot:
+    def clear(self) -> _ScalarSlot:
         self._values.pop(self._name, None)
         return self
 
 
 class _AnySlot:
     """`Visitors.OfAny` over one key of a value dict, holding a value of `schema` (an entry property's schema is not
-    given: entry properties are native)."""
+    given: entry properties are scalar)."""
 
     def __init__(self, values: dict[str, Any], name: str, schema: Any = None, store: OfStore | None = None):
         self._values, self._name, self._store = values, name, store
         self._schema = Schemas.structure(schema)
 
-    def as_native(self, callback: Callable[[Visitors.OfNative], Any]) -> _AnySlot:
-        callback(_NativeSlot(self._values, self._name))
+    def as_scalar(self, callback: Callable[[Visitors.OfScalar], Any]) -> _AnySlot:
+        callback(_ScalarSlot(self._values, self._name))
         return self
 
     def as_object(self, callback: Callable[[Visitors.OfObject], Any]) -> _AnySlot:
@@ -617,7 +617,7 @@ class _PropertySlot:
 
 def _setter(visitor: Any, name: str, schema: Any = None) -> Callable[[Any], Any]:
     """DSL setter for a property of `schema`: `.name(value)`, or `.name(Spec)` where the Spec receives the value's
-    builder: a `Visitors.OfNative` (`v.set(...)`), or the builder of a value object, a union value or an intersection
+    builder: a `Visitors.OfScalar` (`v.set(...)`), or the builder of a value object, a union value or an intersection
     value, which starts from the value already set. A value object given as the value replaces the one set."""
 
     def setter(spec: Any) -> Any:
@@ -646,7 +646,7 @@ def _apply(visitor: Visitors.OfAny, name: str, schema: Any, spec: Any) -> None:
         else:
             raise TypeError(f"property {name!r} takes {_a(_noun(schema))} or a Spec, got {type(spec).__name__}")
     else:
-        visitor.as_native(spec if callable(spec) else (lambda n: n.set(spec)))
+        visitor.as_scalar(spec if callable(spec) else (lambda n: n.set(spec)))
 
 
 def _write_record(visitor: Visitors.OfAny, schema: Any, callback: Callable[[Any], Any]) -> None:
@@ -786,7 +786,7 @@ class _EntryBuilder:
     def __init__(self, relation: RelationSchema, me: str, store: OfStore | None = None):
         self._relation, self._me, self._store = relation, me, store
         self._links: dict[str, _ObjectData | _ObjectBuilder] = {}
-        self._values: dict[str, Native] = {}
+        self._values: dict[str, Scalar] = {}
         self._source: _Entry | None = None  # the entry this one rewrites, when copied or loaded from one
 
     def _check_link(self, name: str) -> None:
@@ -911,7 +911,7 @@ class _ObjectBuilder:
         if not schema.ref:
             raise TypeError(f"{schema_name!r} is a value object schema; a value object is built through its owner")
         self._store, self._schema, self._schema_name, self._source = store, schema, schema_name, instance
-        self._values: dict[str, Native] = {}
+        self._values: dict[str, Scalar] = {}
         self._entries: dict[str, list[_EntryBuilder]] = {}
         if instance is not None:
             if not isinstance(instance, _ObjectData):

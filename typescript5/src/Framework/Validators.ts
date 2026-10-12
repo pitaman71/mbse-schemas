@@ -11,8 +11,8 @@
  * The validator is a visitor: each object writes itself into a recorder through `Visitable.accept`. Checks:
  *
  * - the schemas involved pass `validate()`;
- * - each property value has exactly its schema's native type (distinct native types are never interchangeable);
- * - each entry sets every link, its property values have their native types, and each linked object's schema
+ * - each property value has exactly its schema's scalar type (distinct scalar types are never interchangeable);
+ * - each entry sets every link, its property values have their scalar types, and each linked object's schema
  *   declares an adjacency to that relation via that link;
  * - `unique(S)` clauses hold over the entries seen: entries that agree on everything outside `S` agree on `S`.
  *   Uniqueness is checked only over the entries reachable from what was validated.
@@ -23,19 +23,19 @@
 
 import { NotImplementedError } from "./Errors.js";
 import { schemaTypeName } from "./Plain.js";
-import { nativeKey } from "./Proxies.js";
+import { scalarKey } from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
 import { repr, sortedStrings, tokenName, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type * as Stores from "./Stores.js";
-import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfNative,
+import type { Callback, Scalar, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfScalar,
   OfObject, OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
 // --- Recorders: Visitors that capture what an object writes into them ---
 
-/** `Visitors.OfProperty` / `OfAny` / `OfNative` recording one value into a map: a native, or a value object, a
+/** `Visitors.OfProperty` / `OfAny` / `OfScalar` recording one value into a map: a scalar, or a value object, a
  * union value or an intersection value (an `_ObjectRecord` of that kind). */
-export class _Value implements OfProperty, OfAny, OfNative {
+export class _Value implements OfProperty, OfAny, OfScalar {
   constructor(private readonly values: Map<string, unknown>, private readonly slotName: string) {}
 
   name(): string {
@@ -46,11 +46,11 @@ export class _Value implements OfProperty, OfAny, OfNative {
     return this.values.has(this.slotName);
   }
 
-  get(): Native {
-    return this.values.get(this.slotName) as Native;
+  get(): Scalar {
+    return this.values.get(this.slotName) as Scalar;
   }
 
-  set(value: Native): _Value {
+  set(value: Scalar): _Value {
     this.values.set(this.slotName, value);
     return this;
   }
@@ -65,7 +65,7 @@ export class _Value implements OfProperty, OfAny, OfNative {
     return this;
   }
 
-  as_native(callback: Callback<OfNative>): _Value {
+  as_scalar(callback: Callback<OfScalar>): _Value {
     callback(this);
     return this;
   }
@@ -247,7 +247,7 @@ function replay(visitor: OfAny, value: unknown): void {
   } else if (value instanceof _ObjectRecord) {
     visitor.as_object((o) => value.accept(o));
   } else {
-    visitor.as_native((n) => n.set(value as Native));
+    visitor.as_scalar((n) => n.set(value as Scalar));
   }
 }
 
@@ -271,11 +271,11 @@ export function _kind(value: unknown): string {
   return typeName(value);
 }
 
-function nativeProblem(schema: Schemas.OfNative.Data, value: unknown): string | null {
+function scalarProblem(schema: Schemas.OfScalar.Data, value: unknown): string | null {
   if (schema.type === null) { // an unsupported type is the schema's own problem, reported by its validate()
-    return schema.token instanceof Schemas.OfNative.Token ? `${String(schema.token)} has no type in this implementation` : null;
+    return schema.token instanceof Schemas.OfScalar.Token ? `${String(schema.token)} has no type in this implementation` : null;
   }
-  if (!Schemas.isNativeOf(schema.type, value)) return `expected ${tokenName(schema.type)}, got ${_kind(value)}`;
+  if (!Schemas.isScalarOf(schema.type, value)) return `expected ${tokenName(schema.type)}, got ${_kind(value)}`;
   return null;
 }
 
@@ -289,9 +289,9 @@ function filling(relation: Schemas.OfRelation.Data, name: string, target: Visita
   return `${what} cannot fill link ${repr(name)}; its schema declares no adjacency to this relation via ${repr(name)}`;
 }
 
-/** Equality key per EQUALITY.md: a native's, or a value object's by its properties and its entries, in order. */
+/** Equality key per EQUALITY.md: a scalar's, or a value object's by its properties and its entries, in order. */
 function valueKey(value: unknown): string {
-  if (!(value instanceof _ObjectRecord)) return nativeKey(value);
+  if (!(value instanceof _ObjectRecord)) return scalarKey(value);
   const values = sortedStrings(value.values.keys()).map((name) => [name, valueKey(value.values.get(name))]);
   const entries = sortedStrings(value.adjacencyEntries.keys()).filter((name) => (value.adjacencyEntries.get(name) as _EntryRecord[]).length > 0)
     .map((name) => [name, (value.adjacencyEntries.get(name) as _EntryRecord[]).map(entryKey)]);
@@ -342,8 +342,8 @@ class Checker {
   private valueProblems(label: string, type: Schemas.OfAny.Data, item: unknown): string[] {
     const schema = Schemas.structure(type) as Schemas.OfAny.Data | null;
     if (schema === null) return [];
-    if (schema instanceof Schemas.OfNative.Data) {
-      const problem = nativeProblem(schema, item);
+    if (schema instanceof Schemas.OfScalar.Data) {
+      const problem = scalarProblem(schema, item);
       return problem === null ? [] : [`${label}: ${problem}`];
     }
     const expected = recordKind(schema);
@@ -506,7 +506,7 @@ export class Outcome {
 
 export interface CheckCall {
   (schema: unknown, value: unknown): Outcome;
-  OfNative(schema: Schemas.OfNative.Data, value: unknown): Outcome;
+  OfScalar(schema: Schemas.OfScalar.Data, value: unknown): Outcome;
   OfObject(schema: Schemas.OfObject.Data, value: Visitable): Outcome;
   Reachable(schema: Schemas.OfObject.Data, root: Visitable): Outcome;
 }
@@ -524,8 +524,8 @@ export function Check(store: Stores.Store): CheckCall {
     check.uniques();
     return new Outcome(check.problems, check.unknowns);
   };
-  const OfNative = (schema: Schemas.OfNative.Data, value: unknown): Outcome => {
-    const problem = nativeProblem(schema, value);
+  const OfScalar = (schema: Schemas.OfScalar.Data, value: unknown): Outcome => {
+    const problem = scalarProblem(schema, value);
     return new Outcome([...schema.validate(), ...(problem ? [problem] : [])], []);
   };
   /** Checks one object and its entries; uniqueness only over the entries it is part of. */
@@ -533,16 +533,16 @@ export function Check(store: Stores.Store): CheckCall {
   /** Checks the root and every object reachable from it through adjacencies. */
   const ReachableCheck = (schema: Schemas.OfObject.Data, root: Visitable): Outcome => run(schema, Reachable.of(root));
   const call = (schema: unknown, value: unknown): Outcome => {
-    if (schema instanceof Schemas.OfNative.Data) return OfNative(schema, value);
+    if (schema instanceof Schemas.OfScalar.Data) return OfScalar(schema, value);
     if (schema instanceof Schemas.OfObject.Data) return OfObject(schema, value as Visitable);
     throw new NotImplementedError(`${schemaTypeName(schema)} cannot be validated yet`);
   };
-  return Object.assign(call, { OfNative, OfObject, Reachable: ReachableCheck });
+  return Object.assign(call, { OfScalar, OfObject, Reachable: ReachableCheck });
 }
 
 export interface ValidateCall {
   (schema: unknown, value: unknown): string[];
-  OfNative(schema: Schemas.OfNative.Data, value: unknown): string[];
+  OfScalar(schema: Schemas.OfScalar.Data, value: unknown): string[];
   OfObject(schema: Schemas.OfObject.Data, value: Visitable): string[];
   Reachable(schema: Schemas.OfObject.Data, root: Visitable): string[];
 }
@@ -553,7 +553,7 @@ export function Validate(store: Stores.Store): ValidateCall {
   const check = Check(store);
   const call = (schema: unknown, value: unknown): string[] => check(schema, value).problems;
   return Object.assign(call, {
-    OfNative: (schema: Schemas.OfNative.Data, value: unknown) => check.OfNative(schema, value).problems,
+    OfScalar: (schema: Schemas.OfScalar.Data, value: unknown) => check.OfScalar(schema, value).problems,
     /** Checks one object and its entries; uniqueness only over the entries it is part of. */
     OfObject: (schema: Schemas.OfObject.Data, value: Visitable) => check.OfObject(schema, value).problems,
     /** Checks the root and every object reachable from it through adjacencies. */

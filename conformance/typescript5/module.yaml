@@ -9,22 +9,22 @@ objects:
           properties:
           - name: street1
             type:
-              native:
+              scalar:
                 format: basic
                 token: str
           - name: locality
             type:
-              native:
+              scalar:
                 format: basic
                 token: str
           - name: postal_code
             type:
-              native:
+              scalar:
                 format: basic
                 token: str
           - name: country_code
             type:
-              native:
+              scalar:
                 format: basic
                 token: str
           adjacencies:
@@ -76,7 +76,7 @@ objects:
           properties:
           - name: name
             type:
-              native:
+              scalar:
                 format: basic
                 token: str
           adjacencies:
@@ -88,7 +88,7 @@ objects:
                 properties:
                 - name: value
                   type:
-                    native:
+                    scalar:
                       format: basic
                       token: str
             me: owner
@@ -100,7 +100,7 @@ objects:
                 properties:
                 - name: value
                   type:
-                    native:
+                    scalar:
                       format: basic
                       token: bytes
             me: owner
@@ -122,7 +122,7 @@ objects:
                             properties:
                             - name: value
                               type:
-                                native:
+                                scalar:
                                   format: basic
                                   token: int
                         me: owner
@@ -139,12 +139,12 @@ objects:
                       branches:
                       - name: value
                         type:
-                          native:
+                          scalar:
                             format: basic
                             token: float
                       - name: note
                         type:
-                          native:
+                          scalar:
                             format: basic
                             token: str
             me: owner
@@ -160,7 +160,7 @@ objects:
                       properties:
                       - name: name
                         type:
-                          native:
+                          scalar:
                             format: basic
                             token: str
                       adjacencies:
@@ -197,7 +197,7 @@ objects:
                                   properties:
                                   - name: name
                                     type:
-                                      native:
+                                      scalar:
                                         format: basic
                                         token: str
                                   adjacencies:
@@ -221,17 +221,17 @@ objects:
                 properties:
                 - name: i
                   type:
-                    native:
+                    scalar:
                       format: basic
                       token: int
                 - name: j
                   type:
-                    native:
+                    scalar:
                       format: basic
                       token: int
                 - name: value
                   type:
-                    native:
+                    scalar:
                       format: basic
                       token: int
                 uniques:
@@ -247,12 +247,12 @@ objects:
                 properties:
                 - name: key
                   type:
-                    native:
+                    scalar:
                       format: basic
                       token: str
                 - name: value
                   type:
-                    native:
+                    scalar:
                       format: basic
                       token: float
                 uniques:
@@ -268,12 +268,12 @@ objects:
                 properties:
                 - name: key
                   type:
-                    native:
+                    scalar:
                       format: basic
                       token: float
                 - name: value
                   type:
-                    native:
+                    scalar:
                       format: basic
                       token: str
                 uniques:
@@ -293,17 +293,17 @@ objects:
                       properties:
                       - name: r
                         type:
-                          native:
+                          scalar:
                             format: basic
                             token: int
                       - name: c
                         type:
-                          native:
+                          scalar:
                             format: basic
                             token: int
                 - name: value
                   type:
-                    native:
+                    scalar:
                       format: basic
                       token: int
                 uniques:
@@ -318,7 +318,7 @@ objects:
           properties:
           - name: name
             type:
-              native:
+              scalar:
                 format: basic
                 token: str
           - name: home
@@ -327,12 +327,12 @@ objects:
                 properties:
                 - name: number
                   type:
-                    native:
+                    scalar:
                       format: basic
                       token: str
                 - name: label
                   type:
-                    native:
+                    scalar:
                       format: basic
                       token: str
                 adjacencies:
@@ -351,12 +351,12 @@ objects:
                       properties:
                       - name: number
                         type:
-                          native:
+                          scalar:
                             format: basic
                             token: str
                       - name: label
                         type:
-                          native:
+                          scalar:
                             format: basic
                             token: str
                       adjacencies:
@@ -371,7 +371,7 @@ objects:
                       properties:
                       - name: address
                         type:
-                          native:
+                          scalar:
                             format: basic
                             token: str
           - name: ident
@@ -380,12 +380,12 @@ objects:
                 branches:
                 - name: number
                   type:
-                    native:
+                    scalar:
                       format: basic
                       token: int
                 - name: code
                   type:
-                    native:
+                    scalar:
                       format: basic
                       token: str
           - name: meta
@@ -398,7 +398,7 @@ objects:
                       properties:
                       - name: updated
                         type:
-                          native:
+                          scalar:
                             format: basic
                             token: str
                 - name: audit
@@ -407,12 +407,12 @@ objects:
                       properties:
                       - name: by
                         type:
-                          native:
+                          scalar:
                             format: basic
                             token: str
                       - name: updated
                         type:
-                          native:
+                          scalar:
                             format: basic
                             token: str
           adjacencies:
@@ -428,12 +428,12 @@ objects:
           branches:
           - name: 'n'
             type:
-              native:
+              scalar:
                 format: basic
                 token: int
           - name: s
             type:
-              native:
+              scalar:
                 format: basic
                 token: str
     - name: Contact
@@ -443,17 +443,17 @@ objects:
           properties:
           - name: given_name
             type:
-              native:
+              scalar:
                 format: basic
                 token: str
           - name: family_name
             type:
-              native:
+              scalar:
                 format: basic
                 token: str
           - name: birth_date
             type:
-              native:
+              scalar:
                 format: basic
                 token: str
           adjacencies:
@@ -476,7 +476,7 @@ objects:
           properties:
           - name: label
             type:
-              native:
+              scalar:
                 format: basic
                 token: str
     - name: Deck
@@ -486,7 +486,7 @@ objects:
           properties:
           - name: title
             type:
-              native:
+              scalar:
                 format: basic
                 token: str
           adjacencies:
@@ -501,7 +501,7 @@ objects:
           parameters:
           - name: 'n'
             type:
-              native:
+              scalar:
                 format: basic
                 token: int
             description: Its side
@@ -509,7 +509,7 @@ objects:
           properties:
           - name: mask
             type:
-              native:
+              scalar:
                 format: basic
                 token: int
                 terms:
@@ -559,7 +559,7 @@ objects:
           - name: card
     - name: Int32
       schema:
-        native:
+        scalar:
           format: basic
           token: int
           bits: 32
@@ -574,7 +574,7 @@ objects:
                 properties:
                 - name: at
                   type:
-                    native:
+                    scalar:
                       format: basic
                       token: int
           - name: who
@@ -583,7 +583,7 @@ objects:
                 properties:
                 - name: by
                   type:
-                    native:
+                    scalar:
                       format: basic
                       token: str
     - name: Panel
@@ -593,7 +593,7 @@ objects:
           properties:
           - name: name
             type:
-              native:
+              scalar:
                 format: basic
                 token: str
           adjacencies:
@@ -611,7 +611,7 @@ objects:
           properties:
           - name: kind
             type:
-              native:
+              scalar:
                 format: basic
                 token: str
     - name: Person
@@ -621,12 +621,12 @@ objects:
           properties:
           - name: given_name
             type:
-              native:
+              scalar:
                 format: basic
                 token: str
           - name: birth_date
             type:
-              native:
+              scalar:
                 format: basic
                 token: str
           adjacencies:
@@ -652,7 +652,7 @@ objects:
             me: mentee
     - name: Size
       schema:
-        native:
+        scalar:
           format: ccpp
           token: size_t
           bytes: 8
@@ -665,7 +665,7 @@ objects:
           parameters:
           - name: m
             type:
-              native:
+              scalar:
                 format: basic
                 token: int
           arguments:
@@ -689,7 +689,7 @@ objects:
           - name: d
     - name: Word
       schema:
-        native:
+        scalar:
           format: basic
           token: int
           terms:
@@ -702,6 +702,6 @@ objects:
           parameters:
           - name: w
             type:
-              native:
+              scalar:
                 format: basic
                 token: int

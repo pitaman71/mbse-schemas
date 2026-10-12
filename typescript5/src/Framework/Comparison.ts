@@ -3,12 +3,12 @@
  *
  * For each schema element `OfX`, `Comparison.OfX` implements `Visitors.OfX` and records the value written into it.
  * `a.compare(b)` compares two recordings and returns -1, 0 or 1 when `a` is less than, equal to or greater than `b`,
- * and `null` when they are incomparable. `new Comparison.OfNative(schema, value)` and
+ * and `null` when they are incomparable. `new Comparison.OfScalar(schema, value)` and
  * `new Comparison.OfObject(schema, instance)` record a value when constructed; an instance writes itself in through
  * `Visitable.accept`.
  *
  * - Absent compares equal to absent; absent and present are incomparable. So do values under different schemas.
- * - `OfNative`: a value must have exactly the schema's native type. `int`, `float`, `str` and `bytes` are ordered:
+ * - `OfScalar`: a value must have exactly the schema's scalar type. `int`, `float`, `str` and `bytes` are ordered:
  *   strings by code point, bytes lexicographically, floats by value with `-0.0` before `0.0`. NaNs equal each other
  *   and are incomparable with other floats. Booleans are equal or incomparable.
  * - `OfObject`: equal when every property its schema declares is absent in both or equal in both; otherwise
@@ -32,7 +32,7 @@ import { AttributeError, KeyError, ValueError } from "./Errors.js";
 import { compareStrings, repr, tokenName, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type * as Visitors from "./Visitors.js";
-import type { Callback, Native } from "./Visitors.js";
+import type { Callback, Scalar } from "./Visitors.js";
 
 /** -1, 0 or 1 when ordered or equal; `null` when incomparable. */
 export type Result = -1 | 0 | 1 | null;
@@ -53,8 +53,8 @@ function compareBytes(a: Uint8Array, b: Uint8Array): number {
   return a.length - b.length;
 }
 
-/** Compares two values of the same native type. */
-function compareNatives(a: Native, b: Native): Result {
+/** Compares two values of the same scalar type. */
+function compareScalars(a: Scalar, b: Scalar): Result {
   if (typeof a === "boolean") return a === b ? 0 : null;
   if (typeof a === "number") {
     const y = b as number;
@@ -66,11 +66,11 @@ function compareNatives(a: Native, b: Native): Result {
   return sign(compareBytes(a, b as Uint8Array));
 }
 
-/** `Visitors.OfNative` recording one native value, which must have exactly the schema's native type. */
-export class OfNative implements Visitors.OfNative {
-  private value: Native[] = [];
+/** `Visitors.OfScalar` recording one scalar value, which must have exactly the schema's scalar type. */
+export class OfScalar implements Visitors.OfScalar {
+  private value: Scalar[] = [];
 
-  constructor(private readonly schema: Schemas.OfNative.Data, value?: Native) {
+  constructor(private readonly schema: Schemas.OfScalar.Data, value?: Scalar) {
     if (value !== undefined) this.set(value);
   }
 
@@ -78,27 +78,27 @@ export class OfNative implements Visitors.OfNative {
     return this.value.length > 0;
   }
 
-  get(): Native {
+  get(): Scalar {
     if (this.value.length === 0) throw new AttributeError("the value is not set");
-    return this.value[0] as Native;
+    return this.value[0] as Scalar;
   }
 
-  set(value: Native): OfNative {
+  set(value: Scalar): OfScalar {
     const host = this.schema.host();
-    if (!Schemas.isNativeOf(host, value)) throw new TypeError(`expected ${tokenName(host)}, got ${typeName(value)}`);
+    if (!Schemas.isScalarOf(host, value)) throw new TypeError(`expected ${tokenName(host)}, got ${typeName(value)}`);
     this.value = [value];
     return this;
   }
 
-  clear(): OfNative {
+  clear(): OfScalar {
     this.value = [];
     return this;
   }
 
-  compare(other: OfNative): Result {
+  compare(other: OfScalar): Result {
     if (!this.has() || !other.has()) return !this.has() && !other.has() ? 0 : null;
     if (this.schema.type !== other.schema.type) return null;
-    return compareNatives(this.value[0] as Native, other.value[0] as Native);
+    return compareScalars(this.value[0] as Scalar, other.value[0] as Scalar);
   }
 }
 
@@ -113,7 +113,7 @@ class Paths {
 
 /** `Visitors.OfAny` recording a value of the kind its schema declares. */
 export class OfAny implements Visitors.OfAny {
-  private value: OfNative | OfObject | OfUnion | OfIntersection | null = null;
+  private value: OfScalar | OfObject | OfUnion | OfIntersection | null = null;
   private readonly schema: Schemas.OfAny.Data;
 
   constructor(schema: Schemas.OfAny.Data, private readonly paths: Paths | null = null, private readonly path: Path = []) {
@@ -122,14 +122,14 @@ export class OfAny implements Visitors.OfAny {
 
   /** @internal */
   absent(): boolean {
-    if (this.value instanceof OfNative) return !this.value.has();
+    if (this.value instanceof OfScalar) return !this.value.has();
     return this.value === null
       || ((this.value instanceof OfUnion || this.value instanceof OfIntersection) && this.value.absent());
   }
 
-  as_native(callback: Callback<Visitors.OfNative>): OfAny {
-    if (!(this.schema instanceof Schemas.OfNative.Data)) throw new TypeError("the schema is not a native schema");
-    if (!(this.value instanceof OfNative)) this.value = new OfNative(this.schema);
+  as_scalar(callback: Callback<Visitors.OfScalar>): OfAny {
+    if (!(this.schema instanceof Schemas.OfScalar.Data)) throw new TypeError("the schema is not a scalar schema");
+    if (!(this.value instanceof OfScalar)) this.value = new OfScalar(this.schema);
     callback(this.value);
     return this;
   }
@@ -159,7 +159,7 @@ export class OfAny implements Visitors.OfAny {
 
   compare(other: OfAny): Result {
     if (this.absent() || other.absent()) return this.absent() && other.absent() ? 0 : null;
-    if (this.value instanceof OfNative) return other.value instanceof OfNative ? this.value.compare(other.value) : null;
+    if (this.value instanceof OfScalar) return other.value instanceof OfScalar ? this.value.compare(other.value) : null;
     if (this.value instanceof OfUnion) return other.value instanceof OfUnion ? this.value.compare(other.value) : null;
     if (this.value instanceof OfIntersection) {
       return other.value instanceof OfIntersection ? this.value.compare(other.value) : null;

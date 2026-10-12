@@ -19,9 +19,9 @@ proxies as the in-memory representation.
 The schema elements include:
 
 - `OfAny` : a value of any type
-- `OfNative` : a native value, whose type is a token `{format, name}` (see Native types below), with an optional width in
+- `OfScalar` : a scalar value, whose type is a token `{format, name}` (see Scalar types below), with an optional width in
                bits or bytes. In Python the host types are `int`, `float`, `str`, `bool` and `bytes`.
-               Conversion between the native format and the over-the-wire format is the responsibility of `Schemas.OfNative`.
+               Conversion between the scalar format and the over-the-wire format is the responsibility of `Schemas.OfScalar`.
 - `OfObject` : named properties list where each property has type described by `OfAny`. An `OfObject` schema describes
                reference objects when marked `.ref()`, and otherwise value objects; see Value objects and
                reference objects. An `OfObject` schema may declare
@@ -63,7 +63,7 @@ A list, a dict or a map is not a kind of schema: it is an adjacency to a one-lin
 Every element may be described: each kind of schema, each property, adjacency, union branch and intersection
 part takes `.description(text)` on its builder, and its data holds `description`, text or none. A description is
 documentation, for people and for generated code; validation reports one that is not text, and no validation,
-conversion or comparison of data reads it. A native's description is part of the native, as its name is.
+conversion or comparison of data reads it. A scalar's description is part of the scalar, as its name is.
 
 A property whose schema is an `OfObject` holds a *value object*: a read-only record of that
 schema's properties that belongs to its owner, copied with it and written nested in its owner's snapshot. It has an
@@ -126,7 +126,7 @@ Uniqueness gives only an upper bound. Requiring at least one entry is a separate
 
 ### Equality
 
-Equality is defined by the schema, never by host-language `==`, and ordering only for ordered native types. See
+Equality is defined by the schema, never by host-language `==`, and ordering only for ordered scalar types. See
 [Equality](EQUALITY.md) for its definition, hashing, ordering, the `Comparison` module, and the edge cases still to
 confirm.
 
@@ -145,10 +145,10 @@ separate from the optional instance, and exposes accessor methods that the calle
 None of these validate; validation happens only when the caller asks for it.
 
 `Schemas.OfAny.Builder` is the builder used wherever a schema of any kind is expected (e.g. a property's type). It
-selects the kind through `as_<kind>` methods, e.g. `as_native(str)` for `OfNative`.
+selects the kind through `as_<kind>` methods, e.g. `as_scalar(str)` for `OfScalar`.
 
-Finalizing a `Schemas.OfAny.Builder` after an `as_<kind>` call yields that kind's data, e.g. `Schemas.OfNative.Data`
-after `as_native(str)`, not a `Schemas.OfAny.Data` wrapping it.
+Finalizing a `Schemas.OfAny.Builder` after an `as_<kind>` call yields that kind's data, e.g. `Schemas.OfScalar.Data`
+after `as_scalar(str)`, not a `Schemas.OfAny.Data` wrapping it.
 
 Builder methods are fluent: they return the builder itself (`self`).
 
@@ -157,13 +157,13 @@ a direct value or a callable that takes and returns the corresponding builder. F
 
 - A property's `of(...)` takes a `Schemas.OfAny.Spec`: either a `Schemas.OfAny.Data` or a
   `Callable[[Schemas.OfAny.Builder], Schemas.OfAny.Builder]`.
-- `as_native` takes a `Schemas.OfNative.Spec`: either one of the supported native types directly (e.g. `str`, the
-  `basic` token `str`) or a `Callable[[Schemas.OfNative.Builder], Schemas.OfNative.Builder]`, whose builder sets a
+- `as_scalar` takes a `Schemas.OfScalar.Spec`: either one of the supported scalar types directly (e.g. `str`, the
+  `basic` token `str`) or a `Callable[[Schemas.OfScalar.Builder], Schemas.OfScalar.Builder]`, whose builder sets a
   host type (`.type(int)`), a token in any format (`.token('ccpp', 'int32_t')`) and a width (`.bits(32)`,
   `.bytes(4)`).
 
 Anonymous sub-schemas are created inline by passing a lambda that receives a builder, e.g.
-`prop.name('street1').of(lambda t: t.as_native(str))`, where `t` is a `Schemas.OfAny.Builder`. The lambda only
+`prop.name('street1').of(lambda t: t.as_scalar(str))`, where `t` is a `Schemas.OfAny.Builder`. The lambda only
 configures the builder; it is not part of the resulting schema, which stays serializable.
 
 Instances of a user schema follow the same pattern. With the dynamic (proxy) implementation (see `python3/mbse/Schemas/Examples/AddressBook.py` and `typescript5/src/Examples/AddressBook.ts`):
@@ -219,7 +219,7 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
 - `Validators` : `Validators.Validate(store)(schema, value)` checks data against its schema and returns a list of
   problems, each with a path (e.g. `Student#0.enrollments[1].credits: expected int, got bool`). `.Reachable(schema, root)`
   checks everything reachable from the root. It is constructed with the store that looks schemas up by name, and runs
-  only when the caller asks. It checks the schemas' own `validate()`, exact native types
+  only when the caller asks. It checks the schemas' own `validate()`, exact scalar types
   of properties and entry properties, that every link is set and filled by an object whose schema declares an
   adjacency via that link, `unique(...)` clauses over the entries seen, value objects' properties and entries
   recursively (a link to a value object is checked against its schema when its owner is validated too),
@@ -244,7 +244,7 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   language. Python has `Adapters.Dataclasses`: `FromDataclass(cls)` returns the `OfObject` a dataclass describes and
   `ToDataclass(schema, name)` returns a new dataclass, both through `ast` trees rather than source text;
   `FromDataclass.model(*classes)` and `ToDataclass.model(schemas)` translate several at once. Only types are
-  translated. Native fields are properties. A container of dataclasses (`set[X]`, `list[X]`, `dict[K, X]`) is a
+  translated. Scalar fields are properties. A container of dataclasses (`set[X]`, `list[X]`, `dict[K, X]`) is a
   relation with links `owner` and `item`, plus `index: int` or `key: K` with `unique(item)` for lists and dicts: the
   owner's adjacency is the field, and each element class gets an adjacency via `item`. Adjacencies declare which
   object schemas may fill a link, so writing a class finds a container's element type by reverse lookup, and writes
@@ -309,7 +309,7 @@ in-memory cache slices.
 - **Queries are an extension.** The protocol locates schemas, builders, singletons and extents; selecting objects by a
   condition belongs to [mbse-patterns](https://github.com/pitaman71/mbse-patterns), whose queryable store protocol adds
   `select` and whose `Scan` answers queries over any store's extents, with mbse-expressions' expressions as the
-  conditions. A store that can answer a query natively (a database) implements `select` itself.
+  conditions. A store that can answer a query scalarly (a database) implements `select` itself.
 
 ## Proxies
 
@@ -338,22 +338,22 @@ mbse-typescript, ...) will share, and mbse-expressions' expressions are its firs
 - **A binding pairs a reference object schema with a class.** `Bindings.Binding(schema, read, make)` is the schema, the
   source of truth, with two functions: `read(instance)` gives an instance's `State`, and `make(state)` builds an
   instance from one; `assign(instance, state)` writes a state into an existing instance, for `update()`.
-- **A state is the instance's data in the schema's terms**: each property's value, natives as natives and other values
+- **A state is the instance's data in the schema's terms**: each property's value, scalars as scalars and other values
   (value objects, unions, lists) in their plain form, which no snapshot holds, so a reference in a value object's
   entries does not resolve (`unresolved reference 's1': no snapshot holds the value`); and each adjacency's entries, each an `Entry` of its links (the
   linked instances) and its properties. The class keeps its own fields; the binding's two functions translate.
 - **Everything else is generic.** `Bindings.accept(binding, instance, visitor)` writes an instance through the
   visitor protocols, so the class's `accept` is one line; `Bindings.Builder(binding, instance)` is a
-  `Visitors.OfObject` over a state, with every value kind the schema declares (natives checked by type, value objects,
+  `Visitors.OfObject` over a state, with every value kind the schema declares (scalars checked by type, value objects,
   unions and lists through plain data), `create()`, `clone()` and `update()`; and `Bindings.OfStore(bindings)` is a
   store of bound classes (see Stores), whose builders make the instance of each singleton schema when the store is made. A class's own builder derives from `Bindings.Builder` for its DSL.
 - **A binding may declare what the schema cannot**: `fixed` properties, whose value is the class's (a tag, such as an
   expression's `kind`), so that writing another raises; `exclusive` groups of properties, of which a state holds at
-  most one, so that writing one clears the others (a literal's value, under the property named after its native type);
+  most one, so that writing one clears the others (a literal's value, under the property named after its scalar type);
   and `implied` adjacencies, whose entries the other ends imply, so that the builder ignores entries added to them.
 - **Absent is no value.** A state has no key for an absent property, and a builder drops the keys a class's `read`
   gives without a value (None, null); an entry property without a value is not written. A fixed property is compared
-  by value, bytes included, and type-checked first, as every native is.
+  by value, bytes included, and type-checked first, as every scalar is.
 
 ## Serialization
 
@@ -388,7 +388,7 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
 - `Plain` : for each schema element `OfX`, `Plain.ToPlain.OfX` and `Plain.FromPlain.OfX` implement `Visitors.OfX` and
   convert between values and plain data (dicts, lists, strings, numbers, booleans, null). `Plain.ToPlain(store)(schema,
   value)` and `Plain.FromPlain(store)(schema, plain)` dispatch on the schema's kind; the store names the schemas of the
-  objects written, and builds the objects read. `Schemas.OfNative` converts natives to forms plain
+  objects written, and builds the objects read. `Schemas.OfScalar` converts scalars to forms plain
   data can hold (`bytes` as base64 text; non-finite floats as the strings `NaN`, `Infinity`, `-Infinity`), so text
   encodings never handle that themselves. An object's plain form includes its
   adjacencies; linked objects appear as transaction symbol references, not nested content. Deserializing a snapshot
@@ -403,7 +403,7 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
   relation the k-th entry equal to a given one in one list is the k-th in another. A one-link relation's entries
   are written once, with their owner, so their value objects may have `$id`s and entries of their own.
 - `JSON` : `JSON.ToJSON(store)(schema, value)` returns JSON text and `JSON.FromJSON(store)(schema, text)` rebuilds values;
-  both mirror `Plain` (`.OfNative`, `.OfObject`, `.Reachable`). Output is strict JSON (RFC 8259) with key order kept;
+  both mirror `Plain` (`.OfScalar`, `.OfObject`, `.Reachable`). Output is strict JSON (RFC 8259) with key order kept;
   input with NaN / Infinity literals or duplicate keys is rejected.
 - `YAML` : `YAML.ToYAML(store)` / `YAML.FromYAML(store)`, mirroring `JSON`. Requires PyYAML (the `yaml` extra), imported
   only when used. Loading follows the YAML 1.2 core schema rather than PyYAML's YAML 1.1 defaults: only `true` /
@@ -415,7 +415,7 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
 ### Decoding errors
 
 Every problem in the data being decoded raises `Errors.DecodeError`, a subclass of `ValueError`. This covers
-`JSON.loads`, `YAML.loads`, `Plain.FromPlain`, `JSON.FromJSON`, `YAML.FromYAML` and `Schemas.OfNative.Data.from_plain`.
+`JSON.loads`, `YAML.loads`, `Plain.FromPlain`, `JSON.FromJSON`, `YAML.FromYAML` and `Schemas.OfScalar.Data.from_plain`.
 Mistakes in the calling program keep their usual classes, e.g. a root schema that is not an object schema raises
 `TypeError`.
 
@@ -427,7 +427,7 @@ Mistakes in the calling program keep their usual classes, e.g. a root schema tha
 - If text has several problems, the first in the text is reported. A snapshot is checked in a fixed order that every
   binding follows: its shape, then the references (inferring each object's schema), then each object's keys and
   values in snapshot order, and last any object nothing references.
-- Nothing is built when a `DecodeError` is raised: a snapshot's shape, references and native values are all checked
+- Nothing is built when a `DecodeError` is raised: a snapshot's shape, references and scalar values are all checked
   before any builder is called.
 - Reasons and locations are identical in every binding, with one exception. For YAML syntax errors (and for
   constructs that one parser accepts and another rejects), the reason text and location come from each binding's
@@ -500,7 +500,7 @@ These replace the earlier design, in which a union's branches were chosen by pre
   value reads as its branch's value (`card.reach` is the `Mail` or the `Call`, `ticket.code` the `int` or the
   `str`), told apart by type; a builder takes a branch's value and picks the branch by its type, and a Spec as before.
   A flat intersection's value reads its parts' properties as its own (`ticket.stamp.at`), and its builder sets them in
-  their part. `validate()` requires a flat union's branches to be told apart by type (distinct natives, distinct
+  their part. `validate()` requires a flat union's branches to be told apart by type (distinct scalars, distinct
   schemas) and a flat
   intersection's parts to be object schemas whose properties have distinct names. Values are held, written, read,
   validated, compared and visited in the unpacked form, by branch and by part: flat is how code reads and builds them.
@@ -546,11 +546,11 @@ deduplication, and extents giving way to shape constraints).
 - **No bound is part of a list.** An array's size, a capacity or a tensor's shape is a constraint on the type of the
   property that keys the entries, which constraints (planned) will express; until then nothing checks it.
 
-## Native types
+## Scalar types
 
-Native types and their widths are implemented, and written over the wire by their meta-schema (see Meta-schemas).
+Scalar types and their widths are implemented, and written over the wire by their meta-schema (see Meta-schemas).
 
-- **Native types are tokens, `{format, name}`** (`Schemas.OfNative.Token`). A format is a language or a neutral vocabulary; `basic` is the
+- **Scalar types are tokens, `{format, name}`** (`Schemas.OfScalar.Token`). A format is a language or a neutral vocabulary; `basic` is the
   neutral one, with the names `bool`, `int`, `float`, `str` and `bytes` (the names of mbse-expressions' Basic
   dialect). `{format: 'python3', name: 'int'}` and `{format: 'typescript5', name: 'BigInt'}` are the host types of the
   two implementations (a `python3` token names one of the basic types, by Python's name for it: `bool`, `int`,
@@ -559,15 +559,15 @@ Native types and their widths are implemented, and written over the wire by thei
   (`Errors.DecodeError`). Responsible code keeps Basic on one side or both: it holds `basic` tokens in memory, or
   writes them over the wire. Snapshots written that way are byte-identical across implementations, and the conformance
   corpora use only `basic`; a token in a language's format is a deliberate choice to be read by that language only.
-- **`OfNative.Data` holds its token**, in memory as on the wire, so a schema can name a type that no implementation
-  here has. A host type given to the builder (`as_native(int)` in Python, `as_native(BigInt)` in TypeScript) is
+- **`OfScalar.Data` holds its token**, in memory as on the wire, so a schema can name a type that no implementation
+  here has. A host type given to the builder (`as_scalar(int)` in Python, `as_scalar(BigInt)` in TypeScript) is
   shorthand for the `basic` token it corresponds to, `{format: 'basic', name: 'int'}`; a token in another format is
   given explicitly. Values are converted through the host type the token maps to, so a schema whose token this
-  implementation cannot read describes values it cannot convert. `OfNative.Data.type` is that host type, or none,
+  implementation cannot read describes values it cannot convert. `OfScalar.Data.type` is that host type, or none,
   and `host()` raises `TypeError` for a token this implementation cannot read ("the ccpp type 'int32_t' has no type in
   this implementation"); converting a value raises the same, and validating one reports it. The token itself is
   valid: `validate()` reports only a token without a format or a name, or a `basic` name that Basic lacks.
-- **A native may have a width**, in bits (`bits`) or in bytes (`bytes`), at most one of them, a positive int. The width
+- **A scalar may have a width**, in bits (`bits`) or in bytes (`bytes`), at most one of them, a positive int. The width
   is size only: how the bits are interpreted (signedness, encoding, float format, text encoding), and so whether a
   value fits, is not the schema's, and values are not checked against it. mbse-expressions' value domains interpret it.
 
@@ -578,7 +578,7 @@ are written, read, validated and compared like any other objects.
 
 - **A module holds named schemas.** `Schemas.Module.Schema` is a reference object schema, registered in every store of
   proxies as `Schemas.Module`, whose `schemas` are an adjacency to a one-link relation, each entry a `name` and a
-  `schema`, a `Schemas.Module.Definition`: a union of the schema kinds, `native`, `object`, `union`, `intersection`,
+  `schema`, a `Schemas.Module.Definition`: a union of the schema kinds, `scalar`, `object`, `union`, `intersection`,
   `apply` and `relation`. The entries are keyed by name, so written sorted by it, and an entry written twice
   is read once. A snapshot of schemas is a snapshot of a module. A module is a reference object, whose own adjacencies
   do not compare ([Equality](EQUALITY.md)), so two modules are equal when their wire forms are.
@@ -590,7 +590,7 @@ are written, read, validated and compared like any other objects.
   (`name`, `type`, `description`) and `adjacencies` (`name`, `relation`, `me`, `description`), with its `singleton`
   and `ref`; a union's `branches` and an intersection's `parts` (`name`, `type`, `description`); a relation's `links`
   (`name`), `properties` and `uniques` (a `clause`, whose `names` list the names it holds, sorted); and an application's `of` and
-  `arguments` (`name`, and a native `value` or a `term`). A native is its token's `format` and `name`, its `bits` or
+  `arguments` (`name`, and a scalar `value` or a `term`). A scalar is its token's `format` and `name`, its `bits` or
   `bytes`, and `terms` for a width that is a term. A form's `attributes` (`name`, `value`) and `arguments` (`term`) are
   lists the same way. Each kind's own properties come first, ending with its `description`, then its lists, starting
   with its `parameters`. What is absent, false or empty is left out. Reading refuses a list that names a member twice
@@ -601,7 +601,7 @@ are written, read, validated and compared like any other objects.
   exactly the properties its member's meta-schema declares, of the same types, so the two cannot drift apart.
 - **A type is a schema of any kind, inline, or a name**: `Schemas.OfAny.Schema`, a union of the kinds and `named`, a
   value object `{"name": ...}` (union branches are of one kind, so a name is a value object too). A property's type is
-  `{"native": {"format": "basic", "token": "str"}}` or `{"named": {"name": "Phone"}}`, and an adjacency's relation is
+  `{"scalar": {"format": "basic", "token": "str"}}` or `{"named": {"name": "Phone"}}`, and an adjacency's relation is
   `Schemas.OfRelation.Ref`, a relation inline or named the same way.
 - **Names make schemas shared.** A schema refers by name to a schema in the module, or a registered one, and writes any
   other inline. Reading creates every named schema first, so names resolve to the same schema, recursive references
@@ -625,7 +625,7 @@ are written, read, validated and compared like any other objects.
 Codegen and other transforms (mbse-patterns) match schemas, not data: a predicate's symbol is declared with the schema
 of what it binds, and the predicate itself says which objects match. To bind a schema, a symbol is declared with its
 kind's meta-schema, the schema of the module form (`Schemas.OfObject.Schema`, named `Schemas.Object`, and the like for
-`Schemas.Native`, `Schemas.Union`, `Schemas.Intersection`, `Schemas.Apply` and `Schemas.Relation`).
+`Schemas.Scalar`, `Schemas.Union`, `Schemas.Intersection`, `Schemas.Apply` and `Schemas.Relation`).
 
 - **A schema is a reference object of its kind's meta-schema**: `identity()` (Python's `id`, TypeScript's
   `"schema N"`), `schema_name()` (the meta-schema's name), `owner()` (none) and `accept(visitor)`, which writes its
@@ -638,7 +638,7 @@ kind's meta-schema, the schema of the module form (`Schemas.OfObject.Schema`, na
   is the schemas of its kind, in name order (names that tie in the order reached), as the store registers them when
   the extent is asked for, so a schema registered later is among them. It reads no data, and leaves out the
   store's own meta-schemas (`Stores.META`). It builds nothing; schemas are built by their builders.
-- **A native's token** is written `format` and `token` in a module (`{"native": {"format": "basic", "token": "str"}}`),
+- **A scalar's token** is written `format` and `token` in a module (`{"scalar": {"format": "basic", "token": "str"}}`),
   so that `name` is a schema's name in every kind (0.8).
 
 ## Paths
@@ -704,31 +704,31 @@ resolving constraints.
 ### Built
 
 - **`Schemas.OfParameter` is an element**, like a property: a `name`, a `type` (a schema, or none for a parameter of
-  any type) and a `description`. It is not a kind of schema, since no property's value is a parameter. A native's
+  any type) and a `description`. It is not a kind of schema, since no property's value is a parameter. A scalar's
   parameters are part of it, as its name is; a parameter compares by what it holds.
 - **Every kind of schema binds parameters**: `.parameters(spec, ...)`, held in declared order as `parameters`, by name,
   as properties are. A parameter's scope is its binder, inline schemas nested in it included. `validate()` reports
   reserved names and bad types and descriptions; it cannot see which names a term refers to, so a variable no
   enclosing binder declares is for whoever understands the term's dialect to report (mbse-expressions).
-- **A term stands where a literal does**: a native's `bits` and `bytes` each take an int or a term. A term is anything with `form()` and `dialect()`, as mbse-expressions' terms are, or a
-  `Schemas.Form`: `Form(kind, attributes, arguments, dialect)`, native attributes by name and forms as arguments, the
+- **A term stands where a literal does**: a scalar's `bits` and `bytes` each take an int or a term. A term is anything with `form()` and `dialect()`, as mbse-expressions' terms are, or a
+  `Schemas.Form`: `Form(kind, attributes, arguments, dialect)`, scalar attributes by name and forms as arguments, the
   dialect given at the root. `Form.of(term)` gives a term's form. `validate()` checks a form's shape and leaves a
   dialect's term to its dialect.
 - **`Schemas.OfApply` refers to a parametric schema with arguments**: a type, built by `.of(schema)` and
   `.argument(name, value)` or `.arguments(**values)` (TypeScript: `.arguments({ name: value })` or a `Map`), by
   parameter name only, or `t.as_apply(...)`.
-  An argument is a native value or a term. Applying with some arguments leaves the others unbound (partial binding); an
+  An argument is a scalar value or a term. Applying with some arguments leaves the others unbound (partial binding); an
   argument may be a term over a parameter of the application's own (`Square[n] = Matrix(rows=n, cols=n)`, dependent
-  arguments). `validate()` reports unknown parameters, literal arguments of the wrong native type and arguments that
+  arguments). `validate()` reports unknown parameters, literal arguments of the wrong scalar type and arguments that
   are neither, an application of itself, and the applied schema's own problems. An application is equal to itself
   alone, as other schemas are. mbse-patterns' `OfApply` applies a predicate the same way, so the two share a name.
 - **Data of an application is data of its applied schema.** `Schemas.structure(type)` follows applications to the
   schema that gives a type its structure; proxies, snapshots, validation, comparison and bound classes all read and
   write through it, wherever a type stands: a property, a branch, a part, an entry property.
-- **Modules write all of it** (see Meta-schemas): a kind's `parameters`, a width's term in the native's `terms`
+- **Modules write all of it** (see Meta-schemas): a kind's `parameters`, a width's term in the scalar's `terms`
   (`{"terms": {"bits": {...}}}`), and an application as `{"apply": {"of": ...,
   "arguments": [{"name": "rows", "value": {"int": 3}}, {"name": "cols", "term": {...}}]}}`. A form is
-  `{"dialect", "kind", "attributes": [{"name", "value"}], "arguments": [{"term"}]}`, each attribute's and argument's native value
+  `{"dialect", "kind", "attributes": [{"name", "value"}], "arguments": [{"term"}]}`, each attribute's and argument's scalar value
   by its basic type (`{"float": "NaN"}`, `{"bytes": "AA=="}`). Reading gives forms back, or what the caller's `make`
   makes of each (`Modules.schemas(store, module, make)`), e.g. a dialect's terms.
 
@@ -745,7 +745,7 @@ resolving constraints.
 - **Equality after substitution**: `Schemas.equivalent(a, b, evaluate)` follows applications to the schema they apply
   and the values they give its parameters, each application's arguments evaluated with the values given its own
   parameters, so `Square(4)` and `Matrix(4, 4)` are equivalent where `Square[n]` applies `Matrix(n, n)`. Two types are
-  equivalent when they apply the same schema (natives by value) with the same parameters bound to the same values; the
+  equivalent when they apply the same schema (scalars by value) with the same parameters bound to the same values; the
   answer is None where it depends on a value that is unknown.
 
 ### Not yet built
@@ -778,10 +778,10 @@ it is fixed here:
 | Concept | Python | TypeScript |
 |---|---|---|
 | Importing the framework | `from mbse.Schemas.Framework import ...` (the `mbse` namespace package) | `import ... from "@mbse/schemas/Framework"` (the `@mbse` scope) |
-| Native host types (for `basic` tokens) | `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` |
+| Scalar host types (for `basic` tokens) | `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` |
 | Own token format | `python3` | `typescript5` |
-| Native widths | `int` | `bigint` |
-| Native values | `int`, `float`, `str`, `bool`, `bytes` | `bigint`, `number`, `string`, `boolean`, `Uint8Array` |
+| Scalar widths | `int` | `bigint` |
+| Scalar values | `int`, `float`, `str`, `bool`, `bytes` | `bigint`, `number`, `string`, `boolean`, `Uint8Array` |
 | Plain mappings | `dict` | `Map<string, PlainData>` (order-preserving for every key) |
 | Lists in proxies | `tuple` | frozen array |
 | Keyed lists in proxies | `Mapping` (`m[key]`, iterates keys) | `Map`-shaped (`m.get(key)`, iterates entries) |
@@ -842,7 +842,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - Unions: `.branches(lambda b: b.name('phone').of(spec), ...)`, in declaration order.
   - Intersections: `.parts(lambda p: p.name('stamp').of(spec), ...)`.
   - `validate()` on each `Schemas.OfX.Data` returns a list of problems (empty when valid).
-- `Schemas.OfAny.Data` is currently the union of the schema kinds' data (`OfNative`, `OfObject`, `OfUnion`,
+- `Schemas.OfAny.Data` is currently the union of the schema kinds' data (`OfScalar`, `OfObject`, `OfUnion`,
   `OfIntersection`). There is no separate "any value" kind yet.
 - Reading an object's entries back (e.g. a contact's phones), and removing an entry through a builder.
 - Is "an owned child must be part of an ownership chain rooted in an object with a directory entry" still a
@@ -958,18 +958,18 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
   What follows from these, as built (phase 4, `OfIndexed` removed): `Schemas.OfIndexed`, its meta-schema
   (`Schemas.Indexed`) and its extents; `Visitors.OfIndexed`, `OfItem` and `as_indexed`; `Proxies.OfIndexed.Map`;
-  `Validators.ListRecord`; the keyed wire forms, and with them `OfNative.Data.to_key` and `from_key`; and, since
+  `Validators.ListRecord`; the keyed wire forms, and with them `OfScalar.Data.to_key` and `from_key`; and, since
   extents were all that validation evaluated, `Validators.Check` and `Validate` take no evaluator and `Validators.Scope`
   goes, while `Schemas.equivalent` keeps one. `Outcome.unknowns` stays, empty until something undecidable is checked
   again (a shape constraint, open-world data).
 
   It excludes what that exploration built for the open-world and scalars overhaul, which is deferred: undeclared
   properties preserved and plain numbers, `OfName`, `Specializes`, and the removal of `OfUnion`, `OfIntersection` and
-  `OfNative`. Nothing of it is built.
+  `OfScalar`. Nothing of it is built.
 
 - **A `python3` token names a basic type** (0.10), as the user decided: a `python3` token that is not a basic type's
-  name should not be configurable in `OfNative`. Validation reports one ("python3 has no type 'decimal.Decimal'"), as
-  it does an unknown `basic` name, in both implementations. Code generators then never meet a Python native they
+  name should not be configurable in `OfScalar`. Validation reports one ("python3 has no type 'decimal.Decimal'"), as
+  it does an unknown `basic` name, in both implementations. Code generators then never meet a Python scalar they
   cannot hold.
 
 - **Adjacencies, as specified:** "adjacencies are always stored in a class under the name of the adjacency and must
@@ -1007,7 +1007,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   form with its name; `Reflection.of(store)` holds the schemas a store registers and those they refer to. It replaces
   0.7.2's catalog and the elements bound as objects of their own, linked by relations: a predicate selects schemas
   itself, reading and comparing what is within them as values, and a store's named schemas are its roots, so nothing
-  lists them again. A native's token is written `token`, so that `name` is a schema's name in every kind (see
+  lists them again. A scalar's token is written `token`, so that `name` is a schema's name in every kind (see
   Reflection: schemas as objects).
 - Evaluation (0.7.1): terms are evaluated by an evaluator the caller gives, in lexical scopes; `Validators.Check` gives
   problems and unknowns, three-valued; `Schemas.equivalent` is equality after substitution. With extents gone,
@@ -1025,7 +1025,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Union branches and intersection parts are named, and their values are records keyed by those names, in proxies and
   over the wire; there are no branch predicates (see Unions and intersections by name). Intersections as registered
   object schemas (objects with identity composed from aspects) are a later step.
-- `OfNative` wire conversion (including for literals in expressions) belongs to `Schemas.OfNative`.
+- `OfScalar` wire conversion (including for literals in expressions) belongs to `Schemas.OfScalar`.
 - Builder finalization is `create()` / `clone()` / `update()`; none validate.
 - A program's own classes take part through `Bindings`: a binding pairs a reference object schema with `read`, `make`
   and `assign`, and the framework gives the rest (`accept`, builders, a store), so classes and proxies are
@@ -1075,11 +1075,11 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   `schema_name()`, `owner()`, and `accept(visitor)`, which writes the object's properties and adjacency entries into
   the visitor; a value object first calls the visitor's `identify(value)` with itself.
 - Schemas may be named or inline; inline (anonymous) sub-schemas are created with the lambda-builder notation.
-- `Schemas.OfAny.Builder` selects a kind via `as_<kind>` methods (e.g. `as_native`).
+- `Schemas.OfAny.Builder` selects a kind via `as_<kind>` methods (e.g. `as_scalar`).
 - `Visitors.OfAny.as_<kind>` takes a callback that receives the kind's visitor and returns `self`; chained calls dispatch on
   the value's actual kind.
 - Visitors never return child visitors; they pass them to callbacks. Non-query visitor methods return `self`.
-- A `Schemas.OfAny.Builder` configured with `as_<kind>` finalizes to that kind's data (e.g. `Schemas.OfNative.Data`).
+- A `Schemas.OfAny.Builder` configured with `as_<kind>` finalizes to that kind's data (e.g. `Schemas.OfScalar.Data`).
 - Builder methods are fluent and return `self`.
 - Instances of a registered schema are built through `store.Name(optional instance)` (the dynamic implementation,
   `Proxies.OfStore`), which has one fluent setter per property.
@@ -1095,7 +1095,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - `JSON.ToJSON(store)(schema, value)` / `JSON.FromJSON(store)(schema, text)` take the schema explicitly, dispatch on its
   kind (equivalent to `JSON.ToJSON(store).OfX(...)`), and produce/consume a snapshot.
 - Sub-structure arguments throughout the builder pattern are `Spec`s: a direct value, or a callable that takes and returns
-  the corresponding builder (e.g. `of(...)` takes `Schemas.OfAny.Spec`; `as_native` takes `Schemas.OfNative.Spec`).
+  the corresponding builder (e.g. `of(...)` takes `Schemas.OfAny.Spec`; `as_scalar` takes `Schemas.OfScalar.Spec`).
 - Both in-memory objects and mutations are serializable, so JSON/YAML cover both.
 - Implementations are equivalent: same API names and messages, byte-identical JSON, and a shared conformance corpus
   checked by each implementation's CONF suite (see Language bindings).

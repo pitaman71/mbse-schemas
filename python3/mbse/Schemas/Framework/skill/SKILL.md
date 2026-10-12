@@ -36,7 +36,7 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
    is `unique(...)` on a relation. "At least one" constraints are not implemented yet.
 5. **Validation runs only when asked:** `Validators.Validate(store)(schema, value)`, or `.Reachable(...)` for a
    whole graph. It returns every problem, each with a path. Schemas have their own `.validate()`.
-6. **Native types are exact, never coerced.** `int`, `float`, `bool`, `str` and `bytes` are distinct. In TypeScript,
+6. **Scalar types are exact, never coerced.** `int`, `float`, `bool`, `str` and `bytes` are distinct. In TypeScript,
    `int` is `bigint`.
 7. **Objects are read-only.** Change them through a builder that ends with `create()`, `clone()` or `update()`.
 8. **Everything lives in a store.** `store = Proxies.OfStore()` holds named schemas, and as data what its

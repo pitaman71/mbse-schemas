@@ -2,11 +2,11 @@
 
 For each schema element `OfX`, `Comparison.OfX` implements `Visitors.OfX` and records the value written into it.
 `a.compare(b)` compares two recordings and returns -1, 0 or 1 when `a` is less than, equal to or greater than `b`, and
-`None` when they are incomparable. `Comparison.OfNative(schema, value)` and `Comparison.OfObject(schema, instance)`
+`None` when they are incomparable. `Comparison.OfScalar(schema, value)` and `Comparison.OfObject(schema, instance)`
 record a value when constructed; an instance writes itself in through `Visitable.accept`.
 
 - Absent compares equal to absent; absent and present are incomparable. So do values under different schemas.
-- `OfNative`: a value must have exactly the schema's native type. `int`, `float`, `str` and `bytes` are ordered:
+- `OfScalar`: a value must have exactly the schema's scalar type. `int`, `float`, `str` and `bytes` are ordered:
   strings by code point, bytes lexicographically, floats by value with `-0.0` before `0.0`. NaNs equal each other
   and are incomparable with other floats. Booleans are equal or incomparable.
 - `OfObject`: equal when every property its schema declares is absent in both or equal in both; otherwise
@@ -34,10 +34,10 @@ from collections.abc import Callable, Hashable
 from typing import Any
 
 from . import Schemas, Visitors
-from .Visitors import Native
+from .Visitors import Scalar
 
 __all__ = [
-    "Result", "OfAny", "OfNative", "OfProperty", "OfObject", "OfUnion", "OfIntersection",
+    "Result", "OfAny", "OfScalar", "OfProperty", "OfObject", "OfUnion", "OfIntersection",
     "OfAdjacency", "OfEntry", "OfLink",
 ]
 
@@ -54,8 +54,8 @@ def _all_equal(results: list[Result]) -> Result:
     return 0 if all(result == 0 for result in results) else None
 
 
-def _natives(a: Native, b: Native) -> Result:
-    """Compares two values of the same native type."""
+def _scalars(a: Scalar, b: Scalar) -> Result:
+    """Compares two values of the same scalar type."""
     if isinstance(a, bool):
         return 0 if a == b else None
     if isinstance(a, float):
@@ -66,40 +66,40 @@ def _natives(a: Native, b: Native) -> Result:
     return _sign(a, b)
 
 
-class OfNative:
-    """`Visitors.OfNative` recording one native value, which must have exactly the schema's native type."""
+class OfScalar:
+    """`Visitors.OfScalar` recording one scalar value, which must have exactly the schema's scalar type."""
 
-    def __init__(self, schema: Schemas.OfNative.Data, value: Native | None = None):
+    def __init__(self, schema: Schemas.OfScalar.Data, value: Scalar | None = None):
         self._schema = schema
-        self._value: tuple[Native, ...] = ()
+        self._value: tuple[Scalar, ...] = ()
         if value is not None:
             self.set(value)
 
     def has(self) -> bool:
         return bool(self._value)
 
-    def get(self) -> Native:
+    def get(self) -> Scalar:
         if not self._value:
             raise AttributeError("the value is not set")
         return self._value[0]
 
-    def set(self, value: Native) -> OfNative:
+    def set(self, value: Scalar) -> OfScalar:
         host = self._schema.host()
         if type(value) is not host:
             raise TypeError(f"expected {host.__name__}, got {type(value).__name__}")
         self._value = (value,)
         return self
 
-    def clear(self) -> OfNative:
+    def clear(self) -> OfScalar:
         self._value = ()
         return self
 
-    def compare(self, other: OfNative) -> Result:
+    def compare(self, other: OfScalar) -> Result:
         if not self._value or not other._value:
             return 0 if not self._value and not other._value else None
         if self._schema.type is not other._schema.type:
             return None
-        return _natives(self._value[0], other._value[0])
+        return _scalars(self._value[0], other._value[0])
 
 
 Path = tuple[str, ...]
@@ -119,18 +119,18 @@ class OfAny:
 
     def __init__(self, schema: Schemas.OfAny.Data, paths: _Paths | None = None, path: Path = ()):
         self._schema, self._paths, self._path = Schemas.structure(schema), paths, path
-        self._value: OfNative | OfObject | OfUnion | OfIntersection | None = None
+        self._value: OfScalar | OfObject | OfUnion | OfIntersection | None = None
 
     def _absent(self) -> bool:
-        if isinstance(self._value, OfNative):
+        if isinstance(self._value, OfScalar):
             return not self._value.has()
         return self._value is None or (isinstance(self._value, (OfUnion, OfIntersection)) and self._value._absent())
 
-    def as_native(self, callback: Callable[[Visitors.OfNative], Any]) -> OfAny:
-        if not isinstance(self._schema, Schemas.OfNative.Data):
-            raise TypeError("the schema is not a native schema")
-        if not isinstance(self._value, OfNative):
-            self._value = OfNative(self._schema)
+    def as_scalar(self, callback: Callable[[Visitors.OfScalar], Any]) -> OfAny:
+        if not isinstance(self._schema, Schemas.OfScalar.Data):
+            raise TypeError("the schema is not a scalar schema")
+        if not isinstance(self._value, OfScalar):
+            self._value = OfScalar(self._schema)
         callback(self._value)
         return self
 

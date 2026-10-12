@@ -19,27 +19,27 @@ store = Proxies.OfStore()
 Reading = (
     Schemas.OfObject.Builder().name('Reading').ref()
     .properties(
-        lambda prop: prop.name('observed').of(lambda t: t.as_native(str)),  # ISO 8601, e.g. '2026-09-28T12:00:00Z'
-        lambda prop: prop.name('value').of(lambda t: t.as_native(float)),
-        lambda prop: prop.name('quality').of(lambda t: t.as_native(int)),
-        lambda prop: prop.name('valid').of(lambda t: t.as_native(bool)),
-        lambda prop: prop.name('raw').of(lambda t: t.as_native(bytes)),
-        lambda prop: prop.name('note').of(lambda t: t.as_native(str)),
+        lambda prop: prop.name('observed').of(lambda t: t.as_scalar(str)),  # ISO 8601, e.g. '2026-09-28T12:00:00Z'
+        lambda prop: prop.name('value').of(lambda t: t.as_scalar(float)),
+        lambda prop: prop.name('quality').of(lambda t: t.as_scalar(int)),
+        lambda prop: prop.name('valid').of(lambda t: t.as_scalar(bool)),
+        lambda prop: prop.name('raw').of(lambda t: t.as_scalar(bytes)),
+        lambda prop: prop.name('note').of(lambda t: t.as_scalar(str)),
     )
     .create()
 )
 Station = (
     Schemas.OfObject.Builder().name('Station').ref()
     .properties(
-        lambda prop: prop.name('wmo_id').of(lambda t: t.as_native(str)),  # e.g. '03772'; leading zeros matter
-        lambda prop: prop.name('name').of(lambda t: t.as_native(str)),
+        lambda prop: prop.name('wmo_id').of(lambda t: t.as_scalar(str)),  # e.g. '03772'; leading zeros matter
+        lambda prop: prop.name('name').of(lambda t: t.as_scalar(str)),
     )
     .create()
 )
 Readings = (
     Schemas.OfRelation.Builder().name('Readings')
     .links('station', 'reading')
-    .properties(lambda prop: prop.name('sensor').of(lambda t: t.as_native(str)))
+    .properties(lambda prop: prop.name('sensor').of(lambda t: t.as_scalar(str)))
     .unique('station', 'sensor')  # each reading comes from one sensor of one station
     .create()
 )
@@ -70,7 +70,7 @@ for value in [0.0, -0.0, 1e308, 5e-324, 0.1, math.inf, -math.inf, math.nan]:
 text = JSON.ToJSON(store)(Reading, store.Reading().value(math.nan).create())
 assert '"NaN"' in text and json.loads(text, parse_constant=lambda c: 1 / 0)
 
-# --- Every native type at once, and the three encodings agree ---
+# --- Every scalar type at once, and the three encodings agree ---
 
 sample = (
     store.Reading()

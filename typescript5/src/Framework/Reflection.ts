@@ -2,7 +2,7 @@
  * Reflection: schemas as the objects predicates match.
  *
  * A schema is an object of its kind's meta-schema, the schema of its module form (`Schemas.OfObject.Schema`, named
- * 'Schemas.Object', and the like for natives, unions, intersections, applications and relations): it is a reference
+ * 'Schemas.Object', and the like for scalars, unions, intersections, applications and relations): it is a reference
  * object identified by itself, and writes itself through `accept` as a module writes it, with its name (which a module
  * gives its entry), its properties, branches, parts and parameters as the entries of its adjacencies, and a named schema
  * it refers to by name (`{"named": {"name": ...}}`). Predicates (mbse-patterns) read it with `get` and quantify over its
@@ -26,7 +26,7 @@ type Schema = Schemas.OfAny.Data | Schemas.OfRelation.Data;
 
 /** The meta-schemas of the kinds of named schemas. */
 export const META: readonly Schemas.OfObject.Data[] = [
-  Schemas.OfNative.Schema, Schemas.OfObject.Schema, Schemas.OfUnion.Schema, Schemas.OfIntersection.Schema,
+  Schemas.OfScalar.Schema, Schemas.OfObject.Schema, Schemas.OfUnion.Schema, Schemas.OfIntersection.Schema,
   Schemas.OfApply.Schema, Schemas.OfRelation.Schema];
 
 const BY_NAME = new Map(META.map((meta) => [meta.name as string, meta]));

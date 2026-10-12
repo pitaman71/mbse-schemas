@@ -12,7 +12,7 @@ part before the last dot its namespace. A named schema is referred to by its nam
 predicate's symbols), and a store registers it under that name; an unnamed one is written inline.
 
 Every kind of schema may declare `parameters` (`OfParameter`), variables determined where the schema is referred to:
-`OfApply` applies a parametric schema to arguments. Where a literal width or extent stands, a term may stand instead:
+`OfApply` applies a parametric schema to arguments. Where a literal width stands, a term may stand instead:
 an expression term, such as mbse-expressions', or its neutral `Form`, which may refer to parameters.
 """
 
@@ -40,7 +40,6 @@ __all__ = [
     "OfRelation",
     "OfUnion",
     "OfIntersection",
-    "OfIndexed",
     "OfParameter",
     "OfApply",
     "Form",
@@ -358,26 +357,6 @@ class _NativeData(_Reflected):
             return "NaN" if math.isnan(value) else "Infinity" if value > 0 else "-Infinity"
         return value
 
-    def to_key(self, value: Native) -> str:
-        """A native value as the text of a key over the wire: its plain form when that is text (`str`, `bytes` as
-        base64, non-finite floats), a finite float's `repr`, and `true` or `false`."""
-        plain = self.to_plain(value)
-        if isinstance(plain, bool):
-            return "true" if plain else "false"
-        return plain if isinstance(plain, str) else repr(plain)
-
-    def from_key(self, text: str) -> Native:
-        """The native value a key's text holds; anything but the text `to_key` writes raises `Errors.DecodeError`."""
-        host = self._host_for_decoding()
-        try:
-            value = ({"true": True, "false": False}[text] if host is bool else
-                     float(text) if host is float and text not in _NON_FINITE else self.from_plain(text))
-        except (KeyError, ValueError):
-            value = None
-        if value is None or self.to_key(value) != text:
-            raise DecodeError(f"expected the text of a {host.__name__} key, got {text!r}")
-        return value
-
     def _host_for_decoding(self) -> type[Native]:
         """The host type, or `Errors.DecodeError` when this implementation cannot read the token."""
         if self.type is None:
@@ -533,16 +512,16 @@ class _RelationData(_Reflected):
         return keys[0] if keys else None
 
 
-def _entry_value_problems(schema: Any, held: str = "held by an entry", seen: frozenset[int] = frozenset()) -> list[str]:
+def _entry_value_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[str]:
     """An entry property's value object has no adjacencies, where the entry links two objects or more: it is written
-    under each, so its value objects would be too, and nothing could link them once. Nor has a value object in a key (`held`), which
-    compares by structure. `seen` holds the schemas on the way, so that a schema that holds itself is checked once."""
+    under each, so its value objects would be too, and nothing could link them once. `seen` holds the schemas on the
+    way, so that a schema that holds itself is checked once."""
     if id(schema) in seen:
         return []
     if isinstance(schema, _ObjectData) and schema.adjacencies:
-        return [f"a value object {held} cannot have adjacencies"]
+        return ["a value object held by an entry cannot have adjacencies"]
     inner = seen | {id(schema)}
-    return sorted({problem for member in _members_of(schema) for problem in _entry_value_problems(member, held, inner)})
+    return sorted({problem for member in _members_of(schema) for problem in _entry_value_problems(member, inner)})
 
 
 class _RelationBuilder(_NamedBuilder[_RelationData]):
@@ -640,8 +619,8 @@ class _ObjectData(_Reflected):
     parameters: dict[str, _ParameterData] = field(default_factory=dict)
 
     def validate(self) -> list[str]:
-        """The schema's problems. A value object schema may hold itself, through a list: its problems are reported once,
-        where it is first reached."""
+        """The schema's problems. A value object schema may hold itself, through a property or an entry: its problems
+        are reported once, where it is first reached."""
         if id(self) in _VALIDATING:
             return []
         _VALIDATING.add(id(self))
@@ -748,13 +727,10 @@ def _member_problems(a_kind: str, member: str, plural: str, members: tuple[_Memb
 
 
 def _runtime(schema: Any) -> Any:
-    """What tells a value of `schema` apart at run time: a native's host type, a list or a keyed list (whose items'
-    types a value does not carry), or any other schema itself."""
+    """What tells a value of `schema` apart at run time: a native's host type, or any other schema itself."""
     schema = _structure(schema)
     if isinstance(schema, _NativeData):
         return ("native", schema.type if schema.type is not None else schema.token)
-    if isinstance(schema, _IndexedData):
-        return ("list",) if schema.positional else ("map",)
     return ("schema", id(schema))
 
 
@@ -878,103 +854,6 @@ class OfIntersection:
     @staticmethod
     def resolve(spec: OfIntersection.Spec) -> _IntersectionData:
         return _resolve(spec, _IntersectionData, _IntersectionBuilder)
-
-
-# --- OfIndexed ---
-
-
-@dataclass(frozen=True)
-class _Extent:
-    """The keys a positional list may have: `minimum` to `maximum`, inclusive; `maximum` None for no bound. Either may
-    be a term instead of an int."""
-
-    minimum: Any = 0
-    maximum: Any = None
-
-
-@dataclass(eq=False)
-class _IndexedData(_Reflected):
-    """A list: items of the item schema, in order. Without a key schema, or with a native `int` one, it is positional:
-    its keys are its positions, from its extent's minimum. With any other key schema it is keyed: its items are held by
-    unique keys of that schema, in insertion order."""
-
-    item: Any = None  # OfAny.Data
-    key: Any = None  # OfAny.Data, or None for a positional list
-    extent: _Extent | None = None
-    name: str | None = None
-    description: str | None = None
-    parameters: dict[str, _ParameterData] = field(default_factory=dict)
-
-    @property
-    def positional(self) -> bool:
-        key = _structure(self.key)
-        return key is None or (isinstance(key, _NativeData) and key.type is int)
-
-    @property
-    def minimum(self) -> int:
-        """The first key of a positional list: its extent's minimum, or 0 (also where the minimum is a term)."""
-        return self.extent.minimum if self.extent is not None and type(self.extent.minimum) is int else 0
-
-    @property
-    def capacity(self) -> int | None:
-        """How many items a positional list's extent holds, or None when it has no valid int bounds."""
-        extent = self.extent
-        if extent is None or type(extent.maximum) is not int or type(extent.minimum) is not int:
-            return None
-        return extent.maximum - extent.minimum + 1
-
-    def validate(self) -> list[str]:
-        problems = (_name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
-                    + [f"item: {problem}" for problem in _validate(self.item)])
-        if self.key is not None:
-            key = _validate(self.key) + _embedded_problems(self.key, role="a key")
-            problems += [f"key: {problem}" for problem in key + _entry_value_problems(self.key, "in a key")]
-        if self.extent is not None:
-            problems += self._extent_problems(self.extent)
-        return problems
-
-    def _extent_problems(self, extent: _Extent) -> list[str]:
-        problems = [] if self.positional else ["an extent bounds a positional list, whose keys are ints"]
-        bounds = (extent.minimum, extent.maximum)
-        problems += _term_problems(extent.minimum, "an extent's minimum") + _term_problems(extent.maximum, "an extent's maximum")
-        if not (type(extent.minimum) is int or _is_term(extent.minimum)) or not (
-                extent.maximum is None or type(extent.maximum) is int or _is_term(extent.maximum)):
-            problems.append(f"an extent's minimum and maximum are ints or terms, got {extent.minimum!r} and {extent.maximum!r}")
-        elif all(type(bound) is int for bound in bounds) and extent.minimum > extent.maximum:
-            problems.append(f"an extent's minimum {extent.minimum} exceeds its maximum {extent.maximum}")
-        return problems
-
-
-class _IndexedBuilder(_NamedBuilder[_IndexedData]):
-    _data = _IndexedData
-
-    def of(self, spec: OfAny.Spec) -> _IndexedBuilder:
-        """The schema of every item."""
-        self._fields["item"] = OfAny.resolve(spec)
-        return self
-
-    def key(self, spec: OfAny.Spec) -> _IndexedBuilder:
-        """The schema of the keys; any but a native `int` makes the list keyed."""
-        self._fields["key"] = OfAny.resolve(spec)
-        return self
-
-    def extent(self, minimum: Any = 0, maximum: Any = None) -> _IndexedBuilder:
-        """The keys a positional list may have, `minimum` to `maximum`, each an int or a term."""
-        self._fields["extent"] = _Extent(minimum, maximum)
-        return self
-
-
-class OfIndexed:
-    """A list of items of one schema, held by a property; its items belong to the property's owner."""
-
-    Data = _IndexedData
-    Builder = _IndexedBuilder
-    Extent = _Extent
-    Spec = _IndexedData | Callable[[_IndexedBuilder], _IndexedBuilder]
-
-    @staticmethod
-    def resolve(spec: OfIndexed.Spec) -> _IndexedData:
-        return _resolve(spec, _IndexedData, _IndexedBuilder)
 
 
 # --- OfApply: a parametric schema applied to arguments ---
@@ -1111,7 +990,7 @@ class OfApply:
 
 # --- OfAny ---
 
-_KINDS = (_NativeData, _ObjectData, _UnionData, _IntersectionData, _IndexedData, _ApplyData)
+_KINDS = (_NativeData, _ObjectData, _UnionData, _IntersectionData, _ApplyData)
 
 
 def _validate(schema: Any) -> list[str]:
@@ -1122,24 +1001,22 @@ def _validate(schema: Any) -> list[str]:
 
 def _members_of(schema: Any) -> list[Any]:
     """The schemas of the values a value of `schema` holds: a value object's properties, a union's branches, an
-    intersection's parts, a list's item, through applications."""
+    intersection's parts, through applications."""
     schema = _structure(schema)
-    if isinstance(schema, _IndexedData):
-        return [schema.item]
     return [m.type for m in schema.properties.values()] if isinstance(schema, (_ObjectData, _UnionData, _IntersectionData)) else []
 
 
-def _embedded_problems(schema: Any, seen: frozenset[int] = frozenset(), role: str = "a property's type") -> list[str]:
-    """Problems with a property's schema as a value (or a key's, `role`): an object held by a property is a value
-    object, so its schema is not a reference object schema; nor are the schemas of the objects a union, an intersection
-    or a list holds. `seen` holds the schemas on the way, so that one that holds itself is checked once."""
+def _embedded_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[str]:
+    """Problems with a property's schema as a value: an object held by a property is a value object, so its schema is
+    not a reference object schema; nor are the schemas of the objects a union or an intersection holds. `seen` holds
+    the schemas on the way, so that one that holds itself is checked once."""
     schema = _structure(schema)
     if isinstance(schema, _ObjectData):
-        return [f"a reference object schema cannot be {role}"] if schema.ref else []
+        return ["a reference object schema cannot be a property's type"] if schema.ref else []
     if id(schema) in seen:
         return []
     inner = seen | {id(schema)}
-    return sorted({problem for member in _members_of(schema) for problem in _embedded_problems(member, inner, role)})
+    return sorted({problem for member in _members_of(schema) for problem in _embedded_problems(member, inner)})
 
 
 class _AnyBuilder:
@@ -1163,10 +1040,6 @@ class _AnyBuilder:
 
     def as_intersection(self, spec: OfIntersection.Spec) -> _AnyBuilder:
         self._selected = OfIntersection.resolve(spec)
-        return self
-
-    def as_indexed(self, spec: OfIndexed.Spec) -> _AnyBuilder:
-        self._selected = OfIndexed.resolve(spec)
         return self
 
     def as_apply(self, spec: OfApply.Spec) -> _AnyBuilder:
@@ -1202,7 +1075,7 @@ class _AnyBuilder:
 class OfAny:
     """Where a schema of any kind is expected. `OfAny.Data` is any schema kind's data."""
 
-    Data = _NativeData | _ObjectData | _UnionData | _IntersectionData | _IndexedData | _ApplyData
+    Data = _NativeData | _ObjectData | _UnionData | _IntersectionData | _ApplyData
     Builder = _AnyBuilder
     Spec = Data | Callable[[_AnyBuilder], _AnyBuilder]
 
@@ -1277,20 +1150,13 @@ _UnionSchema = OfObject.Builder().name("Schemas.Union").properties(
     _named_text("name"), _Flat, _named_text("description")).relations(_Parameters, _listing("branches", _MEMBER)).create()
 _IntersectionSchema = OfObject.Builder().name("Schemas.Intersection").properties(
     _named_text("name"), _Flat, _named_text("description")).relations(_Parameters, _listing("parts", _MEMBER)).create()
-_ExtentTerms = OfObject.Builder().properties(lambda p: p.name("minimum").of(_FormSchema),
-                                             lambda p: p.name("maximum").of(_FormSchema)).create()
-_ExtentSchema = OfObject.Builder().properties(lambda p: p.name("minimum").of(_int), lambda p: p.name("maximum").of(_int),
-                                              lambda p: p.name("terms").of(_ExtentTerms)).create()
-_IndexedSchema = OfObject.Builder().name("Schemas.Indexed").properties(
-    _named_text("name"), lambda p: p.name("item").of(_AnySchema), lambda p: p.name("key").of(_AnySchema),
-    lambda p: p.name("extent").of(_ExtentSchema), _named_text("description")).relations(_Parameters).create()
 _ArgumentSchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("value").of(_NativeValue),
                                                 lambda p: p.name("term").of(_FormSchema)).create()
 _ApplySchema = OfObject.Builder().name("Schemas.Apply").properties(
     _named_text("name"), lambda p: p.name("of").of(_AnySchema), _named_text("description")).relations(
     _Parameters, _listing("arguments", {name: prop.type for name, prop in _ArgumentSchema.properties.items()})).create()
 _KIND_SCHEMAS = (("native", _NativeSchema), ("object", _ObjectSchema), ("union", _UnionSchema),
-                 ("intersection", _IntersectionSchema), ("indexed", _IndexedSchema), ("apply", _ApplySchema))
+                 ("intersection", _IntersectionSchema), ("apply", _ApplySchema))
 OfUnion.Builder(_AnySchema).branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
                                      lambda b: b.name("named").of(_Named)).update()
 _Definition = OfUnion.Builder().branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
@@ -1305,7 +1171,6 @@ OfRelation.Ref = _RelationRef  # type: ignore[attr-defined]
 OfObject.Schema = _ObjectSchema  # type: ignore[attr-defined]
 OfUnion.Schema = _UnionSchema  # type: ignore[attr-defined]
 OfIntersection.Schema = _IntersectionSchema  # type: ignore[attr-defined]
-OfIndexed.Schema = _IndexedSchema  # type: ignore[attr-defined]
 OfApply.Schema = _ApplySchema  # type: ignore[attr-defined]
 OfApply.Argument = _ArgumentSchema  # type: ignore[attr-defined]
 Form.Schema = _FormSchema  # type: ignore[attr-defined]
@@ -1314,7 +1179,7 @@ OfAny.Schema = _AnySchema  # type: ignore[attr-defined]
 OfAny.Named = _Named  # type: ignore[attr-defined]
 _KIND_NAMES: dict[type, str] = {
     _NativeData: _NativeSchema.name, _ObjectData: _ObjectSchema.name, _UnionData: _UnionSchema.name,
-    _IntersectionData: _IntersectionSchema.name, _IndexedData: _IndexedSchema.name, _ApplyData: _ApplySchema.name,
+    _IntersectionData: _IntersectionSchema.name, _ApplyData: _ApplySchema.name,
     _RelationData: _RelationSchema.name}
 
 

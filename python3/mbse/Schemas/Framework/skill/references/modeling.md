@@ -15,16 +15,16 @@ How to express an interface or data model with the schema elements. The same mod
 | Multiplicity upper bound (0..1) | a `unique(...)` clause |
 | Multiplicity lower bound (1, 1..*) | not expressible yet: constraints are planned |
 | Qualified association, map, dictionary | relation with a key property: `.unique("owner", "key")` |
-| Ordered list of values or parts (tags, a union's branches, a component's ports) | `OfIndexed` property: `t.as_indexed(lambda i: i.of(spec))`, its items natives or value objects |
-| Dictionary, associative array, sparse tensor (values by key) | keyed list: `t.as_indexed(lambda i: i.key(spec).of(spec))`, with a native key (`str`, `float`, ...) or a value object key (e.g. `{row, col}`) |
-| Fixed-size array, dense tensor dimension | positional list with an extent: `i.of(spec).extent(1, 9)` (keys from `minimum`, at most `maximum`) |
+| Ordered list of values or parts (tags, a component's ports) | a one-link relation, inline in its adjacency, whose entries hold the value: `r.name("tags").me("owner").of(lambda rel: rel.links("owner").properties(text("value")))`, natives or value objects |
+| Dictionary, associative array, sparse tensor (values by key) | the same with a key property and `unique` over the value: `.properties(text("key"), text("value")).unique("value")`; the key may be a native or a value object (e.g. `{row, col}`), and several properties (`i`, `j`) key a matrix |
+| Fixed-size array, dense tensor dimension | a list keyed by an integer property; its bounds are a constraint on that property's type, which is planned |
 | Ordered list of shared objects | relation with an index property: `.links("owner", "item").properties(index).unique("owner", "index")` |
 | Tagged union, variant, `oneOf`, `xsd:choice` | `OfUnion`: named, same-kind branches; a value holds exactly one |
 | Mixin, aspect, `allOf` | `OfIntersection`: named, same-kind parts; a value holds every one. Supported for property values. Objects with identity composed from aspects are not yet |
 | Singleton, global registry | `OfObject.Builder().singleton("Name")`, usually with a directory relation |
-| Port and connector | ports as a list of value objects in their component; connectors as a relation between ports, carrying the connection's properties |
+| Port and connector | ports as value objects in a list of their component; connectors as a relation between ports, carrying the connection's properties |
 | Template, generic, parameterized block or type (UML/SysML template parameters, C++ templates, SystemVerilog `parameter`s) | `.parameters(...)` on the schema; a use of it with arguments is an `OfApply` (`S.OfApply.Builder().of(Matrix).arguments(rows=2, cols=3)`, by parameter name) |
-| Array size, tensor shape or bit width given by a parameter | a term where the extent's bound or the native's width stands: `i.extent(1, n)`, `.bits(w)` |
+| Bit width given by a parameter | a term where the native's width stands: `.bits(w)`. An array's size or a tensor's shape is a constraint on its index properties' types, which is planned |
 | Documentation, comment, `description` | `.description(text)` on the element's builder: a schema, property, adjacency, branch or part |
 | Enumeration of literals | a native (e.g. `str`); restricting its values needs constraints, which are planned |
 
@@ -35,10 +35,6 @@ by several owners, navigated back from, part of a cycle, or referred to by ident
 and never held by a property. Otherwise use a value object: a property holds it, it is copied by
 value and written nested. A value object has an identity too, and may have adjacencies: a component's ports, say, as
 value objects linked by connectors.
-
-**List or relation?** A list belongs to its owner: its items are copied and removed with it, kept in order, and may
-repeat. Use a relation to link objects that stand on their own, for maps and keyed lookup, and wherever `unique(...)`
-applies.
 
 **A one-link relation is a list.** Its entries hold values for their one owner (a contact's own phone numbers as
 entries holding `number`); declare it inline in the adjacency, `.of(lambda rel: rel.links("contact").properties(...))`.

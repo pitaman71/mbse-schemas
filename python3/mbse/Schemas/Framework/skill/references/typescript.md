@@ -68,15 +68,15 @@ new S.OfRelation.Builder().links("a", "b").properties(spec, ...).unique("a").cre
 S.OfNative.resolve((n) => n.token("ccpp", "int32_t").bits(32n));   // any format's token; a width in bits or bytes
 new S.OfUnion.Builder().branches((b) => b.name("phone").of(spec), ...).create();
 new S.OfIntersection.Builder().parts((p) => p.name("stamp").of(spec), ...).create();
-new S.OfIndexed.Builder().of(spec).create();              // a list; in a property: (t) => t.as_indexed((i) => i.of(spec))
-new S.OfIndexed.Builder().key(spec).of(spec).extent({ minimum: 1n }).create(); // key: keyed; extent: bounds a positional list
+r.name("tags").me("owner").of((rel) => rel.links("owner").properties(text("value")));   // a list: a one-link relation inline
+rel.links("owner").properties(text("key"), text("value")).unique("value");   // a dict, keyed by `key`; several keys: a matrix
 new S.OfObject.Builder().name("crm.Contact");                     // a name, identifiers separated by dots, on any kind
 new S.OfObject.Builder().description("A person we know");         // documentation, on any element: schema, property,
 schema.properties.get("home")?.type;                              // adjacency, branch or part; a property is an element
 new S.OfObject.Builder().parameters((p) => p.name("n").of(spec)); // parameters, on any kind of schema
 new S.OfApply.Builder().of(Matrix).arguments({ rows: 2n, cols: 3n }); // a type: a parametric schema applied, by name; .argument("n", 3n)
-i.extent({ minimum: 1n, maximum: new S.Form.Data("variable", { name: "n" }) });  // a term where a bound stands
-Validators.Check(store, evaluate)(schema, obj).holds;             // true, false, or null where unknown
+n.bits(new S.Form.Data("variable", { name: "n" }));               // a term where a width stands
+Validators.Check(store)(schema, obj).holds;                       // true or false: since extents went, nothing it checks is unknown
 S.equivalent(a, b, evaluate);                                     // the same after substitution: Square(4n) is Matrix(4n, 4n)
 const store = new Proxies.OfStore(); store.register(schema); const B = store;   // under schema.name; stores are isolated
 store.extent("Name"); store.singleton("Global");           // a schema's objects its singletons reach; a singleton
@@ -88,8 +88,8 @@ irq.fanout.map((e: any) => [e.target, e.label]);             // an adjacency: an
                                                               // every link the owner's own included; links and properties as attributes
 irq.fanout.project("target");                                 // each entry's link or property, in order (Proxies.OfAdjacency.Data)
 contact.phones.at("home");                                    // the entry by the key its relation's unique clause gives this end
-B.Name().listProp(["a", "b"]).create();                    // a list of items; obj.listProp is a frozen array
-B.Name().attrs(new Map([["gain", 1.5]])).create();          // a keyed list; obj.attrs.get("gain"). Give -0.0 keys as [key, value] pairs
+B.Name().tags((e: any) => e.value("a")).create();          // a list's entries; obj.tags.project("value")
+B.Name().attrs((e: any) => e.key("gain").value(1.5)).create(); // a keyed list; obj.attrs.at("gain").value; obj.cells.at([1n, 2n])
 JSON.ToJSON(store).Reachable(schema, root); JSON.FromJSON(store).Reachable(schema, text);
 Validators.Validate(store)(schema, obj); Validators.Validate(store).Reachable(schema, root);
 new Comparison.OfObject(schema, a).compare(new Comparison.OfObject(schema, b));   // -1, 0, 1 or null

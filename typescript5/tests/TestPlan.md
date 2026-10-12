@@ -56,16 +56,16 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `13_Comparison.ipynb` | CMP | 13 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
 | `14_Embedded.ipynb` | EMB | 11 | as in Python; the runtime's own probes (`then`, symbols) are not properties |
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
-| `17_Lists.ipynb` | LST | 15 | as in Python; a list reads as a frozen array and a keyed list as a `Map`-shaped `Proxies.OfIndexed.Map`; float keys that must keep `-0.0` are given as pairs |
+| `17_Lists.ipynb` | LST | 7 | as in Python; an adjacency reads as a frozen array, and `at` takes an array for a key of two values |
 | `18_Modules.ipynb` | MOD | 6 | as in Python; schemas are given as a Map or a record, and read back as a Map |
 | `19_Bindings.ipynb` | BND | 4 | as in Python; a binding's options are an object with `fixed` a `Map`, states, entries and stores hold `Map`s |
 | `20_Stores.ipynb` | STO | 6 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), a `Bindings.OfStore` lets JavaScript's probes through, and STO-05 builds its unplaced value object through the visitor protocol |
 | `21_Random.ipynb` | RND | 3 | as in Python; PCG32 computes on `bigint`s, and the UTF-8 bytes of keys are encoded without `TextEncoder` |
-| `22_Parametrics.ipynb` | PAR | 7 | as in Python; an application's arguments, and a form's attributes, may be given as a Map or a record, and an extent's bounds as `{ minimum, maximum }`; an evaluator's scope is a `ReadonlyMap`, and an outcome is compared by its fields |
+| `22_Parametrics.ipynb` | PAR | 7 | as in Python; an application's arguments, and a form's attributes, may be given as a Map or a record; an evaluator's scope is a `ReadonlyMap`, and an outcome is compared by its fields |
 | `23_Reflection.ipynb` | RFL | 3 | as in Python; a reflected schema's identity is a string (`"schema N"`) |
 | `24_Paths.ipynb` | PTH | 3 | as in Python; an integer key is a `bigint` |
 
-Total: 203 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
+Total: 195 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences
@@ -78,9 +78,7 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | Native host types | `str`, `int`, ... | `String`, `BigInt`, `Number`, `Boolean`, `Uint8Array` | SCH-01..05 |
 | Own token format | `python3` | `typescript5` | SCH-18 |
 | Plain mappings | `dict` | `Map<string, PlainData>` (keeps order for every key, incl. `"2"` and `"__proto__"`) | SCH-11, PLN-02 |
-| Schema equality | `==` on data | `.equals()` (no operator overloading) | SCH-01, SCH-15, LST-01 |
-| Lists in proxies | `tuple`, set from a `list` or `tuple` | frozen array, set from an array | LST-02 |
-| Keyed lists in proxies | `Mapping` (`m[key]`, iterates keys) | `Map`-shaped (`m.get(key)`, iterates entries) | LST-11, LST-13 |
+| Schema equality | `==` on data | `.equals()` (no operator overloading) | SCH-01, SCH-15 |
 | Schemas by name (`Modules`) | `dict` | `Map` or record in, `Map` out | MOD-02, MOD-03 |
 | Subclasses of natives | `int` subclasses rejected | boxed primitives and `Buffer` rejected | SCH-03 |
 | Missing attribute | `AttributeError` for any name | `AttributeError`, except JavaScript protocol probes (`then`, `toJSON`, `constructor`, symbols) | PRX-02 |

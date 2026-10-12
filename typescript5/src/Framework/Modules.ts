@@ -16,7 +16,7 @@
  * `reference(schema)` and `resolve(store, definition)` translate one type the same way, for data that refers to
  * schemas as a module's members do, e.g. the symbols of a predicate.
  *
- * A term (where a width, an extent's bound or an argument stands) is written as its neutral form, `Schemas.Form`, and
+ * A term (where a width or an argument stands) is written as its neutral form, `Schemas.Form`, and
  * read back as one; `make`, given to `schemas` or `resolve`, makes a dialect's term of each form instead.
  *
  * The translation goes through plain data, the form `Plain`, `JSON` and `YAML` share: `module` decodes the plain form
@@ -139,11 +139,6 @@ export class _Writer {
       return kindOf("intersection", [["parameters", parameters], ["parts", this.members(schema.parts)],
         ["flat", schema.flat || null], ["description", schema.description]]);
     }
-    if (schema instanceof Schemas.OfIndexed.Data) {
-      return kindOf("indexed", [["parameters", parameters], ["item", this.reference(schema.item)],
-        ["key", schema.key === null ? null : this.reference(schema.key)], ["extent", _extent(schema.extent)],
-        ["description", schema.description]]);
-    }
     if (schema instanceof Schemas.OfApply.Data) {
       return kindOf("apply", [["parameters", parameters], ["of", this.reference(schema.of)], ["arguments", _arguments(schema.arguments)],
         ["description", schema.description]]);
@@ -152,19 +147,12 @@ export class _Writer {
   }
 }
 
-/** An extent's plain form: its int bounds, and the terms that stand for the others; null for none. */
-function _extent(extent: Schemas.OfIndexed.Extent | null): PlainMap | null {
-  if (extent === null) return null;
-  return present([["minimum", _literal(extent.minimum)], ["maximum", _literal(extent.maximum)],
-    ["terms", _terms([["minimum", extent.minimum], ["maximum", extent.maximum]])]]);
-}
-
 /** An application's arguments' plain form, in order. */
 function _arguments(args: ReadonlyMap<string, unknown>): PlainMap[] {
   return [...args].map(([name, value]) => argument(name, value));
 }
 
-/** A width or a bound, where it is not a term. */
+/** A width, where it is not a term. */
 function _literal(value: unknown): PlainData {
   return Schemas.Form.is_term(value) ? null : value as PlainData;
 }
@@ -216,7 +204,6 @@ const BLANK: Record<string, () => Schema> = {
   relation: () => new Schemas.OfRelation.Data(),
   union: () => new Schemas.OfUnion.Data(),
   intersection: () => new Schemas.OfIntersection.Data(),
-  indexed: () => new Schemas.OfIndexed.Data(),
   apply: () => new Schemas.OfApply.Data(),
 };
 
@@ -294,10 +281,10 @@ class _Reader {
       (plain.get("dialect") as string | undefined) ?? null);
   }
 
-  /** A width or a bound: its int, or the term `terms` holds for it. */
-  slot(body: PlainMap, slot: string, absent: unknown = null): unknown {
+  /** A width: its int, or the term `terms` holds for it. */
+  slot(body: PlainMap, slot: string): unknown {
     const terms = (body.get("terms") as PlainMap | undefined) ?? new Map();
-    return terms.has(slot) ? this.term(terms.get(slot) as PlainMap) : body.get(slot) ?? absent;
+    return terms.has(slot) ? this.term(terms.get(slot) as PlainMap) : body.get(slot) ?? null;
   }
 
   /** Writes the contents of `definition` into `schema`, a blank schema of its kind, and returns it. */
@@ -333,21 +320,12 @@ class _Reader {
     } else if (schema instanceof Schemas.OfIntersection.Data) {
       schema.parts = this.members(body.get("parts"), "part", (f) => new Schemas.OfIntersection.Part(f));
       schema.flat = (body.get("flat") as boolean | undefined) ?? false;
-    } else if (schema instanceof Schemas.OfIndexed.Data) {
-      schema.item = this.type(body.get("item") as Definition);
-      schema.key = body.has("key") ? this.type(body.get("key") as Definition) : null;
-      schema.extent = this.extent((body.get("extent") as PlainMap | undefined) ?? null);
     } else {
       const apply = schema as Schemas.OfApply.Data;
       apply.of = this.type(body.get("of") as Definition);
       apply.arguments = this.arguments(list("arguments") as PlainMap[]);
     }
     return schema;
-  }
-
-  /** The extent a plain form describes, or null. */
-  extent(plain: PlainMap | null): Schemas.OfIndexed.Extent | null {
-    return plain === null ? null : new Schemas.OfIndexed.Extent(this.slot(plain, "minimum", 0n), this.slot(plain, "maximum"));
   }
 
   /** The arguments a plain form describes, by name: native values, or terms. */

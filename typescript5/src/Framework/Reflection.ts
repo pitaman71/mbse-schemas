@@ -2,11 +2,11 @@
  * Reflection: schemas as the objects predicates match.
  *
  * A schema is an object of its kind's meta-schema, the schema of its module form (`Schemas.OfObject.Schema`, named
- * 'Schemas.Object', and the like for natives, unions, intersections, lists, applications and relations): it is a
- * reference object identified by itself, and writes itself through `accept` as a module writes it, with its name (which
- * a module gives its entry), its properties, branches, parts and parameters inline, and a named schema it refers to by
- * name (`{"named": {"name": ...}}`). Predicates (mbse-patterns) read it with `get` and quantify over its lists, so a
- * symbol whose schema is a meta-schema binds a schema, and the predicate itself says which schemas match.
+ * 'Schemas.Object', and the like for natives, unions, intersections, applications and relations): it is a reference
+ * object identified by itself, and writes itself through `accept` as a module writes it, with its name (which a module
+ * gives its entry), its properties, branches, parts and parameters as the entries of its adjacencies, and a named schema
+ * it refers to by name (`{"named": {"name": ...}}`). Predicates (mbse-patterns) read it with `get` and quantify over its
+ * entries, so a symbol whose schema is a meta-schema binds a schema, and the predicate itself says which schemas match.
  *
  * `of(store)` is a store whose objects are the schemas `store` registers, and the named schemas they refer to: it
  * registers the meta-schemas, and the extent of each is the schemas of its kind, in name order, as the store registers
@@ -27,7 +27,7 @@ type Schema = Schemas.OfAny.Data | Schemas.OfRelation.Data;
 /** The meta-schemas of the kinds of named schemas. */
 export const META: readonly Schemas.OfObject.Data[] = [
   Schemas.OfNative.Schema, Schemas.OfObject.Schema, Schemas.OfUnion.Schema, Schemas.OfIntersection.Schema,
-  Schemas.OfIndexed.Schema, Schemas.OfApply.Schema, Schemas.OfRelation.Schema];
+  Schemas.OfApply.Schema, Schemas.OfRelation.Schema];
 
 const BY_NAME = new Map(META.map((meta) => [meta.name as string, meta]));
 
@@ -51,7 +51,6 @@ function referred(schema: Schema): unknown[] {
   if (schema instanceof Schemas.OfObject.Data) types.push(...[...schema.adjacencies.values()].map((a) => a.relation));
   else if (schema instanceof Schemas.OfUnion.Data) types.push(...schema.branches.map((b) => b.type));
   else if (schema instanceof Schemas.OfIntersection.Data) types.push(...schema.parts.map((p) => p.type));
-  else if (schema instanceof Schemas.OfIndexed.Data) types.push(...[schema.item, schema.key].filter((t) => t !== null));
   else if (schema instanceof Schemas.OfApply.Data) types.push(schema.of);
   return types;
 }

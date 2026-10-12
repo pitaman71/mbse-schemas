@@ -9,8 +9,8 @@
  * targets of the links it is given. It needs no schema: native property values are ignored.
  */
 
-import { AttributeError, LookupError, NotImplementedError } from "./Errors.js";
-import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIndexed, OfIntersection, OfItem, OfLink, OfNative, OfObject,
+import { AttributeError, NotImplementedError } from "./Errors.js";
+import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfNative, OfObject,
   OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
 type Found = (target: Visitable) => void;
@@ -64,56 +64,6 @@ export class _Ignored implements OfNative, OfAny, OfProperty {
   as_intersection(callback: Callback<OfIntersection>): _Ignored {
     callback(new _Collector(this.found) as unknown as OfIntersection);
     return this;
-  }
-
-  /** The value objects in a list are followed too. */
-  as_indexed(callback: Callback<OfIndexed>): _Ignored {
-    callback(new _Items(this.propertyName, this.found));
-    return this;
-  }
-}
-
-/** `Visitors.OfIndexed` that discards a list, and collects the entries of the value objects in it. */
-export class _Items implements OfIndexed {
-  constructor(private readonly propertyName: string, private readonly found: Found) {}
-
-  items(_callback: Callback<OfAny>): _Items {
-    return this;
-  }
-
-  item(index: number, _callback: Callback<OfAny>): _Items {
-    throw new LookupError(`the list has no item ${index}`); // it keeps no items
-  }
-
-  append(callback: Callback<OfAny>): _Items {
-    callback(new _Ignored(this.propertyName, this.found));
-    return this;
-  }
-
-  remove(index: number): _Items {
-    throw new LookupError(`the list has no item ${index}`);
-  }
-
-  clear(): _Items {
-    return this;
-  }
-
-  pairs(_callback: Callback<OfItem>): _Items {
-    return this;
-  }
-
-  at(_key: Callback<OfAny>, _callback: Callback<OfAny>): _Items {
-    throw new LookupError("the list has no item with this key"); // it keeps no items
-  }
-
-  put(key: Callback<OfAny>, value: Callback<OfAny>): _Items {
-    key(new _Ignored(this.propertyName, this.found)); // a key holds no links, but a visitor may write any value
-    value(new _Ignored(this.propertyName, this.found));
-    return this;
-  }
-
-  discard(_key: Callback<OfAny>): _Items {
-    throw new LookupError("the list has no item with this key");
   }
 }
 

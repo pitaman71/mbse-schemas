@@ -20,8 +20,9 @@ and anywhere else values are compared. Two values are compared under a schema:
   objects compared, by its path from them.
 - `OfUnion` : the same branch, by name, and equal under that branch's schema.
 - `OfIntersection` : every part, by name, either absent in both or present and equal in both, under that part's schema.
-- `OfIndexed` : positional, the same number of items, each equal to the item at the same position under the item
-  schema; keyed, the same keys, each with equal values, in any order.
+- An adjacency's entries, seen from one object (lists, dicts and maps among them): where its relation has a `unique`
+  clause, the same entries in any order (a set); where it has none, the same number of entries, each equal to the
+  entry at the same position (a list).
 - `OfAny` : same runtime schema and equal under it.
 
 Because linked objects compare by identity and only relations can form cycles, structural equality always terminates.
@@ -32,8 +33,8 @@ Every binding must provide a hash consistent with this equality, for enforcing k
 
 ## Ordering
 
-Ordering (`lt`, `le`, `gt`, `ge`) is not universal: it is defined only for ordered `OfNative` types, and for lists
-of them, lexicographically.
+Ordering (`lt`, `le`, `gt`, `ge`) is not universal: it is defined only for ordered `OfNative` types. Lists, being an
+adjacency's entries, are equal or incomparable.
 
 ## Comparison
 
@@ -42,10 +43,10 @@ records the value written into it, e.g. `Comparison.OfObject(schema, instance)`,
 `accept`. `a.compare(b)` returns -1, 0 or 1, or `None` when the two are incomparable. The ordered natives are `int`,
 `float`, `str` and `bytes`: floats by value with `-0.0` before `0.0`, NaNs equal to each other and incomparable with
 other floats. Booleans, objects, entries and adjacencies are equal or incomparable. Absent equals absent and is
-incomparable with anything present. An adjacency compares its entries as a set, seen from its object. Value objects
-compare by their properties and entries, links among them by path; union values are equal when they hold the same branch with equal values, and otherwise incomparable.
-Intersection values compare part by part, as value objects compare property by property. Lists compare item by item:
-the first pair not equal decides, and a list that is a prefix of another is less.
+incomparable with anything present. An adjacency compares its entries, seen from its object, as a set or, where its
+relation has no `unique` clause, as a list, in order. Value objects compare by their properties and entries, links
+among them by path; union values are equal when they hold the same branch with equal values, and otherwise
+incomparable. Intersection values compare part by part, as value objects compare property by property.
 
 ## Proposed resolutions (to confirm)
 

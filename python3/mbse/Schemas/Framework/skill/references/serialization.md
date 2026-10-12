@@ -20,10 +20,10 @@ and TypeScript write byte-identical JSON, and each reads the other's.
 - A value object is a nested mapping, with its own adjacencies nested in it. One that something
   links to carries its symbol, `"home": {"$id": "s3", ...}`, and links to it are `{"$ref": "s3"}`, without a schema.
   Union and intersection values are nested mappings keyed by branch or part name: a union value has exactly one key,
-  and an intersection value one per part. A list is an array of its items, and `[]` is an empty list, not an absent
-  one; a value object in a list is nested like any other. A keyed list is a mapping from its keys' text when its key
-  is a float, a bool or bytes (`{"0.5": "half"}`, `{"true": "on"}`, bytes keys as base64), and otherwise, `str` keys
-  included, an array of `{"key": ..., "value": ...}`. Names starting with `$` are reserved for the format. Decoding accepts only a key's canonical text and rejects a key that appears twice.
+  and an intersection value one per part. A list, a dict or a map is an adjacency's entries like any other,
+  `"tags": [{"value": "a"}, {"value": "b"}]`, sorted by the key its relation declares where that key's values are
+  ordered, and in the order added otherwise; there are no compact forms. Names starting with `$` are reserved for the
+  format.
 - Object content carries no schema, except where nothing else gives it. The root schema is passed to the decoder, and
   references to reference objects carry schema names, so a linked reference object's schema must be registered. An
   object reached only through links to its value objects carries its own `"$schema"`.

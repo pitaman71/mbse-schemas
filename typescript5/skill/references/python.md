@@ -59,8 +59,8 @@ S.OfObject.Builder(existing).relations(...).update()        # add adjacencies on
 S.OfRelation.Builder().links("a", "b").properties(spec, ...).unique("a").create()
 S.OfUnion.Builder().branches(lambda b: b.name("phone").of(spec), ...).create()
 S.OfIntersection.Builder().parts(lambda p: p.name("stamp").of(spec), ...).create()
-S.OfIndexed.Builder().of(spec).create()                     # a list; in a property: lambda t: t.as_indexed(lambda i: i.of(spec))
-S.OfIndexed.Builder().key(spec).of(spec).create()           # a keyed list (a native or value object key); .extent(1, 9) bounds a positional one
+r.name("tags").me("owner").of(lambda rel: rel.links("owner").properties(text("value")))   # a list: a one-link relation inline
+rel.links("owner").properties(text("key"), text("value")).unique("value")   # a dict, keyed by `key`; several keys: a matrix
 schema.validate()                                           # the schema's own problems, [] when valid
 
 S.OfObject.Builder().name("crm.Contact")                    # a name, identifiers separated by dots, on any kind of schema
@@ -68,8 +68,8 @@ S.OfObject.Builder().description("A person we know")        # documentation, on 
 schema.properties["home"].type                              # branch or part; a property is an element, its type inside
 S.OfObject.Builder().parameters(lambda p: p.name("n").of(spec))  # parameters, on any kind of schema
 S.OfApply.Builder().of(Matrix).arguments(rows=2, cols=3)    # a type: a parametric schema applied, by name; .argument("n", 3)
-i.extent(1, S.Form.Data("variable", {"name": "n"}))         # a term where a bound or a width stands, or a dialect's
-Validators.Check(store, evaluate)(schema, obj).holds        # True, False, or None where unknown (extents over parameters)
+n.bits(S.Form.Data("variable", {"name": "n"}))              # a term where a width stands, or a dialect's
+Validators.Check(store)(schema, obj).holds                  # True or False: since extents went, nothing it checks is unknown
 S.equivalent(a, b, evaluate)                                # the same after substitution: Square(4) is Matrix(4, 4)
 # A store: register named object and relation schemas, then build through it. Stores are isolated; objects move between
 # them as snapshots.
@@ -86,9 +86,9 @@ contact.phones.at("home")                                   # the entry by the k
 B.Name(obj).clear("prop").update()
 obj.prop                                                    # AttributeError when unset
 B.Name().union_prop(lambda u: u.phone(spec))                # a branch by name; obj.union_prop.phone reads it
-B.Name().list_prop(["a", "b"]).ports([lambda p: p.name("in")])   # a list of items; obj.list_prop is a tuple
-B.Name(obj).ports(lambda l: l.item(0, lambda a: a.as_object(lambda p: p.name("x"))).remove(1)).update()  # in place
-B.Name().attrs({"gain": 1.5}).cells([(lambda c: c.r(1).c(2), 7)])   # keyed lists: obj.attrs["gain"], a read-only mapping
+B.Name().tags(lambda e: e.value("a")).tags(lambda e: e.value("b"))   # a list's entries; obj.tags.project("value")
+B.Name().attrs(lambda e: e.key("gain").value(1.5))           # a keyed list: obj.attrs.at("gain").value
+obj.ports[0].port; obj.cells.at((1, 2))                      # an entry by position, or by a key of several values
 B.Name(obj).property("p", lambda p: ...).adjacency("a", lambda a: a.entries(...))  # visitor protocol, any name
 
 # Schemas as data: a module holds schemas by name, as an object of S.Module.Schema.
@@ -106,7 +106,7 @@ Validators.Validate(store)(schema, obj); Validators.Validate(store).Reachable(sc
 Validators.properties_of(obj)                               # {name: value} of the properties that are set
 Comparison.OfObject(schema, a).compare(Comparison.OfObject(schema, b))   # -1, 0, 1, or None if incomparable
 
-# Dataclasses: native fields are properties, lists of natives are lists; set/list/dict of dataclasses are relations.
+# Dataclasses: native fields are properties; list/dict of natives and set/list/dict of dataclasses are relations.
 # Defaults, mandatoriness and nesting are not translated.
 from mbse.Schemas.Adapters.Dataclasses import FromDataclass, ToDataclass
 FromDataclass.model(Contact)       # {"Contact": ..., "Address": ..., "ContactAddresses": ...}, named, ready to register
@@ -116,8 +116,9 @@ ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromD
 ## Traps
 
 - `True` is not an `int`, and `1.0` is not an `int`. Validation reports `expected int, got bool`.
-- Entry properties hold natives, lists and value objects without adjacencies. Link an object for anything richer.
-- Setting a value object into a property or a list copies it. Edit one in place through a Spec instead.
+- A two-link entry's properties hold natives and value objects without adjacencies; a one-link entry's value objects
+  may have adjacencies. Link an object for anything richer.
+- Setting a value object into a property or an entry copies it. Edit one in place through a Spec instead.
 - A schema's name is its own (`.name("crm.Contact")`), the same in every store that registers it. Registering an
   unnamed schema, or a name twice in one store, raises `ValueError`, and an object of one store cannot be linked from
   another.

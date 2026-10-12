@@ -18,16 +18,15 @@ The serializers are visitors: a value writes itself into them through `Visitable
 A value object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties. Union
 and intersection values are written the same way, with the union's branches or the intersection's parts as the
 properties: a union value `{"phone": {"number": "+44"}}` holds exactly one branch, and an intersection value
-`{"stamp": {...}, "audit": {...}}` each of its parts. A positional list is written as an array of its items; a keyed
-list as a mapping from its keys' text when its key is a native, otherwise as an array of `{"key": ..., "value": ...}`.
+`{"stamp": {...}, "audit": {...}}` each of its parts.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Hashable, Mapping
+from collections.abc import Callable, Hashable
 from typing import Any, NamedTuple, Protocol
 
-from . import Errors, Reachable, Schemas, Stores, Visitors
+from . import Reachable, Schemas, Stores, Visitors
 from .Errors import DecodeError, path
 from .Visitors import Native
 
@@ -96,17 +95,6 @@ class _AnyWriter:
     def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _AnyWriter:
         return self._record(Schemas.OfIntersection.Data, "an intersection", callback)
 
-    def as_indexed(self, callback: Callable[[Visitors.OfIndexed], Any]) -> _AnyWriter:
-        if not isinstance(self._schema, Schemas.OfIndexed.Data):
-            raise TypeError(f"property {self._name!r} is not a list")
-        kind = dict if _text_keyed(self._schema) else list
-        items = self._out.get(self._name)
-        if not isinstance(items, kind):
-            items = self._out[self._name] = kind()
-        writer = _ListWriter if self._schema.positional else _KeyedWriter
-        callback(writer(items, self._name, self._schema, self._ref, self._symbol))
-        return self
-
     def _record(self, kind: type, noun: str, callback: Callable[[Any], Any]) -> _AnyWriter:
         """Writes a value object, a union value or an intersection value, nested as a mapping."""
         if not isinstance(self._schema, kind):
@@ -119,175 +107,6 @@ class _AnyWriter:
         if isinstance(self._schema, Schemas.OfUnion.Data) and not nested:
             del self._out[self._name]  # a union value without a branch is no value
         return self
-
-
-class _ListWriter:
-    """`Visitors.OfIndexed` writing a plain list, the value of the property `name`; an item written with no value is left
-    out."""
-
-    def __init__(self, out: list[PlainData], name: str, schema: Schemas.OfIndexed.Data, ref: Ref, symbol: Symbol):
-        self._out, self._name, self._schema, self._ref, self._symbol = out, name, schema, ref, symbol
-
-    def items(self, callback: Callable[[Visitors.OfAny], Any]) -> _ListWriter:
-        for index in range(len(self._out)):
-            self.item(index, callback)
-        return self
-
-    def item(self, index: int, callback: Callable[[Visitors.OfAny], Any]) -> _ListWriter:
-        held = {self._name: Errors.item(self._out, index)}
-        callback(_AnyWriter(held, self._name, self._schema.item, self._ref, self._symbol))
-        self._out[index:index + 1] = held.values()
-        return self
-
-    def append(self, callback: Callable[[Visitors.OfAny], Any]) -> _ListWriter:
-        held: dict[str, PlainData] = {}
-        callback(_AnyWriter(held, self._name, self._schema.item, self._ref, self._symbol))
-        self._out.extend(held.values())
-        return self
-
-    def remove(self, index: int) -> _ListWriter:
-        Errors.item(self._out, index)
-        del self._out[index]
-        return self
-
-    def clear(self) -> _ListWriter:
-        self._out.clear()
-        return self
-
-    def pairs(self, callback: Callable[[Visitors.OfItem], Any]) -> _ListWriter:
-        for index in range(len(self._out)):
-            callback(_ItemWriter(self, index, self._schema.minimum + index, _INT))
-        return self
-
-    def _position(self, key: Callable[[Visitors.OfAny], Any], appending: bool = False) -> int:
-        """The position of the item at the key `key` writes; `appending` admits the next key."""
-        written = _written_key(self, _INT, key)  # an int: the key is written as a native int
-        position = written - self._schema.minimum  # type: ignore[operator]
-        if not 0 <= position < len(self._out) + appending:
-            raise LookupError(f"the list has no item {written}")
-        return position
-
-    def at(self, key: Callable[[Visitors.OfAny], Any], callback: Callable[[Visitors.OfAny], Any]) -> _ListWriter:
-        return self.item(self._position(key), callback)
-
-    def put(self, key: Callable[[Visitors.OfAny], Any], value: Callable[[Visitors.OfAny], Any]) -> _ListWriter:
-        position = self._position(key, appending=True)
-        return self.append(value) if position == len(self._out) else self.item(position, value)
-
-    def discard(self, key: Callable[[Visitors.OfAny], Any]) -> _ListWriter:
-        return self.remove(self._position(key))
-
-
-_INT = Schemas.OfNative.Data(int)
-"""The keys of a positional list."""
-
-
-def _text_keyed(schema: Schemas.OfIndexed.Data) -> bool:
-    """Whether a list is written as a mapping from its keys' text: a keyed list whose key is a native whose text never
-    starts with `$` (a float, a bool, bytes), so that no key reads as one of the wire format's markers."""
-    key = Schemas.structure(schema.key)
-    return not schema.positional and isinstance(key, Schemas.OfNative.Data) and key.type in (float, bool, bytes)
-
-
-def _written_key(writer: Any, schema: Any, key: Callable[[Visitors.OfAny], Any]) -> PlainData:
-    """The plain form of the key that `key` writes, as a value of `schema`."""
-    held: dict[str, PlainData] = {}
-    key(_AnyWriter(held, writer._name, schema, writer._ref, _unlinked))
-    if writer._name not in held:
-        raise ValueError("a key needs a value")
-    return held[writer._name]
-
-
-class _ItemWriter:
-    """`Visitors.OfItem` over one item of a plain list writer: its key, read from a copy, and its value."""
-
-    def __init__(self, writer: Any, index: int, key: PlainData, schema: Any):
-        self._writer, self._index, self._key, self._schema = writer, index, key, schema
-
-    def key(self, callback: Callable[[Visitors.OfAny], Any]) -> _ItemWriter:
-        writer = self._writer
-        callback(_AnyWriter({writer._name: self._key}, writer._name, self._schema, writer._ref, _unlinked))
-        return self
-
-    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _ItemWriter:
-        self._writer.item(self._index, callback)
-        return self
-
-
-class _KeyedWriter:
-    """`Visitors.OfIndexed` writing a keyed list: a mapping from each key's text to its value when the key is a native,
-    otherwise a list of `{"key": key, "value": value}` mappings. Keys are compared by their plain forms."""
-
-    def __init__(self, out: dict[str, PlainData] | list[PlainData], name: str, schema: Schemas.OfIndexed.Data, ref: Ref,
-                 symbol: Symbol):
-        self._out, self._name, self._schema, self._ref, self._symbol = out, name, schema, ref, symbol
-        key = Schemas.structure(schema.key)
-        self._pairs: list[list[PlainData]] = (
-            [[key.to_plain(key.from_key(text)), value] for text, value in out.items()] if isinstance(out, dict)
-            else [[entry["key"], entry["value"]] for entry in out])  # type: ignore[index]
-
-    def _flush(self) -> _KeyedWriter:
-        if isinstance(self._out, dict):
-            key = Schemas.structure(self._schema.key)
-            self._out.clear()
-            self._out.update((key.to_key(key.from_plain(k)), v) for k, v in self._pairs)
-        else:
-            self._out[:] = [{"key": k, "value": v} for k, v in self._pairs]
-        return self
-
-    def _find(self, key: PlainData) -> int | None:
-        return next((i for i, (k, _) in enumerate(self._pairs) if repr(k) == repr(key)), None)
-
-    def _position(self, key: Callable[[Visitors.OfAny], Any]) -> int:
-        index = self._find(_written_key(self, self._schema.key, key))
-        if index is None:
-            raise LookupError("the list has no item with this key")
-        return index
-
-    def items(self, callback: Callable[[Visitors.OfAny], Any]) -> _KeyedWriter:
-        for index in range(len(self._pairs)):
-            self.item(index, callback)
-        return self
-
-    def item(self, index: int, callback: Callable[[Visitors.OfAny], Any]) -> _KeyedWriter:
-        pair = Errors.item(self._pairs, index)
-        held = {self._name: pair[1]}
-        callback(_AnyWriter(held, self._name, self._schema.item, self._ref, self._symbol))
-        self._pairs[index:index + 1] = [[pair[0], value] for value in held.values()]
-        return self._flush()
-
-    def append(self, callback: Callable[[Visitors.OfAny], Any]) -> _KeyedWriter:
-        raise TypeError("a keyed list takes put, not append")
-
-    def remove(self, index: int) -> _KeyedWriter:
-        Errors.item(self._pairs, index)
-        del self._pairs[index]
-        return self._flush()
-
-    def clear(self) -> _KeyedWriter:
-        self._pairs.clear()
-        return self._flush()
-
-    def pairs(self, callback: Callable[[Visitors.OfItem], Any]) -> _KeyedWriter:
-        for index in range(len(self._pairs)):
-            callback(_ItemWriter(self, index, self._pairs[index][0], self._schema.key))
-        return self
-
-    def at(self, key: Callable[[Visitors.OfAny], Any], callback: Callable[[Visitors.OfAny], Any]) -> _KeyedWriter:
-        return self.item(self._position(key), callback)
-
-    def put(self, key: Callable[[Visitors.OfAny], Any], value: Callable[[Visitors.OfAny], Any]) -> _KeyedWriter:
-        written = _written_key(self, self._schema.key, key)
-        index = self._find(written)
-        if index is not None:
-            return self.item(index, value)
-        held: dict[str, PlainData] = {}
-        value(_AnyWriter(held, self._name, self._schema.item, self._ref, self._symbol))
-        self._pairs.extend([written, v] for v in held.values())
-        return self._flush()
-
-    def discard(self, key: Callable[[Visitors.OfAny], Any]) -> _KeyedWriter:
-        return self.remove(self._position(key))
 
 
 class _PropertyWriter:
@@ -514,21 +333,9 @@ _ORDERED = (bool, int, float, str)
 def _sort_entries(schema: Any, plain: PlainData) -> None:
     """Sorts the entries of each adjacency written in `plain`, a value of `schema`, nested value objects' too (those
     its entries hold among them), by the key their relation declares from the adjacency's end
-    (`Schemas.OfRelation.Data.key`): where every entry has each of its values, and each holds values of one ordered type (booleans false first, numbers by value, strings by code
-    point). Otherwise, as where a key holds a link, entries keep the order they were written in."""
+    (`Schemas.OfRelation.Data.key`): where every entry has each of its values, and each holds values of one ordered
+    type (booleans false first, numbers by value, strings by code point). Otherwise, as where a key holds a link, entries keep the order they were written in."""
     schema = Schemas.structure(schema)
-    if isinstance(schema, Schemas.OfIndexed.Data):
-        if isinstance(plain, dict):  # keyed by text
-            for item in plain.values():
-                _sort_entries(schema.item, item)
-        elif schema.positional:
-            for item in plain:  # type: ignore[union-attr]
-                _sort_entries(schema.item, item)
-        else:
-            for pair in plain:  # type: ignore[union-attr]  # {key, value}, as written
-                _sort_entries(schema.key, pair["key"])  # type: ignore[index]
-                _sort_entries(schema.item, pair["value"])  # type: ignore[index]
-        return
     if not isinstance(schema, (Schemas.OfObject.Data, Schemas.OfUnion.Data, Schemas.OfIntersection.Data)):
         return
     for name, prop in schema.properties.items():
@@ -585,10 +392,10 @@ Rows = dict[str, list[dict[str, Any]]]
 """Per adjacency, its decoded entries: each maps links to `_Link`s and properties to decoded values."""
 
 
-Step = str | int | tuple[str, int, str]
+Step = str | tuple[str, int, str]
 Steps = tuple[tuple[Step, type], ...]
-"""The way from a reference object to a value object in it: each step a property name, an index in a list, or an entry
-of a one-link relation's adjacency (its name, its position and the property holding the value), and the kind of the
+"""The way from a reference object to a value object in it: each step a property name, or an entry of a one-link
+relation's adjacency (its name, its position and the property holding the value), and the kind of the
 value found there."""
 
 
@@ -608,21 +415,13 @@ class _Context:
 
 def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context: _Context | None = None,
             steps: Steps = ()) -> Any:
-    """The value `plain` holds under `schema`, located at the path `where`: a native, a `_Record`, or a list of the
-    items' values."""
+    """The value `plain` holds under `schema`, located at the path `where`: a native or a `_Record`."""
     schema = Schemas.structure(schema)
     if isinstance(schema, Schemas.OfNative.Data):
         try:
             return schema.from_plain(plain)
         except DecodeError as error:
             raise error.at(path(*where)) from None
-    if isinstance(schema, Schemas.OfIndexed.Data) and schema.positional:
-        if not isinstance(plain, list):
-            raise DecodeError(f"a list must be an array, got {type(plain).__name__}", path=path(*where))
-        return [_decode(schema.item, item, (*where, i), context, (*steps, (i, _kind(schema.item))))
-                for i, item in enumerate(plain)]
-    if isinstance(schema, Schemas.OfIndexed.Data):
-        return _decode_keyed(schema, plain, where, context, steps)
     noun, owner, member = _RECORDS[type(schema)]
     if not isinstance(plain, dict):
         raise DecodeError(f"{noun} must be a mapping, got {type(plain).__name__}", path=path(*where))
@@ -654,52 +453,12 @@ def _kind(schema: Schemas.OfAny.Data) -> type:
     return type(Schemas.structure(schema))
 
 
-class _Keyed(NamedTuple):
-    """A decoded keyed list: its keys and values, in order."""
-
-    pairs: list[tuple[Any, Any]]
-
-
-def _decode_keyed(schema: Schemas.OfIndexed.Data, plain: PlainData, where: tuple, context: _Context | None,
-                  steps: Steps) -> _Keyed:
-    """A keyed list: a mapping from its keys' text when its key is a native, else an array of `{key, value}` items, whose
-    keys are decoded without a context (a key holds no symbols) and appear once."""
-    item = schema.item
-    if _text_keyed(schema):
-        if not isinstance(plain, dict):
-            raise DecodeError(f"a keyed list must be a mapping, got {type(plain).__name__}", path=path(*where))
-        pairs = []
-        for i, (text, value) in enumerate(plain.items()):
-            try:
-                key = Schemas.structure(schema.key).from_key(text)
-            except DecodeError as error:
-                raise error.at(path(*where, text)) from None
-            pairs.append((key, _decode(item, value, (*where, text), context, (*steps, (i, _kind(item))))))
-        return _Keyed(pairs)
-    if not isinstance(plain, list):
-        raise DecodeError(f"a keyed list must be an array, got {type(plain).__name__}", path=path(*where))
-    pairs, seen = [], {}
-    for i, entry in enumerate(plain):
-        if not (isinstance(entry, dict) and set(entry) == {"key", "value"}):
-            raise DecodeError("an item of a keyed list is {'key': key, 'value': value}", path=path(*where, i))
-        key = _decode(schema.key, entry["key"], (*where, i, "key"))
-        first = seen.setdefault(_decoded_key(key), i)
-        if first != i:
-            raise DecodeError(f"the same key as item {first}", path=path(*where, i, "key"))
-        pairs.append((key, _decode(item, entry["value"], (*where, i, "value"), context, (*steps, (i, _kind(item))))))
-    return _Keyed(pairs)
-
-
 def _decoded_key(value: Any) -> Hashable:
     """Equality key of a decoded value, per EQUALITY.md."""
-    if isinstance(value, _Keyed):
-        return ("map", frozenset((_decoded_key(k), _decoded_key(v)) for k, v in value.pairs))
     if isinstance(value, _Record):
         rows = tuple((name, tuple(tuple(sorted((key, _decoded_key(v)) for key, v in row.items())) for row in listed))
                      for name, listed in sorted(value.rows.items()))
         return ("record", tuple((name, _decoded_key(v)) for name, v in sorted(value.values.items())), rows)
-    if isinstance(value, list):
-        return ("list", tuple(_decoded_key(v) for v in value))
     return (type(value).__name__, value.hex() if isinstance(value, float) else value)
 
 
@@ -898,12 +657,10 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
             return created[symbol]
         found = ids[symbol]
         target = created[found.owner]
-        for key, _ in found.steps:  # a step into a keyed list is by position, as into any list
+        for key, _ in found.steps:
             if isinstance(key, tuple):  # an entry's value
                 adjacency, position, name = key
                 target = getattr(store.member(target, adjacency)[position], name)
-            elif isinstance(key, int):
-                target = list(target.values())[key] if isinstance(target, Mapping) else target[key]
             else:
                 target = store.member(target, key)
         return target
@@ -913,6 +670,26 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
     nested: dict[str, list[tuple[_Found, Rows, Any]]] = {}
     for found, rows, value_schema in entries:
         nested.setdefault(found.owner, []).append((found, rows, value_schema))
+
+    def add_nested(builder: Any, symbol: str, one_link: bool) -> bool:
+        """Adds the entries of the value objects `symbol` holds, of one-link relations or of the others; whether any.
+        Outer value objects first: decoding found the inner ones first, and an inner one may be held by an outer one's
+        entry."""
+        added = False
+        for found, rows, value_schema in sorted(nested.get(symbol, []), key=lambda held: len(held[0].steps)):
+            owner = symbols.get((found.owner, found.steps), found)
+            rows = {key: kept(value_schema, owner, key, listed) for key, listed in rows.items()
+                    if (len(value_schema.adjacencies[key].relation.links) == 1) == one_link}
+            if any(rows.values()):  # an edit with nothing to add would drop what another just added
+                _within(builder, found.steps, lambda v, rows=rows: _add_rows(v, rows, resolve))
+                added = True
+        return added
+
+    # The value objects that one-link entries hold come first, in every object: a link may target any of them.
+    for symbol in decoded:
+        builder = store.builder(names[symbol], created[symbol])
+        if add_nested(builder, symbol, one_link=True):
+            builder.update()
     for symbol, (_, adjacencies) in decoded.items():
         object_schema = store.schema(names[symbol])
         builder = store.builder(names[symbol], created[symbol])
@@ -920,12 +697,7 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
             if len(object_schema.adjacencies[key].relation.links) > 1:
                 for row in kept(object_schema, symbol, key, rows):
                     builder.adjacency(key, lambda a, r=row: a.add(lambda x: _fill(x, r, resolve)))
-        # outer value objects first: decoding found the inner ones first, and an inner one may be held by an outer one's entry
-        for found, rows, value_schema in sorted(nested.get(symbol, []), key=lambda held: len(held[0].steps)):
-            owner = symbols.get((found.owner, found.steps), found)
-            rows = {key: kept(value_schema, owner, key, listed) for key, listed in rows.items()}
-            if any(rows.values()):  # an edit with nothing to add would drop what another just added
-                _within(builder, found.steps, lambda v, rows=rows: _add_rows(v, rows, resolve))
+        add_nested(builder, symbol, one_link=False)
         builder.update()
     return created[root]
 
@@ -950,7 +722,7 @@ def _within(visitor: Any, steps: Steps, then: Callable[[Any], None]) -> None:
         return
     (key, kind), rest = steps[0], steps[1:]
     select = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
-              Schemas.OfIntersection.Data: "as_intersection", Schemas.OfIndexed.Data: "as_indexed"}[kind]
+              Schemas.OfIntersection.Data: "as_intersection"}[kind]
 
     def into(a: Visitors.OfAny) -> None:
         getattr(a, select)(lambda v: _within(v, rest, then))
@@ -960,8 +732,6 @@ def _within(visitor: Any, steps: Steps, then: Callable[[Any], None]) -> None:
         found: list[Any] = []
         visitor.adjacency(adjacency, lambda a: a.entries(found.append))
         found[position].property(name, lambda p: p.value(into))
-    elif isinstance(key, int):
-        visitor.item(key, into)
     else:
         visitor.property(key, lambda p: p.value(into))
 
@@ -971,12 +741,8 @@ def _set(visitor: Any, name: str, value: Any) -> None:
 
 
 def _write(visitor: Visitors.OfAny, value: Any) -> None:
-    """Writes a decoded value: a native, a value object, union value or intersection value, or a list."""
-    if isinstance(value, list):
-        visitor.as_indexed(lambda items: _write_items(items, value))
-    elif isinstance(value, _Keyed):
-        visitor.as_indexed(lambda items: _write_pairs(items, value.pairs))
-    elif isinstance(value, _Record):
+    """Writes a decoded value: a native, a value object, union value or intersection value."""
+    if isinstance(value, _Record):
         if isinstance(value.schema, Schemas.OfUnion.Data):
             visitor.as_union(lambda u: value.accept(u))
         elif isinstance(value.schema, Schemas.OfIntersection.Data):
@@ -985,16 +751,6 @@ def _write(visitor: Visitors.OfAny, value: Any) -> None:
             visitor.as_object(lambda o: value.accept(o))
     else:
         visitor.as_native(lambda n: n.set(value))
-
-
-def _write_items(visitor: Visitors.OfIndexed, items: list[Any]) -> None:
-    for item in items:
-        visitor.append(lambda a, item=item: _write(a, item))
-
-
-def _write_pairs(visitor: Visitors.OfIndexed, pairs: list[tuple[Any, Any]]) -> None:
-    for key, value in pairs:
-        visitor.put(lambda a, key=key: _write(a, key), lambda a, value=value: _write(a, value))
 
 
 def _fill(visitor: Visitors.OfEntry, row: dict[str, Any], resolve: Callable[[str], Any]) -> None:

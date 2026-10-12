@@ -15,7 +15,7 @@ inline. A name resolves within the module, then in the store. A schema that refe
 `reference(schema)` and `resolve(store, definition)` translate one type the same way, for data that refers to schemas
 as a module's members do, e.g. the symbols of a predicate.
 
-A term (where a width, an extent's bound or an argument stands) is written as its neutral form, `Schemas.Form`, and
+A term (where a width or an argument stands) is written as its neutral form, `Schemas.Form`, and
 read back as one; `make`, given to `schemas` or `resolve`, makes a dialect's term of each form instead.
 
 The translation goes through plain data, the form `Plain`, `JSON` and `YAML` share: `module` decodes the plain form of
@@ -128,22 +128,10 @@ class _Writer:
         if isinstance(schema, Schemas.OfIntersection.Data):
             return _kind_of("intersection", parameters=parameters, parts=self._members(schema.parts),
                             flat=schema.flat or None, description=schema.description)
-        if isinstance(schema, Schemas.OfIndexed.Data):
-            return _kind_of("indexed", parameters=parameters, item=self.reference(schema.item),
-                            key=None if schema.key is None else self.reference(schema.key), extent=_extent(schema.extent),
-                            description=schema.description)
         if isinstance(schema, Schemas.OfApply.Data):
             return _kind_of("apply", parameters=parameters, of=self.reference(schema.of),
                             arguments=_arguments(schema.arguments), description=schema.description)
         raise TypeError(f"not a schema: {schema!r}")
-
-
-def _extent(extent: Any) -> dict[str, Any] | None:
-    """An extent's plain form: its int bounds, and the terms that stand for the others; None for none."""
-    if extent is None:
-        return None
-    return _present(minimum=_literal(extent.minimum), maximum=_literal(extent.maximum),
-                    terms=_terms(minimum=extent.minimum, maximum=extent.maximum))
 
 
 def _arguments(arguments: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -152,7 +140,7 @@ def _arguments(arguments: Mapping[str, Any]) -> list[dict[str, Any]]:
 
 
 def _literal(value: Any) -> Any:
-    """A width or a bound, where it is not a term."""
+    """A width, where it is not a term."""
     return None if Schemas.Form.is_term(value) else value
 
 
@@ -199,8 +187,7 @@ def _present(**contents: Any) -> dict[str, Any]:
 
 
 _BLANK = {"native": Schemas.OfNative.Data, "object": Schemas.OfObject.Data, "relation": Schemas.OfRelation.Data,
-          "union": Schemas.OfUnion.Data, "intersection": Schemas.OfIntersection.Data, "indexed": Schemas.OfIndexed.Data,
-          "apply": Schemas.OfApply.Data}
+          "union": Schemas.OfUnion.Data, "intersection": Schemas.OfIntersection.Data, "apply": Schemas.OfApply.Data}
 
 
 def _contents_of(definition: Definition) -> tuple[str, dict[str, Any]]:
@@ -270,10 +257,10 @@ class _Reader:
                                  tuple(self._form(argument["term"]) for argument in plain.get("arguments", [])),
                                  plain.get("dialect"))
 
-    def _slot(self, body: dict[str, Any], slot: str, absent: Any = None) -> Any:
-        """A width or a bound: its int, or the term `terms` holds for it."""
+    def _slot(self, body: dict[str, Any], slot: str) -> Any:
+        """A width: its int, or the term `terms` holds for it."""
         terms = body.get("terms", {})
-        return self._term(terms[slot]) if slot in terms else body.get(slot, absent)
+        return self._term(terms[slot]) if slot in terms else body.get(slot)
 
     def _fill(self, schema: Any, definition: Definition) -> Any:
         """Writes the contents of `definition` into `schema`, a blank schema of its kind, and returns it."""
@@ -303,18 +290,10 @@ class _Reader:
         elif kind == "intersection":
             schema.parts = tuple(self._members(body.get("parts", []), Schemas.OfIntersection.Part, "part"))
             schema.flat = body.get("flat", False)
-        elif kind == "indexed":
-            schema.item = self.type(body["item"])
-            schema.key = self.type(body["key"]) if "key" in body else None
-            schema.extent = self.extent(body.get("extent"))
         else:
             schema.of = self.type(body["of"])
             schema.arguments = self.arguments(body.get("arguments", []))
         return schema
-
-    def extent(self, plain: dict[str, Any] | None) -> Any:
-        """The extent a plain form describes, or None."""
-        return None if plain is None else Schemas.OfIndexed.Extent(self._slot(plain, "minimum", 0), self._slot(plain, "maximum"))
 
     def arguments(self, plain: list[dict[str, Any]]) -> dict[str, Any]:
         """The arguments a plain form describes, by name: native values, or terms."""

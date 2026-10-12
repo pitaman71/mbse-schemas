@@ -144,7 +144,7 @@ class _NativeSlot:
     def _not_native(self, callback: Any) -> _NativeSlot:
         raise TypeError(f"property {self._name!r} is native")
 
-    as_object = as_union = as_intersection = as_indexed = _not_native
+    as_object = as_union = as_intersection = _not_native
 
 
 class _FixedSlot(_NativeSlot):

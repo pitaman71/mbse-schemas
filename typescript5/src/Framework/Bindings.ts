@@ -28,7 +28,7 @@ import { repr, tokenName, typeName } from "./Repr.js";
 import { _probes } from "./Proxies.js";
 import * as Schemas from "./Schemas.js";
 import * as Stores from "./Stores.js";
-import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIndexed, OfIntersection, OfLink, OfNative, OfObject,
+import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfNative, OfObject,
   OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
 /** One entry of an adjacency, seen from the instance: its other links and its properties. */
@@ -168,10 +168,6 @@ class _NativeSlot implements OfProperty, OfAny, OfNative {
   }
 
   as_intersection(_callback: Callback<OfIntersection>): this {
-    throw new TypeError(`property ${repr(this.slotName)} is native`);
-  }
-
-  as_indexed(_callback: Callback<OfIndexed>): this {
     throw new TypeError(`property ${repr(this.slotName)} is native`);
   }
 }

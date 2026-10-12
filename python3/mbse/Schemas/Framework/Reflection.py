@@ -1,11 +1,11 @@
 """Reflection: schemas as the objects predicates match.
 
 A schema is an object of its kind's meta-schema, the schema of its module form (`Schemas.OfObject.Schema`, named
-'Schemas.Object', and the like for natives, unions, intersections, lists, applications and relations): it is a reference
+'Schemas.Object', and the like for natives, unions, intersections, applications and relations): it is a reference
 object identified by itself, and writes itself through `accept` as a module writes it, with its name (which a module
-gives its entry), its properties, branches, parts and parameters inline, and a named schema it refers to by name
-(`{"named": {"name": ...}}`). Predicates (mbse-patterns)
-read it with `get` and quantify over its lists, so a symbol whose schema is a meta-schema binds a schema, and the
+gives its entry), its properties, branches, parts and parameters as the entries of its adjacencies, and a named schema
+it refers to by name (`{"named": {"name": ...}}`). Predicates (mbse-patterns) read it with `get` and quantify over its
+entries, so a symbol whose schema is a meta-schema binds a schema, and the
 predicate itself says which schemas match.
 
 `of(store)` is a store whose objects are the schemas `store` registers, and the named schemas they refer to: it
@@ -25,7 +25,7 @@ __all__ = ["META", "of", "OfStore"]
 
 META: tuple[Schemas.OfObject.Data, ...] = (
     Schemas.OfNative.Schema, Schemas.OfObject.Schema, Schemas.OfUnion.Schema,  # type: ignore[attr-defined]
-    Schemas.OfIntersection.Schema, Schemas.OfIndexed.Schema, Schemas.OfApply.Schema,  # type: ignore[attr-defined]
+    Schemas.OfIntersection.Schema, Schemas.OfApply.Schema,  # type: ignore[attr-defined]
     Schemas.OfRelation.Schema)  # type: ignore[attr-defined]
 """The meta-schemas of the kinds of named schemas."""
 
@@ -55,8 +55,6 @@ def _referred(schema: Any) -> Iterator[Any]:
         yield from (b.type for b in schema.branches)
     elif isinstance(schema, Schemas.OfIntersection.Data):
         yield from (p.type for p in schema.parts)
-    elif isinstance(schema, Schemas.OfIndexed.Data):
-        yield from (t for t in (schema.item, schema.key) if t is not None)
     elif isinstance(schema, Schemas.OfApply.Data):
         yield schema.of
 

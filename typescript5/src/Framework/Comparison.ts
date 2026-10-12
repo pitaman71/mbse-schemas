@@ -17,9 +17,6 @@
  * - `OfProperty` and `OfAny` compare their values; values of different kinds are incomparable.
  * - `OfUnion`: equal when both hold the same branch with equal values; otherwise incomparable.
  * - `OfIntersection`: equal when every part is absent in both or equal in both; otherwise incomparable.
- * - `OfIndexed`: positional, item by item, under the item schema: the first pair that is not equal decides, and a list
- *   that is a prefix of the other is less, so lists of ordered natives order lexicographically. Keyed, equal when both
- *   hold the same keys with equal values, in any order; otherwise incomparable.
  * - `OfLink`: equal when both link the same object (by identity), or, within two recordings, value objects at the same
  *   path from their roots (`home`, `reach.phone`); otherwise incomparable.
  * - `OfEntry`: equal when every link and property is equal; otherwise incomparable.
@@ -31,7 +28,7 @@
  * `Visitors.OfRelation` has no implementation: it declares no way to write entries into it.
  */
 
-import { AttributeError, item, KeyError, LookupError, ValueError } from "./Errors.js";
+import { AttributeError, KeyError, ValueError } from "./Errors.js";
 import { compareStrings, repr, tokenName, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type * as Visitors from "./Visitors.js";
@@ -105,8 +102,8 @@ export class OfNative implements Visitors.OfNative {
   }
 }
 
-/** The way from a recorded root to a value in it: property names, and indexes in lists. */
-type Path = readonly (string | number)[];
+/** The way from a recorded root to a value in it: property names. */
+type Path = readonly string[];
 
 /** Where the value objects recorded under one root are: the path from the root to each, by identity, so that links to
  * them compare by where they are rather than by which object they are. */
@@ -116,16 +113,11 @@ class Paths {
 
 /** `Visitors.OfAny` recording a value of the kind its schema declares. */
 export class OfAny implements Visitors.OfAny {
-  private value: OfNative | OfObject | OfUnion | OfIntersection | OfIndexed | null = null;
+  private value: OfNative | OfObject | OfUnion | OfIntersection | null = null;
   private readonly schema: Schemas.OfAny.Data;
 
   constructor(schema: Schemas.OfAny.Data, private readonly paths: Paths | null = null, private readonly path: Path = []) {
     this.schema = Schemas.structure(schema) as Schemas.OfAny.Data;
-  }
-
-  /** @internal The native value recorded; a positional list reads its keys with it. */
-  native(): Native {
-    return (this.value as OfNative).get();
   }
 
   /** @internal */
@@ -165,13 +157,6 @@ export class OfAny implements Visitors.OfAny {
     return this;
   }
 
-  as_indexed(callback: Callback<Visitors.OfIndexed>): OfAny {
-    if (!(this.schema instanceof Schemas.OfIndexed.Data)) throw new TypeError("the schema is not a list schema");
-    if (!(this.value instanceof OfIndexed)) this.value = new OfIndexed(this.schema, this.paths, this.path);
-    callback(this.value);
-    return this;
-  }
-
   compare(other: OfAny): Result {
     if (this.absent() || other.absent()) return this.absent() && other.absent() ? 0 : null;
     if (this.value instanceof OfNative) return other.value instanceof OfNative ? this.value.compare(other.value) : null;
@@ -179,7 +164,6 @@ export class OfAny implements Visitors.OfAny {
     if (this.value instanceof OfIntersection) {
       return other.value instanceof OfIntersection ? this.value.compare(other.value) : null;
     }
-    if (this.value instanceof OfIndexed) return other.value instanceof OfIndexed ? this.value.compare(other.value) : null;
     return other.value instanceof OfObject ? (this.value as OfObject).compare(other.value) : null;
   }
 }
@@ -245,141 +229,6 @@ export class OfIntersection extends Members implements Visitors.OfIntersection {
 }
 
 /** `Visitors.OfProperty` recording one named property's value. */
-/** `Visitors.OfIndexed` recording a list: its items, in order, each an `OfAny` of the item schema, and in a keyed list
- * each one's key, an `OfAny` of the key schema. An item written with no value is left out. Positional lists compare
- * item by item; keyed lists are equal when they hold equal values under equal keys, in any order. */
-export class OfIndexed implements Visitors.OfIndexed {
-  private recorded: OfAny[] = [];
-  private keys: OfAny[] = []; // a keyed list's
-
-  constructor(private readonly schema: Schemas.OfIndexed.Data, private readonly paths: Paths | null = null,
-    private readonly path: Path = []) {}
-
-  items(callback: Callback<Visitors.OfAny>): OfIndexed {
-    for (const recorded of [...this.recorded]) callback(recorded);
-    return this;
-  }
-
-  item(index: number, callback: Callback<Visitors.OfAny>): OfIndexed {
-    callback(item(this.recorded, index));
-    return this;
-  }
-
-  append(callback: Callback<Visitors.OfAny>): OfIndexed {
-    if (!this.schema.positional) throw new TypeError("a keyed list takes put, not append");
-    return this.add(null, callback);
-  }
-
-  private add(key: OfAny | null, callback: Callback<Visitors.OfAny>): OfIndexed {
-    const recorded = new OfAny(this.schema.item as Schemas.OfAny.Data, this.paths, [...this.path, this.recorded.length]);
-    callback(recorded);
-    const added = recorded.absent() ? [] : [recorded];
-    this.recorded.push(...added);
-    if (key !== null) this.keys.push(...added.map(() => key));
-    return this;
-  }
-
-  remove(index: number): OfIndexed {
-    item(this.recorded, index);
-    this.recorded.splice(index, 1);
-    this.keys.splice(index, 1);
-    return this;
-  }
-
-  clear(): OfIndexed {
-    this.recorded = [];
-    this.keys = [];
-    return this;
-  }
-
-  /** The key of the item at `position`: a keyed list's own, or a positional list's index from its minimum. */
-  private keyAt(position: number): OfAny {
-    if (!this.schema.positional) return this.keys[position] as OfAny;
-    const key = new OfAny(INT);
-    key.as_native((n) => n.set(this.schema.minimum + BigInt(position)));
-    return key;
-  }
-
-  pairs(callback: Callback<Visitors.OfItem>): OfIndexed {
-    [...this.recorded].forEach((recorded, position) => callback(new OfItem(this.keyAt(position), recorded)));
-    return this;
-  }
-
-  private written(key: Callback<Visitors.OfAny>): OfAny {
-    const written = new OfAny(this.schema.positional ? INT : this.schema.key as Schemas.OfAny.Data);
-    key(written);
-    if (written.absent()) throw new ValueError("a key needs a value");
-    return written;
-  }
-
-  /** The position of the item at `key`; `appending` admits a positional list's next key. */
-  private position(key: OfAny, appending = false): number {
-    if (this.schema.positional) {
-      const written = key.native() as bigint;
-      const index = Number(written - this.schema.minimum);
-      if (!(index >= 0 && index < this.recorded.length + Number(appending))) throw new LookupError(`the list has no item ${written}`);
-      return index;
-    }
-    const found = this.keys.findIndex((k) => k.compare(key) === 0);
-    if (found < 0) throw new LookupError("the list has no item with this key");
-    return found;
-  }
-
-  at(key: Callback<Visitors.OfAny>, callback: Callback<Visitors.OfAny>): OfIndexed {
-    return this.item(this.position(this.written(key)), callback);
-  }
-
-  put(key: Callback<Visitors.OfAny>, value: Callback<Visitors.OfAny>): OfIndexed {
-    const written = this.written(key);
-    if (this.schema.positional) {
-      const index = this.position(written, true);
-      return index === this.recorded.length ? this.add(null, value) : this.item(index, value);
-    }
-    if (this.keys.some((k) => k.compare(written) === 0)) return this.item(this.position(written), value);
-    return this.add(written, value);
-  }
-
-  discard(key: Callback<Visitors.OfAny>): OfIndexed {
-    return this.remove(this.position(this.written(key)));
-  }
-
-  compare(other: OfIndexed): Result {
-    if (this.schema !== other.schema) return null;
-    if (!this.schema.positional) return this.compareKeyed(other);
-    const count = Math.min(this.recorded.length, other.recorded.length);
-    for (let i = 0; i < count; i++) {
-      const result = (this.recorded[i] as OfAny).compare(other.recorded[i] as OfAny);
-      if (result !== 0) return result;
-    }
-    return sign(this.recorded.length - other.recorded.length);
-  }
-
-  /** Equal when both hold the same keys, each with equal values, in any order; otherwise incomparable. */
-  private compareKeyed(other: OfIndexed): Result {
-    if (this.recorded.length !== other.recorded.length) return null;
-    return allEqual(this.recorded.map((recorded, i) => other.recorded.some((theirs, j) =>
-      (this.keys[i] as OfAny).compare(other.keys[j] as OfAny) === 0 && recorded.compare(theirs) === 0) ? 0 : null));
-  }
-}
-
-/** The keys of a positional list. */
-const INT = new Schemas.OfNative.Data(BigInt);
-
-/** `Visitors.OfItem` over one recorded item: its key and its value. */
-export class OfItem implements Visitors.OfItem {
-  constructor(private readonly recordedKey: OfAny, private readonly recordedValue: OfAny) {}
-
-  key(callback: Callback<Visitors.OfAny>): OfItem {
-    callback(this.recordedKey);
-    return this;
-  }
-
-  value(callback: Callback<Visitors.OfAny>): OfItem {
-    callback(this.recordedValue);
-    return this;
-  }
-}
-
 export class OfProperty implements Visitors.OfProperty {
   private recorded: OfAny;
 

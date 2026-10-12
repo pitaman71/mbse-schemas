@@ -20,12 +20,37 @@ def _text(name, native=str):
     return lambda prop: prop.name(name).of(lambda t: t.as_native(native))
 
 
-def _list(spec):
-    return lambda t: t.as_indexed(lambda i: i.of(spec))
+def _list(name, *properties, unique=()):
+    """An adjacency `name` to a one-link relation of its own, whose entries hold `properties`: a list, or keyed where
+    `unique` names the values its other properties determine."""
+
+    def relation(rel):
+        rel.links("owner").properties(*properties)
+        return rel.unique(*unique) if unique else rel
+
+    return lambda a: a.name(name).me("owner").of(relation)
 
 
-def _keyed(key, spec):
-    return lambda t: t.as_indexed(lambda i: i.key(key).of(spec))
+def _held(name, spec):
+    return lambda prop: prop.name(name).of(spec)
+
+
+def _entries(name, values):
+    """A Spec adding an entry to the adjacency `name` for each of `values`, each a Spec of the entry."""
+
+    def spec(builder):
+        for value in values:
+            getattr(builder, name)(value)
+        return builder
+
+    return spec
+
+
+def _first(adjacency, at, then):
+    """Edits the entry at position `at` of an adjacency, through the visitor protocols."""
+    found = []
+    adjacency.entries(found.append)
+    then(found[at])
 
 
 def build():
@@ -101,24 +126,25 @@ def build():
     S.OfObject.Builder(Card).relations(lambda a: a.name("decks").of(Holding).me("card")).update()
     Hub = S.OfObject.Builder().name("Hub").ref().properties(_text("name")).relations(lambda a: a.name("phones").of(Line).me("hub")).create()
 
-    # --- lists: of natives, of lists, of union values and of value objects, which link each other and a reference
-    # object ---
+    # --- lists: one-link relations, open (lists) or keyed by what a `unique` clause leaves out: of natives, of lists,
+    # of union values and of value objects, which link each other and a reference object; keyed by text, by a float, by
+    # a value object and by a pair of ints ---
     Cable = S.OfRelation.Builder().name("Cable").links("source", "sink").create()
     Socket = S.OfObject.Builder().properties(_text("name")).relations(
         lambda a: a.name("cables").of(Cable).me("source"), lambda a: a.name("plugs").of(Cable).me("sink")).create()
     Coord = S.OfObject.Builder().properties(_text("r", int), _text("c", int)).create()
     Reading = S.OfUnion.Builder().branches(lambda b: b.name("value").of(lambda t: t.as_native(float)),
                                            lambda b: b.name("note").of(lambda t: t.as_native(str))).create()
-    Board = S.OfObject.Builder().name("Board").ref().properties(
-        _text("name"), lambda p: p.name("tags").of(_list(lambda t: t.as_native(str))),
-        lambda p: p.name("blobs").of(_list(lambda t: t.as_native(bytes))),
-        lambda p: p.name("grid").of(_list(_list(lambda t: t.as_native(int)))),
-        lambda p: p.name("readings").of(_list(Reading)), lambda p: p.name("sockets").of(_list(Socket)),
-        lambda p: p.name("banks").of(_list(_list(Socket))),
-        lambda p: p.name("matrix").of(lambda t: t.as_indexed(lambda i: i.of(_list(lambda t: t.as_native(int))).extent(1, 3))),
-        lambda p: p.name("attrs").of(_keyed(lambda t: t.as_native(str), lambda t: t.as_native(float))),
-        lambda p: p.name("weights").of(_keyed(lambda t: t.as_native(float), lambda t: t.as_native(str))),
-        lambda p: p.name("cells").of(_keyed(Coord, lambda t: t.as_native(int)))).create()
+    Row = S.OfObject.Builder().relations(_list("values", _text("value", int))).create()
+    Bank = S.OfObject.Builder().relations(_list("sockets", _held("socket", Socket))).create()
+    Board = S.OfObject.Builder().name("Board").ref().properties(_text("name")).relations(
+        _list("tags", _text("value")), _list("blobs", _text("value", bytes)), _list("grid", _held("row", Row)),
+        _list("readings", _held("reading", Reading)), _list("sockets", _held("socket", Socket)),
+        _list("banks", _held("bank", Bank)),
+        _list("matrix", _text("i", int), _text("j", int), _text("value", int), unique=("value",)),
+        _list("attrs", _text("key"), _text("value", float), unique=("value",)),
+        _list("weights", _text("key", float), _text("value"), unique=("value",)),
+        _list("cells", _held("key", Coord), _text("value", int), unique=("value",))).create()
     Panel = S.OfObject.Builder().name("Panel").ref().properties(_text("name")).relations(
         lambda a: a.name("plugs").of(Cable).me("sink")).create()
 
@@ -196,27 +222,50 @@ def build():
     B.Hub().name("switchboard").phones(lambda x: x.phone(cards[0].home)).phones(lambda x: x.phone(di.home)).create()
 
     panel = B.Panel().name("mains").create()
-    board = (B.Board().name("rack").tags(["", "日本語 🚀", "a"]).blobs([b"", b"\x00\xff"]).grid([[1, -(2**70)], [], [0]])
-             .readings([lambda u: u.value(-0.0), lambda u: u.note("off"), lambda u: u.value(math.inf)])
-             .sockets([lambda o: o.name("in"), lambda o: o.name("out")]).banks([[], [lambda o: o.name("spare")]])
-             .matrix([[1, 0], [0, 1]]).attrs({"gain": 1.5, "": -0.0}).weights({0.5: "half", math.nan: "none"})
-             .cells([(lambda c: c.r(2).c(3), 6), (lambda c: c.r(0).c(0), 0)])
-             .create())
-    B.Board(board).sockets(lambda items: items.item(0, lambda v: v.as_object(
-        lambda o: o.cables(lambda x: x.sink(board.sockets[1])).cables(lambda x: x.sink(panel))))).banks(
-        lambda rows: rows.item(1, lambda v: v.as_indexed(lambda row: row.item(0, lambda w: w.as_object(
-            lambda o: o.cables(lambda x: x.sink(board.sockets[0]))))))).update()
+    rack = B.Board().name("rack")
+    for value in ["", "日本語 🚀", "a"]:
+        rack.tags(lambda e, value=value: e.value(value))
+    for value in [b"", b"\x00\xff"]:
+        rack.blobs(lambda e, value=value: e.value(value))
+    for row in [[1, -(2**70)], [], [0]]:
+        rack.grid(lambda e, row=row: e.row(_entries("values", [lambda x, v=v: x.value(v) for v in row])))
+    rack.readings(lambda e: e.reading(lambda u: u.value(-0.0))).readings(lambda e: e.reading(lambda u: u.note("off")))
+    rack.readings(lambda e: e.reading(lambda u: u.value(math.inf)))
+    rack.sockets(lambda e: e.socket(lambda o: o.name("in"))).sockets(lambda e: e.socket(lambda o: o.name("out")))
+    rack.banks(lambda e: e.bank(lambda b: b)).banks(lambda e: e.bank(lambda b: b.sockets(lambda x: x.socket(lambda o: o.name("spare")))))
+    for i, j, value in [(2, 1, 0), (1, 1, 1), (1, 2, 0), (2, 2, 1)]:
+        rack.matrix(lambda e, i=i, j=j, value=value: e.i(i).j(j).value(value))
+    rack.attrs(lambda e: e.key("gain").value(1.5)).attrs(lambda e: e.key("").value(-0.0))
+    rack.weights(lambda e: e.key(0.5).value("half")).weights(lambda e: e.key(math.nan).value("none"))
+    rack.cells(lambda e: e.key(lambda c: c.r(2).c(3)).value(6)).cells(lambda e: e.key(lambda c: c.r(0).c(0)).value(0))
+    board = rack.create()
+    ins = board.sockets.project("socket")
+
+    def wire_in(entry):  # the first socket to the second, and to the panel
+        entry.property("socket", lambda p: p.value(lambda v: v.as_object(
+            lambda o: o.cables(lambda x: x.sink(ins[1])).cables(lambda x: x.sink(panel)))))
+
+    def wire_spare(entry):  # the spare socket of the second bank to the first socket
+        entry.property("socket", lambda p: p.value(lambda v: v.as_object(lambda o: o.cables(lambda x: x.sink(ins[0])))))
+
+    def bank(entry):
+        entry.property("bank", lambda p: p.value(lambda v: v.as_object(lambda o: o.adjacency(
+            "sockets", lambda a: _first(a, 0, wire_spare)))))
+
+    B.Board(board).adjacency("sockets", lambda a: _first(a, 0, wire_in)).adjacency(
+        "banks", lambda a: _first(a, 1, bank)).update()
 
     # --- module: the corpus's own schemas as data, with natives of widths and another format's token, and parametric
-    # schemas: parameters, terms where a width or a bound stands, and applications with arguments of every native ---
+    # schemas: parameters, terms where a width stands, and applications with arguments of every native ---
     int_ = lambda t: t.as_native(int)  # noqa: E731
     n = S.Form.Data("variable", {"name": "n"})
     Word = S.OfNative.resolve(lambda w: w.name("Word").type(int).parameters(lambda p: p.name("w").of(int_)).bits(
         S.Form.Data("variable", {"name": "w"})))
     Grid = S.OfObject.Builder().name("Grid").parameters(lambda p: p.name("n").of(int_).description("Its side"),
                                                         lambda p: p.name("x")).properties(
-        lambda p: p.name("cells").of(lambda t: t.as_indexed(lambda i: i.of(lambda c: c.as_apply(
-            lambda a: a.of(Word).arguments(w=8))).extent(1, S.Form.Data("operation", {"name": "mul"}, (n, n), "basic"))))).create()
+        lambda p: p.name("mask").of(lambda t: t.as_native(lambda w: w.type(int).bits(
+            S.Form.Data("operation", {"name": "mul"}, (n, n), "basic"))))).relations(
+        _list("cells", _held("cell", lambda c: c.as_apply(lambda a: a.of(Word).arguments(w=8))))).create()
     Square = S.OfApply.Builder().name("Square").parameters(lambda p: p.name("m").of(int_)).of(Grid).argument(
         "n", S.Form.Data("variable", {"name": "m"})).argument("x", True).create()
     Tricky = S.OfObject.Builder().name("Tricky").parameters(*[lambda p, x=x: p.name(x) for x in "abcd"]).create()

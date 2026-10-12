@@ -21,17 +21,16 @@
  * A value object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties.
  * Union and intersection values are written the same way, with the union's branches or the intersection's parts as
  * the properties: a union value `{"phone": {"number": "+44"}}` holds exactly one branch, and an intersection value
- * `{"stamp": {...}, "audit": {...}}` each of its parts. A positional list is written as an array of its items; a keyed
- * list as a mapping from its keys' text when its key is a native, otherwise as an array of `{"key": ..., "value": ...}`.
+ * `{"stamp": {...}, "audit": {...}}` each of its parts.
  */
 
-import { AttributeError, DecodeError, item, KeyError, LookupError, NotImplementedError, path, ValueError } from "./Errors.js";
+import { AttributeError, DecodeError, KeyError, LookupError, NotImplementedError, path } from "./Errors.js";
 import * as Proxies from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
 import { compareStrings, repr, sortedStrings, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type * as Stores from "./Stores.js";
-import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIndexed, OfIntersection, OfItem, OfLink, OfNative, OfObject,
+import type { Callback, Native, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfNative, OfObject,
   OfProperty, OfUnion, Visitable } from "./Visitors.js";
 
 export type PlainData = null | boolean | bigint | number | string | PlainData[] | PlainMap;
@@ -44,7 +43,7 @@ export const ID = "$id";
 /** The Python class name of a schema's data (`_ObjectData`, ...), so messages match the Python implementation. */
 export function schemaTypeName(schema: unknown): string {
   const kinds = [Schemas.OfNative.Data, Schemas.OfObject.Data, Schemas.OfRelation.Data, Schemas.OfAdjacency.Data,
-    Schemas.OfUnion.Data, Schemas.OfIntersection.Data, Schemas.OfIndexed.Data] as const;
+    Schemas.OfUnion.Data, Schemas.OfIntersection.Data] as const;
   for (const kind of kinds) if (schema instanceof kind) return "_" + kind.name;
   return typeName(schema);
 }
@@ -110,16 +109,6 @@ export class _AnyWriter implements OfAny {
     return this.record(Schemas.OfIntersection.Data, "an intersection", callback as unknown as Callback<OfObject>);
   }
 
-  as_indexed(callback: Callback<OfIndexed>): _AnyWriter {
-    if (!(this.schema instanceof Schemas.OfIndexed.Data)) throw new TypeError(`property ${repr(this.slotName)} is not a list`);
-    const textKeyed = isTextKeyed(this.schema);
-    let items = this.out.get(this.slotName);
-    if (!(textKeyed ? items instanceof Map : Array.isArray(items))) this.out.set(this.slotName, (items = textKeyed ? new Map() : []));
-    callback(this.schema.positional ? new _ListWriter(items as PlainData[], this.slotName, this.schema, this.ref, this.symbol)
-      : new _KeyedWriter(items as PlainMap | PlainData[], this.slotName, this.schema, this.ref, this.symbol));
-    return this;
-  }
-
   /** Writes a value object, a union value or an intersection value, nested as a mapping. */
   private record(kind: abstract new (...args: never[]) => RecordSchema, what: string, callback: Callback<OfObject>): _AnyWriter {
     if (!(this.schema instanceof kind)) throw new TypeError(`property ${repr(this.slotName)} is not ${what}`);
@@ -137,210 +126,6 @@ export class _AnyWriter implements OfAny {
 /** The schema of a record: a value object's, or a union's or intersection's, whose properties are its branches or
  * parts. */
 type RecordSchema = Schemas.OfObject.Data | Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
-
-/** `Visitors.OfIndexed` writing a plain list, the value of the property `name`; an item written with no value is left
- * out. */
-export class _ListWriter implements OfIndexed {
-  constructor(private readonly out: PlainData[], readonly slotName: string,
-    private readonly schema: Schemas.OfIndexed.Data, readonly ref: Ref, private readonly symbol: Symbol) {}
-
-  items(callback: Callback<OfAny>): _ListWriter {
-    for (let index = 0, count = this.out.length; index < count; index++) this.item(index, callback);
-    return this;
-  }
-
-  item(index: number, callback: Callback<OfAny>): _ListWriter {
-    const held: PlainMap = new Map([[this.slotName, item(this.out, index)]]);
-    callback(new _AnyWriter(held, this.slotName, this.schema.item as Schemas.OfAny.Data, this.ref, this.symbol));
-    this.out.splice(index, 1, ...held.values());
-    return this;
-  }
-
-  append(callback: Callback<OfAny>): _ListWriter {
-    const held: PlainMap = new Map();
-    callback(new _AnyWriter(held, this.slotName, this.schema.item as Schemas.OfAny.Data, this.ref, this.symbol));
-    this.out.push(...held.values());
-    return this;
-  }
-
-  remove(index: number): _ListWriter {
-    item(this.out, index);
-    this.out.splice(index, 1);
-    return this;
-  }
-
-  clear(): _ListWriter {
-    this.out.length = 0;
-    return this;
-  }
-
-  pairs(callback: Callback<OfItem>): _ListWriter {
-    for (let index = 0, count = this.out.length; index < count; index++) {
-      callback(new _ItemWriter(this, index, this.schema.minimum + BigInt(index), INT));
-    }
-    return this;
-  }
-
-  /** The position of the item at the key `key` writes; `appending` admits the next key. */
-  private position(key: Callback<OfAny>, appending = false): number {
-    const written = writtenKey(this, INT, key) as bigint; // an int: the key is written as a native int
-    const position = Number(written - this.schema.minimum);
-    if (!(position >= 0 && position < this.out.length + Number(appending))) throw new LookupError(`the list has no item ${written}`);
-    return position;
-  }
-
-  at(key: Callback<OfAny>, callback: Callback<OfAny>): _ListWriter {
-    return this.item(this.position(key), callback);
-  }
-
-  put(key: Callback<OfAny>, value: Callback<OfAny>): _ListWriter {
-    const position = this.position(key, true);
-    return position === this.out.length ? this.append(value) : this.item(position, value);
-  }
-
-  discard(key: Callback<OfAny>): _ListWriter {
-    return this.remove(this.position(key));
-  }
-}
-
-/** The keys of a positional list. */
-const INT = new Schemas.OfNative.Data(BigInt);
-
-/** Whether a list is written as a mapping from its keys' text: a keyed list whose key is a native whose text never
- * starts with `$` (a float, a bool, bytes), so that no key reads as one of the wire format's markers. */
-function isTextKeyed(schema: Schemas.OfIndexed.Data): boolean {
-  const key = Schemas.structure(schema.key);
-  return !schema.positional && key instanceof Schemas.OfNative.Data &&
-    (key.type === Number || key.type === Boolean || key.type === Uint8Array);
-}
-
-interface KeyWriter {
-  readonly slotName: string;
-  readonly ref: Ref;
-  item(index: number, callback: Callback<OfAny>): unknown;
-}
-
-/** The plain form of the key that `key` writes, as a value of `schema`. */
-function writtenKey(writer: KeyWriter, schema: unknown, key: Callback<OfAny>): PlainData {
-  const held: PlainMap = new Map();
-  key(new _AnyWriter(held, writer.slotName, schema as Schemas.OfAny.Data, writer.ref, unlinked));
-  if (!held.has(writer.slotName)) throw new ValueError("a key needs a value");
-  return held.get(writer.slotName) as PlainData;
-}
-
-/** `Visitors.OfItem` over one item of a plain list writer: its key, read from a copy, and its value. */
-export class _ItemWriter implements OfItem {
-  constructor(private readonly writer: KeyWriter, private readonly index: number, private readonly heldKey: PlainData,
-    private readonly schema: unknown) {}
-
-  key(callback: Callback<OfAny>): _ItemWriter {
-    const name = this.writer.slotName;
-    callback(new _AnyWriter(new Map([[name, this.heldKey]]), name, this.schema as Schemas.OfAny.Data, this.writer.ref, unlinked));
-    return this;
-  }
-
-  value(callback: Callback<OfAny>): _ItemWriter {
-    this.writer.item(this.index, callback);
-    return this;
-  }
-}
-
-/** A stable text for plain data, so that keys compare by their plain forms (ints and floats kept apart). */
-function plainKey(value: PlainData): string {
-  if (value instanceof Map) return `{${[...value].map(([k, v]) => `${JSON.stringify(k)}:${plainKey(v)}`).join(",")}}`;
-  if (Array.isArray(value)) return `[${value.map(plainKey).join(",")}]`;
-  if (typeof value === "number") return `float:${Object.is(value, -0) ? "-0" : String(value)}`;
-  return `${typeof value}:${String(value)}`;
-}
-
-/** `Visitors.OfIndexed` writing a keyed list: a mapping from each key's text to its value when the key is a native,
- * otherwise a list of `{"key": key, "value": value}` mappings. Keys are compared by their plain forms. */
-export class _KeyedWriter implements OfIndexed {
-  private readonly held: [PlainData, PlainData][];
-
-  constructor(private readonly out: PlainMap | PlainData[], readonly slotName: string, private readonly schema: Schemas.OfIndexed.Data,
-    readonly ref: Ref, private readonly symbol: Symbol) {
-    const key = Schemas.structure(schema.key) as Schemas.OfNative.Data;
-    this.held = out instanceof Map ? [...out].map(([text, value]) => [key.to_plain(key.from_key(text)), value])
-      : (out as PlainMap[]).map((entry) => [entry.get("key") as PlainData, entry.get("value") as PlainData]);
-  }
-
-  private flush(): _KeyedWriter {
-    if (this.out instanceof Map) {
-      const key = Schemas.structure(this.schema.key) as Schemas.OfNative.Data;
-      this.out.clear();
-      for (const [k, v] of this.held) this.out.set(key.to_key(key.from_plain(k)), v);
-    } else {
-      this.out.splice(0, this.out.length, ...this.held.map(([k, v]) => new Map<string, PlainData>([["key", k], ["value", v]])));
-    }
-    return this;
-  }
-
-  private find(key: PlainData): number | null {
-    const wanted = plainKey(key);
-    const index = this.held.findIndex(([k]) => plainKey(k) === wanted);
-    return index < 0 ? null : index;
-  }
-
-  private position(key: Callback<OfAny>): number {
-    const index = this.find(writtenKey(this, this.schema.key, key));
-    if (index === null) throw new LookupError("the list has no item with this key");
-    return index;
-  }
-
-  items(callback: Callback<OfAny>): _KeyedWriter {
-    for (let index = 0, count = this.held.length; index < count; index++) this.item(index, callback);
-    return this;
-  }
-
-  item(index: number, callback: Callback<OfAny>): _KeyedWriter {
-    const pair = item(this.held, index);
-    const slot: PlainMap = new Map([[this.slotName, pair[1]]]);
-    callback(new _AnyWriter(slot, this.slotName, this.schema.item as Schemas.OfAny.Data, this.ref, this.symbol));
-    this.held.splice(index, 1, ...[...slot.values()].map((value) => [pair[0], value] as [PlainData, PlainData]));
-    return this.flush();
-  }
-
-  append(_callback: Callback<OfAny>): _KeyedWriter {
-    throw new TypeError("a keyed list takes put, not append");
-  }
-
-  remove(index: number): _KeyedWriter {
-    item(this.held, index);
-    this.held.splice(index, 1);
-    return this.flush();
-  }
-
-  clear(): _KeyedWriter {
-    this.held.length = 0;
-    return this.flush();
-  }
-
-  pairs(callback: Callback<OfItem>): _KeyedWriter {
-    for (let index = 0, count = this.held.length; index < count; index++) {
-      callback(new _ItemWriter(this, index, (this.held[index] as [PlainData, PlainData])[0], this.schema.key));
-    }
-    return this;
-  }
-
-  at(key: Callback<OfAny>, callback: Callback<OfAny>): _KeyedWriter {
-    return this.item(this.position(key), callback);
-  }
-
-  put(key: Callback<OfAny>, value: Callback<OfAny>): _KeyedWriter {
-    const written = writtenKey(this, this.schema.key, key);
-    const index = this.find(written);
-    if (index !== null) return this.item(index, value);
-    const slot: PlainMap = new Map();
-    value(new _AnyWriter(slot, this.slotName, this.schema.item as Schemas.OfAny.Data, this.ref, this.symbol));
-    this.held.push(...[...slot.values()].map((v) => [written, v] as [PlainData, PlainData]));
-    return this.flush();
-  }
-
-  discard(key: Callback<OfAny>): _KeyedWriter {
-    return this.remove(this.position(key));
-  }
-}
 
 /** `Visitors.OfProperty` writing one key of a plain map. */
 export class _PropertyWriter implements OfProperty {
@@ -599,24 +384,11 @@ function compareOrdered(a: unknown, b: unknown): number {
 }
 
 /** Sorts the entries of each adjacency written in `plain`, a value of `type`, nested value objects' too (those its
- * entries hold among them), by the key their relation declares from the adjacency's end (`Schemas.OfRelation.Data.key`): where every entry has each of its
- * values, and each holds values of one ordered type (booleans false first, numbers by value, strings by code point).
- * Otherwise, as where a key holds a link, entries keep the order they were written in. */
+ * entries hold among them), by the key their relation declares from the adjacency's end (`Schemas.OfRelation.Data.key`):
+ * where every entry has each of its values, and each holds values of one ordered type (booleans false first, numbers by
+ * value, strings by code point). Otherwise, as where a key holds a link, entries keep the order they were written in. */
 function sortEntries(type: unknown, plain: PlainData | undefined): void {
   const schema = Schemas.structure(type);
-  if (schema instanceof Schemas.OfIndexed.Data) {
-    if (plain instanceof Map) { // keyed by text
-      for (const item of plain.values()) sortEntries(schema.item, item);
-    } else if (schema.positional) {
-      for (const item of plain as PlainData[]) sortEntries(schema.item, item);
-    } else {
-      for (const pair of plain as PlainMap[]) { // {key, value}, as written
-        sortEntries(schema.key, pair.get("key"));
-        sortEntries(schema.item, pair.get("value"));
-      }
-    }
-    return;
-  }
   if (!(schema instanceof Schemas.OfObject.Data || schema instanceof Schemas.OfUnion.Data || schema instanceof Schemas.OfIntersection.Data)) {
     return;
   }
@@ -680,13 +452,12 @@ function unresolved(symbol: string): never {
 type Where = (string | number)[];
 /** Per adjacency, its decoded entries: each maps links to `Link`s and properties to decoded values. */
 type Rows = Map<string, Map<string, unknown>[]>;
-/** A step to a value object: a property name, an index in a list, or an entry of a one-link relation's adjacency (its
- * name, its position and the property holding the value). */
-type Step = string | number | readonly [string, number, string];
+/** A step to a value object: a property name, or an entry of a one-link relation's adjacency (its name, its position
+ * and the property holding the value). */
+type Step = string | readonly [string, number, string];
 /** The way from a reference object to a value object in it, each step with the kind of the value found there. */
 type Steps = readonly (readonly [Step, ValueKind])[];
-type ValueKind = typeof Schemas.OfObject.Data | typeof Schemas.OfUnion.Data | typeof Schemas.OfIntersection.Data |
-  typeof Schemas.OfIndexed.Data;
+type ValueKind = typeof Schemas.OfObject.Data | typeof Schemas.OfUnion.Data | typeof Schemas.OfIntersection.Data;
 
 /** Where decoding found a value object: its reference object's symbol, and the steps from it. */
 class Found {
@@ -703,8 +474,7 @@ function kindOf(schema: Schemas.OfAny.Data): ValueKind {
   return (Schemas.structure(schema) as Schemas.OfAny.Data).constructor as ValueKind;
 }
 
-/** The value `plain` holds under `schema`, located at the path `where`: a native, a `DecodedRecord`, or an array of the
- * items' values. */
+/** The value `plain` holds under `schema`, located at the path `where`: a native or a `DecodedRecord`. */
 function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where, context: Context | null = null,
   steps: Steps = []): unknown {
   const schema = Schemas.structure(type) as Schemas.OfAny.Data;
@@ -714,12 +484,6 @@ function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where, context:
     } catch (error) {
       throw (error as DecodeError).at(path(...where)); // from_plain throws only DecodeError
     }
-  }
-  if (schema instanceof Schemas.OfIndexed.Data && !schema.positional) return decodeKeyed(schema, plain, where, context, steps);
-  if (schema instanceof Schemas.OfIndexed.Data) {
-    if (!Array.isArray(plain)) throw new DecodeError(`a list must be an array, got ${typeName(plain)}`, { path: path(...where) });
-    const itemSchema = schema.item as Schemas.OfAny.Data;
-    return plain.map((value, i) => decode(itemSchema, value, [...where, i], context, [...steps, [i, kindOf(itemSchema)]]));
   }
   const [what, owner, member] = recordNames(schema as RecordSchema);
   if (!(plain instanceof Map)) throw new DecodeError(`${what} must be a mapping, got ${typeName(plain)}`, { path: path(...where) });
@@ -750,54 +514,14 @@ function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where, context:
   return new DecodedRecord(record, values, held);
 }
 
-/** A decoded keyed list: its keys and values, in order. */
-class DecodedKeyed {
-  constructor(readonly pairs: [unknown, unknown][]) {}
-}
-
-/** A keyed list: a mapping from its keys' text when its key is a native, else an array of `{key, value}` items, whose
- * keys are decoded without a context (a key holds no symbols) and appear once. */
-function decodeKeyed(schema: Schemas.OfIndexed.Data, plain: unknown, where: Where, context: Context | null,
-  steps: Steps): DecodedKeyed {
-  const itemSchema = schema.item as Schemas.OfAny.Data;
-  if (isTextKeyed(schema)) {
-    if (!(plain instanceof Map)) throw new DecodeError(`a keyed list must be a mapping, got ${typeName(plain)}`, { path: path(...where) });
-    return new DecodedKeyed([...(plain as PlainMap)].map(([text, value], i) => {
-      let key: unknown;
-      try {
-        key = (Schemas.structure(schema.key) as Schemas.OfNative.Data).from_key(text);
-      } catch (error) {
-        throw (error as DecodeError).at(path(...where, text)); // from_key throws only DecodeError
-      }
-      return [key, decode(itemSchema, value, [...where, text], context, [...steps, [i, kindOf(itemSchema)]])];
-    }));
-  }
-  if (!Array.isArray(plain)) throw new DecodeError(`a keyed list must be an array, got ${typeName(plain)}`, { path: path(...where) });
-  const seen = new Map<string, number>();
-  return new DecodedKeyed(plain.map((entry, i) => {
-    if (!(entry instanceof Map && entry.size === 2 && entry.has("key") && entry.has("value"))) {
-      throw new DecodeError("an item of a keyed list is {'key': key, 'value': value}", { path: path(...where, i) });
-    }
-    const key = decode(schema.key as Schemas.OfAny.Data, entry.get("key"), [...where, i, "key"]);
-    const equality = decodedKey(key);
-    if (seen.has(equality)) throw new DecodeError(`the same key as item ${seen.get(equality)}`, { path: path(...where, i, "key") });
-    seen.set(equality, i);
-    return [key, decode(itemSchema, entry.get("value"), [...where, i, "value"], context, [...steps, [i, kindOf(itemSchema)]])];
-  }));
-}
-
 /** Equality key of a decoded value, per EQUALITY.md. */
 function decodedKey(value: unknown): string {
-  if (value instanceof DecodedKeyed) {
-    return `map:${JSON.stringify(sortedStrings(value.pairs.map(([k, v]) => JSON.stringify([decodedKey(k), decodedKey(v)]))))}`;
-  }
   if (value instanceof DecodedRecord) {
     const rows = sortedStrings(value.rows.keys()).map((name) => [name, (value.rows.get(name) as Map<string, unknown>[]).map(
       (row) => sortedStrings([...row.keys()]).map((key) => [key, decodedKey(row.get(key))]))]);
     return `record:${JSON.stringify(sortedStrings(value.values.keys()).map((name) => [name, decodedKey(value.values.get(name))]))}`
       + `:${JSON.stringify(rows)}`;
   }
-  if (Array.isArray(value)) return `list:${JSON.stringify(value.map(decodedKey))}`;
   return Proxies.nativeKey(value);
 }
 
@@ -1029,12 +753,10 @@ function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unkn
     if (created.has(symbol)) return created.get(symbol);
     const found = ids.get(symbol) as Found;
     let target = created.get(found.owner);
-    for (const [key] of found.steps) { // a step into a keyed list is by position, as into any list
+    for (const [key] of found.steps) {
       if (Array.isArray(key)) { // an entry's value
         const [adjacency, position, name] = key as readonly [string, number, string];
         target = ((store.member(target, adjacency) as readonly Record<string, unknown>[])[position] as Record<string, unknown>)[name];
-      } else if (typeof key === "number") {
-        target = target instanceof Proxies.OfIndexed.Map ? target.values()[key] : (target as readonly unknown[])[key];
       } else {
         target = store.member(target, key as string);
       }
@@ -1047,6 +769,30 @@ function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unkn
   for (const [found, rows, valueSchema] of entries) {
     nested.set(found.owner, [...(nested.get(found.owner) ?? []), [found, rows, valueSchema]]);
   }
+  /** Adds the entries of the value objects `symbol` holds, of one-link relations or of the others; whether any. Outer
+   * value objects first: decoding found the inner ones first, and an inner one may be held by an outer one's entry. */
+  const addNested = (builder: BuilderLike, symbol: string, oneLinkOnly: boolean): boolean => {
+    let added = false;
+    const outerFirst = [...(nested.get(symbol) ?? [])].sort((a, b) => a[0].steps.length - b[0].steps.length);
+    for (const [found, rows, valueSchema] of outerFirst) {
+      const at = `${found.owner}:${JSON.stringify(found.steps.map(([k]) => k))}`;
+      const owner = symbols.get(at) ?? `found:${at}`;
+      const listed = new Map([...rows].filter(([key]) => oneLink(valueSchema, key) === oneLinkOnly)
+        .map(([key, list]) => [key, kept(valueSchema, owner, key, list)] as const));
+      // an edit with nothing to add would drop what another just added
+      if ([...listed.values()].some((list) => list.length > 0)) {
+        within(builder, found.steps, (v) => addRows(v, listed, resolve));
+        added = true;
+      }
+    }
+    return added;
+  };
+
+  // The value objects that one-link entries hold come first, in every object: a link may target any of them.
+  for (const symbol of decoded.keys()) {
+    const builder = builderFor(store, names.get(symbol) as string, created.get(symbol));
+    if (addNested(builder, symbol, true)) builder.update();
+  }
   for (const [symbol, [, adjacencies]] of decoded) {
     const objectSchema = store.schema(names.get(symbol) as string);
     const builder = builderFor(store, names.get(symbol) as string, created.get(symbol));
@@ -1054,15 +800,7 @@ function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unkn
       if (oneLink(objectSchema, key)) continue;
       for (const row of kept(objectSchema, symbol, key, rows)) builder.adjacency(key, (a) => a.add((x) => fill(x, row, resolve)));
     }
-    // outer value objects first: decoding found the inner ones first, and an inner one may be held by an outer one's entry
-    const outerFirst = [...(nested.get(symbol) ?? [])].sort((a, b) => a[0].steps.length - b[0].steps.length);
-    for (const [found, rows, valueSchema] of outerFirst) {
-      const at = `${found.owner}:${JSON.stringify(found.steps.map(([k]) => k))}`;
-      const owner = symbols.get(at) ?? `found:${at}`;
-      const listed = new Map([...rows].map(([key, list]) => [key, kept(valueSchema, owner, key, list)] as const));
-      // an edit with nothing to add would drop what another just added
-      if ([...listed.values()].some((list) => list.length > 0)) within(builder, found.steps, (v) => addRows(v, listed, resolve));
-    }
+    addNested(builder, symbol, false);
     builder.update();
   }
   return created.get(root);
@@ -1103,7 +841,6 @@ function within(visitor: BuilderLike | OfObject, steps: Steps, then: (visitor: O
     const inner = (v: unknown) => within(v as OfObject, rest, then);
     if (kind === Schemas.OfUnion.Data) a.as_union(inner);
     else if (kind === Schemas.OfIntersection.Data) a.as_intersection(inner);
-    else if (kind === Schemas.OfIndexed.Data) a.as_indexed(inner);
     else a.as_object(inner);
   };
   if (Array.isArray(key)) { // an entry's value: the entry at its position, then its property
@@ -1111,8 +848,6 @@ function within(visitor: BuilderLike | OfObject, steps: Steps, then: (visitor: O
     const found: OfEntry[] = [];
     visitor.adjacency(adjacency, (a) => a.entries((e) => found.push(e)));
     (found[position] as OfEntry).property(name, (p) => p.value(into));
-  } else if (typeof key === "number") {
-    (visitor as unknown as OfIndexed).item(key, into);
   } else {
     visitor.property(key as string, (p) => p.value(into));
   }
@@ -1122,13 +857,9 @@ function set(visitor: { property(name: string, callback: Callback<OfProperty>): 
   visitor.property(name, (p) => p.value((a) => write(a, value)));
 }
 
-/** Writes a decoded value: a native, a value object, union value or intersection value, or a list. */
+/** Writes a decoded value: a native, a value object, union value or intersection value. */
 function write(visitor: OfAny, value: unknown): void {
-  if (Array.isArray(value)) {
-    visitor.as_indexed((items) => writeItems(items, value));
-  } else if (value instanceof DecodedKeyed) {
-    visitor.as_indexed((items) => writePairs(items, value.pairs));
-  } else if (value instanceof DecodedRecord && value.schema instanceof Schemas.OfUnion.Data) {
+  if (value instanceof DecodedRecord && value.schema instanceof Schemas.OfUnion.Data) {
     visitor.as_union((u) => value.accept(u as unknown as OfObject));
   } else if (value instanceof DecodedRecord && value.schema instanceof Schemas.OfIntersection.Data) {
     visitor.as_intersection((i) => value.accept(i as unknown as OfObject));
@@ -1137,14 +868,6 @@ function write(visitor: OfAny, value: unknown): void {
   } else {
     visitor.as_native((n) => n.set(value as Native));
   }
-}
-
-function writeItems(visitor: OfIndexed, items: readonly unknown[]): void {
-  for (const value of items) visitor.append((a) => write(a, value));
-}
-
-function writePairs(visitor: OfIndexed, pairs: readonly [unknown, unknown][]): void {
-  for (const [key, value] of pairs) visitor.put((a) => write(a, key), (a) => write(a, value));
 }
 
 function fill(visitor: OfEntry, row: Map<string, unknown>, resolve: (symbol: string) => unknown): void {

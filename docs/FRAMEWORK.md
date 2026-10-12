@@ -57,8 +57,8 @@ The schema elements include:
 - `OfIntersection` : of two or more named parts, each an OfX schema (all of the same kind). Used to implement object and
                      aspect oriented structures. A value holds every part, by name; parts do not merge, so two parts may
                      declare the same property, even with different types.
-- `OfIndexed` : a list of items, in order, each a value of one item schema of any kind but a reference object
-                schema (see Lists).
+
+A list, a dict or a map is not a kind of schema: it is an adjacency to a one-link relation of its own (see Lists).
 
 Every element may be described: each kind of schema, each property, adjacency, union branch and intersection
 part takes `.description(text)` on its builder, and its data holds `description`, text or none. A description is
@@ -68,9 +68,8 @@ conversion or comparison of data reads it. A native's description is part of the
 A property whose schema is an `OfObject` holds a *value object*: a read-only record of that
 schema's properties that belongs to its owner, copied with it and written nested in its owner's snapshot. It has an
 identity, and its schema may declare adjacencies, however it is held (directly, through a union branch or an
-intersection part); see Value objects and reference objects.
-A property whose schema is an `OfIndexed` holds a list, whose items belong to the property's owner as its own
-value would (see Lists).
+intersection part); see Value objects and reference objects. A one-link relation's entry holds a value object for
+its owner the same way, and no property holds a list (see Lists).
 A property whose schema is an `OfUnion` holds a union value: a record whose properties are the union's branches, holding
 exactly one of them. A property whose schema is an `OfIntersection` holds an intersection value: a record whose
 properties are the intersection's parts, holding each of them. `Visitors.OfUnion` and `Visitors.OfIntersection` read
@@ -227,11 +226,11 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   that a union value holds exactly one of its branches and an intersection value every one of its parts, each with a
   value of its type. The validator is a visitor: objects write
   themselves into it through `accept`. `Validators.properties_of(value)` returns the property values any object writes when
-  visited (a list as a `ListRecord` of its items and keys), and `Validators.entries_of(value)` its entries by adjacency
+  visited, and `Validators.entries_of(value)` its entries by adjacency
   (each an `EntryRecord` of its other links' targets and its property values), for other modules and packages that
   read objects (e.g. mbse-expressions' evaluators). A value object read so writes its entries back through `accept`
-  as well as its properties, and compares by both. `Validators.Check(store, evaluate)` checks the same and also reports
-  what it cannot decide, an extent over unbound parameters for one (see Parametrics).
+  as well as its properties, and compares by both. `Validators.Check(store)` checks the same and also reports what it
+  cannot decide: a property no schema declares, and a value of a type this implementation cannot read.
 
 - `Comparison` : for each schema element `OfX`, `Comparison.OfX` implements `Visitors.OfX`, records the value written
   into it, and compares it with another recording: `a.compare(b)` returns -1, 0, 1, or `None` when incomparable. See
@@ -502,7 +501,7 @@ These replace the earlier design, in which a union's branches were chosen by pre
   `str`), told apart by type; a builder takes a branch's value and picks the branch by its type, and a Spec as before.
   A flat intersection's value reads its parts' properties as its own (`ticket.stamp.at`), and its builder sets them in
   their part. `validate()` requires a flat union's branches to be told apart by type (distinct natives, distinct
-  schemas, one positional and one keyed list at most, since a list does not carry its items' types) and a flat
+  schemas) and a flat
   intersection's parts to be object schemas whose properties have distinct names. Values are held, written, read,
   validated, compared and visited in the unpacked form, by branch and by part: flat is how code reads and builds them.
 - **A union value without a branch is no value.** Clearing a union's only branch clears the property, and a writer
@@ -521,72 +520,31 @@ These replace the earlier design, in which a union's branches were chosen by pre
 
 ## Lists
 
-A list is a property's value, not a relation: an ordered sequence of items, each a value of the list's item schema.
+A list, a dict or a map is an adjacency's entries, never a property's value: `OfIndexed` is gone (Resolved, The
+meta-schemas overhaul, which decides what follows: one-link relations, sets and lists by `unique`, the wire form,
+deduplication, and extents giving way to shape constraints).
 
-- **`OfIndexed` holds one item schema**, of any kind: a native, a value object schema, a union, an intersection, or
-  another `OfIndexed`. A reference object schema is never an item's schema, for the same reason it is never a
-  property's type. The DSL is `t.as_indexed(lambda i: i.of(spec))`.
-- **Items belong to the list's owner.** A value object in a list is a value object of the object that holds the list:
-  it has an identity, may have adjacencies, is copied and removed with its owner, and is written nested in it. A list
-  of value objects is how an object holds a variable number of parts that take part in relations.
-- **Lists are ordered; relations are not.** Use a list where order is data (a union's branches, a relation's links,
-  the properties of a schema) or where the owner holds values by key (see Keys and extents), and a relation to link
-  objects that stand on their own, keyed by an entry property where needed. A positional list may hold equal items.
-- **Proxies read a list as a read-only tuple** (a frozen array in TypeScript). A setter takes a list (or tuple) of
-  items, each a value, a value object, or the Spec of an item, and replaces the list: `.tags(['a', 'b'])`,
-  `.ports([lambda p: p.name('in'), lambda p: p.name('out')])`. Setting a value object into a list copies it, as
-  setting it into a property does. A setter also takes a Spec that receives the list's builder, a `Visitors.OfIndexed`
-  starting from the items set, to edit items in place, keeping their identities:
-  `.ports(lambda l: l.item(0, lambda a: a.as_object(lambda p: p.name('in2'))))`.
-- **`Visitors.OfIndexed`** has `items(callback)`, `item(index, callback)`, `append(callback)`, `remove(index)` and
-  `clear()`; each callback receives a `Visitors.OfAny` for the item. An item written with no value (a union value with
-  no branch) is left out of the list. `item` and `remove` raise `LookupError` for an index the list does not have.
-  Removing a value object from a list removes it and every entry linking it.
-- **Over the wire, a list is an array** of its items' plain forms, and an empty list is `[]`, distinct from an absent
-  property. A value object in a list is written nested, with its `$id` when something links to it, and decoding finds
-  it again by its position.
-- **Validation** checks each item against the item schema, at the path `label.tags[1]`.
-- **Comparison is item by item**: the first pair that is not equal decides, so lists of ordered natives order
-  lexicographically, and a list that is a prefix of another is less. Items that are incomparable make the lists
-  incomparable, so lists of booleans or of value objects are equal or incomparable.
-
-### Keys and extents
-
-A list may take a key schema, which makes it an associative array: a sparse tensor, a dictionary, a table keyed by a
-value. One kind, `OfIndexed`, covers both: `t.as_indexed(lambda i: i.key(spec).of(spec))`.
-
-- **Integer keys are positions.** A list whose key is absent or a native `int` is positional: its keys are
-  `minimum`, `minimum + 1`, ... in order, with no holes. Any other key schema makes a *keyed list*: its keys are
-  values of the key schema, unique under schema equality (EQUALITY.md), and its items stay in insertion order.
-- **A key is a value.** Its schema is of any kind but a reference object schema, and a value object in a key has no
-  adjacencies ("a value object in a key cannot have adjacencies"): keys compare by structure, never by identity.
-- **An extent bounds a positional list**: `i.extent(minimum=1, maximum=9)` (in TypeScript `i.extent({ minimum: 1n,
-  maximum: 9n })`). `minimum` defaults to 0, and `maximum` may be left out. Validation reports a list with more items
-  than its extent allows. Only positional lists take an extent, and its `minimum` is at most its `maximum`.
-- **The wire form follows the key.** A positional list is an array. A keyed list whose key's text can never start with
-  `$` is a mapping from that text to the value: a `float` key as its canonical text (Python's `repr`, or `NaN`,
-  `Infinity`, `-Infinity`), a `bool` as `true` or `false`, `bytes` as base64; decoding accepts only that text. Any
-  other keyed list, a `str`-keyed one included, is an array of `{"key": key, "value": value}` mappings, since a `str`
-  key could be `$ref`. A key that appears twice is a decoding error.
-- **Proxies read a keyed list as a read-only mapping** in insertion order (`Proxies.OfIndexed.Map`): `m[key]`,
-  `m.get(key)`, `key in m`, `len(m)`, and its keys, values and items. A key is given as a native, a tuple (or list) for
-  a list, or a value object, which matches by structure. A setter takes a mapping or a sequence of `(key, value)`
-  pairs, each a value, a value object or a Spec; a Spec receives the list's builder, as for any list.
-- **The mapping stands alone.** `Proxies.OfIndexed.Map(pairs)` builds one outside a store, generic in Python
-  (`Map[float, str]`), so that generated code (mbse-codegen-python) holds a keyed list as proxies do wherever its
-  language's own mapping cannot compare keys as schema equality does: a `float` key, a list, a value object. A key may
-  also be a generated value object, a dataclass instance in Python, compared by its class and the fields it has set.
-- **`Visitors.OfIndexed` addresses items by key** as well as by position: `pairs(callback)` calls `callback` with a
-  `Visitors.OfItem` per item, whose `key(callback)` and `value(callback)` pass a `Visitors.OfAny` (a key read there is
-  read-only: `put` and `discard` change keys); `at(key, callback)` passes the value of the item whose key `key` writes;
-  `put(key, value)` writes the value of that item, adding it if the list lacks the key; and `discard(key)` removes it.
-  `at` and `discard` raise `LookupError` for a key the list does not have. In a positional list the keys are its
-  positions, so `put` replaces an item or appends at the next key, and in a keyed list `append` raises `TypeError`.
-- **Validation** labels a positional list's items by key (`label.row[1]`) and a keyed list's by position, the key at
-  `label.attrs[2].key`. It checks each key against the key schema, reports a key that appears twice, and checks the
-  extent.
-- **Comparison**: keyed lists are equal when they hold the same keys with equal values, in any order, and
-  incomparable otherwise. Positional lists compare as above.
+- **A list is a one-link relation of its own**, declared inline in its owner's adjacency, its entries holding the
+  values: `r.name("tags").me("owner").of(lambda rel: rel.links("owner").properties(text("value")))`. Without a
+  `unique` clause it is open, a list in the order added, equal entries kept; with one it is a set, keyed by the
+  properties the clause leaves out (`OfRelation.Data.key`): `.properties(text("key"), text("value")).unique("value")`
+  is a dict, and `i`, `j` and `value` with `unique("value")` a matrix.
+- **Entries hold the owner's values.** A value object a one-link entry holds belongs to the entry's owner: it has an
+  identity, may have entries of its own, nested lists among them, is copied with its owner and removed with its
+  entry, and is written nested in the entry, with its `$id` when something links to it. A two-link relation's entry
+  holds value objects without adjacencies only (Value objects and reference objects).
+- **Proxies read a list as its adjacency**: iterate its entries, index them by position (`tags[0]`), project them by a
+  property (`tags.project("value")`), and find one by its key (`attrs.at("gain")`, `matrix.at((1, 2))`). A builder
+  adds entries (`.tags(lambda e: e.value("a"))`), and edits or removes them through `adjacency(name, callback)`,
+  `Visitors.OfAdjacency`'s `entries`, `add` and `remove`; an edited value object keeps its identity.
+- **Over the wire, a list is an array of entries**, `"tags": [{"value": "a"}]`, sorted by the key where its values
+  are ordered (Serialization). Reading counts an entry once however many lists repeat it.
+- **Validation** checks each entry's values at the path `label.tags[0].value`, and a keyed list's key as a `unique`
+  clause (Cardinality).
+- **Comparison**: an open list's entries compare in order, and a set's as a set (Equality). Lists are not ordered
+  against each other: they are equal or incomparable.
+- **No bound is part of a list.** An array's size, a capacity or a tensor's shape is a constraint on the type of the
+  property that keys the entries, which constraints (planned) will express; until then nothing checks it.
 
 ## Native types
 
@@ -621,7 +579,7 @@ are written, read, validated and compared like any other objects.
 - **A module holds named schemas.** `Schemas.Module.Schema` is a reference object schema, registered in every store of
   proxies as `Schemas.Module`, whose `schemas` are an adjacency to a one-link relation, each entry a `name` and a
   `schema`, a `Schemas.Module.Definition`: a union of the schema kinds, `native`, `object`, `union`, `intersection`,
-  `indexed`, `apply` and `relation`. The entries are keyed by name, so written sorted by it, and an entry written twice
+  `apply` and `relation`. The entries are keyed by name, so written sorted by it, and an entry written twice
   is read once. A snapshot of schemas is a snapshot of a module. A module is a reference object, whose own adjacencies
   do not compare ([Equality](EQUALITY.md)), so two modules are equal when their wire forms are.
 - **`Modules` translates.** `Modules.module(store, schemas)` returns a module holding named schemas, each under its
@@ -631,8 +589,7 @@ are written, read, validated and compared like any other objects.
   relations of their own (each linking only its `owner`), lists in declared order: an object schema's `properties`
   (`name`, `type`, `description`) and `adjacencies` (`name`, `relation`, `me`, `description`), with its `singleton`
   and `ref`; a union's `branches` and an intersection's `parts` (`name`, `type`, `description`); a relation's `links`
-  (`name`), `properties` and `uniques` (a `clause`, whose `names` list the names it holds, sorted); a list's `item`,
-  `key` and `extent` (`minimum`, `maximum`, and `terms` for a bound that is a term); and an application's `of` and
+  (`name`), `properties` and `uniques` (a `clause`, whose `names` list the names it holds, sorted); and an application's `of` and
   `arguments` (`name`, and a native `value` or a `term`). A native is its token's `format` and `name`, its `bits` or
   `bytes`, and `terms` for a width that is a term. A form's `attributes` (`name`, `value`) and `arguments` (`term`) are
   lists the same way. Each kind's own properties come first, ending with its `description`, then its lists, starting
@@ -668,7 +625,7 @@ are written, read, validated and compared like any other objects.
 Codegen and other transforms (mbse-patterns) match schemas, not data: a predicate's symbol is declared with the schema
 of what it binds, and the predicate itself says which objects match. To bind a schema, a symbol is declared with its
 kind's meta-schema, the schema of the module form (`Schemas.OfObject.Schema`, named `Schemas.Object`, and the like for
-`Schemas.Native`, `Schemas.Union`, `Schemas.Intersection`, `Schemas.Indexed`, `Schemas.Apply` and `Schemas.Relation`).
+`Schemas.Native`, `Schemas.Union`, `Schemas.Intersection`, `Schemas.Apply` and `Schemas.Relation`).
 
 - **A schema is a reference object of its kind's meta-schema**: `identity()` (Python's `id`, TypeScript's
   `"schema N"`), `schema_name()` (the meta-schema's name), `owner()` (none) and `accept(visitor)`, which writes its
@@ -716,14 +673,15 @@ import one, so the dependency keeps pointing one way.
 
 ## Parametrics
 
-Status: declaring, applying and writing parameters is built (0.7), and so is evaluating them, through an evaluator
-the caller gives (0.7.1). What is not built yet is listed below.
+Status: declaring, applying and writing parameters is built (0.7), and so is evaluating them for equivalence, through
+an evaluator the caller gives (0.7.1). Validation no longer evaluates terms: the extents it evaluated went with
+`OfIndexed` (Resolved, The meta-schemas overhaul). What is not built yet is listed below.
 
 A parameter is a variable of a schema, or of anything else that declares it, that is determined where that element is
 referred to, not by data. mbse-patterns' symbols are the other kind of variable: a predicate's symbol ranges over a
 store's data, and its parameters are given where the predicate is applied. In the terms of
 [MBSE.md](https://github.com/pitaman71/mbse-basis/blob/main/MBSE.md#what-a-specification-is-made-of), an argument is a value constraint (`rows = 3`) and a parameter
-without one is an unrestricted variable, so inferring a shape (a concatenation's extent, the sum of its parts') is
+without one is an unrestricted variable, so inferring a shape (a concatenation's length, the sum of its parts') is
 resolving constraints.
 
 ### Decided
@@ -752,11 +710,10 @@ resolving constraints.
   as properties are. A parameter's scope is its binder, inline schemas nested in it included. `validate()` reports
   reserved names and bad types and descriptions; it cannot see which names a term refers to, so a variable no
   enclosing binder declares is for whoever understands the term's dialect to report (mbse-expressions).
-- **A term stands where a literal does**: an extent's `minimum` and `maximum` and a native's `bits` and `bytes` each
-  take an int or a term. A term is anything with `form()` and `dialect()`, as mbse-expressions' terms are, or a
+- **A term stands where a literal does**: a native's `bits` and `bytes` each take an int or a term. A term is anything with `form()` and `dialect()`, as mbse-expressions' terms are, or a
   `Schemas.Form`: `Form(kind, attributes, arguments, dialect)`, native attributes by name and forms as arguments, the
   dialect given at the root. `Form.of(term)` gives a term's form. `validate()` checks a form's shape and leaves a
-  dialect's term to its dialect; bounds compare only when both are ints, and a list's `capacity` needs int bounds.
+  dialect's term to its dialect.
 - **`Schemas.OfApply` refers to a parametric schema with arguments**: a type, built by `.of(schema)` and
   `.argument(name, value)` or `.arguments(**values)` (TypeScript: `.arguments({ name: value })` or a `Map`), by
   parameter name only, or `t.as_apply(...)`.
@@ -767,11 +724,11 @@ resolving constraints.
   alone, as other schemas are. mbse-patterns' `OfApply` applies a predicate the same way, so the two share a name.
 - **Data of an application is data of its applied schema.** `Schemas.structure(type)` follows applications to the
   schema that gives a type its structure; proxies, snapshots, validation, comparison and bound classes all read and
-  write through it, wherever a type stands: a property, an item, a key, a branch, a part, an entry property.
-- **Modules write all of it** (see Meta-schemas): a kind's `parameters` first, a width's or bound's term in the
-  holder's `terms` (`{"minimum": 1, "terms": {"maximum": {...}}}`), and an application as `{"apply": {"of": ...,
+  write through it, wherever a type stands: a property, a branch, a part, an entry property.
+- **Modules write all of it** (see Meta-schemas): a kind's `parameters`, a width's term in the native's `terms`
+  (`{"terms": {"bits": {...}}}`), and an application as `{"apply": {"of": ...,
   "arguments": [{"name": "rows", "value": {"int": 3}}, {"name": "cols", "term": {...}}]}}`. A form is
-  `{"dialect", "kind", "attributes": [{"name", "value"}], "arguments"}`, each attribute's and argument's native value
+  `{"dialect", "kind", "attributes": [{"name", "value"}], "arguments": [{"term"}]}`, each attribute's and argument's native value
   by its basic type (`{"float": "NaN"}`, `{"bytes": "AA=="}`). Reading gives forms back, or what the caller's `make`
   makes of each (`Modules.schemas(store, module, make)`), e.g. a dialect's terms.
 
@@ -782,12 +739,9 @@ resolving constraints.
   schema it stands in; a named schema is a scope of its own. Its own parameters shadow those further out. An
   application's arguments are evaluated in the scope the application stands in and become the values of the applied
   schema's parameters; one with no value leaves its parameter unbound.
-- **Checking reports what it cannot decide.** `Validators.Check(store, evaluate)(schema, value)` gives an `Outcome` of
-  `problems` and `unknowns`, which `holds` true, false or unknown (None). A positional list's extent is evaluated where
-  the list stands: its minimum labels the items, and its bounds decide whether the items fit; where a bound has no value
-  (no evaluator, or `evaluate` gives none) whether they fit is unknown ("whether 3 items fit the extent is unknown: its
-  maximum has no value"), and a bound that is not an int is a problem. `Validators.Validate(store, evaluate)` gives the
-  problems alone: what is unknown is not a problem.
+- **Validation evaluates no term.** `Validators.Check(store)(schema, value)` checks an application's data as its
+  applied schema's; a width is size only, and a bound on a list's index is a constraint on its type (Lists), so
+  nothing in a schema is checked against a term's value. Its `Outcome` still holds `unknowns` (Validators).
 - **Equality after substitution**: `Schemas.equivalent(a, b, evaluate)` follows applications to the schema they apply
   and the values they give its parameters, each application's arguments evaluated with the values given its own
   parameters, so `Square(4)` and `Matrix(4, 4)` are equivalent where `Square[n]` applies `Matrix(n, n)`. Two types are
@@ -797,10 +751,7 @@ resolving constraints.
 ### Not yet built
 
 - **Substitution as an operation**: applying literal arguments to give the schema they determine, for code that
-  needs a concrete schema. Nothing needs it yet: validation evaluates in scope, and equivalence compares values.
-  Generated code keeps the parameters.
-- **Proxies with parametric extents**: a proxy addresses a positional list's items from its extent's minimum, or from
-  0 where the minimum is a term (see Open questions).
+  needs a concrete schema. Nothing needs it yet: equivalence compares values, and generated code keeps the parameters.
 - **Symbolic equality**: two applications whose arguments are the same unevaluated terms (`Matrix(n, n)` within two
   schemas) are not known to be equivalent.
 
@@ -858,8 +809,6 @@ it is fixed here:
 - **Parametrics**, beyond the proposal (see Parametrics): type parameters now or later; equality of differently
   written applications that substitute alike (`Matrix(n, n)` and `Square(n)`); and what proxies accept for data
   whose shape depends on an unbound parameter.
-- Sparse lists keyed by integers: an `int` key makes a list positional and dense. A sparse integer map needs a key of
-  another schema (e.g. a value object holding the index), or a way to mark an `int` key as sparse.
 
 Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/TestPlan.md`) that need a design decision:
 
@@ -965,6 +914,13 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - Basic's operations on lists change with it, as the user decided: mbse-expressions' EXPRESSIONS.md, Resolved,
     "Basic's collection operations go now".
 
+  What follows from these, as built (phase 4, `OfIndexed` removed): `Schemas.OfIndexed`, its meta-schema
+  (`Schemas.Indexed`) and its extents; `Visitors.OfIndexed`, `OfItem` and `as_indexed`; `Proxies.OfIndexed.Map`;
+  `Validators.ListRecord`; the keyed wire forms, and with them `OfNative.Data.to_key` and `from_key`; and, since
+  extents were all that validation evaluated, `Validators.Check` and `Validate` take no evaluator and `Validators.Scope`
+  goes, while `Schemas.equivalent` keeps one. `Outcome.unknowns` stays, empty until something undecidable is checked
+  again (a shape constraint, open-world data).
+
   It excludes what that exploration built for the open-world and scalars overhaul, which is deferred: undeclared
   properties preserved and plain numbers, `OfName`, `Specializes`, and the removal of `OfUnion`, `OfIntersection` and
   `OfNative`. Nothing of it is built.
@@ -999,7 +955,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   participation in a relation is expressed as a constraint (directory membership is required by well-formedness).
 - `OfValue` is not a base class; renamed `OfAny`.
 - Parameters (0.7): every kind of schema declares `OfParameter`s, `OfApply` applies a parametric schema to arguments,
-  and a term (a `Schemas.Form`, or a dialect's term) may stand where a width or an extent's bound does. A parameter is a
+  and a term (a `Schemas.Form`, or a dialect's term) may stand where a width does (and where an extent's bound did,
+  until extents went with `OfIndexed`). A parameter is a
   variable whose binder is the schema; data of an application is data of its applied schema (`Schemas.structure`). See
   Parametrics, which also lists what is not built yet.
 - Stores of different implementations combine, by name (0.7.3): `Stores.Combined(*stores)`, each name its one store's,
@@ -1011,15 +968,16 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   lists them again. A native's token is written `token`, so that `name` is a schema's name in every kind (see
   Reflection: schemas as objects).
 - Evaluation (0.7.1): terms are evaluated by an evaluator the caller gives, in lexical scopes; `Validators.Check` gives
-  problems and unknowns, three-valued; `Schemas.equivalent` is equality after substitution.
+  problems and unknowns, three-valued; `Schemas.equivalent` is equality after substitution. With extents gone,
+  validation evaluates no term, and `Check` takes no evaluator; nothing it checks is unknown until something
+  undecidable is checked again (a shape constraint, open-world data), so `Outcome.unknowns` stays, empty.
 - Every element may be described (0.6): schemas, properties, adjacencies, branches and parts hold an optional
   `description`, written in modules and read back. So that a property can hold one, a property is an element,
   `OfProperty.Data`, and `properties` maps a name to it rather than to its type, as a union's or intersection's
   `properties` maps a name to its branch or part.
 - Names starting with `$` are reserved for the wire format's markers (`$ref`, `$schema`, `$id`): `validate()` reports
   a property, adjacency, link, branch or part name that starts with `$` ("name '$ref' is reserved: names starting with
-  '$' belong to the wire format"), and a keyed list is written as a mapping only when its key's text can never start
-  with `$` (float, bool and bytes keys). Both depend on the schema alone, so no data can collide with a marker.
+  '$' belong to the wire format"). It depends on the schema alone, so no data can collide with a marker.
 - Object-valued properties hold value objects: read-only values owned by their owner, written
   nested; they have identities and may have adjacencies. Reference objects are reached through relations.
 - Union branches and intersection parts are named, and their values are records keyed by those names, in proxies and
@@ -1044,8 +1002,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Deserializing a snapshot that references an object it does not contain is an error.
 - Relation links are untyped names (`.links('contact', 'address')`); objects declare adjacencies with
   `.relations(lambda adj: adj.name(...).of(Relation).me(link))`.
-- Lists are `OfIndexed`, a property's value: ordered items of one item schema, which belong to the list's owner (see
-  Lists). Collections of linked objects, maps and keyed lookups are relations.
+- Lists, dicts and maps are adjacencies to one-link relations, declared inline, whose entries hold the values for
+  their owner; no property holds a list (see Lists). Collections of linked objects are relations of two links or more.
 - Cardinality is declared with `unique(S)` clauses; ownership is `unique(parent)`; a relation with a `unique` clause
   holds a set and duplicates are elided, and one without is open, its entries a list from each end.
 - An object may have more than one owner.

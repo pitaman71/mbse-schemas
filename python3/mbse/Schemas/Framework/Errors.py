@@ -9,12 +9,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Sequence
-from typing import TypeVar
-
-T = TypeVar("T")
-
-__all__ = ["DecodeError", "path", "item"]
+__all__ = ["DecodeError", "path"]
 
 _IDENTIFIER = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]*")
 
@@ -49,10 +44,3 @@ def path(*keys: str | int) -> str:
         else:
             out += f"[{json.dumps(key, ensure_ascii=False)}]"
     return out
-
-
-def item(items: Sequence[T], index: int) -> T:
-    """The item of a list at `index`; raises LookupError for an index the list does not have, negative ones included."""
-    if not 0 <= index < len(items):
-        raise LookupError(f"the list has no item {index}")
-    return items[index]

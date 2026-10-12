@@ -3,58 +3,80 @@ objects:
   s0:
     name: rack
     tags:
-    - ''
-    - 日本語 🚀
-    - a
+    - value: ''
+    - value: 日本語 🚀
+    - value: a
     blobs:
-    - ''
-    - AP8=
+    - value: ''
+    - value: AP8=
     grid:
-    - - 1
-      - -1180591620717411303424
-    - []
-    - - 0
+    - row:
+        values:
+        - value: 1
+        - value: -1180591620717411303424
+    - row: {}
+    - row:
+        values:
+        - value: 0
     readings:
-    - value: -0.0
-    - note: 'off'
-    - value: Infinity
+    - reading:
+        value: -0.0
+    - reading:
+        note: 'off'
+    - reading:
+        value: Infinity
     sockets:
-    - $id: s2
-      name: in
-      cables:
-      - sink:
-          $ref: s3
-      - sink:
-          $ref: s1
-          $schema: Panel
-      plugs:
-      - source:
-          $ref: s4
-    - $id: s3
-      name: out
-      plugs:
-      - source:
-          $ref: s2
-    banks:
-    - []
-    - - $id: s4
-        name: spare
+    - socket:
+        $id: s2
+        name: in
         cables:
         - sink:
+            $ref: s3
+        - sink:
+            $ref: s1
+            $schema: Panel
+        plugs:
+        - source:
+            $ref: s4
+    - socket:
+        $id: s3
+        name: out
+        plugs:
+        - source:
             $ref: s2
+    banks:
+    - bank: {}
+    - bank:
+        sockets:
+        - socket:
+            $id: s4
+            name: spare
+            cables:
+            - sink:
+                $ref: s2
     matrix:
-    - - 1
-      - 0
-    - - 0
-      - 1
+    - i: 1
+      j: 1
+      value: 1
+    - i: 1
+      j: 2
+      value: 0
+    - i: 2
+      j: 1
+      value: 0
+    - i: 2
+      j: 2
+      value: 1
     attrs:
-    - key: gain
-      value: 1.5
     - key: ''
       value: -0.0
+    - key: gain
+      value: 1.5
     weights:
-      '0.5': half
-      NaN: none
+    - key: 0.5
+      value: half
+    - key: NaN
+      value: none
     cells:
     - key:
         r: 2

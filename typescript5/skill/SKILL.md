@@ -23,12 +23,13 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
 
 ## Practices that prevent most mistakes
 
-1. **Links are relations; lists are values.** Objects are linked by an `OfRelation`, whose entries may carry
-   properties. Each object sees a relation through one of its links (an *adjacency*, declared with `.me(link)`). A
-   property may hold a list (`OfIndexed`) of natives or value objects, in order; a list never holds reference objects.
+1. **Links and lists are relations.** Objects are linked by an `OfRelation`, whose entries may carry properties. Each
+   object sees a relation through one of its links (an *adjacency*, declared with `.me(link)`). A list, a dict or a
+   map is an adjacency to a one-link relation of its own, declared inline, whose entries hold the values; no property
+   holds a list.
 2. **Reference or value.** A reference object (its schema marked `.ref()`) stands on its own and is reached through
-   relations only. A *value object* is held by a property, or in a list, whose schema is an `OfObject`; it belongs to
-   that owner and is copied with it, and it may have adjacencies.
+   relations only. A *value object* is held by a property, or by a one-link relation's entry, whose schema is an
+   `OfObject`; it belongs to that owner and is copied with it, and it may have adjacencies.
 3. **Names starting with `$` are reserved** for the wire format (`$ref`, `$schema`, `$id`); `validate()` reports them.
 4. **Nothing is mandatory, and absent reads as `None`** (`null` in TypeScript): no property holds `None` as a value,
    and an absent one is left out of what is written. An undeclared name raises `AttributeError`. Cardinality

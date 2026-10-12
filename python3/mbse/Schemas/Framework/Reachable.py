@@ -64,48 +64,6 @@ class _Ignored:
         callback(_Collector(self._found))
         return self
 
-    def as_indexed(self, callback: Callable[[Visitors.OfIndexed], Any]) -> _Ignored:
-        """The value objects in a list are followed too."""
-        callback(_Items(self._name, self._found))
-        return self
-
-
-class _Items:
-    """`Visitors.OfIndexed` that discards a list, and collects the entries of the value objects in it."""
-
-    def __init__(self, name: str, found: _Found):
-        self._name, self._found = name, found
-
-    def items(self, callback: Callable[[Visitors.OfAny], Any]) -> _Items:
-        return self
-
-    def item(self, index: int, callback: Callable[[Visitors.OfAny], Any]) -> _Items:
-        raise LookupError(f"the list has no item {index}")  # it keeps no items
-
-    def append(self, callback: Callable[[Visitors.OfAny], Any]) -> _Items:
-        callback(_Ignored(self._name, self._found))
-        return self
-
-    def remove(self, index: int) -> _Items:
-        raise LookupError(f"the list has no item {index}")
-
-    def clear(self) -> _Items:
-        return self
-
-    def pairs(self, callback: Callable[[Visitors.OfItem], Any]) -> _Items:
-        return self
-
-    def at(self, key: Callable[[Visitors.OfAny], Any], callback: Callable[[Visitors.OfAny], Any]) -> _Items:
-        raise LookupError("the list has no item with this key")  # it keeps no items
-
-    def put(self, key: Callable[[Visitors.OfAny], Any], value: Callable[[Visitors.OfAny], Any]) -> _Items:
-        key(_Ignored(self._name, self._found))  # a key holds no links, but a visitor may write any value
-        value(_Ignored(self._name, self._found))
-        return self
-
-    def discard(self, key: Callable[[Visitors.OfAny], Any]) -> _Items:
-        raise LookupError("the list has no item with this key")
-
 
 class _Link:
     """`Visitors.OfLink` that reports its target."""

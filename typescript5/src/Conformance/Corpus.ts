@@ -17,12 +17,32 @@ function text(name: string, native: unknown = String) {
   return (prop: Schemas.OfProperty.Builder) => prop.name(name).of((t) => t.as_native(native as never));
 }
 
-function list(spec: Schemas.OfAny.Spec) {
-  return (t: Schemas.OfAny.Builder) => t.as_indexed((i) => i.of(spec));
+/** An adjacency `name` to a one-link relation of its own, whose entries hold `properties`: a list, or keyed where
+ * `unique` names the values its other properties determine. */
+function list(name: string, properties: Schemas.OfProperty.Spec[], unique: string[] = []) {
+  return (a: Schemas.OfAdjacency.Builder) => a.name(name).me("owner").of((rel: Schemas.OfRelation.Builder) => {
+    rel.links("owner").properties(...properties);
+    return unique.length > 0 ? rel.unique(...unique) : rel;
+  });
 }
 
-function keyed(key: Schemas.OfAny.Spec, spec: Schemas.OfAny.Spec) {
-  return (t: Schemas.OfAny.Builder) => t.as_indexed((i) => i.key(key).of(spec));
+function held(name: string, spec: Schemas.OfAny.Spec) {
+  return (prop: Schemas.OfProperty.Builder) => prop.name(name).of(spec);
+}
+
+/** A Spec adding an entry to the adjacency `name` for each of `values`, each a Spec of the entry. */
+function entries(name: string, values: ((e: any) => unknown)[]) {
+  return (builder: any) => {
+    for (const value of values) builder[name](value);
+    return builder;
+  };
+}
+
+/** Edits the entry at position `at` of an adjacency, through the visitor protocols. */
+function first(adjacency: any, at: number, then: (entry: any) => void): void {
+  const found: unknown[] = [];
+  adjacency.entries((e: unknown) => found.push(e));
+  then(found[at]);
 }
 
 export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.Store]> {
@@ -96,24 +116,25 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   new Schemas.OfObject.Builder(Card).relations((a) => a.name("decks").of(Holding).me("card")).update();
   const Hub = new Schemas.OfObject.Builder().name("Hub").ref().properties(text("name")).relations((a) => a.name("phones").of(Line).me("hub")).create();
 
-  // --- lists: of natives, of lists, of union values and of value objects, which link each other and a reference
-  // object ---
+  // --- lists: one-link relations, open (lists) or keyed by what a `unique` clause leaves out: of natives, of lists,
+  // of union values and of value objects, which link each other and a reference object; keyed by text, by a float, by
+  // a value object and by a pair of ints ---
   const Cable = new Schemas.OfRelation.Builder().name("Cable").links("source", "sink").create();
   const Socket = new Schemas.OfObject.Builder().properties(text("name")).relations(
     (a) => a.name("cables").of(Cable).me("source"), (a) => a.name("plugs").of(Cable).me("sink")).create();
   const Coord = new Schemas.OfObject.Builder().properties(text("r", BigInt), text("c", BigInt)).create();
   const Reading = new Schemas.OfUnion.Builder().branches((b) => b.name("value").of((t) => t.as_native(Number)),
     (b) => b.name("note").of((t) => t.as_native(String))).create();
-  const Board = new Schemas.OfObject.Builder().name("Board").ref().properties(
-    text("name"), (p) => p.name("tags").of(list((t) => t.as_native(String))),
-    (p) => p.name("blobs").of(list((t) => t.as_native(Uint8Array))),
-    (p) => p.name("grid").of(list(list((t) => t.as_native(BigInt)))),
-    (p) => p.name("readings").of(list(Reading)), (p) => p.name("sockets").of(list(Socket)),
-    (p) => p.name("banks").of(list(list(Socket))),
-    (p) => p.name("matrix").of((t) => t.as_indexed((i) => i.of(list((t) => t.as_native(BigInt))).extent({ minimum: 1n, maximum: 3n }))),
-    (p) => p.name("attrs").of(keyed((t) => t.as_native(String), (t) => t.as_native(Number))),
-    (p) => p.name("weights").of(keyed((t) => t.as_native(Number), (t) => t.as_native(String))),
-    (p) => p.name("cells").of(keyed(Coord, (t) => t.as_native(BigInt)))).create();
+  const Row = new Schemas.OfObject.Builder().relations(list("values", [text("value", BigInt)])).create();
+  const Bank = new Schemas.OfObject.Builder().relations(list("sockets", [held("socket", Socket)])).create();
+  const Board = new Schemas.OfObject.Builder().name("Board").ref().properties(text("name")).relations(
+    list("tags", [text("value")]), list("blobs", [text("value", Uint8Array)]), list("grid", [held("row", Row)]),
+    list("readings", [held("reading", Reading)]), list("sockets", [held("socket", Socket)]),
+    list("banks", [held("bank", Bank)]),
+    list("matrix", [text("i", BigInt), text("j", BigInt), text("value", BigInt)], ["value"]),
+    list("attrs", [text("key"), text("value", Number)], ["value"]),
+    list("weights", [text("key", Number), text("value")], ["value"]),
+    list("cells", [held("key", Coord), text("value", BigInt)], ["value"])).create();
   const Panel = new Schemas.OfObject.Builder().name("Panel").ref().properties(text("name")).relations(
     (a) => a.name("plugs").of(Cable).me("sink")).create();
 
@@ -193,28 +214,43 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   B.Hub().name("switchboard").phones((x: any) => x.phone((cards[0] as any).home)).phones((x: any) => x.phone(di.home)).create();
 
   const panel = B.Panel().name("mains").create();
-  const board = B.Board().name("rack").tags(["", "日本語 🚀", "a"]).blobs([new Uint8Array(), new Uint8Array([0, 255])])
-    .grid([[1n, -(2n ** 70n)], [], [0n]])
-    .readings([(u: any) => u.value(-0.0), (u: any) => u.note("off"), (u: any) => u.value(Infinity)])
-    .sockets([(o: any) => o.name("in"), (o: any) => o.name("out")]).banks([[], [(o: any) => o.name("spare")]])
-    .matrix([[1n, 0n], [0n, 1n]]).attrs(new Map([["gain", 1.5], ["", -0.0]])).weights(new Map([[0.5, "half"], [NaN, "none"]]))
-    .cells([[(c: any) => c.r(2n).c(3n), 6n], [(c: any) => c.r(0n).c(0n), 0n]])
-    .create();
-  B.Board(board).sockets((items: any) => items.item(0, (v: any) => v.as_object(
-    (o: any) => o.cables((x: any) => x.sink(board.sockets[1])).cables((x: any) => x.sink(panel))))).banks(
-    (rows: any) => rows.item(1, (v: any) => v.as_indexed((row: any) => row.item(0, (w: any) => w.as_object(
-      (o: any) => o.cables((x: any) => x.sink(board.sockets[0]))))))).update();
+  const rack = B.Board().name("rack");
+  for (const value of ["", "日本語 🚀", "a"]) rack.tags((e: any) => e.value(value));
+  for (const value of [new Uint8Array(), new Uint8Array([0, 255])]) rack.blobs((e: any) => e.value(value));
+  for (const row of [[1n, -(2n ** 70n)], [], [0n]]) rack.grid((e: any) => e.row(entries("values", row.map((v) => (x: any) => x.value(v)))));
+  rack.readings((e: any) => e.reading((u: any) => u.value(-0.0))).readings((e: any) => e.reading((u: any) => u.note("off")));
+  rack.readings((e: any) => e.reading((u: any) => u.value(Infinity)));
+  rack.sockets((e: any) => e.socket((o: any) => o.name("in"))).sockets((e: any) => e.socket((o: any) => o.name("out")));
+  rack.banks((e: any) => e.bank((b: any) => b)).banks((e: any) => e.bank((b: any) => b.sockets((x: any) => x.socket((o: any) => o.name("spare")))));
+  for (const [i, j, value] of [[2n, 1n, 0n], [1n, 1n, 1n], [1n, 2n, 0n], [2n, 2n, 1n]]) {
+    rack.matrix((e: any) => e.i(i).j(j).value(value));
+  }
+  rack.attrs((e: any) => e.key("gain").value(1.5)).attrs((e: any) => e.key("").value(-0.0));
+  rack.weights((e: any) => e.key(0.5).value("half")).weights((e: any) => e.key(NaN).value("none"));
+  rack.cells((e: any) => e.key((c: any) => c.r(2n).c(3n)).value(6n)).cells((e: any) => e.key((c: any) => c.r(0n).c(0n)).value(0n));
+  const board = rack.create();
+  const ins = board.sockets.project("socket");
+  // the first socket to the second, and to the panel
+  const wireIn = (entry: any) => entry.property("socket", (p: any) => p.value((v: any) => v.as_object(
+    (o: any) => o.cables((x: any) => x.sink(ins[1])).cables((x: any) => x.sink(panel)))));
+  // the spare socket of the second bank to the first socket
+  const wireSpare = (entry: any) => entry.property("socket", (p: any) => p.value((v: any) => v.as_object(
+    (o: any) => o.cables((x: any) => x.sink(ins[0])))));
+  const bank = (entry: any) => entry.property("bank", (p: any) => p.value((v: any) => v.as_object((o: any) => o.adjacency(
+    "sockets", (a: any) => first(a, 0, wireSpare)))));
+  B.Board(board).adjacency("sockets", (a: any) => first(a, 0, wireIn)).adjacency("banks", (a: any) => first(a, 1, bank)).update();
 
   // --- module: the corpus's own schemas as data, with natives of widths and another format's token, and parametric
-  // schemas: parameters, terms where a width or a bound stands, and applications with arguments of every native ---
+  // schemas: parameters, terms where a width stands, and applications with arguments of every native ---
   const int_ = (t: Schemas.OfAny.Builder) => t.as_native(BigInt);
   const n = new Schemas.Form.Data("variable", { name: "n" });
   const Word = Schemas.OfNative.resolve((w) => w.name("Word").type(BigInt).parameters((p) => p.name("w").of(int_)).bits(
     new Schemas.Form.Data("variable", { name: "w" })));
   const Grid = new Schemas.OfObject.Builder().name("Grid").parameters((p) => p.name("n").of(int_).description("Its side"),
     (p) => p.name("x")).properties(
-    (p) => p.name("cells").of((t) => t.as_indexed((i) => i.of((c) => c.as_apply((a) => a.of(Word).arguments({ w: 8n })))
-      .extent({ minimum: 1n, maximum: new Schemas.Form.Data("operation", { name: "mul" }, [n, n], "basic") })))).create();
+    (p) => p.name("mask").of((t) => t.as_native((w) => w.type(BigInt).bits(
+      new Schemas.Form.Data("operation", { name: "mul" }, [n, n], "basic"))))).relations(
+    list("cells", [held("cell", (c) => c.as_apply((a) => a.of(Word).arguments({ w: 8n })))])).create();
   const Square = new Schemas.OfApply.Builder().name("Square").parameters((p) => p.name("m").of(int_)).of(Grid).argument(
     "n", new Schemas.Form.Data("variable", { name: "m" })).argument("x", true).create();
   const Tricky = new Schemas.OfObject.Builder().name("Tricky").parameters(

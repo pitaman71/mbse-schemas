@@ -137,7 +137,7 @@ while existing data stays good. Other edits do not. Classified:
 |---|---|
 | adding a property or an adjacency | adding an intersection part (a missing part is reported) |
 | adding a union branch | adding a `unique` clause |
-| adding a parameter, where nothing depends on it | narrowing a type, a width or an extent |
+| adding a parameter, where nothing depends on it | narrowing a type, a width or a constraint |
 | adding a description | removing or renaming anything |
 | declaring an extension property (part 2) | changing a property's type |
 

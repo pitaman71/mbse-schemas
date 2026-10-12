@@ -28,8 +28,6 @@ __all__ = [
     "OfRelation",
     "OfUnion",
     "OfIntersection",
-    "OfIndexed",
-    "OfItem",
     "Visitable",
 ]
 
@@ -51,8 +49,6 @@ class OfAny(Protocol):
     def as_union(self, callback: Callable[[OfUnion], Any]) -> OfAny: ...
 
     def as_intersection(self, callback: Callable[[OfIntersection], Any]) -> OfAny: ...
-
-    def as_indexed(self, callback: Callable[[OfIndexed], Any]) -> OfAny: ...
 
 
 class OfNative(Protocol):
@@ -201,58 +197,6 @@ class OfIntersection(Protocol):
         ...
 
     def clear(self, name: str) -> OfIntersection: ...
-
-
-class OfIndexed(Protocol):
-    """A list: its items, in order, each a value of the list's item schema. An item written with no value is left
-    out. Items are addressed by position (`item`, `remove`) and by key (`pairs`, `at`, `put`, `discard`): a positional
-    list's keys are its positions from its extent's minimum, and a keyed list's are values of its key schema, each
-    written through a `Visitors.OfAny` callback."""
-
-    def items(self, callback: Callable[[OfAny], Any]) -> OfIndexed:
-        """Calls `callback` once for each item, in order."""
-        ...
-
-    def item(self, index: int, callback: Callable[[OfAny], Any]) -> OfIndexed:
-        """Calls `callback` with the item at `index`; raises LookupError for an index the list does not have."""
-        ...
-
-    def append(self, callback: Callable[[OfAny], Any]) -> OfIndexed:
-        """Appends the item `callback` writes."""
-        ...
-
-    def remove(self, index: int) -> OfIndexed:
-        """Removes the item at `index`; raises LookupError for an index the list does not have."""
-        ...
-
-    def clear(self) -> OfIndexed:
-        """Removes every item."""
-        ...
-
-    def pairs(self, callback: Callable[[OfItem], Any]) -> OfIndexed:
-        """Calls `callback` once for each item, in order, with its key and value."""
-        ...
-
-    def at(self, key: Callable[[OfAny], Any], callback: Callable[[OfAny], Any]) -> OfIndexed:
-        """Calls `callback` with the value of the item whose key `key` writes; raises LookupError when there is none."""
-        ...
-
-    def put(self, key: Callable[[OfAny], Any], value: Callable[[OfAny], Any]) -> OfIndexed:
-        """Writes, through `value`, the value of the item whose key `key` writes, adding the item when there is none: a
-        positional list appends at its next key. A keyed list takes `put`, and raises TypeError on `append`."""
-        ...
-
-    def discard(self, key: Callable[[OfAny], Any]) -> OfIndexed:
-        """Removes the item whose key `key` writes; raises LookupError when there is none."""
-        ...
-
-
-class OfItem(Protocol):
-    """One item of a list, seen through `OfIndexed.pairs`: its key, read-only, and its value."""
-
-    def key(self, callback: Callable[[OfAny], Any]) -> OfItem: ...
-
-    def value(self, callback: Callable[[OfAny], Any]) -> OfItem: ...
 
 
 class Visitable(Protocol):

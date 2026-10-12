@@ -190,7 +190,7 @@ function write(entry: any, item: Record<string, unknown>): void {
 
 /** Parameter counts of every protocol method, from Python's signatures (TypeScript interfaces vanish at runtime). */
 export const PROTOCOLS: Record<string, Record<string, number>> = {
-  OfAny: { as_native: 1, as_object: 1, as_union: 1, as_intersection: 1, as_indexed: 1 },
+  OfAny: { as_native: 1, as_object: 1, as_union: 1, as_intersection: 1 },
   OfNative: { has: 0, get: 0, set: 1, clear: 0 },
   OfProperty: { name: 0, has: 0, value: 1, clear: 0 },
   OfObject: { properties: 1, has: 1, property: 2, clear: 1, adjacencies: 1, adjacency: 2, identify: 1 },
@@ -200,8 +200,6 @@ export const PROTOCOLS: Record<string, Record<string, number>> = {
   OfRelation: { links: 1, entries: 1 },
   OfUnion: { properties: 1, has: 1, property: 2, clear: 1 },
   OfIntersection: { properties: 1, has: 1, property: 2, clear: 1 },
-  OfIndexed: { items: 1, item: 2, append: 1, remove: 1, clear: 0, pairs: 1, at: 2, put: 2, discard: 1 },
-  OfItem: { key: 1, value: 1 },
   Visitable: { identity: 0, schema_name: 0, owner: 0, accept: 1 },
 };
 

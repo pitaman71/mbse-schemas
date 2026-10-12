@@ -30,7 +30,7 @@ programs, languages or tools must agree on. Two equivalent implementations exist
   the terms of `MBSE.md`; what it is comes after. Keep that opening true as the repository changes.
 - **Every human-facing document has navigation.** A `{previous, home, next}` line heads and ends each document in
   reading order (README, MBSE.md, tutorials, design, conformance, packages and test plans); after adding, renaming or
-  retitling one, run `python3 scripts/nav.py`. Link text is human-readable, never a path.
+  retitling one, run `python3 ../mbse-basis/scripts/update_doc_links.py`. Link text is human-readable, never a path.
 - **The two implementations are equivalent.** Change both in the same commit, with the same names, the same error
   classes and byte-identical messages. JSON output must be byte-identical: regenerate the corpora and let CONF-02
   compare them. A difference not listed in `docs/EQUIVALENCE.md` is a bug. Adapters (`python3/mbse/Schemas/Adapters`)
@@ -72,12 +72,10 @@ npm run portability                         # the core without Node (browser bun
   this repository as a sibling checkout (`../mbse-schemas`), and pins the version and commit it was tested with.
 - **Releases are versions and tags.** The Python and TypeScript packages share one version; a release is the tag
   `v<version>`. Below 1.0, a change that dependents must adapt to bumps the minor version. Dependents develop against
-  this checkout as it is, and pin a release with their `scripts/siblings.py pin`. A change that spans repositories is
-  made in a workspace from a dependent's `scripts/siblings.py workspace <dir> --branch <name> --edit mbse-schemas`, so
-  that parallel work elsewhere does not see it half-finished, and landed with its `scripts/siblings.py land <dir>`.
-  That tool is kept here, in [scripts/siblings.py](scripts/siblings.py), and each dependent's copy only runs it; its
-  tests are `python3 -m unittest discover -s scripts`. It is scaffolding while the repositories co-evolve unpublished:
-  keep it small.
+  this checkout as it is, and pin a release with `polyrepo.py pin`. A change that spans repositories is made in a
+  workspace from a dependent's `polyrepo.py workspace <dir> --branch <name> --edit mbse-schemas`, so that parallel
+  work elsewhere does not see it half-finished, and landed with `polyrepo.py land <dir>`. That tool is kept in
+  mbse-basis, as `scripts/polyrepo.py`, and run from each repository as `python3 ../mbse-basis/scripts/polyrepo.py`.
 - Generated code will live in one repository per target language family, mbse-codegen-ccpp, mbse-codegen-python,
   mbse-codegen-typescript and mbse-codegen-verilog (Verilog and SystemVerilog), each rendering schemas
   (`Codegen/Types`), expressions (`Codegen/Expressions`) and patterns (`Codegen/Patterns`) as idiomatic, performant

@@ -871,6 +871,74 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 ### Resolved
 
+- **The meta-schemas overhaul** ([Meta-schemas overhaul](META_SCHEMAS.md), which plans it), as the user decided: of
+  what the 8 to 11 Oct exploration (the `scalars` branch) learned, "definitely re-apply ASAP": "Dictionary of
+  registered schemas lives as a relation on OfModule (possibly nestably)", "Meta-schemas use relations instead of
+  hallucinated containers", and "Relations completely subsume collections : Adaptive storage for relation adjacencies
+  as list, set, dict, etc. subsumes OfIndexed and requires 1-ary relations". The decisions the exploration recorded for
+  these, as the user made them there, and those made since:
+  - a relation may have one link, its entries holding values for their one owner, as the user decided ("eliminating
+    OfIndexed necessitates (a)"): a list of plain values is a one-link relation whose entries hold a value, which no
+    second object stands for;
+  - "whether it is a set or a list depends entirely on the use of `unique`. Absent unique, it's an open relation": a
+    relation with a `unique` clause holds a set of entries (an entry equal to one held is one entry), keyed from an
+    end as `OfRelation.Data.key` gives; a relation without one is open, and from each end its entries are a list, in
+    the order added, equal entries kept, its index their position ("index is implied"), stored nowhere. `.unique()`,
+    naming nothing, makes a relation a set;
+  - a list is declared inline in its adjacency ("you can use lambda builder shorthand within the adjacency so the
+    relation doesn't need a separate decl"): `r.name("tags").me("owner").of(lambda rel:
+    rel.links("owner").properties(text("value")))`. Code generators name such a relation where they need one;
+  - "relation entries may be written on every named adjacency. If for any reason entries appear for the same relation
+    on multiple lists, deserialization must dedup the entries according to `unique` if present or value if not": in a
+    relation with a `unique` clause, entries equal by value are one; in an open relation, the k-th entry equal to a
+    given one in one list is the k-th in another, so equal entries the lists repeat are not merged;
+  - "make the adjacency handle it": iterating an adjacency gives its entries, and "adjacency offers projections for
+    links and values", as amended: projection is a method, `project(name)` ("perhaps projection should be a method
+    `.project(name)` rather than an attribute of the adjacency"), and lookup by key is `at(key)` (a `KeyError` for
+    none), so no link or property name collides with anything; the adjacency member stays a tuple (a frozen array) of
+    its entries, indexed by position, as "Adjacencies, as specified" (below) requires. An adjacency's key is the
+    complement of the first `unique(S)` clause, in declaration order, whose complement holds the owner's link, less
+    that link; with no such clause, or an empty key, there is no `at`;
+  - `Paths` reads `unique(S)` backwards (`S` as the key), which the user confirmed is wrong; it reads keys as
+    adjacencies do, and paths keep naming objects for transforms ("we can keep paths");
+  - an adjacency's entries are written as an array of entries, sorted by their key where a `unique` clause gives one
+    and its values are ordered, and in the order added otherwise; there are no compact forms (`["a", "b"]`, `{"k": v}`);
+  - in codegen, "a relation whose properties boil down to a tuple of integer-like-things should be automatically
+    promoted to an indexable. Similar cases may be inferred if unambiguous for map, dict, etc."; a promoted indexable
+    iterates over entries, "to keep it simple";
+  - "a value object held by an entry cannot have adjacencies" "should go": a one-link relation's entry is written once,
+    with its owner, so a value object it holds is written once too, and may have adjacencies of its own;
+  - extents go "completely away in favor of shape constraints", which the user confirmed for this overhaul ("agreed"):
+    a bound on an index, a capacity or a tensor's shape is a constraint on the type of the property that keys the
+    entries, not part of the schema; a parameter bound into such a constraint gives a tensor's shape (Parametrics);
+  - the schema model's own lists need only a consistent order ("declaration order or key sorted order, as long as it's
+    consistent"), and the user chose declaration order: a schema's member lists (parameters, properties, links,
+    branches, parts, adjacencies, uniques, applications' arguments, and a form's attributes and arguments) are open
+    relations, in declaration order, so that a schema read back equals the one built; only a module's schemas are
+    keyed by name and sorted by it; reading refuses a member name listed twice;
+  - `OfApply` binds by name only ("OfApply - bind by name only"), kept in this overhaul ("yes"): positional arguments
+    go, `.arguments` takes them by name;
+  - every schema is a reference object of its kind's meta-schema, and every reference to a schema is a link, through
+    meta-relations (`Properties`, `Adjacencies`, `Applies`, `Parameters`, `Typing`, `Defines`, and a union's branches
+    and an intersection's parts while those kinds remain); `Schemas.Module.Entry`, `Schemas.Module.Definition`,
+    `Schemas.OfAny`, `Modules.reference` and `resolve`, and `Stores.META` go;
+  - a link builds its target with a schema given as itself, `.<link>.of(schema, spec)`, never by name or inferred
+    (the exploration's "builder notation for ambiguously typed link targets", which the meta-schemas need: a
+    property's type is a link that schemas of several kinds may fill);
+  - "any relation, even a meta-relation, is stored as adjacencies which can be added later"; the ends at which a
+    schema is referred to are anonymous adjacencies (TODO.md, "Anonymous adjacencies": "it denotes the relation has no
+    storage on the object. It merely denotes that this object may participate in a particular link `me` of the
+    designated relation"), built in this overhaul for any relation, as the user agreed ("yes");
+  - a module is an `OfModule` that defines schemas by `Defines(module, name, schema)`, and may define modules, so that
+    modules nest; a schema defined through nested modules is named with their names "qualified with dots", as the user
+    decided. A module is written as an object snapshot of the schemas it defines and the unnamed schemas they reach;
+  - Basic's operations on lists change with it, as the user decided: mbse-expressions' EXPRESSIONS.md, Resolved,
+    "Basic's collection operations go now".
+
+  It excludes what that exploration built for the open-world and scalars overhaul, which is deferred: undeclared
+  properties preserved and plain numbers, `OfName`, `Specializes`, and the removal of `OfUnion`, `OfIntersection` and
+  `OfNative`. Nothing of it is built.
+
 - **A `python3` token names a basic type** (0.10), as the user decided: a `python3` token that is not a basic type's
   name should not be configurable in `OfNative`. Validation reports one ("python3 has no type 'decimal.Decimal'"), as
   it does an unknown `basic` name, in both implementations. Code generators then never meet a Python native they

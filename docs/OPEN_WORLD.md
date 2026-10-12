@@ -1,5 +1,5 @@
 <!-- nav -->
-[← Equivalence of the implementations](EQUIVALENCE.md) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)
+[← Meta-schemas overhaul](META_SCHEMAS.md) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)
 
 # Open-world modeling
 
@@ -173,4 +173,4 @@ Each item is built in both implementations, with the same names and messages, an
 ---
 
 <!-- nav -->
-[← Equivalence of the implementations](EQUIVALENCE.md) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)
+[← Meta-schemas overhaul](META_SCHEMAS.md) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)

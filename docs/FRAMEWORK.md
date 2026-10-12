@@ -694,7 +694,7 @@ the caller gives (0.7.1). What is not built yet is listed below.
 A parameter is a variable of a schema, or of anything else that declares it, that is determined where that element is
 referred to, not by data. mbse-patterns' symbols are the other kind of variable: a predicate's symbol ranges over a
 store's data, and its parameters are given where the predicate is applied. In the terms of
-[MBSE.md](../MBSE.md#what-a-specification-is-made-of), an argument is a value constraint (`rows = 3`) and a parameter
+[MBSE.md](https://github.com/pitaman71/mbse-basis/blob/main/MBSE.md#what-a-specification-is-made-of), an argument is a value constraint (`rows = 3`) and a parameter
 without one is an unrestricted variable, so inferring a shape (a concatenation's extent, the sum of its parts') is
 resolving constraints.
 
@@ -818,7 +818,7 @@ it is fixed here:
 ## Open questions
 
 - **Where constraints attach.** A specification is constraints attached to the parts of a system they constrain, each
-  held by a property named `requires` ([MBSE.md](../MBSE.md#what-a-specification-is-made-of)); mbse-patterns'
+  held by a property named `requires` ([MBSE.md](https://github.com/pitaman71/mbse-basis/blob/main/MBSE.md#what-a-specification-is-made-of)); mbse-patterns'
   predicates already hold theirs so. Which scopes a constraint attaches to (a schema, a property, a relation, an
   interface, a whole specification), and how attached constraints combine into one conjunction, is not decided.
   The elements that bind parameters (see Parametrics) are likely the same scopes.

@@ -1,5 +1,5 @@
 <!-- nav -->
-[← Open-world modeling](../docs/OPEN_WORLD.md) · [Home](../README.md) · [Python package →](../python3/README.md)
+[← Visitor pattern](../docs/VISITOR_PATTERN.md) · [Home](../README.md) · [Python package →](../python3/README.md)
 
 # Conformance corpus
 
@@ -35,4 +35,4 @@ Regenerate:
 ---
 
 <!-- nav -->
-[← Open-world modeling](../docs/OPEN_WORLD.md) · [Home](../README.md) · [Python package →](../python3/README.md)
+[← Visitor pattern](../docs/VISITOR_PATTERN.md) · [Home](../README.md) · [Python package →](../python3/README.md)

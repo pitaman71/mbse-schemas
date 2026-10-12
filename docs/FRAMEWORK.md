@@ -850,6 +850,48 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 ### Resolved
 
+- **The visitor pattern** ([Visitor pattern](VISITOR_PATTERN.md), which holds the protocol as the user designed it), as
+  the user decided, finding that the framework had the pattern backwards: "the Visitors interface is supposed to expose
+  an api to the caller to access a data structure whose schema the calling code may or may not know in advance";
+  "Analysis and transformation algorithms accept a visitor as an argument and use the visitor - and also possibly
+  knowledge of the schema at coding/compilation time - to access the values/objects/properties/relations/etc."; the
+  serializers' writers "implementing the visitors protocol" are "precisely backwards"; and "`Visitable.accept` is a
+  hallucination". So:
+  - one protocol per kind, `Visitors.OfX`, reads and writes; data instances and builders both implement it ("one
+    interface, not one class definition"); there is no separate mutator protocol;
+  - "the mutableness of a visited object is a mode of the visitor itself": data instances visit read-only, builders
+    "can be configured to permit or forbid writes", a visitor hands its mode to the child visitors it hands over, and
+    "value objects are mutable only during construction or cloning"; writer methods return nothing, and a write the
+    mode or the value forbids raises; a read-only static view of each protocol (`Readers.OfX`) types the code that
+    must not write; a builder's visitor reads back its pending writes ("must be guaranteed");
+  - `Visitors.OfObject` and `Visitors.OfEntry` "may only define methods named `as_Y`", so "no schema-defined property,
+    adjacency, or link may be named `as_*`", which `validate()` refuses; every `Visitors.OfX` has `as_schema()`, in
+    place of conveniences such as `OfProperty.name` and `OfObject.has`, so `Schemas.OfEntry` (and its meta-schema)
+    "must exist"; an object's identity is a scalar, `as_identity`;
+  - relations are modified "entirely" through `Visitors.OfAdjacency` (`select`, `insert`, `remove`), whose
+    `remove` removes "all that match"; relation operations are the visitor protocol's, not an expression dialect's
+    ("Relation operators do not belong in Expressions.Basic. They never did");
+  - anything that has a builder has a `Spec`, "a callable taking and returning that builder", or "an instance of the
+    built object" (mbse-basis P-004, amended);
+  - `OfScalar` "completely displaces" `OfNative`, in `Schemas` and `Visitors`: a module writes `{"scalar": {"format":
+    ..., "token": ...}}`;
+  - a reference object is named by its global name if it has one, otherwise by "a UUID on creation by `.create()` or
+    `.clone()` that is saved on the wire"; "value objects are never shared"; "value objects cannot be referenced by
+    entries"; a value object may have adjacencies only to one-link relations, of "zero or more" properties; "Paths go
+    away";
+  - `.ref()` declares a reference object schema, and an object schema without it is a value object schema ("drop the
+    `.value()` for now");
+  - `Schemas.OfPredicate`, after mbse-patterns' predicate: its symbols, its parameters and its constraint as a
+    `Schemas.Form`, mbse-schemas knowing no dialect; finding matches and `Patterns.Stores.update`, which returns a
+    certificate ("a compact record ... that can be used to track the effect of the write in a lazy distributed
+    system"), are mbse-patterns'.
+
+  It supersedes: mbse-basis P-004 as it stood (amended); here, "Objects outside snapshots are named by paths (0.8.2)",
+  The meta-schemas overhaul's "we can keep paths", and decision C in mbse-expressions; and, in the sections above, what
+  the reverse protocol built (`accept`, `Plain`'s writers and `Validators`' and `Comparison`'s recorders implementing
+  `Visitors`, `Bindings.accept`, `Reflection`'s `accept`), value objects that links target, and `Paths`. Nothing of it
+  is built; those sections describe what is built until it is.
+
 - **The meta-schemas overhaul** ([Meta-schemas overhaul](META_SCHEMAS.md), which plans it), as the user decided: of
   what the 8 to 11 Oct exploration (the `scalars` branch) learned, "definitely re-apply ASAP": "Dictionary of
   registered schemas lives as a relation on OfModule (possibly nestably)", "Meta-schemas use relations instead of

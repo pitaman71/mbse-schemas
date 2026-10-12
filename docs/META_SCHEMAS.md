@@ -51,6 +51,22 @@ skill regenerated. No release comes between phases.
 4. **`OfIndexed` removed**, with `Proxies.OfIndexed.Map`, the list visitors and records, the keyed wire forms and
    extents; `Check` and `Validate` evaluating no term; the dataclasses adapter mapping `list[N]` and `dict[K, N]` to
    one-link relations. The Lists suite is rewritten.
+   After phase 4, the user found the visitor pattern backwards (FRAMEWORK.md, Resolved, The visitor pattern; the
+   [Visitor pattern](VISITOR_PATTERN.md)), which phases V1 to V4 build before phase 5, whose meta-schemas are read and
+   written through it. Decision C's first step in mbse-expressions is reverted: relation operations are the visitor
+   protocol's, not Basic's.
+
+- V1. **Schema-level changes**: `validate()` refuses `as_*` names; `Schemas.OfEntry`, with its meta-schema;
+  `OfNative` renamed `OfScalar`, written `{"scalar": {"format": ..., "token": ...}}`; a link targets only reference
+  objects, and a value object has adjacencies only to one-link relations; `Schemas.OfPredicate`.
+- V2. **The visitor protocol, beside the old one**: `Visitors.OfX` with its modes and `as_*` methods, and the read-only
+  views `Readers.OfX`; proxy data instances (read-only) and builders implement it, a builder reading back its
+  pending writes.
+- V3. **Consumers pull**: `Plain`, `JSON`, `YAML`, `Validators`, `Comparison`, `Reachable`, `Reflection`, `Modules` and
+  `Bindings` read and write through the protocol; `accept` and the old protocol go.
+- V4. **Identity**: a reference object named by its global name or a UUID given by `create()` or `clone()`, saved on the
+  wire as its key in a snapshot and in the links to it; `Paths` removed.
+
 5. **Meta-schemas as linked objects**: links built with a schema given as itself (`.<link>.of(schema, spec)`);
    `OfAny` removed, a type given as itself; every schema a reference object of its kind's meta-schema, every reference
    to one a link through a meta-relation, the ends at which a schema is referred to anonymous adjacencies (built here,
@@ -60,8 +76,8 @@ skill regenerated. No release comes between phases.
 
    | Repository | Adapts |
    |---|---|
-   | mbse-expressions | Basic's operations on lists (its EXPRESSIONS.md, Resolved): `get` and `has` of an adjacency and `project` (built in phase 3), `at` (open: how Basic knows an adjacency's key), the quantifiers over them; the rest of Basic's collection operations and their translator rules removed, once the predicates below no longer use them |
-   | mbse-patterns | `Predicates` lists (`_LIST`, `GIVEN`) as relations; `Modules.reference` and `resolve` replaced by links; meta-schema names in `Reflection` (`Schemas.Indexed` gone, `Schemas.Module` changed); transform paths, keyed as `Paths` now keys them |
+   | mbse-expressions | evaluators binding each symbol to a `Readers.OfObject` and reading through it, relations through `Visitors.OfAdjacency` (decision C superseded, its first step reverted); an enum's members and a packed domain's codes as one-link relations; Basic's collection operations over lists reconsidered with the protocol |
+   | mbse-patterns | `Predicates` lists (`_LIST`, `GIVEN`) as relations; `Modules.reference` and `resolve` replaced by links; meta-schema names in `Reflection` (`Schemas.Indexed` gone, `Schemas.Module` changed); transforms keyed by identity, `Paths` gone; `Schemas.OfPredicate` taken as its predicates' model; finding matches and `Stores.update` with its certificate |
    | mbse-programs | `Syntax`'s `as_indexed`; `OfApply` arguments by name; the conformance corpora regenerated, since a syntax node's children are written sorted by their key (`property`, `index`) since phase 1 (CONF-01) |
    | mbse-codegen-python | `Types` without `OfIndexed` and `Proxies.OfIndexed.Map`; a relation keyed by integer-like properties promoted to an indexable, and to a dict or map where unambiguous; `Codegen.Defined`'s `unique(output, name)` corrected for the right reading, `unique(node)`, without which its paths are positional since phase 1 (TYP-03) |
 

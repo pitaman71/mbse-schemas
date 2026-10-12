@@ -62,8 +62,11 @@ skill regenerated. No release comes between phases.
    |---|---|
    | mbse-expressions | Basic's operations on lists (its EXPRESSIONS.md, Resolved): `get` of an adjacency, `project`, `at`, the quantifiers over them; the rest of Basic's collection operations and their translator rules removed |
    | mbse-patterns | `Predicates` lists (`_LIST`, `GIVEN`) as relations; `Modules.reference` and `resolve` replaced by links; meta-schema names in `Reflection` (`Schemas.Indexed` gone, `Schemas.Module` changed); transform paths, keyed as `Paths` now keys them |
-   | mbse-programs | `Syntax`'s `as_indexed`; `OfApply` arguments by name |
-   | mbse-codegen-python | `Types` without `OfIndexed` and `Proxies.OfIndexed.Map`; a relation keyed by integer-like properties promoted to an indexable, and to a dict or map where unambiguous; `Codegen.Defined`'s `unique(output, name)` corrected for the right reading |
+   | mbse-programs | `Syntax`'s `as_indexed`; `OfApply` arguments by name; the conformance corpora regenerated, since a syntax node's children are written sorted by their key (`property`, `index`) since phase 1 (CONF-01) |
+   | mbse-codegen-python | `Types` without `OfIndexed` and `Proxies.OfIndexed.Map`; a relation keyed by integer-like properties promoted to an indexable, and to a dict or map where unambiguous; `Codegen.Defined`'s `unique(output, name)` corrected for the right reading, `unique(node)`, without which its paths are positional since phase 1 (TYP-03) |
+
+   The dependents' suites are run in the workspace after each phase, and what a phase breaks is listed above. After
+   phase 1, mbse-patterns passes unchanged.
 
 7. **The release**: mbse-schemas 0.11.0 and a minor version of each dependent, landed together
    (`polyrepo.py land <dir>`).

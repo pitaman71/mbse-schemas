@@ -90,12 +90,8 @@ def _object(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref) -> 
     """An object, a reference object or a value object nested in its owner, as a mapping: its properties, in the
     schema's order, then its adjacencies' entries. A value object has no symbol: entries never reference value
     objects."""
-    out: dict[str, PlainData] = {}
-    for prop in read.as_properties:
-        name = prop.as_schema().name
-        present, plain = _value(prop, prop.as_schema().type, ref)
-        if present:
-            out[name] = plain
+    out: dict[str, PlainData] = {prop.as_schema().name: _value(prop, prop.as_schema().type, ref)[1]
+                                 for prop in read.as_properties}  # the properties that are set
     for name, adjacency in schema.adjacencies.items():
         entries = [_entry(entry, adjacency, ref) for entry in getattr(read, name)]
         if entries:
@@ -197,21 +193,13 @@ class _Record(NamedTuple):
 
     schema: Any
     values: dict[str, Any]
-    rows: dict[str, list[dict[str, Any]]] = {}  # entries decoded where no snapshot holds the value
 
 
 def _build(visitor: Any, record: _Record) -> Any:
     """Writes a decoded value object, union value or intersection value through its builder."""
     for name, value in record.values.items():
         _set(visitor, name, value)
-    for name, rows in record.rows.items():
-        for row in rows:
-            getattr(visitor, name).insert(lambda x, r=row: _fill(x, r, _unresolved))
     return visitor
-
-
-def _unresolved(symbol: str) -> Any:
-    raise DecodeError(f"unresolved reference {symbol!r}: no snapshot holds the value")
 
 
 Rows = dict[str, list[dict[str, Any]]]
@@ -254,12 +242,9 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context:
     adjacencies = schema.adjacencies if isinstance(schema, Schemas.OfObject.Data) else {}
     values: dict[str, Any] = {}
     rows: Rows = {}
-    held: Rows = {}  # entries where no snapshot holds the value, so none of their links resolves
     for key, item in plain.items():
-        if key in adjacencies and context is not None:
+        if key in adjacencies and context is not None:  # a value object an entry of two links holds has none (validate())
             rows[key] = _decode_rows(adjacencies[key], item, where, key, context, steps)
-        elif key in adjacencies:
-            held[key] = _decode_rows(adjacencies[key], item, where, key)
         elif key in schema.properties:
             values[key] = _decode(schema.properties[key].type, item, (*where, key), context,
                                   (*steps, (key, _kind(schema.properties[key].type))))
@@ -269,7 +254,7 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context:
         raise DecodeError(f"a union value holds exactly one branch, got {len(values)}", path=path(*where))
     if rows:
         context.entries.append((_Found(context.owner, steps), rows, schema))  # type: ignore[union-attr]
-    return _Record(schema, values, held)
+    return _Record(schema, values)
 
 
 def _kind(schema: Schemas.OfAny.Data) -> type:
@@ -280,9 +265,7 @@ def _kind(schema: Schemas.OfAny.Data) -> type:
 def _decoded_key(value: Any) -> Hashable:
     """Equality key of a decoded value, per EQUALITY.md."""
     if isinstance(value, _Record):
-        rows = tuple((name, tuple(tuple(sorted((key, _decoded_key(v)) for key, v in row.items())) for row in listed))
-                     for name, listed in sorted(value.rows.items()))
-        return ("record", tuple((name, _decoded_key(v)) for name, v in sorted(value.values.items())), rows)
+        return ("record", tuple((name, _decoded_key(v)) for name, v in sorted(value.values.items())))
     return (type(value).__name__, value.hex() if isinstance(value, float) else value)
 
 

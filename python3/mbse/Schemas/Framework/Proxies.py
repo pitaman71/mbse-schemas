@@ -118,8 +118,6 @@ def _same_store(store: OfStore | None, value: Any) -> None:
 def _scalar_key(value: Any) -> Hashable:
     """Equality key per EQUALITY.md: distinct scalar types never compare equal; floats compare by bit pattern; a value
     object by its schema and properties, whatever its identity."""
-    if isinstance(value, _RecordBuilder):
-        value = value.build()
     if isinstance(value, _RecordData):
         values = object.__getattribute__(value, "_values")
         return ("object", id(value._schema), tuple(sorted((n, _scalar_key(v)) for n, v in values.items())))
@@ -231,29 +229,21 @@ def _article(kind: type) -> str:
     return {int: "an int", float: "a float", str: "a str", bool: "a bool", bytes: "bytes"}.get(kind, "a value")
 
 
-def _noun_of(value: Any) -> str:
-    if isinstance(value, (_RecordData, _RecordBuilder)):
-        return _a(_noun(value._schema))
-    return _article(type(value))
-
-
 def _converted(value: Any, host: type, label: str) -> Any:
     """A scalar's value for a dunder: it must be set and of the dunder's own type."""
     if value is None:
         raise TypeError(f"{label} is not set")
     if type(value) is not host:
-        raise TypeError(f"{label} holds {_noun_of(value)}, not {_article(host)}")
+        raise TypeError(f"{label} holds {_article(type(value))}, not {_article(host)}")
     return value
 
 
 class _Dunders:
-    """The scalar dunders, sugar over `get()`: each raises when the value is not set or not of its type."""
+    """The scalar dunders, sugar over `get()`: each raises when the value is not set or not of its type. A subclass gives
+    `_scalar()`, the value, and `_label()`, what holds it."""
 
-    def _scalar(self) -> Any:
-        raise NotImplementedError
-
-    def _label(self) -> str:
-        raise NotImplementedError
+    _scalar: Callable[[], Any]
+    _label: Callable[[], str]
 
     def __int__(self) -> int:
         return _converted(self._scalar(), int, self._label())
@@ -403,8 +393,8 @@ class _Any:
         if not _is_function(cb):
             self._write_record(lambda u: _member_of(u, _branch(self._name, self._type, cb).name)(cb))
             return self
-        if isinstance(value, (_RecordData, _RecordBuilder)):
-            ((branch, held),) = value._values.items() if value._values else (("", None),)
+        if isinstance(value, (_RecordData, _RecordBuilder)):  # a union value holds one branch
+            ((branch, held),) = value._values.items()
             if type(held) in (int, float, str, bool, bytes):
                 _visit(cb, _Scalar(value._values, branch, Schemas.structure(self._type.properties[branch].type),
                                    False, self._label))
@@ -582,8 +572,7 @@ def _kind_visitor(values: dict[str, Any], name: str, schema: Any, store: OfStore
         return value
 
     def attach(builder: _RecordBuilder) -> None:
-        if on_write is not None:
-            on_write()
+        on_write()  # type: ignore[misc]  # a writable member is a union's or an intersection's, which says what writing does
         values[name] = builder
 
     return _RecordBuilder(held, value if isinstance(value, _RecordData) else None, store, attach, parent)
@@ -780,7 +769,7 @@ def _entry_parts(entry: Any, me: str) -> tuple[dict[str, Any], dict[str, Any]]:
     """An entry's links other than `me`, and its properties: a placed entry's, or an entry builder's."""
     if isinstance(entry, _Entry):
         return {k: v for k, v in entry._links.items() if k != me}, entry._properties
-    return dict(entry._links), entry._values
+    return dict(entry._links), _finalized(entry._values)
 
 
 def _agrees(entry: Any, spec: Any, adjacency: Schemas.OfAdjacency.Data, store: OfStore | None) -> bool:
@@ -893,9 +882,7 @@ def _copy(record: _RecordData) -> _RecordData:
             copied._values = {n: _copy(v) if isinstance(v, _RecordData) else v for n, v in entry._properties.items()}
             copied._source = entry
             builder._entries.setdefault(name, []).append(copied)
-    for name, pending in record._pending.items():
-        builder._entries.setdefault(name, []).extend(pending)
-    return builder.build()
+    return builder.build()  # a placed value object, the only kind copied, has no pending entries
 
 
 def _finish(owner: Any, old: Any, new: Any, mapping: dict[int, Any]) -> Any:
@@ -1015,7 +1002,7 @@ class _RecordBuilder:
         self._attach, self._parent = attach, parent
         self._values: dict[str, Any] = {} if source is None else dict(object.__getattribute__(source, "_values"))
         self._entries: dict[str, list[_EntryBuilder]] = {}
-        if source is not None and isinstance(schema, ObjectSchema):
+        if source is not None:
             _load_entries(self._entries, schema, source)
 
     def _touch(self) -> None:
@@ -1076,12 +1063,11 @@ class _RecordBuilder:
             self._touch()
             _visit(spec, self)
         else:
-            if not isinstance(spec, (_RecordData, _RecordBuilder)) or spec._schema is not self._schema:
+            if not isinstance(spec, _RecordData) or spec._schema is not self._schema:
                 raise TypeError(f"{_a(_noun(self._schema))} or a Spec is expected, got {type(spec).__name__}")
             self._values = dict(spec._values)
             self._entries = {}
-            if isinstance(spec, _RecordData) and isinstance(self._schema, ObjectSchema):
-                _load_entries(self._entries, self._schema, spec)
+            _load_entries(self._entries, self._schema, spec)
             self._copy_of = spec
             self._touch()
         return self._parent
@@ -1255,10 +1241,11 @@ class _EntryBuilder:
         return _Entry(self._relation, links, _finalized(self._values))
 
 
-def _load_entries(entries: dict[str, list[_EntryBuilder]], schema: ObjectSchema, source: Any) -> None:
-    """Loads the entries linking `source` into a builder, as entry builders, so that an update rewrites them."""
+def _load_entries(entries: dict[str, list[_EntryBuilder]], schema: Any, source: Any) -> None:
+    """Loads the entries linking `source` into a builder, as entry builders, so that an update rewrites them; a union
+    or intersection value has none."""
     store = _store_of(source)
-    for name, adjacency in schema.adjacencies.items():
+    for name, adjacency in schema.adjacencies.items() if isinstance(schema, ObjectSchema) else ():
         for entry in _linking(adjacency.relation, adjacency.me, source):
             builder = _EntryBuilder(adjacency.relation, adjacency.me, store)
             builder._links = {link: target for link, target in entry._links.items() if link != adjacency.me}

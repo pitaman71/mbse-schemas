@@ -113,15 +113,12 @@ def _compare(schema: Any, a: Any, b: Any) -> Result:
         return _scalars(a, b)
     if isinstance(held, Schemas.OfObject.Data):
         return _objects(held, a, b, deep=True)
-    if a.as_schema() is not b.as_schema():
-        return None
     return _all_equal([_compare(m.type, _read_member(getattr(a, name), m.type), _read_member(getattr(b, name), m.type))
                        for name, m in held.properties.items()])
 
 
 def _objects(schema: Schemas.OfObject.Data, a: Any, b: Any, deep: bool) -> Result:
-    if a.as_schema() is not b.as_schema():
-        return None
+    """Two objects of `schema`: their properties, and with `deep`, their entries."""
     results = [_compare(prop.type, _read_property(getattr(a, name), prop.type),
                         _read_property(getattr(b, name), prop.type)) for name, prop in schema.properties.items()]
     if deep:

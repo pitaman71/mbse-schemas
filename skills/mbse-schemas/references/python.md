@@ -36,11 +36,15 @@ for schema in [Component, Port, Ownership, Wire]:
     store.register(schema)
 B = store
 
-irq = B.Port().name("irq").signal(lambda s: s.width(1).unit("bit")).create()
+# Builders and data instances implement the visitor protocol: members named after the schema's names.
+irq = B.Port().name("irq").signal(lambda p: p.as_object(lambda s: s.width(1).unit("bit"))).create()
 pic_in = B.Port().name("pic_in").create()
-cpu = B.Component().name("cpu").ports(lambda e: e.port(irq)).create()
-B.Port(irq).fanout(lambda e: e.target(pic_in).label("interrupt")).update()
-assert irq.signal.width == 1
+cpu = B.Component().name("cpu").ports(lambda a: a.insert(lambda e: e.port(irq))).create()
+B.Port(irq).fanout(lambda a: a.insert(lambda e: e.target(pic_in).label("interrupt"))).update()
+assert str(irq.name) == "irq" and [e.target for e in irq.fanout] == [pic_in]
+widths = []
+irq.signal.as_object(lambda s: widths.append(int(s.width)) or s)  # a value object, through as_object
+assert widths == [1]
 
 text = JSON.ToJSON(store).Reachable(Component, cpu)
 copy = JSON.FromJSON(B).Reachable(Component, text)
@@ -78,33 +82,35 @@ store = Proxies.OfStore(); store.register(schema); B = store  # under schema.nam
 store.extent("Name"); store.singleton("Global")             # a schema's objects its singletons reach; a singleton
 Stores.PCG32(42).split("key").next_u32()                 # a random source, given to whatever draws from it
 Proxies.store_of(obj)                                       # the store a proxy belongs to
-B.Name().prop(value).value_prop(lambda r: r.x(1)).adjacency_name(lambda e: e.link(obj).entry_prop(v)).create()
+# The visitor protocol (Visitors.OfX): data instances read, builders write. A member is the child visitor when read
+# and takes a Spec when called: a value, or a callable given the visitor. Reads never raise; a forbidden write raises
+# Errors.ReadOnlyError.
+B.Name().prop(value).value_prop(lambda p: p.as_object(lambda r: r.x(1))).create()   # a value object, through as_object
+B.Name().adjacency_name(lambda a: a.insert(lambda e: e.link(obj).entry_prop(v))).create()   # an entry, inserted
 B.Name(obj).prop(v).update()                                # change obj; .clone() makes a changed copy instead
-[(e.target, e.label) for e in irq.fanout]                   # an adjacency: an Iterable of full entries (Proxies.OfEntry.Data),
-                                                            # every link the owner's own included; links and properties as attributes
-irq.fanout.project("target")                                # each entry's link or property, in order (Proxies.OfAdjacency.Data)
-contact.phones.at("home")                                   # the entry by the key its relation's unique clause gives this end
-B.Name(obj).clear("prop").update()
-obj.prop                                                    # AttributeError when unset
-B.Name().union_prop(lambda u: u.phone(spec))                # a branch by name; obj.union_prop.phone reads it
-B.Name().tags(lambda e: e.value("a")).tags(lambda e: e.value("b"))   # a list's entries; obj.tags.project("value")
-B.Name().attrs(lambda e: e.key("gain").value(1.5))           # a keyed list: obj.attrs.at("gain").value
-obj.ports[0].port; obj.cells.at((1, 2))                      # an entry by position, or by a key of several values
-B.Name(obj).property("p", lambda p: ...).adjacency("a", lambda a: a.entries(...))  # visitor protocol, any name
+str(obj.prop); int(obj.count); obj.prop.get()               # a scalar: the dunders, or get(); get() is None when absent
+obj.prop.as_scalar(lambda s: s.set(v))                      # a property's scalar visitor; .as_value(cb) for any kind
+B.Name(obj).prop(lambda p: p.as_value(lambda v: v.clear())).update()   # clear a value
+obj.value_prop.as_object(lambda r: ...)                     # a value object's visitor, its members as an object's
+[(e.target, str(e.label)) for e in irq.fanout]              # an adjacency iterates its entries; a link is the object itself
+irq.fanout.project("target"); contact.phones.at("home")     # each entry's link or property; the entry by its key
+B.Name(obj).tags(lambda a: a.remove(lambda e: e.value("x")))   # remove every entry agreeing with a template
+obj.tags.select(lambda e: e.value("x"), lambda e: ...)      # visit the entries agreeing with a template, or equal to a value
+B.Name().union_prop(lambda p: p.as_value(lambda v: v.as_union(lambda u: u.phone(spec))))   # a branch by name
+obj.as_properties; obj.as_adjacencies(lambda a: a)          # schema unaware: the properties set, every adjacency
+obj.as_schema(); obj.as_identity()                          # what every visitor has: its schema; an object's identity
+Proxies.owner_of(value_object)                              # the object a value object belongs to
 
 # Schemas as data: a module holds schemas by name, as an object of S.Module.Schema.
 Modules.module(store, [Contact]); Modules.schemas(store, module)   # named schemas to a module, and back (by name)
 S.OfUnion.Builder().name("Code").branches(...).flat()      # flat: card.code is the branch's value, set by type
-Reflection.of(store).extent("Schemas.Object")               # a store's schemas as objects, to match and rewrite
-Paths.of(store).of(obj); Paths.of(store).find(path)          # names that survive changes elsewhere: "book.Directory/contacts[0]"
-Stores.Combined(schemas, trees)                             # stores of different implementations, as one
+Stores.Combined(one, other)                                 # stores as one, each name its store's
 
 # Everything else works for any schema.
 Reachable.of(root)                                          # root and everything reachable, in first-reference order
 Plain.ToPlain(store)(schema, obj); Plain.ToPlain(store).Reachable(schema, root); Plain.FromPlain(store)(schema, plain)
 JSON.ToJSON(store)(...), JSON.FromJSON(store)(...); YAML.ToYAML(store)(...), YAML.FromYAML(store)(...)   # as Plain
 Validators.Validate(store)(schema, obj); Validators.Validate(store).Reachable(schema, root)
-Validators.properties_of(obj)                               # {name: value} of the properties that are set
 Comparison.OfObject(schema, a).compare(Comparison.OfObject(schema, b))   # -1, 0, 1, or None if incomparable
 
 # Dataclasses: scalar fields are properties; list/dict of scalars and set/list/dict of dataclasses are relations.
@@ -123,10 +129,10 @@ ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromD
 - A schema's name is its own (`.name("crm.Contact")`), the same in every store that registers it. Registering an
   unnamed schema, or a name twice in one store, raises `ValueError`, and an object of one store cannot be linked from
   another.
-- Reading a relation's entries goes through a builder's visitor: see `entries` in
-  [tutorials/toolkit.py](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/toolkit.py), and
-  tutorial 3 for removing entries and for what `update()` replaces.
-- Names starting with `_` are internal.
+- `bool()` of a property is its bool value, not whether it is set: `if obj.flag:` raises when the flag is absent or
+  not a bool. Ask `obj.flag.get() is not None` for presence.
+- Names starting with `_` are internal, and so are a builder's own methods (`create`, `clone`, `update`): a property
+  with such a name cannot be written through a builder's member.
 
 ## Go deeper
 

@@ -62,7 +62,8 @@ Specs.Callback[V in Visitors.Of*] = Visitors.DataType[V] | Callable[[V], V]
   to be compactly and efficiently written without '.get' operators.
 - Builders (such as Proxies.OfX.Builder and <generated>.OfX.Builder) can be configured to permit or forbid writes.
 - A visitor hands its mode to the child visitors it hands over (`<propName>`, `as_value`, `as_scalar`, `<adjName>`,
-  `as_adjacencies`, `<linkName>`, ...); a value object is writable only under a builder that is constructing or cloning it.
+  `as_adjacencies`, ...); a value object is writable only under a builder that is constructing or cloning it; a link's
+  target (`<linkName>`) is read-only through an entry (Seams).
 - A write through a read-only visitor raises: refuse, never silently lose (mbse-basis P-002).
 - Writer methods return nothing: a write that the visitor's mode, or the value itself, forbids raises. A write that
   loses nothing does not: inserting an entry equal to one a set relation holds elides it, and removing where no entry
@@ -82,7 +83,11 @@ Where one protocol for reading and writing meets the code around it:
 
 - code that must not write: the read-only static view (`Readers.OfX`), checked by type.
 - writes to read-only data: raise, by the visitor's mode.
-- children of a visitor: inherit its mode; value objects follow their owner's construction or cloning.
+- children of a visitor: inherit its mode; value objects follow their owner's construction or cloning; a link's
+  target is read-only through an entry: an entry's builder relinks (`env.<linkName>(spec)`), and an object is edited
+  through its own builder.
+- a link member on a data instance is the linked instance itself (`entry.phone is p`); data instances are callable, so
+  that calling one, a write, raises.
 - one member both getter and setter on data instances and builders (`ent.linkName` read, `ent.linkName(spec)` write):
   Python's `__getattr__`/`__call__`; in TypeScript a `Proxy` with a function target, its `name` and `length` hidden, and
   generated declarations for the static types.

@@ -870,12 +870,16 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     as_scalar)"), TypeScript's `[Symbol.toPrimitive]` going as far as it reaches; unions, intersections and
     predicates take the member style, a branch or a part giving the visitor of its type's kind directly (the
     `Visitors.OfProperty` between being "an implementation detail"; "symmetry with properties isn't particularly
-    important"); `Visitors.OfAny` has `clear()`, which `Visitors.OfScalar.clear()` aliases; `as_scalar`, `as_value` and `as_adjacencies` gain no attribute form ("no"; "as scalar has no attribute form"), so a
+    important"); `Visitors.OfAny` has `clear()`, which `Visitors.OfScalar.clear()` aliases; a link member on a data instance is the linked instance itself, data
+    instances being callable so that calling one, a write, raises ("yes"); `as_scalar`, `as_value` and
+    `as_adjacencies` gain no attribute form ("no"; "as scalar has no attribute form"), so a
     scalar is read compactly through the property's dunders (`str(card.name)`). (Before that, the user had agreed
     that data instances not implement it, correcting "and so do data instances", which I had inferred.) There is no
     separate mutator protocol;
   - "the mutableness of a visited object is a mode of the visitor itself": builders "can be configured to permit or
-    forbid writes", a visitor hands its mode to the child visitors it hands over, and
+    forbid writes", a visitor hands its mode to the child visitors it hands over, except a link's target, read-only through an
+    entry, an object being edited through its own builder ("the 'children inherit their parent's mode' was overly
+    simplified"), and
     "value objects are mutable only during construction or cloning"; writer methods return nothing, and a write the
     mode or the value forbids raises; a read-only static view of each protocol (`Readers.OfX`) types the code that
     must not write; a builder's visitor reads back its pending writes ("must be guaranteed");

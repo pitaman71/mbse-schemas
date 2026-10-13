@@ -248,6 +248,33 @@ def _discard_linking(relation: RelationSchema, link: str, target: Any) -> None:
     _discard(id(relation), _linking(relation, link, target))
 
 
+def _orders(schema: ObjectSchema, source: Any) -> list[tuple[dict[Hashable, _Entry], list[_Entry]]]:
+    """The tables that hold the entries linking `source`, every object's they link, each with its entries in order."""
+    tables: dict[int, tuple[dict[Hashable, _Entry], list[_Entry]]] = {}
+    for adjacency in schema.adjacencies.values():
+        for entry in _linking(adjacency.relation, adjacency.me, source):
+            for target in entry._links.values():
+                table = _table(target, id(adjacency.relation))
+                tables.setdefault(id(table), (table, list(table.values())))
+    return list(tables.values())
+
+
+def _reorder(orders: list[tuple[dict[Hashable, _Entry], list[_Entry]]], rewritten: dict[int, _Entry]) -> None:
+    """Puts each entry an update rewrote back where the entry it rewrites was, in every table that held that one: an
+    update keeps the order of every object's entries. Entries added anew stay last."""
+    for table, before in orders:
+        by_entry = {id(entry): key for key, entry in table.items()}
+        ordered: dict[Hashable, _Entry] = {}
+        for old in before:
+            now = old if id(old) in by_entry else rewritten.get(id(old))
+            if now is not None and id(now) in by_entry:
+                ordered[by_entry[id(now)]] = now
+        for key, entry in table.items():
+            ordered.setdefault(key, entry)
+        table.clear()
+        table.update(ordered)
+
+
 def _discard_target(target: Any) -> None:
     """Discards every entry that links `target`, through any link."""
     for relation_id, table in list(object.__getattribute__(target, "_adjacent").items()):
@@ -887,7 +914,7 @@ def _agrees(entry: Any, spec: Any, adjacency: Schemas.OfAdjacency.Data, store: O
     if _is_function(spec):
         template = _EntryBuilder(adjacency.relation, adjacency.me, store)
         _visit(spec, template)
-        wanted_links, wanted_values = template._links, template._values
+        wanted_links, wanted_values = template._links, _finalized(template._values)  # value objects built
     else:
         wanted_links, wanted_values = _entry_parts(spec, adjacency.me)
         if set(wanted_links) != set(links) or set(wanted_values) != set(values):
@@ -1431,16 +1458,21 @@ class _ObjectBuilder(_Unassignable):
         if self._source is None:
             raise ValueError("update() is only valid with a source instance")
         before = _held(self._source)
+        orders = _orders(self._schema, self._source)
         for adjacency in self._schema.adjacencies.values():
             _discard_linking(adjacency.relation, adjacency.me, self._source)
-        return self._write(self._source, before)
+        rewritten: dict[int, _Entry] = {}
+        written = self._write(self._source, before, rewritten)
+        _reorder(orders, rewritten)
+        return written
 
     def _not_singleton(self, method: str) -> None:
         if self._schema.singleton is not None:
             raise ValueError(f"{method}() would make a second {self._schema_name!r}; its one instance is "
                              f"store.singleton({self._schema.singleton!r})")
 
-    def _write(self, target: _ObjectData, before: list[Any] | None = None) -> _ObjectData:
+    def _write(self, target: _ObjectData, before: list[Any] | None = None,
+               rewritten: dict[int, _Entry] | None = None) -> _ObjectData:
         """Writes the builder into `target`. Every value object it holds, its entries' too, is staged before any is
         placed, so that the entries among them link the right ones; those held `before` and no longer are removed."""
         mapping: dict[int, Any] = {}
@@ -1462,7 +1494,11 @@ class _ObjectBuilder(_Unassignable):
             relation = self._schema.adjacencies[name].relation
             for entry in entries:
                 if _first_copy(relation, entry, target, mapping):
-                    _add_entry(relation, entry.build(target))
+                    built = entry.build(target)
+                    _add_entry(relation, built)
+                    if rewritten is not None and entry._source is not None:  # by id: the entry it rewrites
+                        # the entry held: a self-loop's is built from each end, and a set keeps one
+                        rewritten[id(entry._source)] = _table(target, id(relation))[built._key()]
         _drop(before or [], _held(target))
         return target
 

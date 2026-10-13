@@ -142,7 +142,7 @@ assert(Validators.Validate(store).Reachable(Person, ada).length === 0);
 // --- Round trips, from any root ---
 
 // Read into another store, a snapshot builds objects of the same identities; read into the store that holds them, it
-// replaces their state with the snapshot's.
+// updates them through their builders, and reading it again changes nothing.
 const archive = new Proxies.OfStore();
 for (const schema of [Person, Parentage, Mentorship]) archive.register(schema);
 for (const root of [ada, carol, loner]) {

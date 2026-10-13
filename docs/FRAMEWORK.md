@@ -358,7 +358,8 @@ A transaction is a flat sequence of mutations. Mutations may be nested; transact
   key is its identity qualified by its schema's registered name, `"crm.Feature/FEA-001"`, and a singleton's is its
   global name alone. An identity is given when its object is created and never changes, so keys are not local to a
   transaction or a snapshot: a later one refers to the same object by the same key, and loading a key the store
-  already holds updates that object, replacing its state with what the snapshot holds.
+  already updates that object through its builder (Resolved, Reference identity, on update): what the snapshot holds
+  is written, and what it omits is kept.
 - Keys name only reference objects, never values or entries.
 - A value object is written nested, as a mapping of its properties and its adjacencies, without a key. Union and intersection values are written the
   same way, keyed by branch or part name: a union value `{"phone": {"number": "1"}}` has exactly one key, and decoding
@@ -778,7 +779,16 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Snapshots whose two ends disagree (F13) are accepted and restore the union of both ends' entries. Should
   deserialization reject them instead of leaving it to validation?
 
-- Versioning schema names: whether a version is part of a name (`crm.Contact.v2`) or beside it.
+- Versioning schema names: whether a version is part of a name (`crm.Contact.v2`) or beside it. Snapshot keys are
+  qualified by the registered name, so a program that registers a schema under another name than the writer's cannot
+  read its snapshots (tutorial 9 reads old data in a store of its own, under the writer's name).
+- Splitting relations from containers, which the user is "very close to deciding": `OfRelation` with at least two
+  links, `OfContainer` (formerly `OfIndexed`) with exactly one, their meta-schemas nearly identical; a container is a
+  list or array in the target language where its properties are integer-like, a dict or map where they are hashable,
+  and a list of entries otherwise. `Visitors.OfAdjacency` is drafted to match in [Visitor pattern](VISITOR_PATTERN.md)
+  (`as_iterable`, `as_ordered` and positions), not yet built. Open: whether "integer-like" and "hashable" concern all
+  of an entry's properties or its key; whether an array's index is stored or its position; what a dict maps to; and
+  whether relations keep any order.
 - Equality edge cases listed in `EQUALITY.md` are proposals; confirm them.
 - Multi-object snapshot naming: confirm `Plain.ToPlain(store).Reachable(schema, value)` /
   `Plain.FromPlain(store).Reachable(schema, plain)` (still marked PROPOSED in the example).
@@ -831,6 +841,17 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     outputs) schemas take naming patterns, whose counters are deterministic, and UUIDs are tested by their shape and
     round trips ("a"), rather than stores drawing UUIDs from a seeded source, which "a random source is given to
     whatever draws from it, not held by a store" rules out;
+  - on update, "merging should naturally fall out of the builder pattern. property access should notice that the
+    pre-existing object already has that property and return a builder on that property, etc.": decoding writes into
+    a live object through its builder, editing a property's value object in place, and what the snapshot omits is
+    kept, not cleared. Reloading must not add entries ("reloading them adds entries is not desirable"), and entries
+    without a key are matched by "overwriting what is present in the order being co-visited". Until relations are
+    split from containers (Open questions), that holds for one-link relations, whose entries are their owner's alone
+    and whose order a snapshot carries: the i-th row overwrites the i-th entry held, in the order a snapshot writes
+    them, and rows past those are added. A relation of two links or more has no order to co-visit, an entry sitting
+    in a list at each end, so a row is the entry held that agrees with its links and properties, the k-th equal row
+    the k-th such entry, and is added where none agrees ("finish V4 that way"). Builders keep every object's entries
+    in their order through an update, so that positions hold;
   - "for value objects as_identity should return None", and so does any visitor without an identity (an empty one, a
     builder of an object not yet created): "it feels like None/null is a better representative of no identity, but I
     don't have a strong opinion", so it was taken.
@@ -847,8 +868,6 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     `create()` gives that identity; a program's `create()` always gets a new one. Creating an identity that is live
     is refused ("a 'X' with the identity 'Y' is already live; update it"); one whose object is gone may be created
     again;
-  - an update from a snapshot replaces the object's state: the properties and entries the snapshot does not hold are
-    removed, since a snapshot holds an object's whole state;
   - a visitor of nothing (an absent value, another kind, a member the schema lacks) has no schema, `as_schema()` None,
     as it has no identity; presence is tested by `as_schema()`, an identity being absent from every value object;
   - snapshot key errors: "a 'X' is keyed by its identity qualified by its schema's name, e.g. 'X/<name>'", "the

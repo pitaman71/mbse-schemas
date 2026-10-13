@@ -16,7 +16,8 @@ and TypeScript write byte-identical JSON, and each reads the other's.
 - Objects are keyed by their identities, qualified by their schemas' registered names (`Port/PRT-001`; a singleton's
   key is its global name alone). Each object appears once, however many objects link to it, and cycles need no
   special handling. Identities are kept across snapshots and stores: reading a snapshot into a store that holds an
-  object of the same identity updates that object, replacing its state.
+  object of the same identity updates that object: what the snapshot holds is written, what it omits is kept, and
+  reading it again changes nothing.
 - An object maps property names to values, and adjacency names to lists of entries. An entry holds the other links
   as references `{"$ref": key, "$schema": name}` and its own properties. The object's own link is implied.
 - A value object is a nested mapping, with its lists nested in it, and no key: nothing links to it.

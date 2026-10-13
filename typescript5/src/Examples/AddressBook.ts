@@ -170,7 +170,7 @@ const roundtrip = Plain.FromPlain(backup).Reachable(IntlAddress, graph) as Proxi
 assert(roundtrip !== addr1 && roundtrip.as_identity() === addr1.as_identity());
 assert(equal(Plain.ToPlain(backup).Reachable(IntlAddress, roundtrip), graph));
 
-// Read into the store that holds them, it replaces their state with the snapshot's.
+// Read into the store that holds them, it updates them through their builders: what it omits, they keep.
 assert(Plain.FromPlain(store).Reachable(IntlAddress, graph) === addr1);
 
 // The same snapshot as JSON text, and back.

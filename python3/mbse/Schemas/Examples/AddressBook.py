@@ -203,7 +203,7 @@ roundtrip = Plain.FromPlain(backup).Reachable(IntlAddress, graph)
 assert roundtrip is not addr1 and roundtrip.as_identity() == addr1.as_identity()
 assert Plain.ToPlain(backup).Reachable(IntlAddress, roundtrip) == graph
 
-# Read into the store that holds them, it replaces their state with the snapshot's.
+# Read into the store that holds them, it updates them through their builders: what it omits, they keep.
 assert Plain.FromPlain(store).Reachable(IntlAddress, graph) is addr1
 
 # The same snapshot as JSON text, and back.

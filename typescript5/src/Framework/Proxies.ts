@@ -430,6 +430,39 @@ function discardLinking(relation: RelationSchema, link: string, target: unknown)
   discard(relation, linking(relation, link, target));
 }
 
+type Orders = [Map<string, any>, any[]][];
+
+/** The tables that hold the entries linking `source`, every object's they link, each with its entries in order. */
+function orders(schema: ObjectSchema, source: unknown): Orders {
+  const tables = new Map<Map<string, any>, any[]>();
+  for (const adjacency of schema.adjacencies.values()) {
+    const relation = adjacency.relation as RelationSchema;
+    for (const entry of linking(relation, adjacency.me, source)) {
+      for (const target of (innerOf(entry) as _Entry)._links.values()) {
+        const held = table(target, relation);
+        if (!tables.has(held)) tables.set(held, [...held.values()]);
+      }
+    }
+  }
+  return [...tables];
+}
+
+/** Puts each entry an update rewrote back where the entry it rewrites was, in every table that held that one: an
+ * update keeps the order of every object's entries. Entries added anew stay last. */
+function reorder(tables: Orders, rewritten: Map<unknown, unknown>): void {
+  for (const [held, before] of tables) {
+    const byEntry = new Map([...held].map(([key, entry]) => [entry, key] as const));
+    const ordered = new Map<string, any>();
+    for (const old of before) {
+      const now = byEntry.has(old) ? old : rewritten.get(old);
+      if (now !== undefined && byEntry.has(now)) ordered.set(byEntry.get(now) as string, now);
+    }
+    for (const [key, entry] of held) if (!ordered.has(key)) ordered.set(key, entry);
+    held.clear();
+    for (const [key, entry] of ordered) held.set(key, entry);
+  }
+}
+
 /** Discards every entry that links `target`, through any link. */
 function discardTarget(target: unknown): void {
   const adjacent: Map<RelationSchema, Map<string, unknown>> = innerOf(target)._adjacent;
@@ -1210,7 +1243,7 @@ function agrees(entry: unknown, spec: unknown, adjacency: AdjacencySchema, store
     const template = makeEntryBuilder(adjacency.relation as RelationSchema, adjacency.me, store);
     visit(spec, template);
     wantedLinks = innerOf(template)._links;
-    wantedValues = innerOf(template)._values;
+    wantedValues = finalized(innerOf(template)._values); // value objects built
   } else {
     [wantedLinks, wantedValues] = entryParts(spec, adjacency.me);
     if (!sameKeys(wantedLinks, links) || !sameKeys(wantedValues, values)) return false;
@@ -1850,10 +1883,14 @@ class _ObjectBuilder extends Shelled {
     noArguments("update", args);
     if (this._source === null) throw new ValueError("update() is only valid with a source instance");
     const before = heldBy(this._source);
+    const tables = orders(this._schema, this._source);
     for (const adjacency of this._schema.adjacencies.values()) {
       discardLinking(adjacency.relation as RelationSchema, adjacency.me, this._source);
     }
-    return this._write(this._source, before);
+    const rewritten = new Map<unknown, unknown>();
+    const written = this._write(this._source, before, rewritten);
+    reorder(tables, rewritten);
+    return written;
   }
 
   _notSingleton(method: string): void {
@@ -1865,7 +1902,7 @@ class _ObjectBuilder extends Shelled {
 
   /** Writes the builder into `target`. Every value object it holds, its entries' too, is staged before any is placed,
    * so that the entries among them link the right ones; those held `before` and no longer are removed. */
-  _write(target: Instance, before: unknown[] = []): Instance {
+  _write(target: Instance, before: unknown[] = [], rewritten?: Map<unknown, unknown>): Instance {
     const state: _ObjectData = innerOf(target);
     const mapping: Mapping = new Map();
     if (this._source !== null && target !== this._source) mapping.set(this._source, target); // a clone: its value objects link it, not the source
@@ -1880,7 +1917,13 @@ class _ObjectBuilder extends Shelled {
     for (const [name, entries] of this._entries) {
       const relation = (this._schema.adjacencies.get(name) as AdjacencySchema).relation as RelationSchema;
       for (const entry of entries) {
-        if (firstCopy(relation, innerOf(entry), target, mapping)) addEntry(relation, innerOf(entry).build(target));
+        if (!firstCopy(relation, innerOf(entry), target, mapping)) continue;
+        const built = innerOf(entry).build(target);
+        addEntry(relation, built);
+        const source = innerOf(entry)._source;
+        if (rewritten !== undefined && source !== null) { // the entry held: a self-loop's is built from each end, and a set keeps one
+          rewritten.set(source, table(target, relation).get(innerOf(built)._key()));
+        }
       }
     }
     drop(before, heldBy(target));

@@ -452,7 +452,10 @@ class _Any:
         return _RecordBuilder(self._type, value if isinstance(value, _RecordData) else None, self._store, attach)
 
     def _write_record(self, cb: Any) -> None:
-        _visit(cb, self._builder())
+        """Selects the kind, writing the value, and hands its builder over."""
+        builder = self._builder()
+        builder._touch()
+        _visit(cb, builder)
 
     def _replace(self, value: Any) -> None:
         """Writes a value object, union value or intersection value given as a value: copied when it is placed."""
@@ -1040,8 +1043,9 @@ class _RecordBuilder:
         return _Empty(None, f"{name!r} is not a member of {_a(_noun(schema))}")
 
     def __call__(self, spec: Any) -> Any:
-        """As a union's branch or an intersection's part: writes or visits through a Spec."""
+        """As a union's branch or an intersection's part: writes through a Spec, selecting the branch."""
         if _is_function(spec):
+            self._touch()
             _visit(spec, self)
         else:
             if not isinstance(spec, (_RecordData, _RecordBuilder)) or spec._schema is not self._schema:

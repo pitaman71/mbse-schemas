@@ -40,7 +40,7 @@ def _entries(name, values):
 
     def spec(builder):
         for value in values:
-            getattr(builder, name)(value)
+            getattr(builder, name).insert(value)
         return builder
 
     return spec
@@ -141,11 +141,11 @@ def build():
 
     home = B.Address().street1("10 Downing Street").locality("London").postal_code("SW1A 2AA").country_code("GB").create()
     alice = (B.Contact().given_name("Alice").family_name("Liddell").birth_date("1852-05-04")
-             .addresses(lambda x: x.address(home).label("home"))
-             .phones(lambda x: x.phone(lambda p: p.number("+447700900123")).label("mobile"))
-             .phones(lambda x: x.phone(lambda p: p.number("+14155550100")).label("work"))
+             .addresses(lambda a: a.insert(lambda x: x.address(home).label("home")))
+             .phones(lambda a: a.insert(lambda x: x.phone(lambda p: p.number("+447700900123")).label("mobile")))
+             .phones(lambda a: a.insert(lambda x: x.phone(lambda p: p.number("+14155550100")).label("work")))
              .create())
-    B.Contact().given_name("Bob").addresses(lambda x: x.address(home).label("home")).create()
+    B.Contact().given_name("Bob").addresses(lambda a: a.insert(lambda x: x.address(home).label("home"))).create()
 
     samples = [
         dict(label="", payload=b"", count=0, ratio=0.0, flag=False),
@@ -165,23 +165,23 @@ def build():
         for name, value in values.items():
             getattr(builder, name)(value)
         item = builder.create()
-        B.Bag(bag).items(lambda x, item=item, slot=slot: x.item(item).slot(slot)).update()
+        B.Bag(bag).items(lambda a: a.insert(lambda x, item=item, slot=slot: x.item(item).slot(slot))).update()
 
     ada = B.Person().given_name("Ada").birth_date("1815-12-10").create()
-    bob = B.Person().given_name("Bob").parents(lambda x: x.parent(ada).kind("biological")).create()
-    carol = B.Person().given_name("Carol").children(
-        lambda x: x.child(lambda y: y.given_name("Dan").birth_date("2001-02-03")).kind("adoptive")).create()
-    B.Person(ada).mentees(lambda x: x.mentee(bob)).update()
-    B.Person(carol).mentees(lambda x: x.mentee(carol)).update()
-    B.Person(bob).mentees(lambda x: x.mentee(ada)).update()
+    bob = B.Person().given_name("Bob").parents(lambda a: a.insert(lambda x: x.parent(ada).kind("biological"))).create()
+    carol = B.Person().given_name("Carol").children(lambda a: a.insert(
+        lambda x: x.child(lambda y: y.given_name("Dan").birth_date("2001-02-03")).kind("adoptive"))).create()
+    B.Person(ada).mentees(lambda a: a.insert(lambda x: x.mentee(bob))).update()
+    B.Person(carol).mentees(lambda a: a.insert(lambda x: x.mentee(carol))).update()
+    B.Person(bob).mentees(lambda a: a.insert(lambda x: x.mentee(ada))).update()
 
     fall = B.Term().code("2026-FA").starts("2026-09-01").create()
     cs101 = B.Course().code("CS101").create()
     mia = (B.Student().name("Mia")
-           .enrollments(lambda x: x.course(cs101).term(fall).credits(4).score(3.75).audit(False))
-           .enrollments(lambda x: x.course(lambda c: c.code("MA201")).term(fall).credits(3).score(-0.0))
+           .enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).credits(4).score(3.75).audit(False)))
+           .enrollments(lambda a: a.insert(lambda x: x.course(lambda c: c.code("MA201")).term(fall).credits(3).score(-0.0)))
            .create())
-    B.Student().name("Noah").enrollments(lambda x: x.course(cs101).term(fall).audit(True)).create()
+    B.Student().name("Noah").enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).audit(True))).create()
 
     tricky = ["yes", "No", "on", "OFF", "y", "true", "null", "~", "", "010", "0o17", "0x1F", "1e3", "1_000", "1:30",
               "2026-09-01", ".inf", ".nan", "NaN", "Infinity", "-0.0", "+1", " lead", "trail ", "a: b", "- dash",
@@ -191,39 +191,39 @@ def build():
     notebook = B.Notebook().title("tricky").create()
     for page, value in enumerate(tricky):
         note = B.Note().text(value).create()
-        B.Notebook(notebook).notes(lambda x, note=note, page=page: x.note(note).page(page)).update()
+        B.Notebook(notebook).notes(lambda a: a.insert(lambda x, note=note, page=page: x.note(note).page(page))).update()
 
     deck = B.Deck().title("contacts").create()
     cards = [
-        B.Card().name("Ann").home(lambda r: r.number("+1 555 0100").label("home").extensions(lambda e: e.value("12")))
-        .reach(lambda u: u.email(lambda r: r.address("ann@example.com"))).ident(lambda u: u.number(7)).create(),
-        B.Card().name("Bo").reach(lambda u: u.phone(lambda r: r.number("+44 20 7946 0000")))
-        .ident(lambda u: u.code("B-2"))
-        .meta(lambda i: i.stamp(lambda r: r.updated("2026-09-29")).audit(lambda r: r.updated("2026-09-29").by("ann")))
+        B.Card().name("Ann").home(lambda p: p.as_object(lambda r: r.number("+1 555 0100").label("home").extensions(lambda a: a.insert(lambda e: e.value("12")))))
+        .reach(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.email(lambda r: r.address("ann@example.com"))))).ident(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.number(7)))).create(),
+        B.Card().name("Bo").reach(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.phone(lambda r: r.number("+44 20 7946 0000")))))
+        .ident(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.code("B-2"))))
+        .meta(lambda p: p.as_value(lambda a: a.as_intersection(lambda i: i.stamp(lambda r: r.updated("2026-09-29")).audit(lambda r: r.updated("2026-09-29").by("ann")))))
         .create(),
         B.Card().name("Cy").create(),
     ]
     for card in cards:
-        B.Deck(deck).cards(lambda x, card=card: x.card(card)).update()
+        B.Deck(deck).cards(lambda a: a.insert(lambda x, card=card: x.card(card))).update()
 
     rack = B.Board().name("rack")
     for value in ["", "日本語 🚀", "a"]:
-        rack.tags(lambda e, value=value: e.value(value))
+        rack.tags(lambda a: a.insert(lambda e, value=value: e.value(value)))
     for value in [b"", b"\x00\xff"]:
-        rack.blobs(lambda e, value=value: e.value(value))
+        rack.blobs(lambda a: a.insert(lambda e, value=value: e.value(value)))
     for row in [[1, -(2**70)], [], [0]]:
-        rack.grid(lambda e, row=row: e.row(_entries("values", [lambda x, v=v: x.value(v) for v in row])))
-    rack.readings(lambda e: e.reading(lambda u: u.value(-0.0))).readings(lambda e: e.reading(lambda u: u.note("off")))
-    rack.readings(lambda e: e.reading(lambda u: u.value(math.inf)))
-    rack.sockets(lambda e: e.socket(lambda o: o.name("in").pins(lambda x: x.value("1")).pins(lambda x: x.value("2"))))
-    rack.sockets(lambda e: e.socket(lambda o: o.name("out")))
-    rack.banks(lambda e: e.bank(lambda b: b)).banks(lambda e: e.bank(lambda b: b.sockets(
-        lambda x: x.socket(lambda o: o.name("spare").pins(lambda y: y.value("9"))))))
+        rack.grid(lambda a: a.insert(lambda e, row=row: e.row(lambda p: p.as_object(_entries("values", [lambda x, v=v: x.value(v) for v in row])))))
+    rack.readings(lambda a: a.insert(lambda e: e.reading(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.value(-0.0)))))).readings(lambda a: a.insert(lambda e: e.reading(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.note("off"))))))
+    rack.readings(lambda a: a.insert(lambda e: e.reading(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.value(math.inf))))))
+    rack.sockets(lambda a: a.insert(lambda e: e.socket(lambda p: p.as_object(lambda o: o.name("in").pins(lambda a: a.insert(lambda x: x.value("1"))).pins(lambda a: a.insert(lambda x: x.value("2")))))))
+    rack.sockets(lambda a: a.insert(lambda e: e.socket(lambda p: p.as_object(lambda o: o.name("out")))))
+    rack.banks(lambda a: a.insert(lambda e: e.bank(lambda p: p.as_object(lambda b: b)))).banks(lambda a: a.insert(lambda e: e.bank(lambda p: p.as_object(lambda b: b.sockets(lambda a: a.insert(
+        lambda x: x.socket(lambda p: p.as_object(lambda o: o.name("spare").pins(lambda a: a.insert(lambda y: y.value("9")))))))))))
     for i, j, value in [(2, 1, 0), (1, 1, 1), (1, 2, 0), (2, 2, 1)]:
-        rack.matrix(lambda e, i=i, j=j, value=value: e.i(i).j(j).value(value))
-    rack.attrs(lambda e: e.key("gain").value(1.5)).attrs(lambda e: e.key("").value(-0.0))
-    rack.weights(lambda e: e.key(0.5).value("half")).weights(lambda e: e.key(math.nan).value("none"))
-    rack.cells(lambda e: e.key(lambda c: c.r(2).c(3)).value(6)).cells(lambda e: e.key(lambda c: c.r(0).c(0)).value(0))
+        rack.matrix(lambda a: a.insert(lambda e, i=i, j=j, value=value: e.i(i).j(j).value(value)))
+    rack.attrs(lambda a: a.insert(lambda e: e.key("gain").value(1.5))).attrs(lambda a: a.insert(lambda e: e.key("").value(-0.0)))
+    rack.weights(lambda a: a.insert(lambda e: e.key(0.5).value("half"))).weights(lambda a: a.insert(lambda e: e.key(math.nan).value("none")))
+    rack.cells(lambda a: a.insert(lambda e: e.key(lambda p: p.as_object(lambda c: c.r(2).c(3))).value(6))).cells(lambda a: a.insert(lambda e: e.key(lambda p: p.as_object(lambda c: c.r(0).c(0))).value(0)))
     board = rack.create()
 
     # --- module: the corpus's own schemas as data, with scalars of widths and another format's token, parametric

@@ -18,7 +18,7 @@ import json
 import re
 from typing import Any, NoReturn
 
-from . import Plain, Schemas, Stores, Visitors
+from . import Plain, Readers, Schemas, Stores
 from .Errors import DecodeError
 from .Plain import PlainData
 
@@ -242,10 +242,10 @@ class ToJSON:
     def OfScalar(self, schema: Schemas.OfScalar.Data, value: Any, *, indent: int | None = None) -> str:
         return dumps(self._plain.OfScalar(schema, value), indent=indent)
 
-    def OfObject(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable, *, indent: int | None = None) -> str:
+    def OfObject(self, schema: Schemas.OfObject.Data, value: Readers.OfObject, *, indent: int | None = None) -> str:
         return dumps(self._plain.OfObject(schema, value), indent=indent)
 
-    def Reachable(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable, *, indent: int | None = None) -> str:
+    def Reachable(self, schema: Schemas.OfObject.Data, value: Readers.OfObject, *, indent: int | None = None) -> str:
         return dumps(self._plain.Reachable(schema, value), indent=indent)
 
 

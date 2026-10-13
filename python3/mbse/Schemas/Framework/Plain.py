@@ -13,7 +13,8 @@ object content carries no schema, so references carry the schema name, and the r
 `ToPlain(store).Reachable` also includes every object reachable through adjacencies (see `Reachable`). Decoding builds
 new objects in the store, except an object of a singleton schema, which updates the store's instance.
 
-The serializers are visitors: a value writes itself into them through `Visitable.accept`.
+The serializers read values through the visitor protocol (`Readers.OfObject`), and decoding writes them through a
+store's builders (`Visitors.OfObject`).
 
 A value object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties. Union
 and intersection values are written the same way, with the union's branches or the intersection's parts as the
@@ -26,7 +27,7 @@ from __future__ import annotations
 from collections.abc import Callable, Hashable
 from typing import Any, NamedTuple, Protocol
 
-from . import Reachable, Schemas, Stores, Visitors
+from . import Reachable, Readers, Schemas, Stores, Visitors
 from .Errors import DecodeError, path
 from .Visitors import Scalar
 
@@ -39,230 +40,80 @@ SCHEMA = "$schema"
 ID = "$id"
 
 
-# --- Writers: Visitors that write plain data ---
+# --- Writing: plain data read through the visitor protocol ---
 
 
-class _ScalarWriter:
-    """`Visitors.OfScalar` writing one key of a plain dict."""
-
-    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfScalar.Data):
-        self._out, self._name, self._schema = out, name, schema
-
-    def has(self) -> bool:
-        return self._name in self._out
-
-    def get(self) -> Scalar:
-        return self._schema.from_plain(self._out[self._name])
-
-    def set(self, value: Scalar) -> _ScalarWriter:
-        self._out[self._name] = self._schema.to_plain(value)
-        return self
-
-    def clear(self) -> _ScalarWriter:
-        self._out.pop(self._name, None)
-        return self
+Ref = Callable[[Readers.OfObject], dict[str, PlainData]]
 
 
-Ref = Callable[[Visitors.Visitable], dict[str, PlainData]]
+def _present(visitor: Any) -> bool:
+    """Whether a value object's visitor visits one: an empty visitor has no identity."""
+    return visitor.as_identity() != ""
 
 
-class _AnyWriter:
-    """`Visitors.OfAny` writing one key of a plain dict: a scalar, or a value object (an object's, a union value or an
-    intersection value), nested. `ref` writes references to linked objects."""
-
-    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfAny.Data, ref: Ref):
-        self._out, self._name, self._ref = out, name, ref
-        self._schema = Schemas.structure(schema)
-
-    def as_scalar(self, callback: Callable[[Visitors.OfScalar], Any]) -> _AnyWriter:
-        if not isinstance(self._schema, Schemas.OfScalar.Data):
-            raise TypeError(f"property {self._name!r} is not scalar")
-        callback(_ScalarWriter(self._out, self._name, self._schema))
-        return self
-
-    def as_object(self, callback: Callable[[Visitors.OfObject], Any]) -> _AnyWriter:
-        return self._record(Schemas.OfObject.Data, "an object", callback)
-
-    def as_union(self, callback: Callable[[Visitors.OfUnion], Any]) -> _AnyWriter:
-        return self._record(Schemas.OfUnion.Data, "a union", callback)
-
-    def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _AnyWriter:
-        return self._record(Schemas.OfIntersection.Data, "an intersection", callback)
-
-    def _record(self, kind: type, noun: str, callback: Callable[[Any], Any]) -> _AnyWriter:
-        """Writes a value object, a union value or an intersection value, nested as a mapping."""
-        if not isinstance(self._schema, kind):
-            raise TypeError(f"property {self._name!r} is not {noun}")
-        nested = self._out.get(self._name)
-        if not isinstance(nested, dict):
-            nested = self._out[self._name] = {}
-        callback(_ObjectWriter(nested, self._schema, self._ref) if isinstance(self._schema, Schemas.OfObject.Data)
-                 else _RecordWriter(nested, self._schema, self._ref))
-        if isinstance(self._schema, Schemas.OfUnion.Data) and not nested:
-            del self._out[self._name]  # a union value without a branch is no value
-        return self
+def _value(read: Readers.OfProperty, schema: Schemas.OfAny.Data, ref: Ref) -> tuple[bool, PlainData]:
+    """A property's value as plain data, read through its visitor, and whether it has one."""
+    held = Schemas.structure(schema)
+    found: list[PlainData] = []
+    if isinstance(held, Schemas.OfScalar.Data):
+        read.as_scalar(lambda s: found.extend([] if s.get() is None else [held.to_plain(s.get())]) or s)
+    elif isinstance(held, Schemas.OfObject.Data):
+        read.as_object(lambda o: found.extend([_object(o, held, ref)] if _present(o) else []) or o)
+    else:
+        select = "as_union" if isinstance(held, Schemas.OfUnion.Data) else "as_intersection"
+        read.as_value(lambda a: getattr(a, select)(lambda r: found.extend([_record(r, held, ref)] if _present(r) else []) or r) or a)
+    return (True, found[0]) if found else (False, None)
 
 
-class _PropertyWriter:
-    """`Visitors.OfProperty` writing one key of a plain dict."""
-
-    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfAny.Data, ref: Ref):
-        self._out, self._name, self._schema, self._ref = out, name, schema, ref
-
-    def name(self) -> str:
-        return self._name
-
-    def has(self) -> bool:
-        return self._name in self._out
-
-    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _PropertyWriter:
-        callback(_AnyWriter(self._out, self._name, self._schema, self._ref))
-        return self
-
-    def clear(self) -> _PropertyWriter:
-        self._out.pop(self._name, None)
-        return self
+def _member(read: Any, schema: Any, ref: Ref) -> tuple[bool, PlainData]:
+    """A union's branch or an intersection's part as plain data: its visitor is of its type's kind."""
+    held = Schemas.structure(schema)
+    if isinstance(held, Schemas.OfScalar.Data):
+        value = read.get()
+        return (False, None) if value is None else (True, held.to_plain(value))
+    if not _present(read):
+        return False, None
+    return True, _object(read, held, ref) if isinstance(held, Schemas.OfObject.Data) else _record(read, held, ref)
 
 
-def _property_schema(properties: dict[str, Any], name: str) -> Schemas.OfAny.Data:
-    """The type of the property `name` (an `OfProperty`, or a union's or intersection's member)."""
-    if name not in properties:
-        raise KeyError(f"unknown property {name!r}")
-    return properties[name].type
+def _record(read: Any, schema: Any, ref: Ref) -> dict[str, PlainData]:
+    """A union value or an intersection value, nested as a mapping of its branch or its parts."""
+    out: dict[str, PlainData] = {}
+    for name, member in schema.properties.items():
+        present, plain = _member(getattr(read, name), member.type, ref)
+        if present:
+            out[name] = plain
+    return out
 
 
-class _LinkWriter:
-    """`Visitors.OfLink` writing a reference into a plain entry."""
-
-    def __init__(self, entry: dict[str, PlainData], name: str, ref: Ref):
-        self._entry, self._name, self._ref = entry, name, ref
-
-    def name(self) -> str:
-        return self._name
-
-    def target(self, callback: Callable[[Visitors.Visitable], Any]) -> _LinkWriter:
-        raise NotImplementedError("a plain writer cannot read link targets back")
-
-    def set(self, target: Visitors.Visitable) -> _LinkWriter:
-        self._entry[self._name] = self._ref(target)
-        return self
-
-
-class _EntryWriter:
-    """`Visitors.OfEntry` writing one plain entry."""
-
-    def __init__(self, entry: dict[str, PlainData], relation: Schemas.OfRelation.Data, me: str, ref: Ref):
-        self._entry, self._relation, self._me, self._ref = entry, relation, me, ref
-
-    def links(self, callback: Callable[[Visitors.OfLink], Any]) -> _EntryWriter:
-        for name in self._relation.entry.links:
-            if name != self._me:
-                callback(_LinkWriter(self._entry, name, self._ref))
-        return self
-
-    def link(self, name: str, callback: Callable[[Visitors.OfLink], Any]) -> _EntryWriter:
-        if name == self._me or name not in self._relation.entry.links:
-            raise KeyError(f"{name!r} is not a link this entry can set")
-        callback(_LinkWriter(self._entry, name, self._ref))
-        return self
-
-    def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryWriter:
-        for name in self._relation.entry.properties:
-            if name in self._entry:
-                callback(_PropertyWriter(self._entry, name, self._relation.entry.properties[name].type, self._ref))
-        return self
-
-    def has(self, name: str) -> bool:
-        return name in self._entry
-
-    def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryWriter:
-        schema = _property_schema(self._relation.entry.properties, name)
-        callback(_PropertyWriter(self._entry, name, schema, self._ref))
-        return self
-
-    def clear(self, name: str) -> _EntryWriter:
-        self._entry.pop(name, None)
-        return self
+def _object(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref) -> dict[str, PlainData]:
+    """An object, a reference object or a value object nested in its owner, as a mapping: its properties, in the
+    schema's order, then its adjacencies' entries. A value object has no symbol: entries never reference value
+    objects."""
+    out: dict[str, PlainData] = {}
+    for prop in read.as_properties:
+        name = prop.as_schema().name
+        present, plain = _value(prop, prop.as_schema().type, ref)
+        if present:
+            out[name] = plain
+    for name, adjacency in schema.adjacencies.items():
+        entries = [_entry(entry, adjacency, ref) for entry in getattr(read, name)]
+        if entries:
+            out[name] = entries
+    return out
 
 
-class _AdjacencyWriter:
-    """`Visitors.OfAdjacency` writing a list of plain entries."""
-
-    def __init__(self, entries: list[dict[str, PlainData]], name: str, schema: Schemas.OfAdjacency.Data, ref: Ref):
-        self._entries, self._name, self._schema, self._ref = entries, name, schema, ref
-
-    def name(self) -> str:
-        return self._name
-
-    def me(self) -> str:
-        return self._schema.me
-
-    def entries(self, callback: Callable[[Visitors.OfEntry], Any]) -> _AdjacencyWriter:
-        for entry in self._entries:
-            callback(_EntryWriter(entry, self._schema.relation, self._schema.me, self._ref))
-        return self
-
-    def add(self, callback: Callable[[Visitors.OfEntry], Any]) -> _AdjacencyWriter:
-        entry: dict[str, PlainData] = {}
-        callback(_EntryWriter(entry, self._schema.relation, self._schema.me, self._ref))
-        self._entries.append(entry)
-        return self
-
-    def remove(self, entry: Visitors.OfEntry) -> _AdjacencyWriter:
-        raise NotImplementedError("a plain writer does not remove entries")
-
-
-class _RecordWriter:
-    """`Visitors.OfUnion` and `Visitors.OfIntersection` writing a union or intersection value, whose properties are the
-    branches or parts; the base of `_ObjectWriter`. Writing a union's branch clears any other."""
-
-    def __init__(self, out: dict[str, PlainData], schema: Any, ref: Ref):
-        self._out, self._schema, self._ref = out, schema, ref
-
-    def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> Any:
-        for name, schema in ((n, p.type) for n, p in self._schema.properties.items()):
-            if name in self._out:
-                callback(_PropertyWriter(self._out, name, schema, self._ref))
-        return self
-
-    def has(self, name: str) -> bool:
-        return name in self._out
-
-    def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> Any:
-        schema = _property_schema(self._schema.properties, name)
-        if isinstance(self._schema, Schemas.OfUnion.Data):
-            for other in [n for n in self._out if n != name]:
-                del self._out[other]
-        callback(_PropertyWriter(self._out, name, schema, self._ref))
-        return self
-
-    def clear(self, name: str) -> Any:
-        self._out.pop(name, None)
-        return self
-
-
-class _ObjectWriter(_RecordWriter):
-    """`Visitors.OfObject` writing one plain object, a reference object or a value object nested in its owner. A value
-    object has no symbol: entries never reference value objects."""
-
-    def __init__(self, out: dict[str, PlainData], schema: Schemas.OfObject.Data, ref: Ref):
-        super().__init__(out, schema, ref)
-
-    def identify(self, value: Visitors.Visitable) -> _ObjectWriter:
-        return self
-
-    def adjacencies(self, callback: Callable[[Visitors.OfAdjacency], Any]) -> _ObjectWriter:
-        for name in self._schema.adjacencies:
-            self.adjacency(name, callback)
-        return self
-
-    def adjacency(self, name: str, callback: Callable[[Visitors.OfAdjacency], Any]) -> _ObjectWriter:
-        if name not in self._schema.adjacencies:
-            raise KeyError(f"unknown adjacency {name!r}")
-        entries = self._out.setdefault(name, [])
-        assert isinstance(entries, list)
-        callback(_AdjacencyWriter(entries, name, self._schema.adjacencies[name], self._ref))
-        return self
+def _entry(read: Readers.OfEntry, adjacency: Schemas.OfAdjacency.Data, ref: Ref) -> dict[str, PlainData]:
+    """An entry as a mapping: the links other than the object's own, as references, then its properties."""
+    out: dict[str, PlainData] = {}
+    for name in adjacency.relation.entry.links:
+        if name != adjacency.me:
+            out[name] = ref(getattr(read, name))
+    for name, prop in adjacency.relation.entry.properties.items():
+        present, plain = _value(getattr(read, name), prop.type, ref)
+        if present:
+            out[name] = plain
+    return out
 
 
 # --- Snapshots ---
@@ -275,30 +126,28 @@ class _Snapshot:
         self._store = store
         self._symbols: dict[Hashable, str] = {}
 
-    def _symbol(self, value: Visitors.Visitable) -> str:
-        return self._symbols.setdefault(value.identity(), f"s{len(self._symbols)}")
+    def _symbol(self, value: Readers.OfObject) -> str:
+        return self._symbols.setdefault(value.as_identity(), f"s{len(self._symbols)}")
 
-    def _ref(self, target: Visitors.Visitable) -> dict[str, PlainData]:
+    def _ref(self, target: Readers.OfObject) -> dict[str, PlainData]:
         """A reference to a linked object, which is a reference object: entries never reference value objects."""
-        if target.owner() is not None:
+        if not target.as_schema().ref:
             raise TypeError("a link targets a reference object, never a value object")
-        return {REF: self._symbol(target), SCHEMA: target.schema_name()}
+        return {REF: self._symbol(target), SCHEMA: self._store.name_of(target.as_schema())}
 
     def run(
-        self, schema: Schemas.OfObject.Data, root: Visitors.Visitable, include: list[Visitors.Visitable]
+        self, schema: Schemas.OfObject.Data, root: Readers.OfObject, include: list[Readers.OfObject]
     ) -> dict[str, PlainData]:
-        if self._store.schema(root.schema_name()) is not schema:
-            raise TypeError(f"value is a {root.schema_name()!r}, not an instance of the given schema")
+        if root.as_schema() is not schema:
+            raise TypeError(f"value is a {root.as_schema().name!r}, not an instance of the given schema")
         if not schema.ref:
-            raise TypeError(f"a snapshot's root must be a reference object; {root.schema_name()!r} is a value object schema")
+            raise TypeError(f"a snapshot's root must be a reference object; {schema.name!r} is a value object schema")
         for value in include:
             self._symbol(value)
         objects: dict[str, PlainData] = {}
         for value in include:
-            out: dict[str, PlainData] = {}
-            schema = self._store.schema(value.schema_name())
-            value.accept(_ObjectWriter(out, schema, self._ref))
-            _sort_entries(schema, out)
+            out = _object(value, value.as_schema(), self._ref)
+            _sort_entries(value.as_schema(), out)
             objects[self._symbol(value)] = out
         return {"root": self._symbol(root), "objects": objects}
 
@@ -345,19 +194,22 @@ class _Link(NamedTuple):
 
 
 class _Record(NamedTuple):
-    """A decoded value object (an object's, a union value or an intersection value); `accept` writes its properties into
-    a builder. Its entries are added once every object is built."""
+    """A decoded value object (an object's, a union value or an intersection value), which `_build` writes into its
+    builder. Its entries are added once every object is built."""
 
     schema: Any
     values: dict[str, Any]
     rows: dict[str, list[dict[str, Any]]] = {}  # entries decoded where no snapshot holds the value
 
-    def accept(self, visitor: Visitors.OfObject) -> None:
-        for name, value in self.values.items():
-            _set(visitor, name, value)
-        for name, rows in self.rows.items():
-            for row in rows:
-                visitor.adjacency(name, lambda a, r=row: a.add(lambda x: _fill(x, r, _unresolved)))
+
+def _build(visitor: Any, record: _Record) -> Any:
+    """Writes a decoded value object, union value or intersection value through its builder."""
+    for name, value in record.values.items():
+        _set(visitor, name, value)
+    for name, rows in record.rows.items():
+        for row in rows:
+            getattr(visitor, name).insert(lambda x, r=row: _fill(x, r, _unresolved))
+    return visitor
 
 
 def _unresolved(symbol: str) -> Any:
@@ -602,7 +454,7 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
         for key, rows in adjacencies.items():  # a one-link relation's entries are its owner's, as its properties are
             if len(object_schema.adjacencies[key].relation.entry.links) == 1:
                 for row in kept(object_schema, symbol, key, rows):
-                    builder.adjacency(key, lambda a, r=row: a.add(lambda x: _fill(x, r, lambda symbol: None)))
+                    getattr(builder, key).insert(lambda x, r=row: _fill(x, r, lambda symbol: None))
         created[symbol] = builder.create() if global_name is None else builder.update()
 
     def resolve(symbol: str) -> Any:
@@ -639,7 +491,7 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
         for key, rows in adjacencies.items():
             if len(object_schema.adjacencies[key].relation.entry.links) > 1:
                 for row in kept(object_schema, symbol, key, rows):
-                    builder.adjacency(key, lambda a, r=row: a.add(lambda x: _fill(x, r, resolve)))
+                    getattr(builder, key).insert(lambda x, r=row: _fill(x, r, resolve))
         add_nested(builder, symbol, one_link=False)
         builder.update()
     return created[root]
@@ -655,7 +507,17 @@ def _row_key(relation: Any, me: str, owner: Hashable, row: dict[str, Any]) -> Ha
 def _add_rows(visitor: Visitors.OfObject, rows: Rows, resolve: Callable[[str], Any]) -> None:
     for key, entries in rows.items():
         for row in entries:
-            visitor.adjacency(key, lambda a, r=row: a.add(lambda x: _fill(x, r, resolve)))
+            getattr(visitor, key).insert(lambda x, r=row: _fill(x, r, resolve))
+
+
+_SELECT = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
+           Schemas.OfIntersection.Data: "as_intersection"}
+
+
+def _holds_members(visitor: Any) -> bool:
+    """Whether a visitor's members are a union's branches or an intersection's parts, each of its own type's kind,
+    rather than properties."""
+    return isinstance(visitor.as_schema(), (Schemas.OfUnion.Data, Schemas.OfIntersection.Data))
 
 
 def _within(visitor: Any, steps: Steps, then: Callable[[Any], None]) -> None:
@@ -664,44 +526,39 @@ def _within(visitor: Any, steps: Steps, then: Callable[[Any], None]) -> None:
         then(visitor)
         return
     (key, kind), rest = steps[0], steps[1:]
-    select = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
-              Schemas.OfIntersection.Data: "as_intersection"}[kind]
 
-    def into(a: Visitors.OfAny) -> None:
-        getattr(a, select)(lambda v: _within(v, rest, then))
+    def into(held: Any) -> Any:
+        _within(held, rest, then)
+        return held
 
     if isinstance(key, tuple):  # an entry's value: the entry at its position, then its property
         adjacency, position, name = key
-        found: list[Any] = []
-        visitor.adjacency(adjacency, lambda a: a.entries(found.append))
-        found[position].property(name, lambda p: p.value(into))
+        entry = list(getattr(visitor, adjacency))[position]
+        getattr(entry, name).as_value(lambda a: getattr(a, _SELECT[kind])(into) or a)
+    elif _holds_members(visitor):
+        into(getattr(visitor, key))
     else:
-        visitor.property(key, lambda p: p.value(into))
+        getattr(visitor, key).as_value(lambda a: getattr(a, _SELECT[kind])(into) or a)
 
 
 def _set(visitor: Any, name: str, value: Any) -> None:
-    visitor.property(name, lambda p: p.value(lambda a: _write(a, value)))
-
-
-def _write(visitor: Visitors.OfAny, value: Any) -> None:
-    """Writes a decoded value: a scalar, a value object, union value or intersection value."""
-    if isinstance(value, _Record):
-        if isinstance(value.schema, Schemas.OfUnion.Data):
-            visitor.as_union(lambda u: value.accept(u))
-        elif isinstance(value.schema, Schemas.OfIntersection.Data):
-            visitor.as_intersection(lambda i: value.accept(i))
-        else:
-            visitor.as_object(lambda o: value.accept(o))
+    """Writes a decoded value into the member `name`: a scalar, a value object, union value or intersection value."""
+    member = getattr(visitor, name)
+    if not isinstance(value, _Record):
+        member(value)
+    elif _holds_members(visitor):
+        member(lambda held: _build(held, value))
     else:
-        visitor.as_scalar(lambda n: n.set(value))
+        member.as_value(lambda a: getattr(a, _SELECT[type(value.schema)])(lambda held: _build(held, value)) or a)
 
 
-def _fill(visitor: Visitors.OfEntry, row: dict[str, Any], resolve: Callable[[str], Any]) -> None:
+def _fill(visitor: Visitors.OfEntry, row: dict[str, Any], resolve: Callable[[str], Any]) -> Visitors.OfEntry:
     for key, value in row.items():  # links map to target symbols; properties to decoded values
         if isinstance(value, _Link):
-            visitor.link(key, lambda k, target=resolve(value.symbol): k.set(target))
+            getattr(visitor, key)(resolve(value.symbol))
         else:
             _set(visitor, key, value)
+    return visitor
 
 
 # --- Entry points ---
@@ -725,11 +582,11 @@ class ToPlain:
     def OfScalar(schema: Schemas.OfScalar.Data, value: Scalar) -> PlainData:
         return schema.to_plain(value)
 
-    def OfObject(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> PlainData:
+    def OfObject(self, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> PlainData:
         """Snapshot of `value` alone; its references to other objects are left unresolved."""
         return _Snapshot(self._store).run(schema, value, [value])
 
-    def Reachable(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> PlainData:
+    def Reachable(self, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> PlainData:
         """Snapshot of `value` and every object reachable from it through adjacencies (see `Reachable`)."""
         return _Snapshot(self._store).run(schema, value, Reachable.of(value))
 

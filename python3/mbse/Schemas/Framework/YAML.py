@@ -17,7 +17,7 @@ import re
 from functools import cache
 from typing import Any
 
-from . import JSON, Plain, Schemas, Stores, Visitors
+from . import JSON, Plain, Readers, Schemas, Stores
 from .Errors import DecodeError
 from .Plain import PlainData
 
@@ -223,10 +223,10 @@ class ToYAML:
     def OfScalar(self, schema: Schemas.OfScalar.Data, value: Any) -> str:
         return dumps(self._plain.OfScalar(schema, value))
 
-    def OfObject(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> str:
+    def OfObject(self, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> str:
         return dumps(self._plain.OfObject(schema, value))
 
-    def Reachable(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> str:
+    def Reachable(self, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> str:
         return dumps(self._plain.Reachable(schema, value))
 
 

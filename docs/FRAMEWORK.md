@@ -847,6 +847,27 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - built as one unit with the new adjacency API (`as_iterable`, `insert`, `remove`) and the removal of `select`,
     since the ordered API needs containers and `select` its replacement.
 
+  Choices made in building it, for the user's review:
+  - with neither `.dense()` nor `.sparse()`, a container is dense only for an integer-like index (an int, or a value
+    object of ints) and a dict for any other hashable one, as the user's first note had it ("integer-like properties
+    ... becomes an array/list", "only hashable properties becomes a dict/map"), rather than dense for any ordered
+    index, which would have made every container by text an array; `.dense()` and `.sparse()` still take any ordered
+    index;
+  - a dense container of int indices holds every index from 0 to its last, an element absent at some (`null` on the
+    wire), its length the positions; one of several ints, every cell of the box its indices span; one by another
+    ordered index (text), its elements present, sorted, written as entry-like elements;
+  - on the wire: a sparse block is `{"at": index, "items": [...]}`, an entry-like element `{"index": ..., "element":
+    ...}`, a flat tensor `{"shape": [...], "items": [...]}`; the writer's option is `ToPlain(store, flat=True)` (and
+    JSON's and YAML's); a value object index is written as its mapping;
+  - an index is given as a scalar, or for a value object index as a tuple (an array in TypeScript) of its properties in
+    declaration order; an element is read and written through its `Visitors.OfAny`, and `as_container(cb)` on a builder
+    writes the container at once, as `as_object(cb)` does a value object, so an empty container round-trips;
+  - an iterator inserts (`prepend`, `append`, and `as_item` past an end) only into a dense or sparse container of int
+    indices, moving the elements after the insertion up by one;
+  - not yet: reading a container whose index is neither ordered nor hashable from a snapshot (its index would have to
+    be built as a standalone value object), and a value object with list adjacencies inside a container in a snapshot
+    (lists become containers in V5).
+
 - **Reference identity** ([Visitor pattern](VISITOR_PATTERN.md), "Reference Identity", as the user wrote it), refining
   The visitor pattern's "global name, otherwise a UUID":
   - a reference object with a global name (`.singleton("foo")`) uses it on the wire; a reference object schema may

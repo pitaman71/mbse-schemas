@@ -59,7 +59,8 @@ export function schemaTypeName(schema: unknown): string {
 
 // --- Writing: plain data read through the visitor protocol ---
 
-type Ref = (target: Readers.OfObject) => PlainMap;
+/** How the writers reference a linked object; `flat` says how a dense container of several int indices is written. */
+type Ref = ((target: Readers.OfObject) => PlainMap) & { flat?: boolean };
 
 /** The schema of a record: a value object's, or a union's or intersection's, whose properties are its branches or
  * parts. */
@@ -72,27 +73,121 @@ function present(visitor: any): boolean {
 
 /** A property's value as plain data, read through its visitor, and whether it has one. */
 function value(read: Readers.OfProperty, schema: unknown, ref: Ref): [boolean, PlainData] {
+  const found: [boolean, PlainData][] = [];
+  read.as_value((a) => found.push(anyValue(a, schema, ref)));
+  return found[0] as [boolean, PlainData];
+}
+
+/** A value of any kind as plain data, read through its `Visitors.OfAny`, and whether it has one. */
+function anyValue(read: any, schema: unknown, ref: Ref): [boolean, PlainData] {
   const held = Schemas.structure(schema);
   const found: PlainData[] = [];
   if (held instanceof Schemas.OfScalar.Data) {
-    read.as_scalar((s) => {
+    read.as_scalar((s: any) => {
       const got = s.get();
       if (got !== null) found.push(held.to_plain(got));
       return s;
     });
   } else if (held instanceof Schemas.OfObject.Data) {
-    read.as_object((o) => {
+    read.as_object((o: any) => {
       if (present(o)) found.push(object(o, held, ref));
       return o;
+    });
+  } else if (held instanceof Schemas.OfContainer.Data) {
+    read.as_container((c: any) => {
+      if (present(c)) found.push(container(c, held, ref));
+      return c;
     });
   } else {
     const pick = (r: any): any => {
       if (present(r)) found.push(record(r, held as RecordSchema, ref));
       return r;
     };
-    read.as_value((a) => held instanceof Schemas.OfUnion.Data ? a.as_union(pick) : a.as_intersection(pick));
+    if (held instanceof Schemas.OfUnion.Data) read.as_union(pick);
+    else read.as_intersection(pick);
   }
   return found.length > 0 ? [true, found[0] as PlainData] : [false, null];
+}
+
+/** The names of a container's int indices, where its index is a value object of ints; null otherwise. */
+function tensor(schema: Schemas.OfContainer.Data): string[] | null {
+  const index = Schemas.structure(schema.index);
+  if (!(index instanceof Schemas.OfObject.Data)) return null;
+  const all = [...index.properties.values()].every((prop) => {
+    const held = Schemas.structure(prop.type);
+    return held instanceof Schemas.OfScalar.Data && held.type === BigInt;
+  });
+  return all ? [...index.properties.keys()] : null;
+}
+
+/** Whether a container's index is an int. */
+function ints(schema: Schemas.OfContainer.Data): boolean {
+  const index = Schemas.structure(schema.index);
+  return index instanceof Schemas.OfScalar.Data && index.type === BigInt;
+}
+
+/** An index as plain data: a scalar's plain form, or a value object index as a mapping of its properties. */
+function plainIndex(schema: Schemas.OfContainer.Data, index: unknown, ref: Ref): PlainData {
+  const held = Schemas.structure(schema.index);
+  if (held instanceof Schemas.OfScalar.Data) return held.to_plain(index as Scalar);
+  const object_ = held as Schemas.OfObject.Data;
+  if (Array.isArray(index)) {
+    return new Map([...object_.properties].map(([name, prop], i) =>
+      [name, (Schemas.structure(prop.type) as Schemas.OfScalar.Data).to_plain(index[i] as Scalar)] as const));
+  }
+  return object(index as Readers.OfObject, object_, ref);
+}
+
+/** A container as plain data, as its arrangement writes it: a dense one of int indices as an array of its elements
+ * (null where one is absent), of several int indices as nested arrays, or flat with its shape where the writer is
+ * configured so (`ToPlain(store, { flat: true })`); a sparse one of int indices as its blocks, each the index it starts
+ * at and its run of elements; a dict by a str index as a mapping; any other as an array of entry-like elements, each
+ * its index and its element. */
+function container(read: any, schema: Schemas.OfContainer.Data, ref: Ref): PlainData {
+  const pairs: [unknown, unknown][] = [];
+  read.as_entries((entries: Iterable<[unknown, unknown]>) => pairs.push(...entries));
+  const element = (visitor: unknown): PlainData => anyValue(visitor, schema.element, ref)[1];
+  const names = tensor(schema);
+  const arrangement = schema.arrangement;
+  if (arrangement === "dense" && ints(schema)) {
+    const dense: PlainData[] = Array.from({ length: read.length }, () => null);
+    for (const [index, visitor] of pairs) dense[Number(index)] = element(visitor);
+    return dense;
+  }
+  if (arrangement === "dense" && names !== null && pairs.length > 0) {
+    const shape = names.map((_, d) => Number(pairs.reduce((m: bigint, [index]) =>
+      ((index as bigint[])[d] as bigint > m ? (index as bigint[])[d] as bigint : m), 0n)) + 1);
+    const cells = new Map(pairs.map(([index, visitor]) => [JSON.stringify((index as bigint[]).map(String)), element(visitor)]));
+    let all: string[][] = [[]];
+    for (const size of shape) all = all.flatMap((cell) => Array.from({ length: size }, (_, i) => [...cell, String(i)]));
+    let flat: PlainData[] = all.map((cell) => cells.get(JSON.stringify(cell)) ?? null);
+    if (ref.flat === true) return new Map<string, PlainData>([["shape", shape.map(BigInt)], ["items", flat]]);
+    for (const n of shape.slice(1).reverse()) {
+      const chunked: PlainData[] = [];
+      for (let i = 0; i < flat.length; i += n) chunked.push(flat.slice(i, i + n));
+      flat = chunked;
+    }
+    return flat;
+  }
+  if (arrangement === "sparse" && (ints(schema) || names !== null)) {
+    const blocks: PlainMap[] = [];
+    let last: unknown = null;
+    for (const [index, visitor] of pairs) {
+      const follows = last !== null && (ints(schema) ? index === (last as bigint) + 1n
+        : (index as bigint[]).slice(0, -1).every((i, d) => i === (last as bigint[])[d])
+          && (index as bigint[]).at(-1) === ((last as bigint[]).at(-1) as bigint) + 1n);
+      if (follows) ((blocks.at(-1) as PlainMap).get("items") as PlainData[]).push(element(visitor));
+      else blocks.push(new Map<string, PlainData>([["at", plainIndex(schema, index, ref)], ["items", [element(visitor)]]]));
+      last = index;
+    }
+    return blocks;
+  }
+  const held = Schemas.structure(schema.index);
+  if (arrangement === "dict" && held instanceof Schemas.OfScalar.Data && held.type === String) {
+    return new Map(pairs.map(([index, visitor]) => [index as string, element(visitor)]));
+  }
+  return pairs.map(([index, visitor]) =>
+    new Map<string, PlainData>([["index", plainIndex(schema, index, ref)], ["element", element(visitor)]]));
 }
 
 /** A union's branch or an intersection's part as plain data: its visitor is of its type's kind. */
@@ -103,6 +198,7 @@ function memberValue(read: any, schema: unknown, ref: Ref): [boolean, PlainData]
     return got === null ? [false, null] : [true, held.to_plain(got)];
   }
   if (!present(read)) return [false, null];
+  if (held instanceof Schemas.OfContainer.Data) return [true, container(read, held, ref)];
   return [true, held instanceof Schemas.OfObject.Data ? object(read, held, ref) : record(read, held as RecordSchema, ref)];
 }
 
@@ -148,7 +244,13 @@ function entry(read: Readers.OfEntry, adjacency: Schemas.OfAdjacency.Data, ref: 
 
 /** Writes the included objects, in first-reference order, each keyed by its qualified identity. */
 class Snapshot {
-  constructor(private readonly store: Stores.Store) {}
+  private readonly ref: Ref;
+
+  constructor(private readonly store: Stores.Store, flat = false) {
+    /** A reference to a linked object, which is a reference object: entries never reference value objects. */
+    this.ref = Object.assign((target: Readers.OfObject): PlainMap =>
+      new Map<string, PlainData>([[REF, this.symbol(target)], [SCHEMA, this.store.name_of(target.as_schema())]]), { flat });
+  }
 
   /** An object's key in a snapshot, and in the links to it: its identity, qualified by its schema's registered name
    * (`"crm.Feature/FEA-001"`); a global name alone, being unique in a store. */
@@ -158,9 +260,6 @@ class Snapshot {
     return `${this.store.name_of(schema)}/${value.as_identity()}`;
   }
 
-  /** A reference to a linked object, which is a reference object: entries never reference value objects. */
-  private readonly ref = (target: Readers.OfObject): PlainMap =>
-    new Map<string, PlainData>([[REF, this.symbol(target)], [SCHEMA, this.store.name_of(target.as_schema())]]);
 
   run(schema: Schemas.OfObject.Data, root: Readers.OfObject, include: Readers.OfObject[]): PlainMap {
     if (root.as_schema() !== schema) {
@@ -244,6 +343,11 @@ class DecodedRecord {
   constructor(readonly schema: RecordSchema, readonly values: Map<string, unknown>) {}
 }
 
+/** A decoded container: its elements, each with its index, which `fillElements` writes into its builder. */
+class DecodedElements {
+  constructor(readonly schema: Schemas.OfContainer.Data, readonly items: [unknown, unknown][]) {}
+}
+
 /** Writes a decoded value object, union value or intersection value through its builder. */
 function build(visitor: any, record: DecodedRecord): any {
   for (const [name, value] of record.values) set(visitor, name, value);
@@ -286,6 +390,7 @@ function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where, context:
       throw (error as DecodeError).at(path(...where)); // from_plain throws only DecodeError
     }
   }
+  if (schema instanceof Schemas.OfContainer.Data) return decodeContainer(schema, plain, where);
   const [what, owner, member] = recordNames(schema as RecordSchema);
   if (!(plain instanceof Map)) throw new DecodeError(`${what} must be a mapping, got ${typeName(plain)}`, { path: path(...where) });
   const record = schema as RecordSchema;
@@ -310,8 +415,96 @@ function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where, context:
   return new DecodedRecord(record, values);
 }
 
+/** An index read from its plain form: a scalar, or a value object index as the array of its properties. */
+function decodeIndex(schema: Schemas.OfContainer.Data, plain: unknown, where: Where): unknown {
+  const held = Schemas.structure(schema.index);
+  if (held instanceof Schemas.OfScalar.Data) return decode(held, plain, where);
+  if (schema.arrangement === "entries") {
+    throw new DecodeError("a container whose index is neither ordered nor hashable is not read from snapshots yet", { path: path(...where) });
+  }
+  const record = decode(held as Schemas.OfAny.Data, plain, where) as DecodedRecord;
+  const names = [...(held as Schemas.OfObject.Data).properties.keys()];
+  const missing = names.filter((name) => !record.values.has(name));
+  if (missing.length > 0) {
+    throw new DecodeError(`an index has every property of its value object; ${repr(missing)} are not set`, { path: path(...where) });
+  }
+  return names.map((name) => record.values.get(name));
+}
+
+/** A container read from the plain form its arrangement writes (see `container`); a dense one of several int indices
+ * nested or flat, whichever it is. */
+function decodeContainer(schema: Schemas.OfContainer.Data, plain: unknown, where: Where): DecodedElements {
+  const items: [unknown, unknown][] = [];
+  const element = (index: unknown, value: unknown, at: Where): void => {
+    if (value !== null) items.push([index, decode(schema.element as Schemas.OfAny.Data, value, at)]);
+  };
+  const names = tensor(schema);
+  const arrangement = schema.arrangement;
+  const held = Schemas.structure(schema.index);
+  if (arrangement === "dense" && ints(schema)) {
+    if (!Array.isArray(plain)) throw new DecodeError(`a dense container must be a list, got ${typeName(plain)}`, { path: path(...where) });
+    plain.forEach((value, i) => element(BigInt(i), value, [...where, i]));
+  } else if (arrangement === "dense" && names !== null) {
+    if (plain instanceof Map && plain.size === 2 && plain.has("shape") && plain.has("items")) { // flat, with its shape
+      const shape = plain.get("shape");
+      const flat = plain.get("items");
+      const sizes = Array.isArray(shape) ? shape : [];
+      const product = sizes.reduce((p: number, n) => p * Number(n), 1);
+      if (!(Array.isArray(shape) && shape.length === names.length && shape.every((n) => typeof n === "bigint" && n >= 0n)
+        && Array.isArray(flat) && flat.length === product)) {
+        throw new DecodeError(`a flat container's shape is ${names.length} sizes, and its items as many as they make`, { path: path(...where) });
+      }
+      let cells: bigint[][] = [[]];
+      for (const size of shape as bigint[]) cells = cells.flatMap((cell) => Array.from({ length: Number(size) }, (_, i) => [...cell, BigInt(i)]));
+      cells.forEach((cell, i) => element(cell, (flat as unknown[])[i], [...where, "items", i]));
+    } else {
+      const nested = (value: unknown, prefix: bigint[], at: Where): void => {
+        if (prefix.length === names.length) element(prefix, value, at);
+        else if (!Array.isArray(value)) {
+          throw new DecodeError(`a container of ${names.length} indices nests ${names.length} lists`, { path: path(...at) });
+        } else value.forEach((inner, i) => nested(inner, [...prefix, BigInt(i)], [...at, i]));
+      };
+      nested(plain, [], where);
+    }
+  } else if (arrangement === "sparse" && (ints(schema) || names !== null)) {
+    if (!Array.isArray(plain)) {
+      throw new DecodeError(`a sparse container must be a list of blocks, got ${typeName(plain)}`, { path: path(...where) });
+    }
+    plain.forEach((block, b) => {
+      if (!(block instanceof Map) || block.size !== 2 || !block.has("at") || !Array.isArray(block.get("items"))) {
+        throw new DecodeError("a block is {'at': index, 'items': [element, ...]}", { path: path(...where, b) });
+      }
+      const start = decodeIndex(schema, block.get("at"), [...where, b, "at"]);
+      (block.get("items") as unknown[]).forEach((value, i) => {
+        const index = ints(schema) ? (start as bigint) + BigInt(i)
+          : [...(start as bigint[]).slice(0, -1), ((start as bigint[]).at(-1) as bigint) + BigInt(i)];
+        element(index, value, [...where, b, "items", i]);
+      });
+    });
+  } else if (arrangement === "dict" && held instanceof Schemas.OfScalar.Data && held.type === String) {
+    if (!(plain instanceof Map)) {
+      throw new DecodeError(`a container keyed by text must be a mapping, got ${typeName(plain)}`, { path: path(...where) });
+    }
+    for (const [key, value] of plain as PlainMap) element(key, value, [...where, key]);
+  } else {
+    if (!Array.isArray(plain)) throw new DecodeError(`a container must be a list, got ${typeName(plain)}`, { path: path(...where) });
+    plain.forEach((entry, i) => {
+      if (!(entry instanceof Map) || [...entry.keys()].some((k) => k !== "index" && k !== "element") || !entry.has("index")) {
+        throw new DecodeError("an entry of a container is {'index': index, 'element': element}", { path: path(...where, i) });
+      }
+      element(decodeIndex(schema, entry.get("index"), [...where, i, "index"]), entry.get("element") ?? null, [...where, i, "element"]);
+    });
+  }
+  return new DecodedElements(schema, items);
+}
+
 /** Equality key of a decoded value, per EQUALITY.md. */
 function decodedKey(value: unknown): string {
+  if (value instanceof DecodedElements) {
+    const keyed = value.items.map(([index, item]) => [Array.isArray(index) ? JSON.stringify(index.map(Proxies.scalarKey))
+      : Proxies.scalarKey(index), decodedKey(item)]);
+    return `container:${JSON.stringify(keyed.sort((a, b) => compareStrings(a[0] as string, b[0] as string)))}`;
+  }
   if (value instanceof DecodedRecord) {
     return `record:${JSON.stringify(sortedStrings(value.values.keys()).map((name) => [name, decodedKey(value.values.get(name))]))}`;
   }
@@ -728,9 +921,26 @@ function within(visitor: any, steps: Steps, then: (visitor: any) => void,
 /** Writes a decoded value into the member `name`: a scalar, a value object, union value or intersection value. */
 function set(visitor: any, name: string, value: unknown): void {
   const member = visitor[name];
-  if (!(value instanceof DecodedRecord)) member(value);
+  if (value instanceof DecodedElements) {
+    if (holdsMembers(visitor)) member((held: any) => fillElements(held, value));
+    else member.as_value((a: any) => a.as_container((held: any) => fillElements(held, value)));
+  } else if (!(value instanceof DecodedRecord)) member(value);
   else if (holdsMembers(visitor)) member((held: any) => build(held, value));
   else member.as_value((a: any) => a[selectOf(value.schema.constructor)]((held: any) => build(held, value)));
+}
+
+/** Writes a decoded container through its builder, each element at its index, over what it held there. */
+function fillElements(held: any, elements: DecodedElements): any {
+  for (const [index, value] of elements.items) put(held.at(index), value);
+  return held;
+}
+
+/** Writes a decoded value through a `Visitors.OfAny`: a scalar, a value object, union value or intersection value, or a
+ * container. */
+function put(element: any, value: unknown): void {
+  if (value instanceof DecodedElements) element.as_container((held: any) => fillElements(held, value));
+  else if (value instanceof DecodedRecord) element[selectOf(value.schema.constructor)]((held: any) => build(held, value));
+  else element.as_scalar(value);
 }
 
 function fill(visitor: any, row: Map<string, unknown>, resolve: (symbol: string) => unknown): any {
@@ -757,9 +967,11 @@ export interface ToPlainCall {
 }
 
 /** Serializes values to plain data, naming the schemas of objects in `store`: `ToPlain(store)(schema, value)`
- * dispatches on the schema's kind. */
-export function ToPlain(store: Stores.Store): ToPlainCall {
-  const OfObject = (schema: Schemas.OfObject.Data, value: Readers.OfObject): PlainMap => new Snapshot(store).run(schema, value, [value]);
+ * dispatches on the schema's kind. `{ flat: true }` writes a dense container of several int indices flat, with its
+ * shape, rather than as nested arrays; reading takes either. */
+export function ToPlain(store: Stores.Store, options: { flat?: boolean } = {}): ToPlainCall {
+  const flat = options.flat ?? false;
+  const OfObject = (schema: Schemas.OfObject.Data, value: Readers.OfObject): PlainMap => new Snapshot(store, flat).run(schema, value, [value]);
   const call = (schema: unknown, value: unknown): PlainData => {
     if (schema instanceof Schemas.OfScalar.Data) return toPlainOfScalar(schema, value as Scalar);
     if (schema instanceof Schemas.OfObject.Data) return OfObject(schema, value as Readers.OfObject);
@@ -768,7 +980,7 @@ export function ToPlain(store: Stores.Store): ToPlainCall {
   return Object.assign(call, {
     OfScalar: toPlainOfScalar,
     OfObject,
-    Reachable: (schema: Schemas.OfObject.Data, value: Readers.OfObject): PlainMap => new Snapshot(store).run(schema, value, Reachable.of(value)),
+    Reachable: (schema: Schemas.OfObject.Data, value: Readers.OfObject): PlainMap => new Snapshot(store, flat).run(schema, value, Reachable.of(value)),
   });
 }
 

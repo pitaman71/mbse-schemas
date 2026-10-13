@@ -280,8 +280,8 @@ export interface ToJSONCall {
 
 /** Encodes values, naming the schemas of objects in `store`: `ToJSON(store)(schema, value)` dispatches on the schema's
  * kind. */
-export function ToJSON(store: Stores.Store): ToJSONCall {
-  const plain = Plain.ToPlain(store);
+export function ToJSON(store: Stores.Store, options: { flat?: boolean } = {}): ToJSONCall {
+  const plain = Plain.ToPlain(store, options);
   const call = (schema: unknown, value: unknown, options: DumpOptions = {}): string => dumps(plain(schema, value), options);
   return Object.assign(call, {
     OfScalar: (schema: Schemas.OfScalar.Data, value: Scalar, options: DumpOptions = {}) => dumps(plain.OfScalar(schema, value), options),

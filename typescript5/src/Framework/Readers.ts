@@ -24,6 +24,25 @@ export interface OfAny {
   as_object(cb: Read<OfObject>): this;
   as_union(cb: Read<OfUnion>): this;
   as_intersection(cb: Read<OfIntersection>): this;
+  as_container(cb: Read<OfContainer>): this;
+}
+
+export interface OfContainer {
+  as_schema(): Schemas.OfContainer.Data;
+  readonly length: number;
+  at(index: unknown): OfAny;
+  as_ordered(cb: Read<OfIterator>): this;
+  as_dict(cb: Read<ReadonlyMap<unknown, OfAny>>): this;
+  as_entries(cb: Read<Iterator<[unknown, OfAny]>>): this;
+}
+
+export interface OfIterator {
+  first(): this;
+  last(): this;
+  next(): this;
+  prev(): this;
+  index(): unknown;
+  as_item(cb: Read<OfAny>): this;
 }
 
 export interface OfProperty extends Primitive {

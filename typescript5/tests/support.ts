@@ -156,13 +156,15 @@ export function same_graph(a: PlainData, b: PlainData): boolean {
  * `Visitors.OfObject.as_properties` is a property, not a method. */
 export const PROTOCOLS: Record<string, Record<string, number>> = {
   OfScalar: { as_schema: 0, get: 0, set: 1, clear: 0 },
-  OfAny: { as_schema: 0, as_scalar: 1, as_object: 1, as_union: 1, as_intersection: 1, clear: 0 },
+  OfAny: { as_schema: 0, as_scalar: 1, as_object: 1, as_union: 1, as_intersection: 1, as_container: 1, clear: 0 },
   OfProperty: { as_schema: 0, as_value: 1, as_scalar: 1, as_object: 1, get: 0 },
   OfObject: { as_schema: 0, as_identity: 0, as_adjacencies: 1 },
   OfAdjacency: { as_schema: 0, select: 2, insert: 1, remove: 1 },
   OfEntry: { as_schema: 0 },
   OfUnion: { as_schema: 0 },
   OfIntersection: { as_schema: 0 },
+  OfContainer: { as_schema: 0, at: 1, remove: 1, as_ordered: 1, as_dict: 1, as_entries: 1 },
+  OfIterator: { first: 0, last: 0, next: 0, prev: 0, index: 0, as_item: 1, prepend: 1, append: 1 },
   OfPredicate: { as_schema: 0 },
 };
 

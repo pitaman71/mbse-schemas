@@ -88,7 +88,42 @@ export interface OfAny {
   as_object(cb: Callback<OfObject>): this;
   as_union(cb: Callback<OfUnion>): this;
   as_intersection(cb: Callback<OfIntersection>): this;
+  as_container(cb: Callback<OfContainer>): this;
   clear(): void;
+}
+
+/** A container: elements by index, entries latent. An index is a scalar, or an array of a value object index's
+ * properties in declaration order; an element is read and written through its `Visitors.OfAny`. */
+export interface OfContainer {
+  as_schema(): Schemas.OfContainer.Data;
+  /** The positions of a dense container of int indices (every index up to the last), else the elements present. */
+  readonly length: number;
+  /** The element at `index`, empty where there is none; writable in a builder, where writing adds it. */
+  at(index: unknown): OfAny;
+  remove(index: unknown): this;
+  /** An iterator over the positions of a dense or sparse container; `cb` is not called for another. */
+  as_ordered(cb: (iterator: OfIterator) => unknown): this;
+  /** The elements by index of a container arranged as a dict; `cb` is not called for another. */
+  as_dict(cb: (elements: ReadonlyMap<unknown, OfAny>) => unknown): this;
+  /** Each element present with its index, in order, for every container. */
+  as_entries(cb: (entries: Iterator<[unknown, OfAny]>) => unknown): this;
+}
+
+/** A position in a dense or sparse container: at a position, before the first, or past the last. */
+export interface OfIterator {
+  first(): this;
+  last(): this;
+  next(): this;
+  prev(): this;
+  /** The index at the position; null before the first or past the last. */
+  index(): unknown;
+  /** The element at the position. Past an end, `cb` is not called for a read-only container, and a writable one is
+   * extended there. */
+  as_item(cb: Callback<OfAny>): this;
+  /** Inserts an element before the position, which then rests on it; only where the indices are ints. */
+  prepend(spec: Callback<OfAny>): this;
+  /** Inserts an element after the position, which then rests on it; only where the indices are ints. */
+  append(spec: Callback<OfAny>): this;
 }
 
 /** One property of an object or an entry. Called, as a member, with a `Specs.Callback<Visitors.OfProperty>`. */
@@ -164,12 +199,14 @@ export interface OfPredicate {
 /** The methods each protocol declares, for runtime conformance checks (TypeScript interfaces vanish at runtime). */
 export const PROTOCOL_METHODS = {
   OfScalar: ["as_schema", "get", "set", "clear"],
-  OfAny: ["as_schema", "as_scalar", "as_object", "as_union", "as_intersection", "clear"],
+  OfAny: ["as_schema", "as_scalar", "as_object", "as_union", "as_intersection", "as_container", "clear"],
   OfProperty: ["as_schema", "as_value", "as_scalar", "as_object", "get"],
   OfObject: ["as_schema", "as_identity", "as_properties", "as_adjacencies"],
   OfAdjacency: ["as_schema", "select", "insert", "remove"],
   OfEntry: ["as_schema"],
   OfUnion: ["as_schema"],
   OfIntersection: ["as_schema"],
+  OfContainer: ["as_schema", "at", "remove", "as_ordered", "as_dict", "as_entries"],
+  OfIterator: ["first", "last", "next", "prev", "index", "as_item", "prepend", "append"],
   OfPredicate: ["as_schema"],
 } as const satisfies Record<string, readonly string[]>;

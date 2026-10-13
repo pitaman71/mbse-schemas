@@ -1348,9 +1348,18 @@ function indexKind(type: unknown): "ordered" | "hashable" | null {
   return null;
 }
 
+/** Whether an index is an int, or a value object of ints: a dense container's positions, by default. */
+function integerLike(type: unknown): boolean {
+  const index = structure(type);
+  if (index instanceof ScalarData) return index.type === BigInt;
+  return indexKind(index) === "ordered" && [...(index as ObjectData).properties.values()].every((p) =>
+    (structure(p.type) as ScalarData).type === BigInt);
+}
+
 /** A container: elements, each of the element type, held by index, each of the index type. Dense, its elements are a
- * packed array; sparse, an associative store of dense blocks; with neither, it is dense where its index has a total
- * order, a dict (by index) where its index is hashable, and its elements paired with their indices otherwise. */
+ * packed array; sparse, an associative store of dense blocks; with neither, it is dense where its index is
+ * integer-like (an int, or a value object of ints), a dict (by index) where its index is otherwise hashable, and its
+ * elements paired with their indices otherwise. */
 class ContainerData {
   index: AnyData | null;
   element: AnyData | null;
@@ -1374,8 +1383,7 @@ class ContainerData {
    * paired with its index, where the index is neither ordered nor hashable). */
   get arrangement(): string {
     if (this.layout !== null) return this.layout;
-    const kind = indexKind(this.index);
-    return kind === "ordered" ? "dense" : kind === "hashable" ? "dict" : "entries";
+    return integerLike(this.index) ? "dense" : indexKind(this.index) !== null ? "dict" : "entries";
   }
 
   equals(other: unknown): boolean {

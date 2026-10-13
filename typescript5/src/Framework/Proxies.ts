@@ -39,7 +39,7 @@
 
 import { toHex } from "./Bytes.js";
 import { AttributeError, KeyError, LookupError, ReadOnlyError, ValueError } from "./Errors.js";
-import { REPR, repr, sortedStrings, Tuple, TYPE_NAME, typeName } from "./Repr.js";
+import { compareStrings, REPR, repr, sortedStrings, Tuple, TYPE_NAME, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import * as Stores from "./Stores.js";
 import type * as Visitors from "./Visitors.js";
@@ -331,6 +331,11 @@ export function scalarKey(value: unknown): string {
     const keyed = sortedStrings(values.keys()).map((name) => [name, scalarKey(values.get(name))]);
     return `object:${schemaId(innerOf(value)._schema)}:${JSON.stringify(keyed)}`;
   }
+  if (isContainerData(value)) {
+    const items: Values = innerOf(value)._items;
+    const keyed = sortedStrings(items.keys()).map((key) => [key, scalarKey(items.get(key))]);
+    return `container:${schemaId(innerOf(value)._schema)}:${JSON.stringify(keyed)}`;
+  }
   if (typeof value === "number") {
     if (Number.isNaN(value)) return "float:nan";
     floatView.setFloat64(0, value);
@@ -611,6 +616,32 @@ class _Empty extends Dunders {
     return this._proxy;
   }
 
+  as_container(cb: unknown): any {
+    return this._hand(cb);
+  }
+
+  at(_index: unknown): any {
+    return makeEmpty(this._reason);
+  }
+
+  /** Nothing to visit: as an inapplicable container's, `cb` is not called. */
+  as_ordered(_cb: unknown): any {
+    return this._proxy;
+  }
+
+  as_dict(_cb: unknown): any {
+    return this._proxy;
+  }
+
+  as_entries(cb: unknown): any {
+    visit(cb, [][Symbol.iterator]());
+    return this._proxy;
+  }
+
+  get length(): number {
+    return 0;
+  }
+
   _refuse(..._args: unknown[]): never {
     throw new ReadOnlyError(this._reason);
   }
@@ -750,6 +781,48 @@ class _Any {
     return this._record(Schemas.OfIntersection.Data, cb);
   }
 
+  as_container(cb: unknown): this {
+    if (!(this._type instanceof Schemas.OfContainer.Data)) return this._hand(cb, makeEmpty(`${this._label} does not hold a container`));
+    const value = this._values.get(this._name);
+    if (!this._writable) {
+      if (isContainerData(value)) {
+        if (isFunction(cb)) {
+          visit(cb, value);
+          return this;
+        }
+        throw new ReadOnlyError(`${this._label} is read-only; write through a builder`);
+      }
+      return this._hand(cb, makeEmpty(`${this._label} is not set`));
+    }
+    if (isFunction(cb)) { // selecting the kind writes it, as an empty container until written further
+      const builder = this._container();
+      innerOf(builder)._touch();
+      visit(cb, builder);
+    } else this._replaceContainer(cb);
+    return this;
+  }
+
+  /** The builder of the container held, attached to the values when first written; one already attached. */
+  _container(): any {
+    const value = this._values.get(this._name);
+    if (isContainerBuilder(value)) return value;
+    const attach = (builder: unknown): void => {
+      this._touch();
+      this._values.set(this._name, builder);
+    };
+    return makeContainerBuilder(this._type as Schemas.OfContainer.Data, isContainerData(value) ? value : null, this._store, attach,
+      this._label);
+  }
+
+  /** Writes a container given as a value: its elements are copied when it is placed. */
+  _replaceContainer(value: unknown): void {
+    if (!(innerOf(value) instanceof _Containing) || innerOf(value)._schema !== this._type) {
+      throw new TypeError(`${this._label} takes a container of its schema or a Spec, got ${typeName(value)}`);
+    }
+    this._touch();
+    this._values.set(this._name, value);
+  }
+
   _hand(cb: unknown, empty: unknown): this {
     innerOf(empty)._hand(cb);
     return this;
@@ -817,6 +890,8 @@ class _Any {
     } else if (held instanceof Schemas.OfObject.Data || held instanceof Schemas.OfUnion.Data
       || held instanceof Schemas.OfIntersection.Data) {
       this._replace(value);
+    } else if (held instanceof Schemas.OfContainer.Data) {
+      this._replaceContainer(value);
     } else {
       this.as_scalar(value);
     }
@@ -830,6 +905,359 @@ class _Any {
 
 /** `Visitors.OfProperty` over one key of a values map. Called, as a member, with a Spec, it writes or visits through it
  * and returns the visitor it is a member of. */
+// --- Containers ---
+
+/** An index in a message: an array of indices as a list, as every implementation shows it. */
+function shown(index: unknown): string {
+  return repr(index);
+}
+
+/** The key (a string, for a Map) a container holds an element by: its index, checked against the index type, a scalar
+ * or, for an index of a value object of scalars, an array of the value object's properties in declaration order; any
+ * other index, a value object, by its equality key. */
+function indexKey(schema: Schemas.OfContainer.Data, index: unknown, label: string): string {
+  const kind = Schemas.structure(schema.index);
+  if (kind instanceof Schemas.OfScalar.Data) {
+    if (kind.type !== null && !Schemas.isScalarOf(kind.type, index)) {
+      throw new TypeError(`${label}: an index is a ${(kind.token as Schemas.OfScalar.Token).name}, got ${typeName(index)}`);
+    }
+    return scalarKey(index);
+  }
+  if (schema.arrangement !== "entries") {
+    const hosts = [...(kind as ObjectSchema).properties.values()].map((p) => Schemas.structure(p.type) as Schemas.OfScalar.Data);
+    if (!Array.isArray(index) || index.length !== hosts.length
+      || hosts.some((host, i) => host.type !== null && !Schemas.isScalarOf(host.type, index[i]))) {
+      const names = hosts.map((host) => (host.token as Schemas.OfScalar.Token).name).join(", ");
+      throw new TypeError(`${label}: an index is a tuple of ${names}, got ${shown(index)}`);
+    }
+    return JSON.stringify(index.map(scalarKey));
+  }
+  if (!isRecordData(index) || innerOf(index)._schema !== kind) {
+    throw new TypeError(`${label}: an index is a value of its index type, got ${typeName(index)}`);
+  }
+  return scalarKey(index);
+}
+
+/** Whether a container's positions are its int indices: dense or sparse, indexed by an int. */
+function positional(schema: Schemas.OfContainer.Data): boolean {
+  const index = Schemas.structure(schema.index);
+  return ["dense", "sparse"].includes(schema.arrangement) && index instanceof Schemas.OfScalar.Data && index.type === BigInt;
+}
+
+/** The order of two indices of one ordered scalar type: numbers by value, text by code point, false first. */
+function compareIndices(a: unknown, b: unknown): number {
+  if (typeof a === "string") return compareStrings(a, b as string);
+  return (a as number) < (b as number) ? -1 : (a as number) > (b as number) ? 1 : 0;
+}
+
+/** Keys in the order of their indices: a scalar's, or an array's item by item (sorted stably by each item, last first). */
+function sortByIndex(keys: string[], indices: Map<string, unknown>): string[] {
+  const first = indices.get(keys[0] as string);
+  if (!Array.isArray(first)) return keys.sort((a, b) => compareIndices(indices.get(a), indices.get(b)));
+  for (let d = first.length - 1; d >= 0; d--) {
+    keys.sort((a, b) => compareIndices((indices.get(a) as unknown[])[d], (indices.get(b) as unknown[])[d]));
+  }
+  return keys;
+}
+
+function negative(index: unknown): boolean {
+  return (Array.isArray(index) ? index : [index]).some((i) => typeof i === "bigint" && i < 0n);
+}
+
+/** `Visitors.OfContainer` over a container's elements, held by key (see `indexKey`), with each key's index. Each
+ * element is read and written through the `Visitors.OfAny` of its slot. */
+abstract class _Containing extends Shelled {
+  _writable = false;
+  _parent: unknown = null;
+
+  constructor(readonly _schema: Schemas.OfContainer.Data, readonly _items: Values, readonly _indices: Map<string, unknown>,
+    readonly _store: OfStore | null, readonly _label: string) {
+    super();
+  }
+
+  as_schema(): Schemas.OfContainer.Data {
+    return this._schema;
+  }
+
+  /** A builder attaches itself to what holds it when written: only a builder writes. */
+  _touch(): void {
+    (this as unknown as _ContainerBuilder)._attachOnce();
+  }
+
+  /** The keys of the elements present: by index where the index is ordered, else in the order added. */
+  _keys(): string[] {
+    const keys = [...this._items.keys()];
+    if (!["dense", "sparse"].includes(this._schema.arrangement) || keys.length === 0) return keys;
+    return sortByIndex(keys, this._indices);
+  }
+
+  _element(key: string, index: unknown): _Any {
+    const at = Array.isArray(index) ? index.map((i) => repr(i)).join(", ") : repr(index);
+    return new _Any(this._items, key, this._schema.element, this._store, this._writable, `${this._label}[${at}]`,
+      () => this._indices.set(key, index));
+  }
+
+  /** The number of positions: in a dense container of int indices, every index from 0 to the last (and every cell of
+   * the box they span, for several); else the elements present. */
+  get length(): number {
+    const indices = [...this._items.keys()].map((key) => this._indices.get(key));
+    if (this._schema.arrangement !== "dense" || indices.length === 0) return indices.length;
+    if (typeof indices[0] === "bigint") return Number(indices.reduce((m, i) => ((i as bigint) > (m as bigint) ? i : m))) + 1;
+    const first = indices[0];
+    if (Array.isArray(first) && first.every((i) => typeof i === "bigint")) {
+      return first.reduce((product: number, _, d) =>
+        product * (Number(indices.reduce((m: bigint, i) => ((i as bigint[])[d] as bigint > m ? (i as bigint[])[d] as bigint : m), 0n)) + 1), 1);
+    }
+    return indices.length;
+  }
+
+  /** The element at `index`, which reads as empty where there is none; a builder's is writable, and writing it adds it. */
+  at(index: unknown): any {
+    const key = indexKey(this._schema, index, this._label);
+    if (this._writable) {
+      if (this._schema.arrangement === "dense" && negative(index)) {
+        throw new ValueError(`${this._label}: a dense container's index is not negative, got ${shown(index)}`);
+      }
+      this._touch();
+    }
+    return this._element(key, index);
+  }
+
+  /** Removes the element at `index`, if any. */
+  remove(index: unknown): any {
+    write(this._writable, `${this._label} is read-only; write through a builder`);
+    this._touch();
+    const key = indexKey(this._schema, index, this._label);
+    this._items.delete(key);
+    this._indices.delete(key);
+    return this._proxy;
+  }
+
+  /** A `Visitors.OfIterator` over the positions, for a dense or sparse container; `cb` is not called otherwise. */
+  as_ordered(cb: unknown): any {
+    if (["dense", "sparse"].includes(this._schema.arrangement)) visit(cb, new _Iterator(this));
+    return this._proxy;
+  }
+
+  /** The elements by index, for a container arranged as a dict; `cb` is not called otherwise. */
+  as_dict(cb: unknown): any {
+    if (this._schema.arrangement === "dict") {
+      visit(cb, new Map(this._keys().map((key) => [this._indices.get(key), this._element(key, this._indices.get(key))])));
+    }
+    return this._proxy;
+  }
+
+  /** Each element present with its index, in order, for every container. */
+  as_entries(cb: unknown): any {
+    visit(cb, this._keys().map((key) => [this._indices.get(key), this._element(key, this._indices.get(key))])[Symbol.iterator]());
+    return this._proxy;
+  }
+
+  /** The indices an iterator visits: every position of a dense container of int indices, else those present. */
+  _positions(): unknown[] {
+    const keys = this._keys();
+    const first = this._indices.get(keys[0] as string);
+    if (this._schema.arrangement === "dense" && keys.length > 0 && positional(this._schema)) {
+      return Array.from({ length: this.length }, (_, i) => BigInt(i));
+    }
+    if (this._schema.arrangement === "dense" && keys.length > 0 && Array.isArray(first)) {
+      const sizes = (first as bigint[]).map((_, d) => Number(keys.reduce((m: bigint, key) =>
+        ((this._indices.get(key) as bigint[])[d] as bigint > m ? (this._indices.get(key) as bigint[])[d] as bigint : m), 0n)) + 1);
+      let cells: bigint[][] = [[]];
+      for (const size of sizes) cells = cells.flatMap((cell) => Array.from({ length: size }, (_, i) => [...cell, BigInt(i)]));
+      return cells;
+    }
+    return keys.map((key) => this._indices.get(key));
+  }
+
+  /** Writes an element at the int index `index`, moving the elements at it and after up by one. */
+  _insert(index: bigint, spec: unknown): void {
+    this._touch();
+    const moving = this._keys().filter((key) => (this._indices.get(key) as bigint) >= index).reverse();
+    for (const key of moving) {
+      const at = (this._indices.get(key) as bigint) + 1n;
+      const value = this._items.get(key);
+      this._items.delete(key);
+      this._indices.delete(key);
+      this._items.set(scalarKey(at), value);
+      this._indices.set(scalarKey(at), at);
+    }
+    const element = this._element(scalarKey(index), index);
+    if (isFunction(spec)) visit(spec, element);
+    else element.write(spec);
+  }
+
+  /** As a union's branch or an intersection's part: writes through a Spec, or takes the elements of a container given,
+   * and returns the value it is a member of. */
+  _call(spec: unknown): unknown {
+    write(this._writable, `${this._label} is read-only; write through a builder`);
+    this._touch();
+    if (isFunction(spec)) {
+      visit(spec, this._proxy);
+    } else if (innerOf(spec) instanceof _Containing && innerOf(spec)._schema === this._schema) {
+      const given: _Containing = innerOf(spec);
+      this._items.clear();
+      for (const [key, value] of given._items) this._items.set(key, value);
+      this._indices.clear();
+      for (const [key, value] of given._indices) this._indices.set(key, value);
+    } else {
+      throw new TypeError(`${this._label} takes a container of its schema or a Spec, got ${typeName(spec)}`);
+    }
+    return this._parent;
+  }
+
+  _repr(): string {
+    return `<container of ${this._items.size}>`;
+  }
+}
+
+/** A container's value, read-only. */
+class _ContainerData extends _Containing {
+  readonly [TYPE_NAME] = "_ContainerData";
+
+  constructor(schema: Schemas.OfContainer.Data, items: Values, indices: Map<string, unknown>) {
+    super(schema, items, indices, null, "the container");
+  }
+}
+
+function makeContainerData(schema: Schemas.OfContainer.Data, items: Values, indices: Map<string, unknown>): any {
+  const state = new _ContainerData(schema, items, indices);
+  return shell(state, (spec) => state._call(spec));
+}
+
+/** A writable `Visitors.OfContainer`, starting from `source` if given. It attaches itself to what holds it (`attach`)
+ * when first written. */
+class _ContainerBuilder extends _Containing {
+  readonly [TYPE_NAME] = "_ContainerBuilder";
+  override _writable = true;
+  _attached = false;
+
+  constructor(schema: Schemas.OfContainer.Data, source: unknown, store: OfStore | null,
+    readonly _attach: (builder: unknown) => void, label: string, parent: unknown = null) {
+    super(schema, new Map(source === null ? [] : innerOf(source)._items), new Map(source === null ? [] : innerOf(source)._indices),
+      store, label);
+    this._parent = parent;
+  }
+
+  _attachOnce(): void {
+    if (!this._attached) {
+      this._attached = true;
+      this._attach(this._proxy);
+    }
+  }
+
+  build(): unknown {
+    const items = finalized(this._items);
+    return makeContainerData(this._schema, items, new Map([...items.keys()].map((key) => [key, this._indices.get(key)])));
+  }
+}
+
+function makeContainerBuilder(schema: Schemas.OfContainer.Data, source: unknown, store: OfStore | null,
+  attach: (builder: unknown) => void, label: string, parent: unknown = null): any {
+  const state = new _ContainerBuilder(schema, source, store, attach, label, parent);
+  return shell(state, (spec) => state._call(spec));
+}
+
+function isContainerData(value: unknown): boolean {
+  return innerOf(value) instanceof _ContainerData;
+}
+
+function isContainerBuilder(value: unknown): boolean {
+  return innerOf(value) instanceof _ContainerBuilder;
+}
+
+/** `Visitors.OfIterator`: a position in a dense or sparse container, before its first position, at one, or past its
+ * last. Past an end, a builder's `as_item` extends the container there. */
+class _Iterator {
+  _at = -1;
+
+  constructor(readonly _container: _Containing) {}
+
+  first(): this {
+    this._at = 0;
+    return this;
+  }
+
+  last(): this {
+    this._at = this._container._positions().length - 1;
+    return this;
+  }
+
+  next(): this {
+    this._at = Math.min(this._at + 1, this._container._positions().length);
+    return this;
+  }
+
+  prev(): this {
+    this._at = Math.max(this._at - 1, -1);
+    return this;
+  }
+
+  /** The index at the position, null before the first or past the last. */
+  index(): unknown {
+    const positions = this._container._positions();
+    return this._at >= 0 && this._at < positions.length ? positions[this._at] : null;
+  }
+
+  /** Hands over the element at the position. Past an end, a read-only container's `cb` is not called, and a builder's
+   * container is extended there, the position then resting on the new element. */
+  as_item(cb: unknown): this {
+    const index = this.index();
+    if (index !== null) visit(cb, this._container.at(index));
+    else if (this._container._writable) this._extend(cb);
+    return this;
+  }
+
+  _extend(spec: unknown): void {
+    this._insertable();
+    const positions = this._container._positions() as bigint[];
+    if (this._at < 0) {
+      this._at = 0;
+      this._place(positions.length > 0 ? positions[0] as bigint : 0n, spec);
+    } else {
+      this._at = positions.length;
+      this._place(positions.length > 0 ? (positions.at(-1) as bigint) + 1n : 0n, spec);
+    }
+  }
+
+  /** Inserts an element before the position, which then rests on it. */
+  prepend(spec: unknown): this {
+    this._insertable();
+    const positions = this._container._positions() as bigint[];
+    this._at = Math.max(this._at, 0);
+    this._place(this._at < positions.length ? positions[this._at] as bigint
+      : (positions.length > 0 ? (positions.at(-1) as bigint) + 1n : 0n), spec);
+    return this;
+  }
+
+  /** Inserts an element after the position, which then rests on it. */
+  append(spec: unknown): this {
+    this._insertable();
+    const positions = this._container._positions() as bigint[];
+    this._at = Math.min(this._at + 1, positions.length);
+    this._place(this._at > 0 ? (positions[this._at - 1] as bigint) + 1n : (positions.length > 0 ? positions[0] as bigint : 0n), spec);
+    return this;
+  }
+
+  /** Refuses an insertion a read-only container, or one whose indices are not ints, cannot take. */
+  _insertable(): void {
+    write(this._container._writable, `${this._container._label} is read-only; write through a builder`);
+    if (!positional(this._container._schema)) {
+      throw new ValueError(`${this._container._label}: only a dense or sparse container of int indices has positions to `
+        + "insert at; write through at(index)");
+    }
+  }
+
+  _place(index: bigint, spec: unknown): void {
+    this._container._insert(index, spec);
+    this._at = (this._container._positions() as bigint[]).indexOf(index);
+  }
+
+  toString(): string {
+    return `<iterator at ${shown(this.index())}>`;
+  }
+}
+
 class _Property extends Dunders {
   readonly [TYPE_NAME] = "_Property";
 
@@ -940,8 +1368,15 @@ function kindVisitor(values: Values, name: string, schema: unknown, store: OfSto
   const held = Schemas.structure(schema);
   const value = values.get(name);
   if (held instanceof Schemas.OfScalar.Data) return makeScalar(values, name, held, writable, label, parent, onWrite);
-  if (!writable) return isRecordData(value) ? value : makeEmpty(`${label} is not set`);
-  if (isRecordBuilder(value)) return value;
+  if (!writable) return isRecordData(value) || isContainerData(value) ? value : makeEmpty(`${label} is not set`);
+  if (isRecordBuilder(value) || isContainerBuilder(value)) return value;
+  if (held instanceof Schemas.OfContainer.Data) {
+    const placed = (builder: unknown): void => {
+      (onWrite as () => void)();
+      values.set(name, builder);
+    };
+    return makeContainerBuilder(held, isContainerData(value) ? value : null, store, placed, label, parent);
+  }
   const attach = (builder: unknown): void => {
     (onWrite as () => void)(); // a writable member is a union's or an intersection's, which says what writing does
     values.set(name, builder);
@@ -1300,7 +1735,23 @@ function withArticle(noun: string): string {
 
 /** Prepares `value` to be placed where `old` was: a value object owned elsewhere is copied, and `mapping` records, for
  * each value object copied or edited, the one that takes its place, so that the entries among them link those. */
+/** What a container's element `value` takes the place of, in the container `old`: the value object it is, or edits,
+ * where `old` holds that one (an element may have moved), else the element at its key. */
+function prior(old: unknown, key: string, value: unknown): unknown {
+  if (!isContainerData(old)) return null;
+  const held = new Set((innerOf(old)._items as Values).values());
+  for (const candidate of [value, isRecordData(value) ? innerOf(value)._source : null]) {
+    if (candidate !== null && held.has(candidate)) return candidate;
+  }
+  return (innerOf(old)._items as Values).get(key) ?? null;
+}
+
 function stage(old: unknown, value: unknown, mapping: Mapping): unknown {
+  if (isContainerData(value) && value !== old) {
+    const state: _ContainerData = innerOf(value);
+    const items: Values = new Map([...state._items].map(([key, item]) => [key, stage(prior(old, key, item), item, mapping)] as const));
+    return makeContainerData(state._schema, items, new Map(state._indices));
+  }
   if (!isRecordData(value) || value === old) return value;
   let state: _RecordData = innerOf(value);
   if (state._source !== null && state._source === old) { // an edit of `old`, which keeps its identity
@@ -1335,7 +1786,7 @@ function copy(record: unknown): unknown {
   const builder = new _RecordBuilder(state._schema, null, store);
   shell(builder);
   builder._copyOf = record;
-  builder._values = new Map([...state._values].map(([name, value]) => [name, isRecordData(value) ? copy(value) : value]));
+  builder._values = new Map([...state._values].map(([name, value]) => [name, copyHeld(value)]));
   const schema = state._schema;
   for (const [name, adjacency] of schema instanceof Schemas.OfObject.Data ? schema.adjacencies : []) {
     for (const entry of linking(adjacency.relation as RelationSchema, adjacency.me, record)) {
@@ -1343,7 +1794,7 @@ function copy(record: unknown): unknown {
       const copied = makeEntryBuilder(adjacency.relation as RelationSchema, adjacency.me, store);
       const target: _EntryBuilder = innerOf(copied);
       target._links = new Map([...held._links].filter(([link]) => link !== adjacency.me));
-      target._values = new Map([...held._properties].map(([n, v]) => [n, isRecordData(v) ? copy(v) : v]));
+      target._values = new Map([...held._properties].map(([n, v]) => [n, copyHeld(v)]));
       target._source = entry;
       builder._entries.set(name, [...(builder._entries.get(name) ?? []), copied]);
     }
@@ -1351,8 +1802,24 @@ function copy(record: unknown): unknown {
   return builder.build(); // a placed value object, the only kind copied, has no pending entries
 }
 
-/** Places a staged value: an edit is merged into `old`, and a value object built for it is adopted by `owner`. */
+/** A copy of a held value: of a value object, or of a container and the value objects it holds. */
+function copyHeld(value: unknown): unknown {
+  if (isRecordData(value)) return copy(value);
+  if (isContainerData(value)) {
+    const state: _ContainerData = innerOf(value);
+    return makeContainerData(state._schema, new Map([...state._items].map(([key, item]) => [key, copyHeld(item)])), new Map(state._indices));
+  }
+  return value;
+}
+
+/** Places a staged value: an edit is merged into `old`, and a value object built for it is adopted by `owner`, as those
+ * a container holds are. */
 function finish(owner: unknown, old: unknown, value: unknown, mapping: Mapping): unknown {
+  if (isContainerData(value) && value !== old) {
+    const items: Values = innerOf(value)._items;
+    for (const [key, item] of [...items]) items.set(key, finish(owner, prior(old, key, item), item, mapping));
+    return value;
+  }
   if (!isRecordData(value) || value === old) return value;
   const state: _RecordData = innerOf(value);
   if (state._source !== null && state._source === old) {
@@ -1397,9 +1864,10 @@ function merge(old: unknown, edit: unknown, mapping: Mapping): void {
   drop(before, heldBy(old));
 }
 
-/** The value objects that `values` hold directly. */
+/** The value objects that `values` hold directly, or in the containers they hold. */
 function records(values: readonly unknown[]): unknown[] {
-  return values.filter(isRecordData);
+  return values.flatMap((value) => isRecordData(value) ? [value]
+    : isContainerData(value) ? records([...(innerOf(value)._items as Values).values()]) : []);
 }
 
 /** The values an object or a value object holds: its properties', and those of the entries of its one-link relations,
@@ -1451,6 +1919,7 @@ function built(value: unknown): unknown {
     const state: _RecordBuilder = innerOf(value);
     return state._schema instanceof Schemas.OfUnion.Data && state._values.size === 0 ? null : state.build();
   }
+  if (isContainerBuilder(value)) return innerOf(value).build();
   return value;
 }
 

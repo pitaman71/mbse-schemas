@@ -573,8 +573,10 @@ class _Any(_Unassignable):
                     return self
                 raise ReadOnlyError(f"{self._label} is read-only; write through a builder")
             return self._hand(cb, _Empty(f"{self._label} is not set"))
-        if _is_function(cb):
-            _visit(cb, self._container())
+        if _is_function(cb):  # selecting the kind writes it, as an empty container until written further
+            builder = self._container()
+            builder._touch()
+            _visit(cb, builder)
         else:
             self._replace_container(cb)
         return self
@@ -681,18 +683,23 @@ def _index_key(schema: Schemas.OfContainer.Data, index: Any, label: str) -> Hash
     kind = Schemas.structure(schema.index)
     if isinstance(kind, Schemas.OfScalar.Data):
         if kind.type is not None and type(index) is not kind.type:
-            raise TypeError(f"{label}: an index is a {kind.type.__name__}, got {type(index).__name__}")
+            raise TypeError(f"{label}: an index is a {kind.token.name}, got {type(index).__name__}")
         return index
     if schema.arrangement != "entries":
-        hosts = [Schemas.structure(prop.type).type for prop in kind.properties.values()]
-        if not isinstance(index, tuple) or len(index) != len(hosts) or any(
-                host is not None and type(i) is not host for i, host in zip(index, hosts)):
-            names = ", ".join(host.__name__ if host is not None else "?" for host in hosts)
-            raise TypeError(f"{label}: an index is a tuple of {names}, got {index!r}")
+        scalars = [Schemas.structure(prop.type) for prop in kind.properties.values()]
+        if not isinstance(index, tuple) or len(index) != len(scalars) or any(
+                scalar.type is not None and type(i) is not scalar.type for i, scalar in zip(index, scalars)):
+            names = ", ".join(scalar.token.name for scalar in scalars)
+            raise TypeError(f"{label}: an index is a tuple of {names}, got {_shown(index)}")
         return index
     if not isinstance(index, _RecordData) or index._schema is not kind:
         raise TypeError(f"{label}: an index is a value of its index type, got {type(index).__name__}")
     return _scalar_key(index)
+
+
+def _shown(index: Any) -> str:
+    """An index in a message: a tuple of indices as a list, as every implementation shows it."""
+    return repr(list(index)) if isinstance(index, tuple) else repr(index)
 
 
 def _positional(schema: Schemas.OfContainer.Data) -> bool:
@@ -732,7 +739,8 @@ class _Containing(_Unassignable):
         def wrote() -> None:
             self._indices[key] = index
 
-        return _Any(self._items, key, self._schema.element, self._store, self._writable, f"{self._label}[{index!r}]", wrote)
+        at = ", ".join(map(repr, index)) if isinstance(index, tuple) else repr(index)
+        return _Any(self._items, key, self._schema.element, self._store, self._writable, f"{self._label}[{at}]", wrote)
 
     def __len__(self) -> int:
         """The number of positions: in a dense container of int indices, every index from 0 to the last (and every
@@ -752,7 +760,7 @@ class _Containing(_Unassignable):
         key = _index_key(self._schema, index, self._label)
         if self._writable:
             if self._schema.arrangement == "dense" and _negative(index):
-                raise ValueError(f"{self._label}: a dense container's index is not negative, got {index!r}")
+                raise ValueError(f"{self._label}: a dense container's index is not negative, got {_shown(index)}")
             self._touch()
         return self._element(key, index)
 
@@ -941,7 +949,7 @@ class _Iterator(_Unassignable):
         self._at = self._positions().index(index)
 
     def __repr__(self) -> str:
-        return f"<iterator at {self.index()!r}>"
+        return f"<iterator at {_shown(self.index())}>"
 
 
 class _Property(_Dunders):

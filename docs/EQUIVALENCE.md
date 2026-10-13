@@ -99,6 +99,8 @@ noticed.
 | `name in visitor` | not defined (`hasattr` is always true: a name the schema lacks reads as empty) | whether the schema declares the name, or the visitor has it | the `has` trap | PRX-02, PRX-21, VIS-05, EMB-02 |
 | Reading callbacks (`Readers.Read`) | `Callable[[V], V]` | `(reader: V) => any`, so that every `Visitors.OfX`, whose callbacks return the writable visitor, is a `Readers.OfX` to the type checker | TypeScript checks callback return types covariantly | VIS-01 |
 | Keyword arguments | `indent=2` | `{ indent: 2 }` | no keyword arguments | JSN-04 |
+| A container's index of several ints | a tuple, `(1, 2)` | an array, `[1n, 2n]` | no tuples in JavaScript; messages show either as a list, `[1, 2]` | CNT-01, CNT-06 |
+| A container's size | `len(container)` | `container.length` | each language's own | CNT-01 |
 | Arguments of an application by name | `.arguments(rows=2, cols=3)` | `.arguments({ rows: 2n, cols: 3n })`, or a `Map` | no keyword arguments | PAR-03 |
 | Finalizer arguments | extra arguments raise `TypeError` | checked explicitly | JavaScript ignores extra arguments | SCH-09, PRX-04 |
 | Subclasses of scalars | rejected | boxed primitives and `Buffer` rejected | the nearest analogues | SCH-03 |

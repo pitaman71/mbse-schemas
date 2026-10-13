@@ -290,8 +290,8 @@ export interface ToYAMLCall {
 
 /** Encodes values, naming the schemas of objects in `store`: `ToYAML(store)(schema, value)` dispatches on the schema's
  * kind. */
-export function ToYAML(store: Stores.Store): ToYAMLCall {
-  const plain = Plain.ToPlain(store);
+export function ToYAML(store: Stores.Store, options: { flat?: boolean } = {}): ToYAMLCall {
+  const plain = Plain.ToPlain(store, options);
   const call = (schema: unknown, value: unknown): string => dumps(plain(schema, value));
   return Object.assign(call, {
     OfScalar: (schema: Schemas.OfScalar.Data, value: Scalar) => dumps(plain.OfScalar(schema, value)),

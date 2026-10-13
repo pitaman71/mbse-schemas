@@ -29,7 +29,8 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
    holds a list.
 2. **Reference or value.** A reference object (its schema marked `.ref()`) stands on its own and is reached through
    relations only. A *value object* is held by a property, or by a one-link relation's entry, whose schema is an
-   `OfObject`; it belongs to that owner and is copied with it, and it may have adjacencies.
+   `OfObject`; it belongs to that owner and is copied with it, and it may have lists (adjacencies to one-link relations). Links
+   target reference objects only: nothing links to a value object.
 3. **Names starting with `$` are reserved** for the wire format (`$ref`, `$schema`, `$id`); `validate()` reports them.
 4. **Nothing is mandatory, and absent reads as `None`** (`null` in TypeScript): no property holds `None` as a value,
    and an absent one is left out of what is written. An undeclared name raises `AttributeError`. Cardinality

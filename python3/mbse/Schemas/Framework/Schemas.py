@@ -649,8 +649,13 @@ class _ObjectData(_Reflected):
         for name, prop in self.properties.items():
             problems += [f"property {name!r}: {p}" for p in _validate(prop.type) + _embedded_problems(prop.type)
                          + _description_problems(prop.description)]
-        for adjacency in self.adjacencies.values():
+        for name, adjacency in self.adjacencies.items():
             problems += adjacency.validate()
+            links = len(adjacency.relation.links) if isinstance(adjacency.relation, _RelationData) else 0
+            if not self.ref and links > 1:  # its entries would link it: value objects are never shared
+                named = "the relation" if adjacency.relation.name is None else repr(adjacency.relation.name)
+                problems.append(f"adjacency {name!r}: a value object schema's adjacency is to a one-link relation, "
+                                f"since entries never reference value objects; {named} has {links} links")
         return problems
 
 

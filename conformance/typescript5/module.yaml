@@ -164,16 +164,18 @@ objects:
                             format: basic
                             token: str
                       adjacencies:
-                      - name: cables
+                      - name: pins
                         relation:
-                          named:
-                            name: Cable
-                        me: source
-                      - name: plugs
-                        relation:
-                          named:
-                            name: Cable
-                        me: sink
+                          relation:
+                            links:
+                            - name: owner
+                            properties:
+                            - name: value
+                              type:
+                                scalar:
+                                  format: basic
+                                  token: str
+                        me: owner
             me: owner
           - name: banks
             relation:
@@ -201,16 +203,18 @@ objects:
                                         format: basic
                                         token: str
                                   adjacencies:
-                                  - name: cables
+                                  - name: pins
                                     relation:
-                                      named:
-                                        name: Cable
-                                    me: source
-                                  - name: plugs
-                                    relation:
-                                      named:
-                                        name: Cable
-                                    me: sink
+                                      relation:
+                                        links:
+                                        - name: owner
+                                        properties:
+                                        - name: value
+                                          type:
+                                            scalar:
+                                              format: basic
+                                              token: str
+                                    me: owner
                         me: owner
             me: owner
           - name: matrix
@@ -336,11 +340,18 @@ objects:
                       format: basic
                       token: str
                 adjacencies:
-                - name: hubs
+                - name: extensions
                   relation:
-                    named:
-                      name: Line
-                  me: phone
+                    relation:
+                      links:
+                      - name: owner
+                      properties:
+                      - name: value
+                        type:
+                          scalar:
+                            format: basic
+                            token: str
+                  me: owner
           - name: reach
             type:
               union:
@@ -360,11 +371,18 @@ objects:
                             format: basic
                             token: str
                       adjacencies:
-                      - name: hubs
+                      - name: extensions
                         relation:
-                          named:
-                            name: Line
-                        me: phone
+                          relation:
+                            links:
+                            - name: owner
+                            properties:
+                            - name: value
+                              type:
+                                scalar:
+                                  format: basic
+                                  token: str
+                        me: owner
                 - name: email
                   type:
                     object:
@@ -586,22 +604,6 @@ objects:
                     scalar:
                       format: basic
                       token: str
-    - name: Panel
-      schema:
-        object:
-          ref: true
-          properties:
-          - name: name
-            type:
-              scalar:
-                format: basic
-                token: str
-          adjacencies:
-          - name: plugs
-            relation:
-              named:
-                name: Cable
-            me: sink
     - name: Parentage
       schema:
         relation:

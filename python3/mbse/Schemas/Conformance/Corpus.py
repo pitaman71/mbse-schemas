@@ -46,13 +46,6 @@ def _entries(name, values):
     return spec
 
 
-def _first(adjacency, at, then):
-    """Edits the entry at position `at` of an adjacency, through the visitor protocols."""
-    found = []
-    adjacency.entries(found.append)
-    then(found[at])
-
-
 def build():
     """The corpus, built in a store of its own: each case's root schema and root object."""
     S = Schemas
@@ -104,11 +97,10 @@ def build():
     S.OfObject.Builder(Notebook).relations(lambda a: a.name("notes").of(Pages).me("notebook")).update()
     S.OfObject.Builder(Note).relations(lambda a: a.name("notebooks").of(Pages).me("note")).update()
 
-    # --- embedded: value objects (value objects, one linked through a relation), union values of objects and of
-    # scalars, and an intersection value; a card reached only through its value object carries its schema ---
-    Line = S.OfRelation.Builder().name("Line").links("hub", "phone").create()
+    # --- embedded: value objects (one with a list of its own), union values of objects and of scalars, and an
+    # intersection value ---
     CardPhone = S.OfObject.Builder().properties(_text("number"), _text("label")).relations(
-        lambda a: a.name("hubs").of(Line).me("phone")).create()
+        _list("extensions", _text("value"))).create()
     CardEmail = S.OfObject.Builder().properties(_text("address")).create()
     Reach = S.OfUnion.Builder().branches(lambda b: b.name("phone").of(CardPhone),
                                          lambda b: b.name("email").of(CardEmail)).create()
@@ -124,14 +116,11 @@ def build():
     Holding = S.OfRelation.Builder().name("Holding").links("deck", "card").create()
     Deck = S.OfObject.Builder().name("Deck").ref().properties(_text("title")).relations(lambda a: a.name("cards").of(Holding).me("deck")).create()
     S.OfObject.Builder(Card).relations(lambda a: a.name("decks").of(Holding).me("card")).update()
-    Hub = S.OfObject.Builder().name("Hub").ref().properties(_text("name")).relations(lambda a: a.name("phones").of(Line).me("hub")).create()
 
     # --- lists: one-link relations, open (lists) or keyed by what a `unique` clause leaves out: of scalars, of lists,
-    # of union values and of value objects, which link each other and a reference object; keyed by text, by a float, by
-    # a value object and by a pair of ints ---
-    Cable = S.OfRelation.Builder().name("Cable").links("source", "sink").create()
-    Socket = S.OfObject.Builder().properties(_text("name")).relations(
-        lambda a: a.name("cables").of(Cable).me("source"), lambda a: a.name("plugs").of(Cable).me("sink")).create()
+    # of union values and of value objects, which have lists of their own; keyed by text, by a float, by a value object
+    # and by a pair of ints ---
+    Socket = S.OfObject.Builder().properties(_text("name")).relations(_list("pins", _text("value"))).create()
     Coord = S.OfObject.Builder().properties(_text("r", int), _text("c", int)).create()
     Reading = S.OfUnion.Builder().branches(lambda b: b.name("value").of(lambda t: t.as_scalar(float)),
                                            lambda b: b.name("note").of(lambda t: t.as_scalar(str))).create()
@@ -145,10 +134,8 @@ def build():
         _list("attrs", _text("key"), _text("value", float), unique=("value",)),
         _list("weights", _text("key", float), _text("value"), unique=("value",)),
         _list("cells", _held("key", Coord), _text("value", int), unique=("value",))).create()
-    Panel = S.OfObject.Builder().name("Panel").ref().properties(_text("name")).relations(
-        lambda a: a.name("plugs").of(Cable).me("sink")).create()
 
-    for schema in [Contact, Address, Phone, ContactAddresses, ContactPhones, Bag, Sample, Holds, Person, Parentage, Mentorship, Student, Course, Term, Enrollment, Notebook, Note, Pages, Card, Deck, Holding, Hub, Line, Board, Panel, Cable]:
+    for schema in [Contact, Address, Phone, ContactAddresses, ContactPhones, Bag, Sample, Holds, Person, Parentage, Mentorship, Student, Course, Term, Enrollment, Notebook, Note, Pages, Card, Deck, Holding, Board]:
         store.register(schema)
     B = store
 
@@ -208,7 +195,7 @@ def build():
 
     deck = B.Deck().title("contacts").create()
     cards = [
-        B.Card().name("Ann").home(lambda r: r.number("+1 555 0100").label("home"))
+        B.Card().name("Ann").home(lambda r: r.number("+1 555 0100").label("home").extensions(lambda e: e.value("12")))
         .reach(lambda u: u.email(lambda r: r.address("ann@example.com"))).ident(lambda u: u.number(7)).create(),
         B.Card().name("Bo").reach(lambda u: u.phone(lambda r: r.number("+44 20 7946 0000")))
         .ident(lambda u: u.code("B-2"))
@@ -218,10 +205,7 @@ def build():
     ]
     for card in cards:
         B.Deck(deck).cards(lambda x, card=card: x.card(card)).update()
-    di = B.Card().name("Di").home(lambda r: r.number("+33 1 00 00 00 00")).create()
-    B.Hub().name("switchboard").phones(lambda x: x.phone(cards[0].home)).phones(lambda x: x.phone(di.home)).create()
 
-    panel = B.Panel().name("mains").create()
     rack = B.Board().name("rack")
     for value in ["", "日本語 🚀", "a"]:
         rack.tags(lambda e, value=value: e.value(value))
@@ -231,29 +215,16 @@ def build():
         rack.grid(lambda e, row=row: e.row(_entries("values", [lambda x, v=v: x.value(v) for v in row])))
     rack.readings(lambda e: e.reading(lambda u: u.value(-0.0))).readings(lambda e: e.reading(lambda u: u.note("off")))
     rack.readings(lambda e: e.reading(lambda u: u.value(math.inf)))
-    rack.sockets(lambda e: e.socket(lambda o: o.name("in"))).sockets(lambda e: e.socket(lambda o: o.name("out")))
-    rack.banks(lambda e: e.bank(lambda b: b)).banks(lambda e: e.bank(lambda b: b.sockets(lambda x: x.socket(lambda o: o.name("spare")))))
+    rack.sockets(lambda e: e.socket(lambda o: o.name("in").pins(lambda x: x.value("1")).pins(lambda x: x.value("2"))))
+    rack.sockets(lambda e: e.socket(lambda o: o.name("out")))
+    rack.banks(lambda e: e.bank(lambda b: b)).banks(lambda e: e.bank(lambda b: b.sockets(
+        lambda x: x.socket(lambda o: o.name("spare").pins(lambda y: y.value("9"))))))
     for i, j, value in [(2, 1, 0), (1, 1, 1), (1, 2, 0), (2, 2, 1)]:
         rack.matrix(lambda e, i=i, j=j, value=value: e.i(i).j(j).value(value))
     rack.attrs(lambda e: e.key("gain").value(1.5)).attrs(lambda e: e.key("").value(-0.0))
     rack.weights(lambda e: e.key(0.5).value("half")).weights(lambda e: e.key(math.nan).value("none"))
     rack.cells(lambda e: e.key(lambda c: c.r(2).c(3)).value(6)).cells(lambda e: e.key(lambda c: c.r(0).c(0)).value(0))
     board = rack.create()
-    ins = board.sockets.project("socket")
-
-    def wire_in(entry):  # the first socket to the second, and to the panel
-        entry.property("socket", lambda p: p.value(lambda v: v.as_object(
-            lambda o: o.cables(lambda x: x.sink(ins[1])).cables(lambda x: x.sink(panel)))))
-
-    def wire_spare(entry):  # the spare socket of the second bank to the first socket
-        entry.property("socket", lambda p: p.value(lambda v: v.as_object(lambda o: o.cables(lambda x: x.sink(ins[0])))))
-
-    def bank(entry):
-        entry.property("bank", lambda p: p.value(lambda v: v.as_object(lambda o: o.adjacency(
-            "sockets", lambda a: _first(a, 0, wire_spare)))))
-
-    B.Board(board).adjacency("sockets", lambda a: _first(a, 0, wire_in)).adjacency(
-        "banks", lambda a: _first(a, 1, bank)).update()
 
     # --- module: the corpus's own schemas as data, with scalars of widths and another format's token, and parametric
     # schemas: parameters, terms where a width stands, and applications with arguments of every scalar ---
@@ -280,7 +251,7 @@ def build():
         lambda b: b.name("who").of(lambda t: t.as_object(lambda o: o.properties(_text("by"))))).flat().create()
     schemas = [S.OfScalar.resolve(lambda n: n.name("Int32").type(int).bits(32)),
                S.OfScalar.resolve(lambda n: n.name("Size").token("ccpp", "size_t").bytes(8)),
-               Contact, Address, ContactAddresses, Person, Parentage, Card, Deck, Holding, Board, Panel,
+               Contact, Address, ContactAddresses, Person, Parentage, Card, Deck, Holding, Board,
                Word, Grid, Square, Tricky, Applied, Choice, Marked]
     module = Modules.module(store, schemas)
 

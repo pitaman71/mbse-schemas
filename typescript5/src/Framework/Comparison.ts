@@ -495,16 +495,10 @@ export class OfLink implements Visitors.OfLink {
     return this;
   }
 
-  /** The path to the linked value object within its recording, if it is one recorded there. */
-  private where(target: Visitors.Visitable): string | undefined {
-    return this.paths?.paths.get(target.identity());
-  }
-
+  /** Links compare by their targets' identities: a link targets a reference object, never a value object. */
   compare(other: OfLink): Result {
     const [mine, theirs] = [this.recorded[0], other.recorded[0]];
     if (mine === undefined || theirs === undefined) return mine === theirs ? 0 : null;
-    const [here, there] = [this.where(mine), other.where(theirs)];
-    if (here !== undefined || there !== undefined) return here === there ? 0 : null;
     return mine.identity() === theirs.identity() ? 0 : null;
   }
 }

@@ -872,7 +872,15 @@ class ObjectData extends Reflected {
       problems.push(...[...validateSchema(prop.type), ...embeddedProblems(prop.type), ...descriptionProblems(prop.description)]
         .map((p) => `property ${repr(name)}: ${p}`));
     }
-    for (const adjacency of this.adjacencies.values()) problems.push(...adjacency.validate());
+    for (const [name, adjacency] of this.adjacencies) {
+      problems.push(...adjacency.validate());
+      const links = adjacency.relation instanceof RelationData ? adjacency.relation.links.length : 0;
+      if (!this.ref && links > 1) { // its entries would link it: value objects are never shared
+        const named = (adjacency.relation as RelationData).name;
+        problems.push(`adjacency ${repr(name)}: a value object schema's adjacency is to a one-link relation, `
+          + `since entries never reference value objects; ${named === null ? "the relation" : repr(named)} has ${links} links`);
+      }
+    }
     return problems;
   }
 }

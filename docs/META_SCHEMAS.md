@@ -63,7 +63,10 @@ skill regenerated. No release comes between phases.
   views `Readers.OfX`; proxy data instances (read-only) and builders implement it, a builder reading back its
   pending writes.
 - V3. **Consumers pull**: `Plain`, `JSON`, `YAML`, `Validators`, `Comparison`, `Reachable`, `Reflection`, `Modules` and
-  `Bindings` read and write through the protocol; `accept` and the old protocol go.
+  `Bindings` read and write through the protocol; `accept` and the old protocol go. With them go what V1 left without
+  a use: `Comparison`'s paths between value objects (`OfLink` compares by identity only), and the state's references
+  in a value object's entries (`Bindings`, "no snapshot holds the value"), which only a two-link relation of a value
+  object, now invalid, could hold.
 - V4. **Identity**: a reference object named by its global name or a UUID given by `create()` or `clone()`, saved on the
   wire as its key in a snapshot and in the links to it; `Paths` removed.
 

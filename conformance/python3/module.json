@@ -315,22 +315,28 @@
                               ],
                               "adjacencies": [
                                 {
-                                  "name": "cables",
+                                  "name": "pins",
                                   "relation": {
-                                    "named": {
-                                      "name": "Cable"
+                                    "relation": {
+                                      "links": [
+                                        {
+                                          "name": "owner"
+                                        }
+                                      ],
+                                      "properties": [
+                                        {
+                                          "name": "value",
+                                          "type": {
+                                            "scalar": {
+                                              "format": "basic",
+                                              "token": "str"
+                                            }
+                                          }
+                                        }
+                                      ]
                                     }
                                   },
-                                  "me": "source"
-                                },
-                                {
-                                  "name": "plugs",
-                                  "relation": {
-                                    "named": {
-                                      "name": "Cable"
-                                    }
-                                  },
-                                  "me": "sink"
+                                  "me": "owner"
                                 }
                               ]
                             }
@@ -383,22 +389,28 @@
                                               ],
                                               "adjacencies": [
                                                 {
-                                                  "name": "cables",
+                                                  "name": "pins",
                                                   "relation": {
-                                                    "named": {
-                                                      "name": "Cable"
+                                                    "relation": {
+                                                      "links": [
+                                                        {
+                                                          "name": "owner"
+                                                        }
+                                                      ],
+                                                      "properties": [
+                                                        {
+                                                          "name": "value",
+                                                          "type": {
+                                                            "scalar": {
+                                                              "format": "basic",
+                                                              "token": "str"
+                                                            }
+                                                          }
+                                                        }
+                                                      ]
                                                     }
                                                   },
-                                                  "me": "source"
-                                                },
-                                                {
-                                                  "name": "plugs",
-                                                  "relation": {
-                                                    "named": {
-                                                      "name": "Cable"
-                                                    }
-                                                  },
-                                                  "me": "sink"
+                                                  "me": "owner"
                                                 }
                                               ]
                                             }
@@ -666,13 +678,28 @@
                       ],
                       "adjacencies": [
                         {
-                          "name": "hubs",
+                          "name": "extensions",
                           "relation": {
-                            "named": {
-                              "name": "Line"
+                            "relation": {
+                              "links": [
+                                {
+                                  "name": "owner"
+                                }
+                              ],
+                              "properties": [
+                                {
+                                  "name": "value",
+                                  "type": {
+                                    "scalar": {
+                                      "format": "basic",
+                                      "token": "str"
+                                    }
+                                  }
+                                }
+                              ]
                             }
                           },
-                          "me": "phone"
+                          "me": "owner"
                         }
                       ]
                     }
@@ -709,13 +736,28 @@
                               ],
                               "adjacencies": [
                                 {
-                                  "name": "hubs",
+                                  "name": "extensions",
                                   "relation": {
-                                    "named": {
-                                      "name": "Line"
+                                    "relation": {
+                                      "links": [
+                                        {
+                                          "name": "owner"
+                                        }
+                                      ],
+                                      "properties": [
+                                        {
+                                          "name": "value",
+                                          "type": {
+                                            "scalar": {
+                                              "format": "basic",
+                                              "token": "str"
+                                            }
+                                          }
+                                        }
+                                      ]
                                     }
                                   },
-                                  "me": "phone"
+                                  "me": "owner"
                                 }
                               ]
                             }
@@ -1158,36 +1200,6 @@
                       ]
                     }
                   }
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Panel",
-          "schema": {
-            "object": {
-              "ref": true,
-              "properties": [
-                {
-                  "name": "name",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "str"
-                    }
-                  }
-                }
-              ],
-              "adjacencies": [
-                {
-                  "name": "plugs",
-                  "relation": {
-                    "named": {
-                      "name": "Cable"
-                    }
-                  },
-                  "me": "sink"
                 }
               ]
             }

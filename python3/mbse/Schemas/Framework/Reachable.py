@@ -2,8 +2,7 @@
 
 `Reachable.of(root)` returns the root and every reference object reachable from it, in the order each is first
 referenced. Value objects are followed too: their entries are collected like a reference object's, and a value object
-reached brings in the reference object that owns it (`Visitable.owner()`), where it is written. `Reachable.targets(
-objects)` gives the identities of every object their entries link, value objects included. The collector is a
+reached brings in the reference object that owns it (`Visitable.owner()`), where it is written. The collector is a
 visitor: each object writes itself into it through `Visitable.accept`, and the collector records the targets of the
 links it is given. It needs no schema: scalar property values are ignored.
 """
@@ -16,7 +15,7 @@ from typing import Any
 from . import Visitors
 from .Visitors import Scalar
 
-__all__ = ["of", "targets"]
+__all__ = ["of"]
 
 _Found = Callable[[Visitors.Visitable], None]
 
@@ -183,11 +182,3 @@ def of(root: Visitors.Visitable) -> list[Visitors.Visitable]:
     while queue:
         queue.pop(0).accept(_Collector(found))
     return list(seen.values())
-
-
-def targets(objects: list[Visitors.Visitable]) -> set[Hashable]:
-    """The identities of every object that the entries of `objects`, and of the value objects they hold, link."""
-    linked: set[Hashable] = set()
-    for value in objects:
-        value.accept(_Collector(lambda target: linked.add(target.identity())))
-    return linked

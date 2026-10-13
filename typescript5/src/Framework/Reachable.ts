@@ -3,10 +3,9 @@
  *
  * `Reachable.of(root)` returns the root and every reference object reachable from it, in the order each is first
  * referenced. Value objects are followed too: their entries are collected like a reference object's, and a value object
- * reached brings in the reference object that owns it (`Visitable.owner()`), where it is written.
- * `Reachable.targets(objects)` gives the identities of every object their entries link, value objects included. The
- * collector is a visitor: each object writes itself into it through `Visitable.accept`, and the collector records the
- * targets of the links it is given. It needs no schema: scalar property values are ignored.
+ * reached brings in the reference object that owns it (`Visitable.owner()`), where it is written. The collector is a
+ * visitor: each object writes itself into it through `Visitable.accept`, and the collector records the targets of the
+ * links it is given. It needs no schema: scalar property values are ignored.
  */
 
 import { AttributeError, NotImplementedError } from "./Errors.js";
@@ -196,11 +195,4 @@ export function of(root: Visitable): Visitable[] {
   };
   for (let i = 0; i < queue.length; i++) (queue[i] as Visitable).accept(new _Collector(found));
   return [...seen.values()];
-}
-
-/** The identities of every object that the entries of `objects`, and of the value objects they hold, link. */
-export function targets(objects: Visitable[]): Set<unknown> {
-  const linked = new Set<unknown>();
-  for (const value of objects) value.accept(new _Collector((target) => linked.add(target.identity())));
-  return linked;
 }

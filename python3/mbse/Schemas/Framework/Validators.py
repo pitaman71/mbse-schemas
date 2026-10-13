@@ -264,8 +264,7 @@ def _filling(relation: Schemas.OfRelation.Data, name: str, target: Visitors.Visi
     """Whether `target`, of `schema`, may fill link `name` of `relation`: its schema must declare an adjacency via it."""
     if any(a.relation is relation and a.me == name for a in schema.adjacencies.values()):
         return None
-    what = f"a {target.schema_name()!r}" if target.schema_name() else "a value object"
-    return f"{what} cannot fill link {name!r}; its schema declares no adjacency to this relation via {name!r}"
+    return f"a {target.schema_name()!r} cannot fill link {name!r}; its schema declares no adjacency to this relation via {name!r}"
 
 
 def _value_key(value: Any) -> Hashable:
@@ -312,8 +311,6 @@ class _Check:
         self.unknowns: list[str] = []
         self._schemas_checked: set[int] = set()
         self._entries: dict[int, tuple[Schemas.OfRelation.Data, dict[Hashable, _Entry]]] = {}
-        self._value_schemas: dict[Hashable, Schemas.OfObject.Data] = {}  # the schemas of the value objects seen
-        self._links: list[tuple[str, Schemas.OfRelation.Data, str, Visitors.Visitable]] = []  # links to value objects
 
     def _schema(self, label: str, schema: Any) -> None:
         if id(schema) in self._schemas_checked:
@@ -369,8 +366,6 @@ class _Check:
 
     def _value_entries(self, label: str, schema: Schemas.OfObject.Data, item: _ObjectRecord) -> list[str]:
         """Problems with a value object's entries, which are checked as a reference object's are."""
-        if item.target is not None:
-            self._value_schemas[item.target.identity()] = schema
         problems = []
         for name, entries in item.adjacency_entries.items():
             if name not in schema.adjacencies:
@@ -383,7 +378,8 @@ class _Check:
     def _entry(
         self, label: str, adjacency: Schemas.OfAdjacency.Data, owner: Visitors.Visitable | None, entry: _EntryRecord
     ) -> list[str]:
-        """Problems with one entry. A link to a value object is checked once every value object has been seen."""
+        """Problems with one entry. Its own link may name a value object, the owner of a value object's list; any other
+        link targets a reference object."""
         relation = adjacency.relation
         self._schema(f"of {label}", relation)
         problems = []
@@ -396,7 +392,8 @@ class _Check:
             if target is None:  # a value object that did not identify itself
                 continue
             if target.owner() is not None:
-                self._links.append((label, relation, name, target))
+                if name != adjacency.me:
+                    problems.append(f"{label}.{name}: a link targets a reference object, never a value object")
                 continue
             problem = _filling(relation, name, target, self._store.schema(target.schema_name()))
             if problem:
@@ -410,14 +407,6 @@ class _Check:
         _, seen = self._entries.setdefault(id(relation), (relation, {}))
         seen.setdefault(full.key(set(relation.links) | set(relation.properties)), full)
         return problems
-
-    def links(self) -> None:
-        """Checks the links to value objects, each against its schema; a value object not validated is not checked."""
-        for label, relation, name, target in self._links:
-            schema = self._value_schemas.get(target.identity())
-            problem = None if schema is None else _filling(relation, name, target, schema)
-            if problem:
-                self.problems.append(f"{label}.{name}: {problem}")
 
     def uniques(self) -> None:
         for relation, entries in self._entries.values():
@@ -507,7 +496,6 @@ class Check:
         check = _Check(self._store)
         for i, value in enumerate(values):
             check.object(f"{value.schema_name()}#{i}", self._store.schema(value.schema_name()), value)
-        check.links()
         check.uniques()
         return Outcome(check.problems, check.unknowns)
 

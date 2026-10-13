@@ -83,8 +83,8 @@ Total: 202 cases, the sum of the rows above. The 195 outside DC have the same ID
 | Union branches and intersection parts are named, unique and of one kind | SCH-14, SCH-15 |
 | Scalar types are tokens; `basic` and the own format are read; a width is size only | SCH-18 |
 | Reference object schemas are marked `.ref()`; no property holds one; only they are built and rooted on their own | SCH-19, VAL-13 |
-| Value objects are value objects: owned, read-only, written nested; with identities and adjacencies | EMB-01, EMB-02, EMB-04, EMB-09 |
-| Value objects keep their identity through edits, are copied with their entries, are removed with them; snapshots write `$id`, links without `$schema`, and an object's own `$schema` when nothing else gives it | EMB-09 |
+| Value objects are value objects: owned, read-only, written nested; with identities and lists of their own (adjacencies to one-link relations only) | EMB-01, EMB-02, EMB-04, EMB-09 |
+| Value objects keep their identity through edits, are copied with their entries, are removed with them; never linked: schemas, proxies, writers, readers and `Validators` refuse a link to one | EMB-09, PLN-17 |
 | Union values hold one branch by name, in proxies and snapshots; validation checks there is exactly one | EMB-03..06 |
 | Intersection values hold every part by name; parts do not merge | VIS-05, EMB-08 |
 | Meta-schemas: modules hold schemas as data, by name and inline, read back sharing what is named | MOD-01..04, CONF-01..04 |

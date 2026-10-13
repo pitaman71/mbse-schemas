@@ -285,8 +285,7 @@ const ABSENT = "absent";
 /** Whether `target`, of `schema`, may fill link `name` of `relation`: its schema must declare an adjacency via it. */
 function filling(relation: Schemas.OfRelation.Data, name: string, target: Visitable, schema: Schemas.OfObject.Data): string | null {
   if ([...schema.adjacencies.values()].some((a) => a.relation === relation && a.me === name)) return null;
-  const what = target.schema_name() ? `a ${repr(target.schema_name())}` : "a value object";
-  return `${what} cannot fill link ${repr(name)}; its schema declares no adjacency to this relation via ${repr(name)}`;
+  return `a ${repr(target.schema_name())} cannot fill link ${repr(name)}; its schema declares no adjacency to this relation via ${repr(name)}`;
 }
 
 /** Equality key per EQUALITY.md: a scalar's, or a value object's by its properties and its entries, in order. */
@@ -323,10 +322,6 @@ class Checker {
   readonly unknowns: string[] = [];
   private readonly schemasChecked = new Set<unknown>();
   private readonly entries = new Map<Schemas.OfRelation.Data, Map<string, Entry>>();
-  /** The schemas of the value objects seen. */
-  private readonly valueSchemas = new Map<unknown, Schemas.OfObject.Data>();
-  /** The links to value objects, checked once every value object has been seen. */
-  private readonly valueLinks: [string, Schemas.OfRelation.Data, string, Visitable][] = [];
 
   constructor(private readonly store: Stores.Store) {}
 
@@ -367,7 +362,6 @@ class Checker {
 
   /** Problems with a value object's entries, which are checked as a reference object's are. */
   private valueEntries(label: string, schema: Schemas.OfObject.Data, item: _ObjectRecord): string[] {
-    if (item.target !== null) this.valueSchemas.set(item.target.identity(), schema);
     const problems: string[] = [];
     for (const [name, list] of item.adjacencyEntries) {
       const adjacency = schema.adjacencies.get(name);
@@ -402,7 +396,8 @@ class Checker {
     }
   }
 
-  /** Problems with one entry. A link to a value object is checked once every value object has been seen. */
+  /** Problems with one entry. Its own link may name a value object, the owner of a value object's list; any other link
+   * targets a reference object. */
   private entry(label: string, adjacency: Schemas.OfAdjacency.Data, owner: Visitable | null, entry: _EntryRecord): string[] {
     const relation = adjacency.relation as Schemas.OfRelation.Data;
     this.schema(`of ${label}`, relation);
@@ -415,8 +410,8 @@ class Checker {
       }
       const target = links.get(name) as Visitable | null;
       if (target === null) continue; // a value object that did not identify itself
-      if (target.owner() !== null) {
-        this.valueLinks.push([label, relation, name, target]);
+      if (target.owner() !== null) { // the entry's own link may name a value object, the owner of a value object's list
+        if (name !== adjacency.me) problems.push(`${label}.${name}: a link targets a reference object, never a value object`);
         continue;
       }
       const problem = filling(relation, name, target, this.store.schema(target.schema_name()));
@@ -436,15 +431,6 @@ class Checker {
     const key = full.key([...relation.links, ...relation.properties.keys()]);
     if (!seen.has(key)) seen.set(key, full);
     return problems;
-  }
-
-  /** Checks the links to value objects, each against its schema; a value object not validated is not checked. */
-  links(): void {
-    for (const [label, relation, name, target] of this.valueLinks) {
-      const schema = this.valueSchemas.get(target.identity());
-      const problem = schema === undefined ? null : filling(relation, name, target, schema);
-      if (problem !== null) this.problems.push(`${label}.${name}: ${problem}`);
-    }
   }
 
   uniques(): void {
@@ -520,7 +506,6 @@ export function Check(store: Stores.Store): CheckCall {
     }
     const check = new Checker(store);
     values.forEach((value, i) => check.object(`${value.schema_name()}#${i}`, store.schema(value.schema_name()), value));
-    check.links();
     check.uniques();
     return new Outcome(check.problems, check.unknowns);
   };

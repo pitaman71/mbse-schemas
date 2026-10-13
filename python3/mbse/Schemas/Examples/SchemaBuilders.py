@@ -77,9 +77,9 @@ assert Retyped.properties['a'].type == Schemas.OfScalar.Data(int) and first.prop
 # --- Relations and cardinality ---
 
 # A map a -> [key] -> b: a relation with links a, b and property key. ISO 4217 currency codes as keys.
-Product = Schemas.OfObject.Builder().properties(lambda prop: prop.name('sku').of(Text)).create()
+Product = Schemas.OfObject.Builder().ref().properties(lambda prop: prop.name('sku').of(Text)).create()
 Money = (
-    Schemas.OfObject.Builder()
+    Schemas.OfObject.Builder().ref()  # an entry links only reference objects
     .properties(lambda prop: prop.name('minor_units').of(lambda t: t.as_scalar(int)))  # e.g. cents
     .create()
 )

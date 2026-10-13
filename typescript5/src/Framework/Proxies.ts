@@ -606,7 +606,10 @@ function finish(owner: Visitable, old: unknown, value: unknown, mapping: Mapping
   return value;
 }
 
-/** Adds a value object's entries, linked to the value objects that take the place of those in `mapping`. */
+/**
+ * Adds a value object's entries, whose value objects take the place of those in `mapping`. Its relations have one link,
+ * its own, so no other object gives these entries.
+ */
 function addPending(record: ValueObject, mapping: Mapping): void {
   const state = stateOf(record);
   for (const [name, builders] of state.pending) {
@@ -614,9 +617,7 @@ function addPending(record: ValueObject, mapping: Mapping): void {
     const relation = adjacency.relation as RelationSchema;
     for (const builder of builders) {
       entryOf(builder).place(record, mapping);
-      const links = entryOf(builder).linkValues;
-      for (const [link, target] of [...links]) if (mapping.has(target)) links.set(link, mapping.get(target) as LinkValue);
-      if (firstCopy(relation, entryOf(builder), record, mapping)) addEntry(relation, builder.build(record));
+      addEntry(relation, builder.build(record));
     }
   }
   state.pending = new Map();
@@ -975,9 +976,8 @@ export class _LinkSlot implements OfLink {
   }
 
   set(target: Visitable): _LinkSlot {
-    if (!isInstance(target) && !(isRecord(target) && stateOf(target).schema instanceof Schemas.OfObject.Data)) {
-      throw new TypeError("proxies can only link proxy instances and their value objects");
-    }
+    if (isRecord(target)) throw new TypeError("a link targets a reference object, never a value object");
+    if (!isInstance(target)) throw new TypeError("proxies can only link proxy instances");
     sameStore(this.store, target);
     this.links.set(this.linkName, target);
     return this;
@@ -1253,8 +1253,6 @@ export class ObjectBuilderTarget implements ObjectVisitor {
     for (const [name, entries] of this.entries) {
       const relation = (this.schema.adjacencies.get(name) as AdjacencySchema).relation as RelationSchema;
       for (const entry of entries) {
-        const links = entryOf(entry).linkValues;
-        for (const [link, linked] of [...links]) if (mapping.has(linked)) links.set(link, mapping.get(linked) as LinkValue);
         if (firstCopy(relation, entryOf(entry), target, mapping)) addEntry(relation, entry.build(target));
       }
     }

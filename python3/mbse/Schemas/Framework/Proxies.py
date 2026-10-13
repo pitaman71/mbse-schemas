@@ -445,14 +445,13 @@ def _finish(owner: Any, old: Any, new: Any, mapping: dict[int, Any]) -> Any:
 
 
 def _add_pending(record: _RecordData, mapping: dict[int, Any]) -> None:
-    """Adds a value object's entries, linked to the value objects that take the place of those in `mapping`."""
+    """Adds a value object's entries, whose value objects take the place of those in `mapping`. Its relations have one
+    link, its own, so no other object gives these entries."""
     for name, builders in record._pending.items():
         relation = record._schema.adjacencies[name].relation
         for builder in builders:
             builder._place(record, mapping)
-            builder._links = {link: mapping.get(id(target), target) for link, target in builder._links.items()}
-            if _first_copy(relation, builder, record, mapping):
-                _add_entry(relation, builder.build(record))
+            _add_entry(relation, builder.build(record))
     object.__setattr__(record, "_pending", {})
 
 
@@ -771,9 +770,10 @@ class _LinkSlot:
         return self
 
     def set(self, target: Visitors.Visitable) -> _LinkSlot:
-        if not isinstance(target, _ObjectData) and not (
-                isinstance(target, _RecordData) and isinstance(object.__getattribute__(target, "_schema"), ObjectSchema)):
-            raise TypeError("proxies can only link proxy instances and their value objects")
+        if isinstance(target, _RecordData):
+            raise TypeError("a link targets a reference object, never a value object")
+        if not isinstance(target, _ObjectData):
+            raise TypeError("proxies can only link proxy instances")
         _same_store(self._store, target)
         self._links[self._name] = target
         return self
@@ -1010,7 +1010,6 @@ class _ObjectBuilder:
         for name, entries in self._entries.items():
             relation = self._schema.adjacencies[name].relation
             for entry in entries:
-                entry._links = {link: mapping.get(id(t), t) for link, t in entry._links.items()}
                 if _first_copy(relation, entry, target, mapping):
                     _add_entry(relation, entry.build(target))
         _drop(before or [], _held(target))

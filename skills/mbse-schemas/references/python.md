@@ -117,7 +117,7 @@ ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromD
 
 - `True` is not an `int`, and `1.0` is not an `int`. Validation reports `expected int, got bool`.
 - A two-link entry's properties hold scalars and value objects without adjacencies; a one-link entry's value objects
-  may have adjacencies. Link an object for anything richer.
+  may have lists. Link a reference object for anything richer.
 - Setting a value object into a property or an entry copies it. Edit one in place through a Spec instead.
 - A schema's name is its own (`.name("crm.Contact")`), the same in every store that registers it. Registering an
   unnamed schema, or a name twice in one store, raises `ValueError`, and an object of one store cannot be linked from

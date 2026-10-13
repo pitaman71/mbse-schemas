@@ -222,7 +222,7 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   only when the caller asks. It checks the schemas' own `validate()`, exact scalar types
   of properties and entry properties, that every link is set and filled by an object whose schema declares an
   adjacency via that link, `unique(...)` clauses over the entries seen, value objects' properties and entries
-  recursively (a link to a value object is checked against its schema when its owner is validated too),
+  recursively, that no link targets a value object,
   that a union value holds exactly one of its branches and an intersection value every one of its parts, each with a
   value of its type. The validator is a visitor: objects write
   themselves into it through `accept`. `Validators.properties_of(value)` returns the property values any object writes when
@@ -378,8 +378,7 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
   one) and checkably so: a deserializer must reject a symbol assigned to two objects or an object assigned two symbols.
 - Symbols bind only to objects, never to values or entries.
 - Singletons are referenced by their global name and never need a symbol.
-- A value object is written nested, as a mapping of its properties and its adjacencies, with its symbol as `$id`
-  when something links to it. Union and intersection values are written the
+- A value object is written nested, as a mapping of its properties and its adjacencies, without a symbol. Union and intersection values are written the
   same way, keyed by branch or part name: a union value `{"phone": {"number": "1"}}` has exactly one key, and decoding
   rejects any other count; an intersection value `{"stamp": {...}, "audit": {...}}` has a key per part, and a missing
   part is for `Validators` to report.
@@ -395,13 +394,12 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
   that references an object it does not contain is an error.
   An object snapshot is `{"root": symbol, "objects": {symbol: object}}`. Each object maps property names to plain
   values and adjacency names to lists of entries; an entry maps the other links to references and the entry properties
-  to plain values (the object's own link is implied). A reference is `{"$ref": symbol, "$schema": name}`, or
-  `{"$ref": symbol}` to a value object. Symbols are assigned in the order objects are first referenced, value objects
-  included. `Plain.ToPlain(store).OfObject` includes only the root, so its references
+  to plain values (the object's own link is implied). A reference is `{"$ref": symbol, "$schema": name}`, to a reference object. Symbols are
+  assigned in the order objects are first referenced. `Plain.ToPlain(store).OfObject` includes only the root, so its references
   are unresolved; `Plain.ToPlain(store).Reachable` includes every object reachable through adjacencies. An entry appears under
   each object it links, and reading counts it once: by value where the relation has a `unique` clause, and in an open
   relation the k-th entry equal to a given one in one list is the k-th in another. A one-link relation's entries
-  are written once, with their owner, so their value objects may have `$id`s and entries of their own.
+  are written once, with their owner, so their value objects may have entries of their own.
 - `JSON` : `JSON.ToJSON(store)(schema, value)` returns JSON text and `JSON.FromJSON(store)(schema, text)` rebuilds values;
   both mirror `Plain` (`.OfScalar`, `.OfObject`, `.Reachable`). Output is strict JSON (RFC 8259) with key order kept;
   input with NaN / Infinity literals or duplicate keys is rejected.
@@ -439,11 +437,12 @@ Mistakes in the calling program keep their usual classes, e.g. a root schema tha
 ## Value objects and reference objects
 
 Implemented, except where a bullet says otherwise. This lifts the earlier decision that a value object has no identity
-and no adjacencies, so that an object can be composed of parts that take part in relations (a component's ports, a
-schema's properties). The terms are to replace "value object" and "object" throughout the API's messages and these
+and no adjacencies, so that an object can be composed of parts that have lists of their own (a component's ports, a
+schema's properties). Links target reference objects only (Resolved, The visitor pattern: "value objects cannot be
+referenced by entries"). The terms are to replace "value object" and "object" throughout the API's messages and these
 documents.
 
-- **Every object has an identity**, and any object can be linked by relations. What distinguishes the two kinds is
+- **Every object has an identity**, and a reference object can be linked by relations. What distinguishes the two kinds is
   ownership, and the schema says which kind it describes: `Schemas.OfObject.Builder().ref()` marks a *reference object
   schema*; an object schema without it is a *value object schema*. A singleton's schema is a reference object schema.
 - **A reference object** stands on its own: a snapshot writes it once among its `objects`, under its symbol. A
@@ -454,34 +453,31 @@ documents.
 - **A value object** is held by a property whose schema is a value object schema, and belongs to that one owner, a
   reference object or another value object. Union and intersection values are value objects, and so are the objects they hold.
   `Visitable.owner()` gives a value object's owner, and None for a reference object.
-- **A value object may have adjacencies**, and its entries link it like any object. The decision "a value object cannot
-  have adjacencies" is dropped. A value object's schema follows from its owner's, so a value object schema needs no
-  registration, and a link to a value object carries no `$schema`: `{"$ref": "s3"}`.
+- **A value object may have adjacencies, to one-link relations only**, its lists, whose entries link nothing but it;
+  `validate()` reports a value object schema's adjacency to a relation of more links ("a value object schema's
+  adjacency is to a one-link relation, since entries never reference value objects"). The decision "a value object
+  cannot have adjacencies" is dropped. A value object's schema follows from its owner's, so a value object schema needs
+  no registration. Writers, proxies and `Validators` refuse a link to a value object ("a link targets a reference
+  object, never a value object").
 - **Ownership is exclusive and deep.** Editing a value object through its owner's builder keeps its identity. Setting
-  it into another owner, or `clone()` of its owner, copies it with a new identity, with the entries among the copied
-  objects (re-linked to the copies) and a copy of each entry that links them to objects outside. Clearing the property,
-  or replacing its value, removes the value object and every entry linking it.
+  it into another owner, or `clone()` of its owner, copies it with a new identity, with its entries. Clearing the property, or replacing its value, removes the value
+  object and its entries.
 - **Entry properties may be value objects, never reference objects.** Such a value object is owned by the object that
   added its entry, is written nested in the entry, and keys and compares the entry by its properties. Where the entry
   links two objects or more, it cannot have adjacencies, since the entry is written under each object it links ("a
   value object held by an entry cannot have adjacencies"); a one-link relation's entry is written once, so its value
-  objects may.
-- **Value objects are written nested**, inside their owner, with their adjacencies nested in them as a reference
-  object's are. A value object that something links to carries its symbol, `"home": {"$id": "s3", "number": "1"}`,
-  and is referred to by it, `{"$ref": "s3"}`; one that nothing links to has no `$id`. Symbols are
-  assigned in first-reference order, value objects and reference objects alike. A reference object that only
-  references to its value objects reach carries its own `$schema`.
-- **Reachability goes through value objects**: their entries are followed as a reference object's are, and an object
-  reached that is a value object brings in the reference object that owns it, which is where it is written.
-- **Decoding** rebuilds a value object through its owner's builder, and finds it again to link it with
-  `Store.member(instance, name)`, the value an instance holds in a property (a union's branch, an intersection's
-  part); a `$ref` to an `$id` resolves to that value object.
-- **Value objects compare deeply**: by their properties, recursively, and by their entries, whose links to reference
-  objects compare by identity and to value objects deeply. Their identity does not take part. Reference objects
-  compare by identity when linked. A link from one value object to another within the two compared objects compares
-  by where the target is, the path from the object compared, so that a copy equals its original.
+  objects may have lists.
+- **Value objects are written nested**, inside their owner, with their lists nested in them as a reference
+  object's adjacencies are, and carry no symbol: nothing links to them. Decoding rejects a reference without `$schema`
+  ("a reference names its target's schema").
+- **Reachability goes through value objects**: the reference objects linked by their entries' values are reached
+  as a reference object's are.
+- **Decoding** rebuilds a value object through its owner's builder, with its lists. `Store.member(instance, name)`
+  reads the value an instance holds in a property (a union's branch, an intersection's part).
+- **Value objects compare deeply**: by their properties, recursively, and by their lists' entries. Their identity does
+  not take part. Reference objects compare by identity when linked.
 - **Proxies keep value objects read-only**, with adjacencies set through the owner's builder, e.g.
-  `.home(lambda r: r.number("1").ports(lambda x: x.port(p)))`.
+  `.home(lambda r: r.number("1").extensions(lambda x: x.extension("12")))`.
 
 ## Unions and intersections by name
 
@@ -531,7 +527,7 @@ deduplication, and extents giving way to shape constraints).
   is a dict, and `i`, `j` and `value` with `unique("value")` a matrix.
 - **Entries hold the owner's values.** A value object a one-link entry holds belongs to the entry's owner: it has an
   identity, may have entries of its own, nested lists among them, is copied with its owner and removed with its
-  entry, and is written nested in the entry, with its `$id` when something links to it. A two-link relation's entry
+  entry, and is written nested in the entry. A two-link relation's entry
   holds value objects without adjacencies only (Value objects and reference objects).
 - **Proxies read a list as its adjacency**: iterate its entries, index them by position (`tags[0]`), project them by a
   property (`tags.project("value")`), and find one by its key (`attrs.at("gain")`, `matrix.at((1, 2))`). A builder
@@ -889,8 +885,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   It supersedes: mbse-basis P-004 as it stood (amended); here, "Objects outside snapshots are named by paths (0.8.2)",
   The meta-schemas overhaul's "we can keep paths", and decision C in mbse-expressions; and, in the sections above, what
   the reverse protocol built (`accept`, `Plain`'s writers and `Validators`' and `Comparison`'s recorders implementing
-  `Visitors`, `Bindings.accept`, `Reflection`'s `accept`), value objects that links target, and `Paths`. Nothing of it
-  is built; those sections describe what is built until it is.
+  `Visitors`, `Bindings.accept`, `Reflection`'s `accept`), value objects that links target, and `Paths`. Of it, links that target only reference objects, and value objects'
+  adjacencies to one-link relations only, are built (META_SCHEMAS.md, V1); those sections describe the rest as built
+  until it is.
 
 - **The meta-schemas overhaul** ([Meta-schemas overhaul](META_SCHEMAS.md), which plans it), as the user decided: of
   what the 8 to 11 Oct exploration (the `scalars` branch) learned, "definitely re-apply ASAP": "Dictionary of

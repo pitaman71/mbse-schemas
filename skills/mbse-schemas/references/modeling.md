@@ -22,7 +22,7 @@ How to express an interface or data model with the schema elements. The same mod
 | Tagged union, variant, `oneOf`, `xsd:choice` | `OfUnion`: named, same-kind branches; a value holds exactly one |
 | Mixin, aspect, `allOf` | `OfIntersection`: named, same-kind parts; a value holds every one. Supported for property values. Objects with identity composed from aspects are not yet |
 | Singleton, global registry | `OfObject.Builder().singleton("Name")`, usually with a directory relation |
-| Port and connector | ports as value objects in a list of their component; connectors as a relation between ports, carrying the connection's properties |
+| Port and connector | ports as reference objects, owned by their component through a relation; connectors as a relation between ports, carrying the connection's properties. Ports nothing connects may be value objects in a list of their component |
 | Template, generic, parameterized block or type (UML/SysML template parameters, C++ templates, SystemVerilog `parameter`s) | `.parameters(...)` on the schema; a use of it with arguments is an `OfApply` (`S.OfApply.Builder().of(Matrix).arguments(rows=2, cols=3)`, by parameter name) |
 | Bit width given by a parameter | a term where the scalar's width stands: `.bits(w)`. An array's size or a tensor's shape is a constraint on its index properties' types, which is planned |
 | Documentation, comment, `description` | `.description(text)` on the element's builder: a schema, property, adjacency, branch or part |
@@ -33,8 +33,8 @@ How to express an interface or data model with the schema elements. The same mod
 **Reference object or value object?** Use a reference object, whose schema is marked `.ref()`, if the thing is shared
 by several owners, navigated back from, part of a cycle, or referred to by identity; it is reached through relations
 and never held by a property. Otherwise use a value object: a property holds it, it is copied by
-value and written nested. A value object has an identity too, and may have adjacencies: a component's ports, say, as
-value objects linked by connectors.
+value and written nested. A value object has an identity too, and may have lists of its own, but nothing links to
+it: a component's ports that connectors link are reference objects.
 
 **A one-link relation is a list.** Its entries hold values for their one owner (a contact's own phone numbers as
 entries holding `number`); declare it inline in the adjacency, `.of(lambda rel: rel.links("contact").properties(...))`.

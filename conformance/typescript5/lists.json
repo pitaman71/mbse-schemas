@@ -68,41 +68,20 @@
       "sockets": [
         {
           "socket": {
-            "$id": "s2",
             "name": "in",
-            "cables": [
+            "pins": [
               {
-                "sink": {
-                  "$ref": "s3"
-                }
+                "value": "1"
               },
               {
-                "sink": {
-                  "$ref": "s1",
-                  "$schema": "Panel"
-                }
-              }
-            ],
-            "plugs": [
-              {
-                "source": {
-                  "$ref": "s4"
-                }
+                "value": "2"
               }
             ]
           }
         },
         {
           "socket": {
-            "$id": "s3",
-            "name": "out",
-            "plugs": [
-              {
-                "source": {
-                  "$ref": "s2"
-                }
-              }
-            ]
+            "name": "out"
           }
         }
       ],
@@ -115,13 +94,10 @@
             "sockets": [
               {
                 "socket": {
-                  "$id": "s4",
                   "name": "spare",
-                  "cables": [
+                  "pins": [
                     {
-                      "sink": {
-                        "$ref": "s2"
-                      }
+                      "value": "9"
                     }
                   ]
                 }
@@ -186,16 +162,6 @@
             "c": 0
           },
           "value": 0
-        }
-      ]
-    },
-    "s1": {
-      "name": "mains",
-      "plugs": [
-        {
-          "source": {
-            "$ref": "s2"
-          }
         }
       ]
     }

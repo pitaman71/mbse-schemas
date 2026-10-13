@@ -61,8 +61,8 @@ assert((Retyped.properties.get("a")?.type as Schemas.OfScalar.Data).equals(new S
 // --- Relations and cardinality ---
 
 // A map a -> [key] -> b: a relation with links a, b and property key. ISO 4217 currency codes as keys.
-const Product = new Schemas.OfObject.Builder().properties((prop) => prop.name("sku").of(Text)).create();
-const Money = new Schemas.OfObject.Builder()
+const Product = new Schemas.OfObject.Builder().ref().properties((prop) => prop.name("sku").of(Text)).create();
+const Money = new Schemas.OfObject.Builder().ref() // an entry links only reference objects
   .properties((prop) => prop.name("minor_units").of((t) => t.as_scalar(BigInt))) // e.g. cents
   .create();
 const Prices = new Schemas.OfRelation.Builder()

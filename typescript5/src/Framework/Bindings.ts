@@ -195,7 +195,7 @@ class _FixedSlot extends _ScalarSlot {
 function slot(values: Map<string, unknown>, name: string, schema: Schemas.OfAny.Data,
   group: readonly string[] = []): OfProperty {
   if (isScalar(schema)) return new _ScalarSlot(values, name, schema, group);
-  return new Plain._PropertyWriter(values as Plain.PlainMap, name, schema, () => new Map(), Plain._unlinked);
+  return new Plain._PropertyWriter(values as Plain.PlainMap, name, schema, () => new Map());
 }
 
 /** `Visitors.OfLink` over one link of an entry. */

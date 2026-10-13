@@ -38,13 +38,6 @@ function entries(name: string, values: ((e: any) => unknown)[]) {
   };
 }
 
-/** Edits the entry at position `at` of an adjacency, through the visitor protocols. */
-function first(adjacency: any, at: number, then: (entry: any) => void): void {
-  const found: unknown[] = [];
-  adjacency.entries((e: unknown) => found.push(e));
-  then(found[at]);
-}
-
 export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.Store]> {
   const S = Schemas;
   const store = new Proxies.OfStore();
@@ -95,11 +88,10 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   new S.OfObject.Builder(Notebook).relations((a) => a.name("notes").of(Pages).me("notebook")).update();
   new S.OfObject.Builder(Note).relations((a) => a.name("notebooks").of(Pages).me("note")).update();
 
-  // --- embedded: value objects (value objects, one linked through a relation), union values of objects and of
-  // scalars, and an intersection value; a card reached only through its value object carries its schema ---
-  const Line = new Schemas.OfRelation.Builder().name("Line").links("hub", "phone").create();
+  // --- embedded: value objects (one with a list of its own), union values of objects and of scalars, and an
+  // intersection value ---
   const CardPhone = new Schemas.OfObject.Builder().properties(text("number"), text("label")).relations(
-    (a) => a.name("hubs").of(Line).me("phone")).create();
+    list("extensions", [text("value")])).create();
   const CardEmail = new Schemas.OfObject.Builder().properties(text("address")).create();
   const Reach = new Schemas.OfUnion.Builder().branches((b) => b.name("phone").of(CardPhone),
     (b) => b.name("email").of(CardEmail)).create();
@@ -114,14 +106,11 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   const Holding = new Schemas.OfRelation.Builder().name("Holding").links("deck", "card").create();
   const Deck = new Schemas.OfObject.Builder().name("Deck").ref().properties(text("title")).relations((a) => a.name("cards").of(Holding).me("deck")).create();
   new Schemas.OfObject.Builder(Card).relations((a) => a.name("decks").of(Holding).me("card")).update();
-  const Hub = new Schemas.OfObject.Builder().name("Hub").ref().properties(text("name")).relations((a) => a.name("phones").of(Line).me("hub")).create();
 
   // --- lists: one-link relations, open (lists) or keyed by what a `unique` clause leaves out: of scalars, of lists,
-  // of union values and of value objects, which link each other and a reference object; keyed by text, by a float, by
-  // a value object and by a pair of ints ---
-  const Cable = new Schemas.OfRelation.Builder().name("Cable").links("source", "sink").create();
-  const Socket = new Schemas.OfObject.Builder().properties(text("name")).relations(
-    (a) => a.name("cables").of(Cable).me("source"), (a) => a.name("plugs").of(Cable).me("sink")).create();
+  // of union values and of value objects, which have lists of their own; keyed by text, by a float, by a value object
+  // and by a pair of ints ---
+  const Socket = new Schemas.OfObject.Builder().properties(text("name")).relations(list("pins", [text("value")])).create();
   const Coord = new Schemas.OfObject.Builder().properties(text("r", BigInt), text("c", BigInt)).create();
   const Reading = new Schemas.OfUnion.Builder().branches((b) => b.name("value").of((t) => t.as_scalar(Number)),
     (b) => b.name("note").of((t) => t.as_scalar(String))).create();
@@ -135,10 +124,8 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
     list("attrs", [text("key"), text("value", Number)], ["value"]),
     list("weights", [text("key", Number), text("value")], ["value"]),
     list("cells", [held("key", Coord), text("value", BigInt)], ["value"])).create();
-  const Panel = new Schemas.OfObject.Builder().name("Panel").ref().properties(text("name")).relations(
-    (a) => a.name("plugs").of(Cable).me("sink")).create();
 
-  for (const schema of [Contact, Address, Phone, ContactAddresses, ContactPhones, Bag, Sample, Holds, Person, Parentage, Mentorship, Student, Course, Term, Enrollment, Notebook, Note, Pages, Card, Deck, Holding, Hub, Line, Board, Panel, Cable]) {
+  for (const schema of [Contact, Address, Phone, ContactAddresses, ContactPhones, Bag, Sample, Holds, Person, Parentage, Mentorship, Student, Course, Term, Enrollment, Notebook, Note, Pages, Card, Deck, Holding, Board]) {
     store.register(schema);
   }
   const B = store;
@@ -201,7 +188,7 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
 
   const deck = B.Deck().title("contacts").create();
   const cards = [
-    B.Card().name("Ann").home((r: any) => r.number("+1 555 0100").label("home"))
+    B.Card().name("Ann").home((r: any) => r.number("+1 555 0100").label("home").extensions((e: any) => e.value("12")))
       .reach((u: any) => u.email((r: any) => r.address("ann@example.com"))).ident((u: any) => u.number(7n)).create(),
     B.Card().name("Bo").reach((u: any) => u.phone((r: any) => r.number("+44 20 7946 0000")))
       .ident((u: any) => u.code("B-2"))
@@ -210,18 +197,17 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
     B.Card().name("Cy").create(),
   ];
   for (const card of cards) B.Deck(deck).cards((x: any) => x.card(card)).update();
-  const di = B.Card().name("Di").home((r: any) => r.number("+33 1 00 00 00 00")).create();
-  B.Hub().name("switchboard").phones((x: any) => x.phone((cards[0] as any).home)).phones((x: any) => x.phone(di.home)).create();
 
-  const panel = B.Panel().name("mains").create();
   const rack = B.Board().name("rack");
   for (const value of ["", "日本語 🚀", "a"]) rack.tags((e: any) => e.value(value));
   for (const value of [new Uint8Array(), new Uint8Array([0, 255])]) rack.blobs((e: any) => e.value(value));
   for (const row of [[1n, -(2n ** 70n)], [], [0n]]) rack.grid((e: any) => e.row(entries("values", row.map((v) => (x: any) => x.value(v)))));
   rack.readings((e: any) => e.reading((u: any) => u.value(-0.0))).readings((e: any) => e.reading((u: any) => u.note("off")));
   rack.readings((e: any) => e.reading((u: any) => u.value(Infinity)));
-  rack.sockets((e: any) => e.socket((o: any) => o.name("in"))).sockets((e: any) => e.socket((o: any) => o.name("out")));
-  rack.banks((e: any) => e.bank((b: any) => b)).banks((e: any) => e.bank((b: any) => b.sockets((x: any) => x.socket((o: any) => o.name("spare")))));
+  rack.sockets((e: any) => e.socket((o: any) => o.name("in").pins((x: any) => x.value("1")).pins((x: any) => x.value("2"))));
+  rack.sockets((e: any) => e.socket((o: any) => o.name("out")));
+  rack.banks((e: any) => e.bank((b: any) => b)).banks((e: any) => e.bank((b: any) => b.sockets(
+    (x: any) => x.socket((o: any) => o.name("spare").pins((y: any) => y.value("9"))))));
   for (const [i, j, value] of [[2n, 1n, 0n], [1n, 1n, 1n], [1n, 2n, 0n], [2n, 2n, 1n]]) {
     rack.matrix((e: any) => e.i(i).j(j).value(value));
   }
@@ -229,16 +215,6 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   rack.weights((e: any) => e.key(0.5).value("half")).weights((e: any) => e.key(NaN).value("none"));
   rack.cells((e: any) => e.key((c: any) => c.r(2n).c(3n)).value(6n)).cells((e: any) => e.key((c: any) => c.r(0n).c(0n)).value(0n));
   const board = rack.create();
-  const ins = board.sockets.project("socket");
-  // the first socket to the second, and to the panel
-  const wireIn = (entry: any) => entry.property("socket", (p: any) => p.value((v: any) => v.as_object(
-    (o: any) => o.cables((x: any) => x.sink(ins[1])).cables((x: any) => x.sink(panel)))));
-  // the spare socket of the second bank to the first socket
-  const wireSpare = (entry: any) => entry.property("socket", (p: any) => p.value((v: any) => v.as_object(
-    (o: any) => o.cables((x: any) => x.sink(ins[0])))));
-  const bank = (entry: any) => entry.property("bank", (p: any) => p.value((v: any) => v.as_object((o: any) => o.adjacency(
-    "sockets", (a: any) => first(a, 0, wireSpare)))));
-  B.Board(board).adjacency("sockets", (a: any) => first(a, 0, wireIn)).adjacency("banks", (a: any) => first(a, 1, bank)).update();
 
   // --- module: the corpus's own schemas as data, with scalars of widths and another format's token, and parametric
   // schemas: parameters, terms where a width stands, and applications with arguments of every scalar ---
@@ -266,7 +242,7 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   const schemas = [
     Schemas.OfScalar.resolve((n) => n.name("Int32").type(BigInt).bits(32n)),
     Schemas.OfScalar.resolve((n) => n.name("Size").token("ccpp", "size_t").bytes(8n)),
-    Contact, Address, ContactAddresses, Person, Parentage, Card, Deck, Holding, Board, Panel,
+    Contact, Address, ContactAddresses, Person, Parentage, Card, Deck, Holding, Board,
     Word, Grid, Square, Tricky, Applied, Choice, Marked,
   ];
   const module = Modules.module(store, schemas) as Instance;

@@ -170,7 +170,7 @@ def _slot(values: dict[str, Any], name: str, schema: Any, group: Sequence[str] =
     """The handle of the property `name`: a scalar's, or a plain writer for any other value."""
     if _scalar(schema):
         return _ScalarSlot(values, name, schema, group)
-    return Plain._PropertyWriter(values, name, schema, lambda target: {}, Plain._unlinked)
+    return Plain._PropertyWriter(values, name, schema, lambda target: {})
 
 
 class _LinkSlot:

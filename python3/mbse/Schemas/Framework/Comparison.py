@@ -432,14 +432,8 @@ class OfLink:
         self._target = (target,)
         return self
 
-    def _where(self) -> Path | None:
-        """The path to the linked value object within its recording, if it is one recorded there."""
-        return None if self._paths is None else self._paths.paths.get(self._target[0].identity())
-
     def compare(self, other: OfLink) -> Result:
+        """Links compare by their targets' identities: a link targets a reference object, never a value object."""
         if not self._target or not other._target:
             return 0 if not self._target and not other._target else None
-        mine, theirs = self._where(), other._where()
-        if mine is not None or theirs is not None:
-            return 0 if mine == theirs else None
         return 0 if self._target[0].identity() == other._target[0].identity() else None

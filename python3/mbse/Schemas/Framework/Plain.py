@@ -64,20 +64,14 @@ class _ScalarWriter:
 
 
 Ref = Callable[[Visitors.Visitable], dict[str, PlainData]]
-Symbol = Callable[[Visitors.Visitable], "str | None"]
-
-
-def _unlinked(value: Visitors.Visitable) -> str | None:
-    return None
 
 
 class _AnyWriter:
     """`Visitors.OfAny` writing one key of a plain dict: a scalar, or a value object (an object's, a union value or an
-    intersection value), nested. `ref` writes references to linked objects, and `symbol` gives a value object's symbol
-    when something links to it."""
+    intersection value), nested. `ref` writes references to linked objects."""
 
-    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfAny.Data, ref: Ref, symbol: Symbol):
-        self._out, self._name, self._ref, self._symbol = out, name, ref, symbol
+    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfAny.Data, ref: Ref):
+        self._out, self._name, self._ref = out, name, ref
         self._schema = Schemas.structure(schema)
 
     def as_scalar(self, callback: Callable[[Visitors.OfScalar], Any]) -> _AnyWriter:
@@ -102,8 +96,8 @@ class _AnyWriter:
         nested = self._out.get(self._name)
         if not isinstance(nested, dict):
             nested = self._out[self._name] = {}
-        callback(_ObjectWriter(nested, self._schema, self._ref, self._symbol) if isinstance(self._schema, Schemas.OfObject.Data)
-                 else _RecordWriter(nested, self._schema, self._ref, self._symbol))
+        callback(_ObjectWriter(nested, self._schema, self._ref) if isinstance(self._schema, Schemas.OfObject.Data)
+                 else _RecordWriter(nested, self._schema, self._ref))
         if isinstance(self._schema, Schemas.OfUnion.Data) and not nested:
             del self._out[self._name]  # a union value without a branch is no value
         return self
@@ -112,8 +106,8 @@ class _AnyWriter:
 class _PropertyWriter:
     """`Visitors.OfProperty` writing one key of a plain dict."""
 
-    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfAny.Data, ref: Ref, symbol: Symbol):
-        self._out, self._name, self._schema, self._ref, self._symbol = out, name, schema, ref, symbol
+    def __init__(self, out: dict[str, PlainData], name: str, schema: Schemas.OfAny.Data, ref: Ref):
+        self._out, self._name, self._schema, self._ref = out, name, schema, ref
 
     def name(self) -> str:
         return self._name
@@ -122,7 +116,7 @@ class _PropertyWriter:
         return self._name in self._out
 
     def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _PropertyWriter:
-        callback(_AnyWriter(self._out, self._name, self._schema, self._ref, self._symbol))
+        callback(_AnyWriter(self._out, self._name, self._schema, self._ref))
         return self
 
     def clear(self) -> _PropertyWriter:
@@ -157,11 +151,8 @@ class _LinkWriter:
 class _EntryWriter:
     """`Visitors.OfEntry` writing one plain entry."""
 
-    def __init__(self, entry: dict[str, PlainData], relation: Schemas.OfRelation.Data, me: str, ref: Ref,
-                 symbol: Symbol = _unlinked):
+    def __init__(self, entry: dict[str, PlainData], relation: Schemas.OfRelation.Data, me: str, ref: Ref):
         self._entry, self._relation, self._me, self._ref = entry, relation, me, ref
-        # A one-link relation's entries are written once, so their value objects can be linked by their symbols.
-        self._symbol = symbol if len(relation.links) == 1 else _unlinked
 
     def links(self, callback: Callable[[Visitors.OfLink], Any]) -> _EntryWriter:
         for name in self._relation.links:
@@ -178,7 +169,7 @@ class _EntryWriter:
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryWriter:
         for name in self._relation.properties:
             if name in self._entry:
-                callback(_PropertyWriter(self._entry, name, self._relation.properties[name].type, self._ref, self._symbol))
+                callback(_PropertyWriter(self._entry, name, self._relation.properties[name].type, self._ref))
         return self
 
     def has(self, name: str) -> bool:
@@ -186,7 +177,7 @@ class _EntryWriter:
 
     def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryWriter:
         schema = _property_schema(self._relation.properties, name)
-        callback(_PropertyWriter(self._entry, name, schema, self._ref, self._symbol))
+        callback(_PropertyWriter(self._entry, name, schema, self._ref))
         return self
 
     def clear(self, name: str) -> _EntryWriter:
@@ -197,9 +188,8 @@ class _EntryWriter:
 class _AdjacencyWriter:
     """`Visitors.OfAdjacency` writing a list of plain entries."""
 
-    def __init__(self, entries: list[dict[str, PlainData]], name: str, schema: Schemas.OfAdjacency.Data, ref: Ref,
-                 symbol: Symbol = _unlinked):
-        self._entries, self._name, self._schema, self._ref, self._symbol = entries, name, schema, ref, symbol
+    def __init__(self, entries: list[dict[str, PlainData]], name: str, schema: Schemas.OfAdjacency.Data, ref: Ref):
+        self._entries, self._name, self._schema, self._ref = entries, name, schema, ref
 
     def name(self) -> str:
         return self._name
@@ -209,12 +199,12 @@ class _AdjacencyWriter:
 
     def entries(self, callback: Callable[[Visitors.OfEntry], Any]) -> _AdjacencyWriter:
         for entry in self._entries:
-            callback(_EntryWriter(entry, self._schema.relation, self._schema.me, self._ref, self._symbol))
+            callback(_EntryWriter(entry, self._schema.relation, self._schema.me, self._ref))
         return self
 
     def add(self, callback: Callable[[Visitors.OfEntry], Any]) -> _AdjacencyWriter:
         entry: dict[str, PlainData] = {}
-        callback(_EntryWriter(entry, self._schema.relation, self._schema.me, self._ref, self._symbol))
+        callback(_EntryWriter(entry, self._schema.relation, self._schema.me, self._ref))
         self._entries.append(entry)
         return self
 
@@ -226,13 +216,13 @@ class _RecordWriter:
     """`Visitors.OfUnion` and `Visitors.OfIntersection` writing a union or intersection value, whose properties are the
     branches or parts; the base of `_ObjectWriter`. Writing a union's branch clears any other."""
 
-    def __init__(self, out: dict[str, PlainData], schema: Any, ref: Ref, symbol: Symbol):
-        self._out, self._schema, self._ref, self._symbol = out, schema, ref, symbol
+    def __init__(self, out: dict[str, PlainData], schema: Any, ref: Ref):
+        self._out, self._schema, self._ref = out, schema, ref
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> Any:
         for name, schema in ((n, p.type) for n, p in self._schema.properties.items()):
             if name in self._out:
-                callback(_PropertyWriter(self._out, name, schema, self._ref, self._symbol))
+                callback(_PropertyWriter(self._out, name, schema, self._ref))
         return self
 
     def has(self, name: str) -> bool:
@@ -243,7 +233,7 @@ class _RecordWriter:
         if isinstance(self._schema, Schemas.OfUnion.Data):
             for other in [n for n in self._out if n != name]:
                 del self._out[other]
-        callback(_PropertyWriter(self._out, name, schema, self._ref, self._symbol))
+        callback(_PropertyWriter(self._out, name, schema, self._ref))
         return self
 
     def clear(self, name: str) -> Any:
@@ -253,15 +243,12 @@ class _RecordWriter:
 
 class _ObjectWriter(_RecordWriter):
     """`Visitors.OfObject` writing one plain object, a reference object or a value object nested in its owner. A value
-    object that something links to is written with its symbol, `$id`."""
+    object has no symbol: entries never reference value objects."""
 
-    def __init__(self, out: dict[str, PlainData], schema: Schemas.OfObject.Data, ref: Ref, symbol: Symbol = _unlinked):
-        super().__init__(out, schema, ref, symbol)
+    def __init__(self, out: dict[str, PlainData], schema: Schemas.OfObject.Data, ref: Ref):
+        super().__init__(out, schema, ref)
 
     def identify(self, value: Visitors.Visitable) -> _ObjectWriter:
-        symbol = self._symbol(value)
-        if symbol is not None:
-            self._out[ID] = symbol
         return self
 
     def adjacencies(self, callback: Callable[[Visitors.OfAdjacency], Any]) -> _ObjectWriter:
@@ -274,7 +261,7 @@ class _ObjectWriter(_RecordWriter):
             raise KeyError(f"unknown adjacency {name!r}")
         entries = self._out.setdefault(name, [])
         assert isinstance(entries, list)
-        callback(_AdjacencyWriter(entries, name, self._schema.adjacencies[name], self._ref, self._symbol))
+        callback(_AdjacencyWriter(entries, name, self._schema.adjacencies[name], self._ref))
         return self
 
 
@@ -287,16 +274,14 @@ class _Snapshot:
     def __init__(self, store: Stores.Store) -> None:
         self._store = store
         self._symbols: dict[Hashable, str] = {}
-        self._typed: set[str] = set()  # the reference objects some reference names the schema of
 
     def _symbol(self, value: Visitors.Visitable) -> str:
         return self._symbols.setdefault(value.identity(), f"s{len(self._symbols)}")
 
     def _ref(self, target: Visitors.Visitable) -> dict[str, PlainData]:
-        """A reference to a linked object; one to a value object has no schema, which its owner's gives."""
+        """A reference to a linked object, which is a reference object: entries never reference value objects."""
         if target.owner() is not None:
-            return {REF: self._symbol(target)}
-        self._typed.add(self._symbol(target))
+            raise TypeError("a link targets a reference object, never a value object")
         return {REF: self._symbol(target), SCHEMA: target.schema_name()}
 
     def run(
@@ -308,22 +293,13 @@ class _Snapshot:
             raise TypeError(f"a snapshot's root must be a reference object; {root.schema_name()!r} is a value object schema")
         for value in include:
             self._symbol(value)
-        linked = Reachable.targets(include)
-
-        def symbol(value: Visitors.Visitable) -> str | None:
-            return self._symbol(value) if value.identity() in linked else None
-
         objects: dict[str, PlainData] = {}
         for value in include:
             out: dict[str, PlainData] = {}
             schema = self._store.schema(value.schema_name())
-            value.accept(_ObjectWriter(out, schema, self._ref, symbol))
+            value.accept(_ObjectWriter(out, schema, self._ref))
             _sort_entries(schema, out)
             objects[self._symbol(value)] = out
-        for value in include:  # an object whose schema nothing else gives carries it: one linked only by value objects
-            key = self._symbol(value)
-            if value is not root and key not in self._typed:
-                objects[key] = {SCHEMA: value.schema_name(), **objects[key]}  # type: ignore[dict-item]
         return {"root": self._symbol(root), "objects": objects}
 
 
@@ -407,10 +383,10 @@ class _Found(NamedTuple):
 
 
 class _Context:
-    """What decoding a reference object's values collects: the symbols of the value objects in it, and their entries."""
+    """What decoding a reference object's values collects: the entries of the value objects in it."""
 
-    def __init__(self, owner: str, ids: dict[str, _Found], entries: list[tuple[_Found, Rows, Any]]):
-        self.owner, self.ids, self.entries = owner, ids, entries
+    def __init__(self, owner: str, entries: list[tuple[_Found, Rows, Any]]):
+        self.owner, self.entries = owner, entries
 
 
 def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context: _Context | None = None,
@@ -430,9 +406,7 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context:
     rows: Rows = {}
     held: Rows = {}  # entries where no snapshot holds the value, so none of their links resolves
     for key, item in plain.items():
-        if key == ID and isinstance(schema, Schemas.OfObject.Data) and context is not None:
-            _identify(item, context, steps, (*where, key))
-        elif key in adjacencies and context is not None:
+        if key in adjacencies and context is not None:
             rows[key] = _decode_rows(adjacencies[key], item, where, key, context, steps)
         elif key in adjacencies:
             held[key] = _decode_rows(adjacencies[key], item, where, key)
@@ -460,14 +434,6 @@ def _decoded_key(value: Any) -> Hashable:
                      for name, listed in sorted(value.rows.items()))
         return ("record", tuple((name, _decoded_key(v)) for name, v in sorted(value.values.items())), rows)
     return (type(value).__name__, value.hex() if isinstance(value, float) else value)
-
-
-def _identify(symbol: PlainData, context: _Context, steps: Steps, where: tuple) -> None:
-    if not isinstance(symbol, str):
-        raise DecodeError(f"a symbol must be a string, got {type(symbol).__name__}", path=path(*where))
-    if symbol in context.ids:
-        raise DecodeError(f"{symbol!r} is the symbol of two objects", path=path(*where))
-    context.ids[symbol] = _Found(context.owner, steps)
 
 
 # For messages, per record kind: a value of it, its schema, and what its properties are.
@@ -536,10 +502,9 @@ _Decoded = dict[str, tuple[dict[str, Any], Rows]]
 
 
 def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
-           ) -> tuple[str, dict[str, str], _Decoded, dict[str, _Found], list[tuple[_Found, Rows, Any]]]:
+           ) -> tuple[str, dict[str, str], _Decoded, list[tuple[_Found, Rows, Any]]]:
     """Checks a snapshot against the schemas and decodes its values before anything is built. Returns the root symbol,
-    each reference object's schema name, the decoded reference objects, where each value object with a symbol is, and
-    the entries of value objects. Problems in the snapshot raise `DecodeError`."""
+    each reference object's schema name, the decoded reference objects, and the entries of value objects. Problems in the snapshot raise `DecodeError`."""
     if not isinstance(schema, Schemas.OfObject.Data):
         raise TypeError(f"the root schema must be an object schema, got {type(schema).__name__}")
     if not schema.ref:
@@ -555,12 +520,12 @@ def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
 
     # Pass 1: infer each reference object's schema from the references to it.
     names: dict[str, str] = {root: store.name_of(schema)}
-    values: list[tuple[str, tuple]] = []  # references to value objects, checked once their symbols are known
+    unnamed: list[tuple[str, tuple]] = []  # references without a schema, refused once more specific problems are not
 
     def found(ref: dict[str, Any], where: tuple) -> None:
         target = ref[REF]
-        if SCHEMA not in ref:
-            values.append((target, where))
+        if SCHEMA not in ref:  # the form a reference to a value object had; refused once the rest is checked
+            unnamed.append((target, where))
             return
         if target not in objects:
             raise DecodeError(f"unresolved reference {target!r}: the snapshot does not contain it", path=path(*where))
@@ -568,19 +533,11 @@ def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
             raise DecodeError(f"{target!r} is referenced as both {names[target]!r} and {ref[SCHEMA]!r}",
                               path=path(*where))
 
-    for symbol, obj in objects.items():
-        own = obj.get(SCHEMA)
-        if own is not None:  # an object carries its schema when nothing else gives it
-            if not isinstance(own, str):
-                raise DecodeError(f"a schema name must be a string, got {type(own).__name__}",
-                                  path=path("objects", symbol, SCHEMA))
-            found({REF: symbol, SCHEMA: own}, ("objects", symbol, SCHEMA))
+    for symbol, obj in objects.items():  # every object but the root is reached by a reference that names its schema
         for key, value in obj.items():
-            if key != SCHEMA:
-                _references(value, ("objects", symbol, key), found)
+            _references(value, ("objects", symbol, key), found)
     # Pass 2: check every key against the schemas and decode the values.
     decoded: _Decoded = {}
-    ids: dict[str, _Found] = {symbol: _Found(symbol, ()) for symbol in objects}
     entries: list[tuple[_Found, Rows, Any]] = []
     for symbol, obj in objects.items():
         if symbol not in names:
@@ -591,13 +548,11 @@ def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
             raise DecodeError(f"no object schema registered as {names[symbol]!r}", path=path("objects", symbol)) from None
         if not object_schema.ref:
             raise DecodeError(f"{names[symbol]!r} is not a reference object schema", path=path("objects", symbol))
-        context = _Context(symbol, ids, entries)
+        context = _Context(symbol, entries)
         properties: dict[str, Any] = {}
         adjacencies: Rows = {}
         for key, value in obj.items():
             where = ("objects", symbol)
-            if key == SCHEMA:
-                continue
             if key in object_schema.adjacencies:
                 adjacencies[key] = _decode_rows(object_schema.adjacencies[key], value, where, key, context)
             elif key in object_schema.properties:
@@ -609,17 +564,16 @@ def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
     unreached = sorted(set(objects) - set(names))
     if unreached:
         raise DecodeError("nothing references this object, so its schema is unknown", path=path("objects", unreached[0]))
-    for target, where in values:
-        if target not in ids or not ids[target].steps:
-            raise DecodeError(f"unresolved reference {target!r}: no value object in the snapshot has this symbol",
-                              path=path(*where))
-    return root, names, decoded, {s: f for s, f in ids.items() if f.steps}, entries
+    for target, where in unnamed:
+        raise DecodeError(f"a reference names its target's schema: {target!r} has none, and a link targets a "
+                          "reference object", path=path(*where))
+    return root, names, decoded, entries
 
 
 def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
     """Rebuilds objects from an object snapshot in `store`. Every reference must resolve within the snapshot:
     reference objects are built first, with the value objects they hold, then the entries are added."""
-    root, names, decoded, ids, entries = _check(store, schema, plain)
+    root, names, decoded, entries = _check(store, schema, plain)
 
     seen: dict[Hashable, int] = {}
 
@@ -652,20 +606,9 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
         created[symbol] = builder.create() if global_name is None else builder.update()
 
     def resolve(symbol: str) -> Any:
-        """The object a symbol names: a reference object, or the value object found at its steps."""
-        if symbol in created:
-            return created[symbol]
-        found = ids[symbol]
-        target = created[found.owner]
-        for key, _ in found.steps:
-            if isinstance(key, tuple):  # an entry's value
-                adjacency, position, name = key
-                target = getattr(store.member(target, adjacency)[position], name)
-            else:
-                target = store.member(target, key)
-        return target
+        """The reference object a symbol names: entries never reference value objects."""
+        return created[symbol]
 
-    symbols = {(found.owner, found.steps): symbol for symbol, found in ids.items()}
 
     nested: dict[str, list[tuple[_Found, Rows, Any]]] = {}
     for found, rows, value_schema in entries:
@@ -677,7 +620,7 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
         entry."""
         added = False
         for found, rows, value_schema in sorted(nested.get(symbol, []), key=lambda held: len(held[0].steps)):
-            owner = symbols.get((found.owner, found.steps), found)
+            owner = found
             rows = {key: kept(value_schema, owner, key, listed) for key, listed in rows.items()
                     if (len(value_schema.adjacencies[key].relation.links) == 1) == one_link}
             if any(rows.values()):  # an edit with nothing to add would drop what another just added

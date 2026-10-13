@@ -109,30 +109,30 @@ const addr1 = store.IntlAddress()
 
 // fluent "update" form: writes back into the source and returns it
 const updated = store.IntlAddress(addr1)
-  .street2((v: any) => v.set("baz")) // equivalent to .street2('baz')
+  .street2((p: any) => p.as_scalar((v: any) => v.set("baz"))) // equivalent to .street2('baz')
   .update();
 assert(updated === addr1);
-assert(addr1.street2 === "baz");
+assert(String(addr1.street2) === "baz");
 
 // fluent "clone" form: returns a new object and leaves the source untouched
 const cloned = store.IntlAddress(addr1).street2("shoe").clone();
 assert(cloned !== addr1);
-assert(cloned.street2 === "shoe");
-assert(addr1.street2 === "baz");
+assert(String(cloned.street2) === "shoe");
+assert(String(addr1.street2) === "baz");
 
-// clearing a property makes it absent; an absent property reads as null
-store.IntlAddress(addr1).street3((v: any) => v.clear()).update();
-assert(addr1.street3 === null);
+// clearing a property makes it absent; an absent property's value reads as null
+store.IntlAddress(addr1).street3((p: any) => p.as_value((v: any) => v.clear())).update();
+assert(addr1.street3.get() === null);
 
 // a property that was never set reads as null too
-assert(addr1.sorting_code === null);
+assert(addr1.sorting_code.get() === null);
 
 // traditional property access (read only)
 console.log(`${addr1.street1}, ${addr1.locality} ${addr1.postal_code}, ${addr1.country_code}`);
 
 // --- Relations ---
 
-// Entries are added through the object builder's adjacency accessors, which take a Spec for the entry: the object
+// Entries are inserted through the object builder's adjacencies, `insert` taking a Spec for the entry: the object
 // fills its own link ('contact'); the entry builder sets the other links and the entry properties. A link takes an
 // existing object or a Spec that builds a new one.
 const alice = store.Contact()
@@ -140,9 +140,9 @@ const alice = store.Contact()
   .family_name("Liddell")
   .birth_date("1852-05-04")
   .preferred_language("en-GB")
-  .addresses((x: any) => x.address(addr1).label("work"))
-  .phones((x: any) => x.phone((y: any) => y.number("+447700900123")).label("mobile"))
-  .emails((x: any) => x.email((y: any) => y.address("alice@example.org")).label("personal"))
+  .addresses((a: any) => a.insert((x: any) => x.address(addr1).label("work")))
+  .phones((a: any) => a.insert((x: any) => x.phone((y: any) => y.number("+447700900123")).label("mobile")))
+  .emails((a: any) => a.insert((x: any) => x.email((y: any) => y.address("alice@example.org")).label("personal")))
   .create();
 void alice;
 export { IntlAddress, addr1 };
@@ -166,5 +166,5 @@ assert(equal(Plain.ToPlain(store).Reachable(IntlAddress, roundtrip as Proxies.In
 // The same snapshot as JSON text, and back.
 const text = JSON.ToJSON(store).Reachable(IntlAddress, addr1, { indent: 2 });
 const fromJson = JSON.FromJSON(store).Reachable(IntlAddress, text) as Proxies.Instance;
-assert(fromJson !== addr1 && fromJson.street1 === addr1.street1);
+assert(fromJson !== addr1 && String(fromJson.street1) === String(addr1.street1));
 assert(equal(JSON.loads(text), graph));

@@ -56,7 +56,7 @@ Expressions, which constraints will be made of, live in the separate
 | Validate on every assignment | Validate when you ask; every problem, with a path | Bulk loads, intermediate states, complete reports | 5 |
 | `to_dict` per class, nested | One flat snapshot shape with symbols and schema-named references | Shared objects once, cycles safe, kinds preserved | 6 |
 | Lenient parsing | Exact types, strict JSON, YAML 1.2 | The same text means the same thing in every language | 6, 7 |
-| Reflection over classes | Visitors: objects write themselves into any tool | One protocol for serializers, validators and your tools | 2, 8 |
+| Reflection over classes | Visitors: every object reads through one protocol, whatever its schema | One protocol for serializers, validators and your tools | 2, 8 |
 
 ---
 

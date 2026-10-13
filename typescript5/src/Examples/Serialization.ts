@@ -77,15 +77,15 @@ assert(fields.get("flag") === false && fields.get("count") === 2n ** 100n);
 
 // Plain data is JSON-encodable, and survives a JSON round trip.
 const restored = Plain.FromPlain(store)(Sample, JSON.loads(JSON.dumps(plain))) as Instance;
-assert(restored.label === edge.label && equal(restored.payload, edge.payload) && restored.count === 2n ** 100n);
-assert(restored.ratio === 0 && Object.is(restored.ratio, -0)); // the sign of -0.0 survives
-assert(restored.flag === false);
+assert(restored.label.get() === edge.label.get() && equal(restored.payload.get(), edge.payload.get()) && restored.count.get() === 2n ** 100n);
+assert(restored.ratio.get() === 0 && Object.is(restored.ratio.get(), -0)); // the sign of -0.0 survives
+assert(restored.flag.get() === false);
 
 // Empty values are present values.
 const empty = store.Sample().label("").payload(bytes()).count(0n).ratio(0.0).create();
 const back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty)) as Instance;
-assert(back.label === "" && equal(back.payload, bytes()) && back.count === 0n && back.ratio === 0);
-assert(back.flag === null); // never set, so absent
+assert(back.label.get() === "" && equal(back.payload.get(), bytes()) && back.count.get() === 0n && back.ratio.get() === 0);
+assert(back.flag.get() === null); // never set, so absent
 
 // An object with nothing set serializes to an empty object.
 const blank = store.Sample().create();
@@ -110,7 +110,7 @@ raises(DecodeError, () => from_plain(bytesSchema, "not base64!"));
 
 // The builder does not validate; the serializer does.
 const sloppy = store.Sample().count("3").create();
-assert(sloppy.count === "3");
+assert(sloppy.count.get() === "3");
 raises(TypeError, () => Plain.ToPlain(store)(Sample, sloppy));
 
 // Validation reports it without serializing.
@@ -125,11 +125,11 @@ const jpy = store["iso4217.Currency"]().code("JPY").numeric("392").minor_units(0
 const eur = store["iso4217.Currency"]().code("EUR").numeric("978").minor_units(2n).create();
 const widget = store.Product()
   .sku("W-1")
-  .prices((x: any) => x.price((m: any) => m.amount(1500n).currency((d: any) => d.currency(jpy))).currency("JPY"))
-  .prices((x: any) => x.price((m: any) => m.amount(1299n).currency((d: any) => d.currency(eur))).currency("EUR"))
+  .prices((a: any) => a.insert((x: any) => x.price((m: any) => m.amount(1500n).currency((a: any) => a.insert((d: any) => d.currency(jpy)))).currency("JPY")))
+  .prices((a: any) => a.insert((x: any) => x.price((m: any) => m.amount(1299n).currency((a: any) => a.insert((d: any) => d.currency(eur)))).currency("EUR")))
   .create();
 const byCurrency = (obj: Instance) =>
-  new Map(entries(Product, obj, "prices").map((e) => [e.get("currency"), (e.get("price") as Instance).amount]));
+  new Map(entries(Product, obj, "prices").map((e) => [e.get("currency"), (e.get("price") as Instance).amount.get()]));
 assert(equal(byCurrency(widget), map({ JPY: 1500n, EUR: 1299n })));
 
 const graph = Plain.ToPlain(store).Reachable(Product, widget);
@@ -147,8 +147,8 @@ assert(validate.Reachable(Product, widget).length === 0);
 // unique('price') on Prices: (product, currency) determine the price. A second JPY price breaks it.
 const gadget = store.Product()
   .sku("G-1")
-  .prices((x: any) => x.price((m: any) => m.amount(900n)).currency("JPY"))
-  .prices((x: any) => x.price((m: any) => m.amount(950n)).currency("JPY"))
+  .prices((a: any) => a.insert((x: any) => x.price((m: any) => m.amount(900n)).currency("JPY")))
+  .prices((a: any) => a.insert((x: any) => x.price((m: any) => m.amount(950n)).currency("JPY")))
   .create();
 assert(equal(validate(Product, gadget), ["unique(price) violated: entries agreeing on ['currency', 'product'] differ on ['price']"]));
 
@@ -193,7 +193,7 @@ raises(ValueError, () => store.register(Sample)); // names are registered once
 raises(AttributeError, () => store.Unregistered());
 raises(TypeError, () => store.Prices()); // no relation builder is exposed
 raises(TypeError, () => store.Product(jpy)); // the source instance must have the builder's schema
-raises(AttributeError, () => store.Product().colour("red")); // not a property or adjacency
+raises(TypeError, () => store.Product().colour("red")); // not a property or adjacency: it reads as empty, and refuses a write
 raises(AttributeError, () => {
   (widget as any).sku = "W-2"; // instances are read-only
 });
@@ -201,6 +201,6 @@ raises(AttributeError, () => {
 // A schema registered as 'schema' is shadowed by the store's schema() method, but still reachable by name.
 const Shadowed = new Schemas.OfObject.Builder(Sample).name("schema").clone(); // a schema named like a store method
 store.register(Shadowed);
-assert(store.schema("schema") === Shadowed && store.builder("schema").create().schema_name() === "schema");
+assert(store.schema("schema") === Shadowed && store.builder("schema").create().as_schema().name === "schema");
 
 console.log("Serialization: all checks passed");

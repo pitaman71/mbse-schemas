@@ -1,7 +1,7 @@
 # mbse-schemas in TypeScript
 
 Import from `@mbse/schemas/Framework`, and error classes from `@mbse/schemas/Framework/Errors`. The API mirrors
-Python name for name, snake_case included (`as_scalar`, `properties_of`). It runs on Node 22+, in browsers and in
+Python name for name, snake_case included (`as_scalar`, `as_identity`). It runs on Node 22+, in browsers and in
 Deno.
 
 ## A complete program
@@ -35,11 +35,15 @@ const store = new Proxies.OfStore();
 for (const schema of [Component, Port, Ownership, Wire]) store.register(schema);
 const B = store;
 
-const irq = B.Port().name("irq").signal((s: any) => s.width(1n).unit("bit")).create();
+// Builders and data instances implement the visitor protocol: members named after the schema's names.
+const irq = B.Port().name("irq").signal((p: any) => p.as_object((s: any) => s.width(1n).unit("bit"))).create();
 const picIn = B.Port().name("pic_in").create();
-const cpu = B.Component().name("cpu").ports((e: any) => e.port(irq)).create();
-B.Port(irq).fanout((e: any) => e.target(picIn).label("interrupt")).update();
-if (irq.signal.width !== 1n) throw new Error("unexpected width");
+const cpu = B.Component().name("cpu").ports((a: any) => a.insert((e: any) => e.port(irq))).create();
+B.Port(irq).fanout((a: any) => a.insert((e: any) => e.target(picIn).label("interrupt"))).update();
+if (`${irq.name}` !== "irq" || [...irq.fanout].map((e: any) => e.target)[0] !== picIn) throw new Error("unexpected port");
+const widths: bigint[] = [];
+irq.signal.as_object((s: any) => widths.push(BigInt(s.width)) && s); // a value object, through as_object
+if (widths[0] !== 1n) throw new Error("unexpected width");
 
 const text = JSON.ToJSON(store).Reachable(Component, cpu);
 const copy = JSON.FromJSON(B).Reachable(Component, text) as Proxies.Instance; // decoders return unknown
@@ -55,6 +59,8 @@ if (Validators.Validate(B).Reachable(Component, copy).length > 0) throw new Erro
 | `dict` plain data | `Map<string, PlainData>` (`Plain.ToPlain` returns Maps) |
 | `Schemas.OfObject.Builder()` | `new S.OfObject.Builder()` (schema builders are classes) |
 | proxy builders and instances | typed loosely by name (`any`): annotate their callbacks `(x: any) =>` |
+| `str(obj.prop)`, `int(obj.count)`, `float(...)` | `` `${obj.prop}` ``, `BigInt(obj.count)`, `+obj.ratio`, through `[Symbol.toPrimitive]`; `valueOf()` for a bool or bytes; never `===` on a member |
+| `callable(instance)` | a data instance, and every member, is a `Proxy` with a function target: `typeof` says `"function"` |
 | decoders return the object | `FromPlain`/`FromJSON`/`FromYAML` return `unknown`: cast to `Proxies.Instance` |
 | `AttributeError`, `ValueError`, `KeyError`, `NotImplementedError` | classes of the same names in `@mbse/schemas/Framework/Errors`; `TypeError` is JavaScript's |
 
@@ -83,22 +89,30 @@ const store = new Proxies.OfStore(); store.register(schema); const B = store;   
 store.extent("Name"); store.singleton("Global");           // a schema's objects its singletons reach; a singleton
 new Stores.PCG32(42n).split("key").next_u32();             // a random source, given to whatever draws from it
 Proxies.store_of(obj);                                     // the store a proxy belongs to
-B.Name().prop(value).adjacencyName((e: any) => e.link(obj).entryProp(v)).create();
-B.Name(obj).prop(v).update();                              // .clone() makes a changed copy instead
-irq.fanout.map((e: any) => [e.target, e.label]);             // an adjacency: an Iterable of full entries (Proxies.OfEntry.Data),
-                                                              // every link the owner's own included; links and properties as attributes
-irq.fanout.project("target");                                 // each entry's link or property, in order (Proxies.OfAdjacency.Data)
-contact.phones.at("home");                                    // the entry by the key its relation's unique clause gives this end
-B.Name().tags((e: any) => e.value("a")).create();          // a list's entries; obj.tags.project("value")
-B.Name().attrs((e: any) => e.key("gain").value(1.5)).create(); // a keyed list; obj.attrs.at("gain").value; obj.cells.at([1n, 2n])
+// The visitor protocol (Visitors.OfX): data instances read, builders write. A member is the child visitor when read
+// and takes a Spec when called: a value, or a function given the visitor. Reads never throw; a forbidden write throws
+// Errors.ReadOnlyError.
+B.Name().prop(value).valueProp((p: any) => p.as_object((r: any) => r.x(1n))).create();   // a value object, through as_object
+B.Name().adjacencyName((a: any) => a.insert((e: any) => e.link(obj).entryProp(v))).create();   // an entry, inserted
+B.Name(obj).prop(v).update();                              // change obj; .clone() makes a changed copy instead
+`${obj.prop}`; BigInt(obj.count); obj.prop.get();          // a scalar: toPrimitive, or get(); get() is null when absent
+obj.prop.as_scalar((s: any) => s.set(v));                  // a property's scalar visitor; .as_value(cb) for any kind
+B.Name(obj).prop((p: any) => p.as_value((v: any) => v.clear())).update();   // clear a value
+obj.valueProp.as_object((r: any) => r);                    // a value object's visitor, its members as an object's
+[...irq.fanout].map((e: any) => [e.target, `${e.label}`]);  // an adjacency iterates its entries; a link is the object itself
+irq.fanout.project("target"); contact.phones.at("home");   // each entry's link or property; the entry by its key
+B.Name(obj).tags((a: any) => a.remove((e: any) => e.value("x")));   // remove every entry agreeing with a template
+obj.tags.select((e: any) => e.value("x"), (e: any) => e);  // visit the entries agreeing with a template, or equal to a value
+B.Name().unionProp((p: any) => p.as_value((v: any) => v.as_union((u: any) => u.phone(spec))));   // a branch by name
+obj.as_properties; obj.as_adjacencies((a: any) => a);      // schema unaware: the properties set, every adjacency
+obj.as_schema(); obj.as_identity();                        // what every visitor has: its schema; an object's identity
+Proxies.owner_of(valueObject);                             // the object a value object belongs to
 JSON.ToJSON(store).Reachable(schema, root); JSON.FromJSON(store).Reachable(schema, text);
 Validators.Validate(store)(schema, obj); Validators.Validate(store).Reachable(schema, root);
 new Comparison.OfObject(schema, a).compare(new Comparison.OfObject(schema, b));   // -1, 0, 1 or null
 Modules.module(store, [Contact]); Modules.schemas(store, module);   // named schemas to a module, and back (a Map, by name)
 new S.OfUnion.Builder().name("Code").branches(...).flat();  // flat: card.code is the branch's value, set by type
-Reflection.of(store).extent("Schemas.Object");                     // a store's schemas as objects, to match
-Paths.of(store).of(obj); Paths.of(store).find(path);         // names that survive changes elsewhere: "book.Directory/contacts[0]"
-new Stores.Combined(schemas, trees);                              // stores of different implementations, as one
+new Stores.Combined(one, other);                           // stores as one, each name its store's
 ```
 
 ## Go deeper

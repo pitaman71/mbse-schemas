@@ -1,9 +1,9 @@
 // Helpers shared by the examples.
 
-import { Plain, Proxies, Reachable } from "@mbse/schemas/Framework";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import type { PlainData, PlainMap } from "@mbse/schemas/Framework/Plain";
-import type { OfObject } from "@mbse/schemas/Framework/Schemas";
 
 /** Python's `assert`. */
 export function assert(condition: unknown, message = "assertion failed"): asserts condition {
@@ -35,17 +35,20 @@ export function map(value: unknown): PlainData {
   return value as PlainData;
 }
 
-/** The entries of `obj`'s adjacency, with references resolved to objects.
- *
- * Reading entries back is not part of the API yet, so this reads them from a Reachable snapshot: its symbols are
- * assigned in first-reference order, the same order `Reachable.of` returns. */
-export function entries(schema: OfObject.Data, obj: Instance, adjacency: string): Map<string, unknown>[] {
-  const graph = Plain.ToPlain(Proxies.store_of(obj)).Reachable(schema, obj);
-  const objects = Reachable.of(obj);
-  const root = (graph.get("objects") as PlainMap).get(graph.get("root") as string) as PlainMap;
-  const resolve = (value: PlainData): unknown =>
-    value instanceof Map ? objects[Number(String(value.get("$ref")).slice(1))] : value;
-  return ((root.get(adjacency) as PlainMap[] | undefined) ?? []).map((e) => new Map([...e].map(([k, v]) => [k, resolve(v)])));
+/** The entries of `obj`'s adjacency, read through the visitor protocol: each a map of the other links' objects and the
+ * properties' values that are set. */
+export function entries(_schema: unknown, obj: Instance, adjacency: string): Map<string, unknown>[] {
+  const read = obj[adjacency];
+  const me = read.as_schema().me;
+  return [...read].map((entry: any) => {
+    const row = new Map<string, unknown>();
+    for (const link of entry.as_schema().links.keys()) if (link !== me) row.set(link, entry[link]);
+    for (const name of entry.as_schema().properties.keys()) {
+      const value = entry[name].get();
+      if (value !== null) row.set(name, value);
+    }
+    return row;
+  });
 }
 
 /** Snapshot equality up to symbol numbering and entry order. Objects are identified by their own property values,

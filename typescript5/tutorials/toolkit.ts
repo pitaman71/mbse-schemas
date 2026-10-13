@@ -4,41 +4,43 @@
  * Each function is developed and explained in the case study named in its comment.
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { Proxies } from "@mbse/schemas/Framework";
-import type { OfAdjacency, OfEntry } from "@mbse/schemas/Framework/Visitors";
 
-/** One entry, read into an object: each link's target and each property's value, by name. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+/** One entry, read into an object: each link's target and each property's value that is set, by name. */
 export type Row = Record<string, any>;
-
-function read(entry: OfEntry): Row {
-  const row: Row = {};
-  entry.links((link) => link.target((target) => (row[link.name()] = target)));
-  entry.properties((prop) => prop.value((v) => v.as_scalar((n) => (row[prop.name()] = n.get()))));
-  return row;
-}
 
 /**
  * The entries of one of `obj`'s adjacencies, as objects of link and property values. (Case study 2.)
  *
- * The object's own link is implied, so it is not included. Reading goes through a builder started from `obj`: the
- * builder is a visitor, and visiting is how anything is read without knowing the schema in advance. The builder is
- * never finalized, so nothing changes.
+ * The object's own link is implied, so it is not included. An adjacency is a member of the object, a visitor that
+ * iterates its entries; an entry's links are members giving the linked object, and its properties members whose
+ * `get()` gives the value. The schema is read through `as_schema()`, so this works for any relation.
  */
 export function entries(obj: Proxies.Instance, adjacency: string): Row[] {
-  const rows: Row[] = [];
-  Proxies.store_of(obj).builder(obj.schema_name(), obj).adjacency(adjacency, (a: OfAdjacency) => a.entries((e) => rows.push(read(e))));
-  return rows;
+  const read = obj[adjacency];
+  const me = read.as_schema().me;
+  return [...read].map((entry: any) => {
+    const schema = entry.as_schema();
+    const row: Row = {};
+    for (const link of schema.links.keys()) if (link !== me) row[link] = entry[link];
+    for (const name of schema.properties.keys()) {
+      const value = entry[name].get();
+      if (value !== null) row[name] = value;
+    }
+    return row;
+  });
 }
 
 /** Removes the entries of `obj`'s adjacency for which `where(row)` is true; `row` is as returned by `entries`.
  * Returns the updated object. (Case study 3.) */
 export function remove_entries(obj: Proxies.Instance, adjacency: string, where: (row: Row) => boolean): Proxies.Instance {
-  return Proxies.store_of(obj).builder(obj.schema_name(), obj)
-    .adjacency(adjacency, (a: OfAdjacency) => {
-      const doomed: OfEntry[] = [];
-      a.entries((e) => (where(read(e)) ? doomed.push(e) : undefined));
-      for (const e of doomed) a.remove(e);
-    })
-    .update();
+  const rows = entries(obj, adjacency);
+  const doomed = [...obj[adjacency]].filter((_entry, i) => where(rows[i] as Row));
+  const remove = (a: any): any => {
+    for (const entry of doomed) a.remove(entry); // an entry given as a value removes the entries equal to it
+    return a;
+  };
+  return Proxies.store_of(obj).builder(obj.as_schema().name as string, obj)[adjacency](remove).update();
 }

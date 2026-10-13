@@ -7,7 +7,6 @@ import { ValueError } from "@mbse/schemas/Framework/Errors";
 import { Plain, Proxies, Reachable, Schemas, Validators } from "@mbse/schemas/Framework";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
-import type { OfEntry, Visitable } from "@mbse/schemas/Framework/Visitors";
 import { assert, entries, raises, same_graph } from "./_support.js";
 
 const store = new Proxies.OfStore();
@@ -69,20 +68,20 @@ const cs101 = store.Course().code("CS101").title("Programs and Data").create();
 const mia = store.Student()
   .name("Mia")
   .student_id("S-0001")
-  .enrollments((x: any) => x.course(cs101).term(fall).credits(4n))
-  .enrollments((x: any) => x.course((c: any) => c.code("MA201").title("Linear Algebra")).term(fall).credits(3n))
+  .enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).credits(4n)))
+  .enrollments((a: any) => a.insert((x: any) => x.course((c: any) => c.code("MA201").title("Linear Algebra")).term(fall).credits(3n)))
   .create();
-assert(same(sortedStrings(entries(Student, mia, "enrollments").map((e) => (e.get("course") as Instance).code)), ["CS101", "MA201"]));
+assert(same(sortedStrings(entries(Student, mia, "enrollments").map((e) => String((e.get("course") as Instance).code))), ["CS101", "MA201"]));
 
 // The same fact is visible from all three ends.
 assert(same(entries(Course, cs101, "enrollments").map((e) => e.get("student")), [mia]));
-assert(same(sortedStrings(new Set(entries(Term, fall, "enrollments").map((e) => (e.get("course") as Instance).code))), ["CS101", "MA201"]));
+assert(same(sortedStrings(new Set(entries(Term, fall, "enrollments").map((e) => String((e.get("course") as Instance).code)))), ["CS101", "MA201"]));
 
 // Entries from one end carry the two other links; the object's own link is implied.
 assert(same(sortedStrings((entries(Term, fall, "enrollments")[0] as Map<string, unknown>).keys()), ["course", "credits", "student"]));
 
 // Every link other than the object's own must be set.
-raises(ValueError, () => store.Student().name("Noah").enrollments((x: any) => x.course(cs101)).create());
+raises(ValueError, () => store.Student().name("Noah").enrollments((a: any) => a.insert((x: any) => x.course(cs101))).create());
 
 // --- Entry property equality follows schema equality, not host-language == ---
 
@@ -94,7 +93,7 @@ function enroll(student: Instance, props: Record<string, unknown>): void {
     for (const [key, value] of Object.entries(props)) x[key](value);
     return x;
   };
-  store.Student(student).enrollments(spec).update();
+  store.Student(student).enrollments((a: any) => a.insert(spec)).update();
 }
 
 enroll(noah, { score: 0.0 });
@@ -107,14 +106,7 @@ const zoe = store.Student().name("Zoe").create();
 enroll(zoe, { credits: 1n });
 enroll(zoe, { credits: true }); // the builder does not validate scalar types, and true is a different value from 1n
 
-function credits_of(entry: OfEntry): unknown {
-  const found: unknown[] = [];
-  if (entry.has("credits")) entry.property("credits", (p) => p.value((v) => v.as_scalar((n) => found.push(n.get()))));
-  return found.length > 0 ? found[0] : null;
-}
-
-const values: unknown[] = [];
-store.Student(zoe).adjacency("enrollments", (a: any) => a.entries((e: OfEntry) => values.push(credits_of(e))));
+const values: unknown[] = [...zoe.enrollments].map((e: any) => e.credits.get());
 assert(values.length === 2 && same(sortedStrings(new Set(values.map((v) => typeof v))), ["bigint", "boolean"]));
 
 // Serializing checks scalar types: a bool where the schema says int is rejected, and so is anything reaching it.
@@ -134,17 +126,13 @@ assert(same(validate(Student, zoe), [
 assert(validate(Student, noah).some((p) => p.startsWith("unique(audit, credits, score) violated")));
 
 // A linked object must have a schema that fills that link: here a Student is linked as a course.
-store.Student(noah).enrollments((x: any) => x.course(mia).term(fall)).update();
+store.Student(noah).enrollments((a: any) => a.insert((x: any) => x.course(mia).term(fall))).update();
 assert(validate(Student, noah).some((p) => p.includes("a 'Student' cannot fill link 'course'")));
-store.Student(noah).adjacency("enrollments", (a: any) =>
-  a.entries((e: OfEntry) => e.link("course", (k) => k.target((t: Visitable) => (t === mia ? a.remove(e) : null)))),
-).update();
+store.Student(noah).enrollments((a: any) => a.remove((e: any) => e.course(mia))).update();
 assert(!validate(Student, noah).some((p) => p.includes("cannot fill")));
 
 // Remove the bad entry so the rest of the example can serialize.
-store.Student(zoe).adjacency("enrollments", (a: any) =>
-  a.entries((e: OfEntry) => (typeof credits_of(e) === "boolean" ? a.remove(e) : null)),
-).update();
+store.Student(zoe).enrollments((a: any) => a.remove((e: any) => e.credits(true))).update();
 assert(same(entries(Student, zoe, "enrollments").map((e) => e.get("credits")), [1n]));
 
 // --- Schema inference through a link must be unambiguous ---
@@ -152,20 +140,20 @@ assert(same(entries(Student, zoe, "enrollments").map((e) => e.get("credits")), [
 const lab = store.Room().building("Hopper Hall").number("B12").create();
 
 // Both Student and Staff fill 'booker', so building one inline from the room's side is refused...
-raises(TypeError, () => store.Room(lab).bookings((x: any) => x.booker((b: any) => b.name("?")).starts("2026-09-14T09:00:00Z")).update());
+raises(TypeError, () => store.Room(lab).bookings((a: any) => a.insert((x: any) => x.booker((b: any) => b.name("?")).starts("2026-09-14T09:00:00Z"))).update());
 
 // ...but linking an existing object works, whichever schema it has.
 const grace = store.Staff().name("Grace").staff_id("F-0042").create();
-store.Room(lab).bookings((x: any) => x.booker(grace).starts("2026-09-14T09:00:00Z")).update();
-store.Room(lab).bookings((x: any) => x.booker(mia).starts("2026-09-15T13:30:00Z")).update();
-assert(same(sortedStrings(entries(Room, lab, "bookings").map((e) => (e.get("booker") as Instance).schema_name())), ["Staff", "Student"]));
+store.Room(lab).bookings((a: any) => a.insert((x: any) => x.booker(grace).starts("2026-09-14T09:00:00Z"))).update();
+store.Room(lab).bookings((a: any) => a.insert((x: any) => x.booker(mia).starts("2026-09-15T13:30:00Z"))).update();
+assert(same(sortedStrings(entries(Room, lab, "bookings").map((e) => (e.get("booker") as Instance).as_schema().name as string)), ["Staff", "Student"]));
 
 // References carry the schema name, so restoring knows Grace is Staff and Mia is a Student.
 let graph = Plain.ToPlain(store).Reachable(Room, lab);
 let restored = Plain.FromPlain(store).Reachable(Room, graph) as Instance;
 const bookers = new Map(entries(Room, restored, "bookings").map((e) => {
   const booker = e.get("booker") as Instance;
-  return [booker.name as string, booker.schema_name()];
+  return [String(booker.name), booker.as_schema().name];
 }));
 assert(bookers.size === 2 && bookers.get("Grace") === "Staff" && bookers.get("Mia") === "Student");
 
@@ -173,7 +161,7 @@ assert(bookers.size === 2 && bookers.get("Grace") === "Staff" && bookers.get("Mi
 
 const component = Reachable.of(fall);
 assert(component[0] === fall);
-assert(same(sortedStrings(new Set(component.map((o) => o.schema_name()))), ["Course", "Room", "Staff", "Student", "Term"]));
+assert(same(sortedStrings(new Set(component.map((o) => o.as_schema().name as string))), ["Course", "Room", "Staff", "Student", "Term"]));
 
 for (const [root, schema] of [[fall, Term], [mia, Student], [noah, Student]] as const) {
   graph = Plain.ToPlain(store).Reachable(schema, root);

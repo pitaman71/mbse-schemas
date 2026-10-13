@@ -106,8 +106,7 @@ determine the values of `S`: any two entries that agree on everything outside `S
 Equivalently, the links and properties outside `S` form a key. Each clause is a separate constraint, so any combination of keys can be expressed.
 Seen from one link, `me`, a clause whose complement holds `me` keys the entries by the rest of that complement:
 `Schemas.OfRelation.Data.keys(me)` lists those keys in declaration order, and `key(me)` is the first, which an
-adjacency is indexed by (`at`), its entries sorted by on the wire, and `Paths` name them by (the first key a path
-can write).
+adjacency is indexed by (`at`) and its entries sorted by on the wire.
 
 - Pure ownership, where each child has at most one parent:
   `.links(parent, child).unique(parent)`
@@ -172,31 +171,31 @@ Instances of a user schema follow the same pattern. With the dynamic (proxy) imp
   is identifiers separated by dots, the part before the last dot its namespace; `validate()` reports any other.
 - `store = Proxies.OfStore()` makes a store (see Stores), and `store.register(schema)` registers a named schema in it,
   under its name; an unnamed schema is refused.
-- `store.Name(optional instance)` returns a builder for that schema with one fluent setter per property
-  (e.g. `.street1('foo')`), finalized by `create()` / `clone()` / `update()` as above.
-- Relation entries are added through the object builder's adjacency accessors, never through a relation builder
-  (none is exposed to the caller). An accessor takes a `Spec` for the entry. The object fills its own link (`me`); the
-  entry builder sets the other links and the entry properties. A link takes an existing object or a `Spec` that
-  builds a new one; the lambda form requires the new object's schema to be
-  inferred unambiguously from the relation and link:
+- `store.Name(optional instance)` returns a builder for that schema with one member per property (e.g.
+  `.street1('foo')`), finalized by `create()` / `clone()` / `update()` as above.
+- Relation entries are inserted through the object builder's adjacencies, never through a relation builder (none is
+  exposed to the caller). An adjacency is a member, called with a `Spec` given the adjacency's visitor, whose
+  `insert` takes a `Spec` for the entry. The object fills its own link (`me`); the entry builder sets the other links
+  and the entry properties. A link takes an existing object or a `Spec` that builds a new one; the lambda form requires
+  the new object's schema to be inferred unambiguously from the relation and link:
 
   ```python
-  .addresses(lambda x: x.address(addr1).label('work'))
-  .phones(lambda x: x.phone(lambda y: y.number('+447700900123')).label('mobile'))
+  .addresses(lambda a: a.insert(lambda x: x.address(addr1).label('work')))
+  .phones(lambda a: a.insert(lambda x: x.phone(lambda y: y.number('+447700900123')).label('mobile')))
   ```
-- Each setter takes a `Spec` like any other builder argument: a direct value, or a callable that takes and returns a
-  value builder:
+- Each member takes a `Specs.Callback` like any other builder argument: a value, or a callable that takes the
+  property's visitor:
 
   ```python
   .street1('foo')
   # equivalent to
-  .street1(lambda v: v.set('foo'))
+  .street1(lambda p: p.as_scalar(lambda v: v.set('foo')))
   ```
 
-- A property is cleared (made absent) through the value builder: `.street2(lambda v: v.clear())`.
-- Instances expose their properties for reading as ordinary attributes (e.g. `addr1.street1`). This access is
-  read-only; changes go through a builder. A property that is not set reads as `None` (`null` in TypeScript): no
-  property holds `None` as a value, so it means absent, as in generated classes, whose fields default to `None`.
+- A property is cleared (made absent) through its value's visitor: `.street2(lambda p: p.as_value(lambda v: v.clear()))`.
+- Data instances are visitors too, read-only: a property is a member, its visitor (`addr1.street1`), read compactly
+  through the scalar dunders (`str(addr1.street1)`) or `get()`. Changes go through a builder. A property that is not
+  set has a `get()` of `None` (`null` in TypeScript): no property holds `None` as a value, so it means absent.
 
 To make schemas fully serializable, `Schemas.OfX.Builder` must implement `Visitors.OfX`.
 
@@ -206,7 +205,16 @@ This is known as the "builder pattern" and must be followed by proxies, generate
 
 Implementation is strictly typed in all languages - parameters, returns, etc.
 
-- `Visitors` : for each schema element `OfX`, `Visitors.OfX` defines a schema-agnostic interface for a handle that can traverse, analyze, and modify a data structure provided its schema object regardless of whether or not the source for that process knows the schema at compile time. `Visitors.OfAny` dispatches on kind through `as_<kind>(callback)` methods: each passes the kind's visitor to the callback and returns `self`, so calls chain; when reading, only the callback for the value's actual kind runs. More generally, visitors never return child visitors (properties, adjacencies, entries, links, union and intersection values); they pass them to callbacks. Every visitor method that is not a query returns `self`, so calls chain.
+- `Visitors` : for each schema element `OfX`, `Visitors.OfX` is the one protocol through which code reads and writes a
+  value of kind X, knowing its schema or not ([The visitor pattern](VISITOR_PATTERN.md); Resolved, The visitor
+  pattern). Data instances (`Proxies.OfX.Data`) implement it read-only, builders writable. An object's properties and
+  adjacencies, an entry's links and properties, a union's branches and an intersection's parts are members named after
+  them: read, a member is the child visitor; called with a `Specs.Callback` (a value, or a callable taking the
+  visitor), it writes or visits through it and returns the visitor it is a member of. Methods are named `as_*`, each
+  returning the visitor it was called on, and every protocol has `as_schema()`. Reads never raise and every callback is
+  called, a visitor of an absent value or of another kind reading as empty; the one raise is a write the visitor's mode
+  or the value forbids (`Errors.ReadOnlyError`). `Readers.OfX` is the read-only view, a type for code that must not
+  write; `Specs.Callback` is what members and `as_*` methods take.
 - `Schemas` : for each schema element `OfX`, `Schemas.OfX.Data` is used to capture a schema. Schemas may be named (registered by a name in a store) or appear inline without a name.
 - `Stores` : `Stores.Store` is the protocol of a store, the root object through which schemas, builders and objects
   are located (see Stores). Everything that looks a schema up by name takes a store.
@@ -220,21 +228,15 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   problems, each with a path (e.g. `Student#0.enrollments[1].credits: expected int, got bool`). `.Reachable(schema, root)`
   checks everything reachable from the root. It is constructed with the store that looks schemas up by name, and runs
   only when the caller asks. It checks the schemas' own `validate()`, exact scalar types
-  of properties and entry properties, that every link is set and filled by an object whose schema declares an
-  adjacency via that link, `unique(...)` clauses over the entries seen, value objects' properties and entries
-  recursively, that no link targets a value object,
-  that a union value holds exactly one of its branches and an intersection value every one of its parts, each with a
-  value of its type. The validator is a visitor: objects write
-  themselves into it through `accept`. `Validators.properties_of(value)` returns the property values any object writes when
-  visited, and `Validators.entries_of(value)` its entries by adjacency
-  (each an `EntryRecord` of its other links' targets and its property values), for other modules and packages that
-  read objects (e.g. mbse-expressions' evaluators). A value object read so writes its entries back through `accept`
-  as well as its properties, and compares by both. `Validators.Check(store)` checks the same and also reports what it
-  cannot decide: a property no schema declares, and a value of a type this implementation cannot read.
+  of properties and entry properties, that every linked object's schema declares an adjacency via its link,
+  `unique(...)` clauses over the entries seen, value objects' properties and entries recursively, and that an
+  intersection value holds every one of its parts, each with a value of its type. It reads the value through the
+  visitor protocol (`Readers.OfObject`), through its schema, as other modules and packages that read objects do (e.g.
+  mbse-expressions' evaluators). `Validators.Check(store)` checks the same and also reports what it cannot decide.
 
-- `Comparison` : for each schema element `OfX`, `Comparison.OfX` implements `Visitors.OfX`, records the value written
-  into it, and compares it with another recording: `a.compare(b)` returns -1, 0, 1, or `None` when incomparable. See
-  `EQUALITY.md`.
+- `Comparison` : for each schema element `OfX`, `Comparison.OfX(schema, value)` holds a value read through the visitor
+  protocol (`Readers.OfX`), or a scalar, and compares it with another: `a.compare(b)` returns -1, 0, 1, or `None` when
+  incomparable. See `EQUALITY.md`.
 
 - `Modules` : schemas as data. `Modules.module(store, schemas)` returns an object of the meta-schema
   `Schemas.Module.Schema`, built in `store`, holding named schemas, and `Modules.schemas(store, module)` the schemas it
@@ -254,9 +256,9 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
 ## Stores
 
 A store is the root object of a body of data: it holds named schemas, and the data reachable from its roots. Code
-locates schemas, builders and objects through a store, never through a global. Implemented in `Proxies.OfStore` and
-`Bindings.OfStore`; envisioned also for generated (language-optimized) data structures, SQL and noSQL databases, and
-in-memory cache slices.
+locates schemas, builders and objects through a store, never through a global. Implemented in `Proxies.OfStore`;
+envisioned also for generated (language-optimized) data structures, SQL and noSQL databases, and in-memory cache
+slices.
 
 - **`Stores.Store` is the protocol**, which every implementation of the framework meets:
   - `schema(name)`: the object schema registered as `name` (`AttributeError` if none is; `TypeError` for a relation);
@@ -270,10 +272,10 @@ in-memory cache slices.
   - `extent(name)`: the store's reference objects of the schema `name`: those reachable from its singletons, in
     first-reference order.
 - **Stores combine.** `Stores.Combined(*stores)` is one store of several: each name belongs to the one store that
-  registers it (a name two register is refused), which gives its schema, builds its objects and reads their members;
-  its singletons are all of theirs, and an extent is the owning store's and what every store's singletons reach, so the
-  objects of one store may link to another's, and combined stores combine again. A transform reads a store of schemas
-  (`Reflection.of`) and writes a store of syntax trees (mbse-programs) through one.
+  registers it (a name two register for different schemas is refused; one they register for the same schema, as
+  every store of proxies registers the meta-schemas, is the first's), which gives its schema, builds its objects and
+  reads their members; its singletons are all of theirs, and an extent is the owning store's and what every store's
+  singletons reach, and combined stores combine again.
 - **A random source is given to whatever draws from it** (mbse-patterns' samplers and generators:
   `Generate(store, weights, Stores.PCG32(42))`), not held by a store, which is data access alone. `Stores.Random` is the
   protocol: `next_u32()`, the next 32 random bits, and
@@ -299,8 +301,7 @@ in-memory cache slices.
   to another store"). Tests and programs make the stores they need. Objects move between stores, or implementations,
   as snapshots.
 - **Every store of proxies starts with the meta-schemas registered** (`Stores.META`: `Schemas.Module`, whose schemas
-  are value object schemas and need no names), so it can hold modules of schemas (see Meta-schemas). A store of bound
-  classes holds only the classes bound to it.
+  are value object schemas and need no names), so it can hold modules of schemas (see Meta-schemas).
 - **A proxy knows its store.** `Proxies.store_of(value)` gives the store a proxy belongs to, and a placed value
   object's is its owner's.
 - **Everything that looks schemas up takes a store**: `Plain.ToPlain(store)` and `Plain.FromPlain(store)`, the JSON and
@@ -313,12 +314,15 @@ in-memory cache slices.
 
 ## Proxies
 
-- `Proxies` : for each schema element `OfX`, `Proxies.OfX.Data` defines how the schema can be stored in memory as schema-independent types, and `Proxies.OfX.Builder`, like every builder, implements `Visitors.OfX`. Proxies themselves do not implement `Visitors`; if they have an interface for traversal, it is `Visitable` (a proxy accepts a visitor), not `Visitor`. `Proxies.OfX.Builder.validate` can be used to check the current state of the configured item. Validation is never implicit: it runs only when the caller invokes it.
-- **Objects read alike, whatever implements them.** A proxy reads a property as an attribute (`contact.name`) and an
-  adjacency as one member named after it, the iterable of its entries in order (`contact.phones`, a tuple in Python
-  and a frozen array in TypeScript). An entry is one object, shared by the objects it links, whose links and properties
-  are read-only attributes (`entry.owner`, `entry.phone`, `entry.label`). Generated classes (mbse-codegen-*) have the
-  same members, so code that reads objects works on proxies and generated classes alike, as Resolved specifies
+- `Proxies` : for each schema element `OfX`, `Proxies.OfX.Data` holds a value in memory as schema-independent types,
+  and `Proxies.OfX.Builder` builds one; both implement `Visitors.OfX`, data instances read-only, builders writable.
+  Validation is never implicit: it runs only when the caller invokes it.
+- **Objects read alike, whatever implements them.** A proxy's property is a member, its visitor (`contact.name`, read
+  compactly as `str(contact.name)` or `contact.name.get()`), and so is an adjacency, the adjacency's visitor, which
+  iterates its entries in order (`contact.phones`, a tuple in Python and an array in TypeScript). An entry is one
+  object, shared by the objects it links, whose links are the linked objects themselves and whose properties are
+  members (`entry.owner`, `entry.phone`, `entry.label`), read-only. Generated code (mbse-codegen-*) will have the same
+  members, so code that reads objects works on proxies and generated code alike, as Resolved specifies
   (Adjacencies): an entry is a `Proxies.OfEntry.Data`. Any iterable will do; a set sorted by a comparator, which
   would serve retrieval, is an open question. A proxy's adjacency (`Proxies.OfAdjacency.Data`) also has
   `project(name)`, each entry's link or property `name` in order, and `at(key)`, the entry with the key its relation
@@ -328,32 +332,13 @@ in-memory cache slices.
   where every entry holds it as values of one ordered type (booleans false first, numbers by value, strings by code
   point), and in the order they were added otherwise (a key holding a link, an entry without one).
 
-## Typed bindings
+## Generated code
 
-`Proxies` gives any registered schema dynamic instances; `Bindings` gives a program's own classes, written or generated
-in its language, the same part in the framework: their instances are `Visitable`, they have builders that implement
-`Visitors.OfObject`, and a store rebuilds them from snapshots. It is the core the generated bindings (mbse-python,
-mbse-typescript, ...) will share, and mbse-expressions' expressions are its first user.
-
-- **A binding pairs a reference object schema with a class.** `Bindings.Binding(schema, read, make)` is the schema, the
-  source of truth, with two functions: `read(instance)` gives an instance's `State`, and `make(state)` builds an
-  instance from one; `assign(instance, state)` writes a state into an existing instance, for `update()`.
-- **A state is the instance's data in the schema's terms**: each property's value, scalars as scalars and other values
-  (value objects, unions, lists) in their plain form, which no snapshot holds, so a reference in a value object's
-  entries does not resolve (`unresolved reference 's1': no snapshot holds the value`); and each adjacency's entries, each an `Entry` of its links (the
-  linked instances) and its properties. The class keeps its own fields; the binding's two functions translate.
-- **Everything else is generic.** `Bindings.accept(binding, instance, visitor)` writes an instance through the
-  visitor protocols, so the class's `accept` is one line; `Bindings.Builder(binding, instance)` is a
-  `Visitors.OfObject` over a state, with every value kind the schema declares (scalars checked by type, value objects,
-  unions and lists through plain data), `create()`, `clone()` and `update()`; and `Bindings.OfStore(bindings)` is a
-  store of bound classes (see Stores), whose builders make the instance of each singleton schema when the store is made. A class's own builder derives from `Bindings.Builder` for its DSL.
-- **A binding may declare what the schema cannot**: `fixed` properties, whose value is the class's (a tag, such as an
-  expression's `kind`), so that writing another raises; `exclusive` groups of properties, of which a state holds at
-  most one, so that writing one clears the others (a literal's value, under the property named after its scalar type);
-  and `implied` adjacencies, whose entries the other ends imply, so that the builder ignores entries added to them.
-- **Absent is no value.** A state has no key for an absent property, and a builder drops the keys a class's `read`
-  gives without a value (None, null); an entry property without a value is not written. A fixed property is compared
-  by value, bytes included, and type-checked first, as every scalar is.
+`Proxies` gives any registered schema dynamic instances. Code generation (phase 6 of [the meta-schemas
+overhaul](META_SCHEMAS.md)) will give each schema the same parts as typed code: `<schemaName>.Data`, the instance form;
+`<schemaName>.Builder`, the mutator form, implementing `Visitors`; and `<schemaName>.Schema`, the schema itself
+(Resolved, The visitor pattern). `Bindings`, which bound a program's own classes to schemas through the old protocol,
+was removed with it.
 
 ## Serialization
 
@@ -452,7 +437,7 @@ documents.
   type"). Reference objects are reached through relations only.
 - **A value object** is held by a property whose schema is a value object schema, and belongs to that one owner, a
   reference object or another value object. Union and intersection values are value objects, and so are the objects they hold.
-  `Visitable.owner()` gives a value object's owner, and None for a reference object.
+  `Proxies.owner_of(value)` gives a value object's owner, and None for a reference object.
 - **A value object may have adjacencies, to one-link relations only**, its lists, whose entries link nothing but it;
   `validate()` reports a value object schema's adjacency to a relation of more links ("a value object schema's
   adjacency is to a one-link relation, since entries never reference value objects"). The decision "a value object
@@ -620,44 +605,13 @@ are written, read, validated and compared like any other objects.
   would clash with the visitor protocols (`properties(callback)`), are not involved.
 - **A schema may hold itself**, as a node holds a list of nodes. Validating it reports each problem once.
 
-## Reflection: schemas as objects
+## A store's schemas as a module
 
-Codegen and other transforms (mbse-patterns) match schemas, not data: a predicate's symbol is declared with the schema
-of what it binds, and the predicate itself says which objects match. To bind a schema, a symbol is declared with its
-kind's meta-schema, the schema of the module form (`Schemas.OfObject.Schema`, named `Schemas.Object`, and the like for
-`Schemas.Scalar`, `Schemas.Union`, `Schemas.Intersection`, `Schemas.Apply`, `Schemas.Relation` and
-`Schemas.Predicate`).
-
-- **A schema is a reference object of its kind's meta-schema**: `identity()` (Python's `id`, TypeScript's
-  `"schema N"`), `schema_name()` (the meta-schema's name), `owner()` (none) and `accept(visitor)`, which writes its
-  module form with its name (a module gives its entry the name): its own properties, then its properties, branches,
-  parts, parameters and symbols as the entries of its adjacencies (read with `entries_of`), a named schema it refers to by
-  name. `Reflection` supplies `accept`, since this module cannot import `Modules`.
-  Everything within a schema is a value, read with `get`, quantified over and compared deeply (mbse-expressions' Basic).
-- **`Reflection.of(store)`** is a store whose objects are the schemas `store` registers and the named schemas they refer
-  to, found by following the types and relations each refers to: it registers the meta-schemas, and each one's extent
-  is the schemas of its kind, in name order (names that tie in the order reached), as the store registers them when
-  the extent is asked for, so a schema registered later is among them. It reads no data, and leaves out the
-  store's own meta-schemas (`Stores.META`). It builds nothing; schemas are built by their builders.
-- **A scalar's token** is written `format` and `token` in a module (`{"scalar": {"format": "basic", "token": "str"}}`),
-  so that `name` is a schema's name in every kind (0.8).
-
-## Paths
-
-`Paths.of(store)` names every object a store's roots reach, so that diffs, traces and logs name objects across runs
-(mbse-patterns' transforms key their steps by paths).
-
-- **Roots are named.** A schema of a store of schemas (`Reflection.of`) is named by its name, and a singleton by its
-  global name; the schemas come first, in name order, then the singletons, in global-name order.
-- **Other objects are named by route**, the first that reaches them, breadth first through each object's entries
-  (adjacencies in their schema's order, entries in order). A step is `/adjacency[key]`: the entry's key is the values
-  of the first key of properties its relation declares from the object's own link (`Schemas.OfRelation.Data.keys`:
-  `phones[label="home"]`), else its position (`items[0]`); an entry of a relation of more than two links names the link (`/enrolled[0].course`). A
-  key writes a string as JSON does, an integer in decimal and a boolean as `true` or `false`; another type makes the
-  key positional.
-- **A path survives** a change that does not touch the route: a property set, an object added elsewhere, an entry
-  added after a positional one. Renaming a root, or inserting an entry before a positional one, changes the paths
-  under it. `paths.find(path)` gives the object at a path; both raise `LookupError` for what they do not hold.
+Codegen and other transforms (mbse-patterns) match schemas, not data. `Schemas.OfStore.root_module()` (phase 5 of [the
+meta-schemas overhaul](META_SCHEMAS.md)) will return the hierarchical `Schemas.OfModule` of the schemas a store
+registers, by module-qualified name, as linked objects; it replaces `Reflection`, removed with the old protocol, and
+`Paths` went with it (Resolved, The visitor pattern). A scalar's token is written `format` and `token` in a module
+(`{"scalar": {"format": "basic", "token": "str"}}`), so that `name` is a schema's name in every kind (0.8).
 
 ## Expressions
 
@@ -784,14 +738,15 @@ it is fixed here:
 | Scalar widths | `int` | `bigint` |
 | Scalar values | `int`, `float`, `str`, `bool`, `bytes` | `bigint`, `number`, `string`, `boolean`, `Uint8Array` |
 | Plain mappings | `dict` | `Map<string, PlainData>` (order-preserving for every key) |
-| Lists in proxies | `tuple` | frozen array |
+| Lists in proxies | `tuple` | a callable `Proxy` over a frozen array |
 | Keyed lists in proxies | `Mapping` (`m[key]`, iterates keys) | `Map`-shaped (`m.get(key)`, iterates entries) |
 | Schema data equality | `==` | `.equals()` |
 | Errors | built-in `TypeError`, `ValueError`, `AttributeError`, `KeyError`, `LookupError`, `NotImplementedError`; `Errors.DecodeError` | built-in `TypeError`; the others and `DecodeError` exported from `Errors`, with the same names |
 | Callable entry points | `Plain.ToPlain(store)(...)`, `Plain.FromPlain(store)(...)` (objects with `__call__`) | functions with the per-kind forms attached |
 | Keyword arguments | `ToJSON(..., indent=2)` | options objects: `ToJSON(..., { indent: 2 })` |
-| Dynamic proxies | `__getattr__` | `Proxy`; JavaScript protocol probes (`then`, `toJSON`, symbols) are not schema lookups |
-| Object identity | `id(self)` | a counter, never reused |
+| Dynamic proxies | `__getattr__`, `__call__` | a `Proxy` with a function target, its `name` and `length` hidden; JavaScript protocol probes (`then`, `toJSON`, symbols) are not schema lookups |
+| Scalar sugar | dunders (`str(card.name)`, `int(...)`) | `[Symbol.toPrimitive]` and `valueOf` (`` `${card.name}` ``, `+card.age`) |
+| Object identity (`as_identity()`) | `id(self)` as text | a counter as text, never reused |
 | Incomparable (`Comparison`) | `None` | `null` |
 | JSON | `json` with strict options | own reader and writer reproducing Python's output; ints and floats kept distinct |
 | YAML | PyYAML (optional extra), YAML 1.2 core loader | `yaml` package loader, own block emitter; the same quoting |
@@ -813,10 +768,10 @@ it is fixed here:
 
 Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/TestPlan.md`) that need a design decision:
 
-- Reserved names (F2): names starting with `$` are reserved for the wire format (see Resolved). Other property and
-  adjacency names that collide with binding members (e.g. `create`, `accept`, or
-  names starting with `_` in Python; `constructor`, `toString`, `then` in JavaScript) cannot be set through the DSL or
-  read as attributes in some bindings, and `validate()` accepts them. Should schemas reject names that any target language reserves, or should bindings rename them?
+- Reserved names (F2): names starting with `$` are reserved for the wire format, and `as_` for the visitor protocol
+  (see Resolved). Other property and adjacency names that collide with a visitor's own members (e.g. `create`, or
+  names starting with `_`; `then` in JavaScript) cannot be set through a builder's member or read as members in some
+  bindings, and `validate()` accepts them. Should schemas reject names that any target language reserves, or should bindings rename them?
 - Concurrent builders (F4): two builders over the same object each hold a copy; the last `update()` wins and drops
   entries the other added. Is that the intended semantics of `update()`?
 - Cloning self-loops (F5): `clone()` copies entries with the clone in place of the source, so a self-loop's clone
@@ -935,9 +890,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   It supersedes: mbse-basis P-004 as it stood (amended); here, "Objects outside snapshots are named by paths (0.8.2)",
   The meta-schemas overhaul's "we can keep paths", and decision C in mbse-expressions; and, in the sections above, what
   the reverse protocol built (`accept`, `Plain`'s writers and `Validators`' and `Comparison`'s recorders implementing
-  `Visitors`, `Bindings.accept`, `Reflection`'s `accept`), value objects that links target, and `Paths`. Of it, links
-  that target only reference objects, and value objects' adjacencies to one-link relations only, are built
-  (META_SCHEMAS.md, V1); those sections describe the rest as built until it is.
+  `Visitors`, `Bindings.accept`, `Reflection`'s `accept`), value objects that links target, and `Paths`. It is built:
+  links that target only reference objects, and value objects' adjacencies to one-link relations only, in
+  META_SCHEMAS.md's V1, and the protocol itself, with `Bindings`, `Paths` and `Reflection` removed, in V2 and V3.
 
 - **The meta-schemas overhaul** ([Meta-schemas overhaul](META_SCHEMAS.md), which plans it), as the user decided: of
   what the 8 to 11 Oct exploration (the `scalars` branch) learned, "definitely re-apply ASAP": "Dictionary of
@@ -1041,7 +996,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   properties as attributes, as generated classes will, so that code reads either without change.
 
 - Objects outside snapshots are named by paths (0.8.2): `Paths.of(store)`, from the store's named roots by route,
-  keyed by unique properties where a relation declares them. Snapshots keep their symbols.
+  keyed by unique properties where a relation declares them. Snapshots keep their symbols. (Superseded by The visitor
+  pattern: `Paths` is removed.)
 - Nothing is mandatory except as specified by a constraint: properties are optional by default, and mandatory
   participation in a relation is expressed as a constraint (directory membership is required by well-formedness).
 - `OfValue` is not a base class; renamed `OfAny`.
@@ -1056,8 +1012,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   form with its name; `Reflection.of(store)` holds the schemas a store registers and those they refer to. It replaces
   0.7.2's catalog and the elements bound as objects of their own, linked by relations: a predicate selects schemas
   itself, reading and comparing what is within them as values, and a store's named schemas are its roots, so nothing
-  lists them again. A scalar's token is written `token`, so that `name` is a schema's name in every kind (see
-  Reflection: schemas as objects).
+  lists them again. A scalar's token is written `token`, so that `name` is a schema's name in every kind. (Superseded
+  by The visitor pattern: `Reflection` is removed, and `root_module()` takes its part in phase 5.)
 - Evaluation (0.7.1): terms are evaluated by an evaluator the caller gives, in lexical scopes; `Validators.Check` gives
   problems and unknowns, three-valued; `Schemas.equivalent` is equality after substitution. With extents gone,
   validation evaluates no term, and `Check` takes no evaluator; nothing it checks is unknown until something
@@ -1078,7 +1034,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Builder finalization is `create()` / `clone()` / `update()`; none validate.
 - A program's own classes take part through `Bindings`: a binding pairs a reference object schema with `read`, `make`
   and `assign`, and the framework gives the rest (`accept`, builders, a store), so classes and proxies are
-  interchangeable wherever a `Visitable` and its builders are expected (see Typed bindings).
+  interchangeable wherever a `Visitable` and its builders are expected. (Superseded by The visitor pattern: `Bindings`
+  is removed, and code generation gives each schema its `Data`, `Builder` and `Schema`.)
 - Validation, including well-formedness, runs only when the caller invokes it.
 - `Schemas.OfX.Schema` is the meta-schema for `Schemas.OfX.Data`; a module of schemas is an object of
   `Schemas.Module.Schema`, translated by `Modules` (see Meta-schemas).
@@ -1122,12 +1079,14 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   is an error. Pass an existing object instead when inference is ambiguous.
 - Builders and serializers implement `Visitors`; proxies do not. Proxies implement `Visitors.Visitable`: `identity()`,
   `schema_name()`, `owner()`, and `accept(visitor)`, which writes the object's properties and adjacency entries into
-  the visitor; a value object first calls the visitor's `identify(value)` with itself.
+  the visitor; a value object first calls the visitor's `identify(value)` with itself. (Superseded by The visitor
+  pattern: data instances and builders implement `Visitors`, and `Visitable` is removed.)
 - Schemas may be named or inline; inline (anonymous) sub-schemas are created with the lambda-builder notation.
 - `Schemas.OfAny.Builder` selects a kind via `as_<kind>` methods (e.g. `as_scalar`).
 - `Visitors.OfAny.as_<kind>` takes a callback that receives the kind's visitor and returns `self`; chained calls dispatch on
   the value's actual kind.
 - Visitors never return child visitors; they pass them to callbacks. Non-query visitor methods return `self`.
+  (Superseded by The visitor pattern: a member read is the child visitor, and writer methods return nothing.)
 - A `Schemas.OfAny.Builder` configured with `as_<kind>` finalizes to that kind's data (e.g. `Schemas.OfScalar.Data`).
 - Builder methods are fluent and return `self`.
 - Instances of a registered schema are built through `store.Name(optional instance)` (the dynamic implementation,

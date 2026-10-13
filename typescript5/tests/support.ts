@@ -1,10 +1,8 @@
 /** Shared helpers for the test notebooks. Each notebook runs in its own process and makes its own stores. */
 
-import { Plain, Proxies, Reachable } from "@mbse/schemas/Framework";
 import type { PlainData, PlainMap } from "@mbse/schemas/Framework/Plain";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
-import type { OfObject } from "@mbse/schemas/Framework/Schemas";
-import type { Callback, OfObject as ObjectVisitor, Visitable } from "@mbse/schemas/Framework/Visitors";
+import type { Callback } from "@mbse/schemas/Framework/Specs";
 
 /** Python's `assert`. */
 export function assert(condition: unknown, message = "assertion failed"): asserts condition {
@@ -29,18 +27,6 @@ export function raises(errors: Function | Function[], block: () => unknown, matc
 /** Property Spec for a scalar-typed property. */
 export function text(name: string, scalar: unknown = String) {
   return (prop: any) => prop.name(name).of((t: any) => t.as_scalar(scalar));
-}
-
-/** Writes a scalar property through the visitor protocols (works for property names the DSL cannot reach). */
-export function set_property(visitor: any, name: string, value: unknown): void {
-  visitor.property(name, (p: any) => p.value((a: any) => a.as_scalar((n: any) => n.set(value))));
-}
-
-/** Reads a scalar property through the visitor protocols. */
-export function get_property(visitor: any, name: string): unknown {
-  const found: unknown[] = [];
-  visitor.property(name, (p: any) => p.value((a: any) => a.as_scalar((n: any) => found.push(n.get()))));
-  return found[0];
 }
 
 /** Python's `==` on plain data: maps compare regardless of order, ints equal floats of the same value, NaN != NaN. */
@@ -78,14 +64,33 @@ export function same(a: readonly unknown[], b: readonly unknown[]): boolean {
   return a.length === b.length && a.every((x, i) => x === b[i] || (Number.isNaN(x) && Number.isNaN(b[i])));
 }
 
-/** An object's entries with references resolved to objects, read from a Reachable snapshot (symbols follow
- * `Reachable.of` order). */
-export function entries(schema: OfObject.Data, obj: Visitable, adjacency: string): Map<string, any>[] {
-  const graph = Plain.ToPlain(Proxies.store_of(obj)).Reachable(schema, obj);
-  const objects = Reachable.of(obj);
-  const root = (graph.get("objects") as PlainMap).get(graph.get("root") as string) as PlainMap;
-  const resolve = (value: PlainData): unknown => (value instanceof Map ? objects[Number(String(value.get("$ref")).slice(1))] : value);
-  return ((root.get(adjacency) as PlainMap[] | undefined) ?? []).map((e) => new Map([...e].map(([k, v]) => [k, resolve(v)])));
+/** An object's entries, read through the visitor protocol: each a map of the other links' objects and the values of
+ * the properties that are set (a value object as its visitor). */
+export function entries(_schema: unknown, obj: any, adjacency: string): Map<string, any>[] {
+  const read = obj[adjacency];
+  const me = read.as_schema().me;
+  return [...read].map((entry: any) => {
+    const row = new Map<string, any>();
+    for (const link of entry.as_schema().links.keys()) if (link !== me) row.set(link, entry[link]);
+    for (const name of entry.as_schema().properties.keys()) {
+      const value = value_of(entry[name]);
+      if (value !== null) row.set(name, value);
+    }
+    return row;
+  });
+}
+
+/** A property's value, read through its visitor: its scalar, or the value object, union value or intersection value it
+ * holds, as that value's visitor; null when absent. */
+export function value_of(read: any): any {
+  if (read.get() !== null) return read.get();
+  const found: any[] = [];
+  const keep = (v: any) => {
+    found.push(v);
+    return v;
+  };
+  read.as_value((a: any) => a.as_object(keep).as_union(keep).as_intersection(keep));
+  return found.find((v) => v.as_identity() !== "") ?? null;
 }
 
 /** A stable text key for plain values (bigint, -0.0 and NaN included). */
@@ -141,66 +146,18 @@ export function same_graph(a: PlainData, b: PlainData): boolean {
   return canonical(a as PlainMap) === canonical(b as PlainMap);
 }
 
-/**
- * A minimal hand-written `Visitors.Visitable`, independent of Proxies.
- *
- * `values` maps property names to scalar values. `adjacencies` maps adjacency names to lists of entries; an entry
- * maps link names to `Fake` objects and property names to scalar values. Nothing is checked against a schema, so
- * fakes can express data that proxies would never produce.
- */
-export class Fake implements Visitable {
-  readonly values: Map<string, unknown>;
-  readonly adjacencies: Map<string, Record<string, unknown>[]>;
-  private static counter = 0;
-  private readonly id: unknown;
-
-  constructor(private readonly schemaName: string, values: Record<string, unknown> = {},
-    adjacencies: Record<string, Record<string, unknown>[]> = {}, identity?: unknown) {
-    this.values = new Map(Object.entries(values));
-    this.adjacencies = new Map(Object.entries(adjacencies).map(([k, v]) => [k, [...v]]));
-    this.id = identity ?? `fake:${++Fake.counter}`;
-  }
-
-  identity(): unknown {
-    return this.id;
-  }
-
-  schema_name(): string {
-    return this.schemaName;
-  }
-
-  owner(): null {
-    return null;
-  }
-
-  accept(visitor: ObjectVisitor): void {
-    for (const [name, value] of this.values) set_property(visitor, name, value);
-    for (const [name, items] of this.adjacencies) {
-      for (const item of items) visitor.adjacency(name, (a) => a.add((e) => write(e, item)));
-    }
-  }
-}
-
-function write(entry: any, item: Record<string, unknown>): void {
-  for (const [name, value] of Object.entries(item)) {
-    if (value instanceof Fake) entry.link(name, (k: any) => k.set(value));
-    else set_property(entry, name, value);
-  }
-}
-
-/** Parameter counts of every protocol method, from Python's signatures (TypeScript interfaces vanish at runtime). */
+/** Parameter counts of every protocol method, from Python's signatures (TypeScript interfaces vanish at runtime);
+ * `Visitors.OfObject.as_properties` is a property, not a method. */
 export const PROTOCOLS: Record<string, Record<string, number>> = {
-  OfAny: { as_scalar: 1, as_object: 1, as_union: 1, as_intersection: 1 },
-  OfScalar: { has: 0, get: 0, set: 1, clear: 0 },
-  OfProperty: { name: 0, has: 0, value: 1, clear: 0 },
-  OfObject: { properties: 1, has: 1, property: 2, clear: 1, adjacencies: 1, adjacency: 2, identify: 1 },
-  OfAdjacency: { name: 0, me: 0, entries: 1, add: 1, remove: 1 },
-  OfEntry: { links: 1, link: 2, properties: 1, has: 1, property: 2, clear: 1 },
-  OfLink: { name: 0, target: 1, set: 1 },
-  OfRelation: { links: 1, entries: 1 },
-  OfUnion: { properties: 1, has: 1, property: 2, clear: 1 },
-  OfIntersection: { properties: 1, has: 1, property: 2, clear: 1 },
-  Visitable: { identity: 0, schema_name: 0, owner: 0, accept: 1 },
+  OfScalar: { as_schema: 0, get: 0, set: 1, clear: 0 },
+  OfAny: { as_schema: 0, as_scalar: 1, as_object: 1, as_union: 1, as_intersection: 1, clear: 0 },
+  OfProperty: { as_schema: 0, as_value: 1, as_scalar: 1, as_object: 1, get: 0 },
+  OfObject: { as_schema: 0, as_identity: 0, as_adjacencies: 1 },
+  OfAdjacency: { as_schema: 0, select: 2, insert: 1, remove: 1 },
+  OfEntry: { as_schema: 0 },
+  OfUnion: { as_schema: 0 },
+  OfIntersection: { as_schema: 0 },
+  OfPredicate: { as_schema: 0 },
 };
 
 /** Parameter counts of the store protocol's methods, from Python's `Stores.Store`. */

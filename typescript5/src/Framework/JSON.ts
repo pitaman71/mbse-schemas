@@ -20,7 +20,8 @@ import type { PlainData, PlainMap } from "./Plain.js";
 import { pyFloat, repr, typeName } from "./Repr.js";
 import type * as Schemas from "./Schemas.js";
 import type * as Stores from "./Stores.js";
-import type { Scalar, Visitable } from "./Visitors.js";
+import type * as Readers from "./Readers.js";
+import type { Scalar } from "./Visitors.js";
 
 export interface DumpOptions {
   indent?: number | null;
@@ -273,8 +274,8 @@ export function loads(input: string | Uint8Array): PlainData {
 export interface ToJSONCall {
   (schema: unknown, value: unknown, options?: DumpOptions): string;
   OfScalar(schema: Schemas.OfScalar.Data, value: Scalar, options?: DumpOptions): string;
-  OfObject(schema: Schemas.OfObject.Data, value: Visitable, options?: DumpOptions): string;
-  Reachable(schema: Schemas.OfObject.Data, value: Visitable, options?: DumpOptions): string;
+  OfObject(schema: Schemas.OfObject.Data, value: Readers.OfObject, options?: DumpOptions): string;
+  Reachable(schema: Schemas.OfObject.Data, value: Readers.OfObject, options?: DumpOptions): string;
 }
 
 /** Encodes values, naming the schemas of objects in `store`: `ToJSON(store)(schema, value)` dispatches on the schema's
@@ -284,8 +285,8 @@ export function ToJSON(store: Stores.Store): ToJSONCall {
   const call = (schema: unknown, value: unknown, options: DumpOptions = {}): string => dumps(plain(schema, value), options);
   return Object.assign(call, {
     OfScalar: (schema: Schemas.OfScalar.Data, value: Scalar, options: DumpOptions = {}) => dumps(plain.OfScalar(schema, value), options),
-    OfObject: (schema: Schemas.OfObject.Data, value: Visitable, options: DumpOptions = {}) => dumps(plain.OfObject(schema, value), options),
-    Reachable: (schema: Schemas.OfObject.Data, value: Visitable, options: DumpOptions = {}) => dumps(plain.Reachable(schema, value), options),
+    OfObject: (schema: Schemas.OfObject.Data, value: Readers.OfObject, options: DumpOptions = {}) => dumps(plain.OfObject(schema, value), options),
+    Reachable: (schema: Schemas.OfObject.Data, value: Readers.OfObject, options: DumpOptions = {}) => dumps(plain.Reachable(schema, value), options),
   });
 }
 

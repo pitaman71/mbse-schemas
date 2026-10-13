@@ -33,8 +33,8 @@ TypeScript kernel (e.g. tslab or `deno jupyter`), which the test run does not.
 
 As in Python: one suite per notebook; a heading `XXX-NN · title` starts a case; *specified* cases state what
 FRAMEWORK.md requires and *pinned* cases (headings say *Finding Fn (pinned)*) record current behavior on open
-questions. `tests/support.ts` mirrors `tests/support.py` (`raises`, `entries`, `same_graph`, `Fake`, conformance
-checks) plus `equal` (Python's `==` on plain data) and `map` (a `Map` literal from an object literal). Randomized cases
+questions. `tests/support.ts` mirrors `tests/support.py` (`raises`, `entries`, `value_of`, `same_graph`,
+conformance checks) plus `equal` (Python's `==` on plain data) and `map` (a `Map` literal from an object literal). Randomized cases
 use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python).
 
 ## Suites
@@ -42,30 +42,27 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | Notebook | Suite | Cases | Focus |
 |---|---|---|---|
 | `01_Schemas.ipynb` | SCH | 22 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array`, the own token format is `typescript5`, and widths are `bigint`s |
-| `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length` |
-| `03_Proxies.ipynb` | PRX | 20 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances and stores, `util.inspect` of instances and builders, and the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel) |
-| `04_Reachable.ipynb` | RCH | 10 | as in Python |
-| `05_Plain.ipynb` | PLN | 18 | as in Python; the same 26 malformed snapshots with byte-identical `DecodeError` paths and reasons |
+| `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length`, the read-only views by the type checker; data instances are callable as a `Proxy` with a function target (`typeof` is `"function"`); the scalar sugar is `[Symbol.toPrimitive]` and `valueOf`; JavaScript's probes and `in` on a builder; assigning to a visitor refused |
+| `03_Proxies.ipynb` | PRX | 21 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances, adjacencies, entry builders, link members and stores, `util.inspect` of instances, builders and members, the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel), and the reprs of builders of value objects and adjacencies |
+| `04_Reachable.ipynb` | RCH | 8 | as in Python |
+| `05_Plain.ipynb` | PLN | 17 | as in Python; the same 26 malformed snapshots with byte-identical `DecodeError` paths and reasons |
 | `06_JSON.ipynb` | JSN | 11 | as in Python, including Python's exact output format; the 62-row JSN-09 table of `DecodeError`s is shared verbatim and matches exactly |
 | `07_YAML.ipynb` | YML | 14 | as in Python; the `yaml` package in YAML 1.1 mode is the "stock 1.1 reader"; the shared YML-06 table matches exactly, syntax errors (YML-06b) carry the `yaml` package's reasons |
-| `08_Validators.ipynb` | VAL | 14 | as in Python, with byte-identical problem messages |
+| `08_Validators.ipynb` | VAL | 13 | as in Python, with byte-identical problem messages |
 | `09_Properties.ipynb` | PROP | 5 | as in Python, with fast-check |
 | `10_Examples.ipynb` | EX | 1 | every example exits cleanly in its own process |
 | `11_Conformance.ipynb` | CONF | 4 | as in Python, from this side |
 | `12_Text.ipynb` | TXT | 4 | `Repr` produces Python's text: `repr`, float `repr`, type names (plus one row for a prototype-less object), code-point order |
 | `13_Comparison.ipynb` | CMP | 13 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
-| `14_Embedded.ipynb` | EMB | 11 | as in Python; the runtime's own probes (`then`, symbols) are not properties |
+| `14_Embedded.ipynb` | EMB | 11 | as in Python; the runtime's own probes (`then`, symbols) are not members, and `in` on a value object says what its schema declares |
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
-| `17_Lists.ipynb` | LST | 7 | as in Python; an adjacency reads as a frozen array, and `at` takes an array for a key of two values |
+| `17_Lists.ipynb` | LST | 7 | as in Python; an adjacency reads as a callable `Proxy` over a frozen array, and `at` takes an array for a key of two values |
 | `18_Modules.ipynb` | MOD | 7 | as in Python; schemas are given as a Map or a record, and read back as a Map |
-| `19_Bindings.ipynb` | BND | 4 | as in Python; a binding's options are an object with `fixed` a `Map`, states, entries and stores hold `Map`s |
-| `20_Stores.ipynb` | STO | 6 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), a `Bindings.OfStore` lets JavaScript's probes through, and STO-05 builds its unplaced value object through the visitor protocol |
+| `20_Stores.ipynb` | STO | 6 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), and STO-05 builds its unplaced value object through `Proxies._internals` |
 | `21_Random.ipynb` | RND | 3 | as in Python; PCG32 computes on `bigint`s, and the UTF-8 bytes of keys are encoded without `TextEncoder` |
 | `22_Parametrics.ipynb` | PAR | 7 | as in Python; an application's arguments, and a form's attributes, may be given as a Map or a record; an evaluator's scope is a `ReadonlyMap`, and an outcome is compared by its fields |
-| `23_Reflection.ipynb` | RFL | 4 | as in Python; a reflected schema's identity is a string (`"schema N"`) |
-| `24_Paths.ipynb` | PTH | 3 | as in Python; an integer key is a `bigint` |
 
-Total: 195 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
+Total: 184 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences
@@ -81,9 +78,12 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | Schema equality | `==` on data | `.equals()` (no operator overloading) | SCH-01, SCH-15 |
 | Schemas by name (`Modules`) | `dict` | `Map` or record in, `Map` out | MOD-02, MOD-03 |
 | Subclasses of scalars | `int` subclasses rejected | boxed primitives and `Buffer` rejected | SCH-03 |
-| Missing attribute | `AttributeError` for any name | `AttributeError`, except JavaScript protocol probes (`then`, `toJSON`, `constructor`, symbols) | PRX-02 |
-| Name collisions (F2) | `_values` shadowed by an internal | internals are private: not shadowed; declared names win over JavaScript's own members | PRX-04 |
-| Identity (F12) | `id(self)`, may be reused after collection | a counter, never reused | PRX-02 |
+| A name a visitor's schema lacks | reads as empty; a name starting with `_` raises `AttributeError` | reads as empty; a name starting with `_`, or a JavaScript protocol probe the schema does not declare, reads as `undefined` | VIS-05, PRX-02, PRX-18 |
+| Callable visitors | `__call__` | a `Proxy` with a function target, its `name` and `length` hidden | VIS-03 |
+| Scalar sugar | the dunders, each of its own type | `[Symbol.toPrimitive]` and `valueOf`; never `===` on a member | VIS-06 |
+| Assigning to a visitor | refused by data instances, value objects and entries | refused by every visitor | VIS-03, PRX-02, PRX-18 |
+| Name collisions (F2) | names starting with `_` and a builder's own methods are never members | the same, and declared names win over JavaScript's own members | PRX-04 |
+| Identity (F12), `as_identity()` | `id(self)` as text, may be reused after collection | a counter as text, never reused | PRX-02 |
 | Finalizer arguments | extra arguments raise `TypeError` | the same, checked explicitly (JavaScript ignores extra arguments) | SCH-09, PRX-04 |
 | Lone surrogate to UTF-8 | raises `UnicodeEncodeError` | `TextEncoder` substitutes U+FFFD | JSN-06 |
 | YAML text | PyYAML's layout (folds long lines, `...` after a top-level scalar) | own block emitter (no folding, no end marker); values are identical | YML-04, YML-08, CONF-03 |
@@ -101,7 +101,7 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 
 The findings F1–F15 are shared with Python (see `python3/tests/TestPlan.md`). F1 (NEL) and F14 (single-letter YAML
 1.1 booleans) never occurred here: the TypeScript YAML emitter was written with both in place. F15 (a shadowed recorder
-method) was the Python bug found while porting; VIS-06 checks it in both implementations.
+method) was the Python bug found while porting; the recorder went with the visitor protocol's rewrite.
 
 The supported Node versions (22, 24, 26 at the time of writing) are each run through `npm run coverage`: tests and
 coverage must pass on every one, since coverage that happens incidentally can differ between versions. Doing so found

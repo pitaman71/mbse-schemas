@@ -3,11 +3,10 @@
 // Covers self-relations, several relations between the same pair of objects, multiple owners, cycles, a self-loop,
 // duplicate elision, entries that differ only by a property, entry removal, clone() copying entries, and round trips.
 
-import { AttributeError, ValueError } from "@mbse/schemas/Framework/Errors";
+import { ValueError } from "@mbse/schemas/Framework/Errors";
 import { Plain, Proxies, Reachable, Schemas, Validators } from "@mbse/schemas/Framework";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
-import type { OfEntry } from "@mbse/schemas/Framework/Visitors";
 import { assert, entries, raises, same_graph } from "./_support.js";
 
 const store = new Proxies.OfStore();
@@ -50,7 +49,7 @@ function kinds(obj: Instance, adjacency: string): string[] {
 }
 
 function names(obj: Instance, adjacency: string, link: string): string[] {
-  return sortedStrings(entries(Person, obj, adjacency).map((e) => (e.get(link) as Instance).given_name));
+  return sortedStrings(entries(Person, obj, adjacency).map((e) => String((e.get(link) as Instance).given_name)));
 }
 
 const same = (a: string[], b: string[]): boolean => a.join("\u0000") === b.join("\u0000");
@@ -58,7 +57,7 @@ const same = (a: string[], b: string[]): boolean => a.join("\u0000") === b.join(
 // --- Self-relations ---
 
 const ada = store.Person().given_name("Ada").family_name("Lovelace").birth_date("1815-12-10").create();
-const bob = store.Person().given_name("Bob").parents((x: any) => x.parent(ada).kind("biological")).create();
+const bob = store.Person().given_name("Bob").parents((a: any) => a.insert((x: any) => x.parent(ada).kind("biological"))).create();
 
 // The entry is one fact, visible from both ends.
 assert(same(names(ada, "children", "child"), ["Bob"]) && same(names(bob, "parents", "parent"), ["Ada"]));
@@ -66,53 +65,54 @@ assert(same(names(ada, "children", "child"), ["Bob"]) && same(names(bob, "parent
 // Inline creation through a link: 'child' is filled only by Person, so the new object's schema is unambiguous.
 const carol = store.Person()
   .given_name("Carol")
-  .children((x: any) => x.child((y: any) => y.given_name("Dan").birth_date("2001-02-03")).kind("adoptive"))
+  .children((a: any) => a.insert((x: any) => x.child((y: any) => y.given_name("Dan").birth_date("2001-02-03")).kind("adoptive")))
   .create();
 const dan = (entries(Person, carol, "children")[0] as Map<string, unknown>).get("child") as Instance;
-assert(dan.given_name === "Dan" && dan.schema_name() === "Person");
+assert(String(dan.given_name) === "Dan" && dan.as_schema().name === "Person");
 
 // --- Multiple owners: Dan has two parents, through two separate entries ---
 
-store.Person(dan).parents((x: any) => x.parent(ada).kind("biological")).update();
+store.Person(dan).parents((a: any) => a.insert((x: any) => x.parent(ada).kind("biological"))).update();
 assert(same(names(dan, "parents", "parent"), ["Ada", "Carol"]));
 assert(same(names(ada, "children", "child"), ["Bob", "Dan"]));
 
 // --- Two different relations between the same pair ---
 
-store.Person(ada).mentees((x: any) => x.mentee(bob)).update();
+store.Person(ada).mentees((a: any) => a.insert((x: any) => x.mentee(bob))).update();
 assert(same(names(bob, "parents", "parent"), ["Ada"]) && same(names(bob, "mentors", "mentor"), ["Ada"]));
 
 // --- Duplicate elision, and entries that differ only by a property ---
 
-store.Person(bob).parents((x: any) => x.parent(ada).kind("biological")).update();
+store.Person(bob).parents((a: any) => a.insert((x: any) => x.parent(ada).kind("biological"))).update();
 assert(same(kinds(bob, "parents"), ["biological"])); // adding an equal entry is elided
 
-store.Person(bob).parents((x: any) => x.parent(ada).kind("adoptive")).update();
+store.Person(bob).parents((a: any) => a.insert((x: any) => x.parent(ada).kind("adoptive"))).update();
 assert(same(kinds(bob, "parents"), ["adoptive", "biological"])); // a different property value is a different entry
 
 // An entry without the optional property is different again.
-store.Person(bob).parents((x: any) => x.parent(ada)).update();
+store.Person(bob).parents((a: any) => a.insert((x: any) => x.parent(ada))).update();
 assert(entries(Person, bob, "parents").length === 3 && !(entries(Person, bob, "parents").at(-1) as Map<string, unknown>).has("kind"));
 
 // --- Removing entries through a builder ---
 
-function kind_of(entry: OfEntry): unknown {
-  const found: unknown[] = [];
-  if (entry.has("kind")) entry.property("kind", (p) => p.value((v) => v.as_scalar((n) => found.push(n.get()))));
-  return found.length > 0 ? found[0] : null;
+function keepBiological(adjacency: any): any {
+  for (const entry of [...bob.parents]) { // an entry given as a value removes the entries equal to it
+    if (entry.kind.get() !== "biological") adjacency.remove(entry);
+  }
+  return adjacency;
 }
 
-store.Person(bob).adjacency("parents", (a: any) => a.entries((e: OfEntry) => (kind_of(e) !== "biological" ? a.remove(e) : null))).update();
+store.Person(bob).parents(keepBiological).update();
 assert(same(kinds(bob, "parents"), ["biological"]));
 assert(same(names(ada, "children", "child"), ["Bob", "Dan"])); // removed from both ends: it was one fact
 
 // --- A self-loop and a cycle ---
 
-store.Person(carol).mentees((x: any) => x.mentee(carol)).update(); // Carol mentors herself
+store.Person(carol).mentees((a: any) => a.insert((x: any) => x.mentee(carol))).update(); // Carol mentors herself
 assert(same(names(carol, "mentees", "mentee"), ["Carol"]) && same(names(carol, "mentors", "mentor"), ["Carol"]));
 
-store.Person(dan).mentees((x: any) => x.mentee(ada)).update(); // ada -> dan by parentage, dan -> ada by mentorship
-const namesOf = (objs: unknown[]) => sortedStrings(new Set(objs.map((p) => (p as Instance).given_name as string)));
+store.Person(dan).mentees((a: any) => a.insert((x: any) => x.mentee(ada))).update(); // ada -> dan by parentage, dan -> ada by mentorship
+const namesOf = (objs: unknown[]) => sortedStrings(new Set(objs.map((p) => String((p as Instance).given_name))));
 assert(same(namesOf(Reachable.of(ada)), ["Ada", "Bob", "Carol", "Dan"]));
 assert(Reachable.of(ada)[0] === ada); // the root comes first
 assert(same(namesOf(Reachable.of(bob)), namesOf(Reachable.of(ada)))); // same component
@@ -125,14 +125,14 @@ assert(Reachable.of(loner).length === 1 && Reachable.of(loner)[0] === loner);
 const bob2 = store.Person(bob).given_name("Bob II").clone();
 assert(same(kinds(bob2, "parents"), ["biological"]) && same(names(bob2, "mentors", "mentor"), ["Ada"]));
 assert(same(names(ada, "children", "child"), ["Bob", "Bob II", "Dan"]));
-assert(bob.given_name === "Bob");
+assert(String(bob.given_name) === "Bob");
 
 // --- Building entries ---
 
-raises(AttributeError, () => store.Person().parents((x: any) => x.child(bob))); // the object's own link ('child') is implied
-raises(AttributeError, () => store.Person().parents((x: any) => x.parent(ada).since("1990"))); // not a property of Parentage
-raises(ValueError, () => store.Person().parents((x: any) => x.kind("biological")).create()); // the 'parent' link is never set
-raises(TypeError, () => store.Person().parents({ x: ada })); // an adjacency takes an entry Spec
+raises(TypeError, () => store.Person().parents((a: any) => a.insert((x: any) => x.child(bob)))); // the object's own link ('child') is implied
+raises(TypeError, () => store.Person().parents((a: any) => a.insert((x: any) => x.parent(ada).since("1990")))); // not a property of Parentage
+raises(ValueError, () => store.Person().parents((a: any) => a.insert((x: any) => x.kind("biological"))).create()); // the 'parent' link is never set
+raises(TypeError, () => store.Person().parents({ x: ada })); // an adjacency takes a Spec
 
 // --- Validation ---
 
@@ -144,7 +144,7 @@ assert(Validators.Validate(store).Reachable(Person, ada).length === 0);
 for (const root of [ada, carol, loner]) {
   const graph = Plain.ToPlain(store).Reachable(Person, root);
   const restored = Plain.FromPlain(store).Reachable(Person, graph) as Instance;
-  assert(restored !== root && restored.given_name === root.given_name);
+  assert(restored !== root && String(restored.given_name) === String(root.given_name));
   assert(same_graph(Plain.ToPlain(store).Reachable(Person, restored), graph));
 }
 

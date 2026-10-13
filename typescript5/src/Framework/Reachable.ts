@@ -2,197 +2,36 @@
  * Reachable: finds every object reachable from a root through adjacencies.
  *
  * `Reachable.of(root)` returns the root and every reference object reachable from it, in the order each is first
- * referenced. Value objects are followed too: their entries are collected like a reference object's, and a value object
- * reached brings in the reference object that owns it (`Visitable.owner()`), where it is written. The collector is a
- * visitor: each object writes itself into it through `Visitable.accept`, and the collector records the targets of the
- * links it is given. It needs no schema: scalar property values are ignored.
+ * referenced. It reads through the visitor protocol (`Readers.OfObject`): each object's adjacencies, in its schema's
+ * order, their entries, in order, and each entry's links other than the object's own, in the relation's order. A value
+ * object's adjacencies are to one-link relations, whose entries link nothing else, so values are not followed.
  */
 
-import { AttributeError, NotImplementedError } from "./Errors.js";
-import type { Callback, Scalar, OfAdjacency, OfAny, OfEntry, OfIntersection, OfLink, OfScalar, OfObject,
-  OfProperty, OfUnion, Visitable } from "./Visitors.js";
-
-type Found = (target: Visitable) => void;
-
-/** `Visitors.OfScalar` / `OfAny` / `OfProperty` that discards scalar property values, and collects the entries of value
- * objects. */
-export class _Ignored implements OfScalar, OfAny, OfProperty {
-  constructor(private readonly propertyName: string, private readonly found: Found) {}
-
-  name(): string {
-    return this.propertyName;
-  }
-
-  has(): boolean {
-    return false;
-  }
-
-  get(): Scalar {
-    throw new AttributeError("reachability does not record property values");
-  }
-
-  set(_value: Scalar): _Ignored {
-    return this;
-  }
-
-  clear(): _Ignored {
-    return this;
-  }
-
-  value(callback: Callback<OfAny>): _Ignored {
-    callback(this);
-    return this;
-  }
-
-  as_scalar(callback: Callback<OfScalar>): _Ignored {
-    callback(this);
-    return this;
-  }
-
-  /** A value object's entries are collected too. */
-  as_object(callback: Callback<OfObject>): _Ignored {
-    callback(new _Collector(this.found));
-    return this;
-  }
-
-  as_union(callback: Callback<OfUnion>): _Ignored {
-    callback(new _Collector(this.found) as unknown as OfUnion);
-    return this;
-  }
-
-  as_intersection(callback: Callback<OfIntersection>): _Ignored {
-    callback(new _Collector(this.found) as unknown as OfIntersection);
-    return this;
-  }
-}
-
-/** `Visitors.OfLink` that reports its target. */
-export class _Link implements OfLink {
-  constructor(private readonly linkName: string, private readonly found: Found) {}
-
-  name(): string {
-    return this.linkName;
-  }
-
-  target(_callback: Callback<Visitable>): _Link {
-    throw new NotImplementedError("the reachability collector does not read link targets back");
-  }
-
-  set(target: Visitable): _Link {
-    this.found(target);
-    return this;
-  }
-}
-
-/** `Visitors.OfEntry` that reports the targets of its links. */
-export class _Entry implements OfEntry {
-  constructor(private readonly found: Found) {}
-
-  links(_callback: Callback<OfLink>): _Entry {
-    return this;
-  }
-
-  link(name: string, callback: Callback<OfLink>): _Entry {
-    callback(new _Link(name, this.found));
-    return this;
-  }
-
-  properties(_callback: Callback<OfProperty>): _Entry {
-    return this;
-  }
-
-  has(_name: string): boolean {
-    return false;
-  }
-
-  property(name: string, callback: Callback<OfProperty>): _Entry {
-    callback(new _Ignored(name, this.found));
-    return this;
-  }
-
-  clear(_name: string): _Entry {
-    return this;
-  }
-}
-
-/** `Visitors.OfAdjacency` that reports the targets of the entries added to it. */
-export class _Adjacency implements OfAdjacency {
-  constructor(private readonly adjacencyName: string, private readonly found: Found) {}
-
-  name(): string {
-    return this.adjacencyName;
-  }
-
-  me(): string {
-    throw new NotImplementedError("the reachability collector is schema-agnostic");
-  }
-
-  entries(_callback: Callback<OfEntry>): _Adjacency {
-    return this;
-  }
-
-  add(callback: Callback<OfEntry>): _Adjacency {
-    callback(new _Entry(this.found));
-    return this;
-  }
-
-  remove(_entry: OfEntry): _Adjacency {
-    return this;
-  }
-}
-
-/** `Visitors.OfObject` that reports every object linked from the object written into it. */
-export class _Collector implements OfObject {
-  constructor(private readonly found: Found) {}
-
-  properties(_callback: Callback<OfProperty>): _Collector {
-    return this;
-  }
-
-  has(_name: string): boolean {
-    return false;
-  }
-
-  property(name: string, callback: Callback<OfProperty>): _Collector {
-    callback(new _Ignored(name, this.found));
-    return this;
-  }
-
-  clear(_name: string): _Collector {
-    return this;
-  }
-
-  adjacencies(_callback: Callback<OfAdjacency>): _Collector {
-    return this;
-  }
-
-  adjacency(name: string, callback: Callback<OfAdjacency>): _Collector {
-    callback(new _Adjacency(name, this.found));
-    return this;
-  }
-
-  identify(_value: Visitable): _Collector {
-    return this;
-  }
-}
-
-/** The reference object that owns `target`, or `target` itself when it is a reference object. */
-function referent(target: Visitable): Visitable {
-  for (let owner = target.owner(); owner !== null; owner = target.owner()) target = owner;
-  return target;
-}
+import type * as Readers from "./Readers.js";
+import type * as Schemas from "./Schemas.js";
 
 /** The root and every reference object reachable from it through adjacencies, in first-reference order. */
-export function of(root: Visitable): Visitable[] {
-  const seen = new Map<unknown, Visitable>([[root.identity(), root]]);
-  const queue: Visitable[] = [root];
-  const found = (reached: Visitable): void => {
-    const target = referent(reached);
-    if (!seen.has(target.identity())) {
-      seen.set(target.identity(), target);
+export function of(root: Readers.OfObject): Readers.OfObject[] {
+  const seen = new Map<string, Readers.OfObject>([[root.as_identity(), root]]);
+  const queue = [root];
+
+  const adjacency = (read: Readers.OfAdjacency): Readers.OfAdjacency => {
+    const me = read.as_schema().me;
+    for (const entry of read) {
+      for (const link of (entry.as_schema() as Schemas.OfEntry.Data).links.keys()) {
+        if (link !== me) found(entry[link] as Readers.OfObject);
+      }
+    }
+    return read;
+  };
+
+  const found = (target: Readers.OfObject): void => {
+    if (!seen.has(target.as_identity())) {
+      seen.set(target.as_identity(), target);
       queue.push(target);
     }
   };
-  for (let i = 0; i < queue.length; i++) (queue[i] as Visitable).accept(new _Collector(found));
+
+  while (queue.length > 0) (queue.shift() as Readers.OfObject).as_adjacencies(adjacency);
   return [...seen.values()];
 }

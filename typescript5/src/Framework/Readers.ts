@@ -9,8 +9,9 @@
 import type * as Schemas from "./Schemas.js";
 import type { Primitive, Scalar } from "./Visitors.js";
 
-/** A reading callback: it takes a reader and returns it. */
-export type Read<V> = (reader: V) => V;
+/** A reading callback: it takes a reader and returns it. Its return is typed `any` so that every `Visitors.OfX`, whose
+ * callbacks return the writable visitor, is a `Readers.OfX`. */
+export type Read<V> = (reader: V) => any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 export interface OfScalar<T extends Scalar = Scalar> extends Primitive {
   as_schema(): Schemas.OfScalar.Data;

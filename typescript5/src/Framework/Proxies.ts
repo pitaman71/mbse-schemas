@@ -1,74 +1,171 @@
 /**
- * Proxies: the dynamic implementation.
+ * Proxies: the dynamic implementation of the visitor protocol.
  *
  * Programs using proxies skip code generation. A store, `new OfStore()`, holds schemas and the proxies built with them
  * (see `Stores`): `store.register(schema)` makes a schema available, under its name, and `store.<Name>(optional
- * instance)` (or `store.builder(name, instance)`) returns a builder for it. Instances (`Proxies.OfObject.Data`) are
- * `Visitable`, not visitors: they expose their properties as read-only attributes and write themselves into a visitor
- * on `accept`. Builders (`Proxies.OfObject.Builder`) implement `Visitors.OfObject`, like every builder.
+ * instance)` (or `store.builder(name, instance)`) returns a builder for it. Data instances (`Proxies.OfObject.Data`)
+ * and builders (`Proxies.OfObject.Builder`) both implement `Visitors.OfObject`: data instances read-only, builders
+ * writable. Their properties and adjacencies are members: `card.name` is a `Visitors.OfProperty`, read compactly
+ * through `[Symbol.toPrimitive]` (`` `${card.name}` ``), and `card.phones` a `Visitors.OfAdjacency`, which iterates its
+ * entries; an entry's link is the linked instance itself (`entry.phone === p`). Called, a member writes through a
+ * `Specs.Callback`: `b.name("Ada")`, `b.home((p) => p.as_object((o) => o.number("1")))`,
+ * `b.phones((a) => a.insert((e) => e.phone(p)))`. A data instance is callable, so that calling it, a write, throws
+ * `Errors.ReadOnlyError`.
  *
- * Attribute lookup follows Python's: the builder's or instance's own methods first, then schema names. Reading an
- * unknown name throws `AttributeError`, except JavaScript's own protocol probes (`then`, `toJSON`, `constructor`,
- * symbols, ...), which behave as on any object. Identities are never reused.
+ * A member is both getter and setter, so each visitor is a `Proxy` with a function target, its `name` and `length`
+ * hidden: lookup follows Python's, the visitor's own methods first, then schema names. JavaScript's own protocol probes
+ * (`then`, `toJSON`, ...) read as undefined unless the schema names them, so awaiting, inspecting or printing a visitor
+ * is safe. Identities are never reused.
  *
  * A store holds its singletons, created when their schemas are registered (`store.singleton(globalName)`), and through
  * them its data (see `Stores`); an object nothing reachable from a singleton links is the program's to keep. A
  * relation's entries live on the objects they link, so they go with them. Adding an entry equal to an existing one is
- * elided. An object of one store cannot be linked to, or be a builder's source in, another. An adjacency is a member
- * named after it, the frozen array of its entries in the order they were added (`contact.phones`), with
- * `project(name)`, each entry's link or property, and `at(key)`, the entry with a key its relation declares (which
- * replaces the array's own `at(index)`; index it with `[i]`); an entry is shared
- * by the objects it links, and its links and properties are read-only attributes (`entry.phone`, `entry.label`), so
- * that code reads proxies as it reads generated classes.
+ * elided where the relation has a `unique` clause; an open relation's entries are a list from each end, equal entries
+ * kept. An object of one store cannot be linked to, or be a builder's source in, another. An adjacency of a data
+ * instance is also the frozen array of its entries in the order they were added, with `project(name)`, each entry's
+ * link or property, and `at(key)`, the entry with a key its relation declares (which replaces the array's own
+ * `at(index)`; index it with `[i]`).
  *
- * A property whose schema is an `OfObject` holds a value object: a read-only record with no identity
- * (`Proxies.OfObject.Record`), read with attributes like an instance and set with a Spec, e.g.
- * `.reach((r) => r.number("+44"))`. Union and intersection values are records too, whose properties are the union's
- * branches or the intersection's parts, by name: `.reach((u) => u.phone((p) => p.number("+44")))` sets the branch
- * `phone`, read back as `card.reach.phone.number`, and setting one branch clears any other. An intersection value holds
- * each of its parts, set and read the same way (`card.meta.stamp.updated`).
+ * A property whose schema is an `OfObject` holds a value object (`Proxies.OfObject.Record`), owned by one object, read
+ * through `as_object` (`card.home.as_object(...)`) and written through it on a builder. A union value's branches and an
+ * intersection value's parts are members giving the visitor of their own type's kind (`shape.circle`, `ticket.stamp`);
+ * writing one branch clears any other.
  *
+ * Reads never throw: a visitor of an absent value, of a value of another kind, or of a member the schema lacks reads
+ * as empty. The one throw is a write that the visitor's mode, or the value, forbids: `Errors.ReadOnlyError`.
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { toHex } from "./Bytes.js";
-import { AttributeError, KeyError, ValueError } from "./Errors.js";
-import { repr, sortedStrings, Tuple, typeName } from "./Repr.js";
+import { AttributeError, KeyError, ReadOnlyError, ValueError } from "./Errors.js";
+import { REPR, repr, sortedStrings, Tuple, TYPE_NAME, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import * as Stores from "./Stores.js";
-import type { Callback, Scalar, OfAdjacency as AdjacencyVisitor, OfAny, OfEntry as EntryVisitor, OfIntersection, OfLink, OfScalar,
-  OfObject as ObjectVisitor, OfProperty, OfUnion, Visitable } from "./Visitors.js";
+import type * as Visitors from "./Visitors.js";
 
 type ObjectSchema = Schemas.OfObject.Data;
 type RelationSchema = Schemas.OfRelation.Data;
 type AdjacencySchema = Schemas.OfAdjacency.Data;
+/** The schema of a record: a value object's, or a union's or intersection's, whose properties are its branches or
+ * parts. */
+type RecordSchema = ObjectSchema | Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
+type Values = Map<string, unknown>;
+type Mapping = Map<unknown, unknown>;
 
-/** A proxy instance as seen by callers: `Visitable`, with properties readable by name. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type Instance = Visitable & { readonly [name: string]: any };
+/** A proxy instance as seen by callers: a read-only `Visitors.OfObject`, its members readable by name. */
+export type Instance = Visitors.OfObject & { readonly [name: string]: any };
 
-/** A proxy builder as seen by callers: `Visitors.OfObject`, finalizers, and DSL setters by name. */
-export type DynamicBuilder = ObjectVisitor & {
+/** A proxy builder as seen by callers: `Visitors.OfObject`, finalizers, and members by name. */
+export type DynamicBuilder = Visitors.OfObject & {
   create(): Instance;
   clone(): Instance;
   update(): Instance;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [name: string]: any;
 };
 
-/** JavaScript's own protocol probes: never schema lookups, so awaiting, inspecting or printing a proxy is safe. */
+/** A value object as seen by callers: a read-only `Visitors.OfObject`, `OfUnion` or `OfIntersection`. */
+export type ValueObject = { readonly [name: string]: any };
+
+/** JavaScript's own protocol probes: never schema lookups unless the schema names them, so awaiting, inspecting or
+ * printing a proxy is safe. */
 export const _probes: ReadonlySet<string> = new Set<string>([
   "then", "catch", "finally", "toJSON", "constructor", "toString", "toLocaleString", "valueOf", "hasOwnProperty",
   "isPrototypeOf", "propertyIsEnumerable", "__proto__", "$$typeof", "asymmetricMatch", "nodeType", "inspect",
 ]);
 
-// --- Stores ---
+// --- Shells: one member both getter and setter ---
 
-/** The value an instance or value object holds in its property `name`. */
-function member(instance: unknown, name: string): unknown {
-  const t = instanceTargets.get(instance as object) ?? recordTargets.get(instance as object) as RecordTarget;
-  return read(t, name, instance);
+/** Node's `util.inspect.custom` symbol, by its registered name, so no Node module is imported. */
+const INSPECT = Symbol.for("nodejs.util.inspect.custom");
+/** The Jupyter display protocol's symbol, as Deno's kernel uses it. */
+const JUPYTER_DISPLAY = Symbol.for("Jupyter.display");
+
+/** The members every object inherits, which a name the schema declares overrides. */
+const OBJECT_MEMBERS: object = Object.prototype;
+
+/** The state behind each proxy this module makes, by proxy. */
+const INNER = new WeakMap<object, any>();
+
+function innerOf(value: unknown): any {
+  return INNER.get(value as object);
 }
+
+/** What a shell's state provides: its members by name, and what it says of itself. */
+interface Shellable {
+  _proxy: any;
+  _member(name: string): unknown;
+  _declares(name: string): boolean;
+  _readOnly(): string;
+}
+
+/** A proxy over `inner`: its own methods and fields first, then its members, by name; called, `call` (a function
+ * target, its `name` and `length` hidden, which `call` serves). */
+function shell(inner: Shellable, call?: (spec: unknown) => unknown, frozen = false): any {
+  const refuse = (): never => {
+    throw new AttributeError(inner._readOnly());
+  };
+  const target: any = call === undefined ? {} : (spec: unknown) => call(spec);
+  delete target.name; // hidden, so that members of these names are the schema's
+  delete target.length;
+  // Node's inspect reads the hook through the proxy (Node 22) or formats the proxy's target (later): the target carries
+  // it, and the proxy serves the target's.
+  Object.defineProperty(target, INSPECT, { value: () => (inner as any)[REPR]() });
+  Object.setPrototypeOf(target, Object.getPrototypeOf(inner)); // so that `instanceof` names its class
+  if (frozen) Object.freeze(target);
+  const proxy = new Proxy(target, {
+    get: (_target, prop) => {
+      if (prop === INSPECT) return target[INSPECT];
+      if (typeof prop === "symbol" || prop.startsWith("_")
+        || (prop in inner && !(prop in OBJECT_MEMBERS && inner._declares(prop)))) { // a declared name wins over Object's
+        const value = Reflect.get(inner, prop, inner);
+        return typeof value === "function" && prop !== "constructor" && !INNER.has(value) ? value.bind(inner) : value;
+      }
+      if (_probes.has(prop) && !inner._declares(prop)) return undefined;
+      return inner._member(prop);
+    },
+    has: (_target, prop) => typeof prop === "symbol" || prop.startsWith("_") ? Reflect.has(inner, prop)
+      : prop in inner || inner._declares(prop),
+    set: refuse,
+    defineProperty: refuse,
+    deleteProperty: refuse,
+    setPrototypeOf: refuse,
+  });
+  inner._proxy = proxy;
+  INNER.set(proxy, inner);
+  return proxy;
+}
+
+/** The base of a shell's state: no members, unless a subclass names them. */
+abstract class Shelled implements Shellable {
+  _proxy: any;
+  abstract readonly [TYPE_NAME]: string;
+
+  _member(_name: string): unknown {
+    return undefined;
+  }
+
+  _declares(_name: string): boolean {
+    return false;
+  }
+
+  _readOnly(): string {
+    return "a visitor's members cannot be assigned: call a member to write through it";
+  }
+
+  abstract _repr(): string;
+
+  [REPR](): string {
+    return this._repr();
+  }
+
+  /** Jupyter kernels (e.g. Deno's) display a cell's value with this, before probing it for other formats. */
+  [JUPYTER_DISPLAY](): Record<string, string> {
+    return { "text/plain": this._repr() };
+  }
+}
+
+// --- Stores ---
 
 const STORE_MEMBERS = new Set(["register", "schema", "registered", "name_of", "names", "singleton", "builder", "member",
   "extent"]);
@@ -78,7 +175,6 @@ const STORE_MEMBERS = new Set(["register", "schema", "registered", "name_of", "n
  * identifiers, or that a method's name shadows. */
 export class OfStore extends Stores.Catalog implements Stores.Store {
   /** `(instance?: Instance) => DynamicBuilder` for each registered object schema; dynamic by design. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [name: string]: any;
 
   constructor() {
@@ -95,25 +191,24 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
     });
   }
 
-  /** Registers a schema under `name`; a singleton schema's instance is created with it. */
+  /** Registers a schema under its name; a singleton schema's instance is created with it. */
   override register(schema: ObjectSchema | RelationSchema | Schemas.OfPredicate.Data): void {
     const globalName = schema instanceof Schemas.OfObject.Data ? schema.singleton : null;
     if (globalName !== null && this._singletons.has(globalName)) {
       throw new ValueError(`singleton ${repr(globalName)} is already registered`);
     }
     super.register(schema);
-    if (globalName !== null) this._singletons.set(globalName, makeInstance(this, schema as ObjectSchema, schema.name as string));
+    if (globalName !== null) this._singletons.set(globalName, makeObjectData(this, schema as ObjectSchema, schema.name as string));
   }
 
-  /** A builder for the object schema `name`; typed loosely, as the store's DSL is. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /** A builder for the object schema `name`; typed loosely, as the store's members are. */
   builder(name: string, instance?: unknown): any {
     return makeObjectBuilder(this, this.schema(name), name, instance as Instance | undefined);
   }
 
   /** The value an instance or value object holds in its property `name`. */
   member(instance: unknown, name: string): unknown {
-    return member(instance, name);
+    return read(instance, name);
   }
 
   /** The name of the one object schema that declares an adjacency to `relation` via `link`. */
@@ -126,8 +221,8 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
 
 /** The store a proxy belongs to; a value object's is its owner's, and one not yet placed has none. */
 function storeOf(value: unknown): OfStore | null {
-  while (isRecord(value)) value = stateOf(value).holder;
-  return isInstance(value) ? (instanceTargets.get(value) as ObjectTarget).store : null;
+  while (isRecordData(value)) value = innerOf(value)._owner;
+  return isObjectData(value) ? innerOf(value)._store : null;
 }
 
 /** The store a proxy, or a value object placed in one, belongs to. */
@@ -135,6 +230,11 @@ export function store_of(value: unknown): OfStore {
   const store = storeOf(value);
   if (store === null) throw new TypeError("the value does not belong to a store");
   return store;
+}
+
+/** The object a value object belongs to, or null for a reference object or a value object not yet placed. */
+export function owner_of(value: unknown): unknown {
+  return isRecordData(value) ? innerOf(value)._owner : null;
 }
 
 function sameStore(store: OfStore | null, value: unknown): void {
@@ -158,10 +258,10 @@ function schemaId(schema: object): number {
 /** Equality key per EQUALITY.md: distinct scalar types never compare equal; floats compare by bit pattern; a value
  * object by its schema and properties, whatever its identity. */
 export function scalarKey(value: unknown): string {
-  if (isRecord(value)) {
-    const state = stateOf(value);
-    const values = sortedStrings(state.values.keys()).map((name) => [name, scalarKey(state.values.get(name))]);
-    return `object:${schemaId(state.schema)}:${JSON.stringify(values)}`;
+  if (isRecordData(value)) {
+    const values: Values = innerOf(value)._values;
+    const keyed = sortedStrings(values.keys()).map((name) => [name, scalarKey(values.get(name))]);
+    return `object:${schemaId(innerOf(value)._schema)}:${JSON.stringify(keyed)}`;
   }
   if (typeof value === "number") {
     if (Number.isNaN(value)) return "float:nan";
@@ -171,47 +271,58 @@ export function scalarKey(value: unknown): string {
   if (typeof value === "bigint") return `int:${value}`;
   if (typeof value === "string") return `str:${value}`;
   if (typeof value === "boolean") return `bool:${value}`;
-  if (value instanceof Uint8Array && Object.getPrototypeOf(value) === Uint8Array.prototype) {
-    return `bytes:${toHex(value)}`;
-  }
+  if (isBytes(value)) return `bytes:${toHex(value)}`;
   throw new TypeError(`an entry property must be a scalar value or a value object, got ${typeName(value)}`);
 }
 
-/** An entry of a relation, shared by the objects it links: read through `view`, a proxy whose read-only attributes are
- * its links and its properties (`entry.phone`, `entry.label`); a property that is not set reads as `null`, as an
- * object's does. */
-let nextEntry = 0;
+let nextIdentity = 0;
 
-class Entry {
-  #view: unknown = null;
+/** An entry of a relation, shared by the objects it links: a read-only `Visitors.OfEntry`. Its links are members
+ * giving the linked instance itself (`entry.phone`), and its properties members giving a `Visitors.OfProperty`
+ * (`` `${entry.label}` ``). */
+class _Entry extends Shelled {
+  readonly [TYPE_NAME] = "_Entry";
+  readonly _id = ++nextIdentity;
 
-  constructor(readonly relation: RelationSchema, readonly links: Map<string, Visitable>, readonly properties: Map<string, Scalar>) {}
-
-  get view(): unknown {
-    this.#view ??= new Proxy(this, {
-      get(t, prop, receiver) {
-        if (typeof prop === "symbol") return Reflect.get(t, prop, receiver);
-        if (t.links.has(prop)) return t.links.get(prop);
-        if (t.properties.has(prop)) return view(t.properties.get(prop), (t.relation.entry.properties.get(prop) as Schemas.OfProperty.Data).type);
-        if (t.relation.entry.properties.has(prop)) return null; // not set: nothing is mandatory but by a constraint
-        if (_probes.has(prop)) return undefined;
-        throw new AttributeError(prop);
-      },
-      set: () => { throw new AttributeError("entries are read-only; use a builder"); },
-    });
-    return this.#view;
+  constructor(readonly _relation: RelationSchema, readonly _links: Map<string, any>, readonly _properties: Values) {
+    super();
   }
 
-  readonly id = ++nextEntry;
+  as_schema(): Schemas.OfEntry.Data {
+    return this._relation.entry;
+  }
+
+  override _declares(name: string): boolean {
+    return this._links.has(name) || this._relation.entry.properties.has(name);
+  }
+
+  override _member(name: string): unknown {
+    if (this._links.has(name)) return this._links.get(name);
+    const prop = this._relation.entry.properties.get(name);
+    if (prop === undefined) return makeEmpty(null, `${repr(name)} is not a link or property of the relation`);
+    return makeProperty(this._properties, name, prop, null, this._proxy, false);
+  }
+
+  override _readOnly(): string {
+    return "entries are read-only; use a builder";
+  }
+
+  _repr(): string {
+    return `<entry of ${this._relation.name || "a relation"}>`;
+  }
 
   /** What the entry is held by: its value in a relation with a `unique` clause, a set, and itself in an open relation,
    * a list from each end, which keeps equal entries. */
-  key(): string {
-    if (this.relation.open) return `entry:${this.id}`;
-    const links = [...this.links].map(([name, target]) => [name, target.identity()] as const).sort(byName);
-    const props = [...this.properties].map(([name, value]) => [name, scalarKey(value)] as const).sort(byName);
+  _key(): string {
+    if (this._relation.open) return `entry:${this._id}`;
+    const links = [...this._links].map(([name, target]) => [name, innerOf(target)._id] as const).sort(byName);
+    const props = [...this._properties].map(([name, value]) => [name, scalarKey(value)] as const).sort(byName);
     return JSON.stringify([links, props]);
   }
+}
+
+function makeEntry(relation: RelationSchema, links: Map<string, any>, properties: Values): any {
+  return shell(new _Entry(relation, new Map(links), new Map(properties)));
 }
 
 function byName(a: readonly [string, unknown], b: readonly [string, unknown]): number {
@@ -219,211 +330,847 @@ function byName(a: readonly [string, unknown], b: readonly [string, unknown]): n
 }
 
 /** The entries of one relation that link `target`, by key: they live on the objects they link. */
-function table(target: Visitable, relation: RelationSchema): Map<string, Entry> {
-  const adjacent = ((instanceTargets.get(target) ?? recordTargets.get(target)) as ObjectTarget | RecordTarget).adjacent;
+function table(target: unknown, relation: RelationSchema): Map<string, any> {
+  const adjacent: Map<RelationSchema, Map<string, any>> = innerOf(target)._adjacent;
   let found = adjacent.get(relation);
   if (found === undefined) adjacent.set(relation, (found = new Map()));
   return found;
 }
 
-/** Adds `entry` to every object it links, unless an equal entry is there already. */
-function addEntry(relation: RelationSchema, entry: Entry): void {
-  const key = entry.key();
-  if (table([...entry.links.values()][0] as Visitable, relation).has(key)) return;
-  for (const target of entry.links.values()) table(target, relation).set(key, entry);
+/** Adds `entry` to every object it links, unless the relation holds a set and an equal entry is there already. */
+function addEntry(relation: RelationSchema, entry: any): void {
+  const state: _Entry = innerOf(entry);
+  const key = state._key();
+  if (table(state._links.values().next().value, relation).has(key)) return;
+  for (const target of state._links.values()) table(target, relation).set(key, entry);
 }
 
 /** The entries of `relation` that link `target` via `link`, in the order they were added. */
-function linking(relation: RelationSchema, link: string, target: Visitable): Entry[] {
-  return [...table(target, relation).values()].filter((entry) => entry.links.get(link) === target);
+function linking(relation: RelationSchema, link: string, target: unknown): any[] {
+  return [...table(target, relation).values()].filter((entry) => innerOf(entry)._links.get(link) === target);
 }
 
-function discard(relation: RelationSchema, entries: readonly Entry[]): void {
+function discard(relation: RelationSchema, entries: readonly unknown[]): void {
   for (const entry of entries) {
-    const key = entry.key();
-    for (const target of entry.links.values()) table(target, relation).delete(key);
+    const state: _Entry = innerOf(entry);
+    const key = state._key();
+    for (const target of state._links.values()) table(target, relation).delete(key);
   }
 }
 
-function discardLinking(relation: RelationSchema, link: string, target: Visitable): void {
+function discardLinking(relation: RelationSchema, link: string, target: unknown): void {
   discard(relation, linking(relation, link, target));
 }
 
 /** Discards every entry that links `target`, through any link. */
-function discardTarget(target: Visitable): void {
-  const adjacent = ((instanceTargets.get(target) ?? recordTargets.get(target)) as ObjectTarget | RecordTarget).adjacent;
+function discardTarget(target: unknown): void {
+  const adjacent: Map<RelationSchema, Map<string, unknown>> = innerOf(target)._adjacent;
   for (const [relation, entries] of [...adjacent]) discard(relation, [...entries.values()]);
 }
 
-// --- Instances ---
+// --- Visitors over values ---
 
-let nextIdentity = 0;
-/** Node's `util.inspect.custom` symbol, by its registered name, so no Node module is imported. */
-const INSPECT = Symbol.for("nodejs.util.inspect.custom");
-/** The Jupyter display protocol's symbol, as Deno's kernel uses it. */
-const JUPYTER_DISPLAY = Symbol.for("Jupyter.display");
+/** Whether a `Specs.Callback` is its function form; data instances and visitors are callable too, but are values. */
+function isFunction(spec: unknown): spec is (visitor: unknown) => unknown {
+  return typeof spec === "function" && !INNER.has(spec);
+}
 
-const instanceTargets = new WeakMap<object, ObjectTarget>();
+/** Hands `visitor` to a function Spec, which reads or writes through it; its return value is the visitor's own. */
+function visit(spec: unknown, visitor: unknown): void {
+  (spec as (visitor: unknown) => unknown)(visitor);
+}
 
-/** The state behind a proxy instance. */
-class ObjectTarget {
-  readonly id = ++nextIdentity;
-  readonly values = new Map<string, unknown>();
-  /** The entries linking this object, by relation and key. */
-  readonly adjacent = new Map<RelationSchema, Map<string, Entry>>();
-  proxy!: Instance;
+/** Refuses a write that the visitor's mode forbids. */
+function write(writable: boolean, reason: string): void {
+  if (!writable) throw new ReadOnlyError(reason);
+}
 
-  constructor(readonly store: OfStore, readonly schema: ObjectSchema, readonly schemaName: string) {}
+function isBytes(value: unknown): value is Uint8Array {
+  return value instanceof Uint8Array && Object.getPrototypeOf(value) === Uint8Array.prototype;
+}
 
-  identity(): number {
-    return this.id;
+function isScalar(value: unknown): value is Visitors.Scalar {
+  const kind = typeof value;
+  return kind === "bigint" || kind === "number" || kind === "string" || kind === "boolean" || isBytes(value);
+}
+
+function article(value: Visitors.Scalar): string {
+  switch (typeof value) {
+    case "bigint":
+      return "an int";
+    case "number":
+      return "a float";
+    case "string":
+      return "a str";
+    case "boolean":
+      return "a bool";
+    default:
+      return "bytes";
+  }
+}
+
+/** A scalar's value for `[Symbol.toPrimitive]`: it must be set, and of the type the hint asks for (a string for
+ * "string", an int or a float for "number"); a value for "default", which bytes have no primitive form of. */
+function converted(value: unknown, hint: string, label: string): Visitors.Scalar {
+  if (value === null || value === undefined) throw new TypeError(`${label} is not set`);
+  const scalar = value as Visitors.Scalar; // a scalar's visitor holds nothing else
+  if (hint === "string" && typeof scalar !== "string") throw new TypeError(`${label} holds ${article(scalar)}, not a str`);
+  if (hint === "number" && typeof scalar !== "number" && typeof scalar !== "bigint") {
+    throw new TypeError(`${label} holds ${article(scalar)}, not an int or a float`);
+  }
+  if (isBytes(value)) throw new TypeError(`${label} holds bytes, which have no primitive form`);
+  return value as Visitors.Scalar;
+}
+
+/** The scalar sugar over `get()`, `[Symbol.toPrimitive]` and `valueOf`: each throws when the value is not set or not of
+ * the type asked for. A subclass gives `_scalar()`, the value, and `_label()`, what holds it. */
+abstract class Dunders extends Shelled {
+  abstract _scalar(): unknown;
+  abstract _label(): string;
+
+  [Symbol.toPrimitive](hint: string): Visitors.Scalar {
+    return converted(this._scalar(), hint, this._label());
   }
 
-  schema_name(): string {
-    return this.schemaName;
+  override valueOf(): Visitors.Scalar {
+    const value = this._scalar();
+    if (value === null || value === undefined) throw new TypeError(`${this._label()} is not set`);
+    return value as Visitors.Scalar;
+  }
+}
+
+/** A visitor of nothing: an absent value, a value of another kind than asked for, or a member the schema lacks. It
+ * reads as empty in every protocol, and refuses every write, saying why. */
+class _Empty extends Dunders {
+  readonly [TYPE_NAME] = "_Empty";
+
+  constructor(readonly _schema: unknown, readonly _reason: string) {
+    super();
   }
 
-  owner(): null {
+  _scalar(): unknown {
     return null;
   }
 
-  /** Writes properties in the schema's declared order, then entries adjacency by adjacency. */
-  accept(visitor: ObjectVisitor): void {
-    writeProperties(visitor, this.schema, this.values);
-    writeAdjacencies(visitor, this.proxy, this.schema);
+  _label(): string {
+    return "the value";
   }
 
-  [INSPECT](): string {
-    // Node calls this with the proxy as `this` (whose names are schema properties), so read the target's own state.
-    const t = instanceTargets.get(this as unknown as object) as ObjectTarget; // instances are only reached as proxies
-    const values = [...t.values].map(([k, v]) => `${k}: ${repr(v)}`).join(", ");
-    return `<${t.schemaName} proxy #${t.id}${values ? " " + values : ""}>`;
+  as_schema(): unknown {
+    return this._schema;
   }
 
-  /** Jupyter kernels (e.g. Deno's) display a cell's value with this, before probing it for other formats. */
-  [JUPYTER_DISPLAY](): Record<string, string> {
-    return { "text/plain": this[INSPECT]() };
+  as_identity(): string {
+    return "";
+  }
+
+  get(): null {
+    return null;
+  }
+
+  [Symbol.iterator](): Iterator<unknown> {
+    return [][Symbol.iterator]();
+  }
+
+  get as_properties(): any {
+    return makeProperties(this._proxy, []);
+  }
+
+  _hand(cb: unknown): any {
+    if (!isFunction(cb)) throw new ReadOnlyError(this._reason);
+    visit(cb, makeEmpty(null, this._reason));
+    return this._proxy;
+  }
+
+  as_value(cb: unknown): any {
+    return this._hand(cb);
+  }
+
+  as_scalar(cb: unknown): any {
+    return this._hand(cb);
+  }
+
+  as_object(cb: unknown): any {
+    return this._hand(cb);
+  }
+
+  as_union(cb: unknown): any {
+    return this._hand(cb);
+  }
+
+  as_intersection(cb: unknown): any {
+    return this._hand(cb);
+  }
+
+  as_adjacencies(cb: unknown): any {
+    return this._hand(cb);
+  }
+
+  select(_spec: unknown, _cb: unknown): any {
+    return this._proxy;
+  }
+
+  _refuse(..._args: unknown[]): never {
+    throw new ReadOnlyError(this._reason);
+  }
+
+  readonly set = this._refuse;
+  readonly clear = this._refuse;
+  readonly insert = this._refuse;
+  readonly remove = this._refuse;
+
+  override _member(_name: string): unknown {
+    return makeEmpty(null, this._reason);
+  }
+
+  _repr(): string {
+    return "<empty>";
   }
 }
 
-const INSTANCE_METHODS = new Set(["identity", "schema_name", "owner", "accept"]);
+function makeEmpty(schema: unknown, reason: string): any {
+  const state = new _Empty(schema, reason);
+  return shell(state, () => state._refuse());
+}
 
-/** Writes the entries linking `target`, adjacency by adjacency; a value object not yet placed has none. */
-function writeAdjacencies(visitor: ObjectVisitor, target: Visitable, schema: ObjectSchema): void {
-  for (const [adjacencyName, adjacency] of schema.adjacencies) {
-    for (const entry of linking(adjacency.relation as RelationSchema, adjacency.me, target)) {
-      visitor.adjacency(adjacencyName, (a) => a.add((e) => writeEntry(e, entry, adjacency)));
+/** `Visitors.OfScalar` over one key of a values map. Called, as a union's branch, with a Spec. */
+class _Scalar extends Dunders {
+  readonly [TYPE_NAME] = "_Scalar";
+
+  constructor(readonly _values: Values, readonly _name: string, readonly _schema: unknown, readonly _writable: boolean,
+    readonly _labelText: string, public _parent: unknown = null, readonly _onWrite: (() => void) | null = null) {
+    super();
+  }
+
+  _scalar(): unknown {
+    return this.get();
+  }
+
+  _label(): string {
+    return this._labelText;
+  }
+
+  as_schema(): unknown {
+    return this._schema;
+  }
+
+  get(): Visitors.Scalar | null {
+    const value = this._values.get(this._name);
+    return isScalar(value) ? value : null;
+  }
+
+  set(value: Visitors.Scalar): void {
+    write(this._writable, `${this._labelText} is read-only; write through a builder`);
+    if (this._onWrite !== null) this._onWrite();
+    this._values.set(this._name, value);
+  }
+
+  clear(): void {
+    write(this._writable, `${this._labelText} is read-only; write through a builder`);
+    this._values.delete(this._name);
+  }
+
+  _call(spec: unknown): unknown {
+    if (isFunction(spec)) visit(spec, this._proxy);
+    else this.set(spec as Visitors.Scalar);
+    return this._parent;
+  }
+
+  _repr(): string {
+    return `<scalar ${this._labelText}>`;
+  }
+}
+
+function makeScalar(values: Values, name: string, schema: unknown, writable: boolean, label: string,
+  parent: unknown = null, onWrite: (() => void) | null = null): any {
+  const state = new _Scalar(values, name, schema, writable, label, parent, onWrite);
+  return shell(state, (spec) => state._call(spec));
+}
+
+/** `Visitors.OfAny` over one key of a values map, holding a value of `schema`. Read-only, it hands over the value's own
+ * visitor, or an empty one; writable, it selects the kind, refusing one the schema does not hold. */
+class _Any {
+  readonly _type: unknown;
+
+  constructor(readonly _values: Values, readonly _name: string, readonly _schema: unknown, readonly _store: OfStore | null,
+    readonly _writable: boolean, readonly _label: string, readonly _onWrite: (() => void) | null = null) {
+    this._type = Schemas.structure(_schema);
+  }
+
+  as_schema(): unknown {
+    return this._schema;
+  }
+
+  _touch(): void {
+    if (this._onWrite !== null) this._onWrite();
+  }
+
+  as_scalar(cb: unknown): this {
+    const value = this._values.get(this._name);
+    if (this._type instanceof Schemas.OfUnion.Data && this._type.flat) return this._flatScalar(cb, value);
+    if (!(this._type instanceof Schemas.OfScalar.Data)) {
+      return this._hand(cb, makeEmpty(null, `${this._label} holds ${withArticle(noun(this._type))}, not a scalar`));
+    }
+    const scalar = makeScalar(this._values, this._name, this._type, this._writable, this._label, this, this._onWrite);
+    if (isFunction(cb)) visit(cb, scalar);
+    else scalar.set(cb);
+    return this;
+  }
+
+  /** A flat union's value read as its branch's, and written to the branch its type picks. */
+  _flatScalar(cb: unknown, value: unknown): this {
+    const union = this._type as Schemas.OfUnion.Data;
+    if (!isFunction(cb)) {
+      this._writeRecord((u: unknown) => innerOf(u)._member(branchOf(this._name, union, cb).name)(cb));
+      return this;
+    }
+    if (isRecordData(value) || isRecordBuilder(value)) { // a union value holds one branch
+      const values: Values = innerOf(value)._values;
+      const [branch, held] = values.entries().next().value as [string, unknown];
+      if (isScalar(held)) {
+        const type = Schemas.structure((union.properties.get(branch) as Schemas.OfProperty.Data).type);
+        visit(cb, makeScalar(values, branch, type, false, this._label));
+        return this;
+      }
+    }
+    visit(cb, makeEmpty(null, `${this._label} holds no scalar`));
+    return this;
+  }
+
+  as_object(cb: unknown): this {
+    return this._record(Schemas.OfObject.Data, cb);
+  }
+
+  as_union(cb: unknown): this {
+    return this._record(Schemas.OfUnion.Data, cb);
+  }
+
+  as_intersection(cb: unknown): this {
+    return this._record(Schemas.OfIntersection.Data, cb);
+  }
+
+  _hand(cb: unknown, empty: unknown): this {
+    innerOf(empty)._hand(cb);
+    return this;
+  }
+
+  _record(kind: abstract new (...args: never[]) => RecordSchema, cb: unknown): this {
+    const what = kind === Schemas.OfObject.Data ? "value object" : kind === Schemas.OfUnion.Data ? "union value"
+      : "intersection value";
+    if (!(this._type instanceof kind)) return this._hand(cb, makeEmpty(null, `${this._label} does not hold ${withArticle(what)}`));
+    const value = this._values.get(this._name);
+    if (!this._writable) {
+      if (isRecordData(value)) {
+        if (isFunction(cb)) {
+          visit(cb, value);
+          return this;
+        }
+        throw new ReadOnlyError(`${this._label} is read-only; write through a builder`);
+      }
+      return this._hand(cb, makeEmpty(this._type, `${this._label} is read-only; write through a builder`));
+    }
+    if (isFunction(cb)) this._writeRecord(cb);
+    else this._replace(cb);
+    return this;
+  }
+
+  /** The builder of the value object held, attached to the values when first written; one already attached, so that a
+   * builder reads back its pending writes. */
+  _builder(): any {
+    const value = this._values.get(this._name);
+    if (isRecordBuilder(value)) return value;
+    const attach = (builder: unknown): void => {
+      this._touch();
+      this._values.set(this._name, builder);
+    };
+    return makeRecordBuilder(this._type as RecordSchema, isRecordData(value) ? value : null, this._store, attach);
+  }
+
+  /** Selects the kind, writing the value, and hands its builder over. */
+  _writeRecord(cb: unknown): void {
+    const builder = this._builder();
+    innerOf(builder)._touch();
+    visit(cb, builder);
+  }
+
+  /** Writes a value object, union value or intersection value given as a value: copied when it is placed. */
+  _replace(value: unknown): void {
+    if (isProperty(value)) value = innerOf(value)._values.get(innerOf(value)._name);
+    if (!(isRecordData(value) || isRecordBuilder(value)) || innerOf(value)._schema !== this._type) {
+      throw new TypeError(`${this._label} takes ${withArticle(noun(this._type))} or a Spec, got ${typeName(value)}`);
+    }
+    this._touch();
+    this._values.set(this._name, value);
+  }
+
+  /** Writes a `Specs.Callback`'s value form: a scalar, a value object, union value or intersection value (a flat
+   * union's, its branch's), or a property's value. */
+  write(value: unknown): void {
+    write(this._writable, `${this._label} is read-only; write through a builder`);
+    if (isProperty(value)) value = innerOf(value)._values.get(innerOf(value)._name);
+    const held = Schemas.structure(this._type);
+    if (held instanceof Schemas.OfUnion.Data && held.flat
+      && !((isRecordData(value) || isRecordBuilder(value)) && innerOf(value)._schema === held)) {
+      const branch = branchOf(this._name, held, value);
+      this._writeRecord((u: unknown) => innerOf(u)._member(branch.name)(value));
+    } else if (held instanceof Schemas.OfObject.Data || held instanceof Schemas.OfUnion.Data
+      || held instanceof Schemas.OfIntersection.Data) {
+      this._replace(value);
+    } else {
+      this.as_scalar(value);
     }
   }
-}
 
-function makeInstance(store: OfStore, schema: ObjectSchema, schemaName: string): Instance {
-  const target = new ObjectTarget(store, schema, schemaName);
-  const readOnly = (): never => {
-    throw new AttributeError("proxy properties are read-only; use a builder");
-  };
-  const proxy = new Proxy(target, {
-    get(t, prop, receiver) {
-      if (typeof prop === "symbol") return Reflect.get(t, prop, receiver);
-      if (INSTANCE_METHODS.has(prop)) return (t[prop as "identity"] as () => unknown).bind(t);
-      return read(t, prop, receiver);
-    },
-    has(t, prop) {
-      if (typeof prop === "symbol") return Reflect.has(t, prop);
-      return INSTANCE_METHODS.has(prop) || t.values.has(prop) || t.schema.properties.has(prop) || t.schema.adjacencies.has(prop)
-        || (_probes.has(prop) && Reflect.has(t, prop)); // as Python's hasattr: what reads without error
-    },
-    set: readOnly,
-    defineProperty: readOnly,
-    deleteProperty: readOnly,
-    setPrototypeOf: readOnly,
-  }) as unknown as Instance;
-  target.proxy = proxy;
-  instanceTargets.set(proxy, target);
-  return proxy;
-}
-
-/** A property of an instance or record, or an adjacency's entries, as an attribute; a flat intersection's parts'
- * properties too, as its own. */
-function read(t: { values: Map<string, unknown>; schema: RecordSchema }, prop: string, receiver: unknown): unknown {
-  if (t.values.has(prop)) return view(t.values.get(prop), (t.schema.properties.get(prop) as Schemas.OfProperty.Data).type);
-  if (t.schema.properties.has(prop)) return null; // not set: nothing is mandatory but by a constraint
-  const part = owningPart(t.schema, prop);
-  if (part !== null) return t.values.has(part) ? (t.values.get(part) as Record<string, unknown>)[prop] : null;
-  const adjacency = t.schema instanceof Schemas.OfObject.Data ? t.schema.adjacencies.get(prop) : undefined;
-  if (adjacency !== undefined) {
-    return new Adjacency(linking(adjacency.relation as RelationSchema, adjacency.me, receiver as Visitable).map((entry) => entry.view), adjacency);
+  clear(): void {
+    write(this._writable, `${this._label} is read-only; write through a builder`);
+    this._values.delete(this._name);
   }
-  if (_probes.has(prop)) return Reflect.get(t, prop, receiver);
-  throw new AttributeError(prop);
 }
 
-/** An adjacency as proxies read it: the frozen array of its entries, in the order they were added, indexed by position.
- * `project(name)` gives each entry's link or property `name`, in order, and `at(key)` the entry with the key its
- * relation declares (`Schemas.OfRelation.Data.key`). Names are arguments, so no link or property can collide. */
-class Adjacency extends Array<any> { // eslint-disable-line @typescript-eslint/no-explicit-any
+/** `Visitors.OfProperty` over one key of a values map. Called, as a member, with a Spec, it writes or visits through it
+ * and returns the visitor it is a member of. */
+class _Property extends Dunders {
+  readonly [TYPE_NAME] = "_Property";
+
+  constructor(readonly _values: Values, readonly _name: string, readonly _schema: Schemas.OfProperty.Data,
+    readonly _store: OfStore | null, public _parent: unknown, readonly _writable: boolean,
+    readonly _onWrite: (() => void) | null = null) {
+    super();
+  }
+
+  _any(): _Any {
+    return new _Any(this._values, this._name, this._schema.type, this._store, this._writable, this._label(), this._onWrite);
+  }
+
+  _label(): string {
+    return `property ${repr(this._name)}`;
+  }
+
+  _scalar(): unknown {
+    const found: unknown[] = [];
+    this._any().as_scalar((s: any) => found.push(s.get())); // a callback is always called
+    return found[0];
+  }
+
+  as_schema(): Schemas.OfProperty.Data {
+    return this._schema;
+  }
+
+  get(): Visitors.Scalar | null {
+    return this._scalar() as Visitors.Scalar | null;
+  }
+
+  as_value(cb: unknown): any {
+    const visitor = this._any();
+    if (isFunction(cb)) visit(cb, visitor);
+    else visitor.write(cb);
+    return this._proxy;
+  }
+
+  as_scalar(cb: unknown): any {
+    this._any().as_scalar(cb);
+    return this._proxy;
+  }
+
+  as_object(cb: unknown): any {
+    this._any().as_object(cb);
+    return this._proxy;
+  }
+
+  _call(spec: unknown): unknown {
+    if (isFunction(spec)) visit(spec, this._proxy);
+    else this.as_value(spec);
+    return this._parent;
+  }
+
+  _repr(): string {
+    return `<${this._label()}>`;
+  }
+}
+
+function makeProperty(values: Values, name: string, schema: Schemas.OfProperty.Data, store: OfStore | null,
+  parent: unknown, writable: boolean, onWrite: (() => void) | null = null): any {
+  const state = new _Property(values, name, schema, store, parent, writable, onWrite);
+  return shell(state, (spec) => state._call(spec));
+}
+
+function isProperty(value: unknown): boolean {
+  return innerOf(value) instanceof _Property;
+}
+
+/** `Visitors.OfObject.as_properties`: the properties present, iterated, or called with a callback for each. */
+class _Properties extends Shelled {
+  readonly [TYPE_NAME] = "_Properties";
+
+  constructor(readonly _owner: unknown, readonly _properties: readonly unknown[]) {
+    super();
+  }
+
+  [Symbol.iterator](): Iterator<unknown> {
+    return this._properties[Symbol.iterator]();
+  }
+
+  _call(cb: unknown): unknown {
+    for (const prop of this._properties) visit(cb, prop);
+    return this._owner;
+  }
+
+  _repr(): string {
+    return "<properties>";
+  }
+}
+
+function makeProperties(owner: unknown, properties: readonly unknown[]): any {
+  const state = new _Properties(owner, properties);
+  return shell(state, (cb) => state._call(cb));
+}
+
+/** The properties of an object present in `values`, in the schema's declared order. */
+function propertiesOf(owner: unknown, values: Values, schema: RecordSchema, store: OfStore | null, writable: boolean,
+  onWrite: (() => void) | null = null): any {
+  return makeProperties(owner, [...schema.properties].filter(([name]) => values.has(name))
+    .map(([name, prop]) => makeProperty(values, name, prop, store, owner, writable, onWrite)));
+}
+
+/** The visitor of a union's branch or an intersection's part: of its own type's kind, the value itself for a value
+ * object held, or an empty one. */
+function kindVisitor(values: Values, name: string, schema: unknown, store: OfStore | null, parent: unknown,
+  writable: boolean, label: string, onWrite: (() => void) | null = null): any {
+  const held = Schemas.structure(schema);
+  const value = values.get(name);
+  if (held instanceof Schemas.OfScalar.Data) return makeScalar(values, name, held, writable, label, parent, onWrite);
+  if (!writable) return isRecordData(value) ? value : makeEmpty(held, `${label} is not set`);
+  if (isRecordBuilder(value)) return value;
+  const attach = (builder: unknown): void => {
+    (onWrite as () => void)(); // a writable member is a union's or an intersection's, which says what writing does
+    values.set(name, builder);
+  };
+  return makeRecordBuilder(held as RecordSchema, isRecordData(value) ? value : null, store, attach, parent);
+}
+
+// --- Data instances ---
+
+/** A proxy instance: a read-only `Visitors.OfObject`, whose properties and adjacencies are members. */
+class _ObjectData extends Shelled {
+  readonly [TYPE_NAME] = "_ObjectData";
+  readonly _id = ++nextIdentity;
+  readonly _values: Values = new Map();
+  /** The entries linking this object, by relation and key. */
+  readonly _adjacent = new Map<RelationSchema, Map<string, unknown>>();
+
+  constructor(readonly _store: OfStore, readonly _schema: ObjectSchema, readonly _schemaName: string) {
+    super();
+  }
+
+  override _declares(name: string): boolean {
+    return this._schema.properties.has(name) || this._schema.adjacencies.has(name);
+  }
+
+  override _member(name: string): unknown {
+    return member(this._proxy, name);
+  }
+
+  override _readOnly(): string {
+    return "proxy properties are read-only; use a builder";
+  }
+
+  _call(_spec: unknown): never {
+    throw new ReadOnlyError("a data instance is read-only; write through a builder");
+  }
+
+  _repr(): string {
+    return `<${this._schemaName}>`;
+  }
+
+  as_schema(): ObjectSchema {
+    return this._schema;
+  }
+
+  as_identity(): string {
+    return String(this._id);
+  }
+
+  get as_properties(): any {
+    return propertiesOf(this._proxy, this._values, this._schema, this._store, false);
+  }
+
+  as_adjacencies(cb: unknown): any {
+    for (const name of this._schema.adjacencies.keys()) visit(cb, member(this._proxy, name));
+    return this._proxy;
+  }
+}
+
+function makeObjectData(store: OfStore, schema: ObjectSchema, schemaName: string): Instance {
+  const state = new _ObjectData(store, schema, schemaName);
+  return shell(state, (spec) => state._call(spec));
+}
+
+function isObjectData(value: unknown): boolean {
+  return innerOf(value) instanceof _ObjectData;
+}
+
+/** A value object: the value of a property whose schema is an `OfObject`, a read-only `Visitors.OfObject`; or a union
+ * or intersection value, a read-only `Visitors.OfUnion` or `Visitors.OfIntersection`, whose branches or parts are
+ * members giving the visitor of their own type's kind. It belongs to one owner and has an identity of its own. Built
+ * but not yet placed in an owner, it holds its entries in `_pending` until its owner is created or updated. */
+class _RecordData extends Shelled {
+  readonly [TYPE_NAME] = "_RecordData";
+  readonly _id = ++nextIdentity;
+  readonly _values: Values;
+  _owner: unknown = null;
+  /** The entries linking this value object, by relation and key. */
+  readonly _adjacent = new Map<RelationSchema, Map<string, unknown>>();
+
+  constructor(readonly _schema: RecordSchema, values: Values, public _pending: Map<string, any[]> = new Map(),
+    readonly _source: unknown = null, readonly _copyOf: unknown = null) {
+    super();
+    this._values = new Map(values);
+  }
+
+  override _declares(name: string): boolean {
+    return this._schema.properties.has(name) || owningPart(this._schema, name) !== null
+      || (this._schema instanceof Schemas.OfObject.Data && this._schema.adjacencies.has(name));
+  }
+
+  override _member(name: string): unknown {
+    return member(this._proxy, name);
+  }
+
+  override _readOnly(): string {
+    return `${noun(this._schema)}s are read-only; use a builder`;
+  }
+
+  _call(_spec: unknown): never {
+    throw new ReadOnlyError(`${withArticle(noun(this._schema))} is read-only; write through a builder`);
+  }
+
+  _repr(): string {
+    return `<${noun(this._schema)}>`;
+  }
+
+  as_schema(): RecordSchema {
+    return this._schema;
+  }
+
+  as_identity(): string {
+    return String(this._id);
+  }
+
+  get as_properties(): any {
+    return propertiesOf(this._proxy, this._values, this._schema, storeOf(this._proxy), false);
+  }
+
+  as_adjacencies(cb: unknown): any {
+    if (this._schema instanceof Schemas.OfObject.Data) {
+      for (const name of this._schema.adjacencies.keys()) visit(cb, member(this._proxy, name));
+    }
+    return this._proxy;
+  }
+}
+
+function makeRecordData(schema: RecordSchema, values: Values, pending?: Map<string, any[]>, source: unknown = null,
+  copyOf: unknown = null): ValueObject {
+  const state = new _RecordData(schema, values, pending, source, copyOf);
+  return shell(state, (spec) => state._call(spec));
+}
+
+function isRecordData(value: unknown): boolean {
+  return innerOf(value) instanceof _RecordData;
+}
+
+/** A data instance's or a value object's member, read-only: a property, or a union's branch or an intersection's part,
+ * the visitor of its type's kind; a flat intersection's part's property, as its own; or an adjacency. */
+function member(owner: unknown, name: string): unknown {
+  const state = innerOf(owner);
+  const schema: RecordSchema = state._schema;
+  const values: Values = state._values;
+  const store = storeOf(owner);
+  if ((schema instanceof Schemas.OfUnion.Data || schema instanceof Schemas.OfIntersection.Data) && schema.properties.has(name)) {
+    const kind = schema instanceof Schemas.OfUnion.Data ? "branch" : "part";
+    const type = (schema.properties.get(name) as Schemas.OfProperty.Data).type;
+    return kindVisitor(values, name, type, store, owner, false, `${kind} ${repr(name)}`);
+  }
+  const prop = schema.properties.get(name);
+  if (prop !== undefined) return makeProperty(values, name, prop, store, owner, false);
+  const part = owningPart(schema, name);
+  if (part !== null) {
+    const held = values.get(part);
+    return isRecordData(held) ? member(held, name) : makeEmpty(null, `part ${repr(part)} is not set`);
+  }
+  if (schema instanceof Schemas.OfUnion.Data && schema.flat) { // a flat union's value reads as its branch's
+    const held = values.values().next().value;
+    return isRecordData(held) ? member(held, name) : makeEmpty(null, `${repr(name)} is not a member of the branch held`);
+  }
+  const adjacency = schema instanceof Schemas.OfObject.Data ? schema.adjacencies.get(name) : undefined;
+  if (adjacency !== undefined) {
+    return makeAdjacency(linking(adjacency.relation as RelationSchema, adjacency.me, owner), adjacency, owner);
+  }
+  return makeEmpty(null, `${repr(name)} is not a member of ${withArticle(noun(schema))}`);
+}
+
+/** The value an instance or a value object holds in its property `name` (a union's branch, an intersection's part), as
+ * a store reads it: a scalar, or a value object; a flat intersection's part's property too, as its own. */
+function read(value: unknown, name: string): unknown {
+  const state = innerOf(value);
+  const values: Values = state._values;
+  const schema: RecordSchema = state._schema;
+  if (schema.properties.has(name)) return values.has(name) ? values.get(name) : null;
+  const part = owningPart(schema, name);
+  if (part !== null) return values.has(part) ? read(values.get(part), name) : null;
+  throw new AttributeError(name);
+}
+
+/** An adjacency of a data instance, a read-only `Visitors.OfAdjacency`: the frozen array of its entries, in the order
+ * they were added. `project(name)` gives each entry's link or property `name`, in order, and `at(key)` the entry with
+ * the key its relation declares (`Schemas.OfRelation.Data.key`). */
+class _Adjacency extends Array<any> implements Shellable {
   static override get [Symbol.species](): ArrayConstructor {
     return Array; // what `map` and `filter` make is a plain array
   }
 
-  readonly #schema: AdjacencySchema;
+  readonly [TYPE_NAME] = "_Adjacency";
+  _proxy: any;
+  _schema!: AdjacencySchema;
+  _owner: unknown;
 
-  constructor(entries: readonly unknown[], schema: AdjacencySchema) {
-    super();
-    this.#schema = schema;
-    this.push(...entries);
-    Object.freeze(this);
+  _member(_name: string): unknown {
+    return undefined;
+  }
+
+  _declares(_name: string): boolean {
+    return false;
+  }
+
+  _readOnly(): string {
+    return "a data instance's adjacency is read-only; write through a builder";
+  }
+
+  [REPR](): string {
+    return `<adjacency ${this._schema.name}>`;
+  }
+
+  as_schema(): AdjacencySchema {
+    return this._schema;
+  }
+
+  select(spec: unknown, cb: unknown): any {
+    for (const entry of [...this]) if (agrees(entry, spec, this._schema, storeOf(this._owner))) visit(cb, entry);
+    return this._proxy;
+  }
+
+  insert(_spec: unknown): never {
+    throw new ReadOnlyError("a data instance's adjacency is read-only; write through a builder");
+  }
+
+  remove(spec: unknown): never {
+    return this.insert(spec);
+  }
+
+  _call(spec: unknown): unknown {
+    if (!isFunction(spec)) this.insert(spec);
+    visit(spec, this._proxy);
+    return this._owner;
   }
 
   /** Each entry's link or property `name`, in order; null for a property an entry does not set. */
   project(name: string): readonly unknown[] {
-    const relation = this.#schema.relation as RelationSchema;
-    if (!relation.entry.links.has(name) && !relation.entry.properties.has(name)) {
+    const entry = (this._schema.relation as RelationSchema).entry;
+    if (!entry.links.has(name) && !entry.properties.has(name)) {
       throw new KeyError(`${repr(name)} is not a link or property of the relation`);
     }
-    return Object.freeze([...this].map((entry) => (entry as Record<string, unknown>)[name]));
+    return Object.freeze([...this].map((held) => {
+      const state: _Entry = innerOf(held);
+      if (entry.links.has(name)) return state._links.get(name);
+      return view(state._properties.has(name) ? state._properties.get(name) : null,
+        (entry.properties.get(name) as Schemas.OfProperty.Data).type);
+    }));
   }
 
   /** The entry whose key is `key`: one value for a key of one link or property, else an array of them in declaration
    * order. `KeyError` for none, `TypeError` when the relation declares no key from this end. */
-  override at(key: unknown): any { // eslint-disable-line @typescript-eslint/no-explicit-any
-    const relation = this.#schema.relation as RelationSchema;
-    const names = relation.key(this.#schema.me);
+  override at(key: unknown): any {
+    const relation = this._schema.relation as RelationSchema;
+    const names = relation.key(this._schema.me);
     if (names === null) throw new TypeError("the relation declares no key from this end; index by position");
     const wanted = names.length > 1 ? key : [key];
     if (!Array.isArray(wanted) || wanted.length !== names.length) {
       throw new KeyError(`a key of ${repr(names)} is a tuple of ${names.length} values, got ${repr(key)}`);
     }
+    const { links, properties } = relation.entry;
     for (const entry of this) {
-      const held: unknown[] = names.map((name) => (entry as Record<string, unknown>)[name]);
-      if (names.every((name, i) => relation.entry.links.has(name) ? held[i] === wanted[i]
+      const state: _Entry = innerOf(entry);
+      const held: unknown[] = names.map((name): unknown => links.has(name) ? state._links.get(name)
+        : view(state._properties.has(name) ? state._properties.get(name) : null, (properties.get(name) as Schemas.OfProperty.Data).type));
+      if (names.every((name, i) => links.has(name) ? held[i] === wanted[i]
         : held[i] !== null && scalarKey(held[i]) === scalarKey(wanted[i]))) return entry; // a target by identity, a value by schema equality
     }
     throw new KeyError(`no entry has the key ${repr(Array.isArray(key) ? new Tuple(key) : key)}`);
   }
 }
 
-/** The part of a flat intersection whose object schema declares the property `prop`, if any. */
-function owningPart(schema: RecordSchema, prop: string): string | null {
-  if (!(schema instanceof Schemas.OfIntersection.Data && schema.flat)) return null;
-  const found = schema.parts.find((part) => (Schemas.structure(part.type) as { properties?: Map<string, unknown> }).properties?.has(prop));
-  return found === undefined ? null : found.name;
+function makeAdjacency(entries: readonly unknown[], schema: AdjacencySchema, owner: unknown): any {
+  const state = new _Adjacency();
+  state.push(...entries);
+  state._schema = schema;
+  state._owner = owner;
+  const proxy = shell(state, (spec) => state._call(spec), true);
+  Object.freeze(state);
+  return proxy;
 }
 
-/** A value as code reads it: a flat union's value as its branch's value. */
+/** An entry's links other than `me`, and its properties: a placed entry's, or an entry builder's. */
+function entryParts(entry: any, me: string): [Map<string, unknown>, Values] {
+  const state = innerOf(entry);
+  if (state instanceof _Entry) {
+    return [new Map([...state._links].filter(([name]) => name !== me)), state._properties];
+  }
+  return [new Map(state._links), finalized(state._values)];
+}
+
+function sameKeys(a: Map<string, unknown>, b: Map<string, unknown>): boolean {
+  return a.size === b.size && [...a.keys()].every((name) => b.has(name));
+}
+
+/** Whether an entry agrees with a query Spec: equal to its value form (an entry), or agreeing with every link and
+ * property its function form, a template, sets. */
+function agrees(entry: unknown, spec: unknown, adjacency: AdjacencySchema, store: OfStore | null): boolean {
+  const [links, values] = entryParts(entry, adjacency.me);
+  let wantedLinks: Map<string, unknown>;
+  let wantedValues: Values;
+  if (isFunction(spec)) {
+    const template = makeEntryBuilder(adjacency.relation as RelationSchema, adjacency.me, store);
+    visit(spec, template);
+    wantedLinks = innerOf(template)._links;
+    wantedValues = innerOf(template)._values;
+  } else {
+    [wantedLinks, wantedValues] = entryParts(spec, adjacency.me);
+    if (!sameKeys(wantedLinks, links) || !sameKeys(wantedValues, values)) return false;
+  }
+  return [...wantedLinks].every(([name, target]) => links.get(name) === target)
+    && [...wantedValues].every(([name, value]) => values.has(name) && scalarKey(values.get(name)) === scalarKey(value));
+}
+
+/** A value as `project` and `at` read it: a flat union's value as its branch's value. */
 function view(value: unknown, type: unknown): unknown {
   const schema = Schemas.structure(type);
-  if (!(schema instanceof Schemas.OfUnion.Data && schema.flat)) {
+  if (!(schema instanceof Schemas.OfUnion.Data && schema.flat && isRecordData(value) && innerOf(value)._values.size > 0)) {
     return value;
   }
-  const [[branch, held]] = [...(recordTargets.get(value as object) as RecordTarget).values] as [[string, unknown]];
-  return view(held, (schema.properties.get(branch) as Schemas.OfUnion.Branch).type);
+  const [branch, held] = (innerOf(value)._values as Values).entries().next().value as [string, unknown];
+  return view(held, (schema.properties.get(branch) as Schemas.OfProperty.Data).type);
+}
+
+/** The part of a flat intersection whose object schema declares the property `name`, if any. */
+function owningPart(schema: RecordSchema, name: string): string | null {
+  if (!(schema instanceof Schemas.OfIntersection.Data && schema.flat)) return null;
+  const found = schema.parts.find((part) => (Schemas.structure(part.type) as ObjectSchema).properties.has(name));
+  return found === undefined ? null : found.name;
 }
 
 /** What tells a value apart at run time, as `Schemas` tells a flat union's branches apart: a scalar's type, or a value
  * object's schema. */
 function runtime(value: unknown): unknown {
-  if (isRecord(value)) return (recordTargets.get(value) as RecordTarget).schema;
+  if (isRecordData(value) || isRecordBuilder(value)) return innerOf(value)._schema;
   return Schemas.SCALAR_TYPES.find((host) => Schemas.isScalarOf(host, value));
 }
 
@@ -436,36 +1183,8 @@ function branchOf(name: string, schema: Schemas.OfUnion.Data, value: unknown): S
   return found;
 }
 
-type PropertyHolder = { property(name: string, callback: Callback<OfProperty>): unknown };
-
-/** Writes the values that are set, in the schema's declared order. */
-function writeProperties(visitor: PropertyHolder, schema: RecordSchema, values: Map<string, unknown>): void {
-  for (const name of schema.properties.keys()) {
-    if (values.has(name)) {
-      const value = values.get(name);
-      visitor.property(name, (p) => p.value((a) => writeValue(a, value)));
-    }
-  }
-}
-
-/** Writes a scalar, a value object, a union value or an intersection value into a `Visitors.OfAny`. */
-function writeValue(visitor: OfAny, value: unknown): void {
-  if (isRecord(value)) writeRecord(visitor, (recordTargets.get(value) as RecordTarget).schema, (r) => value.accept(r));
-  else visitor.as_scalar((n) => n.set(value as Scalar));
-}
-
-function writeRecord(visitor: OfAny, schema: RecordSchema, callback: Callback<ObjectVisitor>): void {
-  if (schema instanceof Schemas.OfUnion.Data) visitor.as_union(callback as unknown as Callback<OfUnion>);
-  else if (schema instanceof Schemas.OfIntersection.Data) visitor.as_intersection(callback as unknown as Callback<OfIntersection>);
-  else visitor.as_object(callback);
-}
-
-/** The schema of a record: a value object's, or a union's or intersection's, whose properties are its branches or
- * parts. */
-type RecordSchema = ObjectSchema | Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
-
 /** What a record of `schema` is, for messages. */
-function noun(schema: RecordSchema): string {
+function noun(schema: unknown): string {
   if (schema instanceof Schemas.OfUnion.Data) return "union value";
   if (schema instanceof Schemas.OfIntersection.Data) return "intersection value";
   return "value object";
@@ -475,186 +1194,122 @@ function withArticle(noun: string): string {
   return noun === "intersection value" ? `an ${noun}` : `a ${noun}`;
 }
 
-/** A value object as seen by callers: `Visitable`, with properties readable by name. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ValueObject = Visitable & { readonly [name: string]: any };
-
-const recordTargets = new WeakMap<object, RecordTarget>();
-
-/** The state behind a value object: the value of a property whose schema is an `OfObject`, which may have
- * adjacencies, or a union or intersection value, whose properties are the branches or parts. It belongs to one owner
- * and has an identity of its own; its properties are read-only attributes, and one that is not set reads as `null`.
- * Built but not yet placed in an owner, it holds its entries in `pending` until its owner is created
- * or updated. */
-class RecordTarget {
-  readonly id = ++nextIdentity;
-  holder: Visitable | null = null;
-  /** The entries linking this value object, by relation and key. */
-  readonly adjacent = new Map<RelationSchema, Map<string, Entry>>();
-  proxy!: ValueObject;
-
-  constructor(readonly schema: RecordSchema, readonly values: Map<string, unknown>,
-    public pending: Map<string, _EntryBuilder[]> = new Map(), readonly source: ValueObject | null = null,
-    readonly copyOf: Visitable | null = null) {}
-
-  identity(): number {
-    return this.id;
-  }
-
-  /** The registered name of the value object's schema, or '' when it is not registered in its store. */
-  schema_name(): string {
-    const store = storeOf(this.proxy);
-    for (const [name, registered] of store === null ? [] : store._schemas) if (registered === this.schema) return name;
-    return "";
-  }
-
-  owner(): Visitable | null {
-    return this.holder;
-  }
-
-  /** Identifies itself (an object's value object), then writes its properties in the schema's declared order and the
-   * entries linking it. */
-  accept(visitor: ObjectVisitor): void {
-    if (this.schema instanceof Schemas.OfObject.Data) visitor.identify(this.proxy);
-    writeProperties(visitor, this.schema, this.values);
-    if (this.schema instanceof Schemas.OfObject.Data) writeAdjacencies(visitor, this.proxy, this.schema);
-  }
-}
-
-const RECORD_METHODS = new Set(["identity", "schema_name", "owner", "accept"]);
-
-function makeRecord(schema: RecordSchema, values: Map<string, unknown>, pending?: Map<string, _EntryBuilder[]>,
-  source: ValueObject | null = null, copyOf: Visitable | null = null): ValueObject {
-  const target = new RecordTarget(schema, new Map(values), pending, source, copyOf);
-  const readOnly = (): never => {
-    throw new AttributeError(`${noun(schema)}s are read-only; use a builder`);
-  };
-  const proxy = new Proxy(target, {
-    get(t, prop, receiver) {
-      if (typeof prop === "symbol") return Reflect.get(t, prop, receiver);
-      if (RECORD_METHODS.has(prop)) return (t[prop as "identity"] as () => unknown).bind(t);
-      return read(t, prop, receiver);
-    },
-    set: readOnly,
-    defineProperty: readOnly,
-    deleteProperty: readOnly,
-    setPrototypeOf: readOnly,
-  }) as unknown as ValueObject;
-  target.proxy = proxy;
-  recordTargets.set(proxy, target);
-  return proxy;
-}
-
-function isRecord(value: unknown): value is ValueObject {
-  return typeof value === "object" && value !== null && recordTargets.has(value);
-}
-
-function stateOf(record: ValueObject): RecordTarget {
-  return recordTargets.get(record) as RecordTarget;
-}
-
-type Mapping = Map<unknown, unknown>;
+// --- Value objects: staging, copying, placing ---
 
 /** Prepares `value` to be placed where `old` was: a value object owned elsewhere is copied, and `mapping` records, for
  * each value object copied or edited, the one that takes its place, so that the entries among them link those. */
 function stage(old: unknown, value: unknown, mapping: Mapping): unknown {
-  if (!isRecord(value) || value === old) return value;
-  let state = stateOf(value);
-  if (state.source !== null && state.source === old) { // an edit of `old`, which keeps its identity
+  if (!isRecordData(value) || value === old) return value;
+  let state: _RecordData = innerOf(value);
+  if (state._source !== null && state._source === old) { // an edit of `old`, which keeps its identity
     mapping.set(old, old);
-    stageValues(value, old as ValueObject, mapping);
+    stageValues(value, old, mapping);
     return value;
   }
   let staged = value;
-  if (state.holder !== null) {
+  if (state._owner !== null) {
     staged = copy(value);
-    state = stateOf(staged);
+    state = innerOf(staged);
   }
-  for (const original of [state.copyOf, state.source]) if (original !== null) mapping.set(original, staged);
+  for (const original of [state._copyOf, state._source]) if (original !== null) mapping.set(original, staged);
   stageValues(staged, null, mapping);
   return staged;
 }
 
 /** Stages the value objects a value object holds: its properties', and its entries'. */
-function stageValues(record: ValueObject, old: ValueObject | null, mapping: Mapping): void {
-  const held = old === null ? new Map<string, unknown>() : stateOf(old).values;
-  const values = stateOf(record).values;
-  for (const [name, value] of [...values]) values.set(name, stage(held.get(name), value, mapping));
-  for (const builders of stateOf(record).pending.values()) {
-    for (const builder of builders) entryOf(builder).stage(old ?? record, mapping);
+function stageValues(record: unknown, old: unknown, mapping: Mapping): void {
+  const state: _RecordData = innerOf(record);
+  const held: Values = old === null ? new Map() : innerOf(old)._values;
+  for (const [name, value] of [...state._values]) state._values.set(name, stage(held.get(name), value, mapping));
+  for (const builders of state._pending.values()) {
+    for (const builder of builders) innerOf(builder)._stage(old ?? record, mapping);
   }
 }
 
 /** A copy of a placed value object, with copies of the entries linking it and the value objects it holds. */
-function copy(record: ValueObject): ValueObject {
-  const builder = makeRecordBuilder(stateOf(record).schema, undefined, storeOf(record));
-  record.accept(builder);
-  return (recordBuilderTargets.get(builder) as RecordBuilderTarget).build();
+function copy(record: unknown): unknown {
+  const state: _RecordData = innerOf(record);
+  const store = storeOf(record);
+  const builder = new _RecordBuilder(state._schema, null, store);
+  shell(builder);
+  builder._copyOf = record;
+  builder._values = new Map([...state._values].map(([name, value]) => [name, isRecordData(value) ? copy(value) : value]));
+  const schema = state._schema;
+  for (const [name, adjacency] of schema instanceof Schemas.OfObject.Data ? schema.adjacencies : []) {
+    for (const entry of linking(adjacency.relation as RelationSchema, adjacency.me, record)) {
+      const held: _Entry = innerOf(entry);
+      const copied = makeEntryBuilder(adjacency.relation as RelationSchema, adjacency.me, store);
+      const target: _EntryBuilder = innerOf(copied);
+      target._links = new Map([...held._links].filter(([link]) => link !== adjacency.me));
+      target._values = new Map([...held._properties].map(([n, v]) => [n, isRecordData(v) ? copy(v) : v]));
+      target._source = entry;
+      builder._entries.set(name, [...(builder._entries.get(name) ?? []), copied]);
+    }
+  }
+  return builder.build(); // a placed value object, the only kind copied, has no pending entries
 }
 
 /** Places a staged value: an edit is merged into `old`, and a value object built for it is adopted by `owner`. */
-function finish(owner: Visitable, old: unknown, value: unknown, mapping: Mapping): unknown {
-  if (!isRecord(value) || value === old) return value;
-  const state = stateOf(value);
-  if (state.source !== null && state.source === old) {
-    merge(old as ValueObject, value, mapping);
+function finish(owner: unknown, old: unknown, value: unknown, mapping: Mapping): unknown {
+  if (!isRecordData(value) || value === old) return value;
+  const state: _RecordData = innerOf(value);
+  if (state._source !== null && state._source === old) {
+    merge(old, value, mapping);
     return old;
   }
-  state.holder = owner;
-  for (const [name, held] of [...state.values]) state.values.set(name, finish(value, null, held, mapping));
+  state._owner = owner;
+  for (const [name, held] of [...state._values]) state._values.set(name, finish(value, null, held, mapping));
   addPending(value, mapping);
   return value;
 }
 
-/**
- * Adds a value object's entries, whose value objects take the place of those in `mapping`. Its relations have one link,
- * its own, so no other object gives these entries.
- */
-function addPending(record: ValueObject, mapping: Mapping): void {
-  const state = stateOf(record);
-  for (const [name, builders] of state.pending) {
-    const adjacency = (state.schema as ObjectSchema).adjacencies.get(name) as AdjacencySchema;
-    const relation = adjacency.relation as RelationSchema;
+/** Adds a value object's entries, whose value objects take the place of those in `mapping`. Its relations have one
+ * link, its own, so no other object gives these entries. */
+function addPending(record: unknown, mapping: Mapping): void {
+  const state: _RecordData = innerOf(record);
+  for (const [name, builders] of state._pending) {
+    const relation = ((state._schema as ObjectSchema).adjacencies.get(name) as AdjacencySchema).relation as RelationSchema;
     for (const builder of builders) {
-      entryOf(builder).place(record, mapping);
-      addEntry(relation, builder.build(record));
+      innerOf(builder)._place(record, mapping);
+      addEntry(relation, innerOf(builder).build(record));
     }
   }
-  state.pending = new Map();
+  state._pending = new Map();
 }
 
 /** Writes an edit of a placed value object into it, so that it keeps its identity. */
-function merge(old: ValueObject, edit: ValueObject, mapping: Mapping): void {
-  const target = stateOf(old);
+function merge(old: unknown, edit: unknown, mapping: Mapping): void {
+  const target: _RecordData = innerOf(old);
   const before = heldBy(old);
-  const values = new Map<string, unknown>();
-  for (const [name, value] of stateOf(edit).values) values.set(name, finish(old, target.values.get(name), value, mapping));
-  target.values.clear();
-  for (const [name, value] of values) target.values.set(name, value);
-  if (target.schema instanceof Schemas.OfObject.Data) {
-    for (const adjacency of target.schema.adjacencies.values()) {
+  const values = new Map([...innerOf(edit)._values as Values].map(([name, value]) =>
+    [name, finish(old, target._values.get(name), value, mapping)] as const));
+  target._values.clear();
+  for (const [name, value] of values) target._values.set(name, value);
+  if (target._schema instanceof Schemas.OfObject.Data) {
+    for (const adjacency of target._schema.adjacencies.values()) {
       discardLinking(adjacency.relation as RelationSchema, adjacency.me, old);
     }
   }
-  target.pending = stateOf(edit).pending;
+  target._pending = innerOf(edit)._pending;
   addPending(old, mapping);
   drop(before, heldBy(old));
 }
 
 /** The value objects that `values` hold directly. */
-function records(values: readonly unknown[]): ValueObject[] {
-  return values.filter(isRecord);
+function records(values: readonly unknown[]): unknown[] {
+  return values.filter(isRecordData);
 }
 
 /** The values an object or a value object holds: its properties', and those of the entries of its one-link relations,
  * which hold values for it alone. */
-function heldBy(owner: Visitable): unknown[] {
-  const state = (instanceTargets.get(owner) ?? recordTargets.get(owner)) as ObjectTarget | RecordTarget;
-  const values = [...state.values.values()];
-  for (const adjacency of state.schema instanceof Schemas.OfObject.Data ? state.schema.adjacencies.values() : []) {
+function heldBy(owner: unknown): unknown[] {
+  const state = innerOf(owner);
+  const values: unknown[] = [...(state._values as Values).values()];
+  const schema: RecordSchema = state._schema;
+  for (const adjacency of schema instanceof Schemas.OfObject.Data ? schema.adjacencies.values() : []) {
     const relation = adjacency.relation as RelationSchema;
     if (relation.entry.links.size === 1) {
-      for (const entry of linking(relation, adjacency.me, owner)) values.push(...entry.properties.values());
+      for (const entry of linking(relation, adjacency.me, owner)) values.push(...innerOf(entry)._properties.values());
     }
   }
   return values;
@@ -667,593 +1322,488 @@ function drop(before: readonly unknown[], after: readonly unknown[]): void {
 }
 
 /** Removes a value object no longer held: the value objects it holds, its entries' too, and every entry linking it. */
-function remove(value: ValueObject): void {
+function remove(value: unknown): void {
   for (const held of records(heldBy(value))) remove(held);
   discardTarget(value);
 }
 
-function isInstance(value: unknown): value is Instance {
-  return typeof value === "object" && value !== null && instanceTargets.has(value);
-}
-
-/** Whether an entry builder adds its entry: an entry rewritten from one already held (`source`), linking the same
+/** Whether an entry builder adds its entry: an entry rewritten from one already held (`_source`), linking the same
  * objects, is added once in one build, though every object it links gives it, which in an open relation would
  * otherwise add it again. */
-function firstCopy(relation: RelationSchema, builder: _EntryBuilder, target: Visitable, mapping: Mapping): boolean {
-  const source = builder.source;
+function firstCopy(relation: RelationSchema, builder: _EntryBuilder, target: unknown, mapping: Mapping): boolean {
+  const source = builder._source;
   if (source === null || !relation.open) return true;
-  const links = new Map<string, unknown>([...builder.linkValues, [builder.me, target]]);
-  const key = `entry:${source.id}:${JSON.stringify([...links].map(([name, linked]) => [name, (linked as Visitable).identity()]).sort())}`;
+  const links = new Map<string, unknown>([...builder._links, [builder._me, target]]);
+  const identities = [...links].map(([name, linked]) => [name, innerOf(linked)._id] as const).sort(byName);
+  const key = `entry:${innerOf(source)._id}:${JSON.stringify(identities)}`;
   if (mapping.has(key)) return false;
   mapping.set(key, source);
   return true;
 }
 
-/** Writes an entry's links and properties in the relation's declared order, whichever end built the entry. A proxy's
- * entry builder remembers the entry it copies. */
-function writeEntry(visitor: EntryVisitor, entry: Entry, adjacency: AdjacencySchema): void {
-  const relation = adjacency.relation as RelationSchema;
-  const builder = entryTargets.get(visitor as object);
-  if (builder !== undefined) builder.source = entry;
-  for (const name of relation.entry.links.keys()) {
-    if (name !== adjacency.me) {
-      const target = entry.links.get(name) as Instance;
-      visitor.link(name, (k) => k.set(target));
-    }
-  }
-  for (const name of relation.entry.properties.keys()) {
-    if (entry.properties.has(name)) {
-      const value = entry.properties.get(name);
-      visitor.property(name, (p) => p.value((a) => writeValue(a, value)));
-    }
-  }
-}
-
 // --- Builders ---
 
-/** `Visitors.OfScalar` over one key of a value map. */
-export class _ScalarSlot implements OfScalar {
-  constructor(private readonly values: Map<string, unknown>, private readonly slotName: string) {}
-
-  has(): boolean {
-    return this.values.has(this.slotName);
+/** A value as a builder finalizes it: a value object's builder, built; a union value without a branch, none. */
+function built(value: unknown): unknown {
+  if (isRecordBuilder(value)) {
+    const state: _RecordBuilder = innerOf(value);
+    return state._schema instanceof Schemas.OfUnion.Data && state._values.size === 0 ? null : state.build();
   }
-
-  get(): Scalar {
-    if (!this.values.has(this.slotName)) throw new AttributeError(`property ${repr(this.slotName)} is not set`);
-    return this.values.get(this.slotName) as Scalar;
-  }
-
-  set(value: Scalar): _ScalarSlot {
-    this.values.set(this.slotName, value);
-    return this;
-  }
-
-  clear(): _ScalarSlot {
-    this.values.delete(this.slotName);
-    return this;
-  }
+  return value;
 }
 
-/** `Visitors.OfAny` over one key of a value map, holding a value of `schema` (an entry property's schema is not
- * given: entry properties are scalar). */
-export class _AnySlot implements OfAny {
-  private readonly schema: unknown;
+/** Values as a builder finalizes them, a union value without a branch left out. */
+function finalized(values: Values): Values {
+  const out: Values = new Map();
+  for (const [name, value] of values) {
+    const done = built(value);
+    if (done !== null && done !== undefined) out.set(name, done);
+  }
+  return out;
+}
 
-  constructor(private readonly values: Map<string, unknown>, private readonly slotName: string,
-    schema: unknown = null, private readonly store: OfStore | null = null) {
-    this.schema = Schemas.structure(schema);
+/** A writable `Visitors.OfObject` building a value object, starting from `source` if given; or a writable
+ * `Visitors.OfUnion` or `Visitors.OfIntersection`, whose branches or parts are members giving the visitor of their own
+ * type's kind. It attaches itself to what holds it (`attach`) when first written, so that an unwritten builder changes
+ * nothing. Writing a union's branch clears any other. */
+class _RecordBuilder extends Shelled {
+  readonly [TYPE_NAME] = "_RecordBuilder";
+  _values: Values;
+  _entries = new Map<string, any[]>();
+  _copyOf: unknown = null;
+
+  constructor(readonly _schema: RecordSchema, readonly _source: unknown = null, readonly _store: OfStore | null = null,
+    public _attach: ((builder: unknown) => void) | null = null, readonly _parent: unknown = null) {
+    super();
+    this._values = new Map(_source === null ? [] : innerOf(_source)._values);
+    if (_source !== null) loadEntries(this._entries, _schema, _source);
   }
 
-  as_scalar(callback: Callback<OfScalar>): _AnySlot {
-    callback(new _ScalarSlot(this.values, this.slotName));
-    return this;
+  /** Attaches the builder to what holds it, once, at its first write. */
+  _touch(): void {
+    if (this._attach !== null) {
+      const attach = this._attach;
+      this._attach = null;
+      attach(this._proxy);
+    }
   }
 
-  /** Builds a value object, starting from the one already set, if any. */
-  as_object(callback: Callback<ObjectVisitor>): _AnySlot {
-    return this.record(Schemas.OfObject.Data, "an object", callback);
+  /** What writing the member `name` does first: for a union's branch, clearing any other branch. */
+  _select(name: string): () => void {
+    return () => {
+      if (this._schema instanceof Schemas.OfUnion.Data) {
+        for (const other of [...this._values.keys()]) if (other !== name) this._values.delete(other);
+      }
+      this._touch();
+    };
   }
 
-  /** Builds a union value, starting from the one already set, if any. */
-  as_union(callback: Callback<OfUnion>): _AnySlot {
-    return this.record(Schemas.OfUnion.Data, "a union", callback as unknown as Callback<ObjectVisitor>);
+  as_schema(): RecordSchema {
+    return this._schema;
   }
 
-  /** Builds an intersection value, starting from the one already set, if any. */
-  as_intersection(callback: Callback<OfIntersection>): _AnySlot {
-    return this.record(Schemas.OfIntersection.Data, "an intersection", callback as unknown as Callback<ObjectVisitor>);
+  as_identity(): string {
+    return this._source === null ? "" : innerOf(this._source).as_identity();
   }
 
-  private record(kind: abstract new (...args: never[]) => RecordSchema, what: string,
-    callback: Callback<ObjectVisitor>): _AnySlot {
-    if (!(this.schema instanceof kind)) throw new TypeError(`property ${repr(this.slotName)} does not hold ${what}`);
-    const current = this.values.get(this.slotName);
-    const builder = makeRecordBuilder(this.schema, isRecord(current) ? current : undefined, this.store);
-    callback(builder);
-    const target = recordBuilderTargets.get(builder) as RecordBuilderTarget;
-    if (this.schema instanceof Schemas.OfUnion.Data && target.values.size === 0) {
-      this.values.delete(this.slotName); // a union value without a branch is no value
+  get as_properties(): any {
+    return propertiesOf(this._proxy, this._values, this._schema, this._store, true, () => this._touch());
+  }
+
+  as_adjacencies(cb: unknown): any {
+    if (this._schema instanceof Schemas.OfObject.Data) {
+      for (const name of this._schema.adjacencies.keys()) visit(cb, makeAdjacencyBuilder(this._proxy, name));
+    }
+    return this._proxy;
+  }
+
+  override _declares(name: string): boolean {
+    return this._schema.properties.has(name) || owningPart(this._schema, name) !== null
+      || (this._schema instanceof Schemas.OfObject.Data && this._schema.adjacencies.has(name));
+  }
+
+  override _member(name: string): unknown {
+    const schema = this._schema;
+    if ((schema instanceof Schemas.OfUnion.Data || schema instanceof Schemas.OfIntersection.Data) && schema.properties.has(name)) {
+      const kind = schema instanceof Schemas.OfUnion.Data ? "branch" : "part";
+      return kindVisitor(this._values, name, (schema.properties.get(name) as Schemas.OfProperty.Data).type, this._store,
+        this._proxy, true, `${kind} ${repr(name)}`, this._select(name));
+    }
+    const prop = schema.properties.get(name);
+    if (prop !== undefined) return makeProperty(this._values, name, prop, this._store, this._proxy, true, () => this._touch());
+    const part = owningPart(schema, name);
+    if (part !== null) { // a flat intersection's part's property: written in that part, a member of this value
+      const found = innerOf(this._member(part))._member(name);
+      innerOf(found)._parent = this._proxy;
+      return found;
+    }
+    if (schema instanceof Schemas.OfObject.Data && schema.adjacencies.has(name)) return makeAdjacencyBuilder(this._proxy, name);
+    return makeEmpty(null, `${repr(name)} is not a member of ${withArticle(noun(schema))}`);
+  }
+
+  /** As a union's branch or an intersection's part: writes through a Spec, selecting the branch. */
+  _call(spec: unknown): unknown {
+    if (isFunction(spec)) {
+      this._touch();
+      visit(spec, this._proxy);
     } else {
-      this.values.set(this.slotName, target.build());
+      if (!isRecordData(spec) || innerOf(spec)._schema !== this._schema) {
+        throw new TypeError(`${withArticle(noun(this._schema))} or a Spec is expected, got ${typeName(spec)}`);
+      }
+      this._values = new Map(innerOf(spec)._values);
+      this._entries = new Map();
+      loadEntries(this._entries, this._schema, spec);
+      this._copyOf = spec;
+      this._touch();
     }
-    return this;
-  }
-}
-
-/** `Visitors.OfProperty` over one key of a value map, holding a value of `schema`. */
-export class _PropertySlot implements OfProperty {
-  constructor(private readonly values: Map<string, unknown>, private readonly slotName: string,
-    private readonly schema: unknown = null, private readonly store: OfStore | null = null) {}
-
-  name(): string {
-    return this.slotName;
+    return this._parent;
   }
 
-  has(): boolean {
-    return this.values.has(this.slotName);
-  }
-
-  value(callback: Callback<OfAny>): _PropertySlot {
-    callback(new _AnySlot(this.values, this.slotName, this.schema, this.store));
-    return this;
-  }
-
-  clear(): _PropertySlot {
-    this.values.delete(this.slotName);
-    return this;
-  }
-}
-
-/** DSL setter for a property of `schema`: `.name(value)`, or `.name(Spec)` where the Spec receives the value's builder:
- * a `Visitors.OfScalar` (`v.set(...)`), or the builder of a value object, a union value or an intersection value,
- * which starts from the value already set. A value object given as the value replaces the one set. */
-function setter<V extends PropertyHolder>(visitor: V, self: unknown, name: string, schema: unknown = null) {
-  return (spec: unknown): unknown => {
-    if (isRecord(spec)) visitor.property(name, (p) => p.clear().value((a) => apply(a, name, schema, spec)));
-    else visitor.property(name, (p) => p.value((a) => apply(a, name, schema, spec)));
-    return self;
-  };
-}
-
-/** Writes `spec` (a value, or a callable taking the value's builder) as a value of `schema`. */
-function apply(visitor: OfAny, name: string, type: unknown, spec: unknown): void {
-  const schema = Schemas.structure(type);
-  if (schema instanceof Schemas.OfUnion.Data && schema.flat && typeof spec !== "function"
-    && !(isRecord(spec) && (recordTargets.get(spec) as RecordTarget).schema === schema)) {
-    const branch = branchOf(name, schema, spec); // a flat union's value: its branch's, told apart by type
-    writeRecord(visitor, schema, (r) => r.property(branch.name, (p) => p.value((a) => apply(a, branch.name, branch.type, spec))));
-  } else if (schema instanceof Schemas.OfObject.Data || schema instanceof Schemas.OfUnion.Data
-    || schema instanceof Schemas.OfIntersection.Data) {
-    if (typeof spec === "function") writeRecord(visitor, schema, spec as Callback<ObjectVisitor>);
-    else if (isRecord(spec)) writeRecord(visitor, schema, (r) => spec.accept(r));
-    else throw new TypeError(`property ${repr(name)} takes ${withArticle(noun(schema))} or a Spec, got ${typeName(spec)}`);
-  } else {
-    visitor.as_scalar(typeof spec === "function" ? (spec as Callback<OfScalar>) : (n) => n.set(spec as Scalar));
-  }
-}
-
-const RECORD_BUILDER_METHODS = new Set(["properties", "has", "property", "clear", "adjacencies", "adjacency", "identify"]);
-const recordBuilderTargets = new WeakMap<object, RecordBuilderTarget>();
-
-/** `Visitors.OfObject` for building a value object, starting from `source` if given; also `Visitors.OfUnion` and
- * `Visitors.OfIntersection` for a union or intersection value, whose properties are the branches or parts. DSL:
- * `.<property>(value or Spec)` and `.<adjacency>(entry Spec)`. Writing a union's branch clears any other. */
-export class RecordBuilderTarget implements ObjectVisitor {
-  readonly values: Map<string, unknown>;
-  readonly entries = new Map<string, _EntryBuilder[]>();
-  readonly member: string;
-  readonly source: ValueObject | null;
-  copyOf: Visitable | null = null;
-  proxy!: ObjectVisitor;
-
-  constructor(readonly schema: RecordSchema, source?: ValueObject, readonly store: OfStore | null = null) {
-    this.source = source ?? null;
-    this.values = new Map(source === undefined ? [] : stateOf(source).values);
-    if (source !== undefined && schema instanceof Schemas.OfObject.Data) loadEntries(this.entries, schema, source);
-    this.member = schema instanceof Schemas.OfUnion.Data ? "branch of the union"
-      : schema instanceof Schemas.OfIntersection.Data ? "part of the intersection" : "property of the value object";
-  }
-
-  properties(callback: Callback<OfProperty>): ObjectVisitor {
-    for (const [name, prop] of this.schema.properties) {
-      if (this.values.has(name)) callback(new _PropertySlot(this.values, name, prop.type, this.store));
-    }
-    return this.proxy;
-  }
-
-  has(name: string): boolean {
-    return this.values.has(name);
-  }
-
-  property(name: string, callback: Callback<OfProperty>): ObjectVisitor {
-    const schema = this.schema.properties.get(name)?.type;
-    if (schema === undefined) throw new AttributeError(`${repr(name)} is not a ${this.member}`);
-    if (this.schema instanceof Schemas.OfUnion.Data) {
-      for (const other of [...this.values.keys()]) if (other !== name) this.values.delete(other);
-    }
-    callback(new _PropertySlot(this.values, name, schema, this.store));
-    return this.proxy;
-  }
-
-  clear(name: string): ObjectVisitor {
-    this.values.delete(name);
-    return this.proxy;
-  }
-
-  /** The adjacencies of the value object's schema; a union or intersection value has none. */
-  adjacencyNames(): string[] {
-    return this.schema instanceof Schemas.OfObject.Data ? [...this.schema.adjacencies.keys()] : [];
-  }
-
-  adjacencies(callback: Callback<AdjacencyVisitor>): ObjectVisitor {
-    for (const name of this.adjacencyNames()) callback(new _AdjacencySlot(this, name));
-    return this.proxy;
-  }
-
-  adjacency(name: string, callback: Callback<AdjacencyVisitor>): ObjectVisitor {
-    const names = this.adjacencyNames();
-    if (names.length === 0) throw new AttributeError(`${withArticle(noun(this.schema))} has no adjacencies, got ${repr(name)}`);
-    if (!names.includes(name)) throw new AttributeError(`${repr(name)} is not an adjacency of the ${noun(this.schema)}`);
-    callback(new _AdjacencySlot(this, name));
-    return this.proxy;
-  }
-
-  /** A value object replays itself into this builder: the value object built is a copy of it. */
-  identify(value: Visitable): ObjectVisitor {
-    this.copyOf = value;
-    return this.proxy;
+  _repr(): string {
+    return `<builder of a ${noun(this._schema)}>`;
   }
 
   build(): ValueObject {
-    return makeRecord(this.schema, this.values, this.entries, this.source, this.copyOf);
+    return makeRecordData(this._schema, finalized(this._values), this._entries, this._source, this._copyOf);
   }
 }
 
-/** DSL adder for an adjacency: `.<adjacency>((x) => x.<link>(...))`. */
-function adder(builder: { adjacency(name: string, callback: Callback<AdjacencyVisitor>): unknown }, name: string) {
-  return (spec: unknown): unknown => {
-    if (typeof spec !== "function") throw new TypeError(`${repr(name)} takes an entry Spec, e.g. x => x.<link>(...)`);
-    return builder.adjacency(name, (a) => a.add(spec as Callback<EntryVisitor>));
-  };
+function makeRecordBuilder(schema: RecordSchema, source: unknown = null, store: OfStore | null = null,
+  attach: ((builder: unknown) => void) | null = null, parent: unknown = null): any {
+  const state = new _RecordBuilder(schema, source, store, attach, parent);
+  return shell(state, (spec) => state._call(spec));
 }
 
-/** Loads the entries linking `source` into a builder, as entry builders, so that an update rewrites them. */
-function loadEntries(entries: Map<string, _EntryBuilder[]>, schema: ObjectSchema, source: Visitable): void {
+function isRecordBuilder(value: unknown): boolean {
+  return innerOf(value) instanceof _RecordBuilder;
+}
+
+/** A writable `Visitors.OfAdjacency` over one adjacency of an object's or a value object's builder: iterated, its
+ * entries' builders, the pending ones included. */
+class _AdjacencyBuilder extends Shelled {
+  readonly [TYPE_NAME] = "_AdjacencyBuilder";
+  readonly _schema: AdjacencySchema;
+
+  constructor(readonly _builder: unknown, readonly _name: string) {
+    super();
+    this._schema = (innerOf(_builder)._schema as ObjectSchema).adjacencies.get(_name) as AdjacencySchema;
+  }
+
+  _entries(): any[] {
+    return innerOf(this._builder)._entries.get(this._name) ?? [];
+  }
+
+  as_schema(): AdjacencySchema {
+    return this._schema;
+  }
+
+  [Symbol.iterator](): Iterator<unknown> {
+    return [...this._entries()][Symbol.iterator]();
+  }
+
+  select(spec: unknown, cb: unknown): any {
+    for (const entry of [...this._entries()]) {
+      if (agrees(entry, spec, this._schema, innerOf(this._builder)._store)) visit(cb, entry);
+    }
+    return this._proxy;
+  }
+
+  insert(spec: unknown): any {
+    const builder = innerOf(this._builder);
+    const entry = makeEntryBuilder(this._schema.relation as RelationSchema, this._schema.me, builder._store);
+    if (isFunction(spec)) {
+      visit(spec, entry);
+    } else {
+      const [links, values] = entryParts(spec, this._schema.me);
+      innerOf(entry)._links = new Map(links);
+      innerOf(entry)._values = new Map(values);
+    }
+    touch(builder);
+    builder._entries.set(this._name, [...(builder._entries.get(this._name) ?? []), entry]);
+    return this._proxy;
+  }
+
+  remove(spec: unknown): any {
+    const builder = innerOf(this._builder);
+    const kept = this._entries().filter((entry) => !agrees(entry, spec, this._schema, builder._store));
+    touch(builder);
+    builder._entries.set(this._name, kept);
+    return this._proxy;
+  }
+
+  _call(spec: unknown): unknown {
+    if (isFunction(spec)) visit(spec, this._proxy);
+    else for (const entry of spec as Iterable<unknown>) this.insert(entry); // an iterable of entries, each inserted
+    return this._builder;
+  }
+
+  _repr(): string {
+    return `<adjacency builder ${this._name}>`;
+  }
+}
+
+function makeAdjacencyBuilder(builder: unknown, name: string): any {
+  const state = new _AdjacencyBuilder(builder, name);
+  return shell(state, (spec) => state._call(spec));
+}
+
+function touch(builder: unknown): void {
+  if (builder instanceof _RecordBuilder) builder._touch();
+}
+
+/** An entry builder's link: read, the linked object, read-only (an object is edited through its own builder); called
+ * with a Spec, it relinks: to an instance given, or to one created through the builder a function is given. */
+class _LinkMember extends Shelled {
+  readonly [TYPE_NAME] = "_LinkMember";
+
+  constructor(readonly _entry: _EntryBuilder, readonly _name: string) {
+    super();
+  }
+
+  _target(): any {
+    const target = this._entry._links.get(this._name);
+    if (isObjectBuilder(target)) {
+      const state: _ObjectBuilder = innerOf(target);
+      return state._source ?? makeEmpty(state._schema, "not created yet");
+    }
+    return target ?? makeEmpty(null, `link ${repr(this._name)} is not set`);
+  }
+
+  as_schema(): unknown {
+    return this._target().as_schema();
+  }
+
+  as_identity(): string {
+    return this._target().as_identity();
+  }
+
+  get as_properties(): unknown {
+    return this._target().as_properties;
+  }
+
+  as_adjacencies(cb: unknown): any {
+    this._target().as_adjacencies(cb);
+    return this._proxy;
+  }
+
+  override _declares(name: string): boolean {
+    return innerOf(this._target())._declares(name);
+  }
+
+  override _member(name: string): unknown {
+    return this._target()[name];
+  }
+
+  _call(spec: unknown): unknown {
+    const entry = this._entry;
+    const name = this._name;
+    if (isFunction(spec)) {
+      const store = entry._store as OfStore; // a link is a reference object's, built in a store
+      const schemaName = store._filled(entry._relation, name);
+      const builder = makeObjectBuilder(store, store.schema(schemaName), schemaName);
+      visit(spec, builder);
+      entry._links.set(name, builder);
+      return entry._proxy;
+    }
+    if (innerOf(spec) instanceof _LinkMember) spec = innerOf(spec)._target();
+    if (isRecordData(spec)) throw new ReadOnlyError("a link targets a reference object, never a value object");
+    if (!isObjectData(spec)) throw new TypeError("proxies can only link proxy instances");
+    sameStore(entry._store, spec);
+    entry._links.set(name, spec);
+    return entry._proxy;
+  }
+
+  _repr(): string {
+    return `<link ${repr(this._name)}>`;
+  }
+}
+
+function makeLinkMember(entry: _EntryBuilder, name: string): any {
+  const state = new _LinkMember(entry, name);
+  return shell(state, (spec) => state._call(spec));
+}
+
+/** A writable `Visitors.OfEntry` for one entry added through an adjacency: its links are members (`env.phone`,
+ * read-only, relinked when called) and so are its properties. The object's own link (`me`) is filled when the
+ * object's builder is finalized. */
+class _EntryBuilder extends Shelled {
+  readonly [TYPE_NAME] = "_EntryBuilder";
+  _links = new Map<string, unknown>();
+  _values: Values = new Map();
+  /** The entry this one rewrites, when copied or loaded from one. */
+  _source: unknown = null;
+
+  constructor(readonly _relation: RelationSchema, readonly _me: string, readonly _store: OfStore | null = null) {
+    super();
+  }
+
+  as_schema(): Schemas.OfEntry.Data {
+    return this._relation.entry;
+  }
+
+  override _declares(name: string): boolean {
+    return (this._relation.entry.links.has(name) && name !== this._me) || this._relation.entry.properties.has(name);
+  }
+
+  override _member(name: string): unknown {
+    if (this._relation.entry.links.has(name) && name !== this._me) return makeLinkMember(this, name);
+    const prop = this._relation.entry.properties.get(name);
+    if (prop !== undefined) return makeProperty(this._values, name, prop, this._store, this._proxy, true);
+    return makeEmpty(null, `${repr(name)} is not a link this entry can set, nor a property of the relation`);
+  }
+
+  _repr(): string {
+    return `<entry builder of ${this._relation.name || "a relation"}>`;
+  }
+
+  /** The values of the entry this one rewrites, where it links the same `target`: an update keeps them. */
+  _kept(target: unknown): Values {
+    const source = this._source;
+    return source !== null && innerOf(source)._links.get(this._me) === target ? innerOf(source)._properties : new Map();
+  }
+
+  /** Stages the value objects the entry holds for `target`, before any is placed (see `stage`). */
+  _stage(target: unknown, mapping: Mapping): void {
+    const kept = this._kept(target);
+    this._values = new Map([...finalized(this._values)].map(([name, value]) => [name, stage(kept.get(name), value, mapping)]));
+  }
+
+  /** Places the staged value objects the entry holds as `target`'s. */
+  _place(target: unknown, mapping: Mapping): void {
+    const kept = this._kept(target);
+    this._values = new Map([...this._values].map(([name, value]) => [name, finish(target, kept.get(name), value, mapping)]));
+  }
+
+  /** The entry, linking `target`, holding its values as placed. */
+  build(target: unknown): any {
+    const links = new Map<string, unknown>([[this._me, target]]);
+    for (const name of this._relation.entry.links.keys()) {
+      if (name === this._me) continue;
+      if (!this._links.has(name)) throw new ValueError(`link ${repr(name)} is not set`);
+      const value = this._links.get(name);
+      links.set(name, isObjectBuilder(value) ? innerOf(value).create() : value);
+    }
+    return makeEntry(this._relation, links, finalized(this._values));
+  }
+}
+
+function makeEntryBuilder(relation: RelationSchema, me: string, store: OfStore | null = null): any {
+  return shell(new _EntryBuilder(relation, me, store));
+}
+
+/** Loads the entries linking `source` into a builder, as entry builders, so that an update rewrites them; a union or
+ * intersection value has none. */
+function loadEntries(entries: Map<string, any[]>, schema: RecordSchema, source: unknown): void {
   const store = storeOf(source);
-  for (const [name, adjacency] of schema.adjacencies) {
+  for (const [name, adjacency] of schema instanceof Schemas.OfObject.Data ? schema.adjacencies : []) {
     for (const entry of linking(adjacency.relation as RelationSchema, adjacency.me, source)) {
+      const held: _Entry = innerOf(entry);
       const builder = makeEntryBuilder(adjacency.relation as RelationSchema, adjacency.me, store);
-      const state = entryOf(builder);
-      for (const [link, target] of entry.links) if (link !== adjacency.me) state.linkValues.set(link, target as LinkValue);
-      for (const [key, value] of entry.properties) state.values.set(key, value);
-      state.source = entry;
+      const state: _EntryBuilder = innerOf(builder);
+      state._links = new Map([...held._links].filter(([link]) => link !== adjacency.me));
+      state._values = new Map(held._properties);
+      state._source = entry;
       entries.set(name, [...(entries.get(name) ?? []), builder]);
     }
   }
-  for (const [name, pending] of isRecord(source) ? stateOf(source).pending : []) {
+  for (const [name, pending] of isRecordData(source) ? innerOf(source)._pending as Map<string, any[]> : []) {
     entries.set(name, [...(entries.get(name) ?? []), ...pending]);
   }
 }
 
-function makeRecordBuilder(schema: RecordSchema, source?: ValueObject, store: OfStore | null = null): ObjectVisitor {
-  const target = new RecordBuilderTarget(schema, source, store);
-  const proxy = new Proxy(target, {
-    get(t, prop, receiver) {
-      if (typeof prop === "symbol") return Reflect.get(t, prop, receiver);
-      if (RECORD_BUILDER_METHODS.has(prop)) return (t[prop as "has"] as (...a: unknown[]) => unknown).bind(t);
-      const schema = t.schema.properties.get(prop)?.type;
-      if (schema !== undefined) return setter(t, t.proxy, prop, schema);
-      if (t.adjacencyNames().includes(prop)) return adder(t, prop);
-      const part = owningPart(t.schema, prop);
-      if (part !== null) { // a flat intersection's part's property: set in that part, from the value already set
-        const set = setter(t, t.proxy, part, (t.schema.properties.get(part) as Schemas.OfProperty.Data).type);
-        return (spec: unknown) => set((b: Record<string, (v: unknown) => unknown>) => (b[prop] as (v: unknown) => unknown)(spec));
-      }
-      if (_probes.has(prop)) return Reflect.get(t, prop, receiver);
-      throw new AttributeError(`${repr(prop)} is not a ${t.member}`);
-    },
-  }) as unknown as ObjectVisitor;
-  target.proxy = proxy;
-  recordBuilderTargets.set(proxy, target);
-  return proxy;
-}
+/** A writable `Visitors.OfObject` building a proxy instance: its properties and adjacencies are members, reading back
+ * what has been written. Finalized by `create()`, `clone()` or `update()`; none validate. */
+class _ObjectBuilder extends Shelled {
+  readonly [TYPE_NAME] = "_ObjectBuilder";
+  readonly _values: Values = new Map();
+  readonly _entries = new Map<string, any[]>();
 
-type LinkValue = Visitable | ObjectBuilderTarget;
-
-/** `Visitors.OfLink` over one link of an entry builder. */
-export class _LinkSlot implements OfLink {
-  constructor(private readonly links: Map<string, LinkValue>, private readonly linkName: string,
-    private readonly store: OfStore | null = null) {}
-
-  name(): string {
-    return this.linkName;
+  constructor(readonly _store: OfStore, readonly _schema: ObjectSchema, readonly _schemaName: string,
+    readonly _source: Instance | null = null) {
+    super();
   }
 
-  target(callback: Callback<Visitable>): _LinkSlot {
-    callback(this.links.get(this.linkName) as Visitable);
-    return this;
+  as_schema(): ObjectSchema {
+    return this._schema;
   }
 
-  set(target: Visitable): _LinkSlot {
-    if (isRecord(target)) throw new TypeError("a link targets a reference object, never a value object");
-    if (!isInstance(target)) throw new TypeError("proxies can only link proxy instances");
-    sameStore(this.store, target);
-    this.links.set(this.linkName, target);
-    return this;
-  }
-}
-
-const ENTRY_METHODS = new Set(["links", "link", "properties", "has", "property", "clear", "build"]);
-
-/** `Visitors.OfEntry` for one entry being added through an adjacency. The object's own link (`me`) is filled when
- * the object builder is finalized. DSL: `.<link>(object or Spec)` and `.<property>(value or Spec)`. */
-export class _EntryBuilder implements EntryVisitor {
-  readonly linkValues = new Map<string, LinkValue>();
-  readonly values = new Map<string, Scalar>();
-  /** The entry this one rewrites, when copied or loaded from one. */
-  source: Entry | null = null;
-  proxy!: _EntryBuilder;
-
-  constructor(private readonly relation: RelationSchema, readonly me: string, readonly store: OfStore | null = null) {}
-
-  private checkLink(name: string): void {
-    if (name === this.me || !this.relation.entry.links.has(name)) {
-      throw new AttributeError(`${repr(name)} is not a link this entry can set`);
-    }
+  as_identity(): string {
+    return this._source === null ? "" : this._source.as_identity();
   }
 
-  links(callback: Callback<OfLink>): _EntryBuilder {
-    for (const name of this.relation.entry.links.keys()) if (name !== this.me) callback(new _LinkSlot(this.linkValues, name, this.store));
-    return this.proxy;
+  get as_properties(): any {
+    return propertiesOf(this._proxy, this._values, this._schema, this._store, true);
   }
 
-  link(name: string, callback: Callback<OfLink>): _EntryBuilder {
-    this.checkLink(name);
-    callback(new _LinkSlot(this.linkValues, name, this.store));
-    return this.proxy;
+  as_adjacencies(cb: unknown): any {
+    for (const name of this._schema.adjacencies.keys()) visit(cb, makeAdjacencyBuilder(this._proxy, name));
+    return this._proxy;
   }
 
-  properties(callback: Callback<OfProperty>): _EntryBuilder {
-    for (const name of [...this.values.keys()]) callback(new _PropertySlot(this.values, name, this.relation.entry.properties.get(name)?.type, this.store));
-    return this.proxy;
+  override _declares(name: string): boolean {
+    return this._schema.properties.has(name) || this._schema.adjacencies.has(name);
   }
 
-  has(name: string): boolean {
-    return this.values.has(name);
+  override _member(name: string): unknown {
+    const prop = this._schema.properties.get(name);
+    if (prop !== undefined) return makeProperty(this._values, name, prop, this._store, this._proxy, true);
+    if (this._schema.adjacencies.has(name)) return makeAdjacencyBuilder(this._proxy, name);
+    return makeEmpty(null, `${repr(name)} is not a property or adjacency of ${repr(this._schemaName)}`);
   }
 
-  property(name: string, callback: Callback<OfProperty>): _EntryBuilder {
-    if (!this.relation.entry.properties.has(name)) throw new AttributeError(`${repr(name)} is not a property of this relation`);
-    callback(new _PropertySlot(this.values, name, this.relation.entry.properties.get(name)?.type, this.store));
-    return this.proxy;
-  }
-
-  clear(name: string): _EntryBuilder {
-    this.values.delete(name);
-    return this.proxy;
-  }
-
-  dsl(name: string): ((spec: unknown) => unknown) | undefined {
-    if (name.startsWith("_")) throw new AttributeError(name);
-    if (this.relation.entry.links.has(name)) {
-      this.checkLink(name);
-      return (spec: unknown) => {
-        if (typeof spec === "function") {
-          if (this.store === null) throw new TypeError("an object is created through a link only by a store's builder");
-          const schemaName = this.store._filled(this.relation, name);
-          const builder = makeObjectBuilder(this.store, this.store.schema(schemaName), schemaName);
-          spec(builder);
-          this.linkValues.set(name, builderTargets.get(builder) as ObjectBuilderTarget);
-        } else {
-          this.link(name, (k) => k.set(spec as Visitable));
-        }
-        return this.proxy;
-      };
-    }
-    if (this.relation.entry.properties.has(name)) return setter(this, this.proxy, name, (this.relation.entry.properties.get(name) as Schemas.OfProperty.Data).type);
-    return undefined;
-  }
-
-  /** The values of the entry this one rewrites, where it links the same `target`: an update keeps them. */
-  private kept(target: Visitable): Map<string, unknown> {
-    const source = this.source;
-    return source !== null && source.links.get(this.me) === target ? source.properties : new Map();
-  }
-
-  /** Stages the value objects the entry holds for `target`, before any is placed (see `stage`). */
-  stage(target: Visitable, mapping: Mapping): void {
-    const kept = this.kept(target);
-    for (const [name, value] of [...this.values]) this.values.set(name, stage(kept.get(name), value, mapping) as Scalar);
-  }
-
-  /** Places the staged value objects the entry holds as `target`'s. */
-  place(target: Visitable, mapping: Mapping): void {
-    const kept = this.kept(target);
-    for (const [name, value] of [...this.values]) this.values.set(name, finish(target, kept.get(name), value, mapping) as Scalar);
-  }
-
-  /** The entry, linking `target`, holding its values as placed. */
-  build(target: Visitable): Entry {
-    const links = new Map<string, Visitable>([[this.me, target]]);
-    for (const name of this.relation.entry.links.keys()) {
-      if (name === this.me) continue;
-      const value = this.linkValues.get(name);
-      if (value === undefined) throw new ValueError(`link ${repr(name)} is not set`);
-      links.set(name, value instanceof ObjectBuilderTarget ? value.create() : value);
-    }
-    return new Entry(this.relation, links, new Map(this.values));
-  }
-}
-
-/** The entry builder behind each entry builder's proxy, for the state that its DSL would read as names. */
-const entryTargets = new WeakMap<object, _EntryBuilder>();
-
-function entryOf(builder: _EntryBuilder): _EntryBuilder {
-  return entryTargets.get(builder) as _EntryBuilder;
-}
-
-function makeEntryBuilder(relation: RelationSchema, me: string, store: OfStore | null = null): _EntryBuilder {
-  const target = new _EntryBuilder(relation, me, store);
-  const proxy = new Proxy(target, {
-    get(t, prop, receiver) {
-      if (typeof prop === "symbol") return Reflect.get(t, prop, receiver);
-      if (ENTRY_METHODS.has(prop)) return (t[prop as "links"] as (...a: unknown[]) => unknown).bind(t);
-      const dsl = t.dsl(prop);
-      if (dsl !== undefined) return dsl;
-      if (_probes.has(prop)) return Reflect.get(t, prop, receiver);
-      throw new AttributeError(prop);
-    },
-  });
-  target.proxy = proxy;
-  entryTargets.set(proxy, target);
-  return proxy;
-}
-
-/** `Visitors.OfAdjacency` over one adjacency of an object builder. */
-export class _AdjacencySlot implements AdjacencyVisitor {
-  private readonly schema: AdjacencySchema;
-
-  constructor(private readonly builder: ObjectBuilderTarget | RecordBuilderTarget, private readonly adjacencyName: string) {
-    this.schema = (builder.schema as ObjectSchema).adjacencies.get(adjacencyName) as AdjacencySchema;
-  }
-
-  name(): string {
-    return this.adjacencyName;
-  }
-
-  me(): string {
-    return this.schema.me;
-  }
-
-  entries(callback: Callback<EntryVisitor>): _AdjacencySlot {
-    for (const entry of [...(this.builder.entries.get(this.adjacencyName) ?? [])]) callback(entry);
-    return this;
-  }
-
-  add(callback: Callback<EntryVisitor>): _AdjacencySlot {
-    const entry = makeEntryBuilder(this.schema.relation as RelationSchema, this.schema.me, this.builder.store);
-    callback(entry);
-    const list = this.builder.entries.get(this.adjacencyName) ?? [];
-    list.push(entry);
-    this.builder.entries.set(this.adjacencyName, list);
-    return this;
-  }
-
-  remove(entry: EntryVisitor): _AdjacencySlot {
-    const list = this.builder.entries.get(this.adjacencyName) ?? [];
-    this.builder.entries.set(this.adjacencyName, list.filter((e) => e !== entry));
-    return this;
-  }
-}
-
-const BUILDER_METHODS = new Set(["properties", "has", "property", "clear", "adjacencies", "adjacency", "identify", "create",
-  "clone", "update"]);
-const builderTargets = new WeakMap<object, ObjectBuilderTarget>();
-
-/** `Visitors.OfObject` for building a proxy instance. DSL: `.<property>(value or Spec)` and `.<adjacency>(entry
- * Spec)`. Finalized by `create()`, `clone()` or `update()`; none validate. */
-export class ObjectBuilderTarget implements ObjectVisitor {
-  readonly values = new Map<string, unknown>();
-  readonly entries = new Map<string, _EntryBuilder[]>();
-  proxy!: DynamicBuilder;
-
-  constructor(readonly store: OfStore, readonly schema: ObjectSchema, readonly schemaName: string,
-    private readonly source?: Instance) {}
-
-  properties(callback: Callback<OfProperty>): DynamicBuilder {
-    for (const name of [...this.values.keys()]) callback(new _PropertySlot(this.values, name, this.schema.properties.get(name)?.type, this.store));
-    return this.proxy;
-  }
-
-  has(name: string): boolean {
-    return this.values.has(name);
-  }
-
-  property(name: string, callback: Callback<OfProperty>): DynamicBuilder {
-    if (!this.schema.properties.has(name)) throw new AttributeError(`${repr(name)} is not a property of ${repr(this.schemaName)}`);
-    callback(new _PropertySlot(this.values, name, this.schema.properties.get(name)?.type, this.store));
-    return this.proxy;
-  }
-
-  clear(name: string): DynamicBuilder {
-    this.values.delete(name);
-    return this.proxy;
-  }
-
-  adjacencies(callback: Callback<AdjacencyVisitor>): DynamicBuilder {
-    for (const name of this.schema.adjacencies.keys()) callback(new _AdjacencySlot(this, name));
-    return this.proxy;
-  }
-
-  adjacency(name: string, callback: Callback<AdjacencyVisitor>): DynamicBuilder {
-    if (!this.schema.adjacencies.has(name)) throw new AttributeError(`${repr(name)} is not an adjacency of ${repr(this.schemaName)}`);
-    callback(new _AdjacencySlot(this, name));
-    return this.proxy;
-  }
-
-  identify(_value: Visitable): DynamicBuilder {
-    return this.proxy;
-  }
-
-  dsl(name: string): ((spec: unknown) => unknown) | undefined {
-    if (name.startsWith("_")) throw new AttributeError(name);
-    if (this.schema.properties.has(name)) return setter(this, this.proxy, name, (this.schema.properties.get(name) as Schemas.OfProperty.Data).type);
-    if (this.schema.adjacencies.has(name)) return adder(this, name);
-    return undefined;
+  _repr(): string {
+    return `<builder of ${this._schemaName}>`;
   }
 
   create(...args: unknown[]): Instance {
     noArguments("create", args);
-    if (this.source !== undefined) {
-      throw new ValueError("create() is only valid without a source instance; use clone() or update()");
-    }
-    this.notSingleton("create");
-    return this.write(makeInstance(this.store, this.schema, this.schemaName));
+    if (this._source !== null) throw new ValueError("create() is only valid without a source instance; use clone() or update()");
+    this._notSingleton("create");
+    return this._write(makeObjectData(this._store, this._schema, this._schemaName));
   }
 
   clone(...args: unknown[]): Instance {
     noArguments("clone", args);
-    if (this.source === undefined) throw new ValueError("clone() is only valid with a source instance");
-    this.notSingleton("clone");
-    return this.write(makeInstance(this.store, this.schema, this.schemaName));
+    if (this._source === null) throw new ValueError("clone() is only valid with a source instance");
+    this._notSingleton("clone");
+    return this._write(makeObjectData(this._store, this._schema, this._schemaName));
   }
 
   update(...args: unknown[]): Instance {
     noArguments("update", args);
-    if (this.source === undefined) throw new ValueError("update() is only valid with a source instance");
-    const before = heldBy(this.source);
-    for (const adjacency of this.schema.adjacencies.values()) {
-      discardLinking(adjacency.relation as RelationSchema, adjacency.me, this.source);
+    if (this._source === null) throw new ValueError("update() is only valid with a source instance");
+    const before = heldBy(this._source);
+    for (const adjacency of this._schema.adjacencies.values()) {
+      discardLinking(adjacency.relation as RelationSchema, adjacency.me, this._source);
     }
-    return this.write(this.source, before);
+    return this._write(this._source, before);
   }
 
-  private notSingleton(method: string): void {
-    if (this.schema.singleton !== null) {
-      throw new ValueError(`${method}() would make a second ${repr(this.schemaName)}; its one instance is `
-        + `store.singleton(${repr(this.schema.singleton)})`);
+  _notSingleton(method: string): void {
+    if (this._schema.singleton !== null) {
+      throw new ValueError(`${method}() would make a second ${repr(this._schemaName)}; its one instance is `
+        + `store.singleton(${repr(this._schema.singleton)})`);
     }
   }
 
   /** Writes the builder into `target`. Every value object it holds, its entries' too, is staged before any is placed,
    * so that the entries among them link the right ones; those held `before` and no longer are removed. */
-  private write(target: Instance, before: unknown[] = []): Instance {
-    const state = instanceTargets.get(target) as ObjectTarget;
+  _write(target: Instance, before: unknown[] = []): Instance {
+    const state: _ObjectData = innerOf(target);
     const mapping: Mapping = new Map();
-    if (this.source !== undefined && target !== this.source) mapping.set(this.source, target); // a clone: its value objects link it
-    const old = new Map(state.values);
-    const staged = new Map([...this.values].map(([name, value]) => [name, stage(old.get(name), value, mapping)] as const));
-    for (const entries of this.entries.values()) for (const entry of entries) entryOf(entry).stage(target, mapping);
+    if (this._source !== null && target !== this._source) mapping.set(this._source, target); // a clone: its value objects link it, not the source
+    const old = new Map(state._values);
+    const staged = new Map([...finalized(this._values)].map(([name, value]) => [name, stage(old.get(name), value, mapping)] as const));
+    for (const entries of this._entries.values()) for (const entry of entries) innerOf(entry)._stage(target, mapping);
     const values = new Map([...staged].map(([name, value]) => [name, finish(target, old.get(name), value, mapping)] as const));
-    for (const entries of this.entries.values()) for (const entry of entries) entryOf(entry).place(target, mapping);
-    mapping.delete(this.source); // its own entries keep their links (a self-loop links the source)
-    state.values.clear();
-    for (const [name, value] of values) state.values.set(name, value);
-    for (const [name, entries] of this.entries) {
-      const relation = (this.schema.adjacencies.get(name) as AdjacencySchema).relation as RelationSchema;
+    for (const entries of this._entries.values()) for (const entry of entries) innerOf(entry)._place(target, mapping);
+    mapping.delete(this._source); // its own entries keep their links (a self-loop links the source)
+    state._values.clear();
+    for (const [name, value] of values) state._values.set(name, value);
+    for (const [name, entries] of this._entries) {
+      const relation = (this._schema.adjacencies.get(name) as AdjacencySchema).relation as RelationSchema;
       for (const entry of entries) {
-        if (firstCopy(relation, entryOf(entry), target, mapping)) addEntry(relation, entry.build(target));
+        if (firstCopy(relation, innerOf(entry), target, mapping)) addEntry(relation, innerOf(entry).build(target));
       }
     }
     drop(before, heldBy(target));
@@ -1265,42 +1815,37 @@ function noArguments(method: string, args: unknown[]): void {
   if (args.length > 0) throw new TypeError(`${method}() takes no arguments (${args.length} given)`);
 }
 
-function makeObjectBuilder(store: OfStore, schema: ObjectSchema, schemaName: string, instance?: Instance): DynamicBuilder {
+function isObjectBuilder(value: unknown): boolean {
+  return innerOf(value) instanceof _ObjectBuilder;
+}
+
+function makeObjectBuilder(store: OfStore, schema: ObjectSchema, schemaName: string, instance?: unknown): DynamicBuilder {
   if (!schema.ref) {
     throw new TypeError(`${repr(schemaName)} is a value object schema; a value object is built through its owner`);
   }
-  if (instance !== undefined && !isInstance(instance)) throw new TypeError("a builder's source must be a proxy instance");
-  const target = new ObjectBuilderTarget(store, schema, schemaName, instance);
-  const proxy = new Proxy(target, {
-    get(t, prop, receiver) {
-      if (typeof prop === "symbol") return Reflect.get(t, prop, receiver);
-      if (BUILDER_METHODS.has(prop)) return (t[prop as "has"] as (...a: unknown[]) => unknown).bind(t);
-      const dsl = t.dsl(prop);
-      if (dsl !== undefined) return dsl;
-      if (_probes.has(prop)) return Reflect.get(t, prop, receiver);
-      throw new AttributeError(`${repr(prop)} is not a property or adjacency of ${repr(schemaName)}`);
-    },
-  }) as unknown as DynamicBuilder;
-  target.proxy = proxy;
-  builderTargets.set(proxy, target);
-  if (instance !== undefined) {
-    if (instance.schema_name() !== schemaName) {
-      throw new TypeError(`instance is a ${repr(instance.schema_name())}, not a ${repr(schemaName)}`);
+  if (instance !== undefined && instance !== null) {
+    if (!isObjectData(instance)) throw new TypeError("a builder's source must be a proxy instance");
+    const held: _ObjectData = innerOf(instance);
+    if (held._schemaName !== schemaName) {
+      throw new TypeError(`instance is a ${repr(held._schemaName)}, not a ${repr(schemaName)}`);
     }
     sameStore(store, instance);
-    // the value objects themselves, so that an update keeps them
-    for (const [name, value] of (instanceTargets.get(instance) as ObjectTarget).values) target.values.set(name, value);
-    loadEntries(target.entries, schema, instance);
   }
-  return proxy;
+  const state = new _ObjectBuilder(store, schema, schemaName, (instance ?? null) as Instance | null);
+  if (instance !== undefined && instance !== null) {
+    // the value objects themselves, so that an update keeps them
+    for (const [name, value] of innerOf(instance)._values as Values) state._values.set(name, value);
+    loadEntries(state._entries, schema, instance);
+  }
+  return shell(state);
 }
 
 export namespace OfObject {
   /** The class of proxy instances: `value instanceof Proxies.OfObject.Data`, as Python's `isinstance`. */
-  export const Data = ObjectTarget;
+  export const Data = _ObjectData;
   export type Data = Instance;
   /** The class of value objects: `value instanceof Proxies.OfObject.Record`. */
-  export const Record = RecordTarget;
+  export const Record = _RecordData;
   export type Record = ValueObject;
   export type Builder = DynamicBuilder;
   /** A builder in `store` for `schema` registered as `schemaName`, as `store[schemaName](instance)` returns. */
@@ -1309,19 +1854,19 @@ export namespace OfObject {
   }
 }
 
-/** An adjacency as proxies read it: `Data`, the frozen array of its entries, with `project(name)` and `at(key)`. */
+/** An adjacency of a data instance, `Data`: the frozen array of its entries, with `project(name)` and `at(key)`. */
 export namespace OfAdjacency {
-  export const Data = Adjacency;
-  export type Data = Adjacency;
+  export const Data = _Adjacency;
+  export type Data = _Adjacency;
 }
 
 /** A relation's entries as proxies hold them: `Data`, an entry with every link, the owner's own included, and its
  * properties, as an adjacency's iterable yields it (`entry instanceof Proxies.OfEntry.Data`). */
 export namespace OfEntry {
-  export const Data = Entry;
-  export type Data = Entry;
+  export const Data = _Entry;
+  export type Data = _Entry;
 }
 
 /** Internal classes, exposed for protocol conformance tests. */
-export const _internals = { ObjectTarget, ObjectBuilderTarget, RecordBuilderTarget, _EntryBuilder, _AdjacencySlot, _LinkSlot,
-  _PropertySlot, _AnySlot, _ScalarSlot };
+export const _internals = { makeRecordBuilder, _ObjectData, _RecordData, _Entry, _Empty, _Scalar, _Any, _Property, _Properties, _Adjacency,
+  _RecordBuilder, _AdjacencyBuilder, _LinkMember, _EntryBuilder, _ObjectBuilder };

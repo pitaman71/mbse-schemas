@@ -4,9 +4,11 @@
 # Visitor pattern
 
 The protocol through which code reads and writes data of any schema, as the user designed it; the decisions it
-records are in the [framework design](FRAMEWORK.md), Resolved, "The visitor pattern". Of it, the schema-level
-changes are built ([Meta-schemas overhaul](META_SCHEMAS.md), V1): `as_*` names refused, `Schemas.OfScalar`, value objects
-never linked, and `Schemas.OfEntry`, `Schemas.OfSymbol` and `Schemas.OfPredicate`.
+records are in the [framework design](FRAMEWORK.md), Resolved, "The visitor pattern". It is built ([Meta-schemas
+overhaul](META_SCHEMAS.md)): the schema-level changes in V1 (`as_*` names refused, `Schemas.OfScalar`, value objects
+never linked, and `Schemas.OfEntry`, `Schemas.OfSymbol` and `Schemas.OfPredicate`), and the protocol, implemented by
+proxies and read and written through by every consumer, in V2 and V3. Identity (V4), meta-schemas as linked objects
+and `root_module()` (phase 5) and generated code (phase 6) are not built yet.
 
 ## Purpose
 

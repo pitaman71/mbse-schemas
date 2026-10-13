@@ -10,18 +10,17 @@
  * https://github.com/pitaman71/mbse-schemas.
  */
 
-export * as Bindings from "./Bindings.js";
 export * as Comparison from "./Comparison.js";
 export * as Errors from "./Errors.js";
 export * as JSON from "./JSON.js";
 export * as Modules from "./Modules.js";
-export * as Paths from "./Paths.js";
-export * as Reflection from "./Reflection.js";
 export * as Plain from "./Plain.js";
 export * as Proxies from "./Proxies.js";
+export * as Readers from "./Readers.js";
 export * as Reachable from "./Reachable.js";
 export * as Repr from "./Repr.js";
 export * as Schemas from "./Schemas.js";
+export * as Specs from "./Specs.js";
 export * as Stores from "./Stores.js";
 export * as Validators from "./Validators.js";
 export * as Visitors from "./Visitors.js";

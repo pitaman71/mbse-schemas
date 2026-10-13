@@ -6,7 +6,7 @@
 How mbse-schemas' lists become relations and its meta-schemas become linked objects, so that the schema model is
 built from the same constructs it offers: objects, relations and their entries. This is the plan of the work. What is
 decided is in the [framework design](FRAMEWORK.md), Resolved, "The meta-schemas overhaul", which this does not restate.
-Nothing in it is built, and it changes the module format, so every repository that reads schemas adapts.
+V1 to V3 are built; the rest is not. It changes the module format, so every repository that reads schemas adapts.
 
 ## Why
 
@@ -60,10 +60,10 @@ skill regenerated. No release comes between phases.
   `Schemas.OfEntry.Builder` building the `Schemas.OfEntry.Data` that `Schemas.OfRelation.Data.entry` holds; `OfNative` renamed `OfScalar`, written `{"scalar": {"format": ...,
   "token": ...}}`; a link targets only reference objects, and a value object has adjacencies only to one-link
   relations; `Schemas.OfSymbol`, a predicate's symbol and an entry's link; `Schemas.OfPredicate`, a module definition
-  of its own (`predicate`), registered by name, and an object of `Schemas.Predicate` in `Reflection`. A link may
+  of its own (`predicate`), registered by name. A link may
   have a schema, which `validate()` checks and modules write; `Validators` does not yet check a link's target against
   it.
-- V2 and V3, one phase, with no side-by-side period ("G1 (a) no side by side period"): the old protocol and `accept`
+- V2 and V3 (built), one phase, with no side-by-side period ("G1 (a) no side by side period"): the old protocol and `accept`
   are deleted first, so that nothing of them shapes the new one, and the commits in between do not pass.
   - V2. **The visitor protocol**: `Visitors.OfX` as [Visitor pattern](VISITOR_PATTERN.md) declares it, and
     `Specs`, and the read-only views `Readers.OfX`; `Proxies.OfX.Data` (read-only) and `Proxies.OfX.Builder`

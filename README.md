@@ -99,8 +99,8 @@ tools.
 - **Strict, portable text.** JSON is strict. YAML is read with the 1.2 core schema, so there's no Norway problem.
   Types are never coerced (`1`, `1.0` and `true` are different values). Every input problem is a `DecodeError`
   with a line and column, or a path.
-- **One protocol for tools.** Objects write themselves into *visitors*. Serializers, the validator and your own
-  tools all work on any schema.
+- **One protocol for tools.** Every object is read and written through one *visitor protocol*, whatever its schema.
+  Serializers, the validator and your own tools all work on any schema.
 
 The tutorial explains the reasoning behind each of these.
 
@@ -164,8 +164,8 @@ The core is implemented in both languages:
 - schemas: objects, relations, unions, intersections and lists;
 - schemas as data: meta-schemas, and modules of schemas written, read, validated and compared as objects;
 - value objects, union values and intersection values, keyed by branch and part names;
-- stores: schemas and objects by name, isolated from one another (`Proxies.OfStore`, `Bindings.OfStore`);
-- dynamic proxies;
+- stores: schemas and objects by name, isolated from one another (`Proxies.OfStore`);
+- the visitor protocol, through which code reads and writes data of any schema, and dynamic proxies implementing it;
 - reachability;
 - plain snapshots, JSON and YAML;
 - validation;

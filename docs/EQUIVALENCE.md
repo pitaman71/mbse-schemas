@@ -31,7 +31,7 @@
 | Decoding errors: same class, reason and location | shared tables embedded verbatim in both suites: JSN-09 (62 JSON inputs), YML-06 (48 YAML inputs); PLN-11, PLN-12 (paths) |
 | JSON is byte-identical; YAML and JSON are interchangeable | the CONF suite over the shared corpus in `conformance/` |
 | Each corpus is current | CONF-01 |
-| API conformance to the visitor protocols, on classes and on live instances | VIS-02, VIS-06, VIS-07 |
+| API conformance to the visitor protocols, on classes and on live instances | VIS-01, VIS-02 |
 | The text inside messages (`repr`, float `repr`, type names, sort order) is Python's | TXT-01..04 |
 | Full code coverage in both | the coverage gates below |
 | The TypeScript core runs without Node (browsers, Deno) and still produces the identical corpus | `tsconfig.core.json`, `npm run portability` (see the TypeScript test plan) |
@@ -62,8 +62,9 @@ The commands print the counts. They differ between the languages because the too
 both:
 
 - A gap in one implementation was closed by an assertion in the shared case, added to both suites (VIS-07, SCH-17,
-  PRX-16, PRX-17, PLN-14, PLN-15, VAL-13, JSN-09..11, YML-13, TXT-01..04). A gap never became a one-language test,
-  except for rows about JavaScript-only mechanics (probes, a prototype-less object), which are listed below.
+  PRX-16, PRX-17, PRX-21, PLN-14, PLN-15, VAL-13, EMB-02, EMB-03, EMB-09, LST-04, JSN-09..11, YML-13, TXT-01..04). A
+  gap never became a one-language test, except for rows about JavaScript-only mechanics (probes, `in`, `inspect`,
+  assigning to a visitor, a prototype-less object), which are listed below.
 - Code that no input could reach was removed from both implementations: branches in `Plain` that `_check` already
   excludes, a YAML key check the loader already makes, and in TypeScript helper methods, exports and emitter paths
   nothing used.
@@ -85,24 +86,27 @@ noticed.
 | Integers | `int` | `bigint` | `number` cannot tell `1` from `1.0` and rounds above 2^53 | SCH-03, JSN-05, JSN-07 |
 | Plain mappings | `dict` | `Map<string, PlainData>` | object literals reorder integer-like keys and mishandle `__proto__` | SCH-11, PLN-02 |
 | Schema data equality | `==` | `.equals()` | no operator overloading | SCH-01, SCH-15 |
-| Adjacencies in proxies (`Proxies.OfAdjacency.Data`) | a `tuple` subclass; `at(key)` takes a tuple for a key of several values | a frozen `Array` subclass whose `at(key)` replaces the array's `at(index)`, and whose `map` and `filter` make plain arrays; `at(key)` takes an array for a key of several values | each language's read-only sequence | PRX-19 |
+| Adjacencies in proxies (`Proxies.OfAdjacency.Data`) | a `tuple` subclass; `at(key)` takes a tuple for a key of several values | a callable `Proxy` over a frozen `Array` subclass, so `instanceof Array` but not `Array.isArray`; its `at(key)` replaces the array's `at(index)`, and its `map` and `filter` make plain arrays; `at(key)` takes an array for a key of several values | each language's read-only sequence, and a member is callable | PRX-18, PRX-19 |
 | Schemas by name (`Modules`) | a `dict` | a `Map`, or a record, and `schemas()` returns a `Map` | object literals are records by name, but only a `Map` keeps every key's order | MOD-02, MOD-03 |
 | Neutral forms of terms (`Schemas.Form.Data`) | `Form.Data(kind, attributes, arguments, dialect)`: a `dict` and a `tuple` | `new Form.Data(kind, attributes, arguments, dialect)`: a `Map` or a record, and an array | as for `Modules`, a record is the literal by name | PAR-02 |
 | Evaluators and outcomes (`Schemas.Evaluate`, `Validators.Check`) | `evaluate(term, scope)` with a `dict`, None for unknown; an `Outcome` is a dataclass, compared with `==` | the scope a `ReadonlyMap`, null or undefined for unknown; an `Outcome` is a class, compared by its fields | the language's own mapping and absent value; no operator overloading | PAR-06 |
-| Typed bindings (`Bindings`) | a `Binding`'s `fixed`, `exclusive` and `implied` are keyword arguments; a `State`'s and an `Entry`'s fields are `dict`s; `Bindings.OfStore` takes `dict`s | an options object `{ fixed, exclusive, implied }`, `fixed` a `Map`; `Map`s; `Bindings.OfStore` takes `Map`s | the language's own mappings and members, as for proxies | BND-01..04 |
 | Errors | built-in exceptions | built-in `TypeError`; `ValueError`, `AttributeError`, `KeyError`, `LookupError`, `NotImplementedError` from `Errors` | JavaScript lacks the others | throughout |
 | Callable entry points | objects with `__call__` | functions with the per-kind forms attached | no callable instances | PLN-01 |
+| Callable visitors (data instances, members) | `__call__` | a `Proxy` with a function target, its `name` and `length` hidden, so that members of those names are the schema's; `typeof` says `"function"`, and `instanceof` names the visitor's class | one member is both getter and setter (VISITOR_PATTERN.md, Seams) | VIS-03, PRX-02 |
+| Scalar sugar | the dunders `int`, `float`, `str`, `bool`, `bytes`, each needing its own type | `[Symbol.toPrimitive]`: a string for the `"string"` hint (template strings, `String()`), an int or a float for `"number"` (`+`, `Number()`, `BigInt()`), any scalar but bytes for `"default"` (`+ ""`, `==`); `valueOf()` any scalar, bytes included; never `===` on a member, and no truthiness | JavaScript converts through these two hooks only | VIS-06 |
+| Assigning to a visitor | data instances, value objects and entries refuse (`AttributeError`); other visitors are plain objects | every visitor refuses with `AttributeError` | a `Proxy` has one `set` trap | VIS-03, PRX-02, PRX-18 |
+| `name in visitor` | not defined (`hasattr` is always true: a name the schema lacks reads as empty) | whether the schema declares the name, or the visitor has it | the `has` trap | PRX-02, PRX-21, VIS-05, EMB-02 |
+| Reading callbacks (`Readers.Read`) | `Callable[[V], V]` | `(reader: V) => any`, so that every `Visitors.OfX`, whose callbacks return the writable visitor, is a `Readers.OfX` to the type checker | TypeScript checks callback return types covariantly | VIS-01 |
 | Keyword arguments | `indent=2` | `{ indent: 2 }` | no keyword arguments | JSN-04 |
 | Arguments of an application by name | `.arguments(rows=2, cols=3)` | `.arguments({ rows: 2n, cols: 3n })`, or a `Map` | no keyword arguments | PAR-03 |
 | Finalizer arguments | extra arguments raise `TypeError` | checked explicitly | JavaScript ignores extra arguments | SCH-09, PRX-04 |
 | Subclasses of scalars | rejected | boxed primitives and `Buffer` rejected | the nearest analogues | SCH-03 |
-| Unknown attribute on a proxy | `AttributeError` | `AttributeError`, except JavaScript protocol probes (`then`, `toJSON`, `constructor`, symbols) | awaiting or printing a proxy must not throw | PRX-02 |
+| A name a visitor's schema lacks | reads as empty; a name starting with `_` raises `AttributeError` | reads as empty; a name starting with `_`, or a JavaScript protocol probe (`then`, `toJSON`, ...) the schema does not declare, reads as `undefined` | awaiting or printing a visitor must not throw | VIS-05, PRX-02, PRX-18 |
 | A store's builders by name (`store.<Name>()`) | `__getattr__`; an unknown name raises `AttributeError` | the store is a `Proxy`; an unknown name throws `AttributeError`, except the protocol probes; `Proxies.OfStore.builder` returns `any`, as proxy builders are typed loosely | as for proxies | STO-01, STO-04 |
 | A random source | `Stores.PCG32(42)`; `next_u32()` gives an `int` | `new Stores.PCG32(42n)`; `next_u32()` gives a `bigint` | integers are `bigint`s | RND-01..03 |
 | Transient objects (Stores) | STO-02 checks that an object no singleton reaches is garbage-collected once the program drops it | not checked | JavaScript has no deterministic collection to observe; the same structure holds no strong reference to it | STO-02 |
-| Name collisions (F2) | `_values` is shadowed by an internal | not shadowed (private state); declared names win over JavaScript's own members | private fields exist | PRX-04 |
-| Object identity (F12) | `id(self)`, may be reused after collection | a counter, never reused | no object ids in JavaScript | PRX-02 |
-| A reflected schema's identity | `id(schema)` | `"schema N"`, a counter, never reused | no object ids in JavaScript | RFL-01 |
+| Name collisions (F2) | names starting with `_` and a builder's own methods (`create`, `clone`, `update`) are never members | the same, and a declared name wins over JavaScript's own members (`toString`, ...) | `Object.prototype` names every object | PRX-04 |
+| Object identity (F12), `as_identity()` | `str(id(self))`, may be reused after collection | a counter as text, never reused | no object ids in JavaScript | PRX-02 |
 | Lone surrogate encoded as UTF-8 | raises | replaced with U+FFFD | `TextEncoder` behavior | JSN-06 |
 | YAML formatting | PyYAML's layout | own block emitter; no line folding, no `...` after a top-level scalar | values are what must match | YML-04, YML-08, CONF-03 |
 | YAML dependency | optional extra, imported on first use | regular dependency | npm has no optional extras in the same sense | YML-11 |
@@ -111,11 +115,11 @@ noticed.
 | YAML the parsers disagree on | e.g. a document after `...` without `---` is a syntax error | the same input is two documents | YAML 1.1 and 1.2 parsers; both reject it, differently | YML-06b |
 | Reading JSON | `json` reads valid input; the reference parser (`JSON._Parser`) reads input `json` rejects, to report the problem | the reference parser reads all input | speed in Python; JSN-09 checks the reference parser reads valid input exactly as `json` | JSN-09 |
 | Byte-like subclass named in errors | `bytearray` | `Buffer` | the nearest analogues | PRX-17 |
-| `Proxies.OfObject.Builder` | a class, taking the store first | a function returning the builder, taking the store first; `Proxies.OfObject.Data` is the class | builders are `Proxy` objects | PRX-16 |
+| `Proxies.OfObject.Builder` | a class, taking the store first | a function returning the builder, taking the store first; `Proxies.OfObject.Data` is the class, and the builders' classes are in `Proxies._internals` | builders are `Proxy` objects | PRX-16, VIS-02 |
 | Objects without a class | none | `Object.create(null)` is named `object` | JavaScript-only | TXT-03 |
 | Incomparable (`Comparison`) | `None` | `null` | the respective "no value" | CMP-01..13 |
 | Message text helpers | none: `repr()` and `type(v).__name__` are built in | `Repr` (`repr`, `typeName`, `tokenName`, ...) exported, for packages that must word messages as Python does | JavaScript has no `repr` | TXT-01..04 |
-| Typing of the proxy DSL | untyped, like all Python | proxy builders and instances are typed loosely (`any` by name), so callbacks given to them are annotated `(x: any)`; schema builders and visitor handles are fully typed | the names come from schemas at runtime; per-schema types are the job of generated bindings | all proxy cases |
+| Typing of the proxy DSL | untyped, like all Python | proxy builders, instances and their members are typed loosely (`any` by name), so callbacks given to them are annotated `(x: any)`; schema builders are fully typed | the names come from schemas at runtime; per-schema types are the job of generated code | all proxy cases |
 | Test runner | pytest + nbmake | `tests/run-notebooks.ts` | no maintained TypeScript kernel is required to run headless | all |
 | Adapters | `Adapters.Dataclasses`, between dataclasses and object schemas | none yet | an adapter translates its language's own type declarations, so each language has its own adapters and its own suite for them | DC-01..07 |
 
@@ -144,7 +148,7 @@ Porting and cross-checking found two bugs in the Python implementation, both fix
 - **F14:** Python's YAML dumper left `y`, `Y`, `n`, `N` unquoted; the YAML 1.1 specification makes them booleans.
   Found by CONF-03 reading Python's YAML with a spec-compliant 1.1 reader; tested by YML-02b.
 - **F15:** in Python `Validators`, an instance attribute shadowed the recorder's `adjacencies()` method. Found while
-  porting; tested by VIS-06.
+  porting; the recorder went with the visitor protocol's rewrite, which reads through the visitors themselves.
 
 Normalizing decoding errors (see FRAMEWORK.md, "Decoding errors") found more, all fixed and tested in both:
 

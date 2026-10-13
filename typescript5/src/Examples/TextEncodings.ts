@@ -56,8 +56,8 @@ for (const value of [0.0, -0.0, 1e308, 5e-324, 0.1, Infinity, -Infinity, NaN]) {
     from_json(Reading, JSON.ToJSON(store)(Reading, reading)),
     from_yaml(Reading, YAML.ToYAML(store)(Reading, reading)),
   ] as Instance[]) {
-    if (Number.isNaN(value)) assert(Number.isNaN(back.value));
-    else assert(Object.is(back.value, value));
+    if (Number.isNaN(value)) assert(Number.isNaN(back.value.get()));
+    else assert(Object.is(back.value.get(), value));
   }
 }
 
@@ -81,8 +81,8 @@ assert(equal(YAML.loads(YAML.ToYAML(store)(Reading, sample)), plain));
 assert(equal(JSON.loads(JSON.ToJSON(store)(Reading, sample, { indent: 2 })), plain)); // formatting does not change content
 
 for (const back of [from_json(Reading, JSON.ToJSON(store)(Reading, sample)), from_yaml(Reading, YAML.ToYAML(store)(Reading, sample))] as Instance[]) {
-  assert(back.observed === sample.observed && back.quality === sample.quality && back.valid === sample.valid &&
-    equal(back.raw, sample.raw) && back.note === sample.note);
+  assert(back.observed.get() === sample.observed.get() && back.quality.get() === sample.quality.get() && back.valid.get() === sample.valid.get() &&
+    equal(back.raw.get(), sample.raw.get()) && back.note.get() === sample.note.get());
   assert(validate(Reading, back).length === 0);
 }
 
@@ -94,15 +94,15 @@ const tricky = ["yes", "No", "on", "OFF", "true", "null", "~", "", "010", "0o17"
 for (const note of tricky) {
   const reading = store.Reading().note(note).create();
   text = YAML.ToYAML(store)(Reading, reading);
-  assert((from_yaml(Reading, text) as Instance).note === note, note);
+  assert((from_yaml(Reading, text) as Instance).note.get() === note, note);
   // The output is also read correctly by a stock YAML 1.1 loader.
   assert(equal(yaml11(text), Plain.ToPlain(store)(Reading, reading)), note);
 }
 
 // WMO identifiers keep their leading zeros in both encodings.
 const paris = store.Station().wmo_id("07149").name("Paris-Orly").create();
-assert((from_json(Station, JSON.ToJSON(store)(Station, paris)) as Instance).wmo_id === "07149");
-assert((from_yaml(Station, YAML.ToYAML(store)(Station, paris)) as Instance).wmo_id === "07149");
+assert((from_json(Station, JSON.ToJSON(store)(Station, paris)) as Instance).wmo_id.get() === "07149");
+assert((from_yaml(Station, YAML.ToYAML(store)(Station, paris)) as Instance).wmo_id.get() === "07149");
 
 // --- Hand-written YAML follows the YAML 1.2 core schema ---
 
@@ -117,8 +117,8 @@ objects:
     note: 1:30                       # a string, not ninety
 `;
 const reading = from_yaml(Reading, written) as Instance;
-assert(reading.observed === "2026-09-28T12:00:00Z" && reading.quality === 10n && reading.value === Infinity &&
-  reading.valid === true && reading.note === "1:30");
+assert(reading.observed.get() === "2026-09-28T12:00:00Z" && reading.quality.get() === 10n && reading.value.get() === Infinity &&
+  reading.valid.get() === true && reading.note.get() === "1:30");
 
 // 'yes' is a string in YAML 1.2, so it is not accepted for a bool.
 raises(DecodeError, () => from_yaml(Reading, "root: s0\nobjects:\n  s0:\n    valid: yes\n"));
@@ -145,14 +145,14 @@ for (const bad of ["root: s0\nroot: s1\nobjects: {}", // duplicate key
 const lyon = store.Station()
   .wmo_id("07480")
   .name("Lyon-Saint-Exupéry")
-  .readings((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(11.5).valid(true)).sensor("temp"))
-  .readings((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(71.0).valid(true)).sensor("rh"))
+  .readings((a: any) => a.insert((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(11.5).valid(true)).sensor("temp")))
+  .readings((a: any) => a.insert((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(71.0).valid(true)).sensor("rh")))
   .create();
 const graph = Plain.ToPlain(store).Reachable(Station, lyon);
 for (const [encoded, decode] of [[JSON.ToJSON(store).Reachable(Station, lyon), from_json.Reachable],
   [YAML.ToYAML(store).Reachable(Station, lyon), from_yaml.Reachable]] as const) {
   const restored = decode(Station, encoded) as Instance;
-  assert(restored !== lyon && restored.name === "Lyon-Saint-Exupéry");
+  assert(restored !== lyon && String(restored.name) === "Lyon-Saint-Exupéry");
   assert(same_graph(Plain.ToPlain(store).Reachable(Station, restored), graph));
   assert(validate.Reachable(Station, restored).length === 0);
 }

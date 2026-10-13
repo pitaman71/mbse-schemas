@@ -1,11 +1,9 @@
 /**
  * Comparison: compares values under their schema, as EQUALITY.md defines.
  *
- * For each schema element `OfX`, `Comparison.OfX` implements `Visitors.OfX` and records the value written into it.
- * `a.compare(b)` compares two recordings and returns -1, 0 or 1 when `a` is less than, equal to or greater than `b`,
- * and `null` when they are incomparable. `new Comparison.OfScalar(schema, value)` and
- * `new Comparison.OfObject(schema, instance)` record a value when constructed; an instance writes itself in through
- * `Visitable.accept`.
+ * For each schema element `OfX`, `new Comparison.OfX(schema, value)` holds a value read through the visitor protocol
+ * (`Readers.OfX`), or a scalar. `a.compare(b)` compares two and returns -1, 0 or 1 when `a` is less than, equal to or
+ * greater than `b`, and `null` when they are incomparable.
  *
  * - Absent compares equal to absent; absent and present are incomparable. So do values under different schemas.
  * - `OfScalar`: a value must have exactly the schema's scalar type. `int`, `float`, `str` and `bytes` are ordered:
@@ -13,26 +11,24 @@
  *   and are incomparable with other floats. Booleans are equal or incomparable.
  * - `OfObject`: equal when every property its schema declares is absent in both or equal in both; otherwise
  *   incomparable. A value object compares deeply: its adjacencies participate too, and so do those of the value
- *   objects it holds; a recorded object's own adjacencies do not.
+ *   objects it holds; a reference object's own adjacencies do not.
  * - `OfProperty` and `OfAny` compare their values; values of different kinds are incomparable.
  * - `OfUnion`: equal when both hold the same branch with equal values; otherwise incomparable.
  * - `OfIntersection`: equal when every part is absent in both or equal in both; otherwise incomparable.
- * - `OfLink`: equal when both link the same object (by identity), or, within two recordings, value objects at the same
- *   path from their roots (`home`, `reach.phone`); otherwise incomparable.
+ * - `OfLink`: equal when both link the same object, by identity: a link targets a reference object; otherwise
+ *   incomparable.
  * - `OfEntry`: equal when every link and property is equal; otherwise incomparable.
  * - `OfAdjacency`: seen from one object (whose own link is implied), the entries of a relation with a `unique` clause
- *   form a set, so adding an entry equal to one already there is elided, and two adjacencies are equal when both hold
- *   equal entries; an open relation's are a list, equal entries kept, and two are equal when their entries are, in
- *   order. Otherwise incomparable.
- *
- * `Visitors.OfRelation` has no implementation: it declares no way to write entries into it.
+ *   form a set, and two adjacencies are equal when both hold equal entries; an open relation's are a list, and two are
+ *   equal when their entries are, in order. Otherwise incomparable.
  */
 
-import { AttributeError, KeyError, ValueError } from "./Errors.js";
-import { compareStrings, repr, tokenName, typeName } from "./Repr.js";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import type * as Readers from "./Readers.js";
+import { compareStrings, tokenName, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
-import type * as Visitors from "./Visitors.js";
-import type { Callback, Scalar } from "./Visitors.js";
+import type { Scalar } from "./Visitors.js";
 
 /** -1, 0 or 1 when ordered or equal; `null` when incomparable. */
 export type Result = -1 | 0 | 1 | null;
@@ -66,439 +62,187 @@ function compareScalars(a: Scalar, b: Scalar): Result {
   return sign(compareBytes(a, b as Uint8Array));
 }
 
-/** `Visitors.OfScalar` recording one scalar value, which must have exactly the schema's scalar type. */
-export class OfScalar implements Visitors.OfScalar {
-  private value: Scalar[] = [];
+// --- Reading values through their visitors ---
 
-  constructor(private readonly schema: Schemas.OfScalar.Data, value?: Scalar) {
-    if (value !== undefined) this.set(value);
+/** The scalar a property's visitor holds, or null. */
+function readScalar(read: any): any {
+  const found: unknown[] = [];
+  read.as_scalar((s: any) => found.push(s.get())); // a callback is always called
+  return found[0];
+}
+
+/** The value object, union value or intersection value a property's visitor holds, as its own visitor; null when
+ * absent. An empty visitor has no identity. */
+function readHeld(read: any, schema: unknown): any {
+  const select = schema instanceof Schemas.OfUnion.Data ? "as_union"
+    : schema instanceof Schemas.OfIntersection.Data ? "as_intersection" : "as_object";
+  const found: any[] = [];
+  read.as_value((a: any) => a[select]((v: any) => found.push(v)));
+  return found.length > 0 && found[0].as_identity() !== "" ? found[0] : null;
+}
+
+/** A property's value, read through its visitor: a scalar, a visitor, or null. */
+function readProperty(read: any, schema: unknown): any {
+  const held = Schemas.structure(schema);
+  return held instanceof Schemas.OfScalar.Data || held === null ? readScalar(read) : readHeld(read, held);
+}
+
+/** A union's branch's or an intersection's part's value, read through its visitor of its type's kind. */
+function readMember(read: any, schema: unknown): any {
+  if (Schemas.structure(schema) instanceof Schemas.OfScalar.Data) return read.get();
+  return read.as_identity() !== "" ? read : null;
+}
+
+// --- Comparing ---
+
+/** Whether two types are one: scalars by value, other schemas by identity, through applications. */
+function sameType(a: unknown, b: unknown): boolean {
+  const x = Schemas.structure(a);
+  const y = Schemas.structure(b);
+  return x instanceof Schemas.OfScalar.Data ? x.equals(y) : x === y;
+}
+
+/** Compares two values of `schema`, each a scalar, a visitor, or null for absent. */
+function compareValues(schema: unknown, a: any, b: any): Result {
+  if (a === null || a === undefined || b === null || b === undefined) {
+    return (a === null || a === undefined) && (b === null || b === undefined) ? 0 : null;
   }
+  const held = Schemas.structure(schema);
+  if (held instanceof Schemas.OfScalar.Data) return typeName(a) !== typeName(b) ? null : compareScalars(a, b);
+  if (held instanceof Schemas.OfObject.Data) return objects(held, a, b, true);
+  const record = held as Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
+  return allEqual([...record.properties].map(([name, m]) => compareValues(m.type, readMember(a[name], m.type), readMember(b[name], m.type))));
+}
 
-  has(): boolean {
-    return this.value.length > 0;
+/** Two objects of `schema`: their properties, and with `deep`, their entries. */
+function objects(schema: Schemas.OfObject.Data, a: any, b: any, deep: boolean): Result {
+  const results = [...schema.properties].map(([name, prop]) =>
+    compareValues(prop.type, readProperty(a[name], prop.type), readProperty(b[name], prop.type)));
+  if (deep) {
+    for (const [name, adjacency] of schema.adjacencies) results.push(adjacencies(adjacency, [...a[name]], [...b[name]]));
   }
+  return allEqual(results);
+}
 
-  get(): Scalar {
-    if (this.value.length === 0) throw new AttributeError("the value is not set");
-    return this.value[0] as Scalar;
-  }
+function adjacencies(adjacency: Schemas.OfAdjacency.Data, a: any[], b: any[]): Result {
+  if (a.length !== b.length) return null;
+  if ((adjacency.relation as Schemas.OfRelation.Data).open) return allEqual(a.map((e, i) => entries(adjacency, e, b[i])));
+  return allEqual(a.map((e) => (b.some((o) => entries(adjacency, e, o) === 0) ? 0 : null)));
+}
 
-  set(value: Scalar): OfScalar {
-    const host = this.schema.host();
-    if (!Schemas.isScalarOf(host, value)) throw new TypeError(`expected ${tokenName(host)}, got ${typeName(value)}`);
-    this.value = [value];
-    return this;
-  }
+function entries(adjacency: Schemas.OfAdjacency.Data, a: any, b: any): Result {
+  const relation = adjacency.relation as Schemas.OfRelation.Data;
+  const links = [...relation.entry.links.keys()].filter((name) => name !== adjacency.me).map((name) => compareLinks(a[name], b[name]));
+  const values = [...relation.entry.properties].map(([name, prop]) =>
+    compareValues(prop.type, readProperty(a[name], prop.type), readProperty(b[name], prop.type)));
+  return allEqual([...links, ...values]);
+}
 
-  clear(): OfScalar {
-    this.value = [];
-    return this;
+/** Links compare by their targets' identities: a link targets a reference object, never a value object. */
+function compareLinks(a: any, b: any): Result {
+  const x = a === null || a === undefined ? "" : a.as_identity();
+  const y = b === null || b === undefined ? "" : b.as_identity();
+  if (!x || !y) return !x && !y ? 0 : null;
+  return x === y ? 0 : null;
+}
+
+/** A scalar value, which must have exactly the schema's scalar type; null for absent. */
+export class OfScalar {
+  readonly #value: Scalar | null;
+
+  constructor(private readonly schema: Schemas.OfScalar.Data, value: Scalar | null = null) {
+    const host = schema.host();
+    if (value !== null && !Schemas.isScalarOf(host, value)) throw new TypeError(`expected ${tokenName(host)}, got ${typeName(value)}`);
+    this.#value = value;
   }
 
   compare(other: OfScalar): Result {
-    if (!this.has() || !other.has()) return !this.has() && !other.has() ? 0 : null;
+    if (this.#value === null || other.#value === null) return this.#value === null && other.#value === null ? 0 : null;
     if (this.schema.type !== other.schema.type) return null;
-    return compareScalars(this.value[0] as Scalar, other.value[0] as Scalar);
+    return compareScalars(this.#value, other.#value);
   }
 }
 
-/** The way from a recorded root to a value in it: property names. */
-type Path = readonly string[];
-
-/** Where the value objects recorded under one root are: the path from the root to each, by identity, so that links to
- * them compare by where they are rather than by which object they are. */
-class Paths {
-  readonly paths = new Map<unknown, string>();
-}
-
-/** `Visitors.OfAny` recording a value of the kind its schema declares. */
-export class OfAny implements Visitors.OfAny {
-  private value: OfScalar | OfObject | OfUnion | OfIntersection | null = null;
-  private readonly schema: Schemas.OfAny.Data;
-
-  constructor(schema: Schemas.OfAny.Data, private readonly paths: Paths | null = null, private readonly path: Path = []) {
-    this.schema = Schemas.structure(schema) as Schemas.OfAny.Data;
-  }
-
-  /** @internal */
-  absent(): boolean {
-    if (this.value instanceof OfScalar) return !this.value.has();
-    return this.value === null
-      || ((this.value instanceof OfUnion || this.value instanceof OfIntersection) && this.value.absent());
-  }
-
-  as_scalar(callback: Callback<Visitors.OfScalar>): OfAny {
-    if (!(this.schema instanceof Schemas.OfScalar.Data)) throw new TypeError("the schema is not a scalar schema");
-    if (!(this.value instanceof OfScalar)) this.value = new OfScalar(this.schema);
-    callback(this.value);
-    return this;
-  }
-
-  as_object(callback: Callback<Visitors.OfObject>): OfAny {
-    if (!(this.schema instanceof Schemas.OfObject.Data)) throw new TypeError("the schema is not an object schema");
-    if (!(this.value instanceof OfObject)) {
-      this.value = new OfObject(this.schema, undefined, { paths: this.paths, path: this.path, value: true });
-    }
-    callback(this.value);
-    return this;
-  }
-
-  as_union(callback: Callback<Visitors.OfUnion>): OfAny {
-    if (!(this.schema instanceof Schemas.OfUnion.Data)) throw new TypeError("the schema is not a union schema");
-    if (!(this.value instanceof OfUnion)) this.value = new OfUnion(this.schema, this.paths, this.path);
-    callback(this.value);
-    return this;
-  }
-
-  as_intersection(callback: Callback<Visitors.OfIntersection>): OfAny {
-    if (!(this.schema instanceof Schemas.OfIntersection.Data)) throw new TypeError("the schema is not an intersection schema");
-    if (!(this.value instanceof OfIntersection)) this.value = new OfIntersection(this.schema, this.paths, this.path);
-    callback(this.value);
-    return this;
-  }
+/** A value of any kind: a scalar, a value's visitor, or null for absent. */
+export class OfAny {
+  constructor(private readonly schema: Schemas.OfAny.Data, private readonly value: unknown = null) {}
 
   compare(other: OfAny): Result {
-    if (this.absent() || other.absent()) return this.absent() && other.absent() ? 0 : null;
-    if (this.value instanceof OfScalar) return other.value instanceof OfScalar ? this.value.compare(other.value) : null;
-    if (this.value instanceof OfUnion) return other.value instanceof OfUnion ? this.value.compare(other.value) : null;
-    if (this.value instanceof OfIntersection) {
-      return other.value instanceof OfIntersection ? this.value.compare(other.value) : null;
-    }
-    return other.value instanceof OfObject ? (this.value as OfObject).compare(other.value) : null;
+    if (!sameType(this.schema, other.schema)) return null;
+    return compareValues(this.schema, this.value, other.value);
   }
 }
 
-/** A union or intersection value, recorded as the `OfProperty`s of its branches or parts. */
-abstract class Members {
-  protected readonly recorded: Properties;
-
-  constructor(protected readonly schema: Schemas.OfUnion.Data | Schemas.OfIntersection.Data, paths: Paths | null = null,
-    path: Path = []) {
-    this.recorded = new Properties(schema.properties, paths, path);
-  }
-
-  properties(callback: Callback<Visitors.OfProperty>): this {
-    this.recorded.each(callback);
-    return this;
-  }
-
-  has(name: string): boolean {
-    return this.recorded.has(name);
-  }
-
-  property(name: string, callback: Callback<Visitors.OfProperty>): this {
-    this.recorded.one(name, callback);
-    return this;
-  }
-
-  clear(name: string): this {
-    this.recorded.clear(name);
-    return this;
-  }
-
-  /** @internal */
-  absent(): boolean {
-    return ![...this.schema.properties.keys()].some((name) => this.recorded.has(name));
-  }
-
-  compare(other: Members): Result {
-    if (this.schema !== other.schema) return null;
-    return allEqual(this.recorded.compare(other.recorded));
-  }
-}
-
-/** `Visitors.OfUnion` recording a union value: the branch it holds, and its value. Writing a branch clears any other. */
-export class OfUnion extends Members implements Visitors.OfUnion {
-  constructor(schema: Schemas.OfUnion.Data, paths: Paths | null = null, path: Path = []) {
-    super(schema, paths, path);
-  }
-
-  override property(name: string, callback: Callback<Visitors.OfProperty>): this {
-    const names = [...this.schema.properties.keys()];
-    if (names.includes(name)) for (const other of names) if (other !== name) this.recorded.clear(other);
-    this.recorded.one(name, callback);
-    return this;
-  }
-}
-
-/** `Visitors.OfIntersection` recording an intersection value: its parts, and their values. */
-export class OfIntersection extends Members implements Visitors.OfIntersection {
-  constructor(schema: Schemas.OfIntersection.Data, paths: Paths | null = null, path: Path = []) {
-    super(schema, paths, path);
-  }
-}
-
-/** `Visitors.OfProperty` recording one named property's value. */
-export class OfProperty implements Visitors.OfProperty {
-  private recorded: OfAny;
-
-  constructor(private readonly propertyName: string, private readonly schema: Schemas.OfAny.Data,
-    private readonly paths: Paths | null = null, private readonly path: Path = []) {
-    this.recorded = new OfAny(schema, paths, path);
-  }
-
-  name(): string {
-    return this.propertyName;
-  }
-
-  has(): boolean {
-    return !this.recorded.absent();
-  }
-
-  value(callback: Callback<Visitors.OfAny>): OfProperty {
-    callback(this.recorded);
-    return this;
-  }
-
-  clear(): OfProperty {
-    this.recorded = new OfAny(this.schema, this.paths, this.path);
-    return this;
-  }
+/** One property's value, read through its visitor (`Readers.OfProperty`); null for absent. */
+export class OfProperty {
+  constructor(private readonly read: Readers.OfProperty | null = null) {}
 
   compare(other: OfProperty): Result {
-    return this.recorded.compare(other.recorded);
+    if (this.read === null || other.read === null) return this.read === null && other.read === null ? 0 : null;
+    const schema = this.read.as_schema().type;
+    if (!sameType(schema, other.read.as_schema().type)) return null;
+    return compareValues(schema, readProperty(this.read, schema), readProperty(other.read, schema));
   }
 }
 
-/** Named properties declared by a schema, recorded as `OfProperty`s. */
-class Properties {
-  private readonly slots = new Map<string, OfProperty>();
+/** An object read through its visitor (`Readers.OfObject`). A value object (`{ value: true }`) compares its adjacencies
+ * too; a reference object's own adjacencies do not. Without an instance, an object with nothing set. */
+export class OfObject {
+  private readonly value: boolean;
 
-  private readonly schemas: Map<string, Schemas.OfAny.Data>; // each property's type, by name
-
-  constructor(properties: Map<string, { type: Schemas.OfAny.Data | null }>, private readonly paths: Paths | null = null,
-    private readonly path: Path = []) {
-    this.schemas = new Map([...properties].map(([name, prop]) => [name, prop.type as Schemas.OfAny.Data]));
-  }
-
-  each(callback: Callback<Visitors.OfProperty>): void {
-    for (const name of this.schemas.keys()) {
-      if (this.has(name)) callback(this.slots.get(name) as OfProperty);
-    }
-  }
-
-  has(name: string): boolean {
-    return this.slots.get(name)?.has() ?? false;
-  }
-
-  one(name: string, callback: Callback<Visitors.OfProperty>): void {
-    const schema = this.schemas.get(name);
-    if (schema === undefined) throw new KeyError(`unknown property ${repr(name)}`);
-    let slot = this.slots.get(name);
-    if (slot === undefined) this.slots.set(name, (slot = new OfProperty(name, schema, this.paths, [...this.path, name])));
-    callback(slot);
-  }
-
-  clear(name: string): void {
-    this.slots.delete(name);
-  }
-
-  /** The recorded property, or an absent one if it was never written. */
-  private slot(name: string): OfProperty {
-    return this.slots.get(name) ?? new OfProperty(name, this.schemas.get(name) as Schemas.OfAny.Data, this.paths, [...this.path, name]);
-  }
-
-  compare(other: Properties): Result[] {
-    return [...this.schemas.keys()].map((name) => this.slot(name).compare(other.slot(name)));
-  }
-}
-
-/** `Visitors.OfObject` recording an object's properties and adjacency entries. With `instance`, the instance writes
- * itself in through `accept`. */
-export class OfObject implements Visitors.OfObject {
-  private readonly recorded: Properties;
-  private readonly slots = new Map<string, OfAdjacency>();
-  private readonly paths: Paths;
-  private readonly path: Path;
-  private readonly isValue: boolean;
-
-  /** With `instance`, the instance writes itself in through `accept`. A value object (`value`) compares its
-   * adjacencies too. */
-  constructor(private readonly schema: Schemas.OfObject.Data, instance?: Visitors.Visitable,
-    options: { paths?: Paths | null; path?: Path; value?: boolean } = {}) {
-    this.paths = options.paths ?? new Paths();
-    this.path = options.path ?? [];
-    this.isValue = options.value ?? false;
-    this.recorded = new Properties(schema.properties, this.paths, this.path);
-    if (instance !== undefined) instance.accept(this);
-  }
-
-  properties(callback: Callback<Visitors.OfProperty>): OfObject {
-    this.recorded.each(callback);
-    return this;
-  }
-
-  has(name: string): boolean {
-    return this.recorded.has(name);
-  }
-
-  property(name: string, callback: Callback<Visitors.OfProperty>): OfObject {
-    this.recorded.one(name, callback);
-    return this;
-  }
-
-  clear(name: string): OfObject {
-    this.recorded.clear(name);
-    return this;
-  }
-
-  adjacencies(callback: Callback<Visitors.OfAdjacency>): OfObject {
-    for (const name of this.schema.adjacencies.keys()) this.adjacency(name, callback);
-    return this;
-  }
-
-  adjacency(name: string, callback: Callback<Visitors.OfAdjacency>): OfObject {
-    const schema = this.schema.adjacencies.get(name);
-    if (schema === undefined) throw new KeyError(`unknown adjacency ${repr(name)}`);
-    callback(this.adjacencyOf(name, schema));
-    return this;
-  }
-
-  private adjacencyOf(name: string, schema: Schemas.OfAdjacency.Data): OfAdjacency {
-    let slot = this.slots.get(name);
-    if (slot === undefined) this.slots.set(name, (slot = new OfAdjacency(name, schema, this.paths)));
-    return slot;
-  }
-
-  identify(value: Visitors.Visitable): OfObject {
-    this.paths.paths.set(value.identity(), JSON.stringify(this.path));
-    return this;
+  constructor(private readonly schema: Schemas.OfObject.Data, private readonly instance: Readers.OfObject | null = null,
+    options: { value?: boolean } = {}) {
+    this.value = options.value ?? false;
   }
 
   compare(other: OfObject): Result {
     if (this.schema !== other.schema) return null;
-    const results = this.recorded.compare(other.recorded);
-    if (this.isValue) {
-      for (const [name, schema] of this.schema.adjacencies) {
-        results.push(this.adjacencyOf(name, schema).compare(other.adjacencyOf(name, schema)));
-      }
-    }
-    return allEqual(results);
+    if (this.instance === null || other.instance === null) return this.instance === null && other.instance === null ? 0 : null;
+    return objects(this.schema, this.instance, other.instance, this.value);
   }
 }
 
-/** `Visitors.OfAdjacency` recording the entries of one relation seen from one object. Adding an entry equal to one
- * already recorded is elided. */
-export class OfAdjacency implements Visitors.OfAdjacency {
-  private list: OfEntry[] = [];
+/** A union value read through its visitor; null for absent. */
+export class OfUnion {
+  constructor(private readonly schema: Schemas.OfUnion.Data | Schemas.OfIntersection.Data,
+    private readonly value: Readers.OfUnion | Readers.OfIntersection | null = null) {}
 
-  constructor(private readonly adjacencyName: string, private readonly schema: Schemas.OfAdjacency.Data,
-    private readonly paths: Paths | null = null) {}
-
-  name(): string {
-    return this.adjacencyName;
+  compare(other: OfUnion): Result {
+    if (this.schema !== other.schema) return null;
+    return compareValues(this.schema, this.value, other.value);
   }
+}
 
-  me(): string {
-    return this.schema.me;
-  }
+/** An intersection value read through its visitor; null for absent. */
+export class OfIntersection extends OfUnion {}
 
-  entries(callback: Callback<Visitors.OfEntry>): OfAdjacency {
-    for (const entry of [...this.list]) callback(entry);
-    return this;
-  }
-
-  add(callback: Callback<Visitors.OfEntry>): OfAdjacency {
-    const entry = new OfEntry(this.schema.relation as Schemas.OfRelation.Data, this.schema.me, this.paths);
-    callback(entry);
-    const relation = this.schema.relation as Schemas.OfRelation.Data;
-    if (relation.open || !this.list.some((existing) => entry.compare(existing) === 0)) this.list.push(entry);
-    return this;
-  }
-
-  remove(entry: Visitors.OfEntry): OfAdjacency {
-    this.list = this.list.filter((e) => e !== entry);
-    return this;
-  }
+/** An adjacency's entries, read through its visitor (`Readers.OfAdjacency`). */
+export class OfAdjacency {
+  constructor(private readonly read: Readers.OfAdjacency) {}
 
   compare(other: OfAdjacency): Result {
-    if (this.schema.relation !== other.schema.relation || this.schema.me !== other.schema.me) return null;
-    if (this.list.length !== other.list.length) return null;
-    if ((this.schema.relation as Schemas.OfRelation.Data).open) return allEqual(this.list.map((e, i) => e.compare(other.list[i] as OfEntry)));
-    return allEqual(this.list.map((e) => (other.list.some((o) => e.compare(o) === 0) ? 0 : null)));
+    const mine = this.read.as_schema();
+    const theirs = other.read.as_schema();
+    if (mine.relation !== theirs.relation || mine.me !== theirs.me) return null;
+    return adjacencies(mine, [...this.read], [...other.read]);
   }
 }
 
-/** `Visitors.OfEntry` recording one relation entry's links and properties. The link named `me`, if any, is the
- * owning object's own link: it is implied and cannot be set. */
-export class OfEntry implements Visitors.OfEntry {
-  private readonly slots = new Map<string, OfLink>();
-  private readonly recorded: Properties;
-
-  constructor(private readonly relation: Schemas.OfRelation.Data, private readonly own: string | null = null,
-    private readonly paths: Paths | null = null) {
-    this.recorded = new Properties(relation.entry.properties);
-  }
-
-  private names(): string[] {
-    return [...this.relation.entry.links.keys()].filter((name) => name !== this.own);
-  }
-
-  links(callback: Callback<Visitors.OfLink>): OfEntry {
-    for (const name of this.names()) this.link(name, callback);
-    return this;
-  }
-
-  link(name: string, callback: Callback<Visitors.OfLink>): OfEntry {
-    if (!this.names().includes(name)) throw new KeyError(`${repr(name)} is not a link this entry can set`);
-    let slot = this.slots.get(name);
-    if (slot === undefined) this.slots.set(name, (slot = new OfLink(name, this.paths)));
-    callback(slot);
-    return this;
-  }
-
-  properties(callback: Callback<Visitors.OfProperty>): OfEntry {
-    this.recorded.each(callback);
-    return this;
-  }
-
-  has(name: string): boolean {
-    return this.recorded.has(name);
-  }
-
-  property(name: string, callback: Callback<Visitors.OfProperty>): OfEntry {
-    this.recorded.one(name, callback);
-    return this;
-  }
-
-  clear(name: string): OfEntry {
-    this.recorded.clear(name);
-    return this;
-  }
+/** One entry of an adjacency, read through its visitor (`Readers.OfEntry`), seen from the adjacency's end. */
+export class OfEntry {
+  constructor(private readonly adjacency: Schemas.OfAdjacency.Data, private readonly read: Readers.OfEntry) {}
 
   compare(other: OfEntry): Result {
-    if (this.relation !== other.relation || this.own !== other.own) return null;
-    const slot = (entry: OfEntry, name: string) => entry.slots.get(name) ?? new OfLink(name, this.paths);
-    const links = this.names().map((name) => slot(this, name).compare(slot(other, name)));
-    return allEqual([...links, ...this.recorded.compare(other.recorded)]);
+    if (this.adjacency.relation !== other.adjacency.relation || this.adjacency.me !== other.adjacency.me) return null;
+    return entries(this.adjacency, this.read, other.read);
   }
 }
 
-/** `Visitors.OfLink` recording the object one link targets. */
-export class OfLink implements Visitors.OfLink {
-  private recorded: Visitors.Visitable[] = [];
+/** The object a link targets, read through its visitor; null when not set. */
+export class OfLink {
+  constructor(private readonly target: Readers.OfObject | null = null) {}
 
-  constructor(private readonly linkName: string, private readonly paths: Paths | null = null) {}
-
-  name(): string {
-    return this.linkName;
-  }
-
-  target(callback: Callback<Visitors.Visitable>): OfLink {
-    if (this.recorded.length === 0) throw new ValueError(`link ${repr(this.linkName)} is not set`);
-    callback(this.recorded[0] as Visitors.Visitable);
-    return this;
-  }
-
-  set(target: Visitors.Visitable): OfLink {
-    this.recorded = [target];
-    return this;
-  }
-
-  /** Links compare by their targets' identities: a link targets a reference object, never a value object. */
   compare(other: OfLink): Result {
-    const [mine, theirs] = [this.recorded[0], other.recorded[0]];
-    if (mine === undefined || theirs === undefined) return mine === theirs ? 0 : null;
-    return mine.identity() === theirs.identity() ? 0 : null;
+    return compareLinks(this.target, other.target);
   }
 }

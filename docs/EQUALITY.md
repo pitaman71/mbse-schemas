@@ -38,9 +38,8 @@ adjacency's entries, are equal or incomparable.
 
 ## Comparison
 
-The `Comparison` module implements this equality: for each element `OfX`, `Comparison.OfX` implements `Visitors.OfX` and
-records the value written into it, e.g. `Comparison.OfObject(schema, instance)`, which the instance fills through
-`accept`. `a.compare(b)` returns -1, 0 or 1, or `None` when the two are incomparable. The ordered scalars are `int`,
+The `Comparison` module implements this equality: for each element `OfX`, `Comparison.OfX(schema, value)` holds a value
+read through the visitor protocol (`Readers.OfX`), or a scalar, e.g. `Comparison.OfObject(schema, instance)`. `a.compare(b)` returns -1, 0 or 1, or `None` when the two are incomparable. The ordered scalars are `int`,
 `float`, `str` and `bytes`: floats by value with `-0.0` before `0.0`, NaNs equal to each other and incomparable with
 other floats. Booleans, objects, entries and adjacencies are equal or incomparable. Absent equals absent and is
 incomparable with anything present. An adjacency compares its entries, seen from its object, as a set or, where its

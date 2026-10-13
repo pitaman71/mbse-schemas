@@ -33,7 +33,7 @@ function held(name: string, spec: Schemas.OfAny.Spec) {
 /** A Spec adding an entry to the adjacency `name` for each of `values`, each a Spec of the entry. */
 function entries(name: string, values: ((e: any) => unknown)[]) {
   return (builder: any) => {
-    for (const value of values) builder[name](value);
+    for (const value of values) builder[name].insert(value);
     return builder;
   };
 }
@@ -132,11 +132,11 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
 
   const home = B.Address().street1("10 Downing Street").locality("London").postal_code("SW1A 2AA").country_code("GB").create();
   const alice = B.Contact().given_name("Alice").family_name("Liddell").birth_date("1852-05-04")
-    .addresses((x: any) => x.address(home).label("home"))
-    .phones((x: any) => x.phone((p: any) => p.number("+447700900123")).label("mobile"))
-    .phones((x: any) => x.phone((p: any) => p.number("+14155550100")).label("work"))
+    .addresses((a: any) => a.insert((x: any) => x.address(home).label("home")))
+    .phones((a: any) => a.insert((x: any) => x.phone((p: any) => p.number("+447700900123")).label("mobile")))
+    .phones((a: any) => a.insert((x: any) => x.phone((p: any) => p.number("+14155550100")).label("work")))
     .create();
-  B.Contact().given_name("Bob").addresses((x: any) => x.address(home).label("home")).create();
+  B.Contact().given_name("Bob").addresses((a: any) => a.insert((x: any) => x.address(home).label("home"))).create();
 
   const all = new Uint8Array(Array.from({ length: 256 }, (_, i) => i));
   const samples: Record<string, unknown>[] = [
@@ -156,24 +156,24 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
     const builder = B.Sample();
     for (const [name, value] of Object.entries(values)) builder[name](value);
     const item = builder.create();
-    B.Bag(bag).items((x: any) => x.item(item).slot(BigInt(slot))).update();
+    B.Bag(bag).items((a: any) => a.insert((x: any) => x.item(item).slot(BigInt(slot)))).update();
   });
 
   const ada = B.Person().given_name("Ada").birth_date("1815-12-10").create();
-  const bob = B.Person().given_name("Bob").parents((x: any) => x.parent(ada).kind("biological")).create();
-  const carol = B.Person().given_name("Carol").children(
-    (x: any) => x.child((y: any) => y.given_name("Dan").birth_date("2001-02-03")).kind("adoptive")).create();
-  B.Person(ada).mentees((x: any) => x.mentee(bob)).update();
-  B.Person(carol).mentees((x: any) => x.mentee(carol)).update();
-  B.Person(bob).mentees((x: any) => x.mentee(ada)).update();
+  const bob = B.Person().given_name("Bob").parents((a: any) => a.insert((x: any) => x.parent(ada).kind("biological"))).create();
+  const carol = B.Person().given_name("Carol").children((a: any) => a.insert(
+    (x: any) => x.child((y: any) => y.given_name("Dan").birth_date("2001-02-03")).kind("adoptive"))).create();
+  B.Person(ada).mentees((a: any) => a.insert((x: any) => x.mentee(bob))).update();
+  B.Person(carol).mentees((a: any) => a.insert((x: any) => x.mentee(carol))).update();
+  B.Person(bob).mentees((a: any) => a.insert((x: any) => x.mentee(ada))).update();
 
   const fall = B.Term().code("2026-FA").starts("2026-09-01").create();
   const cs101 = B.Course().code("CS101").create();
   const mia = B.Student().name("Mia")
-    .enrollments((x: any) => x.course(cs101).term(fall).credits(4n).score(3.75).audit(false))
-    .enrollments((x: any) => x.course((c: any) => c.code("MA201")).term(fall).credits(3n).score(-0.0))
+    .enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).credits(4n).score(3.75).audit(false)))
+    .enrollments((a: any) => a.insert((x: any) => x.course((c: any) => c.code("MA201")).term(fall).credits(3n).score(-0.0)))
     .create();
-  B.Student().name("Noah").enrollments((x: any) => x.course(cs101).term(fall).audit(true)).create();
+  B.Student().name("Noah").enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).audit(true))).create();
 
   const tricky = ["yes", "No", "on", "OFF", "y", "true", "null", "~", "", "010", "0o17", "0x1F", "1e3", "1_000", "1:30",
     "2026-09-01", ".inf", ".nan", "NaN", "Infinity", "-0.0", "+1", " lead", "trail ", "a: b", "- dash",
@@ -183,37 +183,37 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   const notebook = B.Notebook().title("tricky").create();
   tricky.forEach((value, page) => {
     const note = B.Note().text(value).create();
-    B.Notebook(notebook).notes((x: any) => x.note(note).page(BigInt(page))).update();
+    B.Notebook(notebook).notes((a: any) => a.insert((x: any) => x.note(note).page(BigInt(page)))).update();
   });
 
   const deck = B.Deck().title("contacts").create();
   const cards = [
-    B.Card().name("Ann").home((r: any) => r.number("+1 555 0100").label("home").extensions((e: any) => e.value("12")))
-      .reach((u: any) => u.email((r: any) => r.address("ann@example.com"))).ident((u: any) => u.number(7n)).create(),
-    B.Card().name("Bo").reach((u: any) => u.phone((r: any) => r.number("+44 20 7946 0000")))
-      .ident((u: any) => u.code("B-2"))
-      .meta((i: any) => i.stamp((r: any) => r.updated("2026-09-29")).audit((r: any) => r.updated("2026-09-29").by("ann")))
+    B.Card().name("Ann").home((p: any) => p.as_object((r: any) => r.number("+1 555 0100").label("home").extensions((a: any) => a.insert((e: any) => e.value("12")))))
+      .reach((p: any) => p.as_value((a: any) => a.as_union((u: any) => u.email((r: any) => r.address("ann@example.com"))))).ident((p: any) => p.as_value((a: any) => a.as_union((u: any) => u.number(7n)))).create(),
+    B.Card().name("Bo").reach((p: any) => p.as_value((a: any) => a.as_union((u: any) => u.phone((r: any) => r.number("+44 20 7946 0000")))))
+      .ident((p: any) => p.as_value((a: any) => a.as_union((u: any) => u.code("B-2"))))
+      .meta((p: any) => p.as_value((a: any) => a.as_intersection((i: any) => i.stamp((r: any) => r.updated("2026-09-29")).audit((r: any) => r.updated("2026-09-29").by("ann")))))
       .create(),
     B.Card().name("Cy").create(),
   ];
-  for (const card of cards) B.Deck(deck).cards((x: any) => x.card(card)).update();
+  for (const card of cards) B.Deck(deck).cards((a: any) => a.insert((x: any) => x.card(card))).update();
 
   const rack = B.Board().name("rack");
-  for (const value of ["", "日本語 🚀", "a"]) rack.tags((e: any) => e.value(value));
-  for (const value of [new Uint8Array(), new Uint8Array([0, 255])]) rack.blobs((e: any) => e.value(value));
-  for (const row of [[1n, -(2n ** 70n)], [], [0n]]) rack.grid((e: any) => e.row(entries("values", row.map((v) => (x: any) => x.value(v)))));
-  rack.readings((e: any) => e.reading((u: any) => u.value(-0.0))).readings((e: any) => e.reading((u: any) => u.note("off")));
-  rack.readings((e: any) => e.reading((u: any) => u.value(Infinity)));
-  rack.sockets((e: any) => e.socket((o: any) => o.name("in").pins((x: any) => x.value("1")).pins((x: any) => x.value("2"))));
-  rack.sockets((e: any) => e.socket((o: any) => o.name("out")));
-  rack.banks((e: any) => e.bank((b: any) => b)).banks((e: any) => e.bank((b: any) => b.sockets(
-    (x: any) => x.socket((o: any) => o.name("spare").pins((y: any) => y.value("9"))))));
+  for (const value of ["", "日本語 🚀", "a"]) rack.tags((a: any) => a.insert((e: any) => e.value(value)));
+  for (const value of [new Uint8Array(), new Uint8Array([0, 255])]) rack.blobs((a: any) => a.insert((e: any) => e.value(value)));
+  for (const row of [[1n, -(2n ** 70n)], [], [0n]]) rack.grid((a: any) => a.insert((e: any) => e.row((p: any) => p.as_object(entries("values", row.map((v) => (x: any) => x.value(v)))))));
+  rack.readings((a: any) => a.insert((e: any) => e.reading((p: any) => p.as_value((a: any) => a.as_union((u: any) => u.value(-0.0)))))).readings((a: any) => a.insert((e: any) => e.reading((p: any) => p.as_value((a: any) => a.as_union((u: any) => u.note("off"))))));
+  rack.readings((a: any) => a.insert((e: any) => e.reading((p: any) => p.as_value((a: any) => a.as_union((u: any) => u.value(Infinity))))));
+  rack.sockets((a: any) => a.insert((e: any) => e.socket((p: any) => p.as_object((o: any) => o.name("in").pins((a: any) => a.insert((x: any) => x.value("1"))).pins((a: any) => a.insert((x: any) => x.value("2")))))));
+  rack.sockets((a: any) => a.insert((e: any) => e.socket((p: any) => p.as_object((o: any) => o.name("out")))));
+  rack.banks((a: any) => a.insert((e: any) => e.bank((p: any) => p.as_object((b: any) => b)))).banks((a: any) => a.insert((e: any) => e.bank((p: any) => p.as_object((b: any) => b.sockets((a: any) => a.insert(
+    (x: any) => x.socket((p: any) => p.as_object((o: any) => o.name("spare").pins((a: any) => a.insert((y: any) => y.value("9")))))))))));
   for (const [i, j, value] of [[2n, 1n, 0n], [1n, 1n, 1n], [1n, 2n, 0n], [2n, 2n, 1n]]) {
-    rack.matrix((e: any) => e.i(i).j(j).value(value));
+    rack.matrix((a: any) => a.insert((e: any) => e.i(i).j(j).value(value)));
   }
-  rack.attrs((e: any) => e.key("gain").value(1.5)).attrs((e: any) => e.key("").value(-0.0));
-  rack.weights((e: any) => e.key(0.5).value("half")).weights((e: any) => e.key(NaN).value("none"));
-  rack.cells((e: any) => e.key((c: any) => c.r(2n).c(3n)).value(6n)).cells((e: any) => e.key((c: any) => c.r(0n).c(0n)).value(0n));
+  rack.attrs((a: any) => a.insert((e: any) => e.key("gain").value(1.5))).attrs((a: any) => a.insert((e: any) => e.key("").value(-0.0)));
+  rack.weights((a: any) => a.insert((e: any) => e.key(0.5).value("half"))).weights((a: any) => a.insert((e: any) => e.key(NaN).value("none")));
+  rack.cells((a: any) => a.insert((e: any) => e.key((p: any) => p.as_object((c: any) => c.r(2n).c(3n))).value(6n))).cells((a: any) => a.insert((e: any) => e.key((p: any) => p.as_object((c: any) => c.r(0n).c(0n))).value(0n)));
   const board = rack.create();
 
   // --- module: the corpus's own schemas as data, with scalars of widths and another format's token, parametric

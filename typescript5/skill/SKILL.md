@@ -32,14 +32,18 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
    `OfObject`; it belongs to that owner and is copied with it, and it may have lists (adjacencies to one-link relations). Links
    target reference objects only: nothing links to a value object.
 3. **Names starting with `$` are reserved** for the wire format (`$ref`, `$schema`, `$id`); `validate()` reports them.
-4. **Nothing is mandatory, and absent reads as `None`** (`null` in TypeScript): no property holds `None` as a value,
-   and an absent one is left out of what is written. An undeclared name raises `AttributeError`. Cardinality
-   is `unique(...)` on a relation. "At least one" constraints are not implemented yet.
+4. **Nothing is mandatory, and absent reads as `None`** (`null` in TypeScript): a property is a member, its visitor,
+   whose `get()` is `None` when absent; no property holds `None` as a value, and an absent one is left out of what is
+   written. A name the schema lacks reads as empty, and writing through it raises `ReadOnlyError`. Cardinality is
+   `unique(...)` on a relation. "At least one" constraints are not implemented yet.
 5. **Validation runs only when asked:** `Validators.Validate(store)(schema, value)`, or `.Reachable(...)` for a
    whole graph. It returns every problem, each with a path. Schemas have their own `.validate()`.
 6. **Scalar types are exact, never coerced.** `int`, `float`, `bool`, `str` and `bytes` are distinct. In TypeScript,
    `int` is `bigint`.
-7. **Objects are read-only.** Change them through a builder that ends with `create()`, `clone()` or `update()`.
+7. **Objects are read-only visitors.** Read a scalar with `str(obj.name)` or `obj.name.get()` (TypeScript:
+   `` `${obj.name}` ``), never by comparing the member itself. Change objects through a builder, whose members take a
+   value or a callable given the visitor, and which ends with `create()`, `clone()` or `update()`; entries are
+   inserted and removed through an adjacency's visitor (`.phones(lambda a: a.insert(...))`).
 8. **Everything lives in a store.** `store = Proxies.OfStore()` holds named schemas, and as data what its
    singletons reach: `store.register(schema)` (a schema named by its builder's `.name("crm.Contact")`), then
    `store.<Name>(...)`. Serializers and validators take the store

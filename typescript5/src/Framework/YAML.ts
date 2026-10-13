@@ -23,7 +23,8 @@ import type { PlainData, PlainMap } from "./Plain.js";
 import { pyFloat, repr, typeName } from "./Repr.js";
 import type * as Schemas from "./Schemas.js";
 import type * as Stores from "./Stores.js";
-import type { Scalar, Visitable } from "./Visitors.js";
+import type * as Readers from "./Readers.js";
+import type { Scalar } from "./Visitors.js";
 
 // --- Dumping ---
 
@@ -283,8 +284,8 @@ export function loads(input: string | Uint8Array): PlainData {
 export interface ToYAMLCall {
   (schema: unknown, value: unknown): string;
   OfScalar(schema: Schemas.OfScalar.Data, value: Scalar): string;
-  OfObject(schema: Schemas.OfObject.Data, value: Visitable): string;
-  Reachable(schema: Schemas.OfObject.Data, value: Visitable): string;
+  OfObject(schema: Schemas.OfObject.Data, value: Readers.OfObject): string;
+  Reachable(schema: Schemas.OfObject.Data, value: Readers.OfObject): string;
 }
 
 /** Encodes values, naming the schemas of objects in `store`: `ToYAML(store)(schema, value)` dispatches on the schema's
@@ -294,8 +295,8 @@ export function ToYAML(store: Stores.Store): ToYAMLCall {
   const call = (schema: unknown, value: unknown): string => dumps(plain(schema, value));
   return Object.assign(call, {
     OfScalar: (schema: Schemas.OfScalar.Data, value: Scalar) => dumps(plain.OfScalar(schema, value)),
-    OfObject: (schema: Schemas.OfObject.Data, value: Visitable) => dumps(plain.OfObject(schema, value)),
-    Reachable: (schema: Schemas.OfObject.Data, value: Visitable) => dumps(plain.Reachable(schema, value)),
+    OfObject: (schema: Schemas.OfObject.Data, value: Readers.OfObject) => dumps(plain.OfObject(schema, value)),
+    Reachable: (schema: Schemas.OfObject.Data, value: Readers.OfObject) => dumps(plain.Reachable(schema, value)),
   });
 }
 

@@ -24,9 +24,18 @@ const CLASS_NAMES: ReadonlyMap<unknown, string> = new Map<unknown, string>([
   [Object, "object"],
 ]);
 
+/** A value's own class name, as Python's `type(value).__name__` gives it: for values whose `typeof` says less, such as
+ * proxies over a function, which are callable. */
+export const TYPE_NAME: unique symbol = Symbol.for("mbse.typeName");
+
+/** A value's own `repr()`, as Python's `__repr__` gives it. */
+export const REPR: unique symbol = Symbol.for("mbse.repr");
+
 /** Python's `type(value).__name__`, using the framework's names for scalar values. */
 export function typeName(value: unknown): string {
   if (value === null || value === undefined) return "NoneType";
+  const named = (value as { [TYPE_NAME]?: unknown })[TYPE_NAME];
+  if (typeof named === "string") return named;
   switch (typeof value) {
     case "bigint":
       return "int";
@@ -156,6 +165,8 @@ export class Tuple {
 /** Python's `repr()` for the values that appear in messages. */
 export function repr(value: unknown): string {
   if (value === null || value === undefined) return "None";
+  const own = (value as { [REPR]?: unknown })[REPR];
+  if (typeof own === "function") return (own as () => string).call(value);
   if (value === true) return "True";
   if (value === false) return "False";
   if (typeof value === "string") return reprString(value);

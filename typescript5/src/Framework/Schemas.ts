@@ -141,34 +141,6 @@ abstract class NamedBuilder<D extends HasFields> extends Builder<D> {
   }
 }
 
-/** Filled by `Reflection`, which writes a schema in its module form, so that this module need not import `Modules`. */
-export const _REFLECTION: { accept: ((schema: unknown, visitor: unknown) => void) | null } = { accept: null };
-
-const IDENTITIES = new WeakMap<object, string>();
-let identities = 0;
-
-/** A schema as an object predicates match (see `Reflection`): a reference object, identified by a string unique to it
- * (`"schema 3"`), as mbse-schemas keys identities by their text, whose schema is its kind's meta-schema. */
-class Reflected {
-  identity(): string {
-    let identity = IDENTITIES.get(this);
-    if (identity === undefined) IDENTITIES.set(this, (identity = `schema ${++identities}`));
-    return identity;
-  }
-
-  schema_name(): string {
-    return KIND_NAMES.get(this.constructor) as string;
-  }
-
-  owner(): null {
-    return null;
-  }
-
-  accept(visitor: unknown): void {
-    (_REFLECTION.accept as (schema: unknown, visitor: unknown) => void)(this, visitor);
-  }
-}
-
 /** Resolves a `Spec`: data is used as is; a callable is given a new builder and must return it. */
 function resolveSpec<D>(spec: unknown, isData: (value: unknown) => value is D, builder: () => { create(): unknown }): D {
   if (isData(spec)) return spec;
@@ -416,7 +388,7 @@ export interface Widths {
 
 /** A scalar type: a token, and optionally a width in bits or in bytes, an int or a term. A host type given in place of
  * the token (`new OfScalar.Data(BigInt)`) is shorthand for the `basic` token of the same name. */
-class ScalarData extends Reflected {
+class ScalarData {
   token: unknown;
   bits: unknown;
   bytes: unknown;
@@ -425,7 +397,6 @@ class ScalarData extends Reflected {
   parameters: Map<string, ParameterData>;
 
   constructor(token: unknown = null, widths: Widths = {}) {
-    super();
     this.token = SCALAR_NAMES.has(token) ? new TokenClass(BASIC, SCALAR_NAMES.get(token) as string) : token;
     this.bits = widths.bits ?? null;
     this.bytes = widths.bytes ?? null;
@@ -754,7 +725,7 @@ export namespace OfEntry {
 
 // --- OfRelation ---
 
-class RelationData extends Reflected {
+class RelationData {
   entry: EntryData;
   uniques: readonly ReadonlySet<string>[];
   name: string | null;
@@ -763,7 +734,6 @@ class RelationData extends Reflected {
 
   constructor(fields: { entry?: EntryData; uniques?: readonly ReadonlySet<string>[]; name?: string | null;
     description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
-    super();
     this.entry = fields.entry ?? new EntryData();
     this.uniques = fields.uniques ?? [];
     this.name = fields.name ?? null;
@@ -949,7 +919,7 @@ export namespace OfAdjacency {
 /** The object schemas being validated, so that one that holds itself is validated once. */
 const VALIDATING = new Set<unknown>();
 
-class ObjectData extends Reflected {
+class ObjectData {
   properties: Map<string, PropertyData>;
   adjacencies: Map<string, AdjacencyData>;
   singleton: string | null;
@@ -961,7 +931,6 @@ class ObjectData extends Reflected {
 
   constructor(fields: { properties?: Map<string, PropertyData>; adjacencies?: Map<string, AdjacencyData>; singleton?: string | null;
     ref?: boolean; name?: string | null; description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
-    super();
     this.properties = fields.properties ?? new Map();
     this.adjacencies = fields.adjacencies ?? new Map();
     this.singleton = fields.singleton ?? null;
@@ -1171,7 +1140,7 @@ function byName(members: readonly MemberData[]): Map<string, MemberData> {
   return new Map(members.map((m) => [m.name, m]));
 }
 
-class UnionData extends Reflected {
+class UnionData {
   branches: readonly MemberData[];
   name: string | null;
   description: string | null;
@@ -1181,7 +1150,6 @@ class UnionData extends Reflected {
 
   constructor(fields: { branches?: readonly MemberData[]; name?: string | null; description?: string | null;
     parameters?: Map<string, ParameterData>; flat?: boolean } = {}) {
-    super();
     this.branches = fields.branches ?? [];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
@@ -1242,7 +1210,7 @@ export namespace OfUnion {
   }
 }
 
-class IntersectionData extends Reflected {
+class IntersectionData {
   parts: readonly MemberData[];
   name: string | null;
   description: string | null;
@@ -1252,7 +1220,6 @@ class IntersectionData extends Reflected {
 
   constructor(fields: { parts?: readonly MemberData[]; name?: string | null; description?: string | null;
     parameters?: Map<string, ParameterData>; flat?: boolean } = {}) {
-    super();
     this.parts = fields.parts ?? [];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
@@ -1317,7 +1284,7 @@ export namespace OfIntersection {
 
 /** A parametric schema applied to arguments: a type whose values are the applied schema's (`of`), with arguments for
  * its parameters by name, each a scalar value or a term. Parameters given no argument stay unbound. */
-class ApplyData extends Reflected {
+class ApplyData {
   of: AnyData | null;
   arguments: Map<string, unknown>;
   name: string | null;
@@ -1326,7 +1293,6 @@ class ApplyData extends Reflected {
 
   constructor(fields: { of?: AnyData | null; arguments?: Map<string, unknown>; name?: string | null; description?: string | null;
     parameters?: Map<string, ParameterData> } = {}) {
-    super();
     this.of = fields.of ?? null;
     this.arguments = fields.arguments ?? new Map();
     this.name = fields.name ?? null;
@@ -1465,7 +1431,7 @@ export namespace OfApply {
 /** A constraint over symbols, each standing for an object of a reference object schema, and parameters: it holds of a
  * match, a binding of every symbol to an object of its schema, where its term `requires` holds. Matching, and the
  * dialects `requires` may be written in, are the caller's (mbse-patterns'); here it is data, checked as a form. */
-class PredicateData extends Reflected {
+class PredicateData {
   symbols: Map<string, SymbolData>;
   requires: unknown;
   name: string | null;
@@ -1474,7 +1440,6 @@ class PredicateData extends Reflected {
 
   constructor(fields: { symbols?: Map<string, SymbolData>; requires?: unknown; name?: string | null;
     description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
-    super();
     this.symbols = fields.symbols ?? new Map();
     this.requires = fields.requires ?? null;
     this.name = fields.name ?? null;
@@ -1755,9 +1720,6 @@ Form.Schema = FormSchema;
 Form.Value = ScalarValue;
 OfAny.Schema = AnySchema;
 OfAny.Named = NamedSchema;
-const KIND_NAMES = new Map<unknown, string>([[ScalarData, "Schemas.Scalar"], [ObjectData, "Schemas.Object"],
-  [UnionData, "Schemas.Union"], [IntersectionData, "Schemas.Intersection"],
-  [ApplyData, "Schemas.Apply"], [RelationData, "Schemas.Relation"], [PredicateData, "Schemas.Predicate"]]);
 
 /** A named set of schemas, as data. `Module.Schema` is the reference object schema of a module: its `schemas` are an
  * adjacency, each entry a `name` and a `schema`, a `Module.Definition` (a schema of any kind, relations and predicates

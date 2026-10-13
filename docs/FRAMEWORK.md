@@ -861,6 +861,11 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     writes the container at once, as `as_object(cb)` does a value object, so an empty container round-trips;
   - an iterator inserts (`prepend`, `append`, and `as_item` past an end) only into a dense or sparse container of int
     indices, moving the elements after the insertion up by one;
+  - comparison (`Comparison.OfContainer`, and containers held as values): containers whose element types differ are
+    incomparable too, as their index types' are; others are equal when they hold equal elements at the same indices,
+    in any order (a dict's insertion order is not compared), and otherwise incomparable, never ordered; uniqueness
+    compares containers the same way. Validation checks each element present under the element schema, reported at
+    its index, `card.tags[2]`, `card.grid[[0, 1]]`, `card.phones['home'].number`;
   - not yet: reading a container whose index is neither ordered nor hashable from a snapshot (its index would have to
     be built as a standalone value object), and a value object with list adjacencies inside a container in a snapshot
     (lists become containers in V5).

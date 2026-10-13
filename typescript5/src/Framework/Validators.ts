@@ -39,13 +39,17 @@ function scalar(read: any): unknown {
   return found[0];
 }
 
+/** The `Visitors.OfAny` method that reads a value of `schema`, a value object, union, intersection or container. */
+function selecting(schema: unknown): string {
+  return schema instanceof Schemas.OfUnion.Data ? "as_union" : schema instanceof Schemas.OfIntersection.Data ? "as_intersection"
+    : schema instanceof Schemas.OfContainer.Data ? "as_container" : "as_object";
+}
+
 /** The value object, union value or intersection value a property's visitor holds, as its own visitor; null when
  * absent. An empty visitor has no identity. */
 function held(read: any, schema: unknown): any {
-  const select = schema instanceof Schemas.OfUnion.Data ? "as_union"
-    : schema instanceof Schemas.OfIntersection.Data ? "as_intersection" : "as_object";
   const found: any[] = [];
-  read.as_value((a: any) => a[select]((v: any) => found.push(v)));
+  read.as_value((a: any) => a[selecting(schema)]((v: any) => found.push(v)));
   return found.length > 0 && found[0].as_schema() !== null ? found[0] : null; // a visitor of nothing has no schema
 }
 
@@ -54,6 +58,22 @@ function held(read: any, schema: unknown): any {
 function member(read: any, schema: unknown): unknown {
   if (Schemas.structure(schema) instanceof Schemas.OfScalar.Data) return read.get();
   return read.as_schema() !== null ? read : null;
+}
+
+/** A container's element, read through its `Visitors.OfAny`: a scalar or a visitor; an element present holds one. */
+function element(read: any, schema: unknown): any {
+  const type = Schemas.structure(schema);
+  const found: unknown[] = [];
+  if (type instanceof Schemas.OfScalar.Data || type === null) read.as_scalar((s: any) => found.push(s.get()));
+  else read[selecting(type)]((v: any) => found.push(v));
+  return found[0];
+}
+
+/** A container's elements, each with its index, in order. */
+function pairs(read: any): [unknown, any][] {
+  const found: [unknown, any][] = [];
+  read.as_entries((it: Iterator<[unknown, any]>) => found.push(...{ [Symbol.iterator]: () => it }));
+  return found;
 }
 
 const schemaNumbers = new WeakMap<object, number>();
@@ -90,6 +110,12 @@ function key(schema: unknown, value: any): string {
   const type = Schemas.structure(schema);
   if (value === null || value === undefined) return ABSENT;
   if (type instanceof Schemas.OfScalar.Data || type === null) return scalarKey(value);
+  if (type instanceof Schemas.OfContainer.Data) {
+    const keyed = pairs(value).map(([index, e]) => JSON.stringify([
+      Array.isArray(index) ? index.map(scalarKey) : scalarKey(index), // a value object index by its values too
+      key(type.element, element(e, type.element))]));
+    return `container:${JSON.stringify(sortedStrings(keyed))}`;
+  }
   if (type instanceof Schemas.OfObject.Data) {
     const properties = [...value.as_properties as Iterable<Readers.OfProperty>].map((p) =>
       [p.as_schema().name, key(p.as_schema().type, propertyValue(p, p.as_schema().type))]);
@@ -168,6 +194,10 @@ class Checker {
     if (schema instanceof Schemas.OfScalar.Data) {
       const problem = scalarProblem(schema, item);
       return problem === null ? [] : [`${label}: ${problem}`];
+    }
+    if (schema instanceof Schemas.OfContainer.Data) {
+      return pairs(item).flatMap(([index, e]) =>
+        this.valueProblems(`${label}[${repr(index)}]`, schema.element, element(e, schema.element)));
     }
     if (schema instanceof Schemas.OfObject.Data) {
       const problems = this.properties(label, item);

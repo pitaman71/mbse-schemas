@@ -43,13 +43,15 @@ def _scalar(read: Any) -> Any:
     return found[0] if found else None
 
 
+_SELECT = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
+           Schemas.OfIntersection.Data: "as_intersection", Schemas.OfContainer.Data: "as_container"}
+
+
 def _held(read: Any, schema: Any) -> Any:
     """The value object, union value or intersection value a property's visitor holds, as its own visitor; None when
     absent. An empty visitor has no identity."""
-    select = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
-              Schemas.OfIntersection.Data: "as_intersection"}[type(schema)]
     found: list[Any] = []
-    read.as_value(lambda a: getattr(a, select)(lambda v: found.append(v) or v) or a)
+    read.as_value(lambda a: getattr(a, _SELECT[type(schema)])(lambda v: found.append(v) or v) or a)
     return found[0] if found and found[0].as_schema() is not None else None  # a visitor of nothing has no schema
 
 
@@ -59,6 +61,24 @@ def _member(read: Any, schema: Any) -> Any:
     if isinstance(Schemas.structure(schema), Schemas.OfScalar.Data):
         return read.get()
     return read if read.as_schema() is not None else None
+
+
+def _element(read: Any, schema: Any) -> Any:
+    """A container's element, read through its `Visitors.OfAny`: a scalar or a visitor; an element present holds one."""
+    held = Schemas.structure(schema)
+    found: list[Any] = []
+    if isinstance(held, Schemas.OfScalar.Data) or held is None:
+        read.as_scalar(lambda s: found.append(s.get()) or s)
+        return found[0]
+    getattr(read, _SELECT[type(held)])(lambda v: found.append(v) or v)
+    return found[0]
+
+
+def _pairs(read: Any) -> list[tuple[Any, Any]]:
+    """A container's elements, each with its index, in order."""
+    pairs: list[tuple[Any, Any]] = []
+    read.as_entries(lambda it: pairs.extend(it))
+    return pairs
 
 
 def _identity(target: Any) -> Hashable:
@@ -97,6 +117,9 @@ def _key(schema: Any, value: Any) -> Hashable:
         return _ABSENT
     if isinstance(held, Schemas.OfScalar.Data) or held is None:
         return ("float", value.hex()) if isinstance(value, float) else (type(value).__name__, value)
+    if isinstance(held, Schemas.OfContainer.Data):
+        return ("container", frozenset((index if not hasattr(index, "as_schema") else _key(held.index, index),
+                                        _key(held.element, _element(e, held.element))) for index, e in _pairs(value)))
     if isinstance(held, Schemas.OfObject.Data):
         properties = tuple((p.as_schema().name, _key(p.as_schema().type, _property_value(p, p.as_schema().type)))
                            for p in value.as_properties)
@@ -171,6 +194,12 @@ class _Check:
         if isinstance(schema, Schemas.OfScalar.Data):
             problem = _scalar_problem(schema, item)
             return [f"{label}: {problem}"] if problem else []
+        if isinstance(schema, Schemas.OfContainer.Data):
+            problems = []
+            for index, element in _pairs(item):
+                at = repr(list(index)) if isinstance(index, tuple) else repr(index)  # a tuple shown as a list
+                problems += self._value_problems(f"{label}[{at}]", schema.element, _element(element, schema.element))
+            return problems
         if isinstance(schema, Schemas.OfObject.Data):
             problems = self._properties(label, schema, item)
             for name, adjacency in schema.adjacencies.items():

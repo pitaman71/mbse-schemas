@@ -15,6 +15,8 @@
  * - `OfProperty` and `OfAny` compare their values; values of different kinds are incomparable.
  * - `OfUnion`: equal when both hold the same branch with equal values; otherwise incomparable.
  * - `OfIntersection`: equal when every part is absent in both or equal in both; otherwise incomparable.
+ * - `OfContainer`: equal when both hold elements at the same indices, each equal; otherwise incomparable. Containers
+ *   with different index types, or different element types, are incomparable.
  * - `OfLink`: equal when both link the same object, by identity: a link targets a reference object; otherwise
  *   incomparable.
  * - `OfEntry`: equal when every link and property is equal; otherwise incomparable.
@@ -71,13 +73,17 @@ function readScalar(read: any): any {
   return found[0];
 }
 
+/** The `Visitors.OfAny` method that reads a value of `schema`, a value object, union, intersection or container. */
+function selecting(schema: unknown): string {
+  return schema instanceof Schemas.OfUnion.Data ? "as_union" : schema instanceof Schemas.OfIntersection.Data ? "as_intersection"
+    : schema instanceof Schemas.OfContainer.Data ? "as_container" : "as_object";
+}
+
 /** The value object, union value or intersection value a property's visitor holds, as its own visitor; null when
  * absent. An empty visitor has no identity. */
 function readHeld(read: any, schema: unknown): any {
-  const select = schema instanceof Schemas.OfUnion.Data ? "as_union"
-    : schema instanceof Schemas.OfIntersection.Data ? "as_intersection" : "as_object";
   const found: any[] = [];
-  read.as_value((a: any) => a[select]((v: any) => found.push(v)));
+  read.as_value((a: any) => a[selecting(schema)]((v: any) => found.push(v)));
   return found.length > 0 && found[0].as_schema() !== null ? found[0] : null; // a visitor of nothing has no schema
 }
 
@@ -91,6 +97,15 @@ function readProperty(read: any, schema: unknown): any {
 function readMember(read: any, schema: unknown): any {
   if (Schemas.structure(schema) instanceof Schemas.OfScalar.Data) return read.get();
   return read.as_schema() !== null ? read : null;
+}
+
+/** A container's element, read through its `Visitors.OfAny`: a scalar or a visitor; an element present holds one. */
+function readElement(read: any, schema: unknown): any {
+  const type = Schemas.structure(schema);
+  const found: unknown[] = [];
+  if (type instanceof Schemas.OfScalar.Data || type === null) read.as_scalar((s: any) => found.push(s.get()));
+  else read[selecting(type)]((v: any) => found.push(v));
+  return found[0];
 }
 
 // --- Comparing ---
@@ -110,8 +125,30 @@ function compareValues(schema: unknown, a: any, b: any): Result {
   const held = Schemas.structure(schema);
   if (held instanceof Schemas.OfScalar.Data) return typeName(a) !== typeName(b) ? null : compareScalars(a, b);
   if (held instanceof Schemas.OfObject.Data) return objects(held, a, b, true);
+  if (held instanceof Schemas.OfContainer.Data) return containers(held, a, b);
   const record = held as Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
   return allEqual([...record.properties].map(([name, m]) => compareValues(m.type, readMember(a[name], m.type), readMember(b[name], m.type))));
+}
+
+/** Whether two indices of one index type are one: scalars, or arrays of them, equal; value objects equal. */
+function sameIndex(schema: unknown, a: any, b: any): boolean {
+  if (Array.isArray(a)) return a.every((x, i) => compareScalars(x, b[i]) === 0);
+  if (Schemas.structure(schema) instanceof Schemas.OfScalar.Data) return compareScalars(a, b) === 0;
+  return compareValues(schema, a, b) === 0;
+}
+
+/** Two containers of `schema`: equal when they hold elements at the same indices, each equal. */
+function containers(schema: Schemas.OfContainer.Data, a: any, b: any): Result {
+  const mine: [unknown, any][] = [];
+  const theirs: [unknown, any][] = [];
+  a.as_entries((it: Iterator<[unknown, any]>) => mine.push(...{ [Symbol.iterator]: () => it }));
+  b.as_entries((it: Iterator<[unknown, any]>) => theirs.push(...{ [Symbol.iterator]: () => it }));
+  if (mine.length !== theirs.length) return null;
+  return allEqual(mine.map(([index, e]) => {
+    const other = theirs.find(([i]) => sameIndex(schema.index, index, i));
+    return other === undefined ? null
+      : compareValues(schema.element, readElement(e, schema.element), readElement(other[1], schema.element));
+  }));
 }
 
 /** Two objects of `schema`: their properties, and with `deep`, their entries. */
@@ -216,6 +253,17 @@ export class OfUnion {
 
 /** An intersection value read through its visitor; null for absent. */
 export class OfIntersection extends OfUnion {}
+
+/** A container read through its visitor (`Readers.OfContainer`); null for absent. Containers of different index types,
+ * or of different element types, are incomparable. */
+export class OfContainer {
+  constructor(private readonly schema: Schemas.OfContainer.Data, private readonly value: Readers.OfContainer | null = null) {}
+
+  compare(other: OfContainer): Result {
+    if (!sameType(this.schema.index, other.schema.index) || !sameType(this.schema.element, other.schema.element)) return null;
+    return compareValues(this.schema, this.value, other.value);
+  }
+}
 
 /** An adjacency's entries, read through its visitor (`Readers.OfAdjacency`). */
 export class OfAdjacency {

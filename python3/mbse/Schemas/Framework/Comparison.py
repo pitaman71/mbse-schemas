@@ -14,6 +14,8 @@ greater than `b`, and `None` when they are incomparable.
 - `OfProperty` and `OfAny` compare their values; values of different kinds are incomparable.
 - `OfUnion`: equal when both hold the same branch with equal values; otherwise incomparable.
 - `OfIntersection`: equal when every part is absent in both or equal in both; otherwise incomparable.
+- `OfContainer`: equal when both hold elements at the same indices, each equal; otherwise incomparable. Containers
+  with different index types, or different element types, are incomparable.
 - `OfLink`: equal when both link the same object, by identity: a link targets a reference object; otherwise
   incomparable.
 - `OfEntry`: equal when every link and property is equal; otherwise incomparable.
@@ -31,7 +33,7 @@ from . import Readers, Schemas
 from .Visitors import Scalar
 
 __all__ = [
-    "Result", "OfAny", "OfScalar", "OfProperty", "OfObject", "OfUnion", "OfIntersection",
+    "Result", "OfAny", "OfScalar", "OfProperty", "OfObject", "OfUnion", "OfIntersection", "OfContainer",
     "OfAdjacency", "OfEntry", "OfLink",
 ]
 
@@ -70,13 +72,15 @@ def _read_scalar(read: Any) -> Any:
     return found[0] if found else None
 
 
+_SELECT = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
+           Schemas.OfIntersection.Data: "as_intersection", Schemas.OfContainer.Data: "as_container"}
+
+
 def _read_held(read: Any, schema: Any) -> Any:
     """The value object, union value or intersection value a property's visitor holds, as its own visitor; None when
     absent. An empty visitor has no identity."""
-    select = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
-              Schemas.OfIntersection.Data: "as_intersection"}[type(schema)]
     found: list[Any] = []
-    read.as_value(lambda a: getattr(a, select)(lambda v: found.append(v) or v) or a)
+    read.as_value(lambda a: getattr(a, _SELECT[type(schema)])(lambda v: found.append(v) or v) or a)
     return found[0] if found and found[0].as_schema() is not None else None  # a visitor of nothing has no schema
 
 
@@ -91,6 +95,17 @@ def _read_member(read: Any, schema: Any) -> Any:
     if isinstance(Schemas.structure(schema), Schemas.OfScalar.Data):
         return read.get()
     return read if read.as_schema() is not None else None
+
+
+def _read_element(read: Any, schema: Any) -> Any:
+    """A container's element, read through its `Visitors.OfAny`: a scalar or a visitor; an element present holds one."""
+    held = Schemas.structure(schema)
+    found: list[Any] = []
+    if isinstance(held, Schemas.OfScalar.Data) or held is None:
+        read.as_scalar(lambda s: found.append(s.get()) or s)
+    else:
+        getattr(read, _SELECT[type(held)])(lambda v: found.append(v) or v)
+    return found[0]
 
 
 # --- Comparing ---
@@ -113,8 +128,34 @@ def _compare(schema: Any, a: Any, b: Any) -> Result:
         return _scalars(a, b)
     if isinstance(held, Schemas.OfObject.Data):
         return _objects(held, a, b, deep=True)
+    if isinstance(held, Schemas.OfContainer.Data):
+        return _containers(held, a, b)
     return _all_equal([_compare(m.type, _read_member(getattr(a, name), m.type), _read_member(getattr(b, name), m.type))
                        for name, m in held.properties.items()])
+
+
+def _same_index(schema: Any, a: Any, b: Any) -> bool:
+    """Whether two indices of one index type are one: scalars, or tuples of them, equal; value objects equal."""
+    if isinstance(a, tuple):
+        return all(_scalars(x, y) == 0 for x, y in zip(a, b))
+    if isinstance(Schemas.structure(schema), Schemas.OfScalar.Data):
+        return _scalars(a, b) == 0
+    return _compare(schema, a, b) == 0
+
+
+def _containers(schema: Schemas.OfContainer.Data, a: Any, b: Any) -> Result:
+    """Two containers of `schema`: equal when they hold elements at the same indices, each equal."""
+    pairs: list[list[tuple[Any, Any]]] = [[], []]
+    a.as_entries(lambda it: pairs[0].extend(it))
+    b.as_entries(lambda it: pairs[1].extend(it))
+    if len(pairs[0]) != len(pairs[1]):
+        return None
+    results: list[Result] = []
+    for index, element in pairs[0]:
+        other = [e for i, e in pairs[1] if _same_index(schema.index, index, i)]
+        results.append(None if not other else _compare(schema.element, _read_element(element, schema.element),
+                                                       _read_element(other[0], schema.element)))
+    return _all_equal(results)
 
 
 def _objects(schema: Schemas.OfObject.Data, a: Any, b: Any, deep: bool) -> Result:
@@ -224,6 +265,19 @@ class OfUnion:
 
 class OfIntersection(OfUnion):
     """An intersection value read through its visitor; None for absent."""
+
+
+class OfContainer:
+    """A container read through its visitor (`Readers.OfContainer`); None for absent. Containers of different index
+    types, or of different element types, are incomparable."""
+
+    def __init__(self, schema: Schemas.OfContainer.Data, value: Readers.OfContainer | None = None):
+        self._schema, self._value = schema, value
+
+    def compare(self, other: OfContainer) -> Result:
+        if not (_same_type(self._schema.index, other._schema.index) and _same_type(self._schema.element, other._schema.element)):
+            return None
+        return _compare(self._schema, self._value, other._value)
 
 
 class OfAdjacency:

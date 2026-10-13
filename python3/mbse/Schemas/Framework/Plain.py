@@ -131,8 +131,6 @@ class _Snapshot:
 
     def _ref(self, target: Readers.OfObject) -> dict[str, PlainData]:
         """A reference to a linked object, which is a reference object: entries never reference value objects."""
-        if not target.as_schema().ref:
-            raise TypeError("a link targets a reference object, never a value object")
         return {REF: self._symbol(target), SCHEMA: self._store.name_of(target.as_schema())}
 
     def run(

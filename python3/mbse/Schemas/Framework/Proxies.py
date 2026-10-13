@@ -1158,9 +1158,7 @@ class _LinkMember:
     def __call__(self, spec: Any) -> _EntryBuilder:
         entry, name = self._entry, self._name
         if _is_function(spec):
-            store = entry._store
-            if store is None:
-                raise TypeError("an object is created through a link only by a store's builder")
+            store = entry._store  # a link is a reference object's, built in a store
             schema_name = store._filled(entry._relation, name)
             builder = _ObjectBuilder(store, store.schema(schema_name), schema_name)
             _visit(spec, builder)

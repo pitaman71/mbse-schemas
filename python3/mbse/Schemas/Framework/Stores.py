@@ -185,17 +185,17 @@ class Catalog:
 class Combined:
     """Stores combined into one: each name belongs to the one store that registers it, which gives its schema, builds its
     objects and reads their members; the singletons are all of theirs, and an extent is the owning store's and what
-    every store's singletons reach, so the objects of one store may link to another's (a store of schemas and a store
-    of syntax trees, say). A name that two of the stores register is refused."""
+    every store's singletons reach. A name that two of the stores register for different schemas is refused; one
+    they register for the same schema (as every store of proxies registers the meta-schemas) is the first's."""
 
     def __init__(self, *stores: Any):
         self.stores = stores
         self._owners: dict[str, Any] = {}
         for store in stores:
             for name in store.names():
-                if name in self._owners:
+                if name in self._owners and self._owners[name].registered(name) is not store.registered(name):
                     raise ValueError(f"schema {name!r} is registered by two of the stores")
-                self._owners[name] = store
+                self._owners.setdefault(name, store)
 
     def _owner(self, name: str, error: type[Exception]) -> Any:
         if name not in self._owners:

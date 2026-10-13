@@ -1327,6 +1327,129 @@ export namespace OfIntersection {
   }
 }
 
+// --- OfContainer: elements by index ---
+
+/** The scalar types with a total order: a container indexed by one, or by a value object of them, may be dense or
+ * sparse. */
+const ORDERED_TYPES = new Set<unknown>([BigInt, Number, String, Boolean]);
+const LAYOUTS = ["dense", "sparse"];
+
+/** What a container's index allows: "ordered" for a scalar of a type with a total order, or a value object of such
+ * scalars (several indices, as a tensor's, ordered by its properties in declaration order); "hashable" for any other
+ * scalar, or a value object of scalars; null otherwise. */
+function indexKind(type: unknown): "ordered" | "hashable" | null {
+  const index = structure(type);
+  if (index instanceof ScalarData) return ORDERED_TYPES.has(index.type) ? "ordered" : "hashable";
+  if (index instanceof ObjectData && !index.ref && index.adjacencies.size === 0 && index.properties.size > 0) {
+    const kinds = new Set([...index.properties.values()].map((prop) =>
+      structure(prop.type) instanceof ScalarData ? indexKind(prop.type) : null));
+    return kinds.has(null) ? null : kinds.has("hashable") ? "hashable" : "ordered";
+  }
+  return null;
+}
+
+/** A container: elements, each of the element type, held by index, each of the index type. Dense, its elements are a
+ * packed array; sparse, an associative store of dense blocks; with neither, it is dense where its index has a total
+ * order, a dict (by index) where its index is hashable, and its elements paired with their indices otherwise. */
+class ContainerData {
+  index: AnyData | null;
+  element: AnyData | null;
+  /** "dense", "sparse", or null for the default. */
+  layout: string | null;
+  name: string | null;
+  description: string | null;
+  parameters: Map<string, ParameterData>;
+
+  constructor(fields: { index?: AnyData | null; element?: AnyData | null; layout?: string | null; name?: string | null;
+    description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
+    this.index = fields.index ?? null;
+    this.element = fields.element ?? null;
+    this.layout = fields.layout ?? null;
+    this.name = fields.name ?? null;
+    this.description = fields.description ?? null;
+    this.parameters = fields.parameters ?? new Map();
+  }
+
+  /** How the container holds its elements: "dense", "sparse", "dict" (by a hashable index), or "entries" (each element
+   * paired with its index, where the index is neither ordered nor hashable). */
+  get arrangement(): string {
+    if (this.layout !== null) return this.layout;
+    const kind = indexKind(this.index);
+    return kind === "ordered" ? "dense" : kind === "hashable" ? "dict" : "entries";
+  }
+
+  equals(other: unknown): boolean {
+    return other === this;
+  }
+
+  validate(): string[] {
+    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
+    for (const [role, schema] of [["index", this.index], ["element", this.element]] as const) {
+      if (!isAnyData(schema)) problems.push(`a container's ${role} is a schema, got ${repr(schema)}`);
+      else problems.push(...validateSchema(schema).map((p) => `${role}: ${p}`));
+    }
+    if (this.layout !== null && !LAYOUTS.includes(this.layout)) {
+      problems.push(`a container's layout is 'dense' or 'sparse', got ${repr(this.layout)}`);
+    } else if (this.layout !== null && isAnyData(this.index) && indexKind(this.index) !== "ordered") {
+      problems.push(`a ${this.layout} container's index has a total order: an int, float, str or bool, or a value `
+        + "object of them");
+    }
+    return problems;
+  }
+}
+
+class ContainerBuilder extends NamedBuilder<ContainerData> {
+  protected make(fields: Record<string, unknown>): ContainerData {
+    return new ContainerData(fields as ConstructorParameters<typeof ContainerData>[0]);
+  }
+
+  /** The index type, a schema of any kind (a Spec): `(t) => t.as_scalar(BigInt)`, or a value object of ints. */
+  index(spec: OfAny.Spec): ContainerBuilder {
+    this.state["index"] = OfAny.resolve(spec);
+    return this;
+  }
+
+  /** The element type, a schema of any kind (a Spec). */
+  element(spec: OfAny.Spec): ContainerBuilder {
+    this.state["element"] = OfAny.resolve(spec);
+    return this;
+  }
+
+  /** Elements in a packed array, at every index from the first to the last. */
+  dense(): ContainerBuilder {
+    return this.arranged("dense");
+  }
+
+  /** Elements in an associative store of dense blocks, indices between them absent. */
+  sparse(): ContainerBuilder {
+    return this.arranged("sparse");
+  }
+
+  private arranged(layout: string): ContainerBuilder {
+    if ((this.state["layout"] ?? layout) !== layout) throw new ValueError("a container is .dense() or .sparse(), not both");
+    this.state["layout"] = layout;
+    return this;
+  }
+}
+
+function isContainerData(value: unknown): value is ContainerData {
+  return value instanceof ContainerData;
+}
+
+export namespace OfContainer {
+  /** The meta-schema of container schemas. */
+  export let Schema: ObjectData;
+  export const Data = ContainerData;
+  export type Data = ContainerData;
+  export const Builder = ContainerBuilder;
+  export type Builder = ContainerBuilder;
+  export type Spec = ContainerData | ((builder: ContainerBuilder) => ContainerBuilder);
+
+  export function resolve(spec: Spec | unknown): ContainerData {
+    return resolveSpec(spec, isContainerData, () => new ContainerBuilder());
+  }
+}
+
 // --- OfApply: a parametric schema applied to arguments ---
 
 /** A parametric schema applied to arguments: a type whose values are the applied schema's (`of`), with arguments for
@@ -1555,11 +1678,11 @@ export namespace OfPredicate {
 
 // --- OfAny ---
 
-type AnyData = ScalarData | ObjectData | UnionData | IntersectionData | ApplyData;
+type AnyData = ScalarData | ObjectData | UnionData | IntersectionData | ContainerData | ApplyData;
 
 function isAnyData(value: unknown): value is AnyData {
   return value instanceof ScalarData || value instanceof ObjectData || value instanceof UnionData ||
-    value instanceof IntersectionData || value instanceof ApplyData;
+    value instanceof IntersectionData || value instanceof ContainerData || value instanceof ApplyData;
 }
 
 function kindOf(value: unknown): unknown {
@@ -1575,6 +1698,7 @@ function validateSchema(schema: unknown): string[] {
  * intersection's parts, through applications. */
 function membersOf(type: unknown): unknown[] {
   const schema = structure(type);
+  if (schema instanceof ContainerData) return [schema.index, schema.element];
   return schema instanceof ObjectData || schema instanceof UnionData || schema instanceof IntersectionData
     ? [...schema.properties.values()].map((member) => member.type) : [];
 }
@@ -1619,6 +1743,11 @@ class AnyBuilder {
 
   as_intersection(spec: OfIntersection.Spec): AnyBuilder {
     this.selected = OfIntersection.resolve(spec);
+    return this;
+  }
+
+  as_container(spec: OfContainer.Spec): AnyBuilder {
+    this.selected = OfContainer.resolve(spec);
     return this;
   }
 
@@ -1734,6 +1863,9 @@ const UnionSchema = new ObjectBuilder().name("Schemas.Union").properties(namedTe
   .relations(Parameters, listing("branches", MEMBER)).create();
 const IntersectionSchema = new ObjectBuilder().name("Schemas.Intersection").properties(
   namedText("name"), Flat, namedText("description")).relations(Parameters, listing("parts", MEMBER)).create();
+const ContainerSchema = new ObjectBuilder().name("Schemas.Container").properties(
+  namedText("name"), (p) => p.name("index").of(AnySchema), (p) => p.name("element").of(AnySchema), namedText("layout"),
+  namedText("description")).relations(Parameters).create();
 const ArgumentSchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("value").of(ScalarValue),
   (p) => p.name("term").of(FormSchema)).create();
 const ApplySchema = new ObjectBuilder().name("Schemas.Apply").properties(
@@ -1744,7 +1876,7 @@ const PredicateSchema = new ObjectBuilder().name("Schemas.Predicate").properties
   namedText("name"), (p) => p.name("requires").of(FormSchema), namedText("description")).relations(
   Parameters, listing("symbols", MEMBER)).create();
 const KIND_SCHEMAS: [string, ObjectData][] = [["scalar", ScalarSchema], ["object", ObjectSchema], ["union", UnionSchema],
-  ["intersection", IntersectionSchema], ["apply", ApplySchema]];
+  ["intersection", IntersectionSchema], ["container", ContainerSchema], ["apply", ApplySchema]];
 const kindBranches = KIND_SCHEMAS.map(([name, schema]) => (b: MemberBuilder) => b.name(name).of(schema));
 new UnionBuilder(AnySchema).branches(...kindBranches, (b) => b.name("named").of(NamedSchema)).update();
 const DefinitionSchema = new UnionBuilder().branches(...kindBranches, (b) => b.name("relation").of(RelationSchema),
@@ -1761,6 +1893,7 @@ OfAdjacency.Schema = AdjacencySchema;
 OfObject.Schema = ObjectSchema;
 OfUnion.Schema = UnionSchema;
 OfIntersection.Schema = IntersectionSchema;
+OfContainer.Schema = ContainerSchema;
 OfParameter.Schema = PropertySchema;
 OfApply.Schema = ApplySchema;
 OfApply.Argument = ArgumentSchema;

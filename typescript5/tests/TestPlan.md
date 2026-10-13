@@ -42,7 +42,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 
 | Notebook | Suite | Cases | Focus |
 |---|---|---|---|
-| `01_Schemas.ipynb` | SCH | 22 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array`, the own token format is `typescript5`, and widths are `bigint`s |
+| `01_Schemas.ipynb` | SCH | 23 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array`, the own token format is `typescript5`, and widths are `bigint`s |
 | `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length`, the read-only views by the type checker; data instances are callable as a `Proxy` with a function target (`typeof` is `"function"`); the scalar sugar is `[Symbol.toPrimitive]` and `valueOf`; JavaScript's probes and `in` on a builder |
 | `03_Proxies.ipynb` | PRX | 21 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances, adjacencies, entry builders, link members and stores, `util.inspect` of instances, builders and members, the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel), and the reprs of builders of value objects and adjacencies |
 | `04_Reachable.ipynb` | RCH | 8 | as in Python |
@@ -58,7 +58,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `14_Embedded.ipynb` | EMB | 11 | as in Python; the runtime's own probes (`then`, symbols) are not members, and `in` on a value object says what its schema declares |
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
 | `17_Lists.ipynb` | LST | 7 | as in Python; an adjacency reads as a callable `Proxy` over a frozen array, and `at` takes an array for a key of two values |
-| `18_Modules.ipynb` | MOD | 7 | as in Python; schemas are given as a Map or a record, and read back as a Map |
+| `18_Modules.ipynb` | MOD | 8 | as in Python; schemas are given as a Map or a record, and read back as a Map |
 | `20_Stores.ipynb` | STO | 7 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), STO-05 builds its unplaced value object through `Proxies._internals`, and STO-07 runs the garbage collector (`gc()`, the suites running with `--expose-gc`), then awaits the store's forgetting |
 | `21_Random.ipynb` | RND | 3 | as in Python; PCG32 computes on `bigint`s, and the UTF-8 bytes of keys are encoded without `TextEncoder` |
 | `22_Parametrics.ipynb` | PAR | 7 | as in Python; an application's arguments, and a form's attributes, may be given as a Map or a record; an evaluator's scope is a `ReadonlyMap`, and an outcome is compared by its fields |

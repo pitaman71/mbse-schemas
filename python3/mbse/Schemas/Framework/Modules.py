@@ -130,6 +130,9 @@ class _Writer:
         if isinstance(schema, Schemas.OfIntersection.Data):
             return _kind_of("intersection", parameters=parameters, parts=self._members(schema.parts),
                             flat=schema.flat or None, description=schema.description)
+        if isinstance(schema, Schemas.OfContainer.Data):
+            return _kind_of("container", parameters=parameters, index=self.reference(schema.index),
+                            element=self.reference(schema.element), layout=schema.layout, description=schema.description)
         if isinstance(schema, Schemas.OfApply.Data):
             return _kind_of("apply", parameters=parameters, of=self.reference(schema.of),
                             arguments=_arguments(schema.arguments), description=schema.description)
@@ -193,7 +196,8 @@ def _present(**contents: Any) -> dict[str, Any]:
 
 
 _BLANK = {"scalar": Schemas.OfScalar.Data, "object": Schemas.OfObject.Data, "relation": Schemas.OfRelation.Data,
-          "union": Schemas.OfUnion.Data, "intersection": Schemas.OfIntersection.Data, "apply": Schemas.OfApply.Data,
+          "union": Schemas.OfUnion.Data, "intersection": Schemas.OfIntersection.Data,
+          "container": Schemas.OfContainer.Data, "apply": Schemas.OfApply.Data,
           "predicate": Schemas.OfPredicate.Data}
 
 
@@ -297,6 +301,9 @@ class _Reader:
         elif kind == "intersection":
             schema.parts = tuple(self._members(body.get("parts", []), Schemas.OfIntersection.Part, "part"))
             schema.flat = body.get("flat", False)
+        elif kind == "container":
+            schema.index, schema.element = self.type(body["index"]), self.type(body["element"])
+            schema.layout = body.get("layout")
         elif kind == "apply":
             schema.of = self.type(body["of"])
             schema.arguments = self.arguments(body.get("arguments", []))

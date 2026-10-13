@@ -48,6 +48,7 @@ __all__ = [
     "OfUnion",
     "OfIntersection",
     "OfParameter",
+    "OfContainer",
     "OfApply",
     "Form",
     "Evaluate",
@@ -998,6 +999,105 @@ class OfIntersection:
         return _resolve(spec, _IntersectionData, _IntersectionBuilder)
 
 
+# --- OfContainer: elements by index ---
+
+
+_ORDERED = (int, float, str, bool)
+"""The scalar types with a total order: a container indexed by one, or by a value object of them, may be dense or
+sparse."""
+_LAYOUTS = ("dense", "sparse")
+
+
+def _index_kind(index: Any) -> str | None:
+    """What a container's index allows: "ordered" for a scalar of a type with a total order, or a value object of
+    such scalars (several indices, as a tensor's, ordered by its properties in declaration order); "hashable" for any
+    other scalar, or a value object of scalars; None otherwise."""
+    index = _structure(index)
+    if isinstance(index, _ScalarData):
+        return "ordered" if index.type in _ORDERED else "hashable"
+    if isinstance(index, _ObjectData) and not index.ref and not index.adjacencies and index.properties:
+        kinds = {_index_kind(prop.type) if isinstance(_structure(prop.type), _ScalarData) else None
+                 for prop in index.properties.values()}
+        return None if None in kinds else "hashable" if "hashable" in kinds else "ordered"
+    return None
+
+
+@dataclass(eq=False)
+class _ContainerData:
+    """A container: elements, each of the element type, held by index, each of the index type. Dense, its elements
+    are a packed array; sparse, an associative store of dense blocks; with neither, it is dense where its index has a
+    total order, a dict (by index) where its index is hashable, and its elements paired with their indices
+    otherwise."""
+
+    index: Any = None  # OfAny.Data
+    element: Any = None  # OfAny.Data
+    layout: str | None = None  # "dense", "sparse", or None for the default
+    name: str | None = None
+    description: str | None = None
+    parameters: dict[str, _ParameterData] = field(default_factory=dict)
+
+    @property
+    def arrangement(self) -> str:
+        """How the container holds its elements: "dense", "sparse", "dict" (by a hashable index), or "entries" (each
+        element paired with its index, where the index is neither ordered nor hashable)."""
+        if self.layout is not None:
+            return self.layout
+        kind = _index_kind(self.index)
+        return "dense" if kind == "ordered" else "dict" if kind == "hashable" else "entries"
+
+    def validate(self) -> list[str]:
+        problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
+        for role, schema in (("index", self.index), ("element", self.element)):
+            if not isinstance(schema, _KINDS):
+                problems.append(f"a container's {role} is a schema, got {schema!r}")
+            else:
+                problems += [f"{role}: {p}" for p in _validate(schema)]
+        if self.layout is not None and self.layout not in _LAYOUTS:
+            problems.append(f"a container's layout is 'dense' or 'sparse', got {self.layout!r}")
+        elif self.layout is not None and isinstance(self.index, _KINDS) and _index_kind(self.index) != "ordered":
+            problems.append(f"a {self.layout} container's index has a total order: an int, float, str or bool, or a "
+                            "value object of them")
+        return problems
+
+
+class _ContainerBuilder(_NamedBuilder[_ContainerData]):
+    _data = _ContainerData
+
+    def index(self, spec: Any) -> _ContainerBuilder:
+        """The index type, a schema of any kind (a Spec): `lambda t: t.as_scalar(int)`, or a value object of ints."""
+        self._fields["index"] = OfAny.resolve(spec)
+        return self
+
+    def element(self, spec: Any) -> _ContainerBuilder:
+        """The element type, a schema of any kind (a Spec)."""
+        self._fields["element"] = OfAny.resolve(spec)
+        return self
+
+    def dense(self) -> _ContainerBuilder:
+        """Elements in a packed array, at every index from the first to the last."""
+        return self._layout("dense")
+
+    def sparse(self) -> _ContainerBuilder:
+        """Elements in an associative store of dense blocks, indices between them absent."""
+        return self._layout("sparse")
+
+    def _layout(self, layout: str) -> _ContainerBuilder:
+        if self._fields.get("layout", layout) != layout:
+            raise ValueError("a container is .dense() or .sparse(), not both")
+        self._fields["layout"] = layout
+        return self
+
+
+class OfContainer:
+    Data = _ContainerData
+    Builder = _ContainerBuilder
+    Spec = _ContainerData | Callable[[_ContainerBuilder], _ContainerBuilder]
+
+    @staticmethod
+    def resolve(spec: OfContainer.Spec) -> _ContainerData:
+        return _resolve(spec, _ContainerData, _ContainerBuilder)
+
+
 # --- OfApply: a parametric schema applied to arguments ---
 
 
@@ -1191,7 +1291,7 @@ class OfPredicate:
 
 # --- OfAny ---
 
-_KINDS = (_ScalarData, _ObjectData, _UnionData, _IntersectionData, _ApplyData)
+_KINDS = (_ScalarData, _ObjectData, _UnionData, _IntersectionData, _ContainerData, _ApplyData)
 
 
 def _validate(schema: Any) -> list[str]:
@@ -1204,6 +1304,8 @@ def _members_of(schema: Any) -> list[Any]:
     """The schemas of the values a value of `schema` holds: a value object's properties, a union's branches, an
     intersection's parts, through applications."""
     schema = _structure(schema)
+    if isinstance(schema, _ContainerData):
+        return [schema.index, schema.element]
     return [m.type for m in schema.properties.values()] if isinstance(schema, (_ObjectData, _UnionData, _IntersectionData)) else []
 
 
@@ -1243,6 +1345,10 @@ class _AnyBuilder:
         self._selected = OfIntersection.resolve(spec)
         return self
 
+    def as_container(self, spec: OfContainer.Spec) -> _AnyBuilder:
+        self._selected = OfContainer.resolve(spec)
+        return self
+
     def as_apply(self, spec: OfApply.Spec) -> _AnyBuilder:
         self._selected = OfApply.resolve(spec)
         return self
@@ -1276,7 +1382,7 @@ class _AnyBuilder:
 class OfAny:
     """Where a schema of any kind is expected. `OfAny.Data` is any schema kind's data."""
 
-    Data = _ScalarData | _ObjectData | _UnionData | _IntersectionData | _ApplyData
+    Data = _ScalarData | _ObjectData | _UnionData | _IntersectionData | _ContainerData | _ApplyData
     Builder = _AnyBuilder
     Spec = Data | Callable[[_AnyBuilder], _AnyBuilder]
 
@@ -1351,6 +1457,9 @@ _UnionSchema = OfObject.Builder().name("Schemas.Union").properties(
     _named_text("name"), _Flat, _named_text("description")).relations(_Parameters, _listing("branches", _MEMBER)).create()
 _IntersectionSchema = OfObject.Builder().name("Schemas.Intersection").properties(
     _named_text("name"), _Flat, _named_text("description")).relations(_Parameters, _listing("parts", _MEMBER)).create()
+_ContainerSchema = OfObject.Builder().name("Schemas.Container").properties(
+    _named_text("name"), lambda p: p.name("index").of(_AnySchema), lambda p: p.name("element").of(_AnySchema),
+    _named_text("layout"), _named_text("description")).relations(_Parameters).create()
 _ArgumentSchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("value").of(_ScalarValue),
                                                 lambda p: p.name("term").of(_FormSchema)).create()
 _ApplySchema = OfObject.Builder().name("Schemas.Apply").properties(
@@ -1361,7 +1470,7 @@ _PredicateSchema = OfObject.Builder().name("Schemas.Predicate").properties(
     _named_text("name"), lambda p: p.name("requires").of(_FormSchema), _named_text("description")).relations(
     _Parameters, _listing("symbols", _MEMBER)).create()
 _KIND_SCHEMAS = (("scalar", _ScalarSchema), ("object", _ObjectSchema), ("union", _UnionSchema),
-                 ("intersection", _IntersectionSchema), ("apply", _ApplySchema))
+                 ("intersection", _IntersectionSchema), ("container", _ContainerSchema), ("apply", _ApplySchema))
 OfUnion.Builder(_AnySchema).branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
                                      lambda b: b.name("named").of(_Named)).update()
 _Definition = OfUnion.Builder().branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
@@ -1380,6 +1489,7 @@ OfPredicate.Schema = _PredicateSchema  # type: ignore[attr-defined]
 OfObject.Schema = _ObjectSchema  # type: ignore[attr-defined]
 OfUnion.Schema = _UnionSchema  # type: ignore[attr-defined]
 OfIntersection.Schema = _IntersectionSchema  # type: ignore[attr-defined]
+OfContainer.Schema = _ContainerSchema  # type: ignore[attr-defined]
 OfApply.Schema = _ApplySchema  # type: ignore[attr-defined]
 OfApply.Argument = _ArgumentSchema  # type: ignore[attr-defined]
 Form.Schema = _FormSchema  # type: ignore[attr-defined]

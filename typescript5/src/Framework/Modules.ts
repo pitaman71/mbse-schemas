@@ -141,6 +141,10 @@ export class _Writer {
       return kindOf("intersection", [["parameters", parameters], ["parts", this.members(schema.parts)],
         ["flat", schema.flat || null], ["description", schema.description]]);
     }
+    if (schema instanceof Schemas.OfContainer.Data) {
+      return kindOf("container", [["parameters", parameters], ["index", this.reference(schema.index)],
+        ["element", this.reference(schema.element)], ["layout", schema.layout], ["description", schema.description]]);
+    }
     if (schema instanceof Schemas.OfApply.Data) {
       return kindOf("apply", [["parameters", parameters], ["of", this.reference(schema.of)], ["arguments", _arguments(schema.arguments)],
         ["description", schema.description]]);
@@ -210,6 +214,7 @@ const BLANK: Record<string, () => Schema> = {
   relation: () => new Schemas.OfRelation.Data(),
   union: () => new Schemas.OfUnion.Data(),
   intersection: () => new Schemas.OfIntersection.Data(),
+  container: () => new Schemas.OfContainer.Data(),
   apply: () => new Schemas.OfApply.Data(),
   predicate: () => new Schemas.OfPredicate.Data(),
 };
@@ -330,6 +335,10 @@ class _Reader {
     } else if (schema instanceof Schemas.OfIntersection.Data) {
       schema.parts = this.members(body.get("parts"), "part", (f) => new Schemas.OfIntersection.Part(f));
       schema.flat = (body.get("flat") as boolean | undefined) ?? false;
+    } else if (schema instanceof Schemas.OfContainer.Data) {
+      schema.index = this.type(body.get("index") as Definition);
+      schema.element = this.type(body.get("element") as Definition);
+      schema.layout = (body.get("layout") as string | undefined) ?? null;
     } else if (schema instanceof Schemas.OfApply.Data) {
       schema.of = this.type(body.get("of") as Definition);
       schema.arguments = this.arguments(list("arguments") as PlainMap[]);

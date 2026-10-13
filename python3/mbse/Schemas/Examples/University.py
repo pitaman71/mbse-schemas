@@ -75,22 +75,22 @@ mia = (
     store.Student()
     .name('Mia')
     .student_id('S-0001')
-    .enrollments(lambda x: x.course(cs101).term(fall).credits(4))
-    .enrollments(lambda x: x.course(lambda c: c.code('MA201').title('Linear Algebra')).term(fall).credits(3))
+    .enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).credits(4)))
+    .enrollments(lambda a: a.insert(lambda x: x.course(lambda c: c.code('MA201').title('Linear Algebra')).term(fall).credits(3)))
     .create()
 )
-assert sorted(e['course'].code for e in entries(Student, mia, 'enrollments')) == ['CS101', 'MA201']
+assert sorted(str(e['course'].code) for e in entries(Student, mia, 'enrollments')) == ['CS101', 'MA201']
 
 # The same fact is visible from all three ends.
 assert [e['student'] for e in entries(Course, cs101, 'enrollments')] == [mia]
-assert {e['course'].code for e in entries(Term, fall, 'enrollments')} == {'CS101', 'MA201'}
+assert {str(e['course'].code) for e in entries(Term, fall, 'enrollments')} == {'CS101', 'MA201'}
 
 # Entries from one end carry the two other links; the object's own link is implied.
 assert set(entries(Term, fall, 'enrollments')[0]) == {'student', 'course', 'credits'}
 
 # Every link other than the object's own must be set.
 with raises(ValueError):
-    store.Student().name('Noah').enrollments(lambda x: x.course(cs101)).create()
+    store.Student().name('Noah').enrollments(lambda a: a.insert(lambda x: x.course(cs101))).create()
 
 # --- Entry property equality follows schema equality, not host-language == ---
 
@@ -104,7 +104,7 @@ def enroll(student, **props):
             getattr(x, key)(value)
         return x
 
-    store.Student(student).enrollments(spec).update()
+    store.Student(student).enrollments(lambda a: a.insert(spec)).update()
 
 
 enroll(noah, score=0.0)
@@ -118,15 +118,7 @@ enroll(zoe, credits=1)
 enroll(zoe, credits=True)  # the builder does not validate scalar types, and True is a different value from 1
 
 
-def credits_of(entry):
-    found = []
-    if entry.has('credits'):
-        entry.property('credits', lambda p: p.value(lambda v: v.as_scalar(lambda n: found.append(n.get()))))
-    return found[0] if found else None
-
-
-values = []
-store.Student(zoe).adjacency('enrollments', lambda a: a.entries(lambda e: values.append(credits_of(e))))
+values = [e.credits.get() for e in zoe.enrollments]
 assert len(values) == 2 and {type(v) for v in values} == {int, bool}
 
 # Serializing checks scalar types: a bool where the schema says int is rejected, and so is anything reaching it.
@@ -148,18 +140,13 @@ assert validate(Student, zoe) == [
 assert any(p.startswith('unique(audit, credits, score) violated') for p in validate(Student, noah))
 
 # A linked object must have a schema that fills that link: here a Student is linked as a course.
-store.Student(noah).enrollments(lambda x: x.course(mia).term(fall)).update()
+store.Student(noah).enrollments(lambda a: a.insert(lambda x: x.course(mia).term(fall))).update()
 assert any("a 'Student' cannot fill link 'course'" in p for p in validate(Student, noah))
-store.Student(noah).adjacency(
-    'enrollments', lambda a: a.entries(lambda e: e.link('course', lambda k: k.target(
-        lambda t: a.remove(e) if t is mia else None)))
-).update()
+store.Student(noah).enrollments(lambda a: a.remove(lambda e: e.course(mia))).update()
 assert not any('cannot fill' in p for p in validate(Student, noah))
 
 # Remove the bad entry so the rest of the example can serialize.
-store.Student(zoe).adjacency(
-    'enrollments', lambda a: a.entries(lambda e: a.remove(e) if type(credits_of(e)) is bool else None)
-).update()
+store.Student(zoe).enrollments(lambda a: a.remove(lambda e: e.credits(True))).update()
 assert [e['credits'] for e in entries(Student, zoe, 'enrollments')] == [1]
 
 # --- Schema inference through a link must be unambiguous ---
@@ -168,25 +155,25 @@ lab = store.Room().building('Hopper Hall').number('B12').create()
 
 # Both Student and Staff fill 'booker', so building one inline from the room's side is refused...
 with raises(TypeError):
-    store.Room(lab).bookings(lambda x: x.booker(lambda b: b.name('?')).starts('2026-09-14T09:00:00Z')).update()
+    store.Room(lab).bookings(lambda a: a.insert(lambda x: x.booker(lambda b: b.name('?')).starts('2026-09-14T09:00:00Z'))).update()
 
 # ...but linking an existing object works, whichever schema it has.
 grace = store.Staff().name('Grace').staff_id('F-0042').create()
-store.Room(lab).bookings(lambda x: x.booker(grace).starts('2026-09-14T09:00:00Z')).update()
-store.Room(lab).bookings(lambda x: x.booker(mia).starts('2026-09-15T13:30:00Z')).update()
-assert sorted(e['booker'].schema_name() for e in entries(Room, lab, 'bookings')) == ['Staff', 'Student']
+store.Room(lab).bookings(lambda a: a.insert(lambda x: x.booker(grace).starts('2026-09-14T09:00:00Z'))).update()
+store.Room(lab).bookings(lambda a: a.insert(lambda x: x.booker(mia).starts('2026-09-15T13:30:00Z'))).update()
+assert sorted(e['booker'].as_schema().name for e in entries(Room, lab, 'bookings')) == ['Staff', 'Student']
 
 # References carry the schema name, so restoring knows Grace is Staff and Mia is a Student.
 graph = Plain.ToPlain(store).Reachable(Room, lab)
 restored = Plain.FromPlain(store).Reachable(Room, graph)
-bookers = {e['booker'].name: e['booker'].schema_name() for e in entries(Room, restored, 'bookings')}
+bookers = {str(e['booker'].name): e['booker'].as_schema().name for e in entries(Room, restored, 'bookings')}
 assert bookers == {'Grace': 'Staff', 'Mia': 'Student'}
 
 # --- Reachability and round trips across the three-link relation ---
 
 component = Reachable.of(fall)
 assert component[0] is fall
-assert {o.schema_name() for o in component} == {'Term', 'Student', 'Course', 'Room', 'Staff'}
+assert {o.as_schema().name for o in component} == {'Term', 'Student', 'Course', 'Room', 'Staff'}
 
 for root, schema in [(fall, Term), (mia, Student), (noah, Student)]:
     graph = Plain.ToPlain(store).Reachable(schema, root)

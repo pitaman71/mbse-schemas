@@ -3,22 +3,21 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from mbse.Schemas.Framework import Plain, Proxies, Reachable
-
 
 def entries(schema, obj, adjacency):
-    """The entries of `obj`'s adjacency, with references resolved to objects.
-
-    Reading entries back is not part of the API yet, so this reads them from a Reachable snapshot: its symbols are
-    assigned in first-reference order, the same order `Reachable.of` returns.
-    """
-    graph = Plain.ToPlain(Proxies.store_of(obj)).Reachable(schema, obj)
-    objects = Reachable.of(obj)
-
-    def resolve(value):
-        return objects[int(value['$ref'][1:])] if isinstance(value, dict) else value
-
-    return [{k: resolve(v) for k, v in e.items()} for e in graph['objects'][graph['root']].get(adjacency, [])]
+    """The entries of `obj`'s adjacency, read through the visitor protocol: each a dict of the other links' objects and
+    the properties' values that are set."""
+    read = getattr(obj, adjacency)
+    me = read.as_schema().me
+    rows = []
+    for entry in read:
+        row = {link: getattr(entry, link) for link in entry.as_schema().links if link != me}
+        for name in entry.as_schema().properties:
+            value = getattr(entry, name).get()
+            if value is not None:
+                row[name] = value
+        rows.append(row)
+    return rows
 
 
 def same_graph(a, b):

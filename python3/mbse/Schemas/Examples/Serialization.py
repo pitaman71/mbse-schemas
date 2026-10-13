@@ -86,15 +86,15 @@ assert fields['flag'] is False and fields['count'] == 2**100
 
 # Plain data is JSON-encodable, and survives a JSON round trip.
 restored = Plain.FromPlain(store)(Sample, json.loads(json.dumps(plain)))
-assert restored.label == edge.label and restored.payload == edge.payload and restored.count == 2**100
-assert restored.ratio == 0.0 and math.copysign(1, restored.ratio) < 0  # the sign of -0.0 survives
-assert restored.flag is False
+assert restored.label.get() == edge.label.get() and bytes(restored.payload) == bytes(edge.payload) and int(restored.count) == 2**100
+assert float(restored.ratio) == 0.0 and math.copysign(1, float(restored.ratio)) < 0  # the sign of -0.0 survives
+assert restored.flag.get() is False
 
 # Empty values are present values.
 empty = store.Sample().label('').payload(b'').count(0).ratio(0.0).create()
 back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty))
-assert (back.label, back.payload, back.count, back.ratio) == ('', b'', 0, 0.0)
-assert back.flag is None  # never set, so absent
+assert (back.label.get(), back.payload.get(), back.count.get(), back.ratio.get()) == ('', b'', 0, 0.0)
+assert back.flag.get() is None  # never set, so absent
 
 # An object with nothing set serializes to an empty object.
 blank = store.Sample().create()
@@ -119,7 +119,7 @@ with raises(DecodeError):
 
 # The builder does not validate; the serializer does.
 sloppy = store.Sample().count('3').create()
-assert sloppy.count == '3'
+assert sloppy.count.get() == '3'
 with raises(TypeError):
     Plain.ToPlain(store)(Sample, sloppy)
 
@@ -136,11 +136,11 @@ eur = getattr(store, 'iso4217.Currency')().code('EUR').numeric('978').minor_unit
 widget = (
     store.Product()
     .sku('W-1')
-    .prices(lambda x: x.price(lambda m: m.amount(1500).currency(lambda d: d.currency(jpy))).currency('JPY'))
-    .prices(lambda x: x.price(lambda m: m.amount(1299).currency(lambda d: d.currency(eur))).currency('EUR'))
+    .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(1500).currency(lambda a: a.insert(lambda d: d.currency(jpy)))).currency('JPY')))
+    .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(1299).currency(lambda a: a.insert(lambda d: d.currency(eur)))).currency('EUR')))
     .create()
 )
-by_currency = {e['currency']: e['price'].amount for e in entries(Product, widget, 'prices')}
+by_currency = {e['currency']: int(e['price'].amount) for e in entries(Product, widget, 'prices')}
 assert by_currency == {'JPY': 1500, 'EUR': 1299}
 
 graph = Plain.ToPlain(store).Reachable(Product, widget)
@@ -149,7 +149,7 @@ schemas_named = {ref['$schema'] for obj in graph['objects'].values() for v in ob
                  for e in v for ref in e.values() if isinstance(ref, dict)}
 assert schemas_named == {'Product', 'Money', 'iso4217.Currency'}
 again = from_plain.Reachable(Product, json.loads(json.dumps(graph)))
-assert {e['currency']: e['price'].amount for e in entries(Product, again, 'prices')} == by_currency
+assert {e['currency']: int(e['price'].amount) for e in entries(Product, again, 'prices')} == by_currency
 
 assert validate.Reachable(Product, widget) == []
 
@@ -157,8 +157,8 @@ assert validate.Reachable(Product, widget) == []
 gadget = (
     store.Product()
     .sku('G-1')
-    .prices(lambda x: x.price(lambda m: m.amount(900)).currency('JPY'))
-    .prices(lambda x: x.price(lambda m: m.amount(950)).currency('JPY'))
+    .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(900)).currency('JPY')))
+    .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(950)).currency('JPY')))
     .create()
 )
 assert validate(Product, gadget) == ['unique(price) violated: entries agreeing on [\'currency\', \'product\'] differ on [\'price\']']
@@ -211,14 +211,14 @@ with raises(TypeError):
     store.Prices()  # no relation builder is exposed
 with raises(TypeError):
     store.Product(jpy)  # the source instance must have the builder's schema
-with raises(AttributeError):
-    store.Product().colour('red')  # not a property or adjacency
+with raises(TypeError):
+    store.Product().colour('red')  # not a property or adjacency: it reads as empty, and refuses a write
 with raises(AttributeError):
     widget.sku = 'W-2'  # instances are read-only
 
 # A schema named 'schema' is shadowed by the store's schema() method, but still reachable by name.
 Shadowed = Schemas.OfObject.Builder(Sample).name('schema').clone()
 store.register(Shadowed)
-assert store.schema('schema') is Shadowed and store.builder('schema').create().schema_name() == 'schema'
+assert store.schema('schema') is Shadowed and store.builder('schema').create().as_schema().name == 'schema'
 
 print('Serialization: all checks passed')

@@ -139,11 +139,11 @@ addr1 = (
 # fluent "update" form: writes back into the source and returns it
 updated = (
     store.IntlAddress(addr1)
-    .street2(lambda v: v.set('baz'))  # equivalent to .street2('baz')
+    .street2(lambda p: p.as_scalar(lambda v: v.set('baz')))  # equivalent to .street2('baz')
     .update()
 )
 assert updated is addr1
-assert addr1.street2 == 'baz'
+assert str(addr1.street2) == 'baz'
 
 # fluent "clone" form: returns a new object and leaves the source untouched
 cloned = (
@@ -152,22 +152,22 @@ cloned = (
     .clone()
 )
 assert cloned is not addr1
-assert cloned.street2 == 'shoe'
-assert addr1.street2 == 'baz'
+assert str(cloned.street2) == 'shoe'
+assert str(addr1.street2) == 'baz'
 
-# clearing a property makes it absent; an absent property reads as None
-store.IntlAddress(addr1).street3(lambda v: v.clear()).update()
-assert addr1.street3 is None
+# clearing a property makes it absent; an absent property's value reads as None
+store.IntlAddress(addr1).street3(lambda p: p.as_value(lambda v: v.clear())).update()
+assert addr1.street3.get() is None
 
 # a property that was never set reads as None too
-assert addr1.sorting_code is None
+assert addr1.sorting_code.get() is None
 
 # traditional property access (read only)
 print(f"{addr1.street1}, {addr1.locality} {addr1.postal_code}, {addr1.country_code}")
 
 # --- Relations ---
 
-# Entries are added through the object builder's adjacency accessors, which take a Spec for the entry: the object
+# Entries are inserted through the object builder's adjacencies, `insert` taking a Spec for the entry: the object
 # fills its own link ('contact'); the entry builder sets the other links and the entry properties. A link takes an
 # existing object or a Spec that builds a new one.
 alice = (
@@ -176,9 +176,9 @@ alice = (
     .family_name('Liddell')
     .birth_date('1852-05-04')
     .preferred_language('en-GB')
-    .addresses(lambda x: x.address(addr1).label('work'))
-    .phones(lambda x: x.phone(lambda y: y.number('+447700900123')).label('mobile'))
-    .emails(lambda x: x.email(lambda y: y.address('alice@example.org')).label('personal') )
+    .addresses(lambda a: a.insert(lambda x: x.address(addr1).label('work')))
+    .phones(lambda a: a.insert(lambda x: x.phone(lambda y: y.number('+447700900123')).label('mobile')))
+    .emails(lambda a: a.insert(lambda x: x.email(lambda y: y.address('alice@example.org')).label('personal')))
     .create()
 )
 
@@ -200,5 +200,5 @@ assert Plain.ToPlain(store).Reachable(IntlAddress, roundtrip) == graph
 # The same snapshot as JSON text, and back.
 text = JSON.ToJSON(store).Reachable(IntlAddress, addr1, indent=2)
 from_json = JSON.FromJSON(store).Reachable(IntlAddress, text)
-assert from_json is not addr1 and from_json.street1 == addr1.street1
+assert from_json is not addr1 and str(from_json.street1) == str(addr1.street1)
 assert JSON.loads(text) == graph

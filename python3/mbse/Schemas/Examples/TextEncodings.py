@@ -62,9 +62,9 @@ for value in [0.0, -0.0, 1e308, 5e-324, 0.1, math.inf, -math.inf, math.nan]:
         from_yaml(Reading, YAML.ToYAML(store)(Reading, reading)),
     ):
         if math.isnan(value):
-            assert math.isnan(back.value)
+            assert math.isnan(back.value.get())
         else:
-            assert back.value == value and math.copysign(1, back.value) == math.copysign(1, value)
+            assert back.value.get() == value and math.copysign(1, back.value.get()) == math.copysign(1, value)
 
 # Non-finite floats have a plain form, so JSON output stays strict (no NaN / Infinity literals).
 text = JSON.ToJSON(store)(Reading, store.Reading().value(math.nan).create())
@@ -88,8 +88,8 @@ assert YAML.loads(YAML.ToYAML(store)(Reading, sample)) == plain
 assert JSON.loads(JSON.ToJSON(store)(Reading, sample, indent=2)) == plain  # formatting does not change content
 
 for back in (from_json(Reading, JSON.ToJSON(store)(Reading, sample)), from_yaml(Reading, YAML.ToYAML(store)(Reading, sample))):
-    assert (back.observed, back.quality, back.valid, back.raw, back.note) == (
-        sample.observed, sample.quality, sample.valid, sample.raw, sample.note)
+    assert (back.observed.get(), back.quality.get(), back.valid.get(), back.raw.get(), back.note.get()) == (
+        sample.observed.get(), sample.quality.get(), sample.valid.get(), sample.raw.get(), sample.note.get())
     assert validate(Reading, back) == []
 
 # --- Strings that YAML readers like to misread ---
@@ -100,14 +100,14 @@ tricky = ['yes', 'No', 'on', 'OFF', 'true', 'null', '~', '', '010', '0o17', '0x1
 for note in tricky:
     reading = store.Reading().note(note).create()
     text = YAML.ToYAML(store)(Reading, reading)
-    assert from_yaml(Reading, text).note == note, note
+    assert from_yaml(Reading, text).note.get() == note, note
     # The output is also read correctly by a stock YAML 1.1 loader.
     assert yaml.safe_load(text) == Plain.ToPlain(store)(Reading, reading), note
 
 # WMO identifiers keep their leading zeros in both encodings.
 paris = store.Station().wmo_id('07149').name('Paris-Orly').create()
-assert from_json(Station, JSON.ToJSON(store)(Station, paris)).wmo_id == '07149'
-assert from_yaml(Station, YAML.ToYAML(store)(Station, paris)).wmo_id == '07149'
+assert from_json(Station, JSON.ToJSON(store)(Station, paris)).wmo_id.get() == '07149'
+assert from_yaml(Station, YAML.ToYAML(store)(Station, paris)).wmo_id.get() == '07149'
 
 # --- Hand-written YAML follows the YAML 1.2 core schema ---
 
@@ -122,7 +122,7 @@ objects:
     note: 1:30                       # a string, not ninety
 """
 reading = from_yaml(Reading, written)
-assert (reading.observed, reading.quality, reading.value, reading.valid, reading.note) == (
+assert (reading.observed.get(), reading.quality.get(), reading.value.get(), reading.valid.get(), reading.note.get()) == (
     '2026-09-28T12:00:00Z', 10, math.inf, True, '1:30')
 
 # 'yes' is a string in YAML 1.2, so it is not accepted for a bool.
@@ -152,15 +152,15 @@ lyon = (
     store.Station()
     .wmo_id('07480')
     .name('Lyon-Saint-Exupéry')
-    .readings(lambda x: x.reading(lambda r: r.observed('2026-09-28T06:00:00Z').value(11.5).valid(True)).sensor('temp'))
-    .readings(lambda x: x.reading(lambda r: r.observed('2026-09-28T06:00:00Z').value(71.0).valid(True)).sensor('rh'))
+    .readings(lambda a: a.insert(lambda x: x.reading(lambda r: r.observed('2026-09-28T06:00:00Z').value(11.5).valid(True)).sensor('temp')))
+    .readings(lambda a: a.insert(lambda x: x.reading(lambda r: r.observed('2026-09-28T06:00:00Z').value(71.0).valid(True)).sensor('rh')))
     .create()
 )
 graph = Plain.ToPlain(store).Reachable(Station, lyon)
 for text, decode in [(JSON.ToJSON(store).Reachable(Station, lyon), from_json.Reachable),
                      (YAML.ToYAML(store).Reachable(Station, lyon), from_yaml.Reachable)]:
     restored = decode(Station, text)
-    assert restored is not lyon and restored.name == 'Lyon-Saint-Exupéry'
+    assert restored is not lyon and str(restored.name) == 'Lyon-Saint-Exupéry'
     assert same_graph(Plain.ToPlain(store).Reachable(Station, restored), graph)
     assert validate.Reachable(Station, restored) == []
 

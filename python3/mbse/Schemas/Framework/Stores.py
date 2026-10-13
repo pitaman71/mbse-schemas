@@ -26,7 +26,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any, Protocol
 
-from . import Reachable, Schemas, Visitors
+from . import Reachable, Readers, Schemas
 
 __all__ = ["Store", "Catalog", "Combined", "META", "Random", "PCG32"]
 
@@ -110,11 +110,11 @@ class Store(Protocol):
         """The value `instance` holds in its property `name`, e.g. a value object or a union's branch."""
         ...
 
-    def singleton(self, name: str) -> Visitors.Visitable:
+    def singleton(self, name: str) -> Readers.OfObject:
         """The one instance of the singleton schema whose global name is `name`; `LookupError` if there is none."""
         ...
 
-    def extent(self, name: str) -> Iterable[Visitors.Visitable]:
+    def extent(self, name: str) -> Iterable[Readers.OfObject]:
         """The store's reference objects of the schema `name`: those reachable from its singletons, in first-reference
         order."""
         ...
@@ -126,7 +126,7 @@ class Catalog:
 
     def __init__(self) -> None:
         self._schemas: dict[str, Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data] = {}
-        self._singletons: dict[str, Visitors.Visitable] = {}
+        self._singletons: dict[str, Readers.OfObject] = {}
 
     def register(self, schema: Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data) -> None:
         """Registers a schema under its name."""
@@ -160,20 +160,20 @@ class Catalog:
     def names(self) -> tuple[str, ...]:
         return tuple(self._schemas)
 
-    def singleton(self, name: str) -> Visitors.Visitable:
+    def singleton(self, name: str) -> Readers.OfObject:
         if name not in self._singletons:
             raise LookupError(f"no singleton named {name!r}")
         return self._singletons[name]
 
-    def extent(self, name: str) -> tuple[Visitors.Visitable, ...]:
+    def extent(self, name: str) -> tuple[Readers.OfObject, ...]:
         self.schema(name)
         seen: set[Any] = set()
-        found: list[Visitors.Visitable] = []
+        found: list[Readers.OfObject] = []
         for root in self._singletons.values():
             for value in Reachable.of(root):
-                if value.identity() not in seen:
-                    seen.add(value.identity())
-                    if value.schema_name() == name:
+                if value.as_identity() not in seen:
+                    seen.add(value.as_identity())
+                    if value.as_schema().name == name:
                         found.append(value)
         return tuple(found)
 
@@ -222,34 +222,34 @@ class Combined:
         return self._owner(name, AttributeError).builder(name, instance)
 
     def member(self, instance: Any, name: str) -> Any:
-        return self._owner(instance.schema_name(), AttributeError).member(instance, name)
+        return self._owner(instance.as_schema().name, AttributeError).member(instance, name)
 
     @property
-    def _singletons(self) -> dict[str, Visitors.Visitable]:
+    def _singletons(self) -> dict[str, Readers.OfObject]:
         """Every store's singletons, by global name, so that combined stores combine again."""
         return {name: root for store in self.stores for name, root in _roots(store).items()}
 
-    def singleton(self, name: str) -> Visitors.Visitable:
+    def singleton(self, name: str) -> Readers.OfObject:
         roots = self._singletons
         if name not in roots:
             raise LookupError(f"no singleton named {name!r}")
         return roots[name]
 
-    def extent(self, name: str) -> tuple[Visitors.Visitable, ...]:
+    def extent(self, name: str) -> tuple[Readers.OfObject, ...]:
         """The owning store's extent, then the objects of the schema the other stores' singletons reach."""
         owner = self._owner(name, AttributeError)
         owner.schema(name)
         seen: set[Any] = set()
-        found: list[Visitors.Visitable] = []
+        found: list[Readers.OfObject] = []
         reached = (value for root in self._singletons.values() for value in Reachable.of(root))
         for value in (*owner.extent(name), *reached):
-            if value.identity() not in seen:
-                seen.add(value.identity())
-                if value.schema_name() == name:
+            if value.as_identity() not in seen:
+                seen.add(value.as_identity())
+                if value.as_schema().name == name:
                     found.append(value)
         return tuple(found)
 
 
-def _roots(store: Any) -> dict[str, Visitors.Visitable]:
+def _roots(store: Any) -> dict[str, Readers.OfObject]:
     """A store's singletons, by global name: a catalog's or a combined store's, or none."""
     return getattr(store, "_singletons", {})

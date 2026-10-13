@@ -1,45 +1,50 @@
-"""Proxies: the dynamic implementation.
+"""Proxies: the dynamic implementation of the visitor protocol.
 
 Programs using proxies skip code generation. A store, `OfStore()`, holds schemas and the proxies built with them (see
 `Stores`): `store.register(schema)` makes a schema available, under its name, and `store.<Name>(optional instance)` (or
-`store.builder(name, instance)`) returns a builder for it. Instances (`Proxies.OfObject.Data`) are `Visitable`, not
-visitors: they expose their properties as read-only attributes and write themselves into a visitor on `accept`.
-Builders (`Proxies.OfObject.Builder`) implement `Visitors.OfObject`, like every builder.
+`store.builder(name, instance)`) returns a builder for it. Data instances (`Proxies.OfObject.Data`) and builders
+(`Proxies.OfObject.Builder`) both implement `Visitors.OfObject`: data instances read-only, builders writable. Their
+properties and adjacencies are members: `card.name` is a `Visitors.OfProperty`, read compactly through its dunders
+(`str(card.name)`), and `card.phones` a `Visitors.OfAdjacency`, which iterates its entries; an entry's link is the
+linked instance itself (`entry.phone is p`). Called, a member writes through a `Specs.Callback`: `b.name("Ada")`,
+`b.home(lambda p: p.as_object(lambda o: o.number("1")))`, `b.phones(lambda a: a.insert(lambda e: e.phone(p)))`. A
+data instance is callable, so that calling it, a write, raises `Errors.ReadOnlyError`.
 
 A store holds its singletons, created when their schemas are registered (`store.singleton(global_name)`), and through
 them its data (see `Stores`); an object nothing reachable from a singleton links is the program's to keep. A relation's
 entries live on the objects they link, so they go with them. Adding an entry equal to an existing one is elided where
 the relation has a `unique` clause; an open relation's entries are a list from each end, equal entries kept. An
-object of one store cannot be linked to, or be a builder's source in, another. An adjacency is a member named after it,
-the tuple of its entries in the order they were added (`contact.phones`), with `project(name)`, each entry's link or
-property, and `at(key)`, the entry with a key its relation declares; an entry is shared by the objects it links,
-and its links and properties are read-only attributes (`entry.phone`, `entry.label`), so that code reads proxies as it
-reads generated classes.
+object of one store cannot be linked to, or be a builder's source in, another. An adjacency of a data instance is also
+the tuple of its entries in the order they were added, with `project(name)`, each entry's link or property, and
+`at(key)`, the entry with a key its relation declares.
 
-A property whose schema is an `OfObject` holds a value object: a read-only record with no identity
-(`Proxies.OfObject.Record`), read with attributes like an instance and set with a Spec, e.g.
-`.reach(lambda r: r.number('+44'))`. Union and intersection values are records too, whose properties are the union's
-branches or the intersection's parts, by name: `.reach(lambda u: u.phone(lambda p: p.number('+44')))` sets the branch
-`phone`, read back as `card.reach.phone.number`, and setting one branch clears any other. An intersection value holds
-each of its parts, set and read the same way (`card.meta.stamp.updated`).
+A property whose schema is an `OfObject` holds a value object (`Proxies.OfObject.Record`), owned by one object, read
+through `as_object` (`card.home.as_object(...)`) and written through it on a builder. A union value's branches and an
+intersection value's parts are members giving the visitor of their own type's kind (`shape.circle`, `ticket.stamp`);
+writing one branch clears any other.
 
+Reads never raise: a visitor of an absent value, of a value of another kind, or of a member the schema lacks reads as
+empty. The one raise is a write that the visitor's mode, or the value, forbids: `Errors.ReadOnlyError`.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Hashable, Mapping
+from collections.abc import Callable, Hashable, Iterator, Mapping
 from typing import Any
 
-from . import Schemas, Stores, Visitors
+from . import Schemas, Stores
+from .Errors import ReadOnlyError
 from .Visitors import Scalar
 
 __all__ = ["OfStore", "store_of", "OfObject", "OfEntry", "OfAdjacency"]
 
 ObjectSchema = Schemas.OfObject.Data
 RelationSchema = Schemas.OfRelation.Data
+RECORD_KINDS = (Schemas.OfObject.Data, Schemas.OfUnion.Data, Schemas.OfIntersection.Data)
 
 
 # --- Stores ---
+
 
 class OfStore(Stores.Catalog):
     """A store of proxies: schemas by name, and the instance of each singleton schema registered, created with it.
@@ -108,6 +113,8 @@ def _same_store(store: OfStore | None, value: Any) -> None:
 def _scalar_key(value: Any) -> Hashable:
     """Equality key per EQUALITY.md: distinct scalar types never compare equal; floats compare by bit pattern; a value
     object by its schema and properties, whatever its identity."""
+    if isinstance(value, _RecordBuilder):
+        value = value.build()
     if isinstance(value, _RecordData):
         values = object.__getattribute__(value, "_values")
         return ("object", id(value._schema), tuple(sorted((n, _scalar_key(v)) for n, v in values.items())))
@@ -119,9 +126,9 @@ def _scalar_key(value: Any) -> Hashable:
 
 
 class _Entry:
-    """An entry of a relation, shared by the objects it links: its links and its properties are read-only attributes
-    (`entry.phone`, `entry.label`), read as an object's are (a flat union's value as its branch's), and a property that
-    is not set reads as None."""
+    """An entry of a relation, shared by the objects it links: a read-only `Visitors.OfEntry`. Its links are members
+    giving the linked instance itself (`entry.phone`), and its properties members giving a `Visitors.OfProperty`
+    (`str(entry.label)`)."""
 
     __slots__ = ("_relation", "_links", "_properties")
 
@@ -130,17 +137,24 @@ class _Entry:
         object.__setattr__(self, "_links", dict(links))
         object.__setattr__(self, "_properties", dict(properties))
 
+    def as_schema(self) -> Schemas.OfEntry.Data:
+        return self._relation.entry
+
     def __getattr__(self, name: str) -> Any:
+        if name.startswith("_"):
+            raise AttributeError(name)
         if name in self._links:
             return self._links[name]
-        if name in self._properties:
-            return _view(self._properties[name], self._relation.entry.properties[name].type)
-        if name in self._relation.entry.properties:
-            return None  # not set: nothing is mandatory but by a constraint
-        raise AttributeError(name)
+        prop = self._relation.entry.properties.get(name)
+        if prop is None:
+            return _Empty(None, f"{name!r} is not a link or property of the relation")
+        return _Property(self._properties, name, prop, None, self, writable=False)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("entries are read-only; use a builder")
+
+    def __repr__(self) -> str:
+        return f"<entry of {self._relation.name or 'a relation'}>"
 
     def _key(self) -> Hashable:
         """What the entry is held by: its value in a relation with a `unique` clause, a set, and itself in an open
@@ -189,11 +203,386 @@ def _discard_target(target: Any) -> None:
         _discard(relation_id, list(table.values()))
 
 
-# --- Instances ---
+# --- Visitors over values ---
+
+
+def _is_function(spec: Any) -> bool:
+    """Whether a `Specs.Callback` is its callable form; data instances and visitors are callable too, but are values."""
+    return callable(spec) and not isinstance(spec, _VALUES)
+
+
+def _visit(spec: Any, visitor: Any) -> None:
+    """Hands `visitor` to a callable Spec, which reads or writes through it; its return value is the visitor's own."""
+    spec(visitor)
+
+
+def _write(writable: bool, reason: str) -> None:
+    """Refuses a write that the visitor's mode forbids."""
+    if not writable:
+        raise ReadOnlyError(reason)
+
+
+def _article(kind: type) -> str:
+    return {int: "an int", float: "a float", str: "a str", bool: "a bool", bytes: "bytes"}.get(kind, "a value")
+
+
+def _noun_of(value: Any) -> str:
+    if isinstance(value, (_RecordData, _RecordBuilder)):
+        return _a(_noun(value._schema))
+    return _article(type(value))
+
+
+def _converted(value: Any, host: type, label: str) -> Any:
+    """A scalar's value for a dunder: it must be set and of the dunder's own type."""
+    if value is None:
+        raise TypeError(f"{label} is not set")
+    if type(value) is not host:
+        raise TypeError(f"{label} holds {_noun_of(value)}, not {_article(host)}")
+    return value
+
+
+class _Dunders:
+    """The scalar dunders, sugar over `get()`: each raises when the value is not set or not of its type."""
+
+    def _scalar(self) -> Any:
+        raise NotImplementedError
+
+    def _label(self) -> str:
+        raise NotImplementedError
+
+    def __int__(self) -> int:
+        return _converted(self._scalar(), int, self._label())
+
+    def __float__(self) -> float:
+        return _converted(self._scalar(), float, self._label())
+
+    def __str__(self) -> str:
+        return _converted(self._scalar(), str, self._label())
+
+    def __bool__(self) -> bool:
+        return _converted(self._scalar(), bool, self._label())
+
+    def __bytes__(self) -> bytes:
+        return _converted(self._scalar(), bytes, self._label())
+
+
+class _Empty(_Dunders):
+    """A visitor of nothing: an absent value, a value of another kind than asked for, or a member the schema lacks. It
+    reads as empty in every protocol, and refuses every write, saying why."""
+
+    def __init__(self, schema: Any, reason: str):
+        object.__setattr__(self, "_schema", schema)
+        object.__setattr__(self, "_reason", reason)
+
+    def _scalar(self) -> Any:
+        return None
+
+    def _label(self) -> str:
+        return "the value"
+
+    def as_schema(self) -> Any:
+        return self._schema
+
+    def as_identity(self) -> str:
+        return ""
+
+    def get(self) -> None:
+        return None
+
+    def __iter__(self) -> Iterator[Any]:
+        return iter(())
+
+    @property
+    def as_properties(self) -> _Properties:
+        return _Properties(self, [])
+
+    def _hand(self, cb: Any) -> _Empty:
+        if not _is_function(cb):
+            raise ReadOnlyError(self._reason)
+        _visit(cb, _Empty(None, self._reason))
+        return self
+
+    as_value = as_scalar = as_object = as_union = as_intersection = as_adjacencies = _hand
+
+    def select(self, spec: Any, cb: Any) -> _Empty:
+        return self
+
+    def _refuse(self, *args: Any) -> Any:
+        raise ReadOnlyError(self._reason)
+
+    set = clear = insert = remove = __call__ = _refuse
+
+    def __getattr__(self, name: str) -> Any:
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return _Empty(None, self._reason)
+
+    def __repr__(self) -> str:
+        return "<empty>"
+
+
+class _Scalar(_Dunders):
+    """`Visitors.OfScalar` over one key of a values dict. Called, as a union's branch, with a Spec."""
+
+    def __init__(self, values: dict[str, Any], name: str, schema: Any, writable: bool, label: str,
+                 parent: Any = None, on_write: Callable[[], None] | None = None):
+        self._values, self._name, self._schema, self._writable = values, name, schema, writable
+        self._label_text, self._parent, self._on_write = label, parent, on_write
+
+    def _scalar(self) -> Any:
+        return self.get()
+
+    def _label(self) -> str:
+        return self._label_text
+
+    def as_schema(self) -> Any:
+        return self._schema
+
+    def get(self) -> Any:
+        value = self._values.get(self._name)
+        return value if type(value) in (int, float, str, bool, bytes) else None
+
+    def set(self, value: Scalar) -> None:
+        _write(self._writable, f"{self._label_text} is read-only; write through a builder")
+        if self._on_write is not None:
+            self._on_write()
+        self._values[self._name] = value
+
+    def clear(self) -> None:
+        _write(self._writable, f"{self._label_text} is read-only; write through a builder")
+        self._values.pop(self._name, None)
+
+    def __call__(self, spec: Any) -> Any:
+        if _is_function(spec):
+            _visit(spec, self)
+        else:
+            self.set(spec)
+        return self._parent
+
+    def __repr__(self) -> str:
+        return f"<scalar {self._label_text}>"
+
+
+class _Any:
+    """`Visitors.OfAny` over one key of a values dict, holding a value of `schema`. Read-only, it hands over the value's
+    own visitor, or an empty one; writable, it selects the kind, refusing one the schema does not hold."""
+
+    def __init__(self, values: dict[str, Any], name: str, schema: Any, store: OfStore | None, writable: bool,
+                 label: str, on_write: Callable[[], None] | None = None):
+        self._values, self._name, self._store, self._writable = values, name, store, writable
+        self._schema, self._label, self._on_write = schema, label, on_write
+        self._type = Schemas.structure(schema)
+
+    def as_schema(self) -> Any:
+        return self._schema
+
+    def _touch(self) -> None:
+        if self._on_write is not None:
+            self._on_write()
+
+    def as_scalar(self, cb: Any) -> _Any:
+        value = self._values.get(self._name)
+        if isinstance(self._type, Schemas.OfUnion.Data) and self._type.flat:
+            return self._flat_scalar(cb, value)
+        if not isinstance(self._type, Schemas.OfScalar.Data):
+            return self._hand(cb, _Empty(None, f"{self._label} holds {_a(_noun(self._type))}, not a scalar"))
+        scalar = _Scalar(self._values, self._name, self._type, self._writable, self._label, self, self._on_write)
+        if _is_function(cb):
+            _visit(cb, scalar)
+        else:
+            scalar.set(cb)
+        return self
+
+    def _flat_scalar(self, cb: Any, value: Any) -> _Any:
+        """A flat union's value read as its branch's, and written to the branch its type picks."""
+        if not _is_function(cb):
+            self._write_record(lambda u: _member_of(u, _branch(self._name, self._type, cb).name)(cb))
+            return self
+        if isinstance(value, (_RecordData, _RecordBuilder)):
+            ((branch, held),) = value._values.items() if value._values else (("", None),)
+            if type(held) in (int, float, str, bool, bytes):
+                _visit(cb, _Scalar(value._values, branch, Schemas.structure(self._type.properties[branch].type),
+                                   False, self._label))
+                return self
+        _visit(cb, _Empty(None, f"{self._label} holds no scalar"))
+        return self
+
+    def as_object(self, cb: Any) -> _Any:
+        return self._record(Schemas.OfObject.Data, cb)
+
+    def as_union(self, cb: Any) -> _Any:
+        return self._record(Schemas.OfUnion.Data, cb)
+
+    def as_intersection(self, cb: Any) -> _Any:
+        return self._record(Schemas.OfIntersection.Data, cb)
+
+    def _hand(self, cb: Any, empty: _Empty) -> _Any:
+        empty._hand(cb)
+        return self
+
+    def _record(self, kind: type, cb: Any) -> _Any:
+        noun = {Schemas.OfObject.Data: "value object", Schemas.OfUnion.Data: "union value"}.get(kind, "intersection value")
+        if not isinstance(self._type, kind):
+            return self._hand(cb, _Empty(None, f"{self._label} does not hold {_a(noun)}"))
+        value = self._values.get(self._name)
+        if not self._writable:
+            if isinstance(value, _RecordData):
+                if _is_function(cb):
+                    _visit(cb, value)
+                    return self
+                raise ReadOnlyError(f"{self._label} is read-only; write through a builder")
+            return self._hand(cb, _Empty(self._type, f"{self._label} is read-only; write through a builder"))
+        if _is_function(cb):
+            self._write_record(cb)
+        else:
+            self._replace(cb)
+        return self
+
+    def _builder(self) -> _RecordBuilder:
+        """The builder of the value object held, attached to the values when first written; one already attached, so
+        that a builder reads back its pending writes."""
+        value = self._values.get(self._name)
+        if isinstance(value, _RecordBuilder):
+            return value
+
+        def attach(builder: _RecordBuilder) -> None:
+            self._touch()
+            self._values[self._name] = builder
+
+        return _RecordBuilder(self._type, value if isinstance(value, _RecordData) else None, self._store, attach)
+
+    def _write_record(self, cb: Any) -> None:
+        _visit(cb, self._builder())
+
+    def _replace(self, value: Any) -> None:
+        """Writes a value object, union value or intersection value given as a value: copied when it is placed."""
+        if isinstance(value, _Property):
+            value = value._values.get(value._name)
+        if not isinstance(value, (_RecordData, _RecordBuilder)) or value._schema is not self._type:
+            raise TypeError(f"{self._label} takes {_a(_noun(self._type))} or a Spec, got {type(value).__name__}")
+        self._touch()
+        self._values[self._name] = value
+
+    def write(self, value: Any) -> None:
+        """Writes a `Specs.Callback`'s value form: a scalar, a value object, union value or intersection value (a flat
+        union's, its branch's), or a property's value."""
+        _write(self._writable, f"{self._label} is read-only; write through a builder")
+        if isinstance(value, _Property):
+            value = value._values.get(value._name)
+        held = Schemas.structure(self._type)
+        if isinstance(held, Schemas.OfUnion.Data) and held.flat and not (
+                isinstance(value, (_RecordData, _RecordBuilder)) and value._schema is held):
+            branch = _branch(self._name, held, value)
+            self._write_record(lambda u: _member_of(u, branch.name)(value))
+        elif isinstance(held, RECORD_KINDS):
+            self._replace(value)
+        else:
+            self.as_scalar(value)
+
+    def clear(self) -> None:
+        _write(self._writable, f"{self._label} is read-only; write through a builder")
+        self._values.pop(self._name, None)
+
+
+class _Property(_Dunders):
+    """`Visitors.OfProperty` over one key of a values dict. Called, as a member, with a Spec, it writes or visits through
+    it and returns the visitor it is a member of."""
+
+    def __init__(self, values: dict[str, Any], name: str, schema: Schemas.OfProperty.Data, store: OfStore | None,
+                 parent: Any, writable: bool, on_write: Callable[[], None] | None = None):
+        self._values, self._name, self._schema, self._store = values, name, schema, store
+        self._parent, self._writable, self._on_write = parent, writable, on_write
+
+    def _any(self) -> _Any:
+        return _Any(self._values, self._name, self._schema.type, self._store, self._writable, self._label(),
+                    self._on_write)
+
+    def _label(self) -> str:
+        return f"property {self._name!r}"
+
+    def _scalar(self) -> Any:
+        found: list[Any] = []
+        self._any().as_scalar(lambda s: found.append(s.get()))
+        return found[0] if found else None
+
+    def as_schema(self) -> Schemas.OfProperty.Data:
+        return self._schema
+
+    def as_value(self, cb: Any) -> _Property:
+        visitor = self._any()
+        if _is_function(cb):
+            _visit(cb, visitor)
+        else:
+            visitor.write(cb)
+        return self
+
+    def as_scalar(self, cb: Any) -> _Property:
+        self._any().as_scalar(cb)
+        return self
+
+    def as_object(self, cb: Any) -> _Property:
+        self._any().as_object(cb)
+        return self
+
+    def __call__(self, spec: Any) -> Any:
+        if _is_function(spec):
+            _visit(spec, self)
+        else:
+            self.as_value(spec)
+        return self._parent
+
+    def __repr__(self) -> str:
+        return f"<{self._label()}>"
+
+
+class _Properties:
+    """`Visitors.OfObject.as_properties`: the properties present, iterated, or called with a callback for each."""
+
+    def __init__(self, owner: Any, properties: list[Any]):
+        self._owner, self._properties = owner, properties
+
+    def __iter__(self) -> Iterator[Any]:
+        return iter(self._properties)
+
+    def __call__(self, cb: Any) -> Any:
+        for prop in self._properties:
+            _visit(cb, prop)
+        return self._owner
+
+
+def _properties_of(owner: Any, values: dict[str, Any], schema: Any, store: OfStore | None, writable: bool,
+                   on_write: Callable[[], None] | None = None) -> _Properties:
+    """The properties of an object present in `values`, in the schema's declared order."""
+    return _Properties(owner, [_Property(values, name, prop, store, owner, writable, on_write)
+                               for name, prop in schema.properties.items() if name in values])
+
+
+def _kind_visitor(values: dict[str, Any], name: str, schema: Any, store: OfStore | None, parent: Any, writable: bool,
+                  label: str, on_write: Callable[[], None] | None = None) -> Any:
+    """The visitor of a union's branch or an intersection's part: of its own type's kind, the value itself for a value
+    object held, or an empty one."""
+    held = Schemas.structure(schema)
+    value = values.get(name)
+    if isinstance(held, Schemas.OfScalar.Data):
+        return _Scalar(values, name, held, writable, label, parent, on_write)
+    if not writable:
+        return value if isinstance(value, _RecordData) else _Empty(held, f"{label} is not set")
+    if isinstance(value, _RecordBuilder):
+        return value
+
+    def attach(builder: _RecordBuilder) -> None:
+        if on_write is not None:
+            on_write()
+        values[name] = builder
+
+    return _RecordBuilder(held, value if isinstance(value, _RecordData) else None, store, attach, parent)
+
+
+# --- Data instances ---
 
 
 class _ObjectData:
-    """A proxy instance. Properties are read-only attributes; one that is not set reads as None."""
+    """A proxy instance: a read-only `Visitors.OfObject`, whose properties and adjacencies are members."""
 
     __slots__ = ("_store", "_schema", "_schema_name", "_values", "_adjacent", "__weakref__")
 
@@ -205,72 +594,153 @@ class _ObjectData:
         object.__setattr__(self, "_values", {})
 
     def __getattr__(self, name: str) -> Any:
-        return _read(self, name)
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return _member(self, name)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("proxy properties are read-only; use a builder")
 
-    def identity(self) -> Hashable:
-        return id(self)
+    def __call__(self, spec: Any) -> Any:
+        raise ReadOnlyError("a data instance is read-only; write through a builder")
 
-    def schema_name(self) -> str:
-        return self._schema_name
+    def __repr__(self) -> str:
+        return f"<{self._schema_name}>"
 
-    def owner(self) -> None:
-        return None
+    def as_schema(self) -> ObjectSchema:
+        return self._schema
 
-    def accept(self, visitor: Visitors.OfObject) -> None:
-        """Writes properties in the schema's declared order, then entries adjacency by adjacency."""
-        _write_properties(visitor, self._schema, self._values)
-        _write_adjacencies(visitor, self, self._schema)
+    def as_identity(self) -> str:
+        return str(id(self))
+
+    @property
+    def as_properties(self) -> _Properties:
+        return _properties_of(self, self._values, self._schema, self._store, False)
+
+    def as_adjacencies(self, cb: Any) -> _ObjectData:
+        for name in self._schema.adjacencies:
+            _visit(cb, _member(self, name))
+        return self
 
 
-def _write_adjacencies(visitor: Any, target: Any, schema: ObjectSchema) -> None:
-    """Writes the entries linking `target`, adjacency by adjacency; a value object not yet placed has none."""
-    for adjacency_name, adjacency in schema.adjacencies.items():
-        for entry in _linking(adjacency.relation, adjacency.me, target):
-            visitor.adjacency(
-                adjacency_name,
-                lambda a, entry=entry, adj=adjacency: a.add(lambda e: _write_entry(e, entry, adj)),
-            )
+class _RecordData:
+    """A value object: the value of a property whose schema is an `OfObject`, a read-only `Visitors.OfObject`; or a
+    union or intersection value, a read-only `Visitors.OfUnion` or `Visitors.OfIntersection`, whose branches or parts
+    are members giving the visitor of their own type's kind. It belongs to one owner and has an identity of its own.
+    Built but not yet placed in an owner, it holds its entries in `_pending` until its owner is created or updated."""
+
+    __slots__ = ("_schema", "_values", "_owner", "_pending", "_source", "_copy_of", "_adjacent")
+
+    def __init__(self, schema: Any, values: dict[str, Any], pending: dict[str, list[_EntryBuilder]] | None = None,
+                 source: _RecordData | None = None, copy_of: Any = None):
+        for name, value in (("_schema", schema), ("_values", dict(values)), ("_owner", None),
+                            ("_pending", pending or {}), ("_source", source), ("_copy_of", copy_of), ("_adjacent", {})):
+            object.__setattr__(self, name, value)
+
+    def __getattr__(self, name: str) -> Any:
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return _member(self, name)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError(f"{_noun(self._schema)}s are read-only; use a builder")
+
+    def __call__(self, spec: Any) -> Any:
+        raise ReadOnlyError(f"{_a(_noun(self._schema))} is read-only; write through a builder")
+
+    def __repr__(self) -> str:
+        return f"<{_noun(self._schema)}>"
+
+    def as_schema(self) -> Any:
+        return self._schema
+
+    def as_identity(self) -> str:
+        return str(id(self))
+
+    @property
+    def as_properties(self) -> _Properties:
+        return _properties_of(self, self._values, self._schema, _store_of(self), False)
+
+    def as_adjacencies(self, cb: Any) -> _RecordData:
+        for name in self._schema.adjacencies if isinstance(self._schema, ObjectSchema) else ():
+            _visit(cb, _member(self, name))
+        return self
+
+
+def _member(owner: Any, name: str) -> Any:
+    """A data instance's or a value object's member, read-only: a property, or a union's branch or an intersection's
+    part, the visitor of its type's kind; a flat intersection's part's property, as its own; or an adjacency."""
+    schema = object.__getattribute__(owner, "_schema")
+    values = object.__getattribute__(owner, "_values")
+    store = _store_of(owner)
+    if isinstance(schema, (Schemas.OfUnion.Data, Schemas.OfIntersection.Data)) and name in schema.properties:
+        kind = "branch" if isinstance(schema, Schemas.OfUnion.Data) else "part"
+        return _kind_visitor(values, name, schema.properties[name].type, store, owner, False, f"{kind} {name!r}")
+    if name in schema.properties:
+        return _Property(values, name, schema.properties[name], store, owner, False)
+    part = _owning_part(schema, name)
+    if part is not None:
+        held = values.get(part)
+        return _member(held, name) if isinstance(held, _RecordData) else _Empty(None, f"part {part!r} is not set")
+    adjacency = schema.adjacencies.get(name) if isinstance(schema, ObjectSchema) else None
+    if adjacency is not None:
+        return _Adjacency(_linking(adjacency.relation, adjacency.me, owner), adjacency, owner)
+    return _Empty(None, f"{name!r} is not a member of {_a(_noun(schema))}")
 
 
 def _read(value: Any, name: str) -> Any:
-    """A property of an instance or record, or an adjacency's entries, as an attribute; a flat intersection's parts'
-    properties too, as its own."""
+    """The value an instance or a value object holds in its property `name` (a union's branch, an intersection's
+    part), as a store reads it: a scalar, or a value object; a flat intersection's part's property too, as its own."""
     values = object.__getattribute__(value, "_values")
     schema = object.__getattribute__(value, "_schema")
-    if name in values:
-        return _view(values[name], schema.properties[name].type)
     if name in schema.properties:
-        return None  # not set: nothing is mandatory but by a constraint
+        return values.get(name)
     part = _owning_part(schema, name)
     if part is not None:
         return None if part not in values else _read(values[part], name)
-    adjacency = schema.adjacencies.get(name) if isinstance(schema, ObjectSchema) else None
-    if adjacency is not None:
-        return _Adjacency(_linking(adjacency.relation, adjacency.me, value), adjacency)
     raise AttributeError(name)
 
 
 class _Adjacency(tuple):  # type: ignore[type-arg]
-    """An adjacency as proxies read it: the tuple of its entries, in the order they were added, indexed by position.
-    `project(name)` gives each entry's link or property `name`, in order, and `at(key)` the entry with the key its
-    relation declares (`Schemas.OfRelation.Data.key`). Names are arguments, so no link or property can collide."""
+    """An adjacency of a data instance, a read-only `Visitors.OfAdjacency`: the tuple of its entries, in the order they
+    were added. `project(name)` gives each entry's link or property `name`, in order, and `at(key)` the entry with the
+    key its relation declares (`Schemas.OfRelation.Data.key`)."""
 
     _schema: Schemas.OfAdjacency.Data
+    _owner: Any
 
-    def __new__(cls, entries: Any, schema: Schemas.OfAdjacency.Data) -> _Adjacency:
+    def __new__(cls, entries: Any, schema: Schemas.OfAdjacency.Data, owner: Any) -> _Adjacency:
         adjacency = super().__new__(cls, entries)
-        adjacency._schema = schema
+        adjacency._schema, adjacency._owner = schema, owner
         return adjacency
+
+    def as_schema(self) -> Schemas.OfAdjacency.Data:
+        return self._schema
+
+    def select(self, spec: Any, cb: Any) -> _Adjacency:
+        for entry in list(self):
+            if _agrees(entry, spec, self._schema, _store_of(self._owner)):
+                _visit(cb, entry)
+        return self
+
+    def insert(self, spec: Any) -> _Adjacency:
+        raise ReadOnlyError("a data instance's adjacency is read-only; write through a builder")
+
+    remove = insert
+
+    def __call__(self, spec: Any) -> Any:
+        if not _is_function(spec):
+            self.insert(spec)
+        _visit(spec, self)
+        return self._owner
 
     def project(self, name: str) -> tuple[Any, ...]:
         """Each entry's link or property `name`, in order; None for a property an entry does not set."""
         relation = self._schema.relation
         if name not in relation.entry.links and name not in relation.entry.properties:
             raise KeyError(f"{name!r} is not a link or property of the relation")
-        return tuple(getattr(entry, name) for entry in self)
+        return tuple(entry._links[name] if name in relation.entry.links else entry._properties.get(name)
+                     for entry in self)
 
     def at(self, key: Any) -> _Entry:
         """The entry whose key is `key`: one value for a key of one link or property, else a tuple of them in
@@ -283,11 +753,35 @@ class _Adjacency(tuple):  # type: ignore[type-arg]
             raise KeyError(f"a key of {list(names)} is a tuple of {len(names)} values, got {key!r}")
         links = self._schema.relation.entry.links
         for entry in self:
-            held = [getattr(entry, name) for name in names]
+            held = [entry._links[name] if name in links else entry._properties.get(name) for name in names]
             if all(h is v if name in links else h is not None and _scalar_key(h) == _scalar_key(v)
                    for name, h, v in zip(names, held, wanted)):  # a target by identity, a value by schema equality
                 return entry
         raise KeyError(f"no entry has the key {key!r}")
+
+
+def _entry_parts(entry: Any, me: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    """An entry's links other than `me`, and its properties: a placed entry's, or an entry builder's."""
+    if isinstance(entry, _Entry):
+        return {k: v for k, v in entry._links.items() if k != me}, entry._properties
+    return dict(entry._links), entry._values
+
+
+def _agrees(entry: Any, spec: Any, adjacency: Schemas.OfAdjacency.Data, store: OfStore | None) -> bool:
+    """Whether an entry agrees with a query Spec: equal to its value form (an entry), or agreeing with every link and
+    property its callable form, a template, sets."""
+    links, values = _entry_parts(entry, adjacency.me)
+    if _is_function(spec):
+        template = _EntryBuilder(adjacency.relation, adjacency.me, store)
+        _visit(spec, template)
+        wanted_links, wanted_values = template._links, template._values
+    else:
+        wanted_links, wanted_values = _entry_parts(spec, adjacency.me)
+        if set(wanted_links) != set(links) or set(wanted_values) != set(values):
+            return False
+    return (all(links.get(name) is target for name, target in wanted_links.items())
+            and all(name in values and _scalar_key(values[name]) == _scalar_key(value)
+                    for name, value in wanted_values.items()))
 
 
 def _owning_part(schema: Any, name: str) -> str | None:
@@ -297,20 +791,11 @@ def _owning_part(schema: Any, name: str) -> str | None:
     return next((part.name for part in schema.parts if name in Schemas.structure(part.type).properties), None)
 
 
-def _view(value: Any, schema: Any) -> Any:
-    """A value as code reads it: a flat union's value as its branch's value."""
-    schema = Schemas.structure(schema)
-    if not (isinstance(schema, Schemas.OfUnion.Data) and schema.flat):
-        return value
-    ((branch, held),) = object.__getattribute__(value, "_values").items()
-    return _view(held, schema.properties[branch].type)
-
-
 def _runtime(value: Any) -> Any:
     """What tells a value apart at run time, as `Schemas` tells a flat union's branches apart: a scalar's type, or a
     value object's schema."""
-    if isinstance(value, _RecordData):
-        return ("schema", id(object.__getattribute__(value, "_schema")))
+    if isinstance(value, (_RecordData, _RecordBuilder)):
+        return ("schema", id(value._schema))
     return ("scalar", type(value))
 
 
@@ -320,21 +805,6 @@ def _branch(name: str, schema: Schemas.OfUnion.Data, value: Any) -> Schemas.OfUn
     if found is None:
         raise TypeError(f"property {name!r}: a {type(value).__name__} is not a value of any branch of the flat union")
     return found
-
-
-def _write_properties(visitor: Any, schema: ObjectSchema, values: dict[str, Any]) -> None:
-    """Writes the values that are set, in the schema's declared order."""
-    for name in schema.properties:
-        if name in values:
-            visitor.property(name, lambda p, value=values[name]: p.value(lambda a: _write_value(a, value)))
-
-
-def _write_value(visitor: Visitors.OfAny, value: Any) -> None:
-    """Writes a scalar, a value object, a union value or an intersection value into a `Visitors.OfAny`."""
-    if isinstance(value, _RecordData):
-        _write_record(visitor, object.__getattribute__(value, "_schema"), lambda r: value.accept(r))
-    else:
-        visitor.as_scalar(lambda n: n.set(value))
 
 
 def _noun(schema: Any) -> str:
@@ -350,45 +820,7 @@ def _a(noun: str) -> str:
     return f"an {noun}" if noun == "intersection value" else f"a {noun}"
 
 
-class _RecordData:
-    """A value object: the value of a property whose schema is an `OfObject`, which may have adjacencies, or a union or
-    intersection value, whose properties are the branches or parts. It belongs to one owner and has an identity of its
-    own; its properties are read-only attributes, and one that is not set reads as None. Built but not
-    yet placed in an owner, it holds its entries in `_pending` until its owner is created or updated."""
-
-    __slots__ = ("_schema", "_values", "_owner", "_pending", "_source", "_copy_of", "_adjacent")
-
-    def __init__(self, schema: Any, values: dict[str, Any], pending: dict[str, list[_EntryBuilder]] | None = None,
-                 source: _RecordData | None = None, copy_of: Any = None):
-        for name, value in (("_schema", schema), ("_values", dict(values)), ("_owner", None),
-                            ("_pending", pending or {}), ("_source", source), ("_copy_of", copy_of), ("_adjacent", {})):
-            object.__setattr__(self, name, value)
-
-    def __getattr__(self, name: str) -> Any:
-        return _read(self, name)
-
-    def __setattr__(self, name: str, value: object) -> None:
-        raise AttributeError(f"{_noun(self._schema)}s are read-only; use a builder")
-
-    def identity(self) -> Hashable:
-        return id(self)
-
-    def schema_name(self) -> str:
-        """The registered name of the value object's schema, or '' when it is not registered in its store."""
-        store = _store_of(self)
-        return "" if store is None else next((n for n, s in store._schemas.items() if s is self._schema), "")
-
-    def owner(self) -> Any:
-        return self._owner
-
-    def accept(self, visitor: Visitors.OfObject) -> None:
-        """Identifies itself (an object's value object), then writes its properties in the schema's declared order and
-        the entries linking it."""
-        if isinstance(self._schema, ObjectSchema):
-            visitor.identify(self)
-        _write_properties(visitor, self._schema, self._values)
-        if isinstance(self._schema, ObjectSchema):
-            _write_adjacencies(visitor, self, self._schema)
+# --- Value objects: staging, copying, placing ---
 
 
 def _set(target: Any, name: str, value: Any) -> None:
@@ -425,8 +857,19 @@ def _stage_values(record: _RecordData, old: _RecordData | None, mapping: dict[in
 
 def _copy(record: _RecordData) -> _RecordData:
     """A copy of a placed value object, with copies of the entries linking it and the value objects it holds."""
-    builder = _RecordBuilder(record._schema, store=_store_of(record))
-    record.accept(builder)
+    store = _store_of(record)
+    builder = _RecordBuilder(record._schema, store=store)
+    builder._copy_of = record
+    builder._values = {name: _copy(v) if isinstance(v, _RecordData) else v for name, v in record._values.items()}
+    for name, adjacency in record._schema.adjacencies.items() if isinstance(record._schema, ObjectSchema) else ():
+        for entry in _linking(adjacency.relation, adjacency.me, record):
+            copied = _EntryBuilder(adjacency.relation, adjacency.me, store)
+            copied._links = {link: target for link, target in entry._links.items() if link != adjacency.me}
+            copied._values = {n: _copy(v) if isinstance(v, _RecordData) else v for n, v in entry._properties.items()}
+            copied._source = entry
+            builder._entries.setdefault(name, []).append(copied)
+    for name, pending in record._pending.items():
+        builder._entries.setdefault(name, []).extend(pending)
     return builder.build()
 
 
@@ -515,335 +958,242 @@ def _first_copy(relation: RelationSchema, builder: _EntryBuilder, target: Any, m
     return True
 
 
-def _write_entry(visitor: Visitors.OfEntry, entry: _Entry, adjacency: Schemas.OfAdjacency.Data) -> None:
-    """Writes an entry's links and properties in the relation's declared order, whichever end built the entry. A proxy's
-    entry builder remembers the entry it copies."""
-    relation = adjacency.relation
-    if isinstance(visitor, _EntryBuilder):
-        visitor._source = entry
-    for name in relation.entry.links:
-        if name != adjacency.me:
-            visitor.link(name, lambda k, target=entry._links[name]: k.set(target))
-    for name in relation.entry.properties:
-        if name in entry._properties:
-            value = entry._properties[name]
-            visitor.property(name, lambda p, value=value: p.value(lambda a: _write_value(a, value)))
-
-
 # --- Builders ---
 
 
-class _ScalarSlot:
-    """`Visitors.OfScalar` over one key of a value dict."""
-
-    def __init__(self, values: dict[str, Scalar], name: str):
-        self._values, self._name = values, name
-
-    def has(self) -> bool:
-        return self._name in self._values
-
-    def get(self) -> Scalar:
-        if self._name not in self._values:
-            raise AttributeError(f"property {self._name!r} is not set")
-        return self._values[self._name]
-
-    def set(self, value: Scalar) -> _ScalarSlot:
-        self._values[self._name] = value
-        return self
-
-    def clear(self) -> _ScalarSlot:
-        self._values.pop(self._name, None)
-        return self
+def _member_of(builder: _RecordBuilder, name: str) -> Any:
+    """A union builder's branch, by name."""
+    return builder._member(name)
 
 
-class _AnySlot:
-    """`Visitors.OfAny` over one key of a value dict, holding a value of `schema` (an entry property's schema is not
-    given: entry properties are scalar)."""
-
-    def __init__(self, values: dict[str, Any], name: str, schema: Any = None, store: OfStore | None = None):
-        self._values, self._name, self._store = values, name, store
-        self._schema = Schemas.structure(schema)
-
-    def as_scalar(self, callback: Callable[[Visitors.OfScalar], Any]) -> _AnySlot:
-        callback(_ScalarSlot(self._values, self._name))
-        return self
-
-    def as_object(self, callback: Callable[[Visitors.OfObject], Any]) -> _AnySlot:
-        """Builds a value object, starting from the one already set, if any."""
-        return self._record(Schemas.OfObject.Data, "an object", callback)
-
-    def as_union(self, callback: Callable[[Visitors.OfUnion], Any]) -> _AnySlot:
-        """Builds a union value, starting from the one already set, if any."""
-        return self._record(Schemas.OfUnion.Data, "a union", callback)
-
-    def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _AnySlot:
-        """Builds an intersection value, starting from the one already set, if any."""
-        return self._record(Schemas.OfIntersection.Data, "an intersection", callback)
-
-    def _record(self, kind: type, noun: str, callback: Callable[[Any], Any]) -> _AnySlot:
-        if not isinstance(self._schema, kind):
-            raise TypeError(f"property {self._name!r} does not hold {noun}")
-        current = self._values.get(self._name)
-        builder = _RecordBuilder(self._schema, current if isinstance(current, _RecordData) else None, self._store)
-        callback(builder)
-        if isinstance(self._schema, Schemas.OfUnion.Data) and not builder._values:
-            self._values.pop(self._name, None)  # a union value without a branch is no value
-        else:
-            self._values[self._name] = builder.build()
-        return self
-
-
-class _PropertySlot:
-    """`Visitors.OfProperty` over one key of a value dict, holding a value of `schema`."""
-
-    def __init__(self, values: dict[str, Any], name: str, schema: Any = None, store: OfStore | None = None):
-        self._values, self._name, self._schema, self._store = values, name, schema, store
-
-    def name(self) -> str:
-        return self._name
-
-    def has(self) -> bool:
-        return self._name in self._values
-
-    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _PropertySlot:
-        callback(_AnySlot(self._values, self._name, self._schema, self._store))
-        return self
-
-    def clear(self) -> _PropertySlot:
-        self._values.pop(self._name, None)
-        return self
-
-
-def _setter(visitor: Any, name: str, schema: Any = None) -> Callable[[Any], Any]:
-    """DSL setter for a property of `schema`: `.name(value)`, or `.name(Spec)` where the Spec receives the value's
-    builder: a `Visitors.OfScalar` (`v.set(...)`), or the builder of a value object, a union value or an intersection
-    value, which starts from the value already set. A value object given as the value replaces the one set."""
-
-    def setter(spec: Any) -> Any:
-        if isinstance(spec, _RecordData):
-            visitor.property(name, lambda p: p.clear().value(lambda a: _apply(a, name, schema, spec)))
-        else:
-            visitor.property(name, lambda p: p.value(lambda a: _apply(a, name, schema, spec)))
-        return visitor
-
-    return setter
-
-
-def _apply(visitor: Visitors.OfAny, name: str, schema: Any, spec: Any) -> None:
-    """Writes `spec` (a value, or a callable taking the value's builder) as a value of `schema`."""
-    schema = Schemas.structure(schema)
-    if isinstance(schema, Schemas.OfUnion.Data) and schema.flat and not callable(spec) and not (
-            isinstance(spec, _RecordData) and object.__getattribute__(spec, "_schema") is schema):
-        branch = _branch(name, schema, spec)  # a flat union's value: its branch's, told apart by type
-        _write_record(visitor, schema, lambda r: r.property(
-            branch.name, lambda p: p.value(lambda a: _apply(a, branch.name, branch.type, spec))))
-    elif isinstance(schema, (Schemas.OfObject.Data, Schemas.OfUnion.Data, Schemas.OfIntersection.Data)):
-        if callable(spec):
-            _write_record(visitor, schema, spec)
-        elif isinstance(spec, _RecordData):
-            _write_record(visitor, schema, lambda r: spec.accept(r))
-        else:
-            raise TypeError(f"property {name!r} takes {_a(_noun(schema))} or a Spec, got {type(spec).__name__}")
-    else:
-        visitor.as_scalar(spec if callable(spec) else (lambda n: n.set(spec)))
-
-
-def _write_record(visitor: Visitors.OfAny, schema: Any, callback: Callable[[Any], Any]) -> None:
-    if isinstance(schema, Schemas.OfUnion.Data):
-        visitor.as_union(callback)
-    elif isinstance(schema, Schemas.OfIntersection.Data):
-        visitor.as_intersection(callback)
-    else:
-        visitor.as_object(callback)
+def _built(value: Any) -> Any:
+    """A value as a builder finalizes it: a value object's builder, built."""
+    return value.build() if isinstance(value, _RecordBuilder) else value
 
 
 class _RecordBuilder:
-    """`Visitors.OfObject` for building a value object, starting from `source` if given; also `Visitors.OfUnion` and
-    `Visitors.OfIntersection` for a union or intersection value, whose properties are the branches or parts. DSL:
-    `.<property>(value or Spec)` and `.<adjacency>(entry Spec)`. Writing a union's branch clears any other."""
+    """A writable `Visitors.OfObject` building a value object, starting from `source` if given; or a writable
+    `Visitors.OfUnion` or `Visitors.OfIntersection`, whose branches or parts are members giving the visitor of their own
+    type's kind. It attaches itself to what holds it (`attach`) when first written, so that an unwritten builder
+    changes nothing. Writing a union's branch clears any other."""
 
-    def __init__(self, schema: Any, source: _RecordData | None = None, store: OfStore | None = None):
+    def __init__(self, schema: Any, source: _RecordData | None = None, store: OfStore | None = None,
+                 attach: Callable[[_RecordBuilder], None] | None = None, parent: Any = None):
         self._schema, self._source, self._copy_of, self._store = schema, source, None, store
+        self._attach, self._parent = attach, parent
         self._values: dict[str, Any] = {} if source is None else dict(object.__getattribute__(source, "_values"))
         self._entries: dict[str, list[_EntryBuilder]] = {}
         if source is not None and isinstance(schema, ObjectSchema):
             _load_entries(self._entries, schema, source)
-        self._member = ("branch of the union" if isinstance(schema, Schemas.OfUnion.Data) else
-                        "part of the intersection" if isinstance(schema, Schemas.OfIntersection.Data) else
-                        "property of the value object")
 
-    def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _RecordBuilder:
-        for name in [n for n in self._schema.properties if n in self._values]:
-            callback(_PropertySlot(self._values, name, self._schema.properties[name].type, self._store))
+    def _touch(self) -> None:
+        """Attaches the builder to what holds it, once, at its first write."""
+        if self._attach is not None:
+            attach, self._attach = self._attach, None
+            attach(self)
+
+    def _select(self, name: str) -> Callable[[], None]:
+        """What writing the member `name` does first: for a union's branch, clearing any other branch."""
+        def selected() -> None:
+            if isinstance(self._schema, Schemas.OfUnion.Data):
+                for other in [n for n in self._values if n != name]:
+                    del self._values[other]
+            self._touch()
+        return selected
+
+    def as_schema(self) -> Any:
+        return self._schema
+
+    def as_identity(self) -> str:
+        return "" if self._source is None else self._source.as_identity()
+
+    @property
+    def as_properties(self) -> _Properties:
+        return _properties_of(self, self._values, self._schema, self._store, True, self._touch)
+
+    def as_adjacencies(self, cb: Any) -> _RecordBuilder:
+        for name in self._schema.adjacencies if isinstance(self._schema, ObjectSchema) else ():
+            _visit(cb, _AdjacencyBuilder(self, name))
         return self
 
-    def has(self, name: str) -> bool:
-        return name in self._values
-
-    def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _RecordBuilder:
-        if name not in self._schema.properties:
-            raise AttributeError(f"{name!r} is not a {self._member}")
-        if isinstance(self._schema, Schemas.OfUnion.Data):
-            for other in [n for n in self._values if n != name]:
-                del self._values[other]
-        callback(_PropertySlot(self._values, name, self._schema.properties[name].type, self._store))
-        return self
-
-    def clear(self, name: str) -> _RecordBuilder:
-        self._values.pop(name, None)
-        return self
-
-    def _adjacencies(self) -> dict[str, Any]:
-        return self._schema.adjacencies if isinstance(self._schema, ObjectSchema) else {}
-
-    def adjacencies(self, callback: Callable[[Visitors.OfAdjacency], Any]) -> _RecordBuilder:
-        for name in self._adjacencies():
-            callback(_AdjacencySlot(self, name))
-        return self
-
-    def adjacency(self, name: str, callback: Callable[[Visitors.OfAdjacency], Any]) -> _RecordBuilder:
-        if not self._adjacencies():
-            raise AttributeError(f"{_a(_noun(self._schema))} has no adjacencies, got {name!r}")
-        if name not in self._adjacencies():
-            raise AttributeError(f"{name!r} is not an adjacency of the {_noun(self._schema)}")
-        callback(_AdjacencySlot(self, name))
-        return self
-
-    def identify(self, value: Visitors.Visitable) -> _RecordBuilder:
-        """A value object replays itself into this builder: the value object built is a copy of it."""
-        self._copy_of = value
-        return self
-
-    def __getattr__(self, name: str) -> Callable[[Any], _RecordBuilder]:
+    def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):
             raise AttributeError(name)
-        if name in self._schema.properties:
-            return _setter(self, name, self._schema.properties[name].type)
-        if name in self._adjacencies():
-            return _adder(self, name)
-        part = _owning_part(self._schema, name)
-        if part is not None:  # a flat intersection's part's property: set in that part, from the value already set
-            setter = _setter(self, part, self._schema.properties[part].type)
-            return lambda spec: setter(lambda b: getattr(b, name)(spec))
-        raise AttributeError(f"{name!r} is not a {self._member}")
+        return self._member(name)
+
+    def _member(self, name: str) -> Any:
+        schema = self._schema
+        if isinstance(schema, (Schemas.OfUnion.Data, Schemas.OfIntersection.Data)) and name in schema.properties:
+            kind = "branch" if isinstance(schema, Schemas.OfUnion.Data) else "part"
+            return _kind_visitor(self._values, name, schema.properties[name].type, self._store, self, True,
+                                 f"{kind} {name!r}", self._select(name))
+        if name in schema.properties:
+            return _Property(self._values, name, schema.properties[name], self._store, self, True, self._touch)
+        part = _owning_part(schema, name)
+        if part is not None:  # a flat intersection's part's property: written in that part
+            return getattr(self._member(part), name)
+        if isinstance(schema, ObjectSchema) and name in schema.adjacencies:
+            return _AdjacencyBuilder(self, name)
+        return _Empty(None, f"{name!r} is not a member of {_a(_noun(schema))}")
+
+    def __call__(self, spec: Any) -> Any:
+        """As a union's branch or an intersection's part: writes or visits through a Spec."""
+        if _is_function(spec):
+            _visit(spec, self)
+        else:
+            if not isinstance(spec, (_RecordData, _RecordBuilder)) or spec._schema is not self._schema:
+                raise TypeError(f"{_a(_noun(self._schema))} or a Spec is expected, got {type(spec).__name__}")
+            self._values = dict(spec._values)
+            self._entries = {}
+            if isinstance(spec, _RecordData) and isinstance(self._schema, ObjectSchema):
+                _load_entries(self._entries, self._schema, spec)
+            self._copy_of = spec
+            self._touch()
+        return self._parent
 
     def build(self) -> _RecordData:
-        return _RecordData(self._schema, self._values, self._entries, self._source, self._copy_of)
+        values = {name: _built(value) for name, value in self._values.items()}
+        return _RecordData(self._schema, values, self._entries, self._source, self._copy_of)
 
 
-def _adder(builder: Any, name: str) -> Callable[[Any], Any]:
-    """DSL adder for an adjacency: `.<adjacency>(lambda x: x.<link>(...))`."""
+class _AdjacencyBuilder:
+    """A writable `Visitors.OfAdjacency` over one adjacency of an object's or a value object's builder: iterated, its
+    entries' builders, the pending ones included."""
 
-    def adder(spec: Callable[[Visitors.OfEntry], Any]) -> Any:
-        if not callable(spec):
-            raise TypeError(f"{name!r} takes an entry Spec, e.g. lambda x: x.<link>(...)")
-        return builder.adjacency(name, lambda a: a.add(spec))
+    def __init__(self, builder: Any, name: str):
+        self._builder, self._name = builder, name
+        self._schema = builder._schema.adjacencies[name]
 
-    return adder
+    def _entries(self) -> list[_EntryBuilder]:
+        return self._builder._entries.get(self._name, [])
 
+    def as_schema(self) -> Schemas.OfAdjacency.Data:
+        return self._schema
 
-def _load_entries(entries: dict[str, list[_EntryBuilder]], schema: ObjectSchema, source: Any) -> None:
-    """Loads the entries linking `source` into a builder, as entry builders, so that an update rewrites them."""
-    store = _store_of(source)
-    for name, adjacency in schema.adjacencies.items():
-        for entry in _linking(adjacency.relation, adjacency.me, source):
-            builder = _EntryBuilder(adjacency.relation, adjacency.me, store)
-            builder._links = {link: target for link, target in entry._links.items() if link != adjacency.me}
-            builder._values = dict(entry._properties)
-            builder._source = entry
-            entries.setdefault(name, []).append(builder)
-    for name, pending in object.__getattribute__(source, "_pending").items() if isinstance(source, _RecordData) else ():
-        entries.setdefault(name, []).extend(pending)
+    def __iter__(self) -> Iterator[_EntryBuilder]:
+        return iter(list(self._entries()))
 
-
-class _LinkSlot:
-    """`Visitors.OfLink` over one link of an entry builder."""
-
-    def __init__(self, links: dict[str, _ObjectData | _ObjectBuilder], name: str, store: OfStore | None = None):
-        self._links, self._name, self._store = links, name, store
-
-    def name(self) -> str:
-        return self._name
-
-    def target(self, callback: Callable[[Visitors.Visitable], Any]) -> _LinkSlot:
-        callback(self._links[self._name])
+    def select(self, spec: Any, cb: Any) -> _AdjacencyBuilder:
+        for entry in list(self._entries()):
+            if _agrees(entry, spec, self._schema, self._builder._store):
+                _visit(cb, entry)
         return self
 
-    def set(self, target: Visitors.Visitable) -> _LinkSlot:
-        if isinstance(target, _RecordData):
-            raise TypeError("a link targets a reference object, never a value object")
-        if not isinstance(target, _ObjectData):
+    def insert(self, spec: Any) -> _AdjacencyBuilder:
+        entry = _EntryBuilder(self._schema.relation, self._schema.me, self._builder._store)
+        if _is_function(spec):
+            _visit(spec, entry)
+        else:
+            links, values = _entry_parts(spec, self._schema.me)
+            entry._links, entry._values = dict(links), dict(values)
+        _touch(self._builder)
+        self._builder._entries.setdefault(self._name, []).append(entry)
+        return self
+
+    def remove(self, spec: Any) -> _AdjacencyBuilder:
+        kept = [e for e in self._entries() if not _agrees(e, spec, self._schema, self._builder._store)]
+        _touch(self._builder)
+        self._builder._entries[self._name] = kept
+        return self
+
+    def __call__(self, spec: Any) -> Any:
+        if _is_function(spec):
+            _visit(spec, self)
+        else:
+            for entry in spec:  # an iterable of entries, each inserted
+                self.insert(entry)
+        return self._builder
+
+
+def _touch(builder: Any) -> None:
+    if isinstance(builder, _RecordBuilder):
+        builder._touch()
+
+
+class _LinkMember:
+    """An entry builder's link: read, the linked object, read-only (an object is edited through its own builder);
+    called with a Spec, it relinks: to an instance given, or to one created through the builder a callable is given."""
+
+    def __init__(self, entry: _EntryBuilder, name: str):
+        object.__setattr__(self, "_entry", entry)
+        object.__setattr__(self, "_name", name)
+
+    def _target(self) -> Any:
+        target = self._entry._links.get(self._name)
+        if isinstance(target, _ObjectBuilder):
+            return target._source if target._source is not None else _Empty(target._schema, "not created yet")
+        return target if target is not None else _Empty(None, f"link {self._name!r} is not set")
+
+    def as_schema(self) -> Any:
+        return self._target().as_schema()
+
+    def as_identity(self) -> str:
+        return self._target().as_identity()
+
+    @property
+    def as_properties(self) -> Any:
+        return self._target().as_properties
+
+    def as_adjacencies(self, cb: Any) -> _LinkMember:
+        self._target().as_adjacencies(cb)
+        return self
+
+    def __getattr__(self, name: str) -> Any:
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return getattr(self._target(), name)
+
+    def __call__(self, spec: Any) -> _EntryBuilder:
+        entry, name = self._entry, self._name
+        if _is_function(spec):
+            store = entry._store
+            if store is None:
+                raise TypeError("an object is created through a link only by a store's builder")
+            schema_name = store._filled(entry._relation, name)
+            builder = _ObjectBuilder(store, store.schema(schema_name), schema_name)
+            _visit(spec, builder)
+            entry._links[name] = builder
+            return entry
+        if isinstance(spec, _LinkMember):
+            spec = spec._target()
+        if isinstance(spec, _RecordData):
+            raise ReadOnlyError("a link targets a reference object, never a value object")
+        if not isinstance(spec, _ObjectData):
             raise TypeError("proxies can only link proxy instances")
-        _same_store(self._store, target)
-        self._links[self._name] = target
-        return self
+        _same_store(entry._store, spec)
+        entry._links[name] = spec
+        return entry
+
+    def __repr__(self) -> str:
+        return f"<link {self._name!r}>"
 
 
 class _EntryBuilder:
-    """`Visitors.OfEntry` for one entry being added through an adjacency. The object's own link (`me`) is filled when
-    the object builder is finalized. DSL: `.<link>(object or Spec)` and `.<property>(value or Spec)`."""
+    """A writable `Visitors.OfEntry` for one entry added through an adjacency: its links are members (`env.phone`,
+    read-only, relinked when called) and so are its properties. The object's own link (`me`) is filled when the
+    object's builder is finalized."""
 
     def __init__(self, relation: RelationSchema, me: str, store: OfStore | None = None):
         self._relation, self._me, self._store = relation, me, store
         self._links: dict[str, _ObjectData | _ObjectBuilder] = {}
-        self._values: dict[str, Scalar] = {}
+        self._values: dict[str, Any] = {}
         self._source: _Entry | None = None  # the entry this one rewrites, when copied or loaded from one
 
-    def _check_link(self, name: str) -> None:
-        if name == self._me or name not in self._relation.entry.links:
-            raise AttributeError(f"{name!r} is not a link this entry can set")
+    def as_schema(self) -> Schemas.OfEntry.Data:
+        return self._relation.entry
 
-    def links(self, callback: Callable[[Visitors.OfLink], Any]) -> _EntryBuilder:
-        for name in self._relation.entry.links:
-            if name != self._me:
-                callback(_LinkSlot(self._links, name, self._store))
-        return self
-
-    def link(self, name: str, callback: Callable[[Visitors.OfLink], Any]) -> _EntryBuilder:
-        self._check_link(name)
-        callback(_LinkSlot(self._links, name, self._store))
-        return self
-
-    def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryBuilder:
-        for name in list(self._values):
-            callback(_PropertySlot(self._values, name, self._relation.entry.properties[name].type if name in self._relation.entry.properties else None, self._store))
-        return self
-
-    def has(self, name: str) -> bool:
-        return name in self._values
-
-    def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryBuilder:
-        if name not in self._relation.entry.properties:
-            raise AttributeError(f"{name!r} is not a property of this relation")
-        callback(_PropertySlot(self._values, name, self._relation.entry.properties[name].type, self._store))
-        return self
-
-    def clear(self, name: str) -> _EntryBuilder:
-        self._values.pop(name, None)
-        return self
-
-    def __getattr__(self, name: str) -> Callable[[Any], _EntryBuilder]:
+    def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):
             raise AttributeError(name)
-        if name in self._relation.entry.links:
-            self._check_link(name)
+        if name in self._relation.entry.links and name != self._me:
+            return _LinkMember(self, name)
+        prop = self._relation.entry.properties.get(name)
+        if prop is not None:
+            return _Property(self._values, name, prop, self._store, self, True)
+        return _Empty(None, f"{name!r} is not a link this entry can set, nor a property of the relation")
 
-            def link_setter(spec: Any) -> _EntryBuilder:
-                if callable(spec):
-                    if self._store is None:
-                        raise TypeError("an object is created through a link only by a store's builder")
-                    schema_name = self._store._filled(self._relation, name)
-                    builder = _ObjectBuilder(self._store, self._store.schema(schema_name), schema_name)
-                    spec(builder)
-                    self._links[name] = builder
-                else:
-                    self.link(name, lambda k: k.set(spec))
-                return self
-
-            return link_setter
-        if name in self._relation.entry.properties:
-            return _setter(self, name, self._relation.entry.properties[name].type)
-        raise AttributeError(name)
+    def __repr__(self) -> str:
+        return f"<entry builder of {self._relation.name or 'a relation'}>"
 
     def _kept(self, target: Any) -> dict[str, Any]:
         """The values of the entry this one rewrites, where it links the same `target`: an update keeps them."""
@@ -853,7 +1203,7 @@ class _EntryBuilder:
     def _stage(self, target: Any, mapping: dict[int, Any]) -> None:
         """Stages the value objects the entry holds for `target`, before any is placed (see `_stage`)."""
         kept = self._kept(target)
-        self._values = {name: _stage(kept.get(name), value, mapping) for name, value in self._values.items()}
+        self._values = {name: _stage(kept.get(name), _built(value), mapping) for name, value in self._values.items()}
 
     def _place(self, target: Any, mapping: dict[int, Any]) -> None:
         """Places the staged value objects the entry holds as `target`'s."""
@@ -870,98 +1220,68 @@ class _EntryBuilder:
                 raise ValueError(f"link {name!r} is not set")
             value = self._links[name]
             links[name] = value.create() if isinstance(value, _ObjectBuilder) else value
-        return _Entry(self._relation, links, self._values)
+        return _Entry(self._relation, links, {name: _built(value) for name, value in self._values.items()})
 
 
-class _AdjacencySlot:
-    """`Visitors.OfAdjacency` over one adjacency of an object builder."""
-
-    def __init__(self, builder: _ObjectBuilder, name: str):
-        self._builder, self._name = builder, name
-        self._schema = builder._schema.adjacencies[name]
-
-    def name(self) -> str:
-        return self._name
-
-    def me(self) -> str:
-        return self._schema.me
-
-    def entries(self, callback: Callable[[Visitors.OfEntry], Any]) -> _AdjacencySlot:
-        for entry in list(self._builder._entries.get(self._name, [])):
-            callback(entry)
-        return self
-
-    def add(self, callback: Callable[[Visitors.OfEntry], Any]) -> _AdjacencySlot:
-        entry = _EntryBuilder(self._schema.relation, self._schema.me, self._builder._store)
-        callback(entry)
-        self._builder._entries.setdefault(self._name, []).append(entry)
-        return self
-
-    def remove(self, entry: Visitors.OfEntry) -> _AdjacencySlot:
-        entries = self._builder._entries.get(self._name, [])
-        self._builder._entries[self._name] = [e for e in entries if e is not entry]
-        return self
+def _load_entries(entries: dict[str, list[_EntryBuilder]], schema: ObjectSchema, source: Any) -> None:
+    """Loads the entries linking `source` into a builder, as entry builders, so that an update rewrites them."""
+    store = _store_of(source)
+    for name, adjacency in schema.adjacencies.items():
+        for entry in _linking(adjacency.relation, adjacency.me, source):
+            builder = _EntryBuilder(adjacency.relation, adjacency.me, store)
+            builder._links = {link: target for link, target in entry._links.items() if link != adjacency.me}
+            builder._values = dict(entry._properties)
+            builder._source = entry
+            entries.setdefault(name, []).append(builder)
+    for name, pending in object.__getattribute__(source, "_pending").items() if isinstance(source, _RecordData) else ():
+        entries.setdefault(name, []).extend(pending)
 
 
 class _ObjectBuilder:
-    """`Visitors.OfObject` for building a proxy instance. DSL: `.<property>(value or Spec)` and
-    `.<adjacency>(entry Spec)`. Finalized by `create()`, `clone()` or `update()`; none validate."""
+    """A writable `Visitors.OfObject` building a proxy instance: its properties and adjacencies are members, reading
+    back what has been written. Finalized by `create()`, `clone()` or `update()`; none validate."""
 
     def __init__(self, store: OfStore, schema: ObjectSchema, schema_name: str, instance: _ObjectData | None = None):
         if not schema.ref:
             raise TypeError(f"{schema_name!r} is a value object schema; a value object is built through its owner")
         self._store, self._schema, self._schema_name, self._source = store, schema, schema_name, instance
-        self._values: dict[str, Scalar] = {}
+        self._values: dict[str, Any] = {}
         self._entries: dict[str, list[_EntryBuilder]] = {}
         if instance is not None:
             if not isinstance(instance, _ObjectData):
                 raise TypeError("a builder's source must be a proxy instance")
-            if instance.schema_name() != schema_name:
-                raise TypeError(f"instance is a {instance.schema_name()!r}, not a {schema_name!r}")
+            if instance._schema_name != schema_name:
+                raise TypeError(f"instance is a {instance._schema_name!r}, not a {schema_name!r}")
             _same_store(store, instance)
             self._values = dict(instance._values)  # the value objects themselves, so that an update keeps them
             _load_entries(self._entries, schema, instance)
 
-    def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _ObjectBuilder:
-        for name in list(self._values):
-            callback(_PropertySlot(self._values, name, self._schema.properties[name].type, self._store))
-        return self
+    def as_schema(self) -> ObjectSchema:
+        return self._schema
 
-    def has(self, name: str) -> bool:
-        return name in self._values
+    def as_identity(self) -> str:
+        return "" if self._source is None else self._source.as_identity()
 
-    def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _ObjectBuilder:
-        if name not in self._schema.properties:
-            raise AttributeError(f"{name!r} is not a property of {self._schema_name!r}")
-        callback(_PropertySlot(self._values, name, self._schema.properties[name].type, self._store))
-        return self
+    @property
+    def as_properties(self) -> _Properties:
+        return _properties_of(self, self._values, self._schema, self._store, True)
 
-    def clear(self, name: str) -> _ObjectBuilder:
-        self._values.pop(name, None)
-        return self
-
-    def adjacencies(self, callback: Callable[[Visitors.OfAdjacency], Any]) -> _ObjectBuilder:
+    def as_adjacencies(self, cb: Any) -> _ObjectBuilder:
         for name in self._schema.adjacencies:
-            callback(_AdjacencySlot(self, name))
+            _visit(cb, _AdjacencyBuilder(self, name))
         return self
 
-    def adjacency(self, name: str, callback: Callable[[Visitors.OfAdjacency], Any]) -> _ObjectBuilder:
-        if name not in self._schema.adjacencies:
-            raise AttributeError(f"{name!r} is not an adjacency of {self._schema_name!r}")
-        callback(_AdjacencySlot(self, name))
-        return self
-
-    def identify(self, value: Visitors.Visitable) -> _ObjectBuilder:
-        return self
-
-    def __getattr__(self, name: str) -> Callable[[Any], _ObjectBuilder]:
+    def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):
             raise AttributeError(name)
         if name in self._schema.properties:
-            return _setter(self, name, self._schema.properties[name].type)
+            return _Property(self._values, name, self._schema.properties[name], self._store, self, True)
         if name in self._schema.adjacencies:
-            return _adder(self, name)
-        raise AttributeError(f"{name!r} is not a property or adjacency of {self._schema_name!r}")
+            return _AdjacencyBuilder(self, name)
+        return _Empty(None, f"{name!r} is not a property or adjacency of {self._schema_name!r}")
+
+    def __repr__(self) -> str:
+        return f"<builder of {self._schema_name}>"
 
     def create(self) -> _ObjectData:
         if self._source is not None:
@@ -991,12 +1311,11 @@ class _ObjectBuilder:
     def _write(self, target: _ObjectData, before: list[Any] | None = None) -> _ObjectData:
         """Writes the builder into `target`. Every value object it holds, its entries' too, is staged before any is
         placed, so that the entries among them link the right ones; those held `before` and no longer are removed."""
-        schema = self._schema
         mapping: dict[int, Any] = {}
         if self._source is not None and target is not self._source:  # a clone: its value objects link it, not the source
             mapping[id(self._source)] = target
         old = dict(target._values)
-        staged = {name: _stage(old.get(name), value, mapping) for name, value in self._values.items()}
+        staged = {name: _stage(old.get(name), _built(value), mapping) for name, value in self._values.items()}
         for entries in self._entries.values():
             for entry in entries:
                 entry._stage(target, mapping)
@@ -1016,6 +1335,11 @@ class _ObjectBuilder:
         return target
 
 
+_VALUES = (_ObjectData, _RecordData, _Entry, _Property, _Scalar, _RecordBuilder, _LinkMember, _Adjacency,
+           _AdjacencyBuilder, _Empty, _EntryBuilder)
+"""The classes whose instances are values, not the callable form of a Spec, though some are callable."""
+
+
 class OfObject:
     Data = _ObjectData
     Builder = _ObjectBuilder
@@ -1023,7 +1347,7 @@ class OfObject:
 
 
 class OfAdjacency:
-    """An adjacency as proxies read it: `Data`, the tuple of its entries, with `project(name)` and `at(key)`."""
+    """An adjacency of a data instance, `Data`: the tuple of its entries, with `project(name)` and `at(key)`."""
 
     Data = _Adjacency
 

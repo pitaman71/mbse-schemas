@@ -880,6 +880,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     meta-relations; until then, lists): a symbol is a name with an optional reference object schema, which a
     predicate's symbols require and an entry's links may leave unset;
   - a predicate's `requires` is one `Schemas.Form` ("one form").
+  - a member is written by calling it, never by assignment: "refuse all direct writes to properties and adjacencies"
+    on a builder, as on a data instance, so that assigning to any visitor's member raises `AttributeError` in both
+    languages rather than being silently lost (mbse-basis P-002);
   - scalar equality stays idiomatic, the user's concern being "the loss of language-idiomatic equality between scalars
     including strings", and their decision the recommendation they accepted ("I accept your recommendation"): in Python
     a scalar visitor compares, orders and hashes as its value (`card.name == "Ada"`, `card.age < 40`), sugar over

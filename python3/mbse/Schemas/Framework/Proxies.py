@@ -238,12 +238,24 @@ def _converted(value: Any, host: type, label: str) -> Any:
     return value
 
 
+class _Unassignable:
+    """A visitor whose members are written by calling them, never by assignment: assigning any name not starting with
+    `_` (its own state) is refused, so that a write is never silently lost."""
+
+    _refusal = "a visitor's members cannot be assigned: call a member to write through it"
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if not name.startswith("_"):
+            raise AttributeError(self._refusal)
+        object.__setattr__(self, name, value)
+
+
 def _operand(value: Any) -> Any:
     """What a comparison compares: a scalar visitor's value, or a value given as itself."""
     return value._operand() if isinstance(value, _Dunders) else value
 
 
-class _Dunders:
+class _Dunders(_Unassignable):
     """The scalar dunders, sugar over `get()`: each conversion raises when the value is not set or not of its type, and
     a visitor compares and orders as its value does (`card.name == "Ada"`), a value of another kind by its identity. A
     read-only visitor hashes as its value; a writable one, whose value may change, is unhashable. A subclass gives
@@ -402,7 +414,7 @@ class _Scalar(_Dunders):
         return f"<scalar {self._label_text}>"
 
 
-class _Any:
+class _Any(_Unassignable):
     """`Visitors.OfAny` over one key of a values dict, holding a value of `schema`. Read-only, it hands over the value's
     own visitor, or an empty one; writable, it selects the kind, refusing one the schema does not hold."""
 
@@ -583,7 +595,7 @@ class _Property(_Dunders):
         return f"<{self._label()}>"
 
 
-class _Properties:
+class _Properties(_Unassignable):
     """`Visitors.OfObject.as_properties`: the properties present, iterated, or called with a callback for each."""
 
     def __init__(self, owner: Any, properties: list[Any]):
@@ -751,13 +763,14 @@ def _read(value: Any, name: str) -> Any:
     raise AttributeError(name)
 
 
-class _Adjacency(tuple):  # type: ignore[type-arg]
+class _Adjacency(_Unassignable, tuple):  # type: ignore[type-arg]
     """An adjacency of a data instance, a read-only `Visitors.OfAdjacency`: the tuple of its entries, in the order they
     were added. `project(name)` gives each entry's link or property `name`, in order, and `at(key)` the entry with the
     key its relation declares (`Schemas.OfRelation.Data.key`)."""
 
     _schema: Schemas.OfAdjacency.Data
     _owner: Any
+    _refusal = "a data instance's adjacency is read-only; write through a builder"
 
     def __new__(cls, entries: Any, schema: Schemas.OfAdjacency.Data, owner: Any) -> _Adjacency:
         adjacency = super().__new__(cls, entries)
@@ -1037,7 +1050,7 @@ def _finalized(values: dict[str, Any]) -> dict[str, Any]:
     return {name: built for name, built in ((n, _built(v)) for n, v in values.items()) if built is not None}
 
 
-class _RecordBuilder:
+class _RecordBuilder(_Unassignable):
     """A writable `Visitors.OfObject` building a value object, starting from `source` if given; or a writable
     `Visitors.OfUnion` or `Visitors.OfIntersection`, whose branches or parts are members giving the visitor of their own
     type's kind. It attaches itself to what holds it (`attach`) when first written, so that an unwritten builder
@@ -1123,7 +1136,7 @@ class _RecordBuilder:
         return _RecordData(self._schema, _finalized(self._values), self._entries, self._source, self._copy_of)
 
 
-class _AdjacencyBuilder:
+class _AdjacencyBuilder(_Unassignable):
     """A writable `Visitors.OfAdjacency` over one adjacency of an object's or a value object's builder: iterated, its
     entries' builders, the pending ones included."""
 
@@ -1177,7 +1190,7 @@ def _touch(builder: Any) -> None:
         builder._touch()
 
 
-class _LinkMember:
+class _LinkMember(_Unassignable):
     """An entry builder's link: read, the linked object, read-only (an object is edited through its own builder);
     called with a Spec, it relinks: to an instance given, or to one created through the builder a callable is given."""
 
@@ -1233,7 +1246,7 @@ class _LinkMember:
         return f"<link {self._name!r}>"
 
 
-class _EntryBuilder:
+class _EntryBuilder(_Unassignable):
     """A writable `Visitors.OfEntry` for one entry added through an adjacency: its links are members (`env.phone`,
     read-only, relinked when called) and so are its properties. The object's own link (`me`) is filled when the
     object's builder is finalized."""
@@ -1303,7 +1316,7 @@ def _load_entries(entries: dict[str, list[_EntryBuilder]], schema: Any, source: 
         entries.setdefault(name, []).extend(pending)
 
 
-class _ObjectBuilder:
+class _ObjectBuilder(_Unassignable):
     """A writable `Visitors.OfObject` building a proxy instance: its properties and adjacencies are members, reading
     back what has been written. Finalized by `create()`, `clone()` or `update()`; none validate."""
 

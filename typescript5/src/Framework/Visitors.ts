@@ -17,7 +17,8 @@
  * Reads never throw. Every callback is called: a visitor handed over for an absent value, for a value of another kind,
  * or for a member the schema lacks, reads as empty (`get()` null, nothing to iterate). The one throw is a write that the
  * visitor's mode, or the value, forbids: `Errors.ReadOnlyError`. A write that loses nothing does not throw: inserting an
- * entry equal to one a set relation holds elides it, and removing where no entry agrees removes nothing.
+ * entry equal to one a set relation holds elides it, and removing where no entry agrees removes nothing. A member is
+ * written by calling it, never by assignment: assigning to any visitor's member throws `AttributeError`.
  *
  * Scalars read compactly through `[Symbol.toPrimitive]` and `valueOf`, sugar over `get()`, on `Visitors.OfScalar` and,
  * passing through `as_scalar`, on `Visitors.OfProperty` (`` `${card.name}` ``, `+card.age`). Each throws when the value

@@ -85,6 +85,8 @@ Where one protocol for reading and writing meets the code around it:
 
 - code that must not write: the read-only static view (`Readers.OfX`), checked by type.
 - writes to read-only data: raise, by the visitor's mode.
+- a member is written by calling it, never by assignment: assigning to a builder's property or adjacency, or to any
+  visitor, raises.
 - children of a visitor: inherit its mode; value objects follow their owner's construction or cloning; a link's
   target is read-only through an entry: an entry's builder relinks (`env.<linkName>(spec)`), and an object is edited
   through its own builder.

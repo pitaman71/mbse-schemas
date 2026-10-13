@@ -16,7 +16,8 @@ every protocol has `as_schema()`, the schema it visits.
 Reads never raise. Every callback is called: a visitor handed over for an absent value, for a value of another kind,
 or for a member the schema lacks, reads as empty (`get()` None, nothing to iterate). The one raise is a write that the
 visitor's mode, or the value, forbids: `Errors.ReadOnlyError`. A write that loses nothing does not raise: inserting an
-entry equal to one a set relation holds elides it, and removing where no entry agrees removes nothing.
+entry equal to one a set relation holds elides it, and removing where no entry agrees removes nothing. A member is
+written by calling it, never by assignment: assigning to any visitor's member raises `AttributeError`.
 
 Scalars read compactly through dunders (`int`, `float`, `str`, `bool`, `bytes`), sugar over `get()`, on
 `Visitors.OfScalar` and, passing through `as_scalar`, on `Visitors.OfProperty` (`str(card.name)`). Each raises when

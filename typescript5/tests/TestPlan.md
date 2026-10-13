@@ -43,7 +43,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | Notebook | Suite | Cases | Focus |
 |---|---|---|---|
 | `01_Schemas.ipynb` | SCH | 22 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array`, the own token format is `typescript5`, and widths are `bigint`s |
-| `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length`, the read-only views by the type checker; data instances are callable as a `Proxy` with a function target (`typeof` is `"function"`); the scalar sugar is `[Symbol.toPrimitive]` and `valueOf`; JavaScript's probes and `in` on a builder; assigning to a visitor refused |
+| `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length`, the read-only views by the type checker; data instances are callable as a `Proxy` with a function target (`typeof` is `"function"`); the scalar sugar is `[Symbol.toPrimitive]` and `valueOf`; JavaScript's probes and `in` on a builder |
 | `03_Proxies.ipynb` | PRX | 21 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances, adjacencies, entry builders, link members and stores, `util.inspect` of instances, builders and members, the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel), and the reprs of builders of value objects and adjacencies |
 | `04_Reachable.ipynb` | RCH | 8 | as in Python |
 | `05_Plain.ipynb` | PLN | 17 | as in Python; the same 26 malformed snapshots with byte-identical `DecodeError` paths and reasons |
@@ -83,7 +83,6 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | Callable visitors | `__call__` | a `Proxy` with a function target, its `name` and `length` hidden | VIS-03 |
 | Scalar sugar | the dunders, each of its own type | `[Symbol.toPrimitive]` and `valueOf`; never `===` on a member | VIS-06 |
 | Scalar comparison | a scalar visitor compares, orders and hashes as its value (`card.name == "Ada"`) | compared once read (`card.name.get() === "Ada"`) | VIS-06 |
-| Assigning to a visitor | refused by data instances, value objects and entries | refused by every visitor | VIS-03, PRX-02, PRX-18 |
 | Name collisions (F2) | names starting with `_` and a builder's own methods are never members | the same, and declared names win over JavaScript's own members | PRX-04 |
 | Identity (F12), `as_identity()` | `id(self)` as text, may be reused after collection | a counter as text, never reused | PRX-02 |
 | Finalizer arguments | extra arguments raise `TypeError` | the same, checked explicitly (JavaScript ignores extra arguments) | SCH-09, PRX-04 |

@@ -693,6 +693,9 @@ def _member(owner: Any, name: str) -> Any:
     if part is not None:
         held = values.get(part)
         return _member(held, name) if isinstance(held, _RecordData) else _Empty(None, f"part {part!r} is not set")
+    if isinstance(schema, Schemas.OfUnion.Data) and schema.flat:  # a flat union's value reads as its branch's
+        held = next(iter(values.values()), None)
+        return _member(held, name) if isinstance(held, _RecordData) else _Empty(None, f"{name!r} is not a member of the branch held")
     adjacency = schema.adjacencies.get(name) if isinstance(schema, ObjectSchema) else None
     if adjacency is not None:
         return _Adjacency(_linking(adjacency.relation, adjacency.me, owner), adjacency, owner)
@@ -750,8 +753,8 @@ class _Adjacency(tuple):  # type: ignore[type-arg]
         relation = self._schema.relation
         if name not in relation.entry.links and name not in relation.entry.properties:
             raise KeyError(f"{name!r} is not a link or property of the relation")
-        return tuple(entry._links[name] if name in relation.entry.links else entry._properties.get(name)
-                     for entry in self)
+        return tuple(entry._links[name] if name in relation.entry.links else
+                     _view(entry._properties.get(name), relation.entry.properties[name].type) for entry in self)
 
     def at(self, key: Any) -> _Entry:
         """The entry whose key is `key`: one value for a key of one link or property, else a tuple of them in
@@ -763,8 +766,10 @@ class _Adjacency(tuple):  # type: ignore[type-arg]
         if not isinstance(wanted, tuple) or len(wanted) != len(names):
             raise KeyError(f"a key of {list(names)} is a tuple of {len(names)} values, got {key!r}")
         links = self._schema.relation.entry.links
+        properties = self._schema.relation.entry.properties
         for entry in self:
-            held = [entry._links[name] if name in links else entry._properties.get(name) for name in names]
+            held = [entry._links[name] if name in links else _view(entry._properties.get(name), properties[name].type)
+                    for name in names]
             if all(h is v if name in links else h is not None and _scalar_key(h) == _scalar_key(v)
                    for name, h, v in zip(names, held, wanted)):  # a target by identity, a value by schema equality
                 return entry
@@ -793,6 +798,15 @@ def _agrees(entry: Any, spec: Any, adjacency: Schemas.OfAdjacency.Data, store: O
     return (all(links.get(name) is target for name, target in wanted_links.items())
             and all(name in values and _scalar_key(values[name]) == _scalar_key(value)
                     for name, value in wanted_values.items()))
+
+
+def _view(value: Any, schema: Any) -> Any:
+    """A value as `project` and `at` read it: a flat union's value as its branch's value."""
+    schema = Schemas.structure(schema)
+    if not (isinstance(schema, Schemas.OfUnion.Data) and schema.flat and isinstance(value, _RecordData) and value._values):
+        return value
+    ((branch, held),) = value._values.items()
+    return _view(held, schema.properties[branch].type)
 
 
 def _owning_part(schema: Any, name: str) -> str | None:
@@ -978,8 +992,15 @@ def _member_of(builder: _RecordBuilder, name: str) -> Any:
 
 
 def _built(value: Any) -> Any:
-    """A value as a builder finalizes it: a value object's builder, built."""
-    return value.build() if isinstance(value, _RecordBuilder) else value
+    """A value as a builder finalizes it: a value object's builder, built; a union value without a branch, none."""
+    if isinstance(value, _RecordBuilder):
+        return None if isinstance(value._schema, Schemas.OfUnion.Data) and not value._values else value.build()
+    return value
+
+
+def _finalized(values: dict[str, Any]) -> dict[str, Any]:
+    """Values as a builder finalizes them, a union value without a branch left out."""
+    return {name: built for name, built in ((n, _built(v)) for n, v in values.items()) if built is not None}
 
 
 class _RecordBuilder:
@@ -1041,8 +1062,10 @@ class _RecordBuilder:
         if name in schema.properties:
             return _Property(self._values, name, schema.properties[name], self._store, self, True, self._touch)
         part = _owning_part(schema, name)
-        if part is not None:  # a flat intersection's part's property: written in that part
-            return getattr(self._member(part), name)
+        if part is not None:  # a flat intersection's part's property: written in that part, a member of this value
+            member = self._member(part)._member(name)
+            member._parent = self
+            return member
         if isinstance(schema, ObjectSchema) and name in schema.adjacencies:
             return _AdjacencyBuilder(self, name)
         return _Empty(None, f"{name!r} is not a member of {_a(_noun(schema))}")
@@ -1064,8 +1087,7 @@ class _RecordBuilder:
         return self._parent
 
     def build(self) -> _RecordData:
-        values = {name: _built(value) for name, value in self._values.items()}
-        return _RecordData(self._schema, values, self._entries, self._source, self._copy_of)
+        return _RecordData(self._schema, _finalized(self._values), self._entries, self._source, self._copy_of)
 
 
 class _AdjacencyBuilder:
@@ -1213,7 +1235,7 @@ class _EntryBuilder:
     def _stage(self, target: Any, mapping: dict[int, Any]) -> None:
         """Stages the value objects the entry holds for `target`, before any is placed (see `_stage`)."""
         kept = self._kept(target)
-        self._values = {name: _stage(kept.get(name), _built(value), mapping) for name, value in self._values.items()}
+        self._values = {name: _stage(kept.get(name), value, mapping) for name, value in _finalized(self._values).items()}
 
     def _place(self, target: Any, mapping: dict[int, Any]) -> None:
         """Places the staged value objects the entry holds as `target`'s."""
@@ -1230,7 +1252,7 @@ class _EntryBuilder:
                 raise ValueError(f"link {name!r} is not set")
             value = self._links[name]
             links[name] = value.create() if isinstance(value, _ObjectBuilder) else value
-        return _Entry(self._relation, links, {name: _built(value) for name, value in self._values.items()})
+        return _Entry(self._relation, links, _finalized(self._values))
 
 
 def _load_entries(entries: dict[str, list[_EntryBuilder]], schema: ObjectSchema, source: Any) -> None:
@@ -1325,7 +1347,7 @@ class _ObjectBuilder:
         if self._source is not None and target is not self._source:  # a clone: its value objects link it, not the source
             mapping[id(self._source)] = target
         old = dict(target._values)
-        staged = {name: _stage(old.get(name), _built(value), mapping) for name, value in self._values.items()}
+        staged = {name: _stage(old.get(name), value, mapping) for name, value in _finalized(self._values).items()}
         for entries in self._entries.values():
             for entry in entries:
                 entry._stage(target, mapping)

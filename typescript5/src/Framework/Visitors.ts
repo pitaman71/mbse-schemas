@@ -1,16 +1,32 @@
 /**
- * Visitors: schema-agnostic handles for traversing, analyzing, and modifying data.
+ * Visitors: the one protocol per kind through which code reads and writes a value, knowing its schema or not.
  *
- * For each schema element `OfX`, `Visitors.OfX` is a handle positioned at a value of that kind. A handle can read the
- * value, visit its parts, and modify it. Client code obtains handles from a store's builders and the serializers,
- * never by instantiating them. Builders and serializers implement these protocols; proxies do not (a proxy is
- * `Visitable`).
+ * `Visitors.OfX` reads and writes a value of kind X. Data instances (`Proxies.OfX.Data`) and builders
+ * (`Proxies.OfX.Builder`) implement it: whether a write takes effect is the visitor's mode. Data instances visit
+ * read-only; builders are writable unless made read-only. A child visitor has its parent's mode, and a value object is
+ * writable only under a builder that is constructing or cloning it. Code that must not write takes the read-only view
+ * of the same protocol, `Readers.OfX`.
  *
- * Child handles (properties, adjacencies, entries, links, kind-specific values) are never returned: they are passed
- * to a callback. Every method that is not a query returns `this`, so calls chain.
+ * Members. An object's properties and adjacencies, an entry's links and properties, a union's branches, an
+ * intersection's parts and a match's symbols are members named after them. Read, a member is the child visitor
+ * (`card.name`, a `Visitors.OfProperty`); called with a `Specs.Callback`, it writes or visits through it
+ * (`b.name("Ada")`, `b.phones((a) => a.insert((e) => e.phone(p)))`) and returns the visitor it is a member of. The
+ * methods of `Visitors.OfObject` and `Visitors.OfEntry` are named `as_*`, a prefix no schema-defined name may take;
+ * every protocol has `as_schema()`, the schema it visits.
  *
- * The value builders used in the DSL are handles: in `.street1(v => v.set('foo'))`, `v` is a `Visitors.OfScalar`.
+ * Reads never throw. Every callback is called: a visitor handed over for an absent value, for a value of another kind,
+ * or for a member the schema lacks, reads as empty (`get()` null, nothing to iterate). The one throw is a write that the
+ * visitor's mode, or the value, forbids: `Errors.ReadOnlyError`. A write that loses nothing does not throw: inserting an
+ * entry equal to one a set relation holds elides it, and removing where no entry agrees removes nothing.
+ *
+ * Scalars read compactly through `[Symbol.toPrimitive]` and `valueOf`, sugar over `get()`, on `Visitors.OfScalar` and,
+ * passing through `as_scalar`, on `Visitors.OfProperty` (`` `${card.name}` ``, `+card.age`). Each throws when the value
+ * is not set or is not of the type asked for. They reach less far than Python's dunders: not `===`, nor truthiness (see
+ * EQUIVALENCE.md).
  */
+
+import type * as Schemas from "./Schemas.js";
+import type { Callback } from "./Specs.js";
 
 /** A scalar value: int is `bigint`, float is `number`, str is `string`, bool is `boolean`, bytes is `Uint8Array`. */
 export type Scalar = bigint | number | string | boolean | Uint8Array;
@@ -36,140 +52,116 @@ export type ScalarOf<T> = T extends BigIntConstructor
           ? Uint8Array
           : never;
 
-export type Callback<V> = (visitor: V) => unknown;
+/** The value form of a `Specs.Callback<V>`, by kind: a scalar's value; a value (a scalar, or a value object, union
+ * value or intersection value, copied) for `OfAny` and `OfProperty`; an object (a reference object, linked, or a value
+ * object, copied) for `OfObject`; an entry for `OfEntry`; entries, each inserted, for `OfAdjacency`. */
+export type DataType<V> = V extends OfScalar<infer T> ? T
+  : V extends OfAdjacency ? Iterable<OfEntry>
+  : V extends OfEntry ? OfEntry
+  : V extends OfObject ? OfObject
+  : V extends OfAny | OfProperty ? Scalar | OfObject | OfUnion | OfIntersection
+  : never;
 
-/**
- * A value of any kind.
- *
- * Each `as_<kind>` method passes the visitor for that kind to its callback. When reading, only the callback matching
- * the value's actual kind is called, so chaining several `as_<kind>` calls dispatches on kind. When writing, the call
- * selects the kind.
- */
+/** Sugar over a scalar's `get()`: each conversion throws when the value is not set or not of the type asked for. */
+export interface Primitive {
+  [Symbol.toPrimitive](hint: "number" | "string" | "default"): Scalar;
+  valueOf(): Scalar;
+}
+
+/** A scalar value. */
+export interface OfScalar<T extends Scalar = Scalar> extends Primitive {
+  as_schema(): Schemas.OfScalar.Data;
+  /** The value, or null when it is not set. */
+  get(): T | null;
+  set(value: T): void;
+  /** An alias of `Visitors.OfAny.clear`. */
+  clear(): void;
+}
+
+/** A value of any kind. Each `as_<kind>` hands over that kind's visitor: reading a value of another kind, an empty one;
+ * writing, it selects the kind. */
 export interface OfAny {
-  as_scalar(callback: Callback<OfScalar>): OfAny;
-  as_object(callback: Callback<OfObject>): OfAny;
-  as_union(callback: Callback<OfUnion>): OfAny;
-  as_intersection(callback: Callback<OfIntersection>): OfAny;
+  as_schema(): Schemas.OfAny.Data;
+  as_scalar(cb: Callback<OfScalar>): this;
+  as_object(cb: Callback<OfObject>): this;
+  as_union(cb: Callback<OfUnion>): this;
+  as_intersection(cb: Callback<OfIntersection>): this;
+  clear(): void;
 }
 
-/** A scalar value. Reading an absent value raises. */
-export interface OfScalar {
-  has(): boolean;
-  get(): Scalar;
-  set(value: Scalar): OfScalar;
-  clear(): OfScalar;
+/** One property of an object or an entry. Called, as a member, with a `Specs.Callback<Visitors.OfProperty>`. */
+export interface OfProperty extends Primitive {
+  as_schema(): Schemas.OfProperty.Data;
+  as_value(cb: Callback<OfAny>): this;
+  /** Shorthand: `as_value`, then `Visitors.OfAny.as_scalar`. */
+  as_scalar(cb: Callback<OfScalar>): this;
 }
 
-/** One named property of an object or entry. Reading the value of an absent property raises. */
-export interface OfProperty {
-  name(): string;
-  has(): boolean;
-  value(callback: Callback<OfAny>): OfProperty;
-  clear(): OfProperty;
+/** `Visitors.OfObject.as_properties`: the properties present, iterated, or called with a callback for each. */
+export interface Properties extends Iterable<OfProperty> {
+  (cb: Callback<OfProperty>): OfObject;
 }
 
-/** An object: named properties plus adjacencies to relations. */
+/** An object: its properties and adjacencies are members (`osv.<propName>`, a `Visitors.OfProperty` that is also
+ * callable; `osv.<adjName>`, a `Visitors.OfAdjacency`). */
 export interface OfObject {
-  /** Calls `callback` once for each property that is present. */
-  properties(callback: Callback<OfProperty>): OfObject;
-  has(name: string): boolean;
-  /** Calls `callback` with the named property, present or not. */
-  property(name: string, callback: Callback<OfProperty>): OfObject;
-  clear(name: string): OfObject;
-  /** Calls `callback` once for each adjacency declared by the object's schema. */
-  adjacencies(callback: Callback<OfAdjacency>): OfObject;
-  adjacency(name: string, callback: Callback<OfAdjacency>): OfObject;
-  /** Called by a value object's `accept`, before anything else, with the value object itself, so that a visitor can
-   * tell which object it is given (to write its symbol, or to link to it). */
-  identify(value: Visitable): OfObject;
+  as_schema(): Schemas.OfObject.Data;
+  as_identity(): string;
+  /** The properties present, schema unaware. */
+  readonly as_properties: Properties;
+  /** Each adjacency, schema unaware; an adjacency is edited through what this hands over. */
+  as_adjacencies(cb: Callback<OfAdjacency>): this;
+  readonly [member: string]: unknown;
 }
 
-/** The entries of one relation seen from one object, which fills its own link (`me`). */
-export interface OfAdjacency {
-  /** Name of the adjacency on the object, e.g. 'addresses'. */
-  name(): string;
-  /** Name of the link this object fills. */
-  me(): string;
-  entries(callback: Callback<OfEntry>): OfAdjacency;
-  /** Adds a new entry with this object's own link already filled, after `callback` fills in the rest. Adding an
-   * entry equal to an existing one is elided. */
-  add(callback: Callback<OfEntry>): OfAdjacency;
-  remove(entry: OfEntry): OfAdjacency;
+/** The entries of one relation seen from one object, which fills its own link; iterated, its entries. */
+export interface OfAdjacency extends Iterable<OfEntry> {
+  as_schema(): Schemas.OfAdjacency.Data;
+  /** Calls `cb` with each entry that agrees with `spec`: equal to its value form, or agreeing with every link and
+   * property its function form sets (every entry, for an empty template). */
+  select(spec: Callback<OfEntry>, cb: Callback<OfEntry>): this;
+  /** Adds an entry, the object's own link filled; an equal entry in a set is elided. */
+  insert(spec: Callback<OfEntry>): this;
+  /** Removes every entry that agrees with `spec`. */
+  remove(spec: Callback<OfEntry>): this;
 }
 
-/** One relation entry: its links and properties. */
+/** One entry of a relation: its links are members (`env.<linkName>`, a `Visitors.OfObject`), and so are its properties
+ * (`env.<propName>`, a `Visitors.OfProperty`). Its properties are walked, schema unaware, through its schema. */
 export interface OfEntry {
-  links(callback: Callback<OfLink>): OfEntry;
-  link(name: string, callback: Callback<OfLink>): OfEntry;
-  /** Calls `callback` once for each property that is present. */
-  properties(callback: Callback<OfProperty>): OfEntry;
-  has(name: string): boolean;
-  /** Calls `callback` with the named property, present or not. */
-  property(name: string, callback: Callback<OfProperty>): OfEntry;
-  clear(name: string): OfEntry;
+  as_schema(): Schemas.OfEntry.Data;
+  readonly [member: string]: unknown;
 }
 
-/** One named link of an entry. */
-export interface OfLink {
-  name(): string;
-  /** Calls `callback` with the linked object. */
-  target(callback: Callback<Visitable>): OfLink;
-  set(target: Visitable): OfLink;
-}
-
-/** All entries of a relation. Internal to implementations; no relation builder is exposed to callers. */
-export interface OfRelation {
-  /** Calls `callback` once with each link name. */
-  links(callback: (name: string) => unknown): OfRelation;
-  entries(callback: Callback<OfEntry>): OfRelation;
-}
-
-/** A union value: an object whose properties are the union's branches, by name, and which holds exactly one of them.
- * Writing a branch clears any other. */
+/** A union value: its branches are members, each the visitor of its type's kind (`shape.circle`); a branch it does not
+ * hold reads as empty, and writing one branch clears the others. */
 export interface OfUnion {
-  /** Calls `callback` for the branch that is present, if any. */
-  properties(callback: Callback<OfProperty>): OfUnion;
-  has(name: string): boolean;
-  /** Calls `callback` with the named branch, present or not. */
-  property(name: string, callback: Callback<OfProperty>): OfUnion;
-  clear(name: string): OfUnion;
+  as_schema(): Schemas.OfUnion.Data;
+  readonly [member: string]: unknown;
 }
 
-/** An intersection value: an object whose properties are the intersection's parts, by name, and which holds every one
- * of them. */
+/** An intersection value: its parts are members, each the visitor of its type's kind (`ticket.stamp`). */
 export interface OfIntersection {
-  /** Calls `callback` once for each part that is present. */
-  properties(callback: Callback<OfProperty>): OfIntersection;
-  has(name: string): boolean;
-  /** Calls `callback` with the named part, present or not. */
-  property(name: string, callback: Callback<OfProperty>): OfIntersection;
-  clear(name: string): OfIntersection;
+  as_schema(): Schemas.OfIntersection.Data;
+  readonly [member: string]: unknown;
 }
 
-/** An in-memory object that can be visited, e.g. a proxy. It is not a visitor itself. */
-export interface Visitable {
-  /** In-memory identity, stable for the object's lifetime. Serializers map it 1:1 to a transaction symbol. */
-  identity(): unknown;
-  /** Registered name of the object's schema, carried by serialized references to a reference object; '' for a value
-   * object whose schema is not registered. */
-  schema_name(): string;
-  /** The object that owns this value object, or null for a reference object. */
-  owner(): Visitable | null;
-  /** Writes this object's properties and adjacency entries into `visitor`. */
-  accept(visitor: OfObject): void;
+/** A match of a predicate: its symbols are members, each a `Visitors.OfObject`, in the match's mode. Finding matches is
+ * mbse-patterns'. */
+export interface OfPredicate {
+  as_schema(): Schemas.OfPredicate.Data;
+  readonly [member: string]: unknown;
 }
 
-/** Method names each protocol declares, for runtime conformance checks (TypeScript interfaces vanish at runtime). */
+/** The methods each protocol declares, for runtime conformance checks (TypeScript interfaces vanish at runtime). */
 export const PROTOCOL_METHODS = {
-  OfAny: ["as_scalar", "as_object", "as_union", "as_intersection"],
-  OfScalar: ["has", "get", "set", "clear"],
-  OfProperty: ["name", "has", "value", "clear"],
-  OfObject: ["properties", "has", "property", "clear", "adjacencies", "adjacency", "identify"],
-  OfAdjacency: ["name", "me", "entries", "add", "remove"],
-  OfEntry: ["links", "link", "properties", "has", "property", "clear"],
-  OfLink: ["name", "target", "set"],
-  OfRelation: ["links", "entries"],
-  OfUnion: ["properties", "has", "property", "clear"],
-  OfIntersection: ["properties", "has", "property", "clear"],
-  Visitable: ["identity", "schema_name", "owner", "accept"],
+  OfScalar: ["as_schema", "get", "set", "clear"],
+  OfAny: ["as_schema", "as_scalar", "as_object", "as_union", "as_intersection", "clear"],
+  OfProperty: ["as_schema", "as_value", "as_scalar"],
+  OfObject: ["as_schema", "as_identity", "as_properties", "as_adjacencies"],
+  OfAdjacency: ["as_schema", "select", "insert", "remove"],
+  OfEntry: ["as_schema"],
+  OfUnion: ["as_schema"],
+  OfIntersection: ["as_schema"],
+  OfPredicate: ["as_schema"],
 } as const satisfies Record<string, readonly string[]>;

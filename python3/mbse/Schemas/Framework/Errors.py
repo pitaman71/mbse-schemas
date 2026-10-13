@@ -1,17 +1,22 @@
 """Errors: the framework's own error classes.
 
-Mistakes in the calling program raise Python's built-in exceptions. Problems in data being decoded raise
-`DecodeError`, which carries a one-line reason and, where known, a location: a line and column in text, or a path in
-plain data. See FRAMEWORK.md, "Decoding errors".
+Mistakes in the calling program raise Python's built-in exceptions. A write that a visitor's mode, or the value,
+forbids raises `ReadOnlyError`, a `TypeError`: the one raise of the visitor protocol. Problems in data being decoded
+raise `DecodeError`, which carries a one-line reason and, where known, a location: a line and column in text, or a
+path in plain data. See FRAMEWORK.md, "Decoding errors".
 """
 
 from __future__ import annotations
 
 import json
 import re
-__all__ = ["DecodeError", "path"]
+__all__ = ["DecodeError", "ReadOnlyError", "path"]
 
 _IDENTIFIER = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]*")
+
+
+class ReadOnlyError(TypeError):
+    """A write that a visitor's mode, or the value, forbids: refused, never silently lost (mbse-basis P-002)."""
 
 
 class DecodeError(ValueError):

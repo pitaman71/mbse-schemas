@@ -1,220 +1,204 @@
-"""Visitors: schema-agnostic handles for traversing, analyzing, and modifying data.
+"""Visitors: the one protocol per kind through which code reads and writes a value, knowing its schema or not.
 
-For each schema element `OfX`, `Visitors.OfX` is a handle positioned at a value of that kind. A handle can read the
-value, visit its parts, and modify it. Client code obtains handles from a store's builders and the serializers, never
-by instantiating them. Builders and serializers implement these protocols; proxies do not (a proxy would be
-`Visitable`).
+`Visitors.OfX` reads and writes a value of kind X. Data instances (`Proxies.OfX.Data`) and builders
+(`Proxies.OfX.Builder`) implement it: whether a write takes effect is the visitor's mode. Data instances visit
+read-only; builders are writable unless made read-only. A child visitor has its parent's mode, and a value object is
+writable only under a builder that is constructing or cloning it. Code that must not write takes the read-only view of
+the same protocol, `Readers.OfX`.
 
-Child handles (properties, adjacencies, entries, links, kind-specific values) are never returned: they are passed to a
-callback. Every method that is not a query returns `self`, so calls chain.
+Members. An object's properties and adjacencies, an entry's links and properties, a union's branches, an
+intersection's parts and a match's symbols are members named after them. Read, a member is the child visitor
+(`card.name`, a `Visitors.OfProperty`); called with a `Specs.Callback`, it writes or visits through it
+(`b.name("Ada")`, `b.phones(lambda a: a.insert(lambda e: e.phone(p)))`) and returns the visitor it is a member of.
+The methods of `Visitors.OfObject` and `Visitors.OfEntry` are named `as_*`, a prefix no schema-defined name may take;
+every protocol has `as_schema()`, the schema it visits.
 
-The value builders used in the DSL are handles: in `.street1(lambda v: v.set('foo'))`, `v` is a `Visitors.OfScalar`.
+Reads never raise. Every callback is called: a visitor handed over for an absent value, for a value of another kind,
+or for a member the schema lacks, reads as empty (`get()` None, nothing to iterate). The one raise is a write that the
+visitor's mode, or the value, forbids: `Errors.ReadOnlyError`. A write that loses nothing does not raise: inserting an
+entry equal to one a set relation holds elides it, and removing where no entry agrees removes nothing.
+
+Scalars read compactly through dunders (`int`, `float`, `str`, `bool`, `bytes`), sugar over `get()`, on
+`Visitors.OfScalar` and, passing through `as_scalar`, on `Visitors.OfProperty` (`str(card.name)`). Each raises when
+the value is not set or is not of its type.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Hashable
-from typing import Any, Protocol
+from collections.abc import Iterable, Iterator
+from typing import TYPE_CHECKING, Any, Generic, Protocol, Self, TypeVar
+
+from .Specs import Callback
+
+if TYPE_CHECKING:
+    from . import Schemas
 
 __all__ = [
     "Scalar",
-    "OfAny",
     "OfScalar",
+    "OfAny",
     "OfProperty",
     "OfObject",
     "OfAdjacency",
     "OfEntry",
-    "OfLink",
-    "OfRelation",
     "OfUnion",
     "OfIntersection",
-    "Visitable",
+    "OfPredicate",
 ]
 
 Scalar = int | float | str | bool | bytes
 
+T = TypeVar("T", int, float, str, bool, bytes)
+
+
+class _Dunders(Protocol):
+    """Sugar over a scalar's `get()`, each raising when the value is not set or not of its type."""
+
+    def __int__(self) -> int: ...
+
+    def __float__(self) -> float: ...
+
+    def __str__(self) -> str: ...
+
+    def __bool__(self) -> bool: ...
+
+    def __bytes__(self) -> bytes: ...
+
+
+class OfScalar(_Dunders, Protocol, Generic[T]):
+    """A scalar value."""
+
+    def as_schema(self) -> Schemas.OfScalar.Data: ...
+
+    def get(self) -> T | None:
+        """The value, or None when it is not set."""
+        ...
+
+    def set(self, value: T) -> None: ...
+
+    def clear(self) -> None:
+        """An alias of `Visitors.OfAny.clear`."""
+        ...
+
 
 class OfAny(Protocol):
-    """A value of any kind.
+    """A value of any kind. Each `as_<kind>` hands over that kind's visitor: reading a value of another kind, an empty
+    one; writing, it selects the kind."""
 
-    Each `as_<kind>` method passes the visitor for that kind to its callback. When reading, only the callback matching
-    the value's actual kind is called, so chaining several `as_<kind>` calls dispatches on kind. When writing, the call
-    selects the kind.
-    """
+    def as_schema(self) -> Schemas.OfAny.Data: ...
 
-    def as_scalar(self, callback: Callable[[OfScalar], Any]) -> OfAny: ...
+    def as_scalar(self, cb: Callback[OfScalar[Any]]) -> Self: ...
 
-    def as_object(self, callback: Callable[[OfObject], Any]) -> OfAny: ...
+    def as_object(self, cb: Callback[OfObject]) -> Self: ...
 
-    def as_union(self, callback: Callable[[OfUnion], Any]) -> OfAny: ...
+    def as_union(self, cb: Callback[OfUnion]) -> Self: ...
 
-    def as_intersection(self, callback: Callable[[OfIntersection], Any]) -> OfAny: ...
+    def as_intersection(self, cb: Callback[OfIntersection]) -> Self: ...
 
-
-class OfScalar(Protocol):
-    """A scalar value. Reading an absent value raises."""
-
-    def has(self) -> bool: ...
-
-    def get(self) -> Scalar: ...
-
-    def set(self, value: Scalar) -> OfScalar: ...
-
-    def clear(self) -> OfScalar: ...
+    def clear(self) -> None: ...
 
 
-class OfProperty(Protocol):
-    """One named property of an object or entry. Reading the value of an absent property raises."""
+class OfProperty(_Dunders, Protocol):
+    """One property of an object or an entry. Called, as a member, with a `Specs.Callback[Visitors.OfProperty]`."""
 
-    def name(self) -> str: ...
+    def as_schema(self) -> Schemas.OfProperty.Data: ...
 
-    def has(self) -> bool: ...
+    def as_value(self, cb: Callback[OfAny]) -> Self: ...
 
-    def value(self, callback: Callable[[OfAny], Any]) -> OfProperty: ...
+    def as_scalar(self, cb: Callback[OfScalar[Any]]) -> Self:
+        """Shorthand: `as_value`, then `Visitors.OfAny.as_scalar`."""
+        ...
 
-    def clear(self) -> OfProperty: ...
+    def __call__(self, spec: Callback[OfProperty]) -> Any: ...
 
 
 class OfObject(Protocol):
-    """An object: named properties plus adjacencies to relations."""
+    """An object: its properties and its adjacencies are members (`osv.<propName>`, a `Visitors.OfProperty`;
+    `osv.<adjName>`, a `Visitors.OfAdjacency`)."""
 
-    def properties(self, callback: Callable[[OfProperty], Any]) -> OfObject:
-        """Calls `callback` once for each property that is present."""
+    def as_schema(self) -> Schemas.OfObject.Data: ...
+
+    def as_identity(self) -> str: ...
+
+    @property
+    def as_properties(self) -> _Properties:
+        """The properties present, schema unaware: iterated, or called with a callback for each."""
         ...
 
-    def has(self, name: str) -> bool: ...
-
-    def property(self, name: str, callback: Callable[[OfProperty], Any]) -> OfObject:
-        """Calls `callback` with the named property, present or not."""
+    def as_adjacencies(self, cb: Callback[OfAdjacency]) -> Self:
+        """Each adjacency, schema unaware; an adjacency is edited through what this hands over."""
         ...
 
-    def clear(self, name: str) -> OfObject: ...
-
-    def adjacencies(self, callback: Callable[[OfAdjacency], Any]) -> OfObject:
-        """Calls `callback` once for each adjacency declared by the object's schema."""
-        ...
-
-    def adjacency(self, name: str, callback: Callable[[OfAdjacency], Any]) -> OfObject: ...
-
-    def identify(self, value: Visitable) -> OfObject:
-        """Called by a value object's `accept`, before anything else, with the value object itself, so that a visitor
-        can tell which object it is given (to write its symbol, or to link to it)."""
+    def __getattr__(self, name: str) -> Any:
+        """A property or an adjacency, by name."""
         ...
 
 
-class OfAdjacency(Protocol):
-    """The entries of one relation seen from one object, which fills its own link (`me`)."""
+class _Properties(Iterable[OfProperty], Protocol):
+    """`Visitors.OfObject.as_properties`: an iterable of the properties present, and callable with a callback for
+    each."""
 
-    def name(self) -> str:
-        """Name of the adjacency on the object, e.g. 'addresses'."""
+    def __iter__(self) -> Iterator[OfProperty]: ...
+
+    def __call__(self, cb: Callback[OfProperty]) -> OfObject: ...
+
+
+class OfAdjacency(Iterable["OfEntry"], Protocol):
+    """The entries of one relation seen from one object, which fills its own link; iterated, its entries."""
+
+    def as_schema(self) -> Schemas.OfAdjacency.Data: ...
+
+    def __iter__(self) -> Iterator[OfEntry]: ...
+
+    def select(self, spec: Callback[OfEntry], cb: Callback[OfEntry]) -> Self:
+        """Calls `cb` with each entry that agrees with `spec`: equal to its value form, or agreeing with every link and
+        property its callable form sets (every entry, for an empty template)."""
         ...
 
-    def me(self) -> str:
-        """Name of the link this object fills."""
+    def insert(self, spec: Callback[OfEntry]) -> Self:
+        """Adds an entry, the object's own link filled; an equal entry in a set is elided."""
         ...
 
-    def entries(self, callback: Callable[[OfEntry], Any]) -> OfAdjacency: ...
-
-    def add(self, callback: Callable[[OfEntry], Any]) -> OfAdjacency:
-        """Adds a new entry with this object's own link already filled, after `callback` fills in the rest.
-        Adding an entry equal to an existing one is elided."""
+    def remove(self, spec: Callback[OfEntry]) -> Self:
+        """Removes every entry that agrees with `spec`."""
         ...
 
-    def remove(self, entry: OfEntry) -> OfAdjacency: ...
+    def __call__(self, spec: Callback[OfAdjacency]) -> Any: ...
 
 
 class OfEntry(Protocol):
-    """One relation entry: its links and properties."""
+    """One entry of a relation: its links are members (`env.<linkName>`, a `Visitors.OfObject`), and so are its
+    properties (`env.<propName>`, a `Visitors.OfProperty`). Its properties are walked, schema unaware, through its
+    schema."""
 
-    def links(self, callback: Callable[[OfLink], Any]) -> OfEntry: ...
+    def as_schema(self) -> Schemas.OfEntry.Data: ...
 
-    def link(self, name: str, callback: Callable[[OfLink], Any]) -> OfEntry: ...
-
-    def properties(self, callback: Callable[[OfProperty], Any]) -> OfEntry:
-        """Calls `callback` once for each property that is present."""
+    def __getattr__(self, name: str) -> Any:
+        """A link or a property, by name."""
         ...
-
-    def has(self, name: str) -> bool: ...
-
-    def property(self, name: str, callback: Callable[[OfProperty], Any]) -> OfEntry:
-        """Calls `callback` with the named property, present or not."""
-        ...
-
-    def clear(self, name: str) -> OfEntry: ...
-
-
-class OfLink(Protocol):
-    """One named link of an entry."""
-
-    def name(self) -> str: ...
-
-    def target(self, callback: Callable[[Visitable], Any]) -> OfLink:
-        """Calls `callback` with the linked object."""
-        ...
-
-    def set(self, target: Visitable) -> OfLink: ...
-
-
-class OfRelation(Protocol):
-    """All entries of a relation. Internal to implementations; no relation builder is exposed to callers."""
-
-    def links(self, callback: Callable[[str], Any]) -> OfRelation:
-        """Calls `callback` once with each link name."""
-        ...
-
-    def entries(self, callback: Callable[[OfEntry], Any]) -> OfRelation: ...
 
 
 class OfUnion(Protocol):
-    """A union value: an object whose properties are the union's branches, by name, and which holds exactly one of them.
-    Writing a branch clears any other."""
+    """A union value: its branches are members, each the visitor of its type's kind (`shape.circle`); a branch it does
+    not hold reads as empty, and writing one branch clears the others."""
 
-    def properties(self, callback: Callable[[OfProperty], Any]) -> OfUnion:
-        """Calls `callback` for the branch that is present, if any."""
-        ...
+    def as_schema(self) -> Schemas.OfUnion.Data: ...
 
-    def has(self, name: str) -> bool: ...
-
-    def property(self, name: str, callback: Callable[[OfProperty], Any]) -> OfUnion:
-        """Calls `callback` with the named branch, present or not."""
-        ...
-
-    def clear(self, name: str) -> OfUnion: ...
+    def __getattr__(self, name: str) -> Any: ...
 
 
 class OfIntersection(Protocol):
-    """An intersection value: an object whose properties are the intersection's parts, by name, and which holds every
-    one of them."""
+    """An intersection value: its parts are members, each the visitor of its type's kind (`ticket.stamp`)."""
 
-    def properties(self, callback: Callable[[OfProperty], Any]) -> OfIntersection:
-        """Calls `callback` once for each part that is present."""
-        ...
+    def as_schema(self) -> Schemas.OfIntersection.Data: ...
 
-    def has(self, name: str) -> bool: ...
-
-    def property(self, name: str, callback: Callable[[OfProperty], Any]) -> OfIntersection:
-        """Calls `callback` with the named part, present or not."""
-        ...
-
-    def clear(self, name: str) -> OfIntersection: ...
+    def __getattr__(self, name: str) -> Any: ...
 
 
-class Visitable(Protocol):
-    """An in-memory object that can be visited, e.g. a proxy. It is not a visitor itself."""
+class OfPredicate(Protocol):
+    """A match of a predicate: its symbols are members, each a `Visitors.OfObject`, in the match's mode. Finding
+    matches is mbse-patterns'."""
 
-    def identity(self) -> Hashable:
-        """In-memory identity, stable for the object's lifetime. Serializers map it 1:1 to a transaction symbol."""
-        ...
+    def as_schema(self) -> Schemas.OfPredicate.Data: ...
 
-    def schema_name(self) -> str:
-        """Registered name of the object's schema, carried by serialized references to a reference object; '' for a
-        value object whose schema is not registered."""
-        ...
-
-    def owner(self) -> Visitable | None:
-        """The object that owns this value object, or None for a reference object."""
-        ...
-
-    def accept(self, visitor: OfObject) -> None:
-        """Writes this object's properties and adjacency entries into `visitor`."""
-        ...
+    def __getattr__(self, name: str) -> Any: ...

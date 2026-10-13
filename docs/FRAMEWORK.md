@@ -825,6 +825,14 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - the qualified form is the schema's registered name, `/`, then the name (`"crm.Feature/FEA-001"`), a global name
     written alone, being unique in a store ("that is fine"); `by_identity` finds every live object of the store, through a
     weak directory, not only its data ("yes, every live object");
+  - `as_identity()` and `by_identity` both take the unqualified name, "at the cost of prepending a schema parameter to
+    by_identity": `store.by_identity("crm.Feature", "FEA-001")`;
+  - in snapshots, identities replace the symbols, as the objects' keys and in `$ref`, and references keep `$schema` ("okay
+    to keep $schema for now");
+  - a UUID is random, so where output must be reproducible (the conformance corpus, tests of exact text, the tutorials'
+    outputs) schemas take naming patterns, whose counters are deterministic, and UUIDs are tested by their shape and
+    round trips ("a"), rather than stores drawing UUIDs from a seeded source, which "a random source is given to
+    whatever draws from it, not held by a store" rules out;
   - "for value objects as_identity should return None", and so does any visitor without an identity (an empty one, a
     builder of an object not yet created): "it feels like None/null is a better representative of no identity, but I
     don't have a strong opinion", so it was taken.

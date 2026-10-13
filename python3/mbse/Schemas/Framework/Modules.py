@@ -13,7 +13,7 @@ refers to a named schema by its name, so shared and recursive schemas are writte
 inline. A name resolves within the module, then in the store. A schema that refers to itself must be named.
 
 `reference(schema)` and `resolve(store, definition)` translate one type the same way, for data that refers to schemas
-as a module's members do, e.g. the symbols of a predicate.
+as a module's members do. A predicate's symbols are written as its members are, and its `requires` as a term.
 
 A term (where a width or an argument stands) is written as its neutral form, `Schemas.Form`, and
 read back as one; `make`, given to `schemas` or `resolve`, makes a dialect's term of each form instead.
@@ -131,6 +131,10 @@ class _Writer:
         if isinstance(schema, Schemas.OfApply.Data):
             return _kind_of("apply", parameters=parameters, of=self.reference(schema.of),
                             arguments=_arguments(schema.arguments), description=schema.description)
+        if isinstance(schema, Schemas.OfPredicate.Data):
+            return _kind_of("predicate", parameters=parameters, symbols=self._members(schema.symbols.values()),
+                            requires=None if schema.requires is None else _form(schema.requires),
+                            description=schema.description)
         raise TypeError(f"not a schema: {schema!r}")
 
 
@@ -187,7 +191,8 @@ def _present(**contents: Any) -> dict[str, Any]:
 
 
 _BLANK = {"scalar": Schemas.OfScalar.Data, "object": Schemas.OfObject.Data, "relation": Schemas.OfRelation.Data,
-          "union": Schemas.OfUnion.Data, "intersection": Schemas.OfIntersection.Data, "apply": Schemas.OfApply.Data}
+          "union": Schemas.OfUnion.Data, "intersection": Schemas.OfIntersection.Data, "apply": Schemas.OfApply.Data,
+          "predicate": Schemas.OfPredicate.Data}
 
 
 def _contents_of(definition: Definition) -> tuple[str, dict[str, Any]]:
@@ -227,8 +232,9 @@ class _Reader:
         if kind != "named":
             return self._fill(_BLANK[kind](), definition)
         schema = self._named(body["name"])
-        if isinstance(schema, Schemas.OfRelation.Data):
-            raise TypeError(f"{body['name']!r} is a relation, not a type")
+        if isinstance(schema, (Schemas.OfRelation.Data, Schemas.OfPredicate.Data)):
+            kind = "relation" if isinstance(schema, Schemas.OfRelation.Data) else "predicate"
+            raise TypeError(f"{body['name']!r} is a {kind}, not a type")
         return schema
 
     def _relation(self, definition: Definition) -> Any:
@@ -290,9 +296,12 @@ class _Reader:
         elif kind == "intersection":
             schema.parts = tuple(self._members(body.get("parts", []), Schemas.OfIntersection.Part, "part"))
             schema.flat = body.get("flat", False)
-        else:
+        elif kind == "apply":
             schema.of = self.type(body["of"])
             schema.arguments = self.arguments(body.get("arguments", []))
+        else:
+            schema.symbols = {s.name: s for s in self._members(body.get("symbols", []), Schemas.OfSymbol.Data, "symbol")}
+            schema.requires = self._term(body["requires"]) if "requires" in body else None
         return schema
 
     def arguments(self, plain: list[dict[str, Any]]) -> dict[str, Any]:

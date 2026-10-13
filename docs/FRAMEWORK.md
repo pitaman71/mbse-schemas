@@ -575,7 +575,7 @@ are written, read, validated and compared like any other objects.
 - **A module holds named schemas.** `Schemas.Module.Schema` is a reference object schema, registered in every store of
   proxies as `Schemas.Module`, whose `schemas` are an adjacency to a one-link relation, each entry a `name` and a
   `schema`, a `Schemas.Module.Definition`: a union of the schema kinds, `scalar`, `object`, `union`, `intersection`,
-  `apply` and `relation`. The entries are keyed by name, so written sorted by it, and an entry written twice
+  `apply`, `relation` and `predicate`. The entries are keyed by name, so written sorted by it, and an entry written twice
   is read once. A snapshot of schemas is a snapshot of a module. A module is a reference object, whose own adjacencies
   do not compare ([Equality](EQUALITY.md)), so two modules are equal when their wire forms are.
 - **`Modules` translates.** `Modules.module(store, schemas)` returns a module holding named schemas, each under its
@@ -585,16 +585,20 @@ are written, read, validated and compared like any other objects.
   relations of their own (each linking only its `owner`), lists in declared order: an object schema's `properties`
   (`name`, `type`, `description`) and `adjacencies` (`name`, `relation`, `me`, `description`), with its `singleton`
   and `ref`; a union's `branches` and an intersection's `parts` (`name`, `type`, `description`); a relation's `links`
-  (`name`), `properties` and `uniques` (a `clause`, whose `names` list the names it holds, sorted); and an application's `of` and
-  `arguments` (`name`, and a scalar `value` or a `term`). A scalar is its token's `format` and `name`, its `bits` or
+  (`name`), `properties` and `uniques` (a `clause`, whose `names` list the names it holds, sorted); an application's
+  `of` and `arguments` (`name`, and a scalar `value` or a `term`); and a predicate's `requires`, a form, and `symbols`
+  (`name`, `type`, `description`). A scalar is its token's `format` and `name`, its `bits` or
   `bytes`, and `terms` for a width that is a term. A form's `attributes` (`name`, `value`) and `arguments` (`term`) are
   lists the same way. Each kind's own properties come first, ending with its `description`, then its lists, starting
   with its `parameters`. What is absent, false or empty is left out. Reading refuses a list that names a member twice
   (`property 'p' is listed twice`), since the list itself no longer keeps names distinct.
 - **Each member keeps its own meta-schema**, as every `Schemas.OfX.Schema` does: `Schemas.OfProperty.Schema` (a
   property's, a union's branch's, an intersection's part's and, as `Schemas.OfParameter.Schema`, a parameter's `name`,
-  `type` and `description`), `Schemas.OfAdjacency.Schema` and `Schemas.OfApply.Argument`. A member list's entries hold
-  exactly the properties its member's meta-schema declares, of the same types, so the two cannot drift apart.
+  `type` and `description`, and as `Schemas.OfSymbol.Schema` a predicate's symbol's), `Schemas.OfAdjacency.Schema` and
+  `Schemas.OfApply.Argument`. A member list's entries hold exactly the properties its member's meta-schema declares, of
+  the same types, so the two cannot drift apart. `Schemas.OfEntry.Schema` is an entry's schema's: its `links`, as
+  symbols, and its `properties`; a module writes them in the relation, of which `relation.entry` is a view (Resolved,
+  The visitor pattern).
 - **A type is a schema of any kind, inline, or a name**: `Schemas.OfAny.Schema`, a union of the kinds and `named`, a
   value object `{"name": ...}` (union branches are of one kind, so a name is a value object too). A property's type is
   `{"scalar": {"format": "basic", "token": "str"}}` or `{"named": {"name": "Phone"}}`, and an adjacency's relation is
@@ -602,15 +606,15 @@ are written, read, validated and compared like any other objects.
 - **Names make schemas shared.** A schema refers by name to a schema in the module, or a registered one, and writes any
   other inline. Reading creates every named schema first, so names resolve to the same schema, recursive references
   included: a name resolves within the module, then in the store. A schema that refers to itself without a name is
-  refused, and so are a name that resolves nowhere, a relation named as a type or something else named as a
-  relation, and a name a module defines twice.
+  refused, and so are a name that resolves nowhere, a relation or a predicate named as a type or something else named
+  as a relation, and a name a module defines twice.
 - **A named schema is written by its name, everywhere.** A schema refers to a named schema by name and writes an
   unnamed one inline, so writing schemas needs no store; reading resolves names, within a module and then in the store.
   A module entry is the one place a named schema is defined: its name, beside its definition, so the kinds'
   meta-schemas hold no name.
 - **One type translates alone too.** `Modules.reference(schema)` gives a type's plain form, by name when it has one and
   inline otherwise, and `Modules.resolve(store, definition)` the type it describes, so that other data can refer to
-  schemas as a module's members do (mbse-patterns' predicates name their symbols' schemas this way).
+  schemas as a module's members do, as a predicate's symbols do.
 - **Meta-schemas are defined in code**, never read from data. Modules are built by the builders of any implementation,
   through `Plain.FromPlain`, and read through the protocols, so the DSL builders, whose methods (`properties(*specs)`)
   would clash with the visitor protocols (`properties(callback)`), are not involved.
@@ -621,12 +625,13 @@ are written, read, validated and compared like any other objects.
 Codegen and other transforms (mbse-patterns) match schemas, not data: a predicate's symbol is declared with the schema
 of what it binds, and the predicate itself says which objects match. To bind a schema, a symbol is declared with its
 kind's meta-schema, the schema of the module form (`Schemas.OfObject.Schema`, named `Schemas.Object`, and the like for
-`Schemas.Scalar`, `Schemas.Union`, `Schemas.Intersection`, `Schemas.Apply` and `Schemas.Relation`).
+`Schemas.Scalar`, `Schemas.Union`, `Schemas.Intersection`, `Schemas.Apply`, `Schemas.Relation` and
+`Schemas.Predicate`).
 
 - **A schema is a reference object of its kind's meta-schema**: `identity()` (Python's `id`, TypeScript's
   `"schema N"`), `schema_name()` (the meta-schema's name), `owner()` (none) and `accept(visitor)`, which writes its
   module form with its name (a module gives its entry the name): its own properties, then its properties, branches,
-  parts and parameters as the entries of its adjacencies (read with `entries_of`), a named schema it refers to by
+  parts, parameters and symbols as the entries of its adjacencies (read with `entries_of`), a named schema it refers to by
   name. `Reflection` supplies `accept`, since this module cannot import `Modules`.
   Everything within a schema is a value, read with `get`, quantified over and compared deeply (mbse-expressions' Basic).
 - **`Reflection.of(store)`** is a store whose objects are the schemas `store` registers and the named schemas they refer
@@ -881,13 +886,22 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     `Schemas.Form`, mbse-schemas knowing no dialect; finding matches and `Patterns.Stores.update`, which returns a
     certificate ("a compact record ... that can be used to track the effect of the write in a lazy distributed
     system"), are mbse-patterns'.
+  - `Schemas.OfEntry` is "a new element held by the relation (`relation.entry`) that carries the links and
+    properties", and, since no entry schema is held without its relation, a view of its relation: the relation keeps
+    its links, properties, `unique` clauses, name, parameters and description, and `relation.entry` reads the links
+    and properties from it. Moving them into the entry waits for a use that holds an entry schema on its own.
+  - a predicate's symbols and an entry's links are both `Schemas.OfSymbol`s, after the user's "maybe
+    `HasSymbols(Schemas.OfPredicate, Schemas.OfSymbol)` and `HasLinks(Schemas.OfEntry, Schemas.OfSymbol)`" (phase 5's
+    meta-relations; until then, lists): a symbol is a name with an optional reference object schema, which a
+    predicate's symbols require and an entry's links may leave unset;
+  - a predicate's `requires` is one `Schemas.Form` ("one form").
 
   It supersedes: mbse-basis P-004 as it stood (amended); here, "Objects outside snapshots are named by paths (0.8.2)",
   The meta-schemas overhaul's "we can keep paths", and decision C in mbse-expressions; and, in the sections above, what
   the reverse protocol built (`accept`, `Plain`'s writers and `Validators`' and `Comparison`'s recorders implementing
-  `Visitors`, `Bindings.accept`, `Reflection`'s `accept`), value objects that links target, and `Paths`. Of it, links that target only reference objects, and value objects'
-  adjacencies to one-link relations only, are built (META_SCHEMAS.md, V1); those sections describe the rest as built
-  until it is.
+  `Visitors`, `Bindings.accept`, `Reflection`'s `accept`), value objects that links target, and `Paths`. Of it, links
+  that target only reference objects, and value objects' adjacencies to one-link relations only, are built
+  (META_SCHEMAS.md, V1); those sections describe the rest as built until it is.
 
 - **The meta-schemas overhaul** ([Meta-schemas overhaul](META_SCHEMAS.md), which plans it), as the user decided: of
   what the 8 to 11 Oct exploration (the `scalars` branch) learned, "definitely re-apply ASAP": "Dictionary of

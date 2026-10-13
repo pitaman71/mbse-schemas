@@ -226,8 +226,8 @@ def build():
     rack.cells(lambda e: e.key(lambda c: c.r(2).c(3)).value(6)).cells(lambda e: e.key(lambda c: c.r(0).c(0)).value(0))
     board = rack.create()
 
-    # --- module: the corpus's own schemas as data, with scalars of widths and another format's token, and parametric
-    # schemas: parameters, terms where a width stands, and applications with arguments of every scalar ---
+    # --- module: the corpus's own schemas as data, with scalars of widths and another format's token, parametric
+    # schemas: parameters, terms where a width stands, and applications with arguments of every scalar, and a predicate ---
     int_ = lambda t: t.as_scalar(int)  # noqa: E731
     n = S.Form.Data("variable", {"name": "n"})
     Word = S.OfScalar.resolve(lambda w: w.name("Word").type(int).parameters(lambda p: p.name("w").of(int_)).bits(
@@ -253,7 +253,11 @@ def build():
                S.OfScalar.resolve(lambda n: n.name("Size").token("ccpp", "size_t").bytes(8)),
                Contact, Address, ContactAddresses, Person, Parentage, Card, Deck, Holding, Board,
                Word, Grid, Square, Tricky, Applied, Choice, Marked]
-    module = Modules.module(store, schemas)
+    Lives = S.OfPredicate.Builder().name("Lives").description("Who lives where").symbols(
+        lambda s: s.name("who").of(Contact), lambda s: s.name("where").of(Address).description("A home")).parameters(
+        lambda p: p.name("since").of(int_)).requires(S.Form.Data("operation", {"name": "and"}, (
+            S.Form.Data("variable", {"name": "who"}), S.Form.Data("variable", {"name": "since"})), "basic")).create()
+    module = Modules.module(store, [*schemas, Lives])
 
     return {
         "address_book": (Contact, alice, store),

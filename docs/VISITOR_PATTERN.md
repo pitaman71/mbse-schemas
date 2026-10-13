@@ -4,7 +4,9 @@
 # Visitor pattern
 
 The protocol through which code reads and writes data of any schema, as the user designed it; the decisions it
-records are in the [framework design](FRAMEWORK.md), Resolved, "The visitor pattern". Nothing in it is built yet.
+records are in the [framework design](FRAMEWORK.md), Resolved, "The visitor pattern". Of it, only the schema-level
+changes are built ([Meta-schemas overhaul](META_SCHEMAS.md), V1): `as_*` names refused, `Schemas.OfScalar`, value objects
+never linked, and `Schemas.OfEntry`, `Schemas.OfSymbol` and `Schemas.OfPredicate`.
 
 ## Purpose
 

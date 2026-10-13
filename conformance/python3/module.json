@@ -1160,6 +1160,84 @@
           }
         },
         {
+          "name": "Lives",
+          "schema": {
+            "predicate": {
+              "requires": {
+                "dialect": "basic",
+                "kind": "operation",
+                "attributes": [
+                  {
+                    "name": "name",
+                    "value": {
+                      "str": "and"
+                    }
+                  }
+                ],
+                "arguments": [
+                  {
+                    "term": {
+                      "kind": "variable",
+                      "attributes": [
+                        {
+                          "name": "name",
+                          "value": {
+                            "str": "who"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "term": {
+                      "kind": "variable",
+                      "attributes": [
+                        {
+                          "name": "name",
+                          "value": {
+                            "str": "since"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "description": "Who lives where",
+              "parameters": [
+                {
+                  "name": "since",
+                  "type": {
+                    "scalar": {
+                      "format": "basic",
+                      "token": "int"
+                    }
+                  }
+                }
+              ],
+              "symbols": [
+                {
+                  "name": "who",
+                  "type": {
+                    "named": {
+                      "name": "Contact"
+                    }
+                  }
+                },
+                {
+                  "name": "where",
+                  "type": {
+                    "named": {
+                      "name": "Address"
+                    }
+                  },
+                  "description": "A home"
+                }
+              ]
+            }
+          }
+        },
+        {
           "name": "Marked",
           "schema": {
             "intersection": {

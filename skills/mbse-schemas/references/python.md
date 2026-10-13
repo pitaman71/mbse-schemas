@@ -68,6 +68,7 @@ S.OfObject.Builder().description("A person we know")        # documentation, on 
 schema.properties["home"].type                              # branch or part; a property is an element, its type inside
 S.OfObject.Builder().parameters(lambda p: p.name("n").of(spec))  # parameters, on any kind of schema
 S.OfApply.Builder().of(Matrix).arguments(rows=2, cols=3)    # a type: a parametric schema applied, by name; .argument("n", 3)
+S.OfPredicate.Builder().symbols(lambda s: s.name("p").of(Person)).requires(term)  # a predicate: one term over symbols
 n.bits(S.Form.Data("variable", {"name": "n"}))              # a term where a width stands, or a dialect's
 Validators.Check(store)(schema, obj).holds                  # True or False: since extents went, nothing it checks is unknown
 S.equivalent(a, b, evaluate)                                # the same after substitution: Square(4) is Matrix(4, 4)

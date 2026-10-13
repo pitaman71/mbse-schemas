@@ -16,6 +16,10 @@
  * Every kind of schema may declare `parameters` (`OfParameter`), variables determined where the schema is referred to:
  * `OfApply` applies a parametric schema to arguments. Where a literal width stands, a term may stand instead:
  * an expression term, such as mbse-expressions', or its neutral `Form`, which may refer to parameters.
+ *
+ * A predicate (`OfPredicate`) names its symbols (`OfSymbol`), each of a reference object schema, and requires a
+ * constraint over them, a term; mbse-schemas knows no dialect, so a term is checked as a `Form` only. An entry's schema
+ * (`OfEntry`) is its relation's links, as symbols, and properties.
  */
 
 import { fromBase64, toBase64 } from "./Bytes.js";
@@ -621,6 +625,64 @@ function addProperties(state: Record<string, unknown>, specs: readonly unknown[]
   }
 }
 
+// --- OfSymbol: a name standing for an object ---
+
+/** A name standing for an object: a predicate's symbol, which a match binds, or an entry's link. Its schema is a
+ * reference object schema, which a predicate's symbols require and an entry's links may leave unset (null). */
+class SymbolData {
+  name: string;
+  type: AnyData | null;
+  description: string | null;
+
+  constructor(fields: { name?: string; type?: AnyData | null; description?: string | null } = {}) {
+    this.name = fields.name ?? "";
+    this.type = fields.type ?? null;
+    this.description = fields.description ?? null;
+  }
+}
+
+class SymbolBuilder extends Builder<SymbolData> {
+  protected make(fields: Record<string, unknown>): SymbolData {
+    return new SymbolData(fields as ConstructorParameters<typeof SymbolData>[0]);
+  }
+
+  name(name: string): SymbolBuilder {
+    this.state["name"] = name;
+    return this;
+  }
+
+  /** The schema of the objects the symbol stands for: a reference object schema. */
+  of(spec: OfAny.Spec): SymbolBuilder {
+    this.state["type"] = OfAny.resolve(spec);
+    return this;
+  }
+}
+
+function isSymbolData(value: unknown): value is SymbolData {
+  return value instanceof SymbolData;
+}
+
+export namespace OfSymbol {
+  /** The meta-schema of a symbol: a named member's. */
+  export let Schema: ObjectData;
+  export const Data = SymbolData;
+  export type Data = SymbolData;
+  export const Builder = SymbolBuilder;
+  export type Builder = SymbolBuilder;
+  export type Spec = SymbolData | ((builder: SymbolBuilder) => SymbolBuilder);
+}
+
+/** A symbol's schema, when it has one, is a reference object schema. */
+function symbolProblems(symbol: SymbolData): string[] {
+  if (symbol.type === null) return descriptionProblems(symbol.description);
+  const problems = validateSchema(symbol.type);
+  const target = structure(symbol.type);
+  if (!(target instanceof ObjectData && target.ref)) {
+    problems.push("a symbol stands for a reference object, so its schema is a reference object schema");
+  }
+  return [...problems, ...descriptionProblems(symbol.description)];
+}
+
 // --- OfRelation ---
 
 class RelationData extends Reflected {
@@ -690,6 +752,33 @@ class RelationData extends Reflected {
   key(me: string): string[] | null {
     return this.keys(me)[0] ?? null;
   }
+
+  /** The schema of the relation's entries: its links and properties. */
+  get entry(): EntryData {
+    return new EntryData(this);
+  }
+}
+
+/** An entry's schema: the links, as symbols, and the properties its relation's entries have. It is a view of the
+ * relation, which holds them (`relation.entry`), since no entry schema is held without its relation. */
+class EntryData {
+  constructor(readonly relation: RelationData) {}
+
+  get links(): SymbolData[] {
+    return this.relation.links.map((name) => new SymbolData({ name }));
+  }
+
+  get properties(): Map<string, PropertyData> {
+    return this.relation.properties;
+  }
+}
+
+export namespace OfEntry {
+  /** The meta-schema of an entry's schema. */
+  export let Schema: ObjectData;
+  /** The schema of a relation's entries, `relation.entry`. It has no builder: a relation's builder declares it. */
+  export const Data = EntryData;
+  export type Data = EntryData;
 }
 
 /** An entry property's value object has no adjacencies, where the entry links two objects or more: it is written
@@ -1331,6 +1420,87 @@ export namespace OfApply {
   }
 }
 
+// --- OfPredicate ---
+
+/** A constraint over symbols, each standing for an object of a reference object schema, and parameters: it holds of a
+ * match, a binding of every symbol to an object of its schema, where its term `requires` holds. Matching, and the
+ * dialects `requires` may be written in, are the caller's (mbse-patterns'); here it is data, checked as a form. */
+class PredicateData extends Reflected {
+  symbols: Map<string, SymbolData>;
+  requires: unknown;
+  name: string | null;
+  description: string | null;
+  parameters: Map<string, ParameterData>;
+
+  constructor(fields: { symbols?: Map<string, SymbolData>; requires?: unknown; name?: string | null;
+    description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
+    super();
+    this.symbols = fields.symbols ?? new Map();
+    this.requires = fields.requires ?? null;
+    this.name = fields.name ?? null;
+    this.description = fields.description ?? null;
+    this.parameters = fields.parameters ?? new Map();
+  }
+
+  equals(other: unknown): boolean {
+    return other === this;
+  }
+
+  validate(): string[] {
+    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description),
+      ...parameterProblems(this.parameters), ...reserved([...this.symbols.keys()])];
+    const clashes = [...this.symbols.keys()].filter((name) => this.parameters.has(name));
+    if (clashes.length > 0) problems.push(`names used as both symbol and parameter: ${repr(sortedStrings(new Set(clashes)))}`);
+    for (const [name, symbol] of this.symbols) {
+      if (symbol.type === null) problems.push(`symbol ${repr(name)} needs a schema`);
+      problems.push(...symbolProblems(symbol).map((p) => `symbol ${repr(name)}: ${p}`));
+    }
+    if (this.requires !== null && !isTerm(this.requires)) problems.push(`requires is not a term: ${repr(this.requires)}`);
+    return [...problems, ...termProblems(this.requires, "requires")];
+  }
+}
+
+class PredicateBuilder extends NamedBuilder<PredicateData> {
+  protected make(fields: Record<string, unknown>): PredicateData {
+    return new PredicateData(fields as ConstructorParameters<typeof PredicateData>[0]);
+  }
+
+  /** The symbols, in order, e.g. `.symbols((s) => s.name("person").of(Person))`. */
+  symbols(...specs: OfSymbol.Spec[]): PredicateBuilder {
+    const symbols = (this.state["symbols"] ??= new Map()) as Map<string, SymbolData>;
+    for (const spec of specs) {
+      const symbol = resolveSpec(spec, isSymbolData, () => new SymbolBuilder());
+      symbols.set(symbol.name, symbol);
+    }
+    return this;
+  }
+
+  /** The constraint, a term over the symbols and parameters: a `Form`, or a dialect's term. */
+  requires(term: unknown): PredicateBuilder {
+    this.state["requires"] = term;
+    return this;
+  }
+}
+
+function isPredicateData(value: unknown): value is PredicateData {
+  return value instanceof PredicateData;
+}
+
+export namespace OfPredicate {
+  /** The meta-schema of predicates. */
+  export let Schema: ObjectData;
+  /** A named constraint over symbols, matched by the caller. */
+  export const Data = PredicateData;
+  export type Data = PredicateData;
+  export const Builder = PredicateBuilder;
+  export type Builder = PredicateBuilder;
+  export type Spec = PredicateData | ((builder: PredicateBuilder) => PredicateBuilder);
+
+  export function resolve(spec: Spec | unknown): PredicateData {
+    return resolveSpec(spec, isPredicateData, () => new PredicateBuilder());
+  }
+}
+
 // --- OfAny ---
 
 type AnyData = ScalarData | ObjectData | UnionData | IntersectionData | ApplyData;
@@ -1516,16 +1686,24 @@ const ArgumentSchema = new ObjectBuilder().properties(namedText("name"), (p) => 
 const ApplySchema = new ObjectBuilder().name("Schemas.Apply").properties(
   namedText("name"), (p) => p.name("of").of(AnySchema), namedText("description")).relations(
   Parameters, listing("arguments", fieldsOf(ArgumentSchema))).create();
+const EntrySchema = new ObjectBuilder().relations(listing("links", MEMBER), listing("properties", MEMBER)).create();
+const PredicateSchema = new ObjectBuilder().name("Schemas.Predicate").properties(
+  namedText("name"), (p) => p.name("requires").of(FormSchema), namedText("description")).relations(
+  Parameters, listing("symbols", MEMBER)).create();
 const KIND_SCHEMAS: [string, ObjectData][] = [["scalar", ScalarSchema], ["object", ObjectSchema], ["union", UnionSchema],
   ["intersection", IntersectionSchema], ["apply", ApplySchema]];
 const kindBranches = KIND_SCHEMAS.map(([name, schema]) => (b: MemberBuilder) => b.name(name).of(schema));
 new UnionBuilder(AnySchema).branches(...kindBranches, (b) => b.name("named").of(NamedSchema)).update();
-const DefinitionSchema = new UnionBuilder().branches(...kindBranches, (b) => b.name("relation").of(RelationSchema)).create();
+const DefinitionSchema = new UnionBuilder().branches(...kindBranches, (b) => b.name("relation").of(RelationSchema),
+  (b) => b.name("predicate").of(PredicateSchema)).create();
 
 OfScalar.Schema = ScalarSchema;
 OfProperty.Schema = PropertySchema;
 OfRelation.Schema = RelationSchema;
 OfRelation.Ref = RelationRef;
+OfEntry.Schema = EntrySchema;
+OfSymbol.Schema = PropertySchema;
+OfPredicate.Schema = PredicateSchema;
 OfAdjacency.Schema = AdjacencySchema;
 OfObject.Schema = ObjectSchema;
 OfUnion.Schema = UnionSchema;
@@ -1539,11 +1717,11 @@ OfAny.Schema = AnySchema;
 OfAny.Named = NamedSchema;
 const KIND_NAMES = new Map<unknown, string>([[ScalarData, "Schemas.Scalar"], [ObjectData, "Schemas.Object"],
   [UnionData, "Schemas.Union"], [IntersectionData, "Schemas.Intersection"],
-  [ApplyData, "Schemas.Apply"], [RelationData, "Schemas.Relation"]]);
+  [ApplyData, "Schemas.Apply"], [RelationData, "Schemas.Relation"], [PredicateData, "Schemas.Predicate"]]);
 
 /** A named set of schemas, as data. `Module.Schema` is the reference object schema of a module: its `schemas` are an
- * adjacency, each entry a `name` and a `schema`, a `Module.Definition` (a schema of any kind, relations included),
- * keyed by name. See `Modules` for the translation between schemas and modules. */
+ * adjacency, each entry a `name` and a `schema`, a `Module.Definition` (a schema of any kind, relations and predicates
+ * included), keyed by name. See `Modules` for the translation between schemas and modules. */
 export namespace Module {
   export const Schema = new ObjectBuilder().name("Schemas.Module").ref()
     .relations(listing("schemas", [["name", Text], ["schema", DefinitionSchema]], true)).create();

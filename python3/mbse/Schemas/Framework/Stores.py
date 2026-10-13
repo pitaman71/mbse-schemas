@@ -89,7 +89,7 @@ class Store(Protocol):
         """The object schema registered as `name`: `AttributeError` if none is, `TypeError` for a relation."""
         ...
 
-    def registered(self, name: str) -> Schemas.OfObject.Data | Schemas.OfRelation.Data:
+    def registered(self, name: str) -> Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data:
         """The object or relation schema registered as `name`; `LookupError` if none is."""
         ...
 
@@ -125,10 +125,10 @@ class Catalog:
     global name (`singleton`), which an implementation fills; and `extent`, the reference objects reachable from them."""
 
     def __init__(self) -> None:
-        self._schemas: dict[str, Schemas.OfObject.Data | Schemas.OfRelation.Data] = {}
+        self._schemas: dict[str, Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data] = {}
         self._singletons: dict[str, Visitors.Visitable] = {}
 
-    def register(self, schema: Schemas.OfObject.Data | Schemas.OfRelation.Data) -> None:
+    def register(self, schema: Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data) -> None:
         """Registers a schema under its name."""
         name = getattr(schema, "name", None)
         if name is None:
@@ -142,10 +142,11 @@ class Catalog:
         if schema is None:
             raise AttributeError(f"no schema registered as {name!r}")
         if not isinstance(schema, Schemas.OfObject.Data):
-            raise TypeError(f"{name!r} is a relation; no relation builder is exposed")
+            kind = "relation" if isinstance(schema, Schemas.OfRelation.Data) else "predicate"
+            raise TypeError(f"{name!r} is a {kind}; no {kind} builder is exposed")
         return schema
 
-    def registered(self, name: str) -> Schemas.OfObject.Data | Schemas.OfRelation.Data:
+    def registered(self, name: str) -> Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data:
         if name not in self._schemas:
             raise LookupError(f"no schema registered as {name!r}")
         return self._schemas[name]
@@ -205,7 +206,7 @@ class Combined:
     def schema(self, name: str) -> Schemas.OfObject.Data:
         return self._owner(name, AttributeError).schema(name)
 
-    def registered(self, name: str) -> Schemas.OfObject.Data | Schemas.OfRelation.Data:
+    def registered(self, name: str) -> Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data:
         return self._owner(name, LookupError).registered(name)
 
     def name_of(self, schema: Any) -> str:

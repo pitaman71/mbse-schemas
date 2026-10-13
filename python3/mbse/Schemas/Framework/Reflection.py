@@ -1,9 +1,10 @@
 """Reflection: schemas as the objects predicates match.
 
 A schema is an object of its kind's meta-schema, the schema of its module form (`Schemas.OfObject.Schema`, named
-'Schemas.Object', and the like for scalars, unions, intersections, applications and relations): it is a reference
-object identified by itself, and writes itself through `accept` as a module writes it, with its name (which a module
-gives its entry), its properties, branches, parts and parameters as the entries of its adjacencies, and a named schema
+'Schemas.Object', and the like for scalars, unions, intersections, applications, relations and predicates): it is a
+reference object identified by itself, and writes itself through `accept` as a module writes it, with its name (which
+a module gives its entry), its properties, branches, parts, parameters and symbols as the entries of its adjacencies,
+and a named schema
 it refers to by name (`{"named": {"name": ...}}`). Predicates (mbse-patterns) read it with `get` and quantify over its
 entries, so a symbol whose schema is a meta-schema binds a schema, and the
 predicate itself says which schemas match.
@@ -26,7 +27,7 @@ __all__ = ["META", "of", "OfStore"]
 META: tuple[Schemas.OfObject.Data, ...] = (
     Schemas.OfScalar.Schema, Schemas.OfObject.Schema, Schemas.OfUnion.Schema,  # type: ignore[attr-defined]
     Schemas.OfIntersection.Schema, Schemas.OfApply.Schema,  # type: ignore[attr-defined]
-    Schemas.OfRelation.Schema)  # type: ignore[attr-defined]
+    Schemas.OfRelation.Schema, Schemas.OfPredicate.Schema)  # type: ignore[attr-defined]
 """The meta-schemas of the kinds of named schemas."""
 
 _BY_NAME = {meta.name: meta for meta in META}
@@ -57,6 +58,8 @@ def _referred(schema: Any) -> Iterator[Any]:
         yield from (p.type for p in schema.parts)
     elif isinstance(schema, Schemas.OfApply.Data):
         yield schema.of
+    elif isinstance(schema, Schemas.OfPredicate.Data):
+        yield from (s.type for s in schema.symbols.values() if s.type is not None)
 
 
 def _named(roots: list[Any]) -> list[Any]:

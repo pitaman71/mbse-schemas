@@ -96,7 +96,7 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
   }
 
   /** Registers a schema under `name`; a singleton schema's instance is created with it. */
-  override register(schema: ObjectSchema | RelationSchema): void {
+  override register(schema: ObjectSchema | RelationSchema | Schemas.OfPredicate.Data): void {
     const globalName = schema instanceof Schemas.OfObject.Data ? schema.singleton : null;
     if (globalName !== null && this._singletons.has(globalName)) {
       throw new ValueError(`singleton ${repr(globalName)} is already registered`);

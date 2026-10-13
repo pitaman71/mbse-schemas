@@ -216,8 +216,8 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   rack.cells((e: any) => e.key((c: any) => c.r(2n).c(3n)).value(6n)).cells((e: any) => e.key((c: any) => c.r(0n).c(0n)).value(0n));
   const board = rack.create();
 
-  // --- module: the corpus's own schemas as data, with scalars of widths and another format's token, and parametric
-  // schemas: parameters, terms where a width stands, and applications with arguments of every scalar ---
+  // --- module: the corpus's own schemas as data, with scalars of widths and another format's token, parametric
+  // schemas: parameters, terms where a width stands, and applications with arguments of every scalar, and a predicate ---
   const int_ = (t: Schemas.OfAny.Builder) => t.as_scalar(BigInt);
   const n = new Schemas.Form.Data("variable", { name: "n" });
   const Word = Schemas.OfScalar.resolve((w) => w.name("Word").type(BigInt).parameters((p) => p.name("w").of(int_)).bits(
@@ -245,7 +245,11 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
     Contact, Address, ContactAddresses, Person, Parentage, Card, Deck, Holding, Board,
     Word, Grid, Square, Tricky, Applied, Choice, Marked,
   ];
-  const module = Modules.module(store, schemas) as Instance;
+  const Lives = new S.OfPredicate.Builder().name("Lives").description("Who lives where").symbols(
+    (s) => s.name("who").of(Contact), (s) => s.name("where").of(Address).description("A home")).parameters(
+    (p) => p.name("since").of(int_)).requires(new Schemas.Form.Data("operation", { name: "and" }, [
+      new Schemas.Form.Data("variable", { name: "who" }), new Schemas.Form.Data("variable", { name: "since" })], "basic")).create();
+  const module = Modules.module(store, [...schemas, Lives]) as Instance;
 
   return new Map<string, [Schemas.OfObject.Data, Instance, Stores.Store]>([
     ["address_book", [Contact, alice, store]],

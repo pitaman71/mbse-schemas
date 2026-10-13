@@ -14,6 +14,10 @@ predicate's symbols), and a store registers it under that name; an unnamed one i
 Every kind of schema may declare `parameters` (`OfParameter`), variables determined where the schema is referred to:
 `OfApply` applies a parametric schema to arguments. Where a literal width stands, a term may stand instead:
 an expression term, such as mbse-expressions', or its neutral `Form`, which may refer to parameters.
+
+A predicate (`OfPredicate`) names its symbols (`OfSymbol`), each of a reference object schema, and requires a
+constraint over them, a term; mbse-schemas knows no dialect, so a term is checked as a `Form` only. An entry's schema
+(`OfEntry`) is its relation's links, as symbols, and properties.
 """
 
 from __future__ import annotations
@@ -38,6 +42,9 @@ __all__ = [
     "OfObject",
     "OfAdjacency",
     "OfRelation",
+    "OfEntry",
+    "OfSymbol",
+    "OfPredicate",
     "OfUnion",
     "OfIntersection",
     "OfParameter",
@@ -467,6 +474,49 @@ def _properties(fields: dict[str, Any], specs: tuple[OfProperty.Spec, ...]) -> N
         properties[prop.name] = prop
 
 
+# --- OfSymbol: a name standing for an object ---
+
+
+@dataclass(eq=False)
+class _SymbolData:
+    """A name standing for an object: a predicate's symbol, which a match binds, or an entry's link. Its schema is a
+    reference object schema, which a predicate's symbols require and an entry's links may leave unset (None)."""
+
+    name: str = ""
+    type: Any = None  # OfAny.Data
+    description: str | None = None
+
+
+class _SymbolBuilder(_Builder[_SymbolData]):
+    _data = _SymbolData
+
+    def name(self, name: str) -> _SymbolBuilder:
+        self._fields["name"] = name
+        return self
+
+    def of(self, spec: OfAny.Spec) -> _SymbolBuilder:
+        """The schema of the objects the symbol stands for: a reference object schema."""
+        self._fields["type"] = OfAny.resolve(spec)
+        return self
+
+
+class OfSymbol:
+    Data = _SymbolData
+    Builder = _SymbolBuilder
+    Spec = _SymbolData | Callable[[_SymbolBuilder], _SymbolBuilder]
+
+
+def _symbol_problems(symbol: _SymbolData) -> list[str]:
+    """A symbol's schema, when it has one, is a reference object schema."""
+    if symbol.type is None:
+        return _description_problems(symbol.description)
+    problems = _validate(symbol.type)
+    target = _structure(symbol.type)
+    if not (isinstance(target, _ObjectData) and target.ref):
+        problems.append("a symbol stands for a reference object, so its schema is a reference object schema")
+    return problems + _description_problems(symbol.description)
+
+
 # --- OfRelation ---
 
 
@@ -518,6 +568,33 @@ class _RelationData(_Reflected):
         """The first of `keys(me)`, which an adjacency from `me` is indexed by (`at`); None when there is none."""
         keys = self.keys(me)
         return keys[0] if keys else None
+
+    @property
+    def entry(self) -> _EntryData:
+        """The schema of the relation's entries: its links and properties."""
+        return _EntryData(self)
+
+
+@dataclass(frozen=True, eq=False)
+class _EntryData:
+    """An entry's schema: the links, as symbols, and the properties its relation's entries have. It is a view of the
+    relation, which holds them (`relation.entry`), since no entry schema is held without its relation."""
+
+    relation: _RelationData
+
+    @property
+    def links(self) -> tuple[_SymbolData, ...]:
+        return tuple(_SymbolData(name) for name in self.relation.links)
+
+    @property
+    def properties(self) -> dict[str, _PropertyData]:
+        return self.relation.properties
+
+
+class OfEntry:
+    """The schema of a relation's entries, `relation.entry`. It has no builder: a relation's builder declares it."""
+
+    Data = _EntryData
 
 
 def _entry_value_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[str]:
@@ -1002,6 +1079,65 @@ class OfApply:
         return _resolve(spec, _ApplyData, _ApplyBuilder)
 
 
+# --- OfPredicate ---
+
+
+@dataclass(eq=False)
+class _PredicateData(_Reflected):
+    """A constraint over symbols, each standing for an object of a reference object schema, and parameters: it holds of
+    a match, a binding of every symbol to an object of its schema, where its term `requires` holds. Matching, and the
+    dialects `requires` may be written in, are the caller's (mbse-patterns'); here it is data, checked as a form."""
+
+    symbols: dict[str, _SymbolData] = field(default_factory=dict)
+    requires: Any = None  # a term
+    name: str | None = None
+    description: str | None = None
+    parameters: dict[str, _ParameterData] = field(default_factory=dict)
+
+    def validate(self) -> list[str]:
+        problems = (_name_problems(self.name) + _description_problems(self.description)
+                    + _parameter_problems(self.parameters) + _reserved(self.symbols))
+        clashes = set(self.symbols) & set(self.parameters)
+        if clashes:
+            problems.append(f"names used as both symbol and parameter: {sorted(clashes)}")
+        for name, symbol in self.symbols.items():
+            if symbol.type is None:
+                problems.append(f"symbol {name!r} needs a schema")
+            problems += [f"symbol {name!r}: {p}" for p in _symbol_problems(symbol)]
+        if self.requires is not None and not _is_term(self.requires):
+            problems.append(f"requires is not a term: {self.requires!r}")
+        return problems + _term_problems(self.requires, "requires")
+
+
+class _PredicateBuilder(_NamedBuilder[_PredicateData]):
+    _data = _PredicateData
+
+    def symbols(self, *specs: OfSymbol.Spec) -> _PredicateBuilder:
+        """The symbols, in order, e.g. `.symbols(lambda s: s.name('person').of(Person))`."""
+        symbols = self._fields.setdefault("symbols", {})
+        for spec in specs:
+            symbol = _resolve(spec, _SymbolData, _SymbolBuilder)
+            symbols[symbol.name] = symbol
+        return self
+
+    def requires(self, term: Any) -> _PredicateBuilder:
+        """The constraint, a term over the symbols and parameters: a `Form`, or a dialect's term."""
+        self._fields["requires"] = term
+        return self
+
+
+class OfPredicate:
+    """A named constraint over symbols, matched by the caller."""
+
+    Data = _PredicateData
+    Builder = _PredicateBuilder
+    Spec = _PredicateData | Callable[[_PredicateBuilder], _PredicateBuilder]
+
+    @staticmethod
+    def resolve(spec: OfPredicate.Spec) -> _PredicateData:
+        return _resolve(spec, _PredicateData, _PredicateBuilder)
+
+
 # --- OfAny ---
 
 _KINDS = (_ScalarData, _ObjectData, _UnionData, _IntersectionData, _ApplyData)
@@ -1169,12 +1305,17 @@ _ArgumentSchema = OfObject.Builder().properties(_named_text("name"), lambda p: p
 _ApplySchema = OfObject.Builder().name("Schemas.Apply").properties(
     _named_text("name"), lambda p: p.name("of").of(_AnySchema), _named_text("description")).relations(
     _Parameters, _listing("arguments", {name: prop.type for name, prop in _ArgumentSchema.properties.items()})).create()
+_EntrySchema = OfObject.Builder().relations(_listing("links", _MEMBER), _listing("properties", _MEMBER)).create()
+_PredicateSchema = OfObject.Builder().name("Schemas.Predicate").properties(
+    _named_text("name"), lambda p: p.name("requires").of(_FormSchema), _named_text("description")).relations(
+    _Parameters, _listing("symbols", _MEMBER)).create()
 _KIND_SCHEMAS = (("scalar", _ScalarSchema), ("object", _ObjectSchema), ("union", _UnionSchema),
                  ("intersection", _IntersectionSchema), ("apply", _ApplySchema))
 OfUnion.Builder(_AnySchema).branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
                                      lambda b: b.name("named").of(_Named)).update()
 _Definition = OfUnion.Builder().branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
-                                         lambda b: b.name("relation").of(_RelationSchema)).create()
+                                         lambda b: b.name("relation").of(_RelationSchema),
+                                         lambda b: b.name("predicate").of(_PredicateSchema)).create()
 
 OfScalar.Schema = _ScalarSchema  # type: ignore[attr-defined]
 OfProperty.Schema = _PropertySchema  # type: ignore[attr-defined]
@@ -1182,6 +1323,9 @@ OfAdjacency.Schema = _AdjacencySchema  # type: ignore[attr-defined]
 OfParameter.Schema = _PropertySchema  # type: ignore[attr-defined]
 OfRelation.Schema = _RelationSchema  # type: ignore[attr-defined]
 OfRelation.Ref = _RelationRef  # type: ignore[attr-defined]
+OfEntry.Schema = _EntrySchema  # type: ignore[attr-defined]
+OfSymbol.Schema = _PropertySchema  # type: ignore[attr-defined]
+OfPredicate.Schema = _PredicateSchema  # type: ignore[attr-defined]
 OfObject.Schema = _ObjectSchema  # type: ignore[attr-defined]
 OfUnion.Schema = _UnionSchema  # type: ignore[attr-defined]
 OfIntersection.Schema = _IntersectionSchema  # type: ignore[attr-defined]
@@ -1194,13 +1338,13 @@ OfAny.Named = _Named  # type: ignore[attr-defined]
 _KIND_NAMES: dict[type, str] = {
     _ScalarData: _ScalarSchema.name, _ObjectData: _ObjectSchema.name, _UnionData: _UnionSchema.name,
     _IntersectionData: _IntersectionSchema.name, _ApplyData: _ApplySchema.name,
-    _RelationData: _RelationSchema.name}
+    _RelationData: _RelationSchema.name, _PredicateData: _PredicateSchema.name}
 
 
 class Module:
     """A named set of schemas, as data. `Module.Schema` is the reference object schema of a module: its `schemas` are an
-    adjacency, each entry a `name` and a `schema`, a `Module.Definition` (a schema of any kind, relations included),
-    keyed by name. See `Modules` for the translation between schemas and modules."""
+    adjacency, each entry a `name` and a `schema`, a `Module.Definition` (a schema of any kind, relations and predicates
+    included), keyed by name. See `Modules` for the translation between schemas and modules."""
 
     Schema = OfObject.Builder().name("Schemas.Module").ref().relations(
         _listing("schemas", {"name": _Text, "schema": _Definition}, keyed=True)).create()

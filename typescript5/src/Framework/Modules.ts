@@ -14,7 +14,7 @@
  * one inline. A name resolves within the module, then in the store. A schema that refers to itself must be named.
  *
  * `reference(schema)` and `resolve(store, definition)` translate one type the same way, for data that refers to
- * schemas as a module's members do, e.g. the symbols of a predicate.
+ * schemas as a module's members do. A predicate's symbols are written as its members are, and its `requires` as a term.
  *
  * A term (where a width or an argument stands) is written as its neutral form, `Schemas.Form`, and
  * read back as one; `make`, given to `schemas` or `resolve`, makes a dialect's term of each form instead.
@@ -33,7 +33,7 @@ import type { Scalar } from "./Visitors.js";
 
 export const MODULE = "Schemas.Module";
 
-type Schema = Schemas.OfAny.Data | Schemas.OfRelation.Data;
+type Schema = Schemas.OfAny.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data;
 
 /** A module holding `schemas`, each under its name, built in `store`. */
 export function module(store: Stores.Store, schemas: Iterable<Schema>): unknown {
@@ -143,6 +143,10 @@ export class _Writer {
       return kindOf("apply", [["parameters", parameters], ["of", this.reference(schema.of)], ["arguments", _arguments(schema.arguments)],
         ["description", schema.description]]);
     }
+    if (schema instanceof Schemas.OfPredicate.Data) {
+      return kindOf("predicate", [["parameters", parameters], ["symbols", this.members(schema.symbols.values())],
+        ["requires", schema.requires === null ? null : form(schema.requires)], ["description", schema.description]]);
+    }
     throw new TypeError(`not a schema: ${repr(schema)}`);
   }
 }
@@ -205,6 +209,7 @@ const BLANK: Record<string, () => Schema> = {
   union: () => new Schemas.OfUnion.Data(),
   intersection: () => new Schemas.OfIntersection.Data(),
   apply: () => new Schemas.OfApply.Data(),
+  predicate: () => new Schemas.OfPredicate.Data(),
 };
 
 /** A schema's kind and contents; a module's union values hold exactly one branch. */
@@ -245,7 +250,10 @@ class _Reader {
     const [kind, body] = contentsOf(definition);
     if (kind !== "named") return this.fill((BLANK[kind] as () => Schema)(), definition) as Schemas.OfAny.Data;
     const schema = this.named(body.get("name") as string);
-    if (schema instanceof Schemas.OfRelation.Data) throw new TypeError(`${repr(body.get("name"))} is a relation, not a type`);
+    if (schema instanceof Schemas.OfRelation.Data || schema instanceof Schemas.OfPredicate.Data) {
+      const kind = schema instanceof Schemas.OfRelation.Data ? "relation" : "predicate";
+      throw new TypeError(`${repr(body.get("name"))} is a ${kind}, not a type`);
+    }
     return schema;
   }
 
@@ -320,10 +328,14 @@ class _Reader {
     } else if (schema instanceof Schemas.OfIntersection.Data) {
       schema.parts = this.members(body.get("parts"), "part", (f) => new Schemas.OfIntersection.Part(f));
       schema.flat = (body.get("flat") as boolean | undefined) ?? false;
+    } else if (schema instanceof Schemas.OfApply.Data) {
+      schema.of = this.type(body.get("of") as Definition);
+      schema.arguments = this.arguments(list("arguments") as PlainMap[]);
     } else {
-      const apply = schema as Schemas.OfApply.Data;
-      apply.of = this.type(body.get("of") as Definition);
-      apply.arguments = this.arguments(list("arguments") as PlainMap[]);
+      const predicate = schema as Schemas.OfPredicate.Data;
+      predicate.symbols = new Map(this.members(body.get("symbols"), "symbol", (f) => new Schemas.OfSymbol.Data(f))
+        .map((s) => [s.name, s]));
+      predicate.requires = body.has("requires") ? this.term(body.get("requires") as PlainMap) : null;
     }
     return schema;
   }

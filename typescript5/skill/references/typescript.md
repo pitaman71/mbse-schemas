@@ -75,6 +75,7 @@ new S.OfObject.Builder().description("A person we know");         // documentati
 schema.properties.get("home")?.type;                              // adjacency, branch or part; a property is an element
 new S.OfObject.Builder().parameters((p) => p.name("n").of(spec)); // parameters, on any kind of schema
 new S.OfApply.Builder().of(Matrix).arguments({ rows: 2n, cols: 3n }); // a type: a parametric schema applied, by name; .argument("n", 3n)
+new S.OfPredicate.Builder().symbols((s) => s.name("p").of(Person)).requires(term); // a predicate: one term over symbols
 n.bits(new S.Form.Data("variable", { name: "n" }));               // a term where a width stands
 Validators.Check(store)(schema, obj).holds;                       // true or false: since extents went, nothing it checks is unknown
 S.equivalent(a, b, evaluate);                                     // the same after substitution: Square(4n) is Matrix(4n, 4n)

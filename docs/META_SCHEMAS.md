@@ -68,18 +68,21 @@ skill regenerated. No release comes between phases.
   - V2. **The visitor protocol**: `Visitors.OfX` as [Visitor pattern](VISITOR_PATTERN.md) declares it, and
     `Specs`, and the read-only views `Readers.OfX`; `Proxies.OfX.Data` (read-only) and `Proxies.OfX.Builder`
     implement it, a builder reading back its pending writes.
-  - V3. **Consumers pull**: `Plain`, `JSON`, `YAML`, `Validators`, `Comparison`, `Reachable`, `Reflection`, `Modules`
-    and `Bindings` read and write through the protocol. With them goes what V1 left without a use: `Comparison`'s paths between value objects (`OfLink` compares by identity only), and the state's references
+  - V3. **Consumers pull**: `Plain`, `JSON`, `YAML`, `Validators`, `Comparison`, `Reachable` and `Modules` read and
+    write through the protocol; `Bindings`, `Paths` and `Reflection` are removed, and so are `Validators.properties_of`
+    and `entries_of`. With them goes what V1 left without a use: `Comparison`'s paths between value objects (`OfLink` compares by identity only), and the state's references
   in a value object's entries (`Bindings`, "no snapshot holds the value"), which only a two-link relation of a value
   object, now invalid, could hold.
 - V4. **Identity**: a reference object named by its global name or a UUID given by `create()` or `clone()`, saved on the
-  wire as its key in a snapshot and in the links to it; `Paths` removed.
+  wire as its key in a snapshot and in the links to it (`Paths` went in V3).
 
 5. **Meta-schemas as linked objects**: links built with a schema given as itself (`.<link>.of(schema, spec)`);
    `OfAny` removed, a type given as itself; every schema a reference object of its kind's meta-schema, every reference
    to one a link through a meta-relation, the ends at which a schema is referred to anonymous adjacencies (built here,
    for any relation, as TODO.md's "Anonymous adjacencies"); `OfModule` and `Defines`, nestable, names qualified with
-   dots; modules written as snapshots; `Schemas.Module`, `Modules.reference` and `resolve`, and `Stores.META` removed.
+   dots; `Schemas.OfStore.root_module()`, the root module, registering schemas by module-qualified name, in place of
+   `Reflection`; modules written as snapshots; `Schemas.Module`, `Modules.reference` and `resolve`, and `Stores.META`
+   removed.
 6. **Dependents**, each pinning the workspace's mbse-schemas:
 
    | Repository | Adapts |
@@ -87,7 +90,7 @@ skill regenerated. No release comes between phases.
    | mbse-expressions | evaluators binding each symbol to a `Readers.OfObject` and reading through it, relations through `Visitors.OfAdjacency` (decision C superseded, its first step reverted); an enum's members and a packed domain's codes as one-link relations; Basic's collection operations over lists reconsidered with the protocol |
    | mbse-patterns | `Predicates` lists (`_LIST`, `GIVEN`) as relations; `Modules.reference` and `resolve` replaced by links; meta-schema names in `Reflection` (`Schemas.Indexed` gone, `Schemas.Module` changed); transforms keyed by identity, `Paths` gone; `Schemas.OfPredicate` taken as its predicates' model; finding matches and `Stores.update` with its certificate |
    | mbse-programs | `Syntax`'s `as_indexed`; `OfApply` arguments by name; the conformance corpora regenerated, since a syntax node's children are written sorted by their key (`property`, `index`) since phase 1 (CONF-01) |
-   | mbse-codegen-python | `Types` without `OfIndexed` and `Proxies.OfIndexed.Map`; a relation keyed by integer-like properties promoted to an indexable, and to a dict or map where unambiguous; `Codegen.Defined`'s `unique(output, name)` corrected for the right reading, `unique(node)`, without which its paths are positional since phase 1 (TYP-03) |
+   | mbse-codegen-python | `Types` without `OfIndexed` and `Proxies.OfIndexed.Map`; a relation keyed by integer-like properties promoted to an indexable, and to a dict or map where unambiguous; `Codegen.Defined`'s `unique(output, name)` corrected for the right reading, `unique(node)`, without which its paths are positional since phase 1 (TYP-03); for every schema, the analogues of a proxy, `<SchemaName>.Data`, `<SchemaName>.Builder` implementing `Visitors` and `<SchemaName>.Schema`, in place of `Bindings` |
 
    The dependents' suites are run in the workspace after each phase, and what a phase breaks is listed above. After
    phase 1, mbse-patterns passes unchanged. Phase 2 breaks nothing more, though a dependent's relation that has no

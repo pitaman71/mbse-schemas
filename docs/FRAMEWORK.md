@@ -870,12 +870,18 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     as_scalar)"), TypeScript's `[Symbol.toPrimitive]` going as far as it reaches; unions, intersections and
     predicates take the member style, a branch or a part giving the visitor of its type's kind directly (the
     `Visitors.OfProperty` between being "an implementation detail"; "symmetry with properties isn't particularly
-    important"); `Visitors.OfAny` has `clear()`, which `Visitors.OfScalar.clear()` aliases; a link member on a data instance is the linked instance itself, data
-    instances being callable so that calling one, a write, raises ("yes"); `as_scalar`, `as_value` and
+    important"); `Visitors.OfAny` has `clear()`, which `Visitors.OfScalar.clear()` aliases; a link member on a data
+    instance is the linked instance itself, data instances being callable so that calling one, a write, raises ("yes"); `as_scalar`, `as_value` and
     `as_adjacencies` gain no attribute form ("no"; "as scalar has no attribute form"), so a
     scalar is read compactly through the property's dunders (`str(card.name)`). (Before that, the user had agreed
     that data instances not implement it, correcting "and so do data instances", which I had inferred.) There is no
     separate mutator protocol;
+  - code generation generates, for every schema, the analogues of a proxy: "`<schemaName>.Data` - instance form",
+    "`<schemaName>.Builder` - mutator form implementing Visitors", "`<schemaName>.Schema` - alias for schema itself";
+    so `Bindings`, which bound a program's own classes to schemas through their states, goes ("yes, remove Bindings"),
+    and so do `Paths` ("yes, remove Paths"), ahead of V4, and `Reflection` ("yes, remove Reflections"), whose part
+    `root_module()` takes in phase 5; `Validators.properties_of` and `entries_of` go, the protocol reading properties
+    and entries;
   - "the mutableness of a visited object is a mode of the visitor itself": builders "can be configured to permit or
     forbid writes", a visitor hands its mode to the child visitors it hands over, except a link's target, read-only through an
     entry, an object being edited through its own builder ("the 'children inherit their parent's mode' was overly
@@ -991,7 +997,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     designated relation"), built in this overhaul for any relation, as the user agreed ("yes");
   - a module is an `OfModule` that defines schemas by `Defines(module, name, schema)`, and may define modules, so that
     modules nest; a schema defined through nested modules is named with their names "qualified with dots", as the user
-    decided. A module is written as an object snapshot of the schemas it defines and the unnamed schemas they reach;
+    decided. A module is written as an object snapshot of the schemas it defines and the unnamed schemas they reach.
+    "`Schemas.OfStore.root_module()` returns an instance of hierarchical `Schemas.OfModule` which registers schemas by
+    module-qualified name" ("yes, add root_module");
   - Basic's operations on lists change with it, as the user decided: mbse-expressions' EXPRESSIONS.md, Resolved,
     "Basic's collection operations go now".
 

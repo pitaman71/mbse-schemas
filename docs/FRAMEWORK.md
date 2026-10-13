@@ -827,8 +827,10 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     of entries in the target language"; for a dict, "yes the value is the element";
   - "Schemas.OfContainer should allow '.dense()' or '.sparse()' only one of which may be configured. Dense stores
     entries in a packed array, sparse is an associative store of dense blocks/sectors"; "dense and sparse are a
-    container schema prop, not a type schema prop"; with neither, a container whose index has a total order is dense
-    and one whose index is hashable a dict ("yes, sensible default");
+    container schema prop, not a type schema prop"; with neither, a container is dense for an integer-like index (an
+    int, or a value object of ints) and a dict for any other hashable one: "dense default for integer-like only: yes",
+    correcting the first answer ("yes, sensible default"), under which every container by text would have been an
+    array; `.dense()` and `.sparse()` take any index with a total order;
   - "multiple int indices for tensor data is critical", while the user is "less interested in string indices";
   - "a container entry is latent. probably will not have its own class. A Visitors.OfIterator - that will be
     necessary, but reached from Visitors.OfContainer not Visitors.OfAdjacency";
@@ -848,11 +850,6 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     since the ordered API needs containers and `select` its replacement.
 
   Choices made in building it, for the user's review:
-  - with neither `.dense()` nor `.sparse()`, a container is dense only for an integer-like index (an int, or a value
-    object of ints) and a dict for any other hashable one, as the user's first note had it ("integer-like properties
-    ... becomes an array/list", "only hashable properties becomes a dict/map"), rather than dense for any ordered
-    index, which would have made every container by text an array; `.dense()` and `.sparse()` still take any ordered
-    index;
   - a dense container of int indices holds every index from 0 to its last, an element absent at some (`null` on the
     wire), its length the positions; one of several ints, every cell of the box its indices span; one by another
     ordered index (text), its elements present, sorted, written as entry-like elements;

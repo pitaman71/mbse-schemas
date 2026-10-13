@@ -25,7 +25,9 @@ read or step through them.
 ## Conventions
 
 - One suite per notebook. Each markdown heading `XXX-NN · title` starts one test case; the following code cell is the
-  case. A case fails by raising, so nbmake reports the first failing case.
+  case. A case fails by raising, so nbmake reports the first failing case. A notebook also fails when any output
+  holds a traceback (`conftest.py`): IPython prints an `ExceptionGroup`, which Hypothesis raises for several failures,
+  rather than reporting it as an error, so nbmake passed the PROP suite while it was broken.
 - Each notebook runs in a fresh kernel and makes its own stores; names are unique per store.
 - Two kinds of case:
   - **Specified**: behavior FRAMEWORK.md states. A failure is a bug.

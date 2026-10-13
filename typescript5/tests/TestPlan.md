@@ -31,7 +31,8 @@ TypeScript kernel (e.g. tslab or `deno jupyter`), which the test run does not.
 
 ## Conventions
 
-As in Python: one suite per notebook; a heading `XXX-NN · title` starts a case; *specified* cases state what
+As in Python: one suite per notebook, which fails when it throws, rejects a promise unhandled, or prints a stack
+trace (`run-notebooks.ts`); a heading `XXX-NN · title` starts a case; *specified* cases state what
 FRAMEWORK.md requires and *pinned* cases (headings say *Finding Fn (pinned)*) record current behavior on open
 questions. `tests/support.ts` mirrors `tests/support.py` (`raises`, `entries`, `value_of`, `same_graph`,
 conformance checks) plus `equal` (Python's `==` on plain data) and `map` (a `Map` literal from an object literal). Randomized cases

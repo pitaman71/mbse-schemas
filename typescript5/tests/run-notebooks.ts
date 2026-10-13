@@ -10,6 +10,8 @@
  * With no notebooks named, it runs every notebook in tests/ and tutorials/.
  *
  * `--typecheck` also type-checks every notebook with the project's tsconfig before running anything.
+ *
+ * A notebook fails when it throws, rejects a promise unhandled, or prints a stack trace (an error caught and logged).
  */
 
 import { spawnSync } from "node:child_process";
@@ -64,11 +66,16 @@ function generate(notebook: string): string {
 }
 
 const PRELUDE = `
-process.on("uncaughtException", (error) => {
+const fail = (error: any) => {
   console.error("FAILED in " + ((globalThis as any).__case ?? "?") + ": " + (error?.stack ?? error));
   process.exit(1);
-});
+};
+process.on("uncaughtException", fail);
+process.on("unhandledRejection", fail);
 `;
+
+/** A stack trace's frame line, as V8 prints it: a notebook that prints one failed, even if it exited cleanly. */
+const STACK_FRAME = /^\s+at .+:\d+:\d+\)?$/m;
 
 const args = process.argv.slice(2);
 const typecheck = args.includes("--typecheck");
@@ -94,7 +101,11 @@ for (const [i, module] of modules.entries()) {
   const started = Date.now();
   const result = spawnSync("npx", ["tsx", "--import", join(build, "prelude.ts"), module], { encoding: "utf8" });
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
-  if (result.status === 0) {
+  const printed = `${result.stdout}\n${result.stderr}`;
+  if (result.status === 0 && STACK_FRAME.test(printed)) {
+    failed++;
+    console.log(`FAILED ${name} (${seconds}s): a stack trace in its output\n${printed.trim()}\n`);
+  } else if (result.status === 0) {
     console.log(`PASSED ${name} (${seconds}s)`);
   } else {
     failed++;

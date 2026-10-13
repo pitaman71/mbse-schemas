@@ -28,6 +28,8 @@ properties: a union value `{"phone": {"number": "+44"}}` holds exactly one branc
 
 from __future__ import annotations
 
+import itertools
+import math
 from collections.abc import Callable, Hashable
 from typing import Any, NamedTuple, Protocol
 
@@ -57,16 +59,96 @@ def _present(visitor: Any) -> bool:
 
 def _value(read: Readers.OfProperty, schema: Schemas.OfAny.Data, ref: Ref) -> tuple[bool, PlainData]:
     """A property's value as plain data, read through its visitor, and whether it has one."""
+    found: list[tuple[bool, PlainData]] = []
+    read.as_value(lambda a: found.append(_any(a, schema, ref)) or a)
+    return found[0]
+
+
+def _any(read: Readers.OfAny, schema: Schemas.OfAny.Data, ref: Ref) -> tuple[bool, PlainData]:
+    """A value of any kind as plain data, read through its `Visitors.OfAny`, and whether it has one."""
     held = Schemas.structure(schema)
     found: list[PlainData] = []
     if isinstance(held, Schemas.OfScalar.Data):
         read.as_scalar(lambda s: found.extend([] if s.get() is None else [held.to_plain(s.get())]) or s)
     elif isinstance(held, Schemas.OfObject.Data):
         read.as_object(lambda o: found.extend([_object(o, held, ref)] if _present(o) else []) or o)
+    elif isinstance(held, Schemas.OfContainer.Data):
+        read.as_container(lambda c: found.extend([_container(c, held, ref)] if _present(c) else []) or c)
     else:
         select = "as_union" if isinstance(held, Schemas.OfUnion.Data) else "as_intersection"
-        read.as_value(lambda a: getattr(a, select)(lambda r: found.extend([_record(r, held, ref)] if _present(r) else []) or r) or a)
+        getattr(read, select)(lambda r: found.extend([_record(r, held, ref)] if _present(r) else []) or r)
     return (True, found[0]) if found else (False, None)
+
+
+def _tensor(schema: Schemas.OfContainer.Data) -> list[str] | None:
+    """The names of a container's int indices, where its index is a value object of ints; None otherwise."""
+    index = Schemas.structure(schema.index)
+    if not isinstance(index, Schemas.OfObject.Data):
+        return None
+    hosts = [Schemas.structure(prop.type) for prop in index.properties.values()]
+    return list(index.properties) if all(isinstance(h, Schemas.OfScalar.Data) and h.type is int for h in hosts) else None
+
+
+def _ints(schema: Schemas.OfContainer.Data) -> bool:
+    """Whether a container's index is an int."""
+    index = Schemas.structure(schema.index)
+    return isinstance(index, Schemas.OfScalar.Data) and index.type is int
+
+
+def _plain_index(schema: Schemas.OfContainer.Data, index: Any, ref: Ref) -> PlainData:
+    """An index as plain data: a scalar's plain form, or a value object index as a mapping of its properties."""
+    held = Schemas.structure(schema.index)
+    if isinstance(held, Schemas.OfScalar.Data):
+        return held.to_plain(index)
+    if isinstance(index, tuple):
+        return {name: Schemas.structure(prop.type).to_plain(value)
+                for (name, prop), value in zip(held.properties.items(), index)}
+    return _object(index, held, ref)
+
+
+def _container(read: Readers.OfContainer, schema: Schemas.OfContainer.Data, ref: Ref) -> PlainData:
+    """A container as plain data, as its arrangement writes it: a dense one of int indices as an array of its elements
+    (null where one is absent), of several int indices as nested arrays, or flat with its shape where the writer is
+    configured so (`ToPlain(store, flat=True)`); a sparse one of int indices as its blocks, each the index it starts at
+    and its run of elements; a dict by a str index as a mapping; any other as an array of entry-like elements, each its
+    index and its element."""
+    pairs: list[tuple[Any, Any]] = []
+    read.as_entries(lambda it: pairs.extend(it))
+
+    def element(visitor: Any) -> PlainData:
+        return _any(visitor, schema.element, ref)[1]
+
+    names, arrangement = _tensor(schema), schema.arrangement
+    if arrangement == "dense" and _ints(schema):
+        dense: list[PlainData] = [None] * len(read)
+        for index, visitor in pairs:
+            dense[index] = element(visitor)
+        return dense
+    if arrangement == "dense" and names is not None and pairs:
+        shape = [max(index[d] for index, _ in pairs) + 1 for d in range(len(names))]
+        cells: dict[Any, PlainData] = {index: element(visitor) for index, visitor in pairs}
+        flat = [cells.get(cell) for cell in itertools.product(*[range(n) for n in shape])]
+        if getattr(ref, "flat", False):
+            return {"shape": shape, "items": flat}
+        for n in reversed(shape[1:]):
+            flat = [flat[i:i + n] for i in range(0, len(flat), n)]
+        return flat
+    if arrangement == "sparse" and (_ints(schema) or names is not None):
+        blocks: list[dict[str, Any]] = []
+        last: Any = None
+        for index, visitor in pairs:
+            follows = last is not None and (index == last + 1 if _ints(schema) else
+                                            index[:-1] == last[:-1] and index[-1] == last[-1] + 1)
+            if follows:
+                blocks[-1]["items"].append(element(visitor))
+            else:
+                blocks.append({"at": _plain_index(schema, index, ref), "items": [element(visitor)]})
+            last = index
+        return blocks
+    held = Schemas.structure(schema.index)
+    if arrangement == "dict" and isinstance(held, Schemas.OfScalar.Data) and held.type is str:
+        return {index: element(visitor) for index, visitor in pairs}
+    return [{"index": _plain_index(schema, index, ref), "element": element(visitor)} for index, visitor in pairs]
 
 
 def _member(read: Any, schema: Any, ref: Ref) -> tuple[bool, PlainData]:
@@ -77,6 +159,8 @@ def _member(read: Any, schema: Any, ref: Ref) -> tuple[bool, PlainData]:
         return (False, None) if value is None else (True, held.to_plain(value))
     if not _present(read):
         return False, None
+    if isinstance(held, Schemas.OfContainer.Data):
+        return True, _container(read, held, ref)
     return True, _object(read, held, ref) if isinstance(held, Schemas.OfObject.Data) else _record(read, held, ref)
 
 
@@ -122,8 +206,11 @@ def _entry(read: Readers.OfEntry, adjacency: Schemas.OfAdjacency.Data, ref: Ref)
 class _Snapshot:
     """Writes the included objects, in first-reference order, each keyed by its qualified identity."""
 
-    def __init__(self, store: Stores.Store) -> None:
-        self._store = store
+    def __init__(self, store: Stores.Store, flat: bool = False) -> None:
+        self._store, self.flat = store, flat  # flat: how a dense container of several int indices is written
+
+    def __call__(self, target: Readers.OfObject) -> dict[str, PlainData]:  # the snapshot is the writers' `Ref`
+        return self._ref(target)
 
     def _symbol(self, value: Readers.OfObject) -> str:
         """An object's key in a snapshot, and in the links to it: its identity, qualified by its schema's registered
@@ -146,7 +233,7 @@ class _Snapshot:
             raise TypeError(f"a snapshot's root must be a reference object; {schema.name!r} is a value object schema")
         objects: dict[str, PlainData] = {}
         for value in include:
-            out = _object(value, value.as_schema(), self._ref)
+            out = _object(value, value.as_schema(), self)
             _sort_entries(value.as_schema(), out)
             objects[self._symbol(value)] = out
         return {"root": self._symbol(root), "objects": objects}
@@ -201,6 +288,13 @@ class _Record(NamedTuple):
     values: dict[str, Any]
 
 
+class _Elements(NamedTuple):
+    """A decoded container: its elements, each with its index, which `_fill` writes into its builder."""
+
+    schema: Any
+    items: list[tuple[Any, Any]]
+
+
 def _build(visitor: Any, record: _Record) -> Any:
     """Writes a decoded value object, union value or intersection value through its builder."""
     for name, value in record.values.items():
@@ -242,6 +336,8 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context:
             return schema.from_plain(plain)
         except DecodeError as error:
             raise error.at(path(*where)) from None
+    if isinstance(schema, Schemas.OfContainer.Data):
+        return _decode_container(schema, plain, where)
     noun, owner, member = _RECORDS[type(schema)]
     if not isinstance(plain, dict):
         raise DecodeError(f"{noun} must be a mapping, got {type(plain).__name__}", path=path(*where))
@@ -263,6 +359,83 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context:
     return _Record(schema, values)
 
 
+def _decode_index(schema: Schemas.OfContainer.Data, plain: PlainData, where: tuple) -> Any:
+    """An index read from its plain form: a scalar, or a value object index as the tuple of its properties."""
+    held = Schemas.structure(schema.index)
+    if isinstance(held, Schemas.OfScalar.Data):
+        return _decode(held, plain, where)
+    if schema.arrangement == "entries":
+        raise DecodeError("a container whose index is neither ordered nor hashable is not read from snapshots yet",
+                          path=path(*where))
+    record = _decode(held, plain, where)
+    missing = [name for name in held.properties if name not in record.values]
+    if missing:
+        raise DecodeError(f"an index has every property of its value object; {missing} are not set", path=path(*where))
+    return tuple(record.values[name] for name in held.properties)
+
+
+def _decode_container(schema: Schemas.OfContainer.Data, plain: PlainData, where: tuple) -> _Elements:
+    """A container read from the plain form its arrangement writes (see `_container`); a dense one of several int
+    indices nested or flat, whichever it is."""
+    items: list[tuple[Any, Any]] = []
+
+    def element(index: Any, value: PlainData, at: tuple) -> None:
+        if value is not None:
+            items.append((index, _decode(schema.element, value, at)))
+
+    def entries(value: PlainData) -> None:
+        if not isinstance(value, list):
+            raise DecodeError(f"a container must be a list, got {type(value).__name__}", path=path(*where))
+        for i, entry in enumerate(value):
+            if not isinstance(entry, dict) or set(entry) - {"index", "element"} or "index" not in entry:
+                raise DecodeError("an entry of a container is {'index': index, 'element': element}", path=path(*where, i))
+            element(_decode_index(schema, entry["index"], (*where, i, "index")), entry.get("element"), (*where, i, "element"))
+
+    names, arrangement, held = _tensor(schema), schema.arrangement, Schemas.structure(schema.index)
+    if arrangement == "dense" and _ints(schema):
+        if not isinstance(plain, list):
+            raise DecodeError(f"a dense container must be a list, got {type(plain).__name__}", path=path(*where))
+        for i, value in enumerate(plain):
+            element(i, value, (*where, i))
+    elif arrangement == "dense" and names is not None:
+        if isinstance(plain, dict) and set(plain) == {"shape", "items"}:  # flat, with its shape
+            shape, flat = plain["shape"], plain["items"]
+            if not (isinstance(shape, list) and len(shape) == len(names) and all(type(n) is int and n >= 0 for n in shape)
+                    and isinstance(flat, list) and len(flat) == math.prod(shape)):
+                raise DecodeError(f"a flat container's shape is {len(names)} sizes, and its items as many as they make",
+                                  path=path(*where))
+            for i, (cell, value) in enumerate(zip(itertools.product(*[range(n) for n in shape]), flat)):
+                element(cell, value, (*where, "items", i))
+        else:
+            def nested(value: PlainData, prefix: tuple, at: tuple) -> None:
+                if len(prefix) == len(names):
+                    element(prefix, value, at)
+                elif not isinstance(value, list):
+                    raise DecodeError(f"a container of {len(names)} indices nests {len(names)} lists", path=path(*at))
+                else:
+                    for i, inner in enumerate(value):
+                        nested(inner, (*prefix, i), (*at, i))
+            nested(plain, (), where)
+    elif arrangement == "sparse" and (_ints(schema) or names is not None):
+        if not isinstance(plain, list):
+            raise DecodeError(f"a sparse container must be a list of blocks, got {type(plain).__name__}", path=path(*where))
+        for b, block in enumerate(plain):
+            if not isinstance(block, dict) or set(block) != {"at", "items"} or not isinstance(block["items"], list):
+                raise DecodeError("a block is {'at': index, 'items': [element, ...]}", path=path(*where, b))
+            start = _decode_index(schema, block["at"], (*where, b, "at"))
+            for i, value in enumerate(block["items"]):
+                index = start + i if _ints(schema) else (*start[:-1], start[-1] + i)
+                element(index, value, (*where, b, "items", i))
+    elif arrangement == "dict" and isinstance(held, Schemas.OfScalar.Data) and held.type is str:
+        if not isinstance(plain, dict):
+            raise DecodeError(f"a container keyed by text must be a mapping, got {type(plain).__name__}", path=path(*where))
+        for key, value in plain.items():
+            element(key, value, (*where, key))
+    else:
+        entries(plain)
+    return _Elements(schema, items)
+
+
 def _kind(schema: Schemas.OfAny.Data) -> type:
     """The kind of a type's values: its structure's (see `Schemas.structure`)."""
     return type(Schemas.structure(schema))
@@ -270,6 +443,8 @@ def _kind(schema: Schemas.OfAny.Data) -> type:
 
 def _decoded_key(value: Any) -> Hashable:
     """Equality key of a decoded value, per EQUALITY.md."""
+    if isinstance(value, _Elements):
+        return ("container", frozenset((index, _decoded_key(v)) for index, v in value.items))
     if isinstance(value, _Record):
         return ("record", tuple((name, _decoded_key(v)) for name, v in sorted(value.values.items())))
     return (type(value).__name__, value.hex() if isinstance(value, float) else value)
@@ -615,14 +790,38 @@ def _within(visitor: Any, steps: Steps, then: Callable[[Any], None], place: Call
 
 
 def _set(visitor: Any, name: str, value: Any) -> None:
-    """Writes a decoded value into the member `name`: a scalar, a value object, union value or intersection value."""
+    """Writes a decoded value into the member `name`: a scalar, a value object, union value or intersection value, or a
+    container."""
     member = getattr(visitor, name)
-    if not isinstance(value, _Record):
+    if isinstance(value, _Elements):
+        if _holds_members(visitor):
+            member(lambda held: _fill_elements(held, value))
+        else:
+            member.as_value(lambda a: a.as_container(lambda held: _fill_elements(held, value)) or a)
+    elif not isinstance(value, _Record):
         member(value)
     elif _holds_members(visitor):
         member(lambda held: _build(held, value))
     else:
         member.as_value(lambda a: getattr(a, _SELECT[type(value.schema)])(lambda held: _build(held, value)) or a)
+
+
+def _fill_elements(container: Any, elements: _Elements) -> Any:
+    """Writes a decoded container through its builder, each element at its index, over what it held there."""
+    for index, value in elements.items:
+        _put(container.at(index), value)
+    return container
+
+
+def _put(element: Any, value: Any) -> None:
+    """Writes a decoded value through a `Visitors.OfAny`: a scalar, a value object, union value or intersection value,
+    or a container."""
+    if isinstance(value, _Elements):
+        element.as_container(lambda held: _fill_elements(held, value))
+    elif isinstance(value, _Record):
+        getattr(element, _SELECT[type(value.schema)])(lambda held: _build(held, value))
+    else:
+        element.as_scalar(value)
 
 
 def _fill(visitor: Visitors.OfEntry, row: dict[str, Any], resolve: Callable[[str], Any]) -> Visitors.OfEntry:
@@ -639,10 +838,11 @@ def _fill(visitor: Visitors.OfEntry, row: dict[str, Any], resolve: Callable[[str
 
 class ToPlain:
     """Serializes values to plain data, naming the schemas of objects in `store`: `ToPlain(store)(schema, value)`
-    dispatches on the schema's kind."""
+    dispatches on the schema's kind. `flat=True` writes a dense container of several int indices flat, with its
+    shape, rather than as nested arrays; reading takes either."""
 
-    def __init__(self, store: Stores.Store):
-        self._store = store
+    def __init__(self, store: Stores.Store, flat: bool = False):
+        self._store, self._flat = store, flat
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> PlainData:
         if isinstance(schema, Schemas.OfScalar.Data):
@@ -657,11 +857,11 @@ class ToPlain:
 
     def OfObject(self, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> PlainData:
         """Snapshot of `value` alone; its references to other objects are left unresolved."""
-        return _Snapshot(self._store).run(schema, value, [value])
+        return _Snapshot(self._store, self._flat).run(schema, value, [value])
 
     def Reachable(self, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> PlainData:
         """Snapshot of `value` and every object reachable from it through adjacencies (see `Reachable`)."""
-        return _Snapshot(self._store).run(schema, value, Reachable.of(value))
+        return _Snapshot(self._store, self._flat).run(schema, value, Reachable.of(value))
 
 
 class FromPlain:

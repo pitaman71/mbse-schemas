@@ -32,6 +32,8 @@ from __future__ import annotations
 from collections.abc import Callable, Hashable, Iterator, Mapping
 from typing import Any
 
+import itertools
+import math
 import uuid
 import weakref
 
@@ -169,6 +171,8 @@ def _scalar_key(value: Any) -> Hashable:
     if isinstance(value, _RecordData):
         values = object.__getattribute__(value, "_values")
         return ("object", id(value._schema), tuple(sorted((n, _scalar_key(v)) for n, v in values.items())))
+    if isinstance(value, _ContainerData):
+        return ("container", id(value._schema), frozenset((k, _scalar_key(v)) for k, v in value._items.items()))
     if type(value) not in (int, float, str, bool, bytes):
         raise TypeError(f"an entry property must be a scalar value or a value object, got {type(value).__name__}")
     if isinstance(value, float):
@@ -429,6 +433,23 @@ class _Empty(_Dunders):
     def select(self, spec: Any, cb: Any) -> _Empty:
         return self
 
+    as_container = _hand
+
+    def at(self, index: Any) -> _Empty:
+        return _Empty(self._reason)
+
+    def as_ordered(self, cb: Any) -> _Empty:  # nothing to visit: as an inapplicable container's, cb is not called
+        return self
+
+    as_dict = as_ordered
+
+    def as_entries(self, cb: Any) -> _Empty:
+        _visit(cb, iter(()))
+        return self
+
+    def __len__(self) -> int:
+        return 0
+
     def _refuse(self, *args: Any) -> Any:
         raise ReadOnlyError(self._reason)
 
@@ -541,6 +562,43 @@ class _Any(_Unassignable):
     def as_intersection(self, cb: Any) -> _Any:
         return self._record(Schemas.OfIntersection.Data, cb)
 
+    def as_container(self, cb: Any) -> _Any:
+        if not isinstance(self._type, Schemas.OfContainer.Data):
+            return self._hand(cb, _Empty(f"{self._label} does not hold a container"))
+        value = self._values.get(self._name)
+        if not self._writable:
+            if isinstance(value, _ContainerData):
+                if _is_function(cb):
+                    _visit(cb, value)
+                    return self
+                raise ReadOnlyError(f"{self._label} is read-only; write through a builder")
+            return self._hand(cb, _Empty(f"{self._label} is not set"))
+        if _is_function(cb):
+            _visit(cb, self._container())
+        else:
+            self._replace_container(cb)
+        return self
+
+    def _container(self) -> _ContainerBuilder:
+        """The builder of the container held, attached to the values when first written; one already attached."""
+        value = self._values.get(self._name)
+        if isinstance(value, _ContainerBuilder):
+            return value
+
+        def attach(builder: _ContainerBuilder) -> None:
+            self._touch()
+            self._values[self._name] = builder
+
+        return _ContainerBuilder(self._type, value if isinstance(value, _ContainerData) else None, self._store, attach,
+                                 self._label)
+
+    def _replace_container(self, value: Any) -> None:
+        """Writes a container given as a value: its elements are copied when it is placed."""
+        if not isinstance(value, _Containing) or value._schema is not self._type:
+            raise TypeError(f"{self._label} takes a container of its schema or a Spec, got {type(value).__name__}")
+        self._touch()
+        self._values[self._name] = value
+
     def _hand(self, cb: Any, empty: _Empty) -> _Any:
         empty._hand(cb)
         return self
@@ -604,12 +662,286 @@ class _Any(_Unassignable):
             self._write_record(lambda u: _member_of(u, branch.name)(value))
         elif isinstance(held, RECORD_KINDS):
             self._replace(value)
+        elif isinstance(held, Schemas.OfContainer.Data):
+            self._replace_container(value)
         else:
             self.as_scalar(value)
 
     def clear(self) -> None:
         _write(self._writable, f"{self._label} is read-only; write through a builder")
         self._values.pop(self._name, None)
+
+# --- Containers ---
+
+
+def _index_key(schema: Schemas.OfContainer.Data, index: Any, label: str) -> Hashable:
+    """The key a container holds an element by: its index, checked against the index type, a scalar or, for an index
+    of a value object of scalars, a tuple of the value object's properties in declaration order; any other index, a
+    value object, by its equality key."""
+    kind = Schemas.structure(schema.index)
+    if isinstance(kind, Schemas.OfScalar.Data):
+        if kind.type is not None and type(index) is not kind.type:
+            raise TypeError(f"{label}: an index is a {kind.type.__name__}, got {type(index).__name__}")
+        return index
+    if schema.arrangement != "entries":
+        hosts = [Schemas.structure(prop.type).type for prop in kind.properties.values()]
+        if not isinstance(index, tuple) or len(index) != len(hosts) or any(
+                host is not None and type(i) is not host for i, host in zip(index, hosts)):
+            names = ", ".join(host.__name__ if host is not None else "?" for host in hosts)
+            raise TypeError(f"{label}: an index is a tuple of {names}, got {index!r}")
+        return index
+    if not isinstance(index, _RecordData) or index._schema is not kind:
+        raise TypeError(f"{label}: an index is a value of its index type, got {type(index).__name__}")
+    return _scalar_key(index)
+
+
+def _positional(schema: Schemas.OfContainer.Data) -> bool:
+    """Whether a container's positions are its int indices: dense or sparse, indexed by an int."""
+    index = Schemas.structure(schema.index)
+    return schema.arrangement in ("dense", "sparse") and isinstance(index, Schemas.OfScalar.Data) and index.type is int
+
+
+class _Containing(_Unassignable):
+    """`Visitors.OfContainer` over a container's elements, held by key (see `_index_key`), with each key's index. Each
+    element is read and written through the `Visitors.OfAny` of its slot."""
+
+    _writable = False
+
+    def _setup(self, schema: Schemas.OfContainer.Data, items: dict[Hashable, Any], indices: dict[Hashable, Any],
+               store: OfStore | None, label: str) -> None:
+        object.__setattr__(self, "_schema", schema)
+        object.__setattr__(self, "_items", items)
+        object.__setattr__(self, "_indices", indices)
+        object.__setattr__(self, "_store", store)
+        object.__setattr__(self, "_label", label)
+
+    def as_schema(self) -> Schemas.OfContainer.Data:
+        return self._schema
+
+    def _touch(self) -> None:
+        """A builder attaches itself to what holds it when written."""
+
+    def _keys(self) -> list[Hashable]:
+        """The keys of the elements present: by index where the index is ordered, else in the order added."""
+        return sorted(self._items) if self._schema.arrangement in ("dense", "sparse") else list(self._items)
+
+    def _index(self, key: Hashable) -> Any:
+        return self._indices.get(key, key)
+
+    def _element(self, key: Hashable, index: Any) -> _Any:
+        def wrote() -> None:
+            self._indices[key] = index
+
+        return _Any(self._items, key, self._schema.element, self._store, self._writable, f"{self._label}[{index!r}]", wrote)
+
+    def __len__(self) -> int:
+        """The number of positions: in a dense container of int indices, every index from 0 to the last (and every
+        cell of the box they span, for several); else the elements present."""
+        if self._schema.arrangement != "dense" or not self._items:
+            return len(self._items)
+        keys = list(self._items)
+        if isinstance(keys[0], int) and not isinstance(keys[0], bool):
+            return max(keys) + 1
+        if isinstance(keys[0], tuple) and all(isinstance(i, int) and not isinstance(i, bool) for i in keys[0]):
+            return math.prod(max(key[d] for key in keys) + 1 for d in range(len(keys[0])))
+        return len(keys)
+
+    def at(self, index: Any) -> _Any:
+        """The element at `index`, which reads as empty where there is none; a builder's is writable, and writing it
+        adds it."""
+        key = _index_key(self._schema, index, self._label)
+        if self._writable:
+            if self._schema.arrangement == "dense" and _negative(index):
+                raise ValueError(f"{self._label}: a dense container's index is not negative, got {index!r}")
+            self._touch()
+        return self._element(key, index)
+
+    def remove(self, index: Any) -> _Containing:
+        """Removes the element at `index`, if any."""
+        _write(self._writable, f"{self._label} is read-only; write through a builder")
+        self._touch()
+        key = _index_key(self._schema, index, self._label)
+        self._items.pop(key, None)
+        self._indices.pop(key, None)
+        return self
+
+    def as_ordered(self, cb: Any) -> _Containing:
+        """A `Visitors.OfIterator` over the positions, for a dense or sparse container; `cb` is not called otherwise."""
+        if self._schema.arrangement in ("dense", "sparse"):
+            _visit(cb, _Iterator(self))
+        return self
+
+    def as_dict(self, cb: Any) -> _Containing:
+        """The elements by index, for a container arranged as a dict; `cb` is not called otherwise."""
+        if self._schema.arrangement == "dict":
+            _visit(cb, {self._index(key): self._element(key, self._index(key)) for key in self._keys()})
+        return self
+
+    def as_entries(self, cb: Any) -> _Containing:
+        """Each element present with its index, in order, for every container."""
+        _visit(cb, iter([(self._index(key), self._element(key, self._index(key))) for key in self._keys()]))
+        return self
+
+    def _positions(self) -> list[Any]:
+        """The indices an iterator visits: every position of a dense container of int indices, else those present."""
+        keys = self._keys()
+        if self._schema.arrangement == "dense" and keys and _positional(self._schema):
+            return list(range(len(self)))
+        if self._schema.arrangement == "dense" and keys and isinstance(keys[0], tuple):
+            return list(itertools.product(*[range(max(key[d] for key in keys) + 1) for d in range(len(keys[0]))]))
+        return [self._index(key) for key in keys]
+
+    def _insert(self, index: int, spec: Any) -> None:
+        """Writes an element at the int index `index`, moving the elements at it and after up by one."""
+        self._touch()
+        for key in sorted((k for k in self._items if k >= index), reverse=True):
+            self._items[key + 1] = self._items.pop(key)
+            self._indices[key + 1] = self._indices.pop(key, key) + 1
+        element = self._element(index, index)
+        if _is_function(spec):
+            _visit(spec, element)
+        else:
+            element.write(spec)
+
+    def __call__(self, spec: Any) -> Any:
+        """As a union's branch or an intersection's part: writes through a Spec, or takes the elements of a container
+        given, and returns the value it is a member of."""
+        _write(self._writable, f"{self._label} is read-only; write through a builder")
+        self._touch()
+        if _is_function(spec):
+            _visit(spec, self)
+        elif isinstance(spec, _Containing) and spec._schema is self._schema:
+            self._items.clear()
+            self._items.update(spec._items)
+            self._indices.clear()
+            self._indices.update(spec._indices)
+        else:
+            raise TypeError(f"{self._label} takes a container of its schema or a Spec, got {type(spec).__name__}")
+        return getattr(self, "_parent", None)
+
+    def __repr__(self) -> str:
+        return f"<container of {len(self._items)}>"
+
+
+def _negative(index: Any) -> bool:
+    values = index if isinstance(index, tuple) else (index,)
+    return any(isinstance(i, int) and i < 0 for i in values)
+
+
+class _ContainerData(_Containing):
+    """A container's value, read-only."""
+
+    def __init__(self, schema: Schemas.OfContainer.Data, items: dict[Hashable, Any], indices: dict[Hashable, Any]):
+        self._setup(schema, items, indices, None, "the container")
+
+
+class _ContainerBuilder(_Containing):
+    """A writable `Visitors.OfContainer`, starting from `source` if given. It attaches itself to what holds it
+    (`attach`) when first written."""
+
+    _writable = True
+
+    def __init__(self, schema: Schemas.OfContainer.Data, source: _ContainerData | None, store: OfStore | None,
+                 attach: Callable[[_ContainerBuilder], None], label: str, parent: Any = None):
+        items = dict(source._items) if source is not None else {}
+        indices = dict(source._indices) if source is not None else {}
+        self._setup(schema, items, indices, store, label)
+        object.__setattr__(self, "_attach", attach)
+        object.__setattr__(self, "_attached", False)
+        object.__setattr__(self, "_parent", parent)
+
+    def _touch(self) -> None:
+        if not self._attached:
+            object.__setattr__(self, "_attached", True)
+            self._attach(self)
+
+    def build(self) -> _ContainerData:
+        items = {key: built for key, built in ((k, _built(v)) for k, v in self._items.items()) if built is not None}
+        return _ContainerData(self._schema, items, {key: self._indices.get(key, key) for key in items})
+
+
+class _Iterator(_Unassignable):
+    """`Visitors.OfIterator`: a position in a dense or sparse container, before its first position, at one, or past its
+    last. Past an end, a builder's `as_item` extends the container there."""
+
+    def __init__(self, container: _Containing):
+        self._container, self._at = container, -1
+
+    def _positions(self) -> list[Any]:
+        return self._container._positions()
+
+    def first(self) -> _Iterator:
+        self._at = 0
+        return self
+
+    def last(self) -> _Iterator:
+        self._at = len(self._positions()) - 1
+        return self
+
+    def next(self) -> _Iterator:
+        self._at = min(self._at + 1, len(self._positions()))
+        return self
+
+    def prev(self) -> _Iterator:
+        self._at = max(self._at - 1, -1)
+        return self
+
+    def index(self) -> Any:
+        """The index at the position, None before the first or past the last."""
+        positions = self._positions()
+        return positions[self._at] if 0 <= self._at < len(positions) else None
+
+    def as_item(self, cb: Any) -> _Iterator:
+        """Hands over the element at the position. Past an end, a read-only container's `cb` is not called, and a
+        builder's container is extended there, the position then resting on the new element."""
+        index = self.index()
+        if index is not None:
+            _visit(cb, self._container.at(index))
+        elif self._container._writable:
+            self._extend(cb)
+        return self
+
+    def _extend(self, spec: Any) -> None:
+        self._insertable()
+        positions = self._positions()
+        if self._at < 0:
+            self._at = 0
+            self._place(positions[0] if positions else 0, spec)
+        else:
+            self._at = len(positions)
+            self._place(positions[-1] + 1 if positions else 0, spec)
+
+    def prepend(self, spec: Any) -> _Iterator:
+        """Inserts an element before the position, which then rests on it."""
+        self._insertable()
+        positions = self._positions()
+        self._at = max(self._at, 0)
+        self._place(positions[self._at] if self._at < len(positions) else (positions[-1] + 1 if positions else 0), spec)
+        return self
+
+    def append(self, spec: Any) -> _Iterator:
+        """Inserts an element after the position, which then rests on it."""
+        self._insertable()
+        positions = self._positions()
+        self._at = min(self._at + 1, len(positions))
+        self._place(positions[self._at - 1] + 1 if self._at > 0 else (positions[0] if positions else 0), spec)
+        return self
+
+    def _insertable(self) -> None:
+        """Refuses an insertion a read-only container, or one whose indices are not ints, cannot take."""
+        container = self._container
+        _write(container._writable, f"{container._label} is read-only; write through a builder")
+        if not _positional(container._schema):
+            raise ValueError(f"{container._label}: only a dense or sparse container of int indices has positions to "
+                             "insert at; write through at(index)")
+
+    def _place(self, index: Any, spec: Any) -> None:
+        container = self._container
+        container._insert(index, spec)
+        self._at = self._positions().index(index)
+
+    def __repr__(self) -> str:
+        return f"<iterator at {self.index()!r}>"
 
 
 class _Property(_Dunders):
@@ -700,9 +1032,15 @@ def _kind_visitor(values: dict[str, Any], name: str, schema: Any, store: OfStore
     if isinstance(held, Schemas.OfScalar.Data):
         return _Scalar(values, name, held, writable, label, parent, on_write)
     if not writable:
-        return value if isinstance(value, _RecordData) else _Empty(f"{label} is not set")
-    if isinstance(value, _RecordBuilder):
+        return value if isinstance(value, (_RecordData, _ContainerData)) else _Empty(f"{label} is not set")
+    if isinstance(value, (_RecordBuilder, _ContainerBuilder)):
         return value
+    if isinstance(held, Schemas.OfContainer.Data):
+        def placed(builder: _ContainerBuilder) -> None:
+            on_write()  # type: ignore[misc]
+            values[name] = builder
+
+        return _ContainerBuilder(held, value if isinstance(value, _ContainerData) else None, store, placed, label, parent)
 
     def attach(builder: _RecordBuilder) -> None:
         on_write()  # type: ignore[misc]  # a writable member is a union's or an intersection's, which says what writing does
@@ -976,9 +1314,25 @@ def _set(target: Any, name: str, value: Any) -> None:
     object.__getattribute__(target, "_values")[name] = value
 
 
+def _prior(old: Any, key: Hashable, new: Any) -> Any:
+    """What a container's element `new` takes the place of, in the container `old`: the value object it is, or edits,
+    where `old` holds that one (an element may have moved), else the element at its key."""
+    if not isinstance(old, _ContainerData):
+        return None
+    held = {id(value): value for value in old._items.values()}
+    for candidate in (new, getattr(new, "_source", None)):
+        if candidate is not None and id(candidate) in held:
+            return candidate
+    return old._items.get(key)
+
+
 def _stage(old: Any, new: Any, mapping: dict[int, Any]) -> Any:
     """Prepares `new` to be placed where `old` was: a value object owned elsewhere is copied, and `mapping` records, for
-    each value object copied or edited, the one that takes its place, so that the entries among them link those."""
+    each value object copied or edited, the one that takes its place, so that the entries among them link those. A
+    container's elements are staged each in turn."""
+    if isinstance(new, _ContainerData) and new is not old:
+        items = {key: _stage(_prior(old, key, value), value, mapping) for key, value in new._items.items()}
+        return _ContainerData(new._schema, items, dict(new._indices))
     if not isinstance(new, _RecordData) or new is old:
         return new
     if new._source is not None and new._source is old:  # an edit of `old`, which keeps its identity
@@ -1009,19 +1363,33 @@ def _copy(record: _RecordData) -> _RecordData:
     store = _store_of(record)
     builder = _RecordBuilder(record._schema, store=store)
     builder._copy_of = record
-    builder._values = {name: _copy(v) if isinstance(v, _RecordData) else v for name, v in record._values.items()}
+    builder._values = {name: _copied(v) for name, v in record._values.items()}
     for name, adjacency in record._schema.adjacencies.items() if isinstance(record._schema, ObjectSchema) else ():
         for entry in _linking(adjacency.relation, adjacency.me, record):
             copied = _EntryBuilder(adjacency.relation, adjacency.me, store)
             copied._links = {link: target for link, target in entry._links.items() if link != adjacency.me}
-            copied._values = {n: _copy(v) if isinstance(v, _RecordData) else v for n, v in entry._properties.items()}
+            copied._values = {n: _copied(v) for n, v in entry._properties.items()}
             copied._source = entry
             builder._entries.setdefault(name, []).append(copied)
     return builder.build()  # a placed value object, the only kind copied, has no pending entries
 
 
+def _copied(value: Any) -> Any:
+    """A copy of a held value: of a value object, or of a container and the value objects it holds."""
+    if isinstance(value, _RecordData):
+        return _copy(value)
+    if isinstance(value, _ContainerData):
+        return _ContainerData(value._schema, {k: _copied(v) for k, v in value._items.items()}, dict(value._indices))
+    return value
+
+
 def _finish(owner: Any, old: Any, new: Any, mapping: dict[int, Any]) -> Any:
-    """Places a staged value: an edit is merged into `old`, and a value object built for it is adopted by `owner`."""
+    """Places a staged value: an edit is merged into `old`, and a value object built for it is adopted by `owner`, as
+    those a container holds are."""
+    if isinstance(new, _ContainerData) and new is not old:
+        for key, value in list(new._items.items()):
+            new._items[key] = _finish(owner, _prior(old, key, value), value, mapping)
+        return new
     if not isinstance(new, _RecordData) or new is old:
         return new
     if new._source is not None and new._source is old:
@@ -1060,8 +1428,14 @@ def _merge(old: _RecordData, new: _RecordData, mapping: dict[int, Any]) -> None:
 
 
 def _records(values: Any) -> list[_RecordData]:
-    """The value objects that `values` hold directly."""
-    return [value for value in values if isinstance(value, _RecordData)]
+    """The value objects that `values` hold directly, or in the containers they hold."""
+    found: list[_RecordData] = []
+    for value in values:
+        if isinstance(value, _RecordData):
+            found.append(value)
+        elif isinstance(value, _ContainerData):
+            found += _records(value._items.values())
+    return found
 
 
 def _held(owner: Any) -> list[Any]:
@@ -1117,6 +1491,8 @@ def _built(value: Any) -> Any:
     """A value as a builder finalizes it: a value object's builder, built; a union value without a branch, none."""
     if isinstance(value, _RecordBuilder):
         return None if isinstance(value._schema, Schemas.OfUnion.Data) and not value._values else value.build()
+    if isinstance(value, _ContainerBuilder):
+        return value.build()
     return value
 
 
@@ -1504,7 +1880,7 @@ class _ObjectBuilder(_Unassignable):
 
 
 _VALUES = (_ObjectData, _RecordData, _Entry, _Property, _Scalar, _RecordBuilder, _LinkMember, _Adjacency,
-           _AdjacencyBuilder, _Empty, _EntryBuilder)
+           _AdjacencyBuilder, _Empty, _EntryBuilder, _Containing, _Iterator)
 """The classes whose instances are values, not the callable form of a Spec, though some are callable."""
 
 

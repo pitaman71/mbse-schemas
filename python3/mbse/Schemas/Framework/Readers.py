@@ -7,13 +7,13 @@ enforces it. Every `Visitors.OfX` is a `Readers.OfX`.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from typing import TYPE_CHECKING, Any, Generic, Protocol, Self, TypeVar
 
 if TYPE_CHECKING:
     from . import Schemas
 
-__all__ = ["OfScalar", "OfAny", "OfProperty", "OfObject", "OfAdjacency", "OfEntry", "OfUnion", "OfIntersection",
+__all__ = ["OfScalar", "OfAny", "OfProperty", "OfObject", "OfAdjacency", "OfEntry", "OfUnion", "OfIntersection", "OfContainer", "OfIterator",
            "OfPredicate"]
 
 T = TypeVar("T", int, float, str, bool, bytes)
@@ -49,6 +49,36 @@ class OfAny(Protocol):
     def as_union(self, cb: Read[OfUnion]) -> Self: ...
 
     def as_intersection(self, cb: Read[OfIntersection]) -> Self: ...
+
+    def as_container(self, cb: Read[OfContainer]) -> Self: ...
+
+
+class OfContainer(Protocol):
+    def as_schema(self) -> Schemas.OfContainer.Data: ...
+
+    def __len__(self) -> int: ...
+
+    def at(self, index: Any) -> OfAny: ...
+
+    def as_ordered(self, cb: Read[OfIterator]) -> Self: ...
+
+    def as_dict(self, cb: Read[Mapping[Any, OfAny]]) -> Self: ...
+
+    def as_entries(self, cb: Read[Iterator[tuple[Any, OfAny]]]) -> Self: ...
+
+
+class OfIterator(Protocol):
+    def first(self) -> Self: ...
+
+    def last(self) -> Self: ...
+
+    def next(self) -> Self: ...
+
+    def prev(self) -> Self: ...
+
+    def index(self) -> Any: ...
+
+    def as_item(self, cb: Read[OfAny]) -> Self: ...
 
 
 class OfProperty(Protocol):

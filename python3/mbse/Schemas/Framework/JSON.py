@@ -233,8 +233,8 @@ class ToJSON:
     """Encodes values, naming the schemas of objects in `store`: `ToJSON(store)(schema, value)` dispatches on the
     schema's kind."""
 
-    def __init__(self, store: Stores.Store):
-        self._plain = Plain.ToPlain(store)
+    def __init__(self, store: Stores.Store, flat: bool = False):
+        self._plain = Plain.ToPlain(store, flat)  # flat: see Plain.ToPlain
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any, *, indent: int | None = None) -> str:
         return dumps(self._plain(schema, value), indent=indent)

@@ -1022,12 +1022,20 @@ def _index_kind(index: Any) -> str | None:
     return None
 
 
+def _integer_like(index: Any) -> bool:
+    """Whether an index is an int, or a value object of ints: a dense container's positions, by default."""
+    index = _structure(index)
+    if isinstance(index, _ScalarData):
+        return index.type is int
+    return _index_kind(index) == "ordered" and all(_structure(p.type).type is int for p in index.properties.values())
+
+
 @dataclass(eq=False)
 class _ContainerData:
     """A container: elements, each of the element type, held by index, each of the index type. Dense, its elements
-    are a packed array; sparse, an associative store of dense blocks; with neither, it is dense where its index has a
-    total order, a dict (by index) where its index is hashable, and its elements paired with their indices
-    otherwise."""
+    are a packed array; sparse, an associative store of dense blocks; with neither, it is dense where its index is
+    integer-like (an int, or a value object of ints), a dict (by index) where its index is otherwise hashable, and its
+    elements paired with their indices otherwise."""
 
     index: Any = None  # OfAny.Data
     element: Any = None  # OfAny.Data
@@ -1043,7 +1051,7 @@ class _ContainerData:
         if self.layout is not None:
             return self.layout
         kind = _index_kind(self.index)
-        return "dense" if kind == "ordered" else "dict" if kind == "hashable" else "entries"
+        return "dense" if _integer_like(self.index) else "dict" if kind is not None else "entries"
 
     def validate(self) -> list[str]:
         problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)

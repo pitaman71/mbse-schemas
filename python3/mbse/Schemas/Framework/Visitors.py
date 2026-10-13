@@ -28,7 +28,7 @@ value, and a writable one is unhashable.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from typing import TYPE_CHECKING, Any, Generic, Protocol, Self, TypeVar
 
 from .Specs import Callback
@@ -46,6 +46,8 @@ __all__ = [
     "OfEntry",
     "OfUnion",
     "OfIntersection",
+    "OfContainer",
+    "OfIterator",
     "OfPredicate",
 ]
 
@@ -97,6 +99,8 @@ class OfAny(Protocol):
     def as_union(self, cb: Callback[OfUnion]) -> Self: ...
 
     def as_intersection(self, cb: Callback[OfIntersection]) -> Self: ...
+
+    def as_container(self, cb: Callback[OfContainer]) -> Self: ...
 
     def clear(self) -> None: ...
 
@@ -190,6 +194,64 @@ class OfEntry(Protocol):
 
     def __getattr__(self, name: str) -> Any:
         """A link or a property, by name."""
+        ...
+
+
+class OfContainer(Protocol):
+    """A container: elements by index, entries latent. An index is a scalar, or a tuple of a value object index's
+    properties in declaration order; an element is read and written through its `Visitors.OfAny`."""
+
+    def as_schema(self) -> Schemas.OfContainer.Data: ...
+
+    def __len__(self) -> int:
+        """The positions of a dense container of int indices (every index up to the last), else the elements present."""
+        ...
+
+    def at(self, index: Any) -> OfAny:
+        """The element at `index`, empty where there is none; writable in a builder, where writing adds it."""
+        ...
+
+    def remove(self, index: Any) -> Self: ...
+
+    def as_ordered(self, cb: Callable[[OfIterator], Any]) -> Self:
+        """An iterator over the positions of a dense or sparse container; `cb` is not called for another."""
+        ...
+
+    def as_dict(self, cb: Callable[[Mapping[Any, OfAny]], Any]) -> Self:
+        """The elements by index of a container arranged as a dict; `cb` is not called for another."""
+        ...
+
+    def as_entries(self, cb: Callable[[Iterator[tuple[Any, OfAny]]], Any]) -> Self:
+        """Each element present with its index, in order, for every container."""
+        ...
+
+
+class OfIterator(Protocol):
+    """A position in a dense or sparse container: at a position, before the first, or past the last."""
+
+    def first(self) -> Self: ...
+
+    def last(self) -> Self: ...
+
+    def next(self) -> Self: ...
+
+    def prev(self) -> Self: ...
+
+    def index(self) -> Any:
+        """The index at the position; None before the first or past the last."""
+        ...
+
+    def as_item(self, cb: Callback[OfAny]) -> Self:
+        """The element at the position. Past an end, `cb` is not called for a read-only container, and a writable one
+        is extended there."""
+        ...
+
+    def prepend(self, spec: Callback[OfAny]) -> Self:
+        """Inserts an element before the position, which then rests on it; only where the indices are ints."""
+        ...
+
+    def append(self, spec: Callback[OfAny]) -> Self:
+        """Inserts an element after the position, which then rests on it; only where the indices are ints."""
         ...
 
 

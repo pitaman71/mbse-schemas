@@ -20,7 +20,9 @@ entry equal to one a set relation holds elides it, and removing where no entry a
 
 Scalars read compactly through dunders (`int`, `float`, `str`, `bool`, `bytes`), sugar over `get()`, on
 `Visitors.OfScalar` and, passing through `as_scalar`, on `Visitors.OfProperty` (`str(card.name)`). Each raises when
-the value is not set or is not of its type.
+the value is not set or is not of its type. The same visitors compare and order as their values do
+(`card.name == "Ada"`, `card.age < 40`), a value of another kind by its identity; a read-only one hashes as its
+value, and a writable one is unhashable.
 """
 
 from __future__ import annotations

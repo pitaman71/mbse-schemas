@@ -156,7 +156,14 @@ str(card.name)
 bool(card.vip)
 bytes(card.photo)
 
-# TypeScript: [Symbol.toPrimitive] and valueOf, as far as they reach (EQUIVALENCE.md)
+# comparison: a scalar visitor compares, orders and hashes as its value, a value of another kind by its identity;
+# read-only visitors are hashable, writable ones not
+card.name == "Ada"
+card.age < 40
+{card.name}
+
+# TypeScript: [Symbol.toPrimitive] and valueOf, as far as they reach (EQUIVALENCE.md); `===` cannot be overloaded,
+# so a scalar is compared once read: card.name.get() === "Ada"
 ```
 
 ## Adjacency accessors

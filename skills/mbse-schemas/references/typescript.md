@@ -96,6 +96,7 @@ B.Name().prop(value).valueProp((p: any) => p.as_object((r: any) => r.x(1n))).cre
 B.Name().adjacencyName((a: any) => a.insert((e: any) => e.link(obj).entryProp(v))).create();   // an entry, inserted
 B.Name(obj).prop(v).update();                              // change obj; .clone() makes a changed copy instead
 `${obj.prop}`; BigInt(obj.count); obj.prop.get();          // a scalar: toPrimitive, or get(); get() is null when absent
+obj.prop.get() === "Ada";                                  // compare once read: a member is never `===` a scalar
 obj.prop.as_scalar((s: any) => s.set(v));                  // a property's scalar visitor; .as_value(cb) for any kind
 B.Name(obj).prop((p: any) => p.as_value((v: any) => v.clear())).update();   // clear a value
 obj.valueProp.as_object((r: any) => r);                    // a value object's visitor, its members as an object's

@@ -21,7 +21,8 @@
  *
  * Scalars read compactly through `[Symbol.toPrimitive]` and `valueOf`, sugar over `get()`, on `Visitors.OfScalar` and,
  * passing through `as_scalar`, on `Visitors.OfProperty` (`` `${card.name}` ``, `+card.age`). Each throws when the value
- * is not set or is not of the type asked for. They reach less far than Python's dunders: not `===`, nor truthiness (see
+ * is not set or is not of the type asked for. They reach less far than Python's dunders: not `===`, nor truthiness, so
+ * a scalar is compared once read (`card.name.get() === "Ada"`), where Python compares the member itself (see
  * EQUIVALENCE.md).
  */
 

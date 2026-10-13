@@ -41,7 +41,8 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
 6. **Scalar types are exact, never coerced.** `int`, `float`, `bool`, `str` and `bytes` are distinct. In TypeScript,
    `int` is `bigint`.
 7. **Objects are read-only visitors.** Read a scalar with `str(obj.name)` or `obj.name.get()` (TypeScript:
-   `` `${obj.name}` ``), never by comparing the member itself. Change objects through a builder, whose members take a
+   `` `${obj.name}` ``). In Python a member compares and orders as its value (`obj.name == "Ada"`); in TypeScript
+   compare it once read (`obj.name.get() === "Ada"`), since `===` on the member itself is never true. Change objects through a builder, whose members take a
    value or a callable given the visitor, and which ends with `create()`, `clone()` or `update()`; entries are
    inserted and removed through an adjacency's visitor (`.phones(lambda a: a.insert(...))`).
 8. **Everything lives in a store.** `store = Proxies.OfStore()` holds named schemas, and as data what its

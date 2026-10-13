@@ -82,6 +82,7 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | A name a visitor's schema lacks | reads as empty; a name starting with `_` raises `AttributeError` | reads as empty; a name starting with `_`, or a JavaScript protocol probe the schema does not declare, reads as `undefined` | VIS-05, PRX-02, PRX-18 |
 | Callable visitors | `__call__` | a `Proxy` with a function target, its `name` and `length` hidden | VIS-03 |
 | Scalar sugar | the dunders, each of its own type | `[Symbol.toPrimitive]` and `valueOf`; never `===` on a member | VIS-06 |
+| Scalar comparison | a scalar visitor compares, orders and hashes as its value (`card.name == "Ada"`) | compared once read (`card.name.get() === "Ada"`) | VIS-06 |
 | Assigning to a visitor | refused by data instances, value objects and entries | refused by every visitor | VIS-03, PRX-02, PRX-18 |
 | Name collisions (F2) | names starting with `_` and a builder's own methods are never members | the same, and declared names win over JavaScript's own members | PRX-04 |
 | Identity (F12), `as_identity()` | `id(self)` as text, may be reused after collection | a counter as text, never reused | PRX-02 |

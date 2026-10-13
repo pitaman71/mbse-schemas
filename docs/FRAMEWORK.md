@@ -880,6 +880,13 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     meta-relations; until then, lists): a symbol is a name with an optional reference object schema, which a
     predicate's symbols require and an entry's links may leave unset;
   - a predicate's `requires` is one `Schemas.Form` ("one form").
+  - scalar equality stays idiomatic, the user's concern being "the loss of language-idiomatic equality between scalars
+    including strings", and their decision the recommendation they accepted ("I accept your recommendation"): in Python
+    a scalar visitor compares, orders and hashes as its value (`card.name == "Ada"`, `card.age < 40`), sugar over
+    `get()` as the dunders are, a value of another kind comparing by its identity, a read-only visitor hashable and a
+    writable one not; TypeScript, where `===` cannot be overloaded, compares a scalar once read
+    (`card.name.get() === "Ada"`), `==` converting but not being the idiom; data instances' scalar members stay
+    visitors in both languages, not primitives;
   - the protocol is VISITOR_PATTERN.md's, as the user streamlined it; the user decided its gaps so:
     `Proxies.OfX.Data` and `Proxies.OfX.Builder` implement it; the old protocol is removed before the new one is built,
     "no side by side period", since keeping both could make the new surface act like the old; the spec is "intentionally

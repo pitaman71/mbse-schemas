@@ -89,6 +89,7 @@ B.Name().prop(value).value_prop(lambda p: p.as_object(lambda r: r.x(1))).create(
 B.Name().adjacency_name(lambda a: a.insert(lambda e: e.link(obj).entry_prop(v))).create()   # an entry, inserted
 B.Name(obj).prop(v).update()                                # change obj; .clone() makes a changed copy instead
 str(obj.prop); int(obj.count); obj.prop.get()               # a scalar: the dunders, or get(); get() is None when absent
+obj.prop == "Ada"; obj.count < 3; {obj.prop}                # a scalar visitor compares, orders and hashes as its value
 obj.prop.as_scalar(lambda s: s.set(v))                      # a property's scalar visitor; .as_value(cb) for any kind
 B.Name(obj).prop(lambda p: p.as_value(lambda v: v.clear())).update()   # clear a value
 obj.value_prop.as_object(lambda r: ...)                     # a value object's visitor, its members as an object's

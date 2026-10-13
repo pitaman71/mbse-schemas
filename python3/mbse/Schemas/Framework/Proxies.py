@@ -238,12 +238,48 @@ def _converted(value: Any, host: type, label: str) -> Any:
     return value
 
 
+def _operand(value: Any) -> Any:
+    """What a comparison compares: a scalar visitor's value, or a value given as itself."""
+    return value._operand() if isinstance(value, _Dunders) else value
+
+
 class _Dunders:
-    """The scalar dunders, sugar over `get()`: each raises when the value is not set or not of its type. A subclass gives
-    `_scalar()`, the value, and `_label()`, what holds it."""
+    """The scalar dunders, sugar over `get()`: each conversion raises when the value is not set or not of its type, and
+    a visitor compares and orders as its value does (`card.name == "Ada"`), a value of another kind by its identity. A
+    read-only visitor hashes as its value; a writable one, whose value may change, is unhashable. A subclass gives
+    `_scalar()`, the value, `_held()`, the value held whatever its kind, `_label()`, what holds it, and `_writable`."""
 
     _scalar: Callable[[], Any]
+    _held: Callable[[], Any]
     _label: Callable[[], str]
+    _writable: bool
+
+    def _operand(self) -> Any:
+        scalar = self._scalar()
+        return scalar if scalar is not None else self._held()
+
+    def __eq__(self, other: object) -> bool:
+        return bool(self._operand() == _operand(other))
+
+    def __ne__(self, other: object) -> bool:
+        return not self == other
+
+    def __lt__(self, other: object) -> bool:
+        return bool(self._operand() < _operand(other))
+
+    def __le__(self, other: object) -> bool:
+        return bool(self._operand() <= _operand(other))
+
+    def __gt__(self, other: object) -> bool:
+        return bool(self._operand() > _operand(other))
+
+    def __ge__(self, other: object) -> bool:
+        return bool(self._operand() >= _operand(other))
+
+    def __hash__(self) -> int:
+        if self._writable:
+            raise TypeError(f"{self._label()} is writable, so unhashable")
+        return hash(self._operand())
 
     def __int__(self) -> int:
         return _converted(self._scalar(), int, self._label())
@@ -269,7 +305,12 @@ class _Empty(_Dunders):
         object.__setattr__(self, "_schema", schema)
         object.__setattr__(self, "_reason", reason)
 
+    _writable = False
+
     def _scalar(self) -> Any:
+        return None
+
+    def _held(self) -> Any:
         return None
 
     def _label(self) -> str:
@@ -326,6 +367,9 @@ class _Scalar(_Dunders):
 
     def _scalar(self) -> Any:
         return self.get()
+
+    def _held(self) -> Any:
+        return None  # a scalar visitor holds a scalar or nothing
 
     def _label(self) -> str:
         return self._label_text
@@ -497,6 +541,9 @@ class _Property(_Dunders):
 
     def _label(self) -> str:
         return f"property {self._name!r}"
+
+    def _held(self) -> Any:
+        return self._values.get(self._name)
 
     def _scalar(self) -> Any:
         found: list[Any] = []

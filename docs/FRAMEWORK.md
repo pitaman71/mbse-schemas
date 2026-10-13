@@ -782,13 +782,12 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Versioning schema names: whether a version is part of a name (`crm.Contact.v2`) or beside it. Snapshot keys are
   qualified by the registered name, so a program that registers a schema under another name than the writer's cannot
   read its snapshots (tutorial 9 reads old data in a store of its own, under the writer's name).
-- Splitting relations from containers, which the user is "very close to deciding": `OfRelation` with at least two
-  links, `OfContainer` (formerly `OfIndexed`) with exactly one, their meta-schemas nearly identical; a container is a
-  list or array in the target language where its properties are integer-like, a dict or map where they are hashable,
-  and a list of entries otherwise. `Visitors.OfAdjacency` is drafted to match in [Visitor pattern](VISITOR_PATTERN.md)
-  (`as_iterable`, `as_ordered` and positions), not yet built. Open: whether "integer-like" and "hashable" concern all
-  of an entry's properties or its key; whether an array's index is stored or its position; what a dict maps to; and
-  whether relations keep any order.
+- Containers (Resolved, Containers), to settle while V5 is built: the names on the wire (a sparse block's start and
+  run, an entry-like element's index and element, a flat dense container's shape) and the writer's option for several
+  int indices; whether a dense container's shape is a constraint (Parametrics) or data; how containers of one index
+  type compare (element by element, in order, as lists do) and validate (each index against the index type, each
+  element against the element type); the names `Visitors.OfIterator` and `Visitors.OfPosition`, which the draft in
+  [Visitor pattern](VISITOR_PATTERN.md) uses for one thing.
 - Equality edge cases listed in `EQUALITY.md` are proposals; confirm them.
 - Multi-object snapshot naming: confirm `Plain.ToPlain(store).Reachable(schema, value)` /
   `Plain.FromPlain(store).Reachable(schema, plain)` (still marked PROPOSED in the example).
@@ -814,6 +813,39 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   well-formedness constraint under identity-based serialization?
 
 ### Resolved
+
+- **Containers** (planned: [Meta-schemas overhaul](META_SCHEMAS.md), V5), as the user decided, superseding in part
+  The meta-schemas overhaul ("Relations completely subsume collections ... subsumes OfIndexed and requires 1-ary
+  relations", and the one-link relations and lists that followed from it): the user, "very close to deciding to
+  re-bifurcate OfRelation and OfContainer (formerly OfIndexed)", wrote in [Visitor pattern](VISITOR_PATTERN.md),
+  Containers, and answered:
+  - "Schemas.OfContainer is one of the variants under Schemas.OfAny and has an element type and an index type both of
+    which are Schemas.OfAny"; "OfRelation must have at least two links and can have any number of properties"; the
+    "metaschema for both is nearly identical";
+  - "OfContainer with a total order on its index schema becomes an array/list in the target language", "or else
+    OfContainer with a hashable index schema becomes an dict/map the target language", "or else OfContainer becomes
+    of entries in the target language"; for a dict, "yes the value is the element";
+  - "Schemas.OfContainer should allow '.dense()' or '.sparse()' only one of which may be configured. Dense stores
+    entries in a packed array, sparse is an associative store of dense blocks/sectors"; "dense and sparse are a
+    container schema prop, not a type schema prop"; with neither, a container whose index has a total order is dense
+    and one whose index is hashable a dict ("yes, sensible default");
+  - "multiple int indices for tensor data is critical", while the user is "less interested in string indices";
+  - "a container entry is latent. probably will not have its own class. A Visitors.OfIterator - that will be
+    necessary, but reached from Visitors.OfContainer not Visitors.OfAdjacency";
+  - "unique is only for relations, not containers"; relations keep "insertion order";
+  - a container's wire form "follows dense/sparse": a dense one written as an array of its elements, a sparse one as
+    its blocks, each a start index and its run of elements ("yes. adjacent blocks may merge but are not required to do
+    so"); a dict whose index is not a string, which a JSON object cannot key, "degrades to a map of entry-like
+    elements", each pairing an index with its element; a dense container of several int indices is written nested
+    or flat with its shape, "runtime configurable on the writer, and the loader should detect and adapt sensibly";
+  - "containers are allowed to nest" ("yes nesting of containers is okay"), a container's element or a value object
+    it holds being a container in turn; "containers with different index types are incomparable";
+  - `Visitors.OfContainer` holds the ordered accessors drafted under `Visitors.OfAdjacency` (`as_ordered`, positions,
+    `as_item`, `prepend`, `append`): "correct";
+  - reloading a snapshot rewrites a container property as any property, element by element in order, extending it
+    past its end, and relations keep matching their entries by value ("exactly", Reference identity, on update);
+  - built as one unit with the new adjacency API (`as_iterable`, `insert`, `remove`) and the removal of `select`,
+    since the ordered API needs containers and `select` its replacement.
 
 - **Reference identity** ([Visitor pattern](VISITOR_PATTERN.md), "Reference Identity", as the user wrote it), refining
   The visitor pattern's "global name, otherwise a UUID":
@@ -971,7 +1003,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   links that target only reference objects, and value objects' adjacencies to one-link relations only, in
   META_SCHEMAS.md's V1, and the protocol itself, with `Bindings`, `Paths` and `Reflection` removed, in V2 and V3.
 
-- **The meta-schemas overhaul** ([Meta-schemas overhaul](META_SCHEMAS.md), which plans it), as the user decided: of
+- **The meta-schemas overhaul** ([Meta-schemas overhaul](META_SCHEMAS.md), which plans it; its collections superseded
+  by Containers, above), as the user decided: of
   what the 8 to 11 Oct exploration (the `scalars` branch) learned, "definitely re-apply ASAP": "Dictionary of
   registered schemas lives as a relation on OfModule (possibly nestably)", "Meta-schemas use relations instead of
   hallucinated containers", and "Relations completely subsume collections : Adaptive storage for relation adjacencies

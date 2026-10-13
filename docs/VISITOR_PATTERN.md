@@ -181,7 +181,8 @@ str(card.name)
 bool(card.vip)
 bytes(card.photo)
 
-# comparison: a scalar visitor compares, orders and hashes as its value, a value of another kind by its identity;
+# comparison: a scalar visitor compares, orders and hashes as its value
+
 # read-only visitors are hashable, writable ones not
 card.name == "Ada"
 card.age < 40
@@ -207,9 +208,39 @@ osv.as_adjacencies(cb: Specs.Callback[Visitors.OfAdjacency]) -> Visitors.OfObjec
 ```python
 adv: Visitors.OfAdjacency
 
-adv.select(spec: Specs.Callback[Visitors.OfEntry], cb: Specs.Callback[Visitors.OfEntry]) -> Visitors.OfAdjacency ...
+# This works for all relations
+adv.as_iterable(cb: Specs.Callback[Iterator[Visitors.OfEntry]]) -> Visitors.OfAdjacency: ...
+
+# For containers with `unique` conditions or non-ordered indices, 
+# these methods permit modification of the container values
 adv.insert(spec: Specs.Callback[Visitors.OfEntry]) -> Visitors.OfAdjacency: ...
 adv.remove(spec: Specs.Callback[Visitors.OfEntry]) -> Visitors.OfAdjacency: ...
+
+# This version only applies to relations that are
+# neither dict-like nor array-like in the current
+# programming language
+# cb is not called for unapplicable relations
+adv.as_ordered(cb: Specs.Callback[Visitors.OfIterator[Visitors.OfEntry]]) -> Visitors.OfAdjacency: ...
+
+# Visitors.OfPosition provides navigation in containers with 
+# ordered indices and no `unique`
+Visitors.OfIterator[T].first() -> Self : ... # move to beginning position
+Visitors.OfIterator[T].last() -> Self : ... # move to beginning position
+Visitors.OfIterator[T].next() -> Self : ... # move to next position or "past last"
+Visitors.OfIterator[T].prev() -> Self : ... # move to prev position or "before first"
+
+# Visitors.OfPosition may point to an existing item or may point
+# to a symbolic position before the first or after the last item.
+# For a read-only container, calling this method when pointed
+# past the extent of the container results in no call to the cb
+# For a writeable container, calling this method when pointed at
+# past the extent of the container results in extension of the 
+# container at that end and cb is called with a builder
+Visitors.OfPosition[T].as_item(cb: Specs.Callback[Visitors.OfEntry]) -> Self : ... # return current item
+
+
+Visitors.OfPosition[T].prepend(spec: Specs.Callback[Visitors.OfEntry]) -> Visitors.OfAdjacency: ...
+Visitors.OfPosition[T].append(spec: Specs.Callback[Visitors.OfEntry]) -> Visitors.OfAdjacency: ...
 ```
 
 ## Other kinds
@@ -260,6 +291,16 @@ env.<propName>(spec: Specs.Callback[Visitors.OfProperty]) -> Visitors.OfEntry: .
   match's mode.
 - Finding matches in a store, and `Patterns.Stores.update(spec, cb)`, are mbse-patterns' extension of the store (queries are an
   extension); mbse-schemas defines only the types above.
+
+## Containers
+
+- Schemas.OfContainer is one of the variants under Schemas.OfAny and has an element type and an index type both of which are Schemas.OfAny
+- OfRelation must have at least two links and can have any number of properties
+- OfContainer with a total order on its index schema becomes an array/list in the target language
+- ... or else OfContainer with a hashable index schema becomes an dict/map the target language
+- ... or else OfContainer becomes of entries in the target language
+- containers are allowed to nest
+- containers with different index types are incomparable
 
 ## Another new problem:
 

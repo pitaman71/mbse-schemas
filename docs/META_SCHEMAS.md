@@ -81,6 +81,27 @@ skill regenerated. No release comes between phases.
   refusing a global name with a pattern (`Paths` went in V3); the qualified form `"crm.Feature/FEA-001"`, a global name
   alone; `as_identity()` and `store.by_identity(schema_name, name)` unqualified; identities as snapshot keys and in
   `$ref`, `$schema` kept; patterns wherever output must be reproducible.
+- V5. **Containers**, as FRAMEWORK.md, Resolved, "Containers" decides, reversing phases 2 to 4's collections, one unit:
+  - `Schemas.OfContainer`, a variant of `OfAny`, with an index type and an element type, each an `OfAny`, and
+    `.dense()` or `.sparse()`, at most one, defaulting to dense for an index with a total order and to a dict for a
+    hashable one; several int indices for tensors; its meta-schema beside `OfRelation`'s; `validate()` refusing both
+    `.dense()` and `.sparse()`, and an index of neither kind given either;
+  - `OfRelation` of two links or more: a one-link relation becomes a container-typed property (a contact's numbers, a
+    value object's lists, the meta-schemas' own lists, a module's schemas), `unique` for relations only, a relation's
+    entries in insertion order;
+  - `Visitors.OfContainer` and `Visitors.OfIterator` (positions, `as_item` extending a writable container at its ends,
+    `prepend` and `append` there), and `Readers` to match; `Visitors.OfAdjacency` for relations only, `as_iterable`,
+    `insert` and `remove`, with `select` removed, its uses read through `as_iterable`;
+  - Proxies: dense containers as packed arrays, sparse ones as blocks, dicts by index;
+  - the wire form: a dense container as an array of its elements, nested or flat with its shape for several int
+    indices as the writer is configured, the loader detecting which; a sparse one as its blocks (a start index and a
+    run; adjacent blocks may merge); a dict by index, or as entry-like elements where its index is not a string;
+    containers nesting; reloading rewrites a container element by element, and relations match entries by value
+    (Reference identity, on update);
+  - `Validators`, `Comparison`, `Reachable`, `Modules` and the dataclasses adapter (`list[N]`, `dict[K, N]` to
+    containers); the corpus, the Lists suite, tests, tutorials, the skill and the docs.
+
+  Before it is built, the open points in FRAMEWORK.md's Open questions ("Containers") are settled.
 
 5. **Meta-schemas as linked objects**: links built with a schema given as itself (`.<link>.of(schema, spec)`);
    `OfAny` removed, a type given as itself; every schema a reference object of its kind's meta-schema, every reference
@@ -115,9 +136,8 @@ skill regenerated. No release comes between phases.
 - **A value object held by an entry of a relation of two or more links, with adjacencies.** The entry is written under
   each object it links, so the value object is too, with one `$id`; reading would count the copies as one object, as
   it counts the entry once. Until then, only a one-link relation's entries may hold value objects with adjacencies.
-- **Sparse integer keys.** An open relation is positional, its index implied; a relation keyed by an integer property
-  is a map, sparse or not. Whether codegen's promotion to an indexable needs the keys dense, and how a constraint says
-  so, is to be settled in phase 6.
+- **Sparse integer keys.** Settled by containers (V5): a container is `.dense()` or `.sparse()`, so codegen need not
+  infer an indexable from a relation's keys.
 - **Resolving qualified names.** A name qualified with dots names a schema through nested modules; whether an
   unqualified name resolves outward through the enclosing modules before the store, or only within its own module, is
   to be settled in phase 5. Name resolution stays closed either way: a name resolves or is refused.

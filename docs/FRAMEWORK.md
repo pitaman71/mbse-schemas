@@ -806,6 +806,26 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 ### Resolved
 
+- **Reference identity** ([Visitor pattern](VISITOR_PATTERN.md), "Reference Identity", as the user wrote it), refining
+  The visitor pattern's "global name, otherwise a UUID":
+  - a reference object with a global name (`.singleton("foo")`) uses it on the wire; a reference object schema may
+    instead give a naming pattern to `.ref()` (`.ref(r'FEA-(\d+\d\d)')`, the number "extend[ing] on the left"); one
+    declared with `.ref()` alone has a UUID given by `.create()` or `.clone()`; on the wire every identity is
+    "qualified with the schema's registered name and module name", a qualification "only appropriate for over the
+    wire"; `validate()` refuses a schema with both a global name and a naming pattern;
+  - "The choice of formatted name and registration with the implied directory must happen automatically anytime a
+    named reference object is created or copied" ("No user serviceable parts inside"): "there is one directory store
+    per schema", "one directory per schema within each store"; "allocated IDs are strictly increasing (even in the
+    presence of yet to be designed deletions)", so loading a snapshot advances a schema's counter past every ID it
+    reads ("yes");
+  - programs read an identity through `Visitors.OfObject.as_identity` and find an object by `Stores.by_identity(id)`,
+    the id in the qualified form written on the wire; they "cannot set or modify their identity", so decoding is the
+    one writer of a loaded object's identity, and "on snapshot load, repeated appearance of the same ID is interpreted
+    as update";
+  - "for value objects as_identity should return None", and so does any visitor without an identity (an empty one, a
+    builder of an object not yet created): "it feels like None/null is a better representative of no identity, but I
+    don't have a strong opinion", so it was taken.
+
 - **The visitor pattern** ([Visitor pattern](VISITOR_PATTERN.md), which holds the protocol as the user designed it), as
   the user decided, finding that the framework had the pattern backwards: "the Visitors interface is supposed to expose
   an api to the caller to access a data structure whose schema the calling code may or may not know in advance";
@@ -858,7 +878,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - `OfScalar` "completely displaces" `OfNative`, in `Schemas` and `Visitors`: a module writes `{"scalar": {"format":
     ..., "token": ...}}`;
   - a reference object is named by its global name if it has one, otherwise by "a UUID on creation by `.create()` or
-    `.clone()` that is saved on the wire"; "value objects are never shared"; "value objects cannot be referenced by
+    `.clone()` that is saved on the wire" (refined by Reference identity: a naming pattern may take the UUID's place); "value objects are never shared"; "value objects cannot be referenced by
     entries"; a value object may have adjacencies only to one-link relations, of "zero or more" properties; "Paths go
     away";
   - `.ref()` declares a reference object schema, and an object schema without it is a value object schema ("drop the

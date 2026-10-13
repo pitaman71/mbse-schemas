@@ -40,9 +40,32 @@ def as_Y(self, cb: Specs.Callback[Visitors.OfY]) -> Self: ...
 - the dichotomy between reference and value objects remains declared via `Schemas.OfObject.Builder`: `.ref()` makes a reference object schema, and without it an object schema is a value object schema (`.value()` is dropped for now)
 - reference objects may not be used as a property's value schema
 - value objects are copied by value, never shared
-- reference objects with a global name use that global name on the wire
-- reference objects without a global name have a UUID on creation by `.create()` or `.clone()` that is saved on the wire
+- for value objects as_identity should return None
 - Paths go away
+
+## Reference Identity
+
+- reference objects with a singleton name (`.singleton("foo")`) use that global name on the wire, qualified with the schema's registered name and module name as appropriate
+- reference objects can alternatively create a naming pattern passing it to `ref` (`.ref("FEA-(\d+\d\d)")`)
+- validate will refuse a schema with both a singleton name and a ref naming pattern
+- reference objects declared with `.ref()` (no pattern) have a UUID on creation by `.create()` or `.clone()` that is saved on the wire, qualified with the schema's registered name and module name ofc
+
+```python
+Feature = (
+  Schemas.OfObject.Builder()
+  .ref(r'FEA-(\d+\d\d)')
+  ...create()
+)
+```
+
+- The choice of formatted name and registration with the implied directory must happen automatically anytime a named reference object is created or copied
+- programs can obtain the identity of any reference object via `Visitors.OfObject.as_identity`
+- programs can find a specific reference object with `Stores.by_identity(id)`
+- programs cannot set or modify their identity
+- there is one directory store per schema within each store
+- allocated IDs are strictly increasing (even in the presence of yet to be designed deletions)
+- on snapshot load, repeated appearance of the same ID is interpreted as update
+
 
 ## Specs as queries
 

@@ -73,8 +73,13 @@ skill regenerated. No release comes between phases.
     and `entries_of`. With them goes what V1 left without a use: `Comparison`'s paths between value objects (`OfLink` compares by identity only), and the state's references
   in a value object's entries (`Bindings`, "no snapshot holds the value"), which only a two-link relation of a value
   object, now invalid, could hold.
-- V4. **Identity**: a reference object named by its global name or a UUID given by `create()` or `clone()`, saved on the
-  wire as its key in a snapshot and in the links to it (`Paths` went in V3).
+- V4. **Identity**, as FRAMEWORK.md, Resolved, "Reference identity" decides: a reference object named by its global name,
+  by a name its schema's `.ref(pattern)` gives, or by a UUID, given by `create()` or `clone()` and never by the program;
+  one directory per schema in each store, its numbers strictly increasing, which loading advances; the identity saved
+  on the wire, qualified by the schema's registered name, as the object's key in a snapshot and in the links to it, a
+  repeated identity loading as an update; `as_identity()` None where there is none; `Stores.by_identity(id)`, `validate()`
+  refusing a global name with a pattern (`Paths` went in V3). To propose when built: the qualified form's syntax, and
+  whether `by_identity` finds transient objects too, through a weak directory, or only a store's data.
 
 5. **Meta-schemas as linked objects**: links built with a schema given as itself (`.<link>.of(schema, spec)`);
    `OfAny` removed, a type given as itself; every schema a reference object of its kind's meta-schema, every reference

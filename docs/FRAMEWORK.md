@@ -858,10 +858,24 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   knowledge of the schema at coding/compilation time - to access the values/objects/properties/relations/etc."; the
   serializers' writers "implementing the visitors protocol" are "precisely backwards"; and "`Visitable.accept` is a
   hallucination". So:
-  - one protocol per kind, `Visitors.OfX`, reads and writes; data instances and builders both implement it ("one
-    interface, not one class definition"); there is no separate mutator protocol;
-  - "the mutableness of a visited object is a mode of the visitor itself": data instances visit read-only, builders
-    "can be configured to permit or forbid writes", a visitor hands its mode to the child visitors it hands over, and
+  - one protocol per kind, `Visitors.OfX`, reads and writes ("one interface, not one class definition"); builders
+    implement it ("Builders implement Visitors - full stop"), and so do data instances: "with these changes I think we
+    can declare that data instances also implement Visitors", the changes being named members (`osv.<propName>`,
+    `env.<linkName>`) and `Specs.Callback[V] = Visitors.DataType[V] | Callable[[V], V]`, a value or a callable, which
+    serves "either as a mutator or a limited value-matching query"; `Visitors.DataType[Visitors.OfAdjacency]` is
+    `Iterable[Visitors.OfEntry]`, "with implied 'insert' semantics (not replace)"; an adjacency member reads as a
+    "`Visitors.OfAdjacency` that is also iterable"; the scalar dunders (`int`, `float`, `str`, `bool`, `bytes`) are
+    sugar over `get`, raise when the value is not set or of another type, and pass through from
+    `Visitors.OfProperty` ("bonus points if they can also be called on Visitors.OfProperty directly (pass thru via
+    as_scalar)"), TypeScript's `[Symbol.toPrimitive]` going as far as it reaches; unions, intersections and
+    predicates take the member style, a branch or a part giving the visitor of its type's kind directly (the
+    `Visitors.OfProperty` between being "an implementation detail"; "symmetry with properties isn't particularly
+    important"); `Visitors.OfAny` has `clear()`, which `Visitors.OfScalar.clear()` aliases; `as_scalar`, `as_value` and `as_adjacencies` gain no attribute form ("no"; "as scalar has no attribute form"), so a
+    scalar is read compactly through the property's dunders (`str(card.name)`). (Before that, the user had agreed
+    that data instances not implement it, correcting "and so do data instances", which I had inferred.) There is no
+    separate mutator protocol;
+  - "the mutableness of a visited object is a mode of the visitor itself": builders "can be configured to permit or
+    forbid writes", a visitor hands its mode to the child visitors it hands over, and
     "value objects are mutable only during construction or cloning"; writer methods return nothing, and a write the
     mode or the value forbids raises; a read-only static view of each protocol (`Readers.OfX`) types the code that
     must not write; a builder's visitor reads back its pending writes ("must be guaranteed");
@@ -899,7 +913,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     meta-relations; until then, lists): a symbol is a name with an optional reference object schema, which a
     predicate's symbols require and an entry's links may leave unset;
   - a predicate's `requires` is one `Schemas.Form` ("one form").
-  - the protocol in full is VISITOR_PATTERN.md's, The protocol in full; the user decided its gaps so: only
+  - the protocol is VISITOR_PATTERN.md's, as the user streamlined it; the user decided its gaps so:
     `Proxies.OfX.Data` and `Proxies.OfX.Builder` implement it; the old protocol is removed before the new one is built,
     "no side by side period", since keeping both could make the new surface act like the old; the spec is "intentionally
     exception free", so reads never raise, and the one raise is a write that the visitor's mode or the value forbids;

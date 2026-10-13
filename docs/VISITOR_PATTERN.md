@@ -26,8 +26,7 @@ Enable programmers to write compactly and precisely express schemas, expressions
 - Visitors.OfObject and Visitors.OfEntry may only define methods named `as_Y` most of which have the form:
 
 ```python
-def as_Y(self, cb: Callable[[Visitors.OfY], ReturnT]) -> ReturnT: ...
-def as_Y(self, cb: Callable[[Visitors.OfY], ReturnT]) -> Iterable[ReturnT]: ...
+def as_Y(self, cb: Specs.Callback[Visitors.OfY]) -> Self: ...
 ```
 
 - Builders.OfX now implements Visitors.OfX directly, and so do data instances (such as Proxies.OfX.Data).
@@ -43,6 +42,14 @@ def as_Y(self, cb: Callable[[Visitors.OfY], ReturnT]) -> Iterable[ReturnT]: ...
 - reference objects without a global name have a UUID on creation by `.create()` or `.clone()` that is saved on the wire
 - Paths go away
 
+## Specs as queries
+
+A widely used callback pattern that can serve either as a mutator or a limited value-matching query.
+
+```
+Specs.Callback[V in Visitors.Of*] = Visitors.DataType[V] | Callable[[V], V]
+```
+
 ## Mutability
 
 - the mutableness of a visited object is a mode of the visitor itself
@@ -50,11 +57,12 @@ def as_Y(self, cb: Callable[[Visitors.OfY], ReturnT]) -> Iterable[ReturnT]: ...
 
 - One protocol per kind: `Visitors.OfX` both reads and writes (`get`, `set`, `clear`, `insert`, ...); whether a write
   takes effect is the visitor's mode. There is no separate `Mutators.OfX`.
-- Data instances (such as Proxies.OfX.Data) visit read-only, and also provide a compact read-only interface that allows
-  analysis expressions to be compactly and efficiently written without '.get' operators.
+- Data instances (such as Proxies.OfX.Data) visit read-only, and their named members and the scalar dunders
+  (`str(card.name)`, Scalar accessors) are the compact read-only interface that allows analysis expressions
+  to be compactly and efficiently written without '.get' operators.
 - Builders (such as Proxies.OfX.Builder and <generated>.OfX.Builder) can be configured to permit or forbid writes.
-- A visitor hands its mode to the child visitors it hands over (`as_property`, `as_value`, `as_adjacencies`,
-  `as_linked`, ...); a value object is writable only under a builder that is constructing or cloning it.
+- A visitor hands its mode to the child visitors it hands over (`<propName>`, `as_value`, `as_scalar`, `<adjName>`,
+  `as_adjacencies`, `<linkName>`, ...); a value object is writable only under a builder that is constructing or cloning it.
 - A write through a read-only visitor raises: refuse, never silently lose (mbse-basis P-002).
 - Writer methods return nothing: a write that the visitor's mode, or the value itself, forbids raises. A write that
   loses nothing does not: inserting an entry equal to one a set relation holds elides it, and removing where no entry
@@ -85,24 +93,26 @@ Where one protocol for reading and writing meets the code around it:
 
 ```python
 av: Visitors.OfAny
-Visitors.OfAny.as_scalar[ScalarT](self, cb: Callable[[Visitors.OfScalar[ScalarT]], ReturnT]) -> ReturnT: ...
+av.as_scalar[ScalarT](self, cb: Specs.Callback[Visitors.OfScalar[ScalarT]]) -> Visitors.OfAny: ...
+av.clear() -> None : ...
 
 pv: Visitors.OfProperty
 
+pv.as_value(self, cb: Specs.Callback[Visitors.OfAny]) -> Visitors.OfProperty:...
+
 # shorthand
-Visitors.OfProperty.as_scalar[ScalarT] = Visitors.OfAny.as_scalar[ScalarT]
-Visitors.OfProperty.as_value(self, cb: Callable[[Visitors.OfAny], ReturnT]) -> ReturnT:...
+pv.as_scalar[ScalarT] = Visitors.OfAny.as_scalar[ScalarT]
 
-# Yes, we need to restore OfNative but call it OfScalar
-Visitors.OfScalar[ScalarT].has(self) -> bool: ...
-Visitors.OfScalar[ScalarT].get(self) -> ScalarT|None: ...
+sv: Visitors.OfScalar[ScalarT]
 
-# raises if the value cannot be set or cleared, regardless of prev value
-Visitors.OfScalar[ScalarT].set(self, val_: ScalarT) -> None: ...
-Visitors.OfScalar[ScalarT].clear(self) -> None: ...
+sv.get() -> ScalarT | None : ...
+sv.set(value_: ScalarT) -> None : ...
+
+# alias for parent (any) clear
+sv.clear() -> None : ...
 ```
 
-## Property and Adjacency accessors
+## Property accessors
 
 ```python
 # assumed
@@ -112,16 +122,43 @@ osv.as_identity() -> str: ...
 osv.as_identity(id_: str) -> None: ...
 
 # visit a specific property (schema aware)
-osv.as_property(name: str, cb: Callable[[Visitors.OfProperty], ReturnT]) -> ReturnT: ...
+osv.<propName> -> Visitors.OfProperty: ...
+osv.<propName>(cb: Specs.Callback[Visitors.OfProperty]) -> Visitors.OfObject: ...
 
 # iterate over all properties (schema unaware)
-osv.as_properties(cb: Callable[[Visitors.OfProperty], ReturnT]) -> Iterable[ReturnT]: ...
+osv.as_properties -> Iterable[Visitors.OfProperty]
+osv.as_properties(cb: Specs.Callback[Visitors.OfProperty]) -> Visitors.OfObject: ...
 
+# explicit `get` on scalar returns native-typed value; as_scalar has no attribute form
+card.name.as_scalar(lambda s: names.append(s.get()) or s)  # "Ada", or None when absent
+
+# implicit `set` or `clear` on scalar
+b.name.as_scalar(lambda s: s.clear())
+b.name.as_scalar(lambda s: s.set("Ada")) # a write, through a Spec's callable form
+b.name.as_scalar("Ada")            # shorthand for `set`, through a Spec's value form
+
+# dunder shorthands = syntactic sugar over `get`, on Visitors.OfScalar and, passing through as_scalar, on
+# Visitors.OfProperty
+# raise when not set or mistyped: each needs the scalar's own type (int() an int, str() a str, ...)
+# bool : same as others, not semantically overloaded with "is_valid"
+int(card.age)
+float(card.weight)
+str(card.name)
+bool(card.vip)
+bytes(card.photo)
+
+# TypeScript: [Symbol.toPrimitive] and valueOf, as far as they reach (EQUIVALENCE.md)
+```
+
+## Adjacency accessors
+
+```python
 # iterate over adjacency entries (schema aware)
-osv.as_adjacency(name: str, cb: Callable[[Visitors.OfEntry], ReturnT]) -> Iterable[ReturnT]: ...
+osv.<adjName> -> Visitors.OfAdjacency: ...  # also an Iterable[Visitors.OfEntry]
+osv.<adjName>(Specs.Callback[Visitors.OfAdjacency]) -> Visitors.OfObject: ...
 
 # iterate over all adjacencies (schema unaware); an adjacency is edited through what this hands over
-osv.as_adjacencies(cb: Callable[[Visitors.OfAdjacency], ReturnT]) -> Iterable[ReturnT]: ...
+osv.as_adjacencies(cb: Specs.Callback[Visitors.OfAdjacency]) -> Visitors.OfObject: ...
 ```
 
 ## OfAdjacency accessors
@@ -129,9 +166,31 @@ osv.as_adjacencies(cb: Callable[[Visitors.OfAdjacency], ReturnT]) -> Iterable[Re
 ```python
 adv: Visitors.OfAdjacency
 
-adv.select(spec: Visitors.OfEntry.Spec, cb: Callable[[Visitors.OfEntry], ReturnT]) -> Iterable[ReturnT] ...
-adv.insert(spec: Visitors.OfEntry.Spec) -> None: ...
-adv.remove(spec: Visitors.OfEntry.Spec) -> None: ...
+adv.select(spec: Specs.Callback[Visitors.OfEntry], cb: Specs.Callback[Visitors.OfEntry]) -> Visitors.OfAdjacency ...
+adv.insert(spec: Specs.Callback[Visitors.OfEntry]) -> Visitors.OfAdjacency: ...
+adv.remove(spec: Specs.Callback[Visitors.OfEntry]) -> Visitors.OfAdjacency: ...
+```
+
+## Other kinds
+
+```python
+# as_scalar's siblings, for the other kinds of value
+av.as_object(cb: Specs.Callback[Visitors.OfObject]) -> Visitors.OfAny: ...
+av.as_union(cb: Specs.Callback[Visitors.OfUnion]) -> Visitors.OfAny: ...
+av.as_intersection(cb: Specs.Callback[Visitors.OfIntersection]) -> Visitors.OfAny: ...
+
+# a union's branches and an intersection's parts are members giving the visitor of their own type's kind, Visitors.OfY:
+# OfScalar, OfObject, OfUnion or OfIntersection (shape.circle.radius); a branch the union does not hold reads empty
+uv: Visitors.OfUnion
+uv.<branchName> -> Visitors.OfY: ...
+uv.<branchName>(cb: Specs.Callback[Visitors.OfY]) -> Visitors.OfUnion: ...  # writing one branch clears the others
+iv: Visitors.OfIntersection
+iv.<partName> -> Visitors.OfY: ...
+iv.<partName>(cb: Specs.Callback[Visitors.OfY]) -> Visitors.OfIntersection: ...
+
+# a match's symbols are members
+pdv: Visitors.OfPredicate
+pdv.<symbolName> -> Visitors.OfObject: ...
 ```
 
 ## OfEntry accessors
@@ -139,13 +198,13 @@ adv.remove(spec: Visitors.OfEntry.Spec) -> None: ...
 ```python
 env: Visitors.OfEntry
 
-# getters
-env.as_linked(name: str, cb: Callable[[Visitors.OfObject], ReturnT]) -> ReturnT: ...
-env.as_property(name: str, cb: Callable[[Visitors.OfProperty], ReturnT]) -> ReturnT: ...
+# accessors
+env.<linkName> : Visitors.OfObject
+env.<linkName>(spec: Specs.Callback[Visitors.OfObject]) -> Visitors.OfEntry: ...
+env.<propName> : Visitors.OfProperty
+env.<propName>(spec: Specs.Callback[Visitors.OfProperty]) -> Visitors.OfEntry: ...
 
-# setters
-env.as_link(name: str, linked_: Visitors.OfObject.Spec) -> None: ...
-env.as_set(name: str, prop_: Visitors.OfProperty.Spec) -> None: ...
+# an entry's properties are walked without knowing the schema through its schema, env.as_schema()
 ```
 
 ## Predicates
@@ -164,59 +223,6 @@ env.as_set(name: str, prop_: Visitors.OfProperty.Spec) -> None: ...
 ## Another new problem:
 
 Quite a few other convenience methods have been born like OfProperty.name, OfObject.has which are not necessary and whose names introduce possible collisions between the adjacency and property names and Visitor methods. Instead every `Visitors.OfX` will have a method `as_schema() -> Schemas.OfX`
-
-
-## The protocol in full
-
-The sections above, with the gaps they leave decided (Resolved, The visitor pattern). Every `Visitors.OfX` has
-`as_schema()`, the `Schemas.OfX.Data` it visits; `ReturnT` is whatever a callback returns.
-
-```python
-Visitors.OfScalar[T]:  as_schema(); has() -> bool; get() -> T | None; set(value: T) -> None; clear() -> None
-Visitors.OfAny:        as_schema(); as_scalar(cb) -> ReturnT; as_object(cb) -> ReturnT; as_union(cb) -> ReturnT
-                       as_intersection(cb) -> ReturnT
-Visitors.OfProperty:   as_schema(); has() -> bool; clear() -> None; as_value(cb: Visitors.OfAny) -> ReturnT
-                       as_scalar(cb) -> ReturnT  # shorthand: as_value, then as_scalar
-Visitors.OfObject:     as_schema(); as_identity() -> str  # its setter is V4's
-                       as_property(spec: Schemas.OfProperty.Spec, cb) -> ReturnT
-                       as_properties(cb) -> list[ReturnT]  # the properties present
-                       as_adjacency(spec: Schemas.OfAdjacency.Spec, cb: Visitors.OfEntry) -> list[ReturnT]
-                       as_adjacencies(cb: Visitors.OfAdjacency) -> list[ReturnT]
-Visitors.OfAdjacency:  as_schema(); select(spec: Visitors.OfEntry.Spec, cb) -> list[ReturnT]
-                       insert(spec: Visitors.OfEntry.Spec) -> None; remove(spec: Visitors.OfEntry.Spec) -> None
-Visitors.OfEntry:      as_schema()  # a Schemas.OfEntry.Data
-                       as_linked(link: str, cb: Visitors.OfObject) -> ReturnT
-                       as_property(spec: Schemas.OfProperty.Spec, cb) -> ReturnT; as_properties(cb) -> list[ReturnT]
-                       as_link(link: str, linked: Visitors.OfObject.Spec) -> None
-                       as_set(spec: Schemas.OfProperty.Spec, value: Visitors.OfProperty.Spec) -> None
-Visitors.OfUnion:      as_schema(); as_property(spec, cb) -> ReturnT; as_properties(cb) -> list[ReturnT]  # its branches
-Visitors.OfIntersection: as_schema(); as_property(spec, cb) -> ReturnT; as_properties(cb) -> list[ReturnT]  # its parts
-Visitors.OfPredicate:  as_schema(); as_symbol(name: str, cb: Visitors.OfObject) -> ReturnT  # a match; matching is mbse-patterns'
-Readers.OfX:           each protocol's reading methods only
-```
-
-- **Who implements it**: `Proxies.OfX.Data`, read-only, and `Proxies.OfX.Builder`, writable unless it is made
-  read-only (`.readonly()`). A child visitor has its parent's mode. A builder reads back its pending writes first,
-  then its source.
-- **No exceptions but one.** Reads never raise. Every callback is called: the visitor it is given reports an absent
-  value as empty (`has()` False, `get()` None, `as_properties` and `select` an empty list), and so does a visitor of
-  another kind than the value's (`as_object` on a scalar gives an object visitor with no properties), or of a property
-  or adjacency the schema lacks. The one raise is a write that the visitor's mode or the value forbids, as
-  `Errors.ReadOnlyError` (a `TypeError`): a write in read-only mode, or to a property, link or adjacency the schema
-  lacks.
-- **Writes**: through a writable visitor, `as_value` and `as_<kind>` write the value they are given, selecting the
-  kind; `as_property` on an absent property creates it when written. Code that must know the kind before it chooses
-  reads `as_schema()`.
-- **Specs name schema elements by name**: a `Schemas.OfProperty.Spec` or `Schemas.OfAdjacency.Spec` names a property
-  or an adjacency of the schema by its name; one the schema lacks, or whose type disagrees, gives an empty visitor.
-- **`Visitors.OfEntry.Spec`** is a callable taking a writable `Visitors.OfEntry`, a template, and returning it, or an
-  existing entry's `Visitors.OfEntry`. `select` gives the entries that agree with every link and property the template
-  sets, all of them for an empty template ("selectors at this time are specific not descriptive"); `insert` adds it,
-  the owner's own link filled, an equal entry in a set elided; `remove` removes every entry that agrees ("all that
-  match").
-- **`Visitors.OfObject.Spec` and `Visitors.OfProperty.Spec`**: an existing visitor, whose object is linked or whose
-  value is copied, or a callable taking a writable visitor to fill and returning it.
-- **An entry's links** are iterated through its schema, `as_schema().links`.
 
 ---
 

@@ -65,8 +65,8 @@ skill regenerated. No release comes between phases.
   it.
 - V2 and V3, one phase, with no side-by-side period ("G1 (a) no side by side period"): the old protocol and `accept`
   are deleted first, so that nothing of them shapes the new one, and the commits in between do not pass.
-  - V2. **The visitor protocol**: `Visitors.OfX` as [Visitor pattern](VISITOR_PATTERN.md), The protocol in full,
-    declares it, and the read-only views `Readers.OfX`; `Proxies.OfX.Data` (read-only) and `Proxies.OfX.Builder`
+  - V2. **The visitor protocol**: `Visitors.OfX` as [Visitor pattern](VISITOR_PATTERN.md) declares it, and
+    `Specs`, and the read-only views `Readers.OfX`; `Proxies.OfX.Data` (read-only) and `Proxies.OfX.Builder`
     implement it, a builder reading back its pending writes.
   - V3. **Consumers pull**: `Plain`, `JSON`, `YAML`, `Validators`, `Comparison`, `Reachable`, `Reflection`, `Modules`
     and `Bindings` read and write through the protocol. With them goes what V1 left without a use: `Comparison`'s paths between value objects (`OfLink` compares by identity only), and the state's references

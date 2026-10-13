@@ -9,42 +9,33 @@ from mbse.Schemas.Framework import Proxies
 def entries(obj, adjacency):
     """The entries of one of `obj`'s adjacencies, as dicts of link and property values. (Case study 2.)
 
-    The object's own link is implied, so it is not included. Reading goes through a builder started from `obj`: the
-    builder is a visitor, and visiting is how anything is read without knowing the schema in advance. The builder is
-    never finalized, so nothing changes.
+    The object's own link is implied, so it is not included. An adjacency is a member of the object, a visitor that
+    iterates its entries; an entry's links are members giving the linked object, and its properties members whose
+    `get()` gives the value. The schema is read through `as_schema()`, so this works for any relation.
     """
+    read = getattr(obj, adjacency)
+    me = read.as_schema().me
     rows = []
-
-    def read(entry):
-        row = {}
-        entry.links(lambda link: link.target(lambda target: row.__setitem__(link.name(), target)))
-        entry.properties(
-            lambda prop: prop.value(lambda v: v.as_scalar(lambda n: row.__setitem__(prop.name(), n.get())))
-        )
+    for entry in read:
+        schema = entry.as_schema()
+        row = {link: getattr(entry, link) for link in schema.links if link != me}
+        for name in schema.properties:
+            value = getattr(entry, name).get()
+            if value is not None:
+                row[name] = value
         rows.append(row)
-
-    Proxies.store_of(obj).builder(obj.schema_name(), obj).adjacency(adjacency, lambda a: a.entries(read))
     return rows
 
 
 def remove_entries(obj, adjacency, where):
     """Removes the entries of `obj`'s adjacency for which `where(row)` is true; `row` is as returned by `entries`.
     (Case study 3.)"""
+    doomed = [entry for entry, row in zip(getattr(obj, adjacency), entries(obj, adjacency)) if where(row)]
 
-    def visit(a):
-        doomed = []
-
-        def check(entry):
-            row = {}
-            entry.links(lambda link: link.target(lambda target: row.__setitem__(link.name(), target)))
-            entry.properties(
-                lambda prop: prop.value(lambda v: v.as_scalar(lambda n: row.__setitem__(prop.name(), n.get())))
-            )
-            if where(row):
-                doomed.append(entry)
-
-        a.entries(check)
-        for entry in doomed:
+    def remove(a):
+        for entry in doomed:  # an entry given as a value removes the entries equal to it
             a.remove(entry)
+        return a
 
-    return Proxies.store_of(obj).builder(obj.schema_name(), obj).adjacency(adjacency, visit).update()
+    builder = Proxies.store_of(obj).builder(obj.as_schema().name, obj)
+    return getattr(builder, adjacency)(remove).update()

@@ -899,6 +899,12 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     meta-relations; until then, lists): a symbol is a name with an optional reference object schema, which a
     predicate's symbols require and an entry's links may leave unset;
   - a predicate's `requires` is one `Schemas.Form` ("one form").
+  - the protocol in full is VISITOR_PATTERN.md's, The protocol in full; the user decided its gaps so: only
+    `Proxies.OfX.Data` and `Proxies.OfX.Builder` implement it; the old protocol is removed before the new one is built,
+    "no side by side period", since keeping both could make the new surface act like the old; the spec is "intentionally
+    exception free", so reads never raise, and the one raise is a write that the visitor's mode or the value forbids;
+    and every callback is always called ("If they don't always call the callback, there is no way to set the value"),
+    the visitor it is given reporting an absent value, or a value of another kind, as empty.
 
   It supersedes: mbse-basis P-004 as it stood (amended); here, "Objects outside snapshots are named by paths (0.8.2)",
   The meta-schemas overhaul's "we can keep paths", and decision C in mbse-expressions; and, in the sections above, what

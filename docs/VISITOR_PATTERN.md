@@ -4,7 +4,7 @@
 # Visitor pattern
 
 The protocol through which code reads and writes data of any schema, as the user designed it; the decisions it
-records are in the [framework design](FRAMEWORK.md), Resolved, "The visitor pattern". Of it, only the schema-level
+records are in the [framework design](FRAMEWORK.md), Resolved, "The visitor pattern". Of it, the schema-level
 changes are built ([Meta-schemas overhaul](META_SCHEMAS.md), V1): `as_*` names refused, `Schemas.OfScalar`, value objects
 never linked, and `Schemas.OfEntry`, `Schemas.OfSymbol` and `Schemas.OfPredicate`.
 
@@ -112,13 +112,13 @@ osv.as_identity() -> str: ...
 osv.as_identity(id_: str) -> None: ...
 
 # visit a specific property (schema aware)
-osv.as_property(spec: Schemas.OfProperty.Spec, cb: Callable[[Visitors.OfProperty], ReturnT]) -> ReturnT: ...
+osv.as_property(name: str, cb: Callable[[Visitors.OfProperty], ReturnT]) -> ReturnT: ...
 
 # iterate over all properties (schema unaware)
 osv.as_properties(cb: Callable[[Visitors.OfProperty], ReturnT]) -> Iterable[ReturnT]: ...
 
 # iterate over adjacency entries (schema aware)
-osv.as_adjacency(spec: Schemas.OfAdjacency.Spec, cb: Callable[[Visitors.OfEntry], ReturnT]) -> Iterable[ReturnT]: ...
+osv.as_adjacency(name: str, cb: Callable[[Visitors.OfEntry], ReturnT]) -> Iterable[ReturnT]: ...
 
 # iterate over all adjacencies (schema unaware); an adjacency is edited through what this hands over
 osv.as_adjacencies(cb: Callable[[Visitors.OfAdjacency], ReturnT]) -> Iterable[ReturnT]: ...
@@ -140,12 +140,12 @@ adv.remove(spec: Visitors.OfEntry.Spec) -> None: ...
 env: Visitors.OfEntry
 
 # getters
-env.as_linked(linkName: str, cb: Callable[[Visitors.OfObject], ReturnT]) -> ReturnT: ...
-env.as_property(spec: Schemas.OfProperty.Spec, cb: Callable[[Visitors.OfProperty], ReturnT]) -> ReturnT: ...
+env.as_linked(name: str, cb: Callable[[Visitors.OfObject], ReturnT]) -> ReturnT: ...
+env.as_property(name: str, cb: Callable[[Visitors.OfProperty], ReturnT]) -> ReturnT: ...
 
 # setters
-env.as_link(linkName: str, linked_: Visitors.OfObject.Spec) -> None: ...
-env.as_set(spec: Schemas.OfProperty.Spec, prop_: Visitors.OfProperty.Spec) -> None: ...
+env.as_link(name: str, linked_: Visitors.OfObject.Spec) -> None: ...
+env.as_set(name: str, prop_: Visitors.OfProperty.Spec) -> None: ...
 ```
 
 ## Predicates
@@ -164,6 +164,59 @@ env.as_set(spec: Schemas.OfProperty.Spec, prop_: Visitors.OfProperty.Spec) -> No
 ## Another new problem:
 
 Quite a few other convenience methods have been born like OfProperty.name, OfObject.has which are not necessary and whose names introduce possible collisions between the adjacency and property names and Visitor methods. Instead every `Visitors.OfX` will have a method `as_schema() -> Schemas.OfX`
+
+
+## The protocol in full
+
+The sections above, with the gaps they leave decided (Resolved, The visitor pattern). Every `Visitors.OfX` has
+`as_schema()`, the `Schemas.OfX.Data` it visits; `ReturnT` is whatever a callback returns.
+
+```python
+Visitors.OfScalar[T]:  as_schema(); has() -> bool; get() -> T | None; set(value: T) -> None; clear() -> None
+Visitors.OfAny:        as_schema(); as_scalar(cb) -> ReturnT; as_object(cb) -> ReturnT; as_union(cb) -> ReturnT
+                       as_intersection(cb) -> ReturnT
+Visitors.OfProperty:   as_schema(); has() -> bool; clear() -> None; as_value(cb: Visitors.OfAny) -> ReturnT
+                       as_scalar(cb) -> ReturnT  # shorthand: as_value, then as_scalar
+Visitors.OfObject:     as_schema(); as_identity() -> str  # its setter is V4's
+                       as_property(spec: Schemas.OfProperty.Spec, cb) -> ReturnT
+                       as_properties(cb) -> list[ReturnT]  # the properties present
+                       as_adjacency(spec: Schemas.OfAdjacency.Spec, cb: Visitors.OfEntry) -> list[ReturnT]
+                       as_adjacencies(cb: Visitors.OfAdjacency) -> list[ReturnT]
+Visitors.OfAdjacency:  as_schema(); select(spec: Visitors.OfEntry.Spec, cb) -> list[ReturnT]
+                       insert(spec: Visitors.OfEntry.Spec) -> None; remove(spec: Visitors.OfEntry.Spec) -> None
+Visitors.OfEntry:      as_schema()  # a Schemas.OfEntry.Data
+                       as_linked(link: str, cb: Visitors.OfObject) -> ReturnT
+                       as_property(spec: Schemas.OfProperty.Spec, cb) -> ReturnT; as_properties(cb) -> list[ReturnT]
+                       as_link(link: str, linked: Visitors.OfObject.Spec) -> None
+                       as_set(spec: Schemas.OfProperty.Spec, value: Visitors.OfProperty.Spec) -> None
+Visitors.OfUnion:      as_schema(); as_property(spec, cb) -> ReturnT; as_properties(cb) -> list[ReturnT]  # its branches
+Visitors.OfIntersection: as_schema(); as_property(spec, cb) -> ReturnT; as_properties(cb) -> list[ReturnT]  # its parts
+Visitors.OfPredicate:  as_schema(); as_symbol(name: str, cb: Visitors.OfObject) -> ReturnT  # a match; matching is mbse-patterns'
+Readers.OfX:           each protocol's reading methods only
+```
+
+- **Who implements it**: `Proxies.OfX.Data`, read-only, and `Proxies.OfX.Builder`, writable unless it is made
+  read-only (`.readonly()`). A child visitor has its parent's mode. A builder reads back its pending writes first,
+  then its source.
+- **No exceptions but one.** Reads never raise. Every callback is called: the visitor it is given reports an absent
+  value as empty (`has()` False, `get()` None, `as_properties` and `select` an empty list), and so does a visitor of
+  another kind than the value's (`as_object` on a scalar gives an object visitor with no properties), or of a property
+  or adjacency the schema lacks. The one raise is a write that the visitor's mode or the value forbids, as
+  `Errors.ReadOnlyError` (a `TypeError`): a write in read-only mode, or to a property, link or adjacency the schema
+  lacks.
+- **Writes**: through a writable visitor, `as_value` and `as_<kind>` write the value they are given, selecting the
+  kind; `as_property` on an absent property creates it when written. Code that must know the kind before it chooses
+  reads `as_schema()`.
+- **Specs name schema elements by name**: a `Schemas.OfProperty.Spec` or `Schemas.OfAdjacency.Spec` names a property
+  or an adjacency of the schema by its name; one the schema lacks, or whose type disagrees, gives an empty visitor.
+- **`Visitors.OfEntry.Spec`** is a callable taking a writable `Visitors.OfEntry`, a template, and returning it, or an
+  existing entry's `Visitors.OfEntry`. `select` gives the entries that agree with every link and property the template
+  sets, all of them for an empty template ("selectors at this time are specific not descriptive"); `insert` adds it,
+  the owner's own link filled, an equal entry in a set elided; `remove` removes every entry that agrees ("all that
+  match").
+- **`Visitors.OfObject.Spec` and `Visitors.OfProperty.Spec`**: an existing visitor, whose object is linked or whose
+  value is copied, or a callable taking a writable visitor to fill and returning it.
+- **An entry's links** are iterated through its schema, `as_schema().links`.
 
 ---
 

@@ -63,12 +63,13 @@ skill regenerated. No release comes between phases.
   of its own (`predicate`), registered by name, and an object of `Schemas.Predicate` in `Reflection`. A link may
   have a schema, which `validate()` checks and modules write; `Validators` does not yet check a link's target against
   it.
-- V2. **The visitor protocol, beside the old one**: `Visitors.OfX` with its modes and `as_*` methods, and the read-only
-  views `Readers.OfX`; proxy data instances (read-only) and builders implement it, a builder reading back its
-  pending writes.
-- V3. **Consumers pull**: `Plain`, `JSON`, `YAML`, `Validators`, `Comparison`, `Reachable`, `Reflection`, `Modules` and
-  `Bindings` read and write through the protocol; `accept` and the old protocol go. With them go what V1 left without
-  a use: `Comparison`'s paths between value objects (`OfLink` compares by identity only), and the state's references
+- V2 and V3, one phase, with no side-by-side period ("G1 (a) no side by side period"): the old protocol and `accept`
+  are deleted first, so that nothing of them shapes the new one, and the commits in between do not pass.
+  - V2. **The visitor protocol**: `Visitors.OfX` as [Visitor pattern](VISITOR_PATTERN.md), The protocol in full,
+    declares it, and the read-only views `Readers.OfX`; `Proxies.OfX.Data` (read-only) and `Proxies.OfX.Builder`
+    implement it, a builder reading back its pending writes.
+  - V3. **Consumers pull**: `Plain`, `JSON`, `YAML`, `Validators`, `Comparison`, `Reachable`, `Reflection`, `Modules`
+    and `Bindings` read and write through the protocol. With them goes what V1 left without a use: `Comparison`'s paths between value objects (`OfLink` compares by identity only), and the state's references
   in a value object's entries (`Bindings`, "no snapshot holds the value"), which only a two-link relation of a value
   object, now invalid, could hold.
 - V4. **Identity**: a reference object named by its global name or a UUID given by `create()` or `clone()`, saved on the

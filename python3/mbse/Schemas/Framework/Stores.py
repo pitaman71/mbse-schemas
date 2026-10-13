@@ -3,8 +3,7 @@
 A store holds schemas by name, and its data: the instances of its singleton schemas, its roots, and every reference
 object reachable from them through relation entries, with the value objects those own. Anything else built with a
 store's builders is transient: it lives only while the program holds it. `Store` is the protocol every implementation
-meets;
-`Proxies.OfStore` (dynamic instances) and `Bindings.OfStore` (a program's own classes) implement it. Everything that
+meets; `Proxies.OfStore` (dynamic instances) implements it, and generated code will. Everything that
 looks a schema up by name takes a store: `Plain.ToPlain(store)`, `Plain.FromPlain(store)`, the JSON and YAML forms,
 `Validators.Validate(store)` and `Modules`. Stores are isolated from one another; objects move between them as
 snapshots. Selecting objects by a condition is an extension, in mbse-expressions.

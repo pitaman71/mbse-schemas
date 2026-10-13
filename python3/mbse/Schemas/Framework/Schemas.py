@@ -154,27 +154,6 @@ def _visited(names: Any) -> list[str]:
             for name in names if isinstance(name, str) and name.startswith("as_")]
 
 
-_REFLECTION: dict[str, Any] = {"accept": None}
-"""Filled by `Reflection`, which writes a schema in its module form, so that this module need not import `Modules`."""
-
-
-class _Reflected:
-    """A schema as an object predicates match (see `Reflection`): a reference object, identified by itself, whose schema
-    is its kind's meta-schema."""
-
-    def identity(self) -> int:
-        return id(self)
-
-    def schema_name(self) -> str:
-        return _KIND_NAMES[type(self)]
-
-    def owner(self) -> None:
-        return None
-
-    def accept(self, visitor: Any) -> None:
-        _REFLECTION["accept"](self, visitor)
-
-
 def _resolve(spec: Any, data: type, builder: Callable[[], Any]) -> Any:
     """Resolves a `Spec`: an instance of `data` is used as is; a callable is given a new builder and must return it."""
     if isinstance(spec, data):
@@ -313,7 +292,7 @@ _HOSTS = {_Token(fmt, name): host for host, name in _BASIC_NAMES.items() for fmt
 
 
 @dataclass(init=False)
-class _ScalarData(_Reflected):
+class _ScalarData:
     """A scalar type: a token, and optionally a width in bits or in bytes, an int or a term. A host type given in place
     of the token (`OfScalar.Data(int)`) is shorthand for the `basic` token of the same name."""
 
@@ -576,7 +555,7 @@ class OfEntry:
 
 
 @dataclass(eq=False)
-class _RelationData(_Reflected):
+class _RelationData:
     entry: _EntryData = field(default_factory=_EntryData)
     uniques: tuple[frozenset[str], ...] = ()
     name: str | None = None
@@ -723,7 +702,7 @@ _VALIDATING: set[int] = set()
 
 
 @dataclass(eq=False)
-class _ObjectData(_Reflected):
+class _ObjectData:
     properties: dict[str, _PropertyData] = field(default_factory=dict)
     adjacencies: dict[str, _AdjacencyData] = field(default_factory=dict)
     singleton: str | None = None
@@ -887,7 +866,7 @@ def _members(specs: tuple[Callable[[_MemberBuilder], _MemberBuilder], ...]) -> t
 
 
 @dataclass(eq=False)
-class _UnionData(_Reflected):
+class _UnionData:
     branches: tuple[_MemberData, ...] = ()
     name: str | None = None
     description: str | None = None
@@ -932,7 +911,7 @@ class OfUnion:
 
 
 @dataclass(eq=False)
-class _IntersectionData(_Reflected):
+class _IntersectionData:
     parts: tuple[_MemberData, ...] = ()
     name: str | None = None
     description: str | None = None
@@ -980,7 +959,7 @@ class OfIntersection:
 
 
 @dataclass(eq=False)
-class _ApplyData(_Reflected):
+class _ApplyData:
     """A parametric schema applied to arguments: a type whose values are the applied schema's (`of`), with arguments
     for its parameters by name, each a scalar value or a term. Parameters given no argument stay unbound."""
 
@@ -1112,7 +1091,7 @@ class OfApply:
 
 
 @dataclass(eq=False)
-class _PredicateData(_Reflected):
+class _PredicateData:
     """A constraint over symbols, each standing for an object of a reference object schema, and parameters: it holds of
     a match, a binding of every symbol to an object of its schema, where its term `requires` holds. Matching, and the
     dialects `requires` may be written in, are the caller's (mbse-patterns'); here it is data, checked as a form."""
@@ -1364,10 +1343,6 @@ Form.Schema = _FormSchema  # type: ignore[attr-defined]
 Form.Value = _ScalarValue  # type: ignore[attr-defined]
 OfAny.Schema = _AnySchema  # type: ignore[attr-defined]
 OfAny.Named = _Named  # type: ignore[attr-defined]
-_KIND_NAMES: dict[type, str] = {
-    _ScalarData: _ScalarSchema.name, _ObjectData: _ObjectSchema.name, _UnionData: _UnionSchema.name,
-    _IntersectionData: _IntersectionSchema.name, _ApplyData: _ApplySchema.name,
-    _RelationData: _RelationSchema.name, _PredicateData: _PredicateSchema.name}
 
 
 class Module:

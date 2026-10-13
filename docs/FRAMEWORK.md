@@ -873,7 +873,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     important"); `Visitors.OfAny` has `clear()`, which `Visitors.OfScalar.clear()` aliases; a link member on a data
     instance is the linked instance itself, data instances being callable so that calling one, a write, raises ("yes"); `as_scalar`, `as_value` and
     `as_adjacencies` gain no attribute form ("no"; "as scalar has no attribute form"), so a
-    scalar is read compactly through the property's dunders (`str(card.name)`). (Before that, the user had agreed
+    scalar is read compactly through the property's dunders (`str(card.name)`), and its presence through
+    `Visitors.OfProperty.get()`, a pass-through to `as_scalar` (the user chose it, "1", over an `as_scalar` attribute
+    form and equality as presence). (Before that, the user had agreed
     that data instances not implement it, correcting "and so do data instances", which I had inferred.) There is no
     separate mutator protocol;
   - code generation generates, for every schema, the analogues of a proxy: "`<schemaName>.Data` - instance form",

@@ -113,6 +113,11 @@ class OfProperty(_Dunders, Protocol):
         """Shorthand, for conciseness: `as_value`, then `Visitors.OfAny.as_object`."""
         ...
 
+    def get(self) -> Scalar | None:
+        """The scalar value, or None when it is not set or not a scalar: a pass-through to `as_scalar`, as the
+        dunders are."""
+        ...
+
     def __call__(self, spec: Callback[OfProperty]) -> Any: ...
 
 

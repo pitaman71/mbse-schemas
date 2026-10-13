@@ -30,6 +30,7 @@ export interface OfProperty extends Primitive {
   as_value(cb: Read<OfAny>): this;
   as_scalar(cb: Read<OfScalar>): this;
   as_object(cb: Read<OfObject>): this;
+  get(): Scalar | null;
 }
 
 export interface OfObject {

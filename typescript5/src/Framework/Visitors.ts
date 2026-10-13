@@ -97,6 +97,8 @@ export interface OfProperty extends Primitive {
   as_scalar(cb: Callback<OfScalar>): this;
   /** Shorthand, for conciseness: `as_value`, then `Visitors.OfAny.as_object`. */
   as_object(cb: Callback<OfObject>): this;
+  /** The scalar value, or null when it is not set or not a scalar: a pass-through to `as_scalar`. */
+  get(): Scalar | null;
 }
 
 /** `Visitors.OfObject.as_properties`: the properties present, iterated, or called with a callback for each. */
@@ -159,7 +161,7 @@ export interface OfPredicate {
 export const PROTOCOL_METHODS = {
   OfScalar: ["as_schema", "get", "set", "clear"],
   OfAny: ["as_schema", "as_scalar", "as_object", "as_union", "as_intersection", "clear"],
-  OfProperty: ["as_schema", "as_value", "as_scalar", "as_object"],
+  OfProperty: ["as_schema", "as_value", "as_scalar", "as_object", "get"],
   OfObject: ["as_schema", "as_identity", "as_properties", "as_adjacencies"],
   OfAdjacency: ["as_schema", "select", "insert", "remove"],
   OfEntry: ["as_schema"],

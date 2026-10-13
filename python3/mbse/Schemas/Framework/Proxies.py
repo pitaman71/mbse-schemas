@@ -508,6 +508,9 @@ class _Property(_Dunders):
     def as_schema(self) -> Schemas.OfProperty.Data:
         return self._schema
 
+    def get(self) -> Any:
+        return self._scalar()
+
     def as_value(self, cb: Any) -> _Property:
         visitor = self._any()
         if _is_function(cb):

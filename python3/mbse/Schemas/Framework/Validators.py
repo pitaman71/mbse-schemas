@@ -7,247 +7,61 @@ reachable from it.
 `Check(store)(schema, value)` checks the same, and also reports what it cannot decide: an `Outcome` of `problems` and
 `unknowns`, which `holds` true, false or unknown.
 
-The validator is a visitor: each object writes itself into a recorder through `Visitable.accept`. Checks:
+The validator reads the value through the visitor protocol (`Readers.OfObject`), through its schema. Checks:
 
 - the schemas involved pass `validate()`;
 - each property value has exactly its schema's scalar type (distinct scalar types are never interchangeable);
-- each entry sets every link, its property values have their scalar types, and each linked object's schema declares
-  an adjacency to that relation via that link;
+- each linked object's schema declares an adjacency to that relation via that link;
 - `unique(S)` clauses hold over the entries seen: entries that agree on everything outside `S` agree on `S`.
   Uniqueness is checked only over the entries reachable from what was validated.
-- a value object's properties are declared by its schema and hold values of their types, recursively;
-- a union value holds exactly one of the union's branches, with a value of that branch's type;
+- a value object's properties hold values of their types, recursively;
 - an intersection value holds every one of the intersection's parts, each with a value of that part's type.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Hashable
+from collections.abc import Hashable
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any
 
-from . import Reachable, Schemas, Stores, Visitors
+from . import Reachable, Readers, Schemas, Stores
 from .Visitors import Scalar
 
-__all__ = ["Validate", "Check", "Outcome", "properties_of", "entries_of", "EntryRecord"]
+__all__ = ["Validate", "Check", "Outcome"]
 
 
-# --- Recorders: Visitors that capture what an object writes into them ---
+# --- Reading values through their visitors ---
 
 
-class _Value:
-    """`Visitors.OfProperty` / `OfAny` / `OfScalar` recording one value into a dict: a scalar, or a value object, a
-    union value or an intersection value (an `_ObjectRecord` of that kind)."""
-
-    def __init__(self, values: dict[str, Any], name: str):
-        self._values, self._name = values, name
-
-    def name(self) -> str:
-        return self._name
-
-    def has(self) -> bool:
-        return self._name in self._values
-
-    def get(self) -> Scalar:
-        return self._values[self._name]
-
-    def set(self, value: Scalar) -> _Value:
-        self._values[self._name] = value
-        return self
-
-    def clear(self) -> _Value:
-        self._values.pop(self._name, None)
-        return self
-
-    def value(self, callback: Callable[[Visitors.OfAny], Any]) -> _Value:
-        callback(self)
-        return self
-
-    def as_scalar(self, callback: Callable[[Visitors.OfScalar], Any]) -> _Value:
-        callback(self)
-        return self
-
-    def as_object(self, callback: Callable[[Visitors.OfObject], Any]) -> _Value:
-        return self._record("object", callback)
-
-    def as_union(self, callback: Callable[[Visitors.OfUnion], Any]) -> _Value:
-        return self._record("union", callback)
-
-    def as_intersection(self, callback: Callable[[Visitors.OfIntersection], Any]) -> _Value:
-        return self._record("intersection", callback)
-
-    def _record(self, kind: _Kind, callback: Callable[[Any], Any]) -> _Value:
-        record = self._values.get(self._name)
-        if not isinstance(record, _ObjectRecord) or record.kind != kind:
-            record = self._values[self._name] = _ObjectRecord(kind)
-        callback(record)
-        return self
+_SCALARS = (int, float, str, bool, bytes)
 
 
-class _Link:
-    def __init__(self, links: dict[str, Visitors.Visitable], name: str):
-        self._links, self._name = links, name
-
-    def name(self) -> str:
-        return self._name
-
-    def target(self, callback: Callable[[Visitors.Visitable], Any]) -> _Link:
-        callback(self._links[self._name])
-        return self
-
-    def set(self, target: Visitors.Visitable) -> _Link:
-        self._links[self._name] = target
-        return self
+def _scalar(read: Any) -> Any:
+    """The scalar a property's visitor holds, or None."""
+    found: list[Any] = []
+    read.as_scalar(lambda s: found.append(s.get()) or s)
+    return found[0] if found else None
 
 
-class _EntryRecord:
-    """`Visitors.OfEntry` recording one entry's links and property values."""
-
-    def __init__(self) -> None:
-        self.targets: dict[str, Visitors.Visitable] = {}
-        self.values: dict[str, Any] = {}
-
-    def links(self, callback: Callable[[Visitors.OfLink], Any]) -> _EntryRecord:
-        for name in list(self.targets):
-            callback(_Link(self.targets, name))
-        return self
-
-    def link(self, name: str, callback: Callable[[Visitors.OfLink], Any]) -> _EntryRecord:
-        callback(_Link(self.targets, name))
-        return self
-
-    def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryRecord:
-        for name in list(self.values):
-            callback(_Value(self.values, name))
-        return self
-
-    def has(self, name: str) -> bool:
-        return name in self.values
-
-    def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryRecord:
-        callback(_Value(self.values, name))
-        return self
-
-    def clear(self, name: str) -> _EntryRecord:
-        self.values.pop(name, None)
-        return self
-
-    def replay(self, visitor: Visitors.OfEntry) -> None:
-        """Writes the recorded links and property values into `visitor`."""
-        for name, target in self.targets.items():
-            visitor.link(name, lambda k, target=target: k.set(target))
-        for name, value in self.values.items():
-            visitor.property(name, lambda p, value=value: p.value(lambda a: _replay(a, value)))
+def _held(read: Any, schema: Any) -> Any:
+    """The value object, union value or intersection value a property's visitor holds, as its own visitor; None when
+    absent. An empty visitor has no identity."""
+    select = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
+              Schemas.OfIntersection.Data: "as_intersection"}[type(schema)]
+    found: list[Any] = []
+    read.as_value(lambda a: getattr(a, select)(lambda v: found.append(v) or v) or a)
+    return found[0] if found and found[0].as_identity() != "" else None
 
 
-class _AdjacencyRecord:
-    def __init__(self, name: str, entries: list[_EntryRecord]):
-        self._name, self._entries = name, entries
-
-    def name(self) -> str:
-        return self._name
-
-    def me(self) -> str:
-        raise NotImplementedError("the recorder is schema-agnostic")
-
-    def entries(self, callback: Callable[[Visitors.OfEntry], Any]) -> _AdjacencyRecord:
-        for entry in self._entries:
-            callback(entry)
-        return self
-
-    def add(self, callback: Callable[[Visitors.OfEntry], Any]) -> _AdjacencyRecord:
-        entry = _EntryRecord()
-        callback(entry)
-        self._entries.append(entry)
-        return self
-
-    def remove(self, entry: Visitors.OfEntry) -> _AdjacencyRecord:
-        self._entries[:] = [e for e in self._entries if e is not entry]
-        return self
-
-
-_Kind = Literal["object", "union", "intersection"]
-
-
-class _ObjectRecord:
-    """`Visitors.OfObject` recording an object's property values and adjacency entries; also `Visitors.OfUnion` and
-    `Visitors.OfIntersection` recording a union or intersection value (its branches or parts are its properties). It
-    records every property written, so that a union value written with two branches can be reported."""
-
-    def __init__(self, kind: _Kind = "object") -> None:
-        self.kind = kind
-        self.target: Visitors.Visitable | None = None  # the value object recorded, once it identifies itself
-        self.values: dict[str, Any] = {}
-        self.adjacency_entries: dict[str, list[_EntryRecord]] = {}
-
-    def identify(self, value: Visitors.Visitable) -> _ObjectRecord:
-        self.target = value
-        return self
-
-    def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _ObjectRecord:
-        for name in list(self.values):
-            callback(_Value(self.values, name))
-        return self
-
-    def has(self, name: str) -> bool:
-        return name in self.values
-
-    def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _ObjectRecord:
-        callback(_Value(self.values, name))
-        return self
-
-    def clear(self, name: str) -> _ObjectRecord:
-        self.values.pop(name, None)
-        return self
-
-    def adjacencies(self, callback: Callable[[Visitors.OfAdjacency], Any]) -> _ObjectRecord:
-        for name in self.adjacency_entries:
-            callback(_AdjacencyRecord(name, self.adjacency_entries[name]))
-        return self
-
-    def adjacency(self, name: str, callback: Callable[[Visitors.OfAdjacency], Any]) -> _ObjectRecord:
-        callback(_AdjacencyRecord(name, self.adjacency_entries.setdefault(name, [])))
-        return self
-
-    def accept(self, visitor: Visitors.OfObject) -> None:
-        """Writes the recorded property values and entries back, so a recorded value object can be read like any
-        object."""
-        for name, value in self.values.items():
-            visitor.property(name, lambda p, value=value: p.value(lambda a: _replay(a, value)))
-        for name, entries in self.adjacency_entries.items():
-            for entry in entries:
-                visitor.adjacency(name, lambda a, entry=entry: a.add(entry.replay))
-
-
-def _replay(visitor: Visitors.OfAny, value: Any) -> None:
-    if isinstance(value, _ObjectRecord) and value.kind == "union":
-        visitor.as_union(lambda u: value.accept(u))
-    elif isinstance(value, _ObjectRecord) and value.kind == "intersection":
-        visitor.as_intersection(lambda i: value.accept(i))
-    elif isinstance(value, _ObjectRecord):
-        visitor.as_object(lambda o: value.accept(o))
-    else:
-        visitor.as_scalar(lambda n: n.set(value))
+def _member(read: Any, schema: Any) -> Any:
+    """A union's branch's or an intersection's part's value, read through its visitor of its own type's kind: a scalar,
+    a visitor, or None."""
+    if isinstance(Schemas.structure(schema), Schemas.OfScalar.Data):
+        return read.get()
+    return read if read.as_identity() != "" else None
 
 
 # --- Checks ---
-
-
-# For messages, per record kind: a value of it, its schema, and what its properties are.
-_RECORDS: dict[str, tuple[str, str, str]] = {
-    "object": ("a value object", "the value object", "property"),
-    "union": ("a union value", "the union", "branch"),
-    "intersection": ("an intersection value", "the intersection", "part"),
-}
-_KINDS: dict[type, _Kind] = {
-    Schemas.OfObject.Data: "object", Schemas.OfUnion.Data: "union", Schemas.OfIntersection.Data: "intersection",
-}
-
-
-def _kind(value: Any) -> str:
-    if isinstance(value, _ObjectRecord):
-        return _RECORDS[value.kind][0]
-    return type(value).__name__
 
 
 def _scalar_problem(schema: Schemas.OfScalar.Data, value: Any) -> str | None:
@@ -255,53 +69,60 @@ def _scalar_problem(schema: Schemas.OfScalar.Data, value: Any) -> str | None:
         token = schema.token
         return f"{token} has no type in this implementation" if isinstance(token, Schemas.OfScalar.Token) else None
     if type(value) is not schema.type:
-        return f"expected {schema.type.__name__}, got {_kind(value)}"
+        return f"expected {schema.type.__name__}, got {type(value).__name__}"
     return None
 
 
-def _filling(relation: Schemas.OfRelation.Data, name: str, target: Visitors.Visitable,
-             schema: Schemas.OfObject.Data) -> str | None:
-    """Whether `target`, of `schema`, may fill link `name` of `relation`: its schema must declare an adjacency via it."""
+def _filling(relation: Schemas.OfRelation.Data, name: str, schema: Schemas.OfObject.Data) -> str | None:
+    """Whether an object of `schema` may fill link `name` of `relation`: its schema must declare an adjacency via it."""
     if any(a.relation is relation and a.me == name for a in schema.adjacencies.values()):
         return None
-    return f"a {target.schema_name()!r} cannot fill link {name!r}; its schema declares no adjacency to this relation via {name!r}"
+    return (f"a {schema.name!r} cannot fill link {name!r}; its schema declares no adjacency to this relation via "
+            f"{name!r}")
 
 
-def _value_key(value: Any) -> Hashable:
-    """Equality key per EQUALITY.md: distinct scalar types never compare equal; floats compare by bit pattern; a value
-    object by its properties and its entries, in order."""
-    if isinstance(value, _ObjectRecord):
-        entries = tuple((name, tuple(_entry_key(entry) for entry in listed))
-                        for name, listed in sorted(value.adjacency_entries.items()) if listed)
-        return ("object", tuple(sorted((name, _value_key(v)) for name, v in value.values.items())), entries)
-    if isinstance(value, float):
-        return ("float", value.hex())
-    return (type(value).__name__, value)
+def _key(schema: Any, value: Any) -> Hashable:
+    """Equality key per EQUALITY.md, of a value read as `_property_value` reads it: distinct scalar types never compare
+    equal; floats compare by bit pattern; a value object by its properties and its entries, in order."""
+    held = Schemas.structure(schema)
+    if isinstance(held, Schemas.OfScalar.Data) or held is None:
+        return ("float", value.hex()) if isinstance(value, float) else (type(value).__name__, value)
+    if isinstance(held, Schemas.OfObject.Data):
+        properties = tuple((p.as_schema().name, _key(p.as_schema().type, _property_value(p, p.as_schema().type)))
+                           for p in value.as_properties)
+        entries = tuple((name, tuple(_entry_key(e, a) for e in getattr(value, name)))
+                        for name, a in held.adjacencies.items())
+        return ("object", properties, entries)
+    members = tuple((name, _key(m.type, _member(getattr(value, name), m.type))) for name, m in held.properties.items())
+    return ("record", members)
 
 
-def _entry_key(entry: _EntryRecord) -> Hashable:
-    """An entry's equality key: its links' targets by identity and its values by `_value_key`."""
-    return (tuple(sorted((name, target.identity()) for name, target in entry.targets.items())),
-            tuple(sorted((name, _value_key(v)) for name, v in entry.values.items())))
+def _property_value(read: Any, schema: Any) -> Any:
+    held = Schemas.structure(schema)
+    return _scalar(read) if isinstance(held, Schemas.OfScalar.Data) or held is None else _held(read, held)
+
+
+def _entry_key(entry: Any, adjacency: Schemas.OfAdjacency.Data) -> Hashable:
+    """An entry's equality key: its other links' targets by identity and its values by `_key`."""
+    relation = adjacency.relation
+    links = tuple((name, getattr(entry, name).as_identity()) for name in relation.entry.links if name != adjacency.me)
+    values = tuple((name, _key(prop.type, _property_value(getattr(entry, name), prop.type)))
+                   for name, prop in relation.entry.properties.items())
+    return links, values
 
 
 _ABSENT = ("absent",)
 
 
 class _Entry:
-    """One relation entry with all its links, from whichever end it was seen."""
+    """One relation entry with all its links, from whichever end it was seen: identities and value keys."""
 
-    def __init__(self, links: dict[str, Visitors.Visitable], values: dict[str, Any]):
+    def __init__(self, links: dict[str, str], values: dict[str, Hashable]):
         self.links, self.values = links, values
 
     def key(self, names: set[str]) -> Hashable:
-        return tuple(
-            sorted(
-                (name, ("object", self.links[name].identity()) if name in self.links
-                 else _value_key(self.values[name]) if name in self.values else _ABSENT)
-                for name in names
-            )
-        )
+        return tuple(sorted((name, ("object", self.links[name]) if name in self.links
+                             else self.values.get(name, _ABSENT)) for name in names))
 
 
 class _Check:
@@ -318,92 +139,66 @@ class _Check:
         self._schemas_checked.add(id(schema))
         self.problems += [f"schema {label}: {problem}" for problem in schema.validate()]
 
-    def object(self, label: str, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> None:
-        self._schema(repr(value.schema_name()), schema)
-        record = _ObjectRecord()
-        value.accept(record)
-        for name, item in record.values.items():
-            if name not in schema.properties:
-                self.problems.append(f"{label}.{name}: not a property of {value.schema_name()!r}")
-                continue
-            self.problems += self._value_problems(f"{label}.{name}", schema.properties[name].type, item)
-        for name, entries in record.adjacency_entries.items():
-            if name not in schema.adjacencies:
-                self.problems.append(f"{label}.{name}: not an adjacency of {value.schema_name()!r}")
-                continue
-            adjacency = schema.adjacencies[name]
-            for i, entry in enumerate(entries):
+    def object(self, label: str, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> None:
+        self._schema(repr(schema.name), schema)
+        self.problems += self._properties(label, schema, value)
+        for name, adjacency in schema.adjacencies.items():
+            for i, entry in enumerate(getattr(value, name)):
                 self.problems += self._entry(f"{label}.{name}[{i}]", adjacency, value, entry)
 
+    def _properties(self, label: str, schema: Any, value: Any) -> list[str]:
+        problems = []
+        for prop in value.as_properties:
+            name = prop.as_schema().name
+            problems += self._value_problems(f"{label}.{name}", prop.as_schema().type,
+                                             _property_value(prop, prop.as_schema().type))
+        return problems
+
     def _value_problems(self, label: str, schema: Schemas.OfAny.Data, item: Any) -> list[str]:
-        """Problems with a property's value: its kind and type, recursively, and that a union value holds one branch
-        and an intersection value every part. An application's value is its applied schema's; one that applies itself,
-        a problem its schema reports, has none."""
+        """Problems with a value: its type, recursively, and that an intersection value holds every part. An
+        application's value is its applied schema's; one that applies itself, a problem its schema reports, has
+        none."""
         schema = Schemas.structure(schema)
-        if schema is None:
+        if schema is None or item is None:
             return []
         if isinstance(schema, Schemas.OfScalar.Data):
             problem = _scalar_problem(schema, item)
             return [f"{label}: {problem}"] if problem else []
-        kind = _KINDS[type(schema)]
-        noun, owner, member = _RECORDS[kind]
-        if not isinstance(item, _ObjectRecord) or item.kind != kind:
-            return [f"{label}: expected {noun}, got {_kind(item)}"]
+        if isinstance(schema, Schemas.OfObject.Data):
+            problems = self._properties(label, schema, item)
+            for name, adjacency in schema.adjacencies.items():
+                for i, entry in enumerate(getattr(item, name)):
+                    problems += self._entry(f"{label}.{name}[{i}]", adjacency, item, entry)
+            return problems
         problems = []
-        for name, value in item.values.items():
-            if name not in schema.properties:
-                problems.append(f"{label}.{name}: not a {member} of {owner}")
-            else:
-                problems += self._value_problems(f"{label}.{name}", schema.properties[name].type, value)
-        if kind == "union" and len(item.values) != 1:
-            problems.append(f"{label}: a union value holds exactly one branch, got {len(item.values)}")
-        missing = [name for name in schema.properties if name not in item.values] if kind == "intersection" else []
-        if missing:
+        held = {name: _member(getattr(item, name), m.type) for name, m in schema.properties.items()}
+        for name, member in schema.properties.items():
+            problems += self._value_problems(f"{label}.{name}", member.type, held[name])
+        missing = [name for name in schema.properties if held[name] is None]
+        if isinstance(schema, Schemas.OfIntersection.Data) and missing:
             problems.append(f"{label}: parts {missing} are not set")
-        if kind == "object":
-            problems += self._value_entries(label, schema, item)
         return problems
 
-    def _value_entries(self, label: str, schema: Schemas.OfObject.Data, item: _ObjectRecord) -> list[str]:
-        """Problems with a value object's entries, which are checked as a reference object's are."""
-        problems = []
-        for name, entries in item.adjacency_entries.items():
-            if name not in schema.adjacencies:
-                problems.append(f"{label}.{name}: not an adjacency of the value object")
-                continue
-            for i, entry in enumerate(entries):
-                problems += self._entry(f"{label}.{name}[{i}]", schema.adjacencies[name], item.target, entry)
-        return problems
-
-    def _entry(
-        self, label: str, adjacency: Schemas.OfAdjacency.Data, owner: Visitors.Visitable | None, entry: _EntryRecord
-    ) -> list[str]:
-        """Problems with one entry. Its own link may name a value object, the owner of a value object's list; any other
-        link targets a reference object."""
+    def _entry(self, label: str, adjacency: Schemas.OfAdjacency.Data, owner: Any, entry: Any) -> list[str]:
+        """Problems with one entry: each linked object's schema declares an adjacency to the relation via its link, and
+        its values have their types."""
         relation = adjacency.relation
         self._schema(f"of {label}", relation)
         problems = []
-        links = {adjacency.me: owner, **entry.targets}
         for name in relation.entry.links:
-            if name not in links:
-                problems.append(f"{label}: link {name!r} is not set")
-                continue
-            target = links[name]
-            if target is None:  # a value object that did not identify itself
-                continue
-            if target.owner() is not None:
-                if name != adjacency.me:
-                    problems.append(f"{label}.{name}: a link targets a reference object, never a value object")
-                continue
-            problem = _filling(relation, name, target, self._store.schema(target.schema_name()))
-            if problem:
-                problems.append(f"{label}.{name}: {problem}")
-        for name, item in entry.values.items():
-            if name not in relation.entry.properties:
-                problems.append(f"{label}.{name}: not a property of the relation")
-                continue
-            problems += self._value_problems(f"{label}.{name}", relation.entry.properties[name].type, item)
-        full = _Entry({n: t for n, t in links.items() if t is not None}, entry.values)
+            if name != adjacency.me:
+                problem = _filling(relation, name, getattr(entry, name).as_schema())
+                if problem:
+                    problems.append(f"{label}.{name}: {problem}")
+        for name, prop in relation.entry.properties.items():
+            problems += self._value_problems(f"{label}.{name}", prop.type,
+                                             _property_value(getattr(entry, name), prop.type))
+        links = {name: getattr(entry, name).as_identity() for name in relation.entry.links if name != adjacency.me}
+        links[adjacency.me] = owner.as_identity()
+        values = {name: _key(prop.type, _property_value(getattr(entry, name), prop.type))
+                  for name, prop in relation.entry.properties.items()
+                  if _property_value(getattr(entry, name), prop.type) is not None}
+        full = _Entry(links, values)
         _, seen = self._entries.setdefault(id(relation), (relation, {}))
         seen.setdefault(full.key(set(relation.entry.links) | set(relation.entry.properties)), full)
         return problems
@@ -424,29 +219,6 @@ class _Check:
 
 
 # --- Entry points ---
-
-
-EntryRecord = _EntryRecord
-"""An entry as `entries_of` reads it: its other links' targets in `targets`, and its property values in `values`."""
-
-
-def properties_of(value: Visitors.Visitable) -> dict[str, Any]:
-    """The property values `value` writes when visited, by name; absent properties are left out. It reads through the
-    visitor protocols, so it works for any `Visitable`. A value object, a union value or an intersection value is
-    returned as an object whose `accept` writes its properties (a union's branch, an intersection's parts) and its
-    entries."""
-    record = _ObjectRecord()
-    value.accept(record)
-    return dict(record.values)
-
-
-def entries_of(value: Visitors.Visitable) -> dict[str, list[_EntryRecord]]:
-    """The entries `value` writes when visited, by adjacency name, in order: each an `EntryRecord` of the targets of
-    its other links and its property values, read as `properties_of` reads them."""
-    record = _ObjectRecord()
-    value.accept(record)
-    return {name: list(entries) for name, entries in record.adjacency_entries.items()}
-
 
 
 @dataclass(frozen=True)
@@ -481,21 +253,21 @@ class Check:
         problem = _scalar_problem(schema, value)
         return Outcome(schema.validate() + ([problem] if problem else []), [])
 
-    def OfObject(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> Outcome:
+    def OfObject(self, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> Outcome:
         """Checks one object and its entries; uniqueness only over the entries it is part of."""
         return self._run(schema, [value])
 
-    def Reachable(self, schema: Schemas.OfObject.Data, root: Visitors.Visitable) -> Outcome:
+    def Reachable(self, schema: Schemas.OfObject.Data, root: Readers.OfObject) -> Outcome:
         """Checks the root and every object reachable from it through adjacencies."""
         return self._run(schema, Reachable.of(root))
 
-    def _run(self, schema: Schemas.OfObject.Data, values: list[Visitors.Visitable]) -> Outcome:
+    def _run(self, schema: Schemas.OfObject.Data, values: list[Readers.OfObject]) -> Outcome:
         root = values[0]
-        if self._store.schema(root.schema_name()) is not schema:
-            return Outcome([f"the value is a {root.schema_name()!r}, not an instance of the given schema"], [])
+        if root.as_schema() is not schema:
+            return Outcome([f"the value is a {root.as_schema().name!r}, not an instance of the given schema"], [])
         check = _Check(self._store)
         for i, value in enumerate(values):
-            check.object(f"{value.schema_name()}#{i}", self._store.schema(value.schema_name()), value)
+            check.object(f"{value.as_schema().name}#{i}", value.as_schema(), value)
         check.uniques()
         return Outcome(check.problems, check.unknowns)
 
@@ -513,10 +285,10 @@ class Validate:
     def OfScalar(self, schema: Schemas.OfScalar.Data, value: Scalar) -> list[str]:
         return self._check.OfScalar(schema, value).problems
 
-    def OfObject(self, schema: Schemas.OfObject.Data, value: Visitors.Visitable) -> list[str]:
+    def OfObject(self, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> list[str]:
         """Checks one object and its entries; uniqueness only over the entries it is part of."""
         return self._check.OfObject(schema, value).problems
 
-    def Reachable(self, schema: Schemas.OfObject.Data, root: Visitors.Visitable) -> list[str]:
+    def Reachable(self, schema: Schemas.OfObject.Data, root: Readers.OfObject) -> list[str]:
         """Checks the root and every object reachable from it through adjacencies."""
         return self._check.Reachable(schema, root).problems

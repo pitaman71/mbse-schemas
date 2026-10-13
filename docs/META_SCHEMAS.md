@@ -78,8 +78,8 @@ skill regenerated. No release comes between phases.
   one directory per schema in each store, its numbers strictly increasing, which loading advances; the identity saved
   on the wire, qualified by the schema's registered name, as the object's key in a snapshot and in the links to it, a
   repeated identity loading as an update; `as_identity()` None where there is none; `Stores.by_identity(id)`, `validate()`
-  refusing a global name with a pattern (`Paths` went in V3). To propose when built: the qualified form's syntax, and
-  whether `by_identity` finds transient objects too, through a weak directory, or only a store's data.
+  refusing a global name with a pattern (`Paths` went in V3); the qualified form `"crm.Feature/FEA-001"`, a global name
+  alone, and `by_identity` finding every live object, through a weak directory.
 
 5. **Meta-schemas as linked objects**: links built with a schema given as itself (`.<link>.of(schema, spec)`);
    `OfAny` removed, a type given as itself; every schema a reference object of its kind's meta-schema, every reference

@@ -822,6 +822,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     the id in the qualified form written on the wire; they "cannot set or modify their identity", so decoding is the
     one writer of a loaded object's identity, and "on snapshot load, repeated appearance of the same ID is interpreted
     as update";
+  - the qualified form is the schema's registered name, `/`, then the name (`"crm.Feature/FEA-001"`), a global name
+    written alone, being unique in a store ("that is fine"); `by_identity` finds every live object of the store, through a
+    weak directory, not only its data ("yes, every live object");
   - "for value objects as_identity should return None", and so does any visitor without an identity (an empty one, a
     builder of an object not yet created): "it feels like None/null is a better representative of no identity, but I
     don't have a strong opinion", so it was taken.

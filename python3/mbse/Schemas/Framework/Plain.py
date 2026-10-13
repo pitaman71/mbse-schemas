@@ -155,28 +155,28 @@ class _EntryWriter:
         self._entry, self._relation, self._me, self._ref = entry, relation, me, ref
 
     def links(self, callback: Callable[[Visitors.OfLink], Any]) -> _EntryWriter:
-        for name in self._relation.links:
+        for name in self._relation.entry.links:
             if name != self._me:
                 callback(_LinkWriter(self._entry, name, self._ref))
         return self
 
     def link(self, name: str, callback: Callable[[Visitors.OfLink], Any]) -> _EntryWriter:
-        if name == self._me or name not in self._relation.links:
+        if name == self._me or name not in self._relation.entry.links:
             raise KeyError(f"{name!r} is not a link this entry can set")
         callback(_LinkWriter(self._entry, name, self._ref))
         return self
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryWriter:
-        for name in self._relation.properties:
+        for name in self._relation.entry.properties:
             if name in self._entry:
-                callback(_PropertyWriter(self._entry, name, self._relation.properties[name].type, self._ref))
+                callback(_PropertyWriter(self._entry, name, self._relation.entry.properties[name].type, self._ref))
         return self
 
     def has(self, name: str) -> bool:
         return name in self._entry
 
     def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryWriter:
-        schema = _property_schema(self._relation.properties, name)
+        schema = _property_schema(self._relation.entry.properties, name)
         callback(_PropertyWriter(self._entry, name, schema, self._ref))
         return self
 
@@ -322,7 +322,7 @@ def _sort_entries(schema: Any, plain: PlainData) -> None:
         if not isinstance(entries, list):
             continue
         for entry in entries:  # an entry's value objects, held by its properties
-            for held, prop in adjacency.relation.properties.items():
+            for held, prop in adjacency.relation.entry.properties.items():
                 if held in entry:
                     _sort_entries(prop.type, entry[held])
         if names is None:
@@ -466,18 +466,18 @@ def _decode_rows(adjacency: Schemas.OfAdjacency.Data, value: PlainData, where: t
             at = path(*where, key, i, name)
             if name == adjacency.me:
                 raise DecodeError(f"{name!r} is this object's own link, which is implied", path=at)
-            if name in relation.links:
+            if name in relation.entry.links:
                 if not _is_ref(item):
                     raise DecodeError("a link must be a reference", path=at)
                 row[name] = _Link(item[REF])
-            elif name in relation.properties and len(relation.links) == 1 and context is not None:
-                held = relation.properties[name].type
+            elif name in relation.entry.properties and len(relation.entry.links) == 1 and context is not None:
+                held = relation.entry.properties[name].type
                 row[name] = _decode(held, item, (*where, key, i, name), context, (*steps, ((key, i, name), _kind(held))))
-            elif name in relation.properties:
-                row[name] = _decode_entry_property(relation.properties[name].type, item, (*where, key, i, name))
+            elif name in relation.entry.properties:
+                row[name] = _decode_entry_property(relation.entry.properties[name].type, item, (*where, key, i, name))
             else:
                 raise DecodeError(f"the relation has no link or property {name!r}", path=at)
-        missing = [n for n in relation.links if n != adjacency.me and n not in entry]
+        missing = [n for n in relation.entry.links if n != adjacency.me and n not in entry]
         if missing:
             raise DecodeError(f"links {missing} are not set", path=path(*where, key, i))
         rows.append(row)
@@ -600,7 +600,7 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
         for key, value in properties.items():
             _set(builder, key, value)
         for key, rows in adjacencies.items():  # a one-link relation's entries are its owner's, as its properties are
-            if len(object_schema.adjacencies[key].relation.links) == 1:
+            if len(object_schema.adjacencies[key].relation.entry.links) == 1:
                 for row in kept(object_schema, symbol, key, rows):
                     builder.adjacency(key, lambda a, r=row: a.add(lambda x: _fill(x, r, lambda symbol: None)))
         created[symbol] = builder.create() if global_name is None else builder.update()
@@ -622,7 +622,7 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
         for found, rows, value_schema in sorted(nested.get(symbol, []), key=lambda held: len(held[0].steps)):
             owner = found
             rows = {key: kept(value_schema, owner, key, listed) for key, listed in rows.items()
-                    if (len(value_schema.adjacencies[key].relation.links) == 1) == one_link}
+                    if (len(value_schema.adjacencies[key].relation.entry.links) == 1) == one_link}
             if any(rows.values()):  # an edit with nothing to add would drop what another just added
                 _within(builder, found.steps, lambda v, rows=rows: _add_rows(v, rows, resolve))
                 added = True
@@ -637,7 +637,7 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
         object_schema = store.schema(names[symbol])
         builder = store.builder(names[symbol], created[symbol])
         for key, rows in adjacencies.items():
-            if len(object_schema.adjacencies[key].relation.links) > 1:
+            if len(object_schema.adjacencies[key].relation.entry.links) > 1:
                 for row in kept(object_schema, symbol, key, rows):
                     builder.adjacency(key, lambda a, r=row: a.add(lambda x: _fill(x, r, resolve)))
         add_nested(builder, symbol, one_link=False)

@@ -51,7 +51,7 @@ function compare(a: string, b: string): number {
 function key(relation: Schemas.OfRelation.Data, me: string, values: ReadonlyMap<string, unknown>, position: number): string {
   for (const names of relation.keys(me)) {
     const texts = names.map((name) => text(values.get(name)));
-    if (names.every((name) => relation.properties.has(name)) && !texts.includes(null)) {
+    if (names.every((name) => relation.entry.properties.has(name)) && !texts.includes(null)) {
       return names.map((name, i) => `${name}=${texts[i]}`).join(",");
     }
   }
@@ -86,7 +86,7 @@ export class Paths {
     for (const [name, listed] of entries) {
       const adjacency = schema.adjacencies.get(name) as Schemas.OfAdjacency.Data;
       const relation = adjacency.relation as Schemas.OfRelation.Data;
-      const others = relation.links.filter((link) => link !== adjacency.me);
+      const others = [...relation.entry.links.keys()].filter((link) => link !== adjacency.me);
       listed.forEach((entry, position) => {
         const at = key(relation, adjacency.me, entry.values, position);
         for (const link of others) { // every link of an entry is set

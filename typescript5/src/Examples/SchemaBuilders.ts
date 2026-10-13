@@ -99,7 +99,7 @@ const Clash = new Schemas.OfRelation.Builder()
 assert(Clash.validate().some((p) => p.includes("both link and property")));
 
 const DuplicateLinks = new Schemas.OfRelation.Builder().links("node", "node").create();
-assert(DuplicateLinks.validate().some((p) => p.includes("duplicate link")));
+assert(DuplicateLinks.entry.links.size === 1); // links are by name, as properties are
 
 const UnknownUnique = new Schemas.OfRelation.Builder().links("a", "b").unique("c").create();
 assert(UnknownUnique.validate().some((p) => p.includes("unknown")));

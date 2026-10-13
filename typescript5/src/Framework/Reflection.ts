@@ -45,8 +45,10 @@ Schemas._REFLECTION.accept = accept;
 /** The types and relations a schema refers to directly. */
 function referred(schema: Schema): unknown[] {
   const types: unknown[] = [...schema.parameters.values()].map((p) => p.type).filter((t) => t !== null);
-  if (schema instanceof Schemas.OfObject.Data || schema instanceof Schemas.OfRelation.Data) {
-    types.push(...[...schema.properties.values()].map((p) => p.type));
+  if (schema instanceof Schemas.OfObject.Data) types.push(...[...schema.properties.values()].map((p) => p.type));
+  if (schema instanceof Schemas.OfRelation.Data) {
+    types.push(...[...schema.entry.links.values()].map((link) => link.type).filter((t) => t !== null));
+    types.push(...[...schema.entry.properties.values()].map((p) => p.type));
   }
   if (schema instanceof Schemas.OfObject.Data) types.push(...[...schema.adjacencies.values()].map((a) => a.relation));
   else if (schema instanceof Schemas.OfUnion.Data) types.push(...schema.branches.map((b) => b.type));

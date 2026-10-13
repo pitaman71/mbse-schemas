@@ -403,7 +403,7 @@ class Checker {
     this.schema(`of ${label}`, relation);
     const problems: string[] = [];
     const links = new Map<string, Visitable | null>([[adjacency.me, owner], ...entry.targets]);
-    for (const name of relation.links) {
+    for (const name of relation.entry.links.keys()) {
       if (!links.has(name)) {
         problems.push(`${label}: link ${repr(name)} is not set`);
         continue;
@@ -418,7 +418,7 @@ class Checker {
       if (problem !== null) problems.push(`${label}.${name}: ${problem}`);
     }
     for (const [name, item] of entry.values) {
-      const propertyType = relation.properties.get(name)?.type as Schemas.OfAny.Data | undefined;
+      const propertyType = relation.entry.properties.get(name)?.type as Schemas.OfAny.Data | undefined;
       if (propertyType === undefined) {
         problems.push(`${label}.${name}: not a property of the relation`);
         continue;
@@ -428,14 +428,14 @@ class Checker {
     const full = new Entry(new Map([...links].filter(([, t]) => t !== null)) as Map<string, Visitable>, entry.values);
     let seen = this.entries.get(relation);
     if (seen === undefined) this.entries.set(relation, (seen = new Map()));
-    const key = full.key([...relation.links, ...relation.properties.keys()]);
+    const key = full.key([...relation.entry.links.keys(), ...relation.entry.properties.keys()]);
     if (!seen.has(key)) seen.set(key, full);
     return problems;
   }
 
   uniques(): void {
     for (const [relation, entries] of this.entries) {
-      const names = new Set([...relation.links, ...relation.properties.keys()]);
+      const names = new Set([...relation.entry.links.keys(), ...relation.entry.properties.keys()]);
       for (const unique of relation.uniques) {
         const rest = [...names].filter((name) => !unique.has(name));
         const determined = new Map<string, string>();

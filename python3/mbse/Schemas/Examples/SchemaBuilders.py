@@ -124,7 +124,7 @@ Clash = (
 assert any('both link and property' in p for p in Clash.validate())
 
 DuplicateLinks = Schemas.OfRelation.Builder().links('node', 'node').create()
-assert any('duplicate link' in p for p in DuplicateLinks.validate())
+assert list(DuplicateLinks.entry.links) == ['node']  # links are by name, as properties are
 
 UnknownUnique = Schemas.OfRelation.Builder().links('a', 'b').unique('c').create()
 assert any('unknown' in p for p in UnknownUnique.validate())

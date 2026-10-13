@@ -52,7 +52,7 @@ def _key(relation: Any, me: str, values: dict[str, Any], position: int) -> str:
     (`Schemas.OfRelation.Data.keys`) of properties the entry has, of types a path writes; else its position."""
     for names in relation.keys(me):
         texts = [_text(values.get(name)) for name in names]
-        if all(name in relation.properties for name in names) and None not in texts:
+        if all(name in relation.entry.properties for name in names) and None not in texts:
             return ",".join(f"{name}={text}" for name, text in zip(names, texts))
     return str(position)
 
@@ -83,7 +83,7 @@ class Paths:
         schema = store.schema(value.schema_name())
         for name, listed in entries.items():
             adjacency = schema.adjacencies[name]
-            others = [link for link in adjacency.relation.links if link != adjacency.me]
+            others = [link for link in adjacency.relation.entry.links if link != adjacency.me]
             for position, entry in enumerate(listed):
                 key = _key(adjacency.relation, adjacency.me, entry.values, position)
                 for link in others:  # every link of an entry is set

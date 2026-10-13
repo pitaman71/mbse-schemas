@@ -96,7 +96,7 @@ function fill(visitor: OfEntry, relation: Schemas.OfRelation.Data, entry: Entry)
   for (const [link, target] of entry.links) visitor.link(link, (k) => k.set(target as Visitable));
   for (const [name, value] of entry.properties) {
     if (value !== null && value !== undefined) { // absent
-      const schema = (relation.properties.get(name) as Schemas.OfProperty.Data).type as Schemas.OfAny.Data;
+      const schema = (relation.entry.properties.get(name) as Schemas.OfProperty.Data).type as Schemas.OfAny.Data;
       visitor.property(name, (p) => p.value((a) => writeValue(a, schema, value)));
     }
   }
@@ -224,7 +224,7 @@ class _EntrySlot implements OfEntry {
   constructor(private readonly relation: Schemas.OfRelation.Data, private readonly own: string, readonly entry: Entry) {}
 
   private others(): string[] {
-    return this.relation.links.filter((name) => name !== this.own);
+    return [...this.relation.entry.links.keys()].filter((name) => name !== this.own);
   }
 
   links(callback: Callback<OfLink>): this {
@@ -239,20 +239,20 @@ class _EntrySlot implements OfEntry {
   }
 
   properties(callback: Callback<OfProperty>): this {
-    for (const name of this.relation.properties.keys()) if (this.has(name)) callback(this.slot(name));
+    for (const name of this.relation.entry.properties.keys()) if (this.has(name)) callback(this.slot(name));
     return this;
   }
 
   has(name: string): boolean {
-    return this.relation.properties.has(name) && (this.entry.properties.get(name) ?? null) !== null;
+    return this.relation.entry.properties.has(name) && (this.entry.properties.get(name) ?? null) !== null;
   }
 
   private slot(name: string): OfProperty {
-    return slot(this.entry.properties, name, (this.relation.properties.get(name) as Schemas.OfProperty.Data).type as Schemas.OfAny.Data);
+    return slot(this.entry.properties, name, (this.relation.entry.properties.get(name) as Schemas.OfProperty.Data).type as Schemas.OfAny.Data);
   }
 
   property(name: string, callback: Callback<OfProperty>): this {
-    if (!this.relation.properties.has(name)) throw new KeyError(`unknown property ${repr(name)}`);
+    if (!this.relation.entry.properties.has(name)) throw new KeyError(`unknown property ${repr(name)}`);
     callback(this.slot(name));
     return this;
   }

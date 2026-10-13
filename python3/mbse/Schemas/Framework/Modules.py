@@ -118,8 +118,8 @@ class _Writer:
                             adjacencies=adjacencies,
                             singleton=schema.singleton, ref=schema.ref, description=schema.description)
         if isinstance(schema, Schemas.OfRelation.Data):
-            return _kind_of("relation", parameters=parameters, links=[{"name": link} for link in schema.links],
-                            properties=self._members(schema.properties.values()),
+            return _kind_of("relation", parameters=parameters, links=self._members(schema.entry.links.values()),
+                            properties=self._members(schema.entry.properties.values()),
                             uniques=[{"clause": _present(names=[{"name": name} for name in sorted(unique)])}
                                      for unique in schema.uniques], description=schema.description)
         if isinstance(schema, Schemas.OfUnion.Data):
@@ -285,9 +285,8 @@ class _Reader:
                                   for a in body.get("adjacencies", [])}
             schema.singleton, schema.ref = body.get("singleton"), body.get("ref", False)
         elif kind == "relation":
-            _once(body.get("links", []), "link")
-            schema.links = tuple(link["name"] for link in body.get("links", []))
-            schema.properties = {p.name: p for p in properties}
+            links = self._members(body.get("links", []), Schemas.OfSymbol.Data, "link")
+            schema.entry = Schemas.OfEntry.Data({link.name: link for link in links}, {p.name: p for p in properties})
             schema.uniques = tuple(frozenset(name["name"] for name in unique["clause"].get("names", []))
                                    for unique in body.get("uniques", []))
         elif kind == "union":

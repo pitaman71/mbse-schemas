@@ -126,8 +126,8 @@ export class _Writer {
         ["adjacencies", adjacencies], ["singleton", schema.singleton], ["ref", schema.ref], ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfRelation.Data) {
-      return kindOf("relation", [["parameters", parameters], ["links", schema.links.map((link) => new Map([["name", link]]))],
-        ["properties", this.members(schema.properties.values())],
+      return kindOf("relation", [["parameters", parameters], ["links", this.members(schema.entry.links.values())],
+        ["properties", this.members(schema.entry.properties.values())],
         ["uniques", schema.uniques.map((unique) => new Map([["clause", present([["names",
           sortedStrings(unique).map((name) => new Map([["name", name]]))]])]]))], ["description", schema.description]]);
     }
@@ -317,9 +317,8 @@ class _Reader {
       schema.singleton = (body.get("singleton") as string | undefined) ?? null;
       schema.ref = (body.get("ref") as boolean | undefined) ?? false;
     } else if (schema instanceof Schemas.OfRelation.Data) {
-      once(list("links") as PlainMap[], "link");
-      schema.links = (list("links") as PlainMap[]).map((link) => link.get("name") as string);
-      schema.properties = properties();
+      const links = this.members(body.get("links"), "link", (f) => new Schemas.OfSymbol.Data(f));
+      schema.entry = new Schemas.OfEntry.Data({ links: new Map(links.map((link) => [link.name, link])), properties: properties() });
       schema.uniques = (list("uniques") as PlainMap[]).map((unique) => new Set(
         (((unique.get("clause") as PlainMap).get("names") as PlainMap[] | undefined) ?? []).map((name) => name.get("name") as string)));
     } else if (schema instanceof Schemas.OfUnion.Data) {

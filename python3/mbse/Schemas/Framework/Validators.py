@@ -384,7 +384,7 @@ class _Check:
         self._schema(f"of {label}", relation)
         problems = []
         links = {adjacency.me: owner, **entry.targets}
-        for name in relation.links:
+        for name in relation.entry.links:
             if name not in links:
                 problems.append(f"{label}: link {name!r} is not set")
                 continue
@@ -399,18 +399,18 @@ class _Check:
             if problem:
                 problems.append(f"{label}.{name}: {problem}")
         for name, item in entry.values.items():
-            if name not in relation.properties:
+            if name not in relation.entry.properties:
                 problems.append(f"{label}.{name}: not a property of the relation")
                 continue
-            problems += self._value_problems(f"{label}.{name}", relation.properties[name].type, item)
+            problems += self._value_problems(f"{label}.{name}", relation.entry.properties[name].type, item)
         full = _Entry({n: t for n, t in links.items() if t is not None}, entry.values)
         _, seen = self._entries.setdefault(id(relation), (relation, {}))
-        seen.setdefault(full.key(set(relation.links) | set(relation.properties)), full)
+        seen.setdefault(full.key(set(relation.entry.links) | set(relation.entry.properties)), full)
         return problems
 
     def uniques(self) -> None:
         for relation, entries in self._entries.values():
-            names = set(relation.links) | set(relation.properties)
+            names = set(relation.entry.links) | set(relation.entry.properties)
             for unique in relation.uniques:
                 rest = names - unique
                 determined: dict[Hashable, Hashable] = {}

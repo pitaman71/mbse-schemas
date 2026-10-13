@@ -94,7 +94,7 @@ def _fill(visitor: Visitors.OfEntry, relation: Schemas.OfRelation.Data, entry: E
         visitor.link(link, lambda k, t=target: k.set(t))
     for name, value in entry.properties.items():
         if value is not None:  # absent
-            schema = relation.properties[name].type
+            schema = relation.entry.properties[name].type
             visitor.property(name, lambda p, s=schema, v=value: p.value(lambda a: _write_value(a, s, v)))
 
 
@@ -200,7 +200,7 @@ class _EntrySlot:
         self._relation, self._me, self._entry = relation, me, entry
 
     def _others(self) -> list[str]:
-        return [name for name in self._relation.links if name != self._me]
+        return [name for name in self._relation.entry.links if name != self._me]
 
     def links(self, callback: Callable[[Visitors.OfLink], Any]) -> _EntrySlot:
         for name in self._others():
@@ -214,19 +214,19 @@ class _EntrySlot:
         return self
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _EntrySlot:
-        for name in self._relation.properties:
+        for name in self._relation.entry.properties:
             if self.has(name):
                 callback(self._slot(name))
         return self
 
     def has(self, name: str) -> bool:
-        return name in self._relation.properties and self._entry.properties.get(name) is not None
+        return name in self._relation.entry.properties and self._entry.properties.get(name) is not None
 
     def _slot(self, name: str) -> Any:
-        return _slot(self._entry.properties, name, self._relation.properties[name].type)
+        return _slot(self._entry.properties, name, self._relation.entry.properties[name].type)
 
     def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _EntrySlot:
-        if name not in self._relation.properties:
+        if name not in self._relation.entry.properties:
             raise KeyError(f"unknown property {name!r}")
         callback(self._slot(name))
         return self

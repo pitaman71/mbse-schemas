@@ -180,18 +180,18 @@ export class _EntryWriter implements OfEntry {
   ) {}
 
   links(callback: Callback<OfLink>): _EntryWriter {
-    for (const name of this.relation.links) if (name !== this.me) callback(new _LinkWriter(this.entry, name, this.ref));
+    for (const name of this.relation.entry.links.keys()) if (name !== this.me) callback(new _LinkWriter(this.entry, name, this.ref));
     return this;
   }
 
   link(name: string, callback: Callback<OfLink>): _EntryWriter {
-    if (name === this.me || !this.relation.links.includes(name)) throw new KeyError(`${repr(name)} is not a link this entry can set`);
+    if (name === this.me || !this.relation.entry.links.has(name)) throw new KeyError(`${repr(name)} is not a link this entry can set`);
     callback(new _LinkWriter(this.entry, name, this.ref));
     return this;
   }
 
   properties(callback: Callback<OfProperty>): _EntryWriter {
-    for (const [name, prop] of this.relation.properties) {
+    for (const [name, prop] of this.relation.entry.properties) {
       const schema = prop.type as Schemas.OfAny.Data;
       if (this.entry.has(name)) callback(new _PropertyWriter(this.entry, name, schema, this.ref));
     }
@@ -203,7 +203,7 @@ export class _EntryWriter implements OfEntry {
   }
 
   property(name: string, callback: Callback<OfProperty>): _EntryWriter {
-    callback(new _PropertyWriter(this.entry, name, propertySchema(this.relation.properties, name), this.ref));
+    callback(new _PropertyWriter(this.entry, name, propertySchema(this.relation.entry.properties, name), this.ref));
     return this;
   }
 
@@ -373,7 +373,7 @@ function sortEntries(type: unknown, plain: PlainData | undefined): void {
     const [entries, names] = [record.get(name), relation.key(adjacency.me)];
     if (!Array.isArray(entries)) continue;
     for (const entry of entries as PlainMap[]) { // an entry's value objects, held by its properties
-      for (const [held, prop] of relation.properties) if (entry.has(held)) sortEntries(prop.type, entry.get(held));
+      for (const [held, prop] of relation.entry.properties) if (entry.has(held)) sortEntries(prop.type, entry.get(held));
     }
     if (names === null) continue;
     const keys = (entries as PlainMap[]).map((entry) => names.map((n) => entry.get(n)));
@@ -522,12 +522,12 @@ function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: 
     const row = new Map<string, unknown>();
     for (const [name, item] of entry as PlainMap) {
       const at = path(...where, key, i, name);
-      const entryType = relation.properties.get(name)?.type as Schemas.OfAny.Data | undefined;
+      const entryType = relation.entry.properties.get(name)?.type as Schemas.OfAny.Data | undefined;
       if (name === adjacency.me) throw new DecodeError(`${repr(name)} is this object's own link, which is implied`, { path: at });
-      if (relation.links.includes(name)) {
+      if (relation.entry.links.has(name)) {
         if (!isRef(item)) throw new DecodeError("a link must be a reference", { path: at });
         row.set(name, new Link(item.get(REF) as string));
-      } else if (entryType !== undefined && relation.links.length === 1 && context !== null) {
+      } else if (entryType !== undefined && relation.entry.links.size === 1 && context !== null) {
         row.set(name, decode(entryType, item, [...where, key, i, name], context, [...steps, [[key, i, name], kindOf(entryType)]]));
       } else if (entryType !== undefined) {
         row.set(name, decodeEntryProperty(entryType, item, [...where, key, i, name]));
@@ -535,7 +535,7 @@ function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: 
         throw new DecodeError(`the relation has no link or property ${repr(name)}`, { path: at });
       }
     }
-    const missing = relation.links.filter((n) => n !== adjacency.me && !(entry as PlainMap).has(n));
+    const missing = [...relation.entry.links.keys()].filter((n) => n !== adjacency.me && !(entry as PlainMap).has(n));
     if (missing.length > 0) throw new DecodeError(`links ${repr(missing)} are not set`, { path: path(...where, key, i) });
     return row;
   });
@@ -684,7 +684,7 @@ function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unkn
     });
   };
   const oneLink = (schema: Schemas.OfObject.Data, key: string): boolean =>
-    ((schema.adjacencies.get(key) as Schemas.OfAdjacency.Data).relation as Schemas.OfRelation.Data).links.length === 1;
+    ((schema.adjacencies.get(key) as Schemas.OfAdjacency.Data).relation as Schemas.OfRelation.Data).entry.links.size === 1;
 
   const created = new Map<string, unknown>();
   for (const [symbol, [properties, adjacencies]] of decoded) {

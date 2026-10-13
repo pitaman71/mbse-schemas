@@ -231,7 +231,7 @@ class _Reader:
         name = owner + _pascal(field)
         if name in self.relations or name in self.objects:
             raise ValueError(f"field {field!r}: the relation name {name!r} is already used")
-        relation = Schemas.OfRelation.Data(links=(_OWNER, _ITEM), properties=properties,
+        relation = Schemas.OfRelation.Data(_entry((_OWNER, _ITEM), properties),
                                            uniques=(frozenset({_ITEM}),) if properties else (), name=name)
         self.relations[name] = relation
         self._adjacency(owner, Schemas.OfAdjacency.Data(name=field, relation=relation, me=_OWNER))
@@ -244,6 +244,11 @@ class _Reader:
         if adjacency.name in adjacencies:
             raise ValueError(f"{owner}: the adjacency {adjacency.name!r} would be declared twice")
         adjacencies[adjacency.name] = adjacency
+
+
+def _entry(links: tuple[str, ...], properties: dict[str, Schemas.OfProperty.Data]) -> Schemas.OfEntry.Data:
+    """The schema of a relation's entries: links by name, and properties."""
+    return Schemas.OfEntry.Data({link: Schemas.OfSymbol.Data(link) for link in links}, properties)
 
 
 def _scalar(node: ast.expr) -> Schemas.OfScalar.Data | None:
@@ -260,10 +265,10 @@ def _scalars(field: str, node: ast.Subscript) -> Schemas.OfRelation.Data | None:
     pair = node.slice.elts if shape == "dict" and isinstance(node.slice, ast.Tuple) else []
     if shape == "list" and _scalar(node.slice) is not None:
         properties = {_VALUE: Schemas.OfProperty.Data(_VALUE, _scalar(node.slice))}
-        return Schemas.OfRelation.Data(links=(_OWNER,), properties=properties)
+        return Schemas.OfRelation.Data(_entry((_OWNER,), properties))
     if len(pair) == 2 and _scalar(pair[0]) is not None and _scalar(pair[1]) is not None:
         properties = {_KEY: Schemas.OfProperty.Data(_KEY, _scalar(pair[0])), _VALUE: Schemas.OfProperty.Data(_VALUE, _scalar(pair[1]))}
-        return Schemas.OfRelation.Data(links=(_OWNER,), properties=properties, uniques=(frozenset({_VALUE}),))
+        return Schemas.OfRelation.Data(_entry((_OWNER,), properties), uniques=(frozenset({_VALUE}),))
     return None
 
 
@@ -336,22 +341,22 @@ def _container_annotation(adjacency: Schemas.OfAdjacency.Data, objects: Mapping[
                           ) -> ast.expr | None:
     """The container type an adjacency is viewed as, or None for an adjacency that only declares a link's types."""
     relation = adjacency.relation
-    if relation is not None and len(relation.links) == 1:
+    if relation is not None and len(relation.entry.links) == 1:
         return _scalars_annotation(adjacency)
-    if relation is None or len(relation.links) != 2:
+    if relation is None or len(relation.entry.links) != 2:
         raise TypeError(f"adjacency {adjacency.name!r}: only a relation with one link or two has a container form")
-    if adjacency.me != relation.links[0]:
+    first, other = relation.entry.links
+    if adjacency.me != first:
         return None
-    other = relation.links[1]
     targets = [name for name, schema in objects.items()
                if any(a.relation is relation and a.me == other for a in schema.adjacencies.values())]
     if not targets:
         raise TypeError(f"adjacency {adjacency.name!r}: no object schema declares an adjacency via {other!r}, so the "
                         "element type is unknown")
     element = _either([_load(t) for t in targets])
-    if not relation.properties:
+    if not relation.entry.properties:
         return ast.Subscript(value=_load("set"), slice=element, ctx=ast.Load())
-    (key, key_property), *more = relation.properties.items()
+    (key, key_property), *more = relation.entry.properties.items()
     key_schema = key_property.type
     if more or relation.uniques != (frozenset({other}),) or not isinstance(key_schema, Schemas.OfScalar.Data):
         raise TypeError(f"adjacency {adjacency.name!r}: only one scalar property and unique({other!r}) have a "
@@ -366,7 +371,7 @@ def _scalars_annotation(adjacency: Schemas.OfAdjacency.Data) -> ast.expr:
     """`list[N]` for a one-link relation whose entries hold a scalar `value`, in order; `dict[K, N]` for one whose
     entries hold a scalar `key` and `value`, keyed by `key`."""
     relation = adjacency.relation
-    held = {name: prop.type for name, prop in relation.properties.items()}
+    held = {name: prop.type for name, prop in relation.entry.properties.items()}
     if all(isinstance(t, Schemas.OfScalar.Data) for t in held.values()):
         if list(held) == [_VALUE] and not relation.uniques:
             return ast.Subscript(value=_load("list"), slice=_load(held[_VALUE].host().__name__), ctx=ast.Load())

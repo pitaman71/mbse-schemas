@@ -597,8 +597,8 @@ are written, read, validated and compared like any other objects.
   `type` and `description`, and as `Schemas.OfSymbol.Schema` a predicate's symbol's), `Schemas.OfAdjacency.Schema` and
   `Schemas.OfApply.Argument`. A member list's entries hold exactly the properties its member's meta-schema declares, of
   the same types, so the two cannot drift apart. `Schemas.OfEntry.Schema` is an entry's schema's: its `links`, as
-  symbols, and its `properties`; a module writes them in the relation, of which `relation.entry` is a view (Resolved,
-  The visitor pattern).
+  symbols, and its `properties`; a module writes them in the relation, whose `Schemas.OfRelation.Data.entry` holds
+  them (Resolved, The visitor pattern).
 - **A type is a schema of any kind, inline, or a name**: `Schemas.OfAny.Schema`, a union of the kinds and `named`, a
   value object `{"name": ...}` (union branches are of one kind, so a name is a value object too). A property's type is
   `{"scalar": {"format": "basic", "token": "str"}}` or `{"named": {"name": "Phone"}}`, and an adjacency's relation is
@@ -886,10 +886,14 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     `Schemas.Form`, mbse-schemas knowing no dialect; finding matches and `Patterns.Stores.update`, which returns a
     certificate ("a compact record ... that can be used to track the effect of the write in a lazy distributed
     system"), are mbse-patterns'.
-  - `Schemas.OfEntry` is "a new element held by the relation (`relation.entry`) that carries the links and
-    properties", and, since no entry schema is held without its relation, a view of its relation: the relation keeps
-    its links, properties, `unique` clauses, name, parameters and description, and `relation.entry` reads the links
-    and properties from it. Moving them into the entry waits for a use that holds an entry schema on its own.
+  - `Schemas.OfEntry` is an element the relation holds, carrying the entries' links and properties (the user agreed to
+    that description), and it follows the pattern of every element: "`Schemas.OfEntry.Builder` is responsible fo[r]
+    building `Schemas.OfEntry.Data`", with a `Spec`, and `Schemas.OfRelation.Data.entry` holds what it builds, as
+    `Schemas.OfObject.Data.adjacencies` holds what `Schemas.OfAdjacency.Builder` builds (the user, on an entry built
+    on each read instead: "no idea why you would hallucinate something rather than follow the pattern"). Its links
+    and properties are by name, in declaration order. "It's okay for the `links` and `properties` adjacencies to stay
+    where they are": a relation's module form keeps its `links` and `properties` lists, and the relation's builder
+    its `.links(...)` and `.properties(...)`, which declare the entry schema.
   - a predicate's symbols and an entry's links are both `Schemas.OfSymbol`s, after the user's "maybe
     `HasSymbols(Schemas.OfPredicate, Schemas.OfSymbol)` and `HasLinks(Schemas.OfEntry, Schemas.OfSymbol)`" (phase 5's
     meta-relations; until then, lists): a symbol is a name with an optional reference object schema, which a

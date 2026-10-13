@@ -16,8 +16,8 @@ Every kind of schema may declare `parameters` (`OfParameter`), variables determi
 an expression term, such as mbse-expressions', or its neutral `Form`, which may refer to parameters.
 
 A predicate (`OfPredicate`) names its symbols (`OfSymbol`), each of a reference object schema, and requires a
-constraint over them, a term; mbse-schemas knows no dialect, so a term is checked as a `Form` only. An entry's schema
-(`OfEntry`) is its relation's links, as symbols, and properties.
+constraint over them, a term; mbse-schemas knows no dialect, so a term is checked as a `Form` only. A relation holds the
+schema of its entries (`OfEntry`): their links, each a symbol, and their properties.
 """
 
 from __future__ import annotations
@@ -517,13 +517,67 @@ def _symbol_problems(symbol: _SymbolData) -> list[str]:
     return problems + _description_problems(symbol.description)
 
 
+# --- OfEntry: the schema of a relation's entries ---
+
+
+@dataclass(eq=False)
+class _EntryData:
+    """The schema of a relation's entries: their links, each a symbol, and their properties, both by name in
+    declaration order. A relation holds it (`OfRelation.Data.entry`)."""
+
+    links: dict[str, _SymbolData] = field(default_factory=dict)
+    properties: dict[str, _PropertyData] = field(default_factory=dict)
+
+    def validate(self) -> list[str]:
+        problems = _reserved([*self.links, *self.properties]) + _visited([*self.links, *self.properties])
+        if not self.links:
+            problems.append("a relation needs at least one link")
+        clashes = set(self.links) & set(self.properties)
+        if clashes:
+            problems.append(f"names used as both link and property: {sorted(clashes)}")
+        for name, link in self.links.items():
+            problems += [f"link {name!r}: {p}" for p in _symbol_problems(link)]
+        for name, prop in self.properties.items():
+            held = _entry_value_problems(prop.type) if len(self.links) > 1 else []  # one owner: written once
+            problems += [f"property {name!r}: {p}" for p in _validate(prop.type) + _embedded_problems(prop.type)
+                         + held + _description_problems(prop.description)]
+        return problems
+
+
+class _EntryBuilder(_Builder[_EntryData]):
+    _data = _EntryData
+
+    def links(self, *specs: OfSymbol.Spec) -> _EntryBuilder:
+        """The links, in order, e.g. `.links(lambda s: s.name('owner'))`."""
+        links = self._fields.setdefault("links", {})
+        for spec in specs:
+            link = _resolve(spec, _SymbolData, _SymbolBuilder)
+            links[link.name] = link
+        return self
+
+    def properties(self, *specs: OfProperty.Spec) -> _EntryBuilder:
+        _properties(self._fields, specs)
+        return self
+
+
+class OfEntry:
+    """The schema of a relation's entries: their links and properties."""
+
+    Data = _EntryData
+    Builder = _EntryBuilder
+    Spec = _EntryData | Callable[[_EntryBuilder], _EntryBuilder]
+
+    @staticmethod
+    def resolve(spec: OfEntry.Spec) -> _EntryData:
+        return _resolve(spec, _EntryData, _EntryBuilder)
+
+
 # --- OfRelation ---
 
 
 @dataclass(eq=False)
 class _RelationData(_Reflected):
-    links: tuple[str, ...] = ()
-    properties: dict[str, _PropertyData] = field(default_factory=dict)
+    entry: _EntryData = field(default_factory=_EntryData)
     uniques: tuple[frozenset[str], ...] = ()
     name: str | None = None
     description: str | None = None
@@ -531,23 +585,11 @@ class _RelationData(_Reflected):
 
     def validate(self) -> list[str]:
         problems = (_name_problems(self.name) + _description_problems(self.description)
-                    + _parameter_problems(self.parameters) + _reserved([*self.links, *self.properties])
-                    + _visited([*self.links, *self.properties]))
-        if not self.links:
-            problems.append("a relation needs at least one link")
-        if len(set(self.links)) != len(self.links):
-            problems.append(f"duplicate link names in {self.links}")
-        clashes = set(self.links) & set(self.properties)
-        if clashes:
-            problems.append(f"names used as both link and property: {sorted(clashes)}")
+                    + _parameter_problems(self.parameters) + self.entry.validate())
         for unique in self.uniques:
-            unknown = unique - set(self.links) - set(self.properties)
+            unknown = unique - set(self.entry.links) - set(self.entry.properties)
             if unknown:
                 problems.append(f"unique({', '.join(sorted(unique))}) names unknown links or properties {sorted(unknown)}")
-        for name, prop in self.properties.items():
-            held = _entry_value_problems(prop.type) if len(self.links) > 1 else []  # one owner: written once
-            problems += [f"property {name!r}: {p}" for p in _validate(prop.type) + _embedded_problems(prop.type)
-                         + held + _description_problems(prop.description)]
         return problems
 
     @property
@@ -560,7 +602,7 @@ class _RelationData(_Reflected):
         """The keys of the entries seen from the link `me`, one per `unique(S)` clause in declaration order whose
         complement holds `me` and something else: that complement less `me`, in declaration order. `unique(S)` makes
         the links and properties outside `S` determine `S`, so from `me`'s end each key picks out one entry."""
-        names = [*self.links, *self.properties]
+        names = [*self.entry.links, *self.entry.properties]
         rests = [[name for name in names if name not in unique] for unique in self.uniques]
         return [tuple(name for name in rest if name != me) for rest in rests if me in rest and len(rest) > 1]
 
@@ -568,33 +610,6 @@ class _RelationData(_Reflected):
         """The first of `keys(me)`, which an adjacency from `me` is indexed by (`at`); None when there is none."""
         keys = self.keys(me)
         return keys[0] if keys else None
-
-    @property
-    def entry(self) -> _EntryData:
-        """The schema of the relation's entries: its links and properties."""
-        return _EntryData(self)
-
-
-@dataclass(frozen=True, eq=False)
-class _EntryData:
-    """An entry's schema: the links, as symbols, and the properties its relation's entries have. It is a view of the
-    relation, which holds them (`relation.entry`), since no entry schema is held without its relation."""
-
-    relation: _RelationData
-
-    @property
-    def links(self) -> tuple[_SymbolData, ...]:
-        return tuple(_SymbolData(name) for name in self.relation.links)
-
-    @property
-    def properties(self) -> dict[str, _PropertyData]:
-        return self.relation.properties
-
-
-class OfEntry:
-    """The schema of a relation's entries, `relation.entry`. It has no builder: a relation's builder declares it."""
-
-    Data = _EntryData
 
 
 def _entry_value_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[str]:
@@ -612,13 +627,27 @@ def _entry_value_problems(schema: Any, seen: frozenset[int] = frozenset()) -> li
 class _RelationBuilder(_NamedBuilder[_RelationData]):
     _data = _RelationData
 
+    def entry(self, spec: OfEntry.Spec) -> _RelationBuilder:
+        """The schema of the relation's entries: their links and properties."""
+        self._fields["entry"] = OfEntry.resolve(spec)
+        return self
+
+    def _edit(self, edit: Callable[[_EntryBuilder], _EntryBuilder]) -> _RelationBuilder:
+        """Edits the entry schema through its builder, on a copy, so that the source's stays as it is until `update()`."""
+        entry = self._fields.get("entry")
+        self._fields["entry"] = edit(_EntryBuilder()).create() if entry is None else edit(_EntryBuilder(entry)).clone()
+        return self
+
     def links(self, *names: str) -> _RelationBuilder:
-        self._fields["links"] = tuple(names)
+        """The entry schema's links, by name, in place of any before: symbols without a schema."""
+        properties = self._fields["entry"].properties.values() if "entry" in self._fields else ()
+        self._fields["entry"] = _EntryBuilder().links(*[lambda s, n=n: s.name(n) for n in names]).properties(
+            *properties).create()
         return self
 
     def properties(self, *specs: OfProperty.Spec) -> _RelationBuilder:
-        _properties(self._fields, specs)
-        return self
+        """Adds properties to the entry schema: `OfEntry.Builder.properties`."""
+        return self._edit(lambda e: e.properties(*specs))
 
     def unique(self, *names: str) -> _RelationBuilder:
         """Adds a `unique(S)` clause: the links and properties outside `S` determine `S`."""
@@ -655,8 +684,8 @@ class _AdjacencyData:
             return problems
         if self.relation is None:
             return [f"adjacency {self.name!r} has no relation"]
-        if self.me not in self.relation.links:
-            return [f"adjacency {self.name!r}: {self.me!r} is not a link of its relation {self.relation.links}"]
+        if self.me not in self.relation.entry.links:
+            return [f"adjacency {self.name!r}: {self.me!r} is not a link of its relation {tuple(self.relation.entry.links)}"]
         return []
 
 
@@ -728,7 +757,7 @@ class _ObjectData(_Reflected):
                          + _description_problems(prop.description)]
         for name, adjacency in self.adjacencies.items():
             problems += adjacency.validate()
-            links = len(adjacency.relation.links) if isinstance(adjacency.relation, _RelationData) else 0
+            links = len(adjacency.relation.entry.links) if isinstance(adjacency.relation, _RelationData) else 0
             if not self.ref and links > 1:  # its entries would link it: value objects are never shared
                 named = "the relation" if adjacency.relation.name is None else repr(adjacency.relation.name)
                 problems.append(f"adjacency {name!r}: a value object schema's adjacency is to a one-link relation, "
@@ -1283,7 +1312,7 @@ _ScalarSchema = OfObject.Builder().name("Schemas.Scalar").properties(
 _Clause = OfObject.Builder().relations(_listing("names", {"name": _Text})).create()
 _RelationSchema = OfObject.Builder().name("Schemas.Relation").properties(
     _named_text("name"), _named_text("description")).relations(
-    _Parameters, _listing("links", {"name": _Text}), _listing("properties", _MEMBER),
+    _Parameters, _listing("links", _MEMBER), _listing("properties", _MEMBER),
     _listing("uniques", {"clause": _Clause})).create()
 _RelationRef = OfUnion.Builder().branches(lambda b: b.name("relation").of(_RelationSchema),
                                           lambda b: b.name("named").of(_Named)).create()

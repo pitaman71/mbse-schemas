@@ -57,11 +57,12 @@ skill regenerated. No release comes between phases.
    protocol's, not Basic's.
 
 - V1. **Schema-level changes** (built): `validate()` refuses `as_*` names; `Schemas.OfEntry`, with its meta-schema, a
-  view of its relation (`relation.entry`); `OfNative` renamed `OfScalar`, written `{"scalar": {"format": ...,
+  `Schemas.OfEntry.Builder` building the `Schemas.OfEntry.Data` that `Schemas.OfRelation.Data.entry` holds; `OfNative` renamed `OfScalar`, written `{"scalar": {"format": ...,
   "token": ...}}`; a link targets only reference objects, and a value object has adjacencies only to one-link
   relations; `Schemas.OfSymbol`, a predicate's symbol and an entry's link; `Schemas.OfPredicate`, a module definition
-  of its own (`predicate`), registered by name, and an object of `Schemas.Predicate` in `Reflection`. Typing an
-  entry's links with a schema, which `OfSymbol` allows, is not built: a relation's links are still names.
+  of its own (`predicate`), registered by name, and an object of `Schemas.Predicate` in `Reflection`. A link may
+  have a schema, which `validate()` checks and modules write; `Validators` does not yet check a link's target against
+  it.
 - V2. **The visitor protocol, beside the old one**: `Visitors.OfX` with its modes and `as_*` methods, and the read-only
   views `Readers.OfX`; proxy data instances (read-only) and builders implement it, a builder reading back its
   pending writes.

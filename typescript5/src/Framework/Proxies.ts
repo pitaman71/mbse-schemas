@@ -192,8 +192,8 @@ class Entry {
       get(t, prop, receiver) {
         if (typeof prop === "symbol") return Reflect.get(t, prop, receiver);
         if (t.links.has(prop)) return t.links.get(prop);
-        if (t.properties.has(prop)) return view(t.properties.get(prop), (t.relation.properties.get(prop) as Schemas.OfProperty.Data).type);
-        if (t.relation.properties.has(prop)) return null; // not set: nothing is mandatory but by a constraint
+        if (t.properties.has(prop)) return view(t.properties.get(prop), (t.relation.entry.properties.get(prop) as Schemas.OfProperty.Data).type);
+        if (t.relation.entry.properties.has(prop)) return null; // not set: nothing is mandatory but by a constraint
         if (_probes.has(prop)) return undefined;
         throw new AttributeError(prop);
       },
@@ -378,7 +378,7 @@ class Adjacency extends Array<any> { // eslint-disable-line @typescript-eslint/n
   /** Each entry's link or property `name`, in order; null for a property an entry does not set. */
   project(name: string): readonly unknown[] {
     const relation = this.#schema.relation as RelationSchema;
-    if (!relation.links.includes(name) && !relation.properties.has(name)) {
+    if (!relation.entry.links.has(name) && !relation.entry.properties.has(name)) {
       throw new KeyError(`${repr(name)} is not a link or property of the relation`);
     }
     return Object.freeze([...this].map((entry) => (entry as Record<string, unknown>)[name]));
@@ -396,7 +396,7 @@ class Adjacency extends Array<any> { // eslint-disable-line @typescript-eslint/n
     }
     for (const entry of this) {
       const held: unknown[] = names.map((name) => (entry as Record<string, unknown>)[name]);
-      if (names.every((name, i) => relation.links.includes(name) ? held[i] === wanted[i]
+      if (names.every((name, i) => relation.entry.links.has(name) ? held[i] === wanted[i]
         : held[i] !== null && scalarKey(held[i]) === scalarKey(wanted[i]))) return entry; // a target by identity, a value by schema equality
     }
     throw new KeyError(`no entry has the key ${repr(Array.isArray(key) ? new Tuple(key) : key)}`);
@@ -653,7 +653,7 @@ function heldBy(owner: Visitable): unknown[] {
   const values = [...state.values.values()];
   for (const adjacency of state.schema instanceof Schemas.OfObject.Data ? state.schema.adjacencies.values() : []) {
     const relation = adjacency.relation as RelationSchema;
-    if (relation.links.length === 1) {
+    if (relation.entry.links.size === 1) {
       for (const entry of linking(relation, adjacency.me, owner)) values.push(...entry.properties.values());
     }
   }
@@ -695,13 +695,13 @@ function writeEntry(visitor: EntryVisitor, entry: Entry, adjacency: AdjacencySch
   const relation = adjacency.relation as RelationSchema;
   const builder = entryTargets.get(visitor as object);
   if (builder !== undefined) builder.source = entry;
-  for (const name of relation.links) {
+  for (const name of relation.entry.links.keys()) {
     if (name !== adjacency.me) {
       const target = entry.links.get(name) as Instance;
       visitor.link(name, (k) => k.set(target));
     }
   }
-  for (const name of relation.properties.keys()) {
+  for (const name of relation.entry.properties.keys()) {
     if (entry.properties.has(name)) {
       const value = entry.properties.get(name);
       visitor.property(name, (p) => p.value((a) => writeValue(a, value)));
@@ -998,13 +998,13 @@ export class _EntryBuilder implements EntryVisitor {
   constructor(private readonly relation: RelationSchema, readonly me: string, readonly store: OfStore | null = null) {}
 
   private checkLink(name: string): void {
-    if (name === this.me || !this.relation.links.includes(name)) {
+    if (name === this.me || !this.relation.entry.links.has(name)) {
       throw new AttributeError(`${repr(name)} is not a link this entry can set`);
     }
   }
 
   links(callback: Callback<OfLink>): _EntryBuilder {
-    for (const name of this.relation.links) if (name !== this.me) callback(new _LinkSlot(this.linkValues, name, this.store));
+    for (const name of this.relation.entry.links.keys()) if (name !== this.me) callback(new _LinkSlot(this.linkValues, name, this.store));
     return this.proxy;
   }
 
@@ -1015,7 +1015,7 @@ export class _EntryBuilder implements EntryVisitor {
   }
 
   properties(callback: Callback<OfProperty>): _EntryBuilder {
-    for (const name of [...this.values.keys()]) callback(new _PropertySlot(this.values, name, this.relation.properties.get(name)?.type, this.store));
+    for (const name of [...this.values.keys()]) callback(new _PropertySlot(this.values, name, this.relation.entry.properties.get(name)?.type, this.store));
     return this.proxy;
   }
 
@@ -1024,8 +1024,8 @@ export class _EntryBuilder implements EntryVisitor {
   }
 
   property(name: string, callback: Callback<OfProperty>): _EntryBuilder {
-    if (!this.relation.properties.has(name)) throw new AttributeError(`${repr(name)} is not a property of this relation`);
-    callback(new _PropertySlot(this.values, name, this.relation.properties.get(name)?.type, this.store));
+    if (!this.relation.entry.properties.has(name)) throw new AttributeError(`${repr(name)} is not a property of this relation`);
+    callback(new _PropertySlot(this.values, name, this.relation.entry.properties.get(name)?.type, this.store));
     return this.proxy;
   }
 
@@ -1036,7 +1036,7 @@ export class _EntryBuilder implements EntryVisitor {
 
   dsl(name: string): ((spec: unknown) => unknown) | undefined {
     if (name.startsWith("_")) throw new AttributeError(name);
-    if (this.relation.links.includes(name)) {
+    if (this.relation.entry.links.has(name)) {
       this.checkLink(name);
       return (spec: unknown) => {
         if (typeof spec === "function") {
@@ -1051,7 +1051,7 @@ export class _EntryBuilder implements EntryVisitor {
         return this.proxy;
       };
     }
-    if (this.relation.properties.has(name)) return setter(this, this.proxy, name, (this.relation.properties.get(name) as Schemas.OfProperty.Data).type);
+    if (this.relation.entry.properties.has(name)) return setter(this, this.proxy, name, (this.relation.entry.properties.get(name) as Schemas.OfProperty.Data).type);
     return undefined;
   }
 
@@ -1076,7 +1076,7 @@ export class _EntryBuilder implements EntryVisitor {
   /** The entry, linking `target`, holding its values as placed. */
   build(target: Visitable): Entry {
     const links = new Map<string, Visitable>([[this.me, target]]);
-    for (const name of this.relation.links) {
+    for (const name of this.relation.entry.links.keys()) {
       if (name === this.me) continue;
       const value = this.linkValues.get(name);
       if (value === undefined) throw new ValueError(`link ${repr(name)} is not set`);

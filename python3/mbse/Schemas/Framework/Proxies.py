@@ -134,8 +134,8 @@ class _Entry:
         if name in self._links:
             return self._links[name]
         if name in self._properties:
-            return _view(self._properties[name], self._relation.properties[name].type)
-        if name in self._relation.properties:
+            return _view(self._properties[name], self._relation.entry.properties[name].type)
+        if name in self._relation.entry.properties:
             return None  # not set: nothing is mandatory but by a constraint
         raise AttributeError(name)
 
@@ -268,7 +268,7 @@ class _Adjacency(tuple):  # type: ignore[type-arg]
     def project(self, name: str) -> tuple[Any, ...]:
         """Each entry's link or property `name`, in order; None for a property an entry does not set."""
         relation = self._schema.relation
-        if name not in relation.links and name not in relation.properties:
+        if name not in relation.entry.links and name not in relation.entry.properties:
             raise KeyError(f"{name!r} is not a link or property of the relation")
         return tuple(getattr(entry, name) for entry in self)
 
@@ -281,7 +281,7 @@ class _Adjacency(tuple):  # type: ignore[type-arg]
         wanted = key if len(names) > 1 else (key,)
         if not isinstance(wanted, tuple) or len(wanted) != len(names):
             raise KeyError(f"a key of {list(names)} is a tuple of {len(names)} values, got {key!r}")
-        links = self._schema.relation.links
+        links = self._schema.relation.entry.links
         for entry in self:
             held = [getattr(entry, name) for name in names]
             if all(h is v if name in links else h is not None and _scalar_key(h) == _scalar_key(v)
@@ -480,7 +480,7 @@ def _held(owner: Any) -> list[Any]:
     values = list(object.__getattribute__(owner, "_values").values())
     schema = object.__getattribute__(owner, "_schema")
     for adjacency in schema.adjacencies.values() if isinstance(schema, ObjectSchema) else ():
-        if len(adjacency.relation.links) == 1:
+        if len(adjacency.relation.entry.links) == 1:
             values += [value for entry in _linking(adjacency.relation, adjacency.me, owner) for value in entry._properties.values()]
     return values
 
@@ -521,10 +521,10 @@ def _write_entry(visitor: Visitors.OfEntry, entry: _Entry, adjacency: Schemas.Of
     relation = adjacency.relation
     if isinstance(visitor, _EntryBuilder):
         visitor._source = entry
-    for name in relation.links:
+    for name in relation.entry.links:
         if name != adjacency.me:
             visitor.link(name, lambda k, target=entry._links[name]: k.set(target))
-    for name in relation.properties:
+    for name in relation.entry.properties:
         if name in entry._properties:
             value = entry._properties[name]
             visitor.property(name, lambda p, value=value: p.value(lambda a: _write_value(a, value)))
@@ -790,11 +790,11 @@ class _EntryBuilder:
         self._source: _Entry | None = None  # the entry this one rewrites, when copied or loaded from one
 
     def _check_link(self, name: str) -> None:
-        if name == self._me or name not in self._relation.links:
+        if name == self._me or name not in self._relation.entry.links:
             raise AttributeError(f"{name!r} is not a link this entry can set")
 
     def links(self, callback: Callable[[Visitors.OfLink], Any]) -> _EntryBuilder:
-        for name in self._relation.links:
+        for name in self._relation.entry.links:
             if name != self._me:
                 callback(_LinkSlot(self._links, name, self._store))
         return self
@@ -806,16 +806,16 @@ class _EntryBuilder:
 
     def properties(self, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryBuilder:
         for name in list(self._values):
-            callback(_PropertySlot(self._values, name, self._relation.properties[name].type if name in self._relation.properties else None, self._store))
+            callback(_PropertySlot(self._values, name, self._relation.entry.properties[name].type if name in self._relation.entry.properties else None, self._store))
         return self
 
     def has(self, name: str) -> bool:
         return name in self._values
 
     def property(self, name: str, callback: Callable[[Visitors.OfProperty], Any]) -> _EntryBuilder:
-        if name not in self._relation.properties:
+        if name not in self._relation.entry.properties:
             raise AttributeError(f"{name!r} is not a property of this relation")
-        callback(_PropertySlot(self._values, name, self._relation.properties[name].type, self._store))
+        callback(_PropertySlot(self._values, name, self._relation.entry.properties[name].type, self._store))
         return self
 
     def clear(self, name: str) -> _EntryBuilder:
@@ -825,7 +825,7 @@ class _EntryBuilder:
     def __getattr__(self, name: str) -> Callable[[Any], _EntryBuilder]:
         if name.startswith("_"):
             raise AttributeError(name)
-        if name in self._relation.links:
+        if name in self._relation.entry.links:
             self._check_link(name)
 
             def link_setter(spec: Any) -> _EntryBuilder:
@@ -841,8 +841,8 @@ class _EntryBuilder:
                 return self
 
             return link_setter
-        if name in self._relation.properties:
-            return _setter(self, name, self._relation.properties[name].type)
+        if name in self._relation.entry.properties:
+            return _setter(self, name, self._relation.entry.properties[name].type)
         raise AttributeError(name)
 
     def _kept(self, target: Any) -> dict[str, Any]:
@@ -863,7 +863,7 @@ class _EntryBuilder:
     def build(self, target: Any) -> _Entry:
         """The entry, linking `target`, holding its values as placed."""
         links: dict[str, _ObjectData] = {self._me: target}
-        for name in self._relation.links:
+        for name in self._relation.entry.links:
             if name == self._me:
                 continue
             if name not in self._links:

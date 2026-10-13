@@ -374,10 +374,10 @@ class OfEntry:
     def __init__(self, relation: Schemas.OfRelation.Data, me: str | None = None, paths: _Paths | None = None):
         self._relation, self._me, self._paths = relation, me, paths
         self._links: dict[str, OfLink] = {}
-        self._properties = _Properties(relation.properties)
+        self._properties = _Properties(relation.entry.properties)
 
     def _names(self) -> list[str]:
-        return [name for name in self._relation.links if name != self._me]
+        return [name for name in self._relation.entry.links if name != self._me]
 
     def links(self, callback: Callable[[Visitors.OfLink], Any]) -> OfEntry:
         for name in self._names():

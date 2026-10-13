@@ -427,11 +427,11 @@ export class OfEntry implements Visitors.OfEntry {
 
   constructor(private readonly relation: Schemas.OfRelation.Data, private readonly own: string | null = null,
     private readonly paths: Paths | null = null) {
-    this.recorded = new Properties(relation.properties);
+    this.recorded = new Properties(relation.entry.properties);
   }
 
   private names(): string[] {
-    return this.relation.links.filter((name) => name !== this.own);
+    return [...this.relation.entry.links.keys()].filter((name) => name !== this.own);
   }
 
   links(callback: Callback<Visitors.OfLink>): OfEntry {

@@ -18,8 +18,8 @@
  * an expression term, such as mbse-expressions', or its neutral `Form`, which may refer to parameters.
  *
  * A predicate (`OfPredicate`) names its symbols (`OfSymbol`), each of a reference object schema, and requires a
- * constraint over them, a term; mbse-schemas knows no dialect, so a term is checked as a `Form` only. An entry's schema
- * (`OfEntry`) is its relation's links, as symbols, and properties.
+ * constraint over them, a term; mbse-schemas knows no dialect, so a term is checked as a `Form` only. A relation holds the
+ * schema of its entries (`OfEntry`): their links, each a symbol, and their properties.
  */
 
 import { fromBase64, toBase64 } from "./Bytes.js";
@@ -683,27 +683,93 @@ function symbolProblems(symbol: SymbolData): string[] {
   return [...problems, ...descriptionProblems(symbol.description)];
 }
 
+// --- OfEntry: the schema of a relation's entries ---
+
+/** The schema of a relation's entries: their links, each a symbol, and their properties, both by name in declaration
+ * order. A relation holds it (`OfRelation.Data.entry`). */
+class EntryData {
+  links: Map<string, SymbolData>;
+  properties: Map<string, PropertyData>;
+
+  constructor(fields: { links?: Map<string, SymbolData>; properties?: Map<string, PropertyData> } = {}) {
+    this.links = fields.links ?? new Map();
+    this.properties = fields.properties ?? new Map();
+  }
+
+  validate(): string[] {
+    const names = [...this.links.keys(), ...this.properties.keys()];
+    const problems = [...reserved(names), ...visited(names)];
+    if (this.links.size === 0) problems.push("a relation needs at least one link");
+    const clashes = [...this.links.keys()].filter((link) => this.properties.has(link));
+    if (clashes.length > 0) problems.push(`names used as both link and property: ${repr(sortedStrings(new Set(clashes)))}`);
+    for (const [name, link] of this.links) problems.push(...symbolProblems(link).map((p) => `link ${repr(name)}: ${p}`));
+    for (const [name, prop] of this.properties) {
+      const held = this.links.size > 1 ? entryValueProblems(prop.type) : []; // one owner: written once
+      problems.push(...[...validateSchema(prop.type), ...embeddedProblems(prop.type), ...held,
+        ...descriptionProblems(prop.description)].map((p) => `property ${repr(name)}: ${p}`));
+    }
+    return problems;
+  }
+}
+
+class EntryBuilder extends Builder<EntryData> {
+  protected make(fields: Record<string, unknown>): EntryData {
+    return new EntryData(fields as ConstructorParameters<typeof EntryData>[0]);
+  }
+
+  /** The links, in order, e.g. `.links((s) => s.name("owner"))`. */
+  links(...specs: OfSymbol.Spec[]): EntryBuilder {
+    const links = (this.state["links"] ??= new Map()) as Map<string, SymbolData>;
+    for (const spec of specs) {
+      const link = resolveSpec(spec, isSymbolData, () => new SymbolBuilder());
+      links.set(link.name, link);
+    }
+    return this;
+  }
+
+  properties(...specs: OfProperty.Spec[]): EntryBuilder {
+    addProperties(this.state, specs);
+    return this;
+  }
+}
+
+function isEntryData(value: unknown): value is EntryData {
+  return value instanceof EntryData;
+}
+
+export namespace OfEntry {
+  /** The meta-schema of an entry's schema. */
+  export let Schema: ObjectData;
+  /** The schema of a relation's entries: their links and properties. */
+  export const Data = EntryData;
+  export type Data = EntryData;
+  export const Builder = EntryBuilder;
+  export type Builder = EntryBuilder;
+  export type Spec = EntryData | ((builder: EntryBuilder) => EntryBuilder);
+
+  export function resolve(spec: Spec | unknown): EntryData {
+    return resolveSpec(spec, isEntryData, () => new EntryBuilder());
+  }
+}
+
 // --- OfRelation ---
 
 class RelationData extends Reflected {
-  links: readonly string[];
-  properties: Map<string, PropertyData>;
+  entry: EntryData;
   uniques: readonly ReadonlySet<string>[];
   name: string | null;
   description: string | null;
   parameters: Map<string, ParameterData>;
 
-  constructor(fields: { links?: readonly string[]; properties?: Map<string, PropertyData>; uniques?: readonly ReadonlySet<string>[];
-    name?: string | null; description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
+  constructor(fields: { entry?: EntryData; uniques?: readonly ReadonlySet<string>[]; name?: string | null;
+    description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
     super();
-    this.links = fields.links ?? [];
-    this.properties = fields.properties ?? new Map();
+    this.entry = fields.entry ?? new EntryData();
     this.uniques = fields.uniques ?? [];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
     this.parameters = fields.parameters ?? new Map();
   }
-
 
   equals(other: unknown): boolean {
     return other === this;
@@ -711,24 +777,12 @@ class RelationData extends Reflected {
 
   validate(): string[] {
     const problems = [...nameProblems(this.name), ...descriptionProblems(this.description),
-      ...parameterProblems(this.parameters), ...reserved([...this.links, ...this.properties.keys()]),
-      ...visited([...this.links, ...this.properties.keys()])];
-    if (this.links.length === 0) problems.push("a relation needs at least one link");
-    if (new Set(this.links).size !== this.links.length) {
-      problems.push(`duplicate link names in ${repr(new Tuple(this.links))}`);
-    }
-    const clashes = this.links.filter((link) => this.properties.has(link));
-    if (clashes.length > 0) problems.push(`names used as both link and property: ${repr(sortedStrings(new Set(clashes)))}`);
+      ...parameterProblems(this.parameters), ...this.entry.validate()];
     for (const unique of this.uniques) {
-      const unknown = [...unique].filter((name) => !this.links.includes(name) && !this.properties.has(name));
+      const unknown = [...unique].filter((name) => !this.entry.links.has(name) && !this.entry.properties.has(name));
       if (unknown.length > 0) {
         problems.push(`unique(${sortedStrings(unique).join(", ")}) names unknown links or properties ${repr(sortedStrings(unknown))}`);
       }
-    }
-    for (const [name, prop] of this.properties) {
-      const held = this.links.length > 1 ? entryValueProblems(prop.type) : []; // one owner: written once
-      problems.push(...[...validateSchema(prop.type), ...embeddedProblems(prop.type), ...held,
-        ...descriptionProblems(prop.description)].map((p) => `property ${repr(name)}: ${p}`));
     }
     return problems;
   }
@@ -743,7 +797,7 @@ class RelationData extends Reflected {
    * holds `me` and something else: that complement less `me`, in declaration order. `unique(S)` makes the links and
    * properties outside `S` determine `S`, so from `me`'s end each key picks out one entry. */
   keys(me: string): string[][] {
-    const names = [...this.links, ...this.properties.keys()];
+    const names = [...this.entry.links.keys(), ...this.entry.properties.keys()];
     return this.uniques.map((unique) => names.filter((name) => !unique.has(name)))
       .filter((rest) => rest.includes(me) && rest.length > 1).map((rest) => rest.filter((name) => name !== me));
   }
@@ -752,33 +806,6 @@ class RelationData extends Reflected {
   key(me: string): string[] | null {
     return this.keys(me)[0] ?? null;
   }
-
-  /** The schema of the relation's entries: its links and properties. */
-  get entry(): EntryData {
-    return new EntryData(this);
-  }
-}
-
-/** An entry's schema: the links, as symbols, and the properties its relation's entries have. It is a view of the
- * relation, which holds them (`relation.entry`), since no entry schema is held without its relation. */
-class EntryData {
-  constructor(readonly relation: RelationData) {}
-
-  get links(): SymbolData[] {
-    return this.relation.links.map((name) => new SymbolData({ name }));
-  }
-
-  get properties(): Map<string, PropertyData> {
-    return this.relation.properties;
-  }
-}
-
-export namespace OfEntry {
-  /** The meta-schema of an entry's schema. */
-  export let Schema: ObjectData;
-  /** The schema of a relation's entries, `relation.entry`. It has no builder: a relation's builder declares it. */
-  export const Data = EntryData;
-  export type Data = EntryData;
 }
 
 /** An entry property's value object has no adjacencies, where the entry links two objects or more: it is written
@@ -796,13 +823,26 @@ class RelationBuilder extends NamedBuilder<RelationData> {
     return new RelationData(fields as ConstructorParameters<typeof RelationData>[0]);
   }
 
-  links(...names: string[]): RelationBuilder {
-    this.state["links"] = names;
+  /** The schema of the relation's entries: their links and properties. */
+  entry(spec: OfEntry.Spec): RelationBuilder {
+    this.state["entry"] = OfEntry.resolve(spec);
     return this;
   }
 
+  /** The entry schema's links, by name, in place of any before: symbols without a schema. */
+  links(...names: string[]): RelationBuilder {
+    const entry = this.state["entry"] as EntryData | undefined;
+    this.state["entry"] = new EntryBuilder().links(...names.map((n) => (s: SymbolBuilder) => s.name(n)))
+      .properties(...(entry === undefined ? [] : [...entry.properties.values()]) as never[]).create();
+    return this;
+  }
+
+  /** Adds properties to the entry schema: `OfEntry.Builder.properties`, on a copy, so that the source's stays as it is
+   * until `update()`. */
   properties(...specs: OfProperty.Spec[]): RelationBuilder {
-    addProperties(this.state, specs);
+    const entry = this.state["entry"] as EntryData | undefined;
+    this.state["entry"] = (entry === undefined ? new EntryBuilder().properties(...specs).create()
+      : new EntryBuilder(entry).properties(...specs).clone());
     return this;
   }
 
@@ -859,8 +899,8 @@ class AdjacencyData {
     const problems = descriptionProblems(this.description, `adjacency ${repr(this.name)}: `);
     if (problems.length > 0) return problems;
     if (this.relation === null) return [`adjacency ${repr(this.name)} has no relation`];
-    if (!this.relation.links.includes(this.me)) {
-      return [`adjacency ${repr(this.name)}: ${repr(this.me)} is not a link of its relation ${repr(new Tuple(this.relation.links))}`];
+    if (!this.relation.entry.links.has(this.me)) {
+      return [`adjacency ${repr(this.name)}: ${repr(this.me)} is not a link of its relation ${repr(new Tuple([...this.relation.entry.links.keys()]))}`];
     }
     return [];
   }
@@ -963,7 +1003,7 @@ class ObjectData extends Reflected {
     }
     for (const [name, adjacency] of this.adjacencies) {
       problems.push(...adjacency.validate());
-      const links = adjacency.relation instanceof RelationData ? adjacency.relation.links.length : 0;
+      const links = adjacency.relation instanceof RelationData ? adjacency.relation.entry.links.size : 0;
       if (!this.ref && links > 1) { // its entries would link it: value objects are never shared
         const named = (adjacency.relation as RelationData).name;
         problems.push(`adjacency ${repr(name)}: a value object schema's adjacency is to a one-link relation, `
@@ -1666,7 +1706,7 @@ const ScalarSchema = new ObjectBuilder().name("Schemas.Scalar").properties(
   (p) => p.name("terms").of(WidthTerms), namedText("description")).relations(Parameters).create();
 const ClauseSchema = new ObjectBuilder().relations(listing("names", [["name", Text]])).create();
 const RelationSchema = new ObjectBuilder().name("Schemas.Relation").properties(namedText("name"), namedText("description"))
-  .relations(Parameters, listing("links", [["name", Text]]), listing("properties", MEMBER),
+  .relations(Parameters, listing("links", MEMBER), listing("properties", MEMBER),
     listing("uniques", [["clause", ClauseSchema]])).create();
 const RelationRef = new UnionBuilder().branches((b) => b.name("relation").of(RelationSchema),
   (b) => b.name("named").of(NamedSchema)).create();

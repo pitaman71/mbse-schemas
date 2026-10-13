@@ -48,8 +48,11 @@ def _referred(schema: Any) -> Iterator[Any]:
     for parameter in schema.parameters.values():
         if parameter.type is not None:
             yield parameter.type
-    if isinstance(schema, (Schemas.OfObject.Data, Schemas.OfRelation.Data)):
+    if isinstance(schema, Schemas.OfObject.Data):
         yield from (p.type for p in schema.properties.values())
+    if isinstance(schema, Schemas.OfRelation.Data):
+        yield from (link.type for link in schema.entry.links.values() if link.type is not None)
+        yield from (p.type for p in schema.entry.properties.values())
     if isinstance(schema, Schemas.OfObject.Data):
         yield from (a.relation for a in schema.adjacencies.values())
     elif isinstance(schema, Schemas.OfUnion.Data):

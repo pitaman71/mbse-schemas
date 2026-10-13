@@ -7,7 +7,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-from mbse.Schemas.Framework import Plain, Proxies, Reachable
 
 
 @contextmanager
@@ -27,28 +26,31 @@ def text(name: str, scalar: type = str):
     return lambda prop: prop.name(name).of(lambda t: t.as_scalar(scalar))
 
 
-def set_property(visitor: Any, name: str, value: Any) -> None:
-    """Writes a scalar property through the visitor protocols (works for property names the DSL cannot reach)."""
-    visitor.property(name, lambda p: p.value(lambda a: a.as_scalar(lambda n: n.set(value))))
-
-
-def get_property(visitor: Any, name: str) -> Any:
-    """Reads a scalar property through the visitor protocols."""
-    found: list[Any] = []
-    visitor.property(name, lambda p: p.value(lambda a: a.as_scalar(lambda n: found.append(n.get()))))
-    return found[0]
-
-
 def entries(schema: Any, obj: Any, adjacency: str) -> list[dict[str, Any]]:
-    """An object's entries with references resolved to objects, read from a Reachable snapshot (symbols follow
-    `Reachable.of` order)."""
-    graph = Plain.ToPlain(Proxies.store_of(obj)).Reachable(schema, obj)
-    objects = Reachable.of(obj)
+    """An object's entries, read through the visitor protocol: each a dict of the other links' objects and the values
+    of the properties that are set (a value object as its visitor)."""
+    read = getattr(obj, adjacency)
+    me = read.as_schema().me
+    rows = []
+    for entry in read:
+        row = {link: getattr(entry, link) for link in entry.as_schema().links if link != me}
+        for name, prop in entry.as_schema().properties.items():
+            value = value_of(getattr(entry, name))
+            if value is not None:
+                row[name] = value
+        rows.append(row)
+    return rows
 
-    def resolve(value: Any) -> Any:
-        return objects[int(value["$ref"][1:])] if isinstance(value, dict) else value
 
-    return [{k: resolve(v) for k, v in e.items()} for e in graph["objects"][graph["root"]].get(adjacency, [])]
+def value_of(read: Any) -> Any:
+    """A property's value, read through its visitor: its scalar, or the value object, union value or intersection value
+    it holds, as that value's visitor; None when absent."""
+    if read.get() is not None:
+        return read.get()
+    found: list[Any] = []
+    read.as_value(lambda a: a.as_object(lambda v: found.append(v) or v).as_union(lambda v: found.append(v) or v)
+                  .as_intersection(lambda v: found.append(v) or v))
+    return next((v for v in found if v.as_identity() != ""), None)
 
 
 def is_adjacency(value: Any) -> bool:
@@ -99,46 +101,6 @@ def same_graph(a: dict, b: dict) -> bool:
         }
 
     return canonical(a) == canonical(b)
-
-
-class Fake:
-    """A minimal hand-written `Visitors.Visitable`, independent of Proxies.
-
-    `values` maps property names to scalar values. `adjacencies` maps adjacency names to lists of entries; an entry
-    maps link names to `Fake` objects and property names to scalar values. Nothing is checked against a schema, so
-    fakes can express data that proxies would never produce.
-    """
-
-    def __init__(self, schema_name: str, values: dict | None = None, adjacencies: dict | None = None,
-                 identity: Any = None):
-        self._schema_name = schema_name
-        self.values = dict(values or {})
-        self.adjacencies = {k: list(v) for k, v in (adjacencies or {}).items()}
-        self._identity = identity
-
-    def identity(self) -> Any:
-        return id(self) if self._identity is None else self._identity
-
-    def schema_name(self) -> str:
-        return self._schema_name
-
-    def owner(self) -> Any:
-        return None
-
-    def accept(self, visitor: Any) -> None:
-        for name, value in self.values.items():
-            set_property(visitor, name, value)
-        for name, items in self.adjacencies.items():
-            for item in items:
-                visitor.adjacency(name, lambda a, item=item: a.add(lambda e: _write(e, item)))
-
-
-def _write(entry: Any, item: dict) -> None:
-    for key, value in item.items():
-        if isinstance(value, Fake):
-            entry.link(key, lambda k, value=value: k.set(value))
-        else:
-            set_property(entry, key, value)
 
 
 def protocol_methods(protocol: type) -> dict[str, inspect.Signature]:

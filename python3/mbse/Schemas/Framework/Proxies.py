@@ -36,7 +36,7 @@ from . import Schemas, Stores
 from .Errors import ReadOnlyError
 from .Visitors import Scalar
 
-__all__ = ["OfStore", "store_of", "OfObject", "OfEntry", "OfAdjacency"]
+__all__ = ["OfStore", "store_of", "owner_of", "OfObject", "OfEntry", "OfAdjacency"]
 
 ObjectSchema = Schemas.OfObject.Data
 RelationSchema = Schemas.OfRelation.Data
@@ -99,6 +99,11 @@ def store_of(value: Any) -> OfStore:
     if store is None:
         raise TypeError("the value does not belong to a store")
     return store
+
+
+def owner_of(value: Any) -> Any:
+    """The object a value object belongs to, or None for a reference object or a value object not yet placed."""
+    return object.__getattribute__(value, "_owner") if isinstance(value, _RecordData) else None
 
 
 def _same_store(store: OfStore | None, value: Any) -> None:

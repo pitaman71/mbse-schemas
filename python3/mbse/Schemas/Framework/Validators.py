@@ -81,10 +81,15 @@ def _filling(relation: Schemas.OfRelation.Data, name: str, schema: Schemas.OfObj
             f"{name!r}")
 
 
+_ABSENT = ("absent",)
+
+
 def _key(schema: Any, value: Any) -> Hashable:
     """Equality key per EQUALITY.md, of a value read as `_property_value` reads it: distinct scalar types never compare
     equal; floats compare by bit pattern; a value object by its properties and its entries, in order."""
     held = Schemas.structure(schema)
+    if value is None:
+        return _ABSENT
     if isinstance(held, Schemas.OfScalar.Data) or held is None:
         return ("float", value.hex()) if isinstance(value, float) else (type(value).__name__, value)
     if isinstance(held, Schemas.OfObject.Data):
@@ -109,9 +114,6 @@ def _entry_key(entry: Any, adjacency: Schemas.OfAdjacency.Data) -> Hashable:
     values = tuple((name, _key(prop.type, _property_value(getattr(entry, name), prop.type)))
                    for name, prop in relation.entry.properties.items())
     return links, values
-
-
-_ABSENT = ("absent",)
 
 
 class _Entry:

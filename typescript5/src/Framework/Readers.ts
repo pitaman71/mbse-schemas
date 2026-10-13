@@ -29,6 +29,7 @@ export interface OfProperty extends Primitive {
   as_schema(): Schemas.OfProperty.Data;
   as_value(cb: Read<OfAny>): this;
   as_scalar(cb: Read<OfScalar>): this;
+  as_object(cb: Read<OfObject>): this;
 }
 
 export interface OfObject {

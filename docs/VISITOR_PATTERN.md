@@ -107,6 +107,7 @@ pv.as_value(self, cb: Specs.Callback[Visitors.OfAny]) -> Visitors.OfProperty:...
 
 # shorthand
 pv.as_scalar[ScalarT] = Visitors.OfAny.as_scalar[ScalarT]
+pv.as_object = Visitors.OfAny.as_object  # for conciseness: as_value already reaches it
 
 sv: Visitors.OfScalar[ScalarT]
 

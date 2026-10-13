@@ -109,6 +109,10 @@ class OfProperty(_Dunders, Protocol):
         """Shorthand: `as_value`, then `Visitors.OfAny.as_scalar`."""
         ...
 
+    def as_object(self, cb: Callback[OfObject]) -> Self:
+        """Shorthand, for conciseness: `as_value`, then `Visitors.OfAny.as_object`."""
+        ...
+
     def __call__(self, spec: Callback[OfProperty]) -> Any: ...
 
 

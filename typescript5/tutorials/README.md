@@ -45,7 +45,7 @@ Expressions, which constraints will be made of, live in the separate
 | 3 | [Moving house](03_Moving_House.ipynb) | Remove, relabel and copy relationships | Editing entries through builders; `clone()` and relations; what `update()` replaces |
 | 4 | [A family tree](04_A_Family_Tree.ipynb) | People relate to people, in cycles | Self-relations; inverse views that can't disagree; `Reachable.of`; links filled by several kinds; `BigInt` for integers |
 | 5 | [A price list](05_A_Price_List.ipynb) | One price per currency; dirty partner feeds | `unique(...)` cardinality; maps as relations; validation on demand with paths |
-| 6 | [Saving and loading](06_Saving_And_Loading.ipynb) | Save shared, cyclic data without duplicates | Snapshots, symbols and references; plain data as `Map`s; injected builders; `DecodeError` |
+| 6 | [Saving and loading](06_Saving_And_Loading.ipynb) | Save shared, cyclic data without duplicates | Snapshots, identities and references; plain data as `Map`s; injected builders; `DecodeError` |
 | 7 | [JSON and YAML](07_JSON_And_YAML.ipynb) | An API in JSON and a hand-edited YAML config | Strict JSON with exact integers; the Norway problem; YAML 1.2 loading; no type coercion |
 | 8 | [Tools for every schema](08_Tools_For_Every_Schema.ipynb) | Audit logs and docs without per-type code | Walking schemas as data; reading any object through the visitor protocol |
 | 9 | [When requirements change](09_When_Requirements_Change.ipynb) | New fields, v2 schemas, unique IDs, variants | Evolving schemas; versioned names; directories; unions and intersections; what isn't built yet |

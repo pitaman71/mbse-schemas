@@ -1,30 +1,30 @@
 {
-  "root": "s0",
+  "root": "Deck/deck-1",
   "objects": {
-    "s0": {
+    "Deck/deck-1": {
       "title": "contacts",
       "cards": [
         {
           "card": {
-            "$ref": "s1",
+            "$ref": "Card/card-1",
             "$schema": "Card"
           }
         },
         {
           "card": {
-            "$ref": "s2",
+            "$ref": "Card/card-2",
             "$schema": "Card"
           }
         },
         {
           "card": {
-            "$ref": "s3",
+            "$ref": "Card/card-3",
             "$schema": "Card"
           }
         }
       ]
     },
-    "s1": {
+    "Card/card-1": {
       "name": "Ann",
       "home": {
         "number": "+1 555 0100",
@@ -46,13 +46,13 @@
       "decks": [
         {
           "deck": {
-            "$ref": "s0",
+            "$ref": "Deck/deck-1",
             "$schema": "Deck"
           }
         }
       ]
     },
-    "s2": {
+    "Card/card-2": {
       "name": "Bo",
       "reach": {
         "phone": {
@@ -74,18 +74,18 @@
       "decks": [
         {
           "deck": {
-            "$ref": "s0",
+            "$ref": "Deck/deck-1",
             "$schema": "Deck"
           }
         }
       ]
     },
-    "s3": {
+    "Card/card-3": {
       "name": "Cy",
       "decks": [
         {
           "deck": {
-            "$ref": "s0",
+            "$ref": "Deck/deck-1",
             "$schema": "Deck"
           }
         }

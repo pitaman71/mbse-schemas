@@ -46,14 +46,24 @@ function held(read: any, schema: unknown): any {
     : schema instanceof Schemas.OfIntersection.Data ? "as_intersection" : "as_object";
   const found: any[] = [];
   read.as_value((a: any) => a[select]((v: any) => found.push(v)));
-  return found.length > 0 && found[0].as_identity() !== "" ? found[0] : null;
+  return found.length > 0 && found[0].as_schema() !== null ? found[0] : null; // a visitor of nothing has no schema
 }
 
 /** A union's branch's or an intersection's part's value, read through its visitor of its own type's kind: a scalar, a
  * visitor, or null. */
 function member(read: any, schema: unknown): unknown {
   if (Schemas.structure(schema) instanceof Schemas.OfScalar.Data) return read.get();
-  return read.as_identity() !== "" ? read : null;
+  return read.as_schema() !== null ? read : null;
+}
+
+const schemaNumbers = new WeakMap<object, number>();
+let schemaCount = 0;
+
+/** A linked object's identity, unique among the objects of every schema: an identity is unique within its schema. */
+function identity(target: any): string {
+  const schema = target.as_schema();
+  if (!schemaNumbers.has(schema)) schemaNumbers.set(schema, ++schemaCount);
+  return `${schemaNumbers.get(schema)}:${target.as_identity()}`;
 }
 
 // --- Checks ---
@@ -100,7 +110,7 @@ function propertyValue(read: any, schema: unknown): any {
 function entryKey(entry: any, adjacency: Schemas.OfAdjacency.Data): string {
   const relation = adjacency.relation as Schemas.OfRelation.Data;
   const links = [...relation.entry.links.keys()].filter((name) => name !== adjacency.me)
-    .map((name) => [name, entry[name].as_identity()]);
+    .map((name) => [name, identity(entry[name])]);
   const values = [...relation.entry.properties].map(([name, prop]) => [name, key(prop.type, propertyValue(entry[name], prop.type))]);
   return JSON.stringify([links, values]);
 }
@@ -191,8 +201,8 @@ class Checker {
       problems.push(...this.valueProblems(`${label}.${name}`, prop.type, propertyValue(entry[name], prop.type)));
     }
     const links = new Map<string, string>([...relation.entry.links.keys()].filter((name) => name !== adjacency.me)
-      .map((name) => [name, entry[name].as_identity()]));
-    links.set(adjacency.me, owner.as_identity());
+      .map((name) => [name, identity(entry[name])]));
+    links.set(adjacency.me, identity(owner));
     const values = new Map<string, string>();
     for (const [name, prop] of relation.entry.properties) {
       const found = propertyValue(entry[name], prop.type);

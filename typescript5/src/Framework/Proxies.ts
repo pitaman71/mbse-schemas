@@ -38,7 +38,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { toHex } from "./Bytes.js";
-import { AttributeError, KeyError, ReadOnlyError, ValueError } from "./Errors.js";
+import { AttributeError, KeyError, LookupError, ReadOnlyError, ValueError } from "./Errors.js";
 import { REPR, repr, sortedStrings, Tuple, TYPE_NAME, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import * as Stores from "./Stores.js";
@@ -168,7 +168,7 @@ abstract class Shelled implements Shellable {
 // --- Stores ---
 
 const STORE_MEMBERS = new Set(["register", "schema", "registered", "name_of", "names", "singleton", "builder", "member",
-  "extent"]);
+  "extent", "by_identity", "restore"]);
 
 /** A store of proxies: schemas by name, and the instance of each singleton schema registered, created with it.
  * `store.<Name>(optional instance)` is `store.builder(name, instance)`; use `builder` for names that are not
@@ -176,6 +176,7 @@ const STORE_MEMBERS = new Set(["register", "schema", "registered", "name_of", "n
 export class OfStore extends Stores.Catalog implements Stores.Store {
   /** `(instance?: Instance) => DynamicBuilder` for each registered object schema; dynamic by design. */
   [name: string]: any;
+  readonly _directories = new Map<string, Directory>();
 
   constructor() {
     super();
@@ -198,12 +199,60 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
       throw new ValueError(`singleton ${repr(globalName)} is already registered`);
     }
     super.register(schema);
-    if (globalName !== null) this._singletons.set(globalName, makeObjectData(this, schema as ObjectSchema, schema.name as string));
+    if (globalName !== null) {
+      const name = schema.name as string;
+      this._singletons.set(globalName, this._enter(name, makeObjectData(this, schema as ObjectSchema, name, globalName)));
+    }
   }
 
   /** A builder for the object schema `name`; typed loosely, as the store's members are. */
   builder(name: string, instance?: unknown): any {
     return makeObjectBuilder(this, this.schema(name), name, instance as Instance | undefined);
+  }
+
+  /** The live object of the schema `name` whose identity is `identity`; `LookupError` if there is none. */
+  by_identity(name: string, identity: string): Instance {
+    this.schema(name);
+    const found = this._directory(name).live.get(identity)?.deref();
+    if (found === undefined) throw new LookupError(`no ${repr(name)} has the identity ${repr(identity)}`);
+    return found;
+  }
+
+  /** For decoders: a builder whose `create()` gives the object the identity a snapshot names. A program's `create()`
+   * is always given a new one. */
+  restore(name: string, identity: string): any {
+    const builder = makeObjectBuilder(this, this.schema(name), name);
+    innerOf(builder)._identity = identity;
+    return builder;
+  }
+
+  _directory(name: string): Directory {
+    let directory = this._directories.get(name);
+    if (directory === undefined) this._directories.set(name, (directory = { issued: 0, live: new Map() }));
+    return directory;
+  }
+
+  /** A new identity for an object of `schema`: the next name its naming pattern gives in this store, else a UUID. */
+  _issue(schema: ObjectSchema, name: string): string {
+    if (schema.pattern === null) return uuid4();
+    const directory = this._directory(name);
+    directory.issued += 1;
+    return schema.name_for(directory.issued);
+  }
+
+  /** Enters an object in its schema's directory, which a name its naming pattern gives advances. */
+  _enter(name: string, target: Instance): Instance {
+    const directory = this._directory(name);
+    const { _identity: identity, _schema: schema } = innerOf(target) as _ObjectData;
+    if (directory.live.get(identity)?.deref() !== undefined) {
+      throw new ValueError(`a ${repr(name)} with the identity ${repr(identity)} is already live; update it`);
+    }
+    const held = new WeakRef(target);
+    directory.live.set(identity, held);
+    // The callback holds nothing of the object, which it would keep alive; only its entry, unless it has been replaced.
+    FORGET.register(target, () => directory.live.get(identity) === held && directory.live.delete(identity));
+    directory.issued = Math.max(directory.issued, schema.number_of(identity) ?? 0);
+    return target;
   }
 
   /** The value an instance or value object holds in its property `name`. */
@@ -217,6 +266,25 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
     if (names.length !== 1) throw new TypeError(`expected exactly one object schema filling link ${repr(link)}, found ${repr(names)}`);
     return names[0] as string;
   }
+}
+
+/** One schema's identities in a store: its live objects by identity, held weakly, and the last number its naming
+ * pattern gave, which only increases. */
+interface Directory {
+  issued: number;
+  live: Map<string, WeakRef<Instance>>;
+}
+
+/** Forgets a directory's entry for an object that has been collected. */
+const FORGET = new FinalizationRegistry<() => unknown>((forget) => forget());
+
+/** A version 4 UUID, from the platform's random source. */
+function uuid4(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 /** The store a proxy belongs to; a value object's is its owner's, and one not yet placed has none. */
@@ -299,7 +367,7 @@ class _Entry extends Shelled {
   override _member(name: string): unknown {
     if (this._links.has(name)) return this._links.get(name);
     const prop = this._relation.entry.properties.get(name);
-    if (prop === undefined) return makeEmpty(null, `${repr(name)} is not a link or property of the relation`);
+    if (prop === undefined) return makeEmpty(`${repr(name)} is not a link or property of the relation`);
     return makeProperty(this._properties, name, prop, null, this._proxy, false);
   }
 
@@ -444,7 +512,7 @@ abstract class Dunders extends Shelled {
 class _Empty extends Dunders {
   readonly [TYPE_NAME] = "_Empty";
 
-  constructor(readonly _schema: unknown, readonly _reason: string) {
+  constructor(readonly _reason: string) {
     super();
   }
 
@@ -456,12 +524,12 @@ class _Empty extends Dunders {
     return "the value";
   }
 
-  as_schema(): unknown {
-    return this._schema;
+  as_schema(): null {
+    return null; // it visits nothing: no value, so no schema
   }
 
-  as_identity(): string {
-    return "";
+  as_identity(): null {
+    return null;
   }
 
   get(): null {
@@ -478,7 +546,7 @@ class _Empty extends Dunders {
 
   _hand(cb: unknown): any {
     if (!isFunction(cb)) throw new ReadOnlyError(this._reason);
-    visit(cb, makeEmpty(null, this._reason));
+    visit(cb, makeEmpty(this._reason));
     return this._proxy;
   }
 
@@ -520,7 +588,7 @@ class _Empty extends Dunders {
   readonly remove = this._refuse;
 
   override _member(_name: string): unknown {
-    return makeEmpty(null, this._reason);
+    return makeEmpty(this._reason);
   }
 
   _repr(): string {
@@ -528,8 +596,8 @@ class _Empty extends Dunders {
   }
 }
 
-function makeEmpty(schema: unknown, reason: string): any {
-  const state = new _Empty(schema, reason);
+function makeEmpty(reason: string): any {
+  const state = new _Empty(reason);
   return shell(state, () => state._refuse());
 }
 
@@ -609,7 +677,7 @@ class _Any {
     const value = this._values.get(this._name);
     if (this._type instanceof Schemas.OfUnion.Data && this._type.flat) return this._flatScalar(cb, value);
     if (!(this._type instanceof Schemas.OfScalar.Data)) {
-      return this._hand(cb, makeEmpty(null, `${this._label} holds ${withArticle(noun(this._type))}, not a scalar`));
+      return this._hand(cb, makeEmpty(`${this._label} holds ${withArticle(noun(this._type))}, not a scalar`));
     }
     const scalar = makeScalar(this._values, this._name, this._type, this._writable, this._label, this, this._onWrite);
     if (isFunction(cb)) visit(cb, scalar);
@@ -633,7 +701,7 @@ class _Any {
         return this;
       }
     }
-    visit(cb, makeEmpty(null, `${this._label} holds no scalar`));
+    visit(cb, makeEmpty(`${this._label} holds no scalar`));
     return this;
   }
 
@@ -657,7 +725,7 @@ class _Any {
   _record(kind: abstract new (...args: never[]) => RecordSchema, cb: unknown): this {
     const what = kind === Schemas.OfObject.Data ? "value object" : kind === Schemas.OfUnion.Data ? "union value"
       : "intersection value";
-    if (!(this._type instanceof kind)) return this._hand(cb, makeEmpty(null, `${this._label} does not hold ${withArticle(what)}`));
+    if (!(this._type instanceof kind)) return this._hand(cb, makeEmpty(`${this._label} does not hold ${withArticle(what)}`));
     const value = this._values.get(this._name);
     if (!this._writable) {
       if (isRecordData(value)) {
@@ -667,7 +735,7 @@ class _Any {
         }
         throw new ReadOnlyError(`${this._label} is read-only; write through a builder`);
       }
-      return this._hand(cb, makeEmpty(this._type, `${this._label} is read-only; write through a builder`));
+      return this._hand(cb, makeEmpty(`${this._label} is read-only; write through a builder`));
     }
     if (isFunction(cb)) this._writeRecord(cb);
     else this._replace(cb);
@@ -839,7 +907,7 @@ function kindVisitor(values: Values, name: string, schema: unknown, store: OfSto
   const held = Schemas.structure(schema);
   const value = values.get(name);
   if (held instanceof Schemas.OfScalar.Data) return makeScalar(values, name, held, writable, label, parent, onWrite);
-  if (!writable) return isRecordData(value) ? value : makeEmpty(held, `${label} is not set`);
+  if (!writable) return isRecordData(value) ? value : makeEmpty(`${label} is not set`);
   if (isRecordBuilder(value)) return value;
   const attach = (builder: unknown): void => {
     (onWrite as () => void)(); // a writable member is a union's or an intersection's, which says what writing does
@@ -858,7 +926,8 @@ class _ObjectData extends Shelled {
   /** The entries linking this object, by relation and key. */
   readonly _adjacent = new Map<RelationSchema, Map<string, unknown>>();
 
-  constructor(readonly _store: OfStore, readonly _schema: ObjectSchema, readonly _schemaName: string) {
+  constructor(readonly _store: OfStore, readonly _schema: ObjectSchema, readonly _schemaName: string,
+    readonly _identity: string) {
     super();
   }
 
@@ -887,7 +956,7 @@ class _ObjectData extends Shelled {
   }
 
   as_identity(): string {
-    return String(this._id);
+    return this._identity;
   }
 
   get as_properties(): any {
@@ -900,8 +969,8 @@ class _ObjectData extends Shelled {
   }
 }
 
-function makeObjectData(store: OfStore, schema: ObjectSchema, schemaName: string): Instance {
-  const state = new _ObjectData(store, schema, schemaName);
+function makeObjectData(store: OfStore, schema: ObjectSchema, schemaName: string, identity: string): Instance {
+  const state = new _ObjectData(store, schema, schemaName, identity);
   return shell(state, (spec) => state._call(spec));
 }
 
@@ -952,8 +1021,8 @@ class _RecordData extends Shelled {
     return this._schema;
   }
 
-  as_identity(): string {
-    return String(this._id);
+  as_identity(): null {
+    return null; // a value object has no identity of its own
   }
 
   get as_properties(): any {
@@ -995,17 +1064,17 @@ function member(owner: unknown, name: string): unknown {
   const part = owningPart(schema, name);
   if (part !== null) {
     const held = values.get(part);
-    return isRecordData(held) ? member(held, name) : makeEmpty(null, `part ${repr(part)} is not set`);
+    return isRecordData(held) ? member(held, name) : makeEmpty(`part ${repr(part)} is not set`);
   }
   if (schema instanceof Schemas.OfUnion.Data && schema.flat) { // a flat union's value reads as its branch's
     const held = values.values().next().value;
-    return isRecordData(held) ? member(held, name) : makeEmpty(null, `${repr(name)} is not a member of the branch held`);
+    return isRecordData(held) ? member(held, name) : makeEmpty(`${repr(name)} is not a member of the branch held`);
   }
   const adjacency = schema instanceof Schemas.OfObject.Data ? schema.adjacencies.get(name) : undefined;
   if (adjacency !== undefined) {
     return makeAdjacency(linking(adjacency.relation as RelationSchema, adjacency.me, owner), adjacency, owner);
   }
-  return makeEmpty(null, `${repr(name)} is not a member of ${withArticle(noun(schema))}`);
+  return makeEmpty(`${repr(name)} is not a member of ${withArticle(noun(schema))}`);
 }
 
 /** The value an instance or a value object holds in its property `name` (a union's branch, an intersection's part), as
@@ -1402,8 +1471,8 @@ class _RecordBuilder extends Shelled {
     return this._schema;
   }
 
-  as_identity(): string {
-    return this._source === null ? "" : innerOf(this._source).as_identity();
+  as_identity(): null {
+    return null; // a value object has no identity of its own
   }
 
   get as_properties(): any {
@@ -1438,7 +1507,7 @@ class _RecordBuilder extends Shelled {
       return found;
     }
     if (schema instanceof Schemas.OfObject.Data && schema.adjacencies.has(name)) return makeAdjacencyBuilder(this._proxy, name);
-    return makeEmpty(null, `${repr(name)} is not a member of ${withArticle(noun(schema))}`);
+    return makeEmpty(`${repr(name)} is not a member of ${withArticle(noun(schema))}`);
   }
 
   /** As a union's branch or an intersection's part: writes through a Spec, selecting the branch. */
@@ -1564,16 +1633,16 @@ class _LinkMember extends Shelled {
     const target = this._entry._links.get(this._name);
     if (isObjectBuilder(target)) {
       const state: _ObjectBuilder = innerOf(target);
-      return state._source ?? makeEmpty(state._schema, "not created yet");
+      return state._source ?? makeEmpty("not created yet");
     }
-    return target ?? makeEmpty(null, `link ${repr(this._name)} is not set`);
+    return target ?? makeEmpty(`link ${repr(this._name)} is not set`);
   }
 
   as_schema(): unknown {
     return this._target().as_schema();
   }
 
-  as_identity(): string {
+  as_identity(): string | null {
     return this._target().as_identity();
   }
 
@@ -1649,7 +1718,7 @@ class _EntryBuilder extends Shelled {
     if (this._relation.entry.links.has(name) && name !== this._me) return makeLinkMember(this, name);
     const prop = this._relation.entry.properties.get(name);
     if (prop !== undefined) return makeProperty(this._values, name, prop, this._store, this._proxy, true);
-    return makeEmpty(null, `${repr(name)} is not a link this entry can set, nor a property of the relation`);
+    return makeEmpty(`${repr(name)} is not a link this entry can set, nor a property of the relation`);
   }
 
   _repr(): string {
@@ -1723,12 +1792,15 @@ class _ObjectBuilder extends Shelled {
     super();
   }
 
+  /** The identity a decoder restores (`OfStore.restore`). */
+  _identity: string | null = null;
+
   as_schema(): ObjectSchema {
     return this._schema;
   }
 
-  as_identity(): string {
-    return this._source === null ? "" : this._source.as_identity();
+  as_identity(): string | null {
+    return this._source === null ? null : this._source.as_identity();
   }
 
   get as_properties(): any {
@@ -1748,7 +1820,7 @@ class _ObjectBuilder extends Shelled {
     const prop = this._schema.properties.get(name);
     if (prop !== undefined) return makeProperty(this._values, name, prop, this._store, this._proxy, true);
     if (this._schema.adjacencies.has(name)) return makeAdjacencyBuilder(this._proxy, name);
-    return makeEmpty(null, `${repr(name)} is not a property or adjacency of ${repr(this._schemaName)}`);
+    return makeEmpty(`${repr(name)} is not a property or adjacency of ${repr(this._schemaName)}`);
   }
 
   _repr(): string {
@@ -1759,14 +1831,19 @@ class _ObjectBuilder extends Shelled {
     noArguments("create", args);
     if (this._source !== null) throw new ValueError("create() is only valid without a source instance; use clone() or update()");
     this._notSingleton("create");
-    return this._write(makeObjectData(this._store, this._schema, this._schemaName));
+    return this._write(this._new(this._identity ?? this._store._issue(this._schema, this._schemaName)));
   }
 
   clone(...args: unknown[]): Instance {
     noArguments("clone", args);
     if (this._source === null) throw new ValueError("clone() is only valid with a source instance");
     this._notSingleton("clone");
-    return this._write(makeObjectData(this._store, this._schema, this._schemaName));
+    return this._write(this._new(this._store._issue(this._schema, this._schemaName)));
+  }
+
+  /** A new object of the builder's schema, entered in its directory under `identity`. */
+  _new(identity: string): Instance {
+    return this._store._enter(this._schemaName, makeObjectData(this._store, this._schema, this._schemaName, identity));
   }
 
   update(...args: unknown[]): Instance {

@@ -700,6 +700,19 @@ class OfAdjacency:
 _VALIDATING: set[int] = set()
 """The object schemas being validated, so that one that holds itself is validated once."""
 
+_LITERAL = r"(?:[^\\()\[\]{}.*+?^$|]|\\[^A-Za-z0-9])*"
+_NAMING = re.compile(rf"({_LITERAL})\(\\d\+((?:\\d)*)\)({_LITERAL})")
+"""A naming pattern: literal text around one group of digits, `\\d+` then any number of `\\d`, the minimum width."""
+
+
+def _naming(pattern: str) -> tuple[str, int, str] | None:
+    """A naming pattern's literal prefix, the width of its number and its literal suffix; None for another pattern."""
+    found = _NAMING.fullmatch(pattern) if isinstance(pattern, str) else None
+    if found is None:
+        return None
+    prefix, digits, suffix = found.groups()
+    return re.sub(r"\\(.)", r"\1", prefix), 1 + len(digits) // 2, re.sub(r"\\(.)", r"\1", suffix)
+
 
 @dataclass(eq=False)
 class _ObjectData:
@@ -710,6 +723,24 @@ class _ObjectData:
     name: str | None = None
     description: str | None = None
     parameters: dict[str, _ParameterData] = field(default_factory=dict)
+    pattern: str | None = None  # a reference object schema's naming pattern, e.g. r"FEA-(\d+\d\d)"
+
+    def name_for(self, number: int) -> str:
+        """The name the naming pattern gives the object numbered `number`: the number fills the pattern's group, at its
+        minimum width, extending on the left."""
+        prefix, width, suffix = _naming(self.pattern)  # type: ignore[arg-type,misc]  # a valid pattern
+        return f"{prefix}{number:0{width}d}{suffix}"
+
+    def number_of(self, name: str) -> int | None:
+        """The number of a name the naming pattern gives: its literal text around at least the minimum width of ASCII
+        digits. None for a name it does not give, or without a valid naming pattern."""
+        naming = _naming(self.pattern) if self.pattern is not None else None
+        if naming is None:
+            return None
+        prefix, width, suffix = naming
+        digits = name[len(prefix):len(name) - len(suffix)]
+        fits = name.startswith(prefix) and name.endswith(suffix) and len(name) >= len(prefix) + len(suffix)
+        return int(digits) if fits and len(digits) >= width and digits.isascii() and digits.isdigit() else None
 
     def validate(self) -> list[str]:
         """The schema's problems. A value object schema may hold itself, through a property or an entry: its problems
@@ -728,6 +759,14 @@ class _ObjectData:
                     + _visited([*self.properties, *self.adjacencies]))
         if self.singleton is not None and not self.ref:
             problems.append("a singleton's schema must be a reference object schema")
+        if self.pattern is not None:
+            if not self.ref:
+                problems.append("a naming pattern names reference objects; mark the schema .ref()")
+            if self.singleton is not None:
+                problems.append("a singleton's schema has no naming pattern: its one instance is named by its global name")
+            if _naming(self.pattern) is None:
+                problems.append(f"naming pattern {self.pattern!r} is not literal text around one group of digits, "
+                                "e.g. 'FEA-(\\d+\\d\\d)'")
         clashes = set(self.properties) & set(self.adjacencies)
         if clashes:
             problems.append(f"names used as both property and adjacency: {sorted(clashes)}")
@@ -765,10 +804,14 @@ class _ObjectBuilder(_NamedBuilder[_ObjectData]):
         self._fields["ref"] = True
         return self
 
-    def ref(self) -> _ObjectBuilder:
+    def ref(self, pattern: str | None = None) -> _ObjectBuilder:
         """Marks a reference object schema: its objects stand on their own, reached through relations, and no property
-        holds one. Without it, the schema describes value objects, which properties hold."""
+        holds one. Without it, the schema describes value objects, which properties hold. A reference object is named
+        by a UUID its store gives when it is created, or, with a naming pattern (`r"FEA-(\\d+\\d\\d)"`), by the next
+        name the pattern gives in its store."""
         self._fields["ref"] = True
+        if pattern is not None:
+            self._fields["pattern"] = pattern
         return self
 
 
@@ -1300,7 +1343,7 @@ _AdjacencySchema = OfObject.Builder().properties(
     _named_text("description")).create()
 _ObjectSchema = OfObject.Builder().name("Schemas.Object").properties(
     _named_text("name"), _named_text("singleton"), lambda p: p.name("ref").of(lambda t: t.as_scalar(bool)),
-    _named_text("description")).relations(
+    _named_text("pattern"), _named_text("description")).relations(
     _Parameters, _listing("properties", _MEMBER),
     _listing("adjacencies", {name: prop.type for name, prop in _AdjacencySchema.properties.items()})).create()
 _Flat: OfProperty.Spec = lambda p: p.name("flat").of(lambda t: t.as_scalar(bool))  # noqa: E731
@@ -1350,6 +1393,6 @@ class Module:
     adjacency, each entry a `name` and a `schema`, a `Module.Definition` (a schema of any kind, relations and predicates
     included), keyed by name. See `Modules` for the translation between schemas and modules."""
 
-    Schema = OfObject.Builder().name("Schemas.Module").ref().relations(
+    Schema = OfObject.Builder().name("Schemas.Module").ref(r"module-(\d+)").relations(
         _listing("schemas", {"name": _Text, "schema": _Definition}, keyed=True)).create()
     Definition = _Definition

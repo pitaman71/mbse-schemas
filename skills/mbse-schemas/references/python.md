@@ -58,6 +58,7 @@ assert Validators.Validate(B).Reachable(Component, copy) == []
 S.OfScalar.Data(int)                                        # scalars: int, float, str, bool, bytes (basic tokens)
 S.OfScalar.resolve(lambda n: n.token("ccpp", "int32_t").bits(32))   # any format's token; a width in bits or bytes
 S.OfObject.Builder().ref().properties(spec, ...).relations(spec, ...).create()   # .ref(): a reference object schema
+S.OfObject.Builder().ref(r"FEA-(\d+\d\d)")                 # its objects named FEA-001, FEA-002, ... in each store; else UUIDs
 S.OfObject.Builder().properties(spec, ...).create()        # a value object schema, for a property's type
 S.OfObject.Builder(existing).relations(...).update()        # add adjacencies once the relations exist
 S.OfRelation.Builder().links("a", "b").properties(spec, ...).unique("a").create()
@@ -99,7 +100,8 @@ B.Name(obj).tags(lambda a: a.remove(lambda e: e.value("x")))   # remove every en
 obj.tags.select(lambda e: e.value("x"), lambda e: ...)      # visit the entries agreeing with a template, or equal to a value
 B.Name().union_prop(lambda p: p.as_value(lambda v: v.as_union(lambda u: u.phone(spec))))   # a branch by name
 obj.as_properties; obj.as_adjacencies(lambda a: a)          # schema unaware: the properties set, every adjacency
-obj.as_schema(); obj.as_identity()                          # what every visitor has: its schema; an object's identity
+obj.as_schema(); obj.as_identity()                          # what every visitor has: its schema; an object's identity, else None
+store.by_identity("Feature", "FEA-001")                     # the live object of that schema with that identity
 Proxies.owner_of(value_object)                              # the object a value object belongs to
 
 # Schemas as data: a module holds schemas by name, as an object of S.Module.Schema.

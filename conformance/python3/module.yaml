@@ -1,11 +1,12 @@
-root: s0
+root: Schemas.Module/module-1
 objects:
-  s0:
+  Schemas.Module/module-1:
     schemas:
     - name: Address
       schema:
         object:
           ref: true
+          pattern: address-(\d+)
           properties:
           - name: street1
             type:
@@ -73,6 +74,7 @@ objects:
       schema:
         object:
           ref: true
+          pattern: board-(\d+)
           properties:
           - name: name
             type:
@@ -319,6 +321,7 @@ objects:
       schema:
         object:
           ref: true
+          pattern: card-(\d+)
           properties:
           - name: name
             type:
@@ -458,6 +461,7 @@ objects:
       schema:
         object:
           ref: true
+          pattern: contact-(\d+)
           properties:
           - name: given_name
             type:
@@ -501,6 +505,7 @@ objects:
       schema:
         object:
           ref: true
+          pattern: deck-(\d+)
           properties:
           - name: title
             type:
@@ -660,6 +665,7 @@ objects:
       schema:
         object:
           ref: true
+          pattern: person-(\d+)
           properties:
           - name: given_name
             type:

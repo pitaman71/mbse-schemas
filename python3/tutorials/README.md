@@ -39,7 +39,7 @@ Expressions, which constraints will be made of, live in the separate
 | 3 | [Moving house](03_Moving_House.ipynb) | Remove, relabel and copy relationships | Editing entries through builders; `clone()` and relations; what `update()` replaces |
 | 4 | [A family tree](04_A_Family_Tree.ipynb) | People relate to people, in cycles | Self-relations; inverse views that can't disagree; `Reachable.of`; links filled by several kinds |
 | 5 | [A price list](05_A_Price_List.ipynb) | One price per currency; dirty partner feeds | `unique(...)` cardinality; maps as relations; validation on demand with paths |
-| 6 | [Saving and loading](06_Saving_And_Loading.ipynb) | Save shared, cyclic data without duplicates | Snapshots, symbols and references; why the schema isn't stored; injected builders; strict loading |
+| 6 | [Saving and loading](06_Saving_And_Loading.ipynb) | Save shared, cyclic data without duplicates | Snapshots, identities and references; why the schema isn't stored; injected builders; strict loading |
 | 7 | [JSON and YAML](07_JSON_And_YAML.ipynb) | An API in JSON and a hand-edited YAML config | Strict JSON; the Norway problem; YAML 1.2 loading; no type coercion |
 | 8 | [Tools for every schema](08_Tools_For_Every_Schema.ipynb) | Audit logs and docs without per-class code | Walking schemas as data; reading any object through the visitor protocol |
 | 9 | [When requirements change](09_When_Requirements_Change.ipynb) | New fields, v2 schemas, unique IDs, variants | Evolving schemas; versioned names; directories; unions and intersections; what isn't built yet |
@@ -54,7 +54,7 @@ Expressions, which constraints will be made of, live in the separate
 | Lists and nested records | Relations whose entries link objects and carry properties | Sharing, inverse lookups, no duplication, no sync code | 2, 3, 4 |
 | "One-to-many" annotations | `unique(S)`: the rest of the entry determines `S` | Covers keys, maps, ownership and directories with one idea | 5, 9 |
 | Validate on every assignment | Validate when you ask; every problem, with a path | Bulk loads, intermediate states, complete reports | 5 |
-| `to_dict` per class, nested | One flat snapshot shape with symbols and schema-named references | Shared objects once, cycles safe, kinds preserved | 6 |
+| `to_dict` per class, nested | One flat snapshot shape keyed by identities, with schema-named references | Shared objects once, cycles safe, kinds preserved | 6 |
 | Lenient parsing | Exact types, strict JSON, YAML 1.2 | The same text means the same thing in every language | 6, 7 |
 | Reflection over classes | Visitors: every object reads through one protocol, whatever its schema | One protocol for serializers, validators and your tools | 2, 8 |
 

@@ -347,23 +347,20 @@ Both in-memory objects and mutations (see `Mutations`) are serializable.
 Over the wire, object content carries no schema. Association of an object with a schema is done dynamically, starting
 from the expected root schema, which is why deserializers such as `Plain.FromPlain(store)(schema, ...)` take it as an
 argument, and continuing through property types and the branch written with each union value. Links are untyped, so a serialized
-reference to a linked reference object carries that object's schema name alongside its symbol. Consequently, a
+reference to a linked reference object carries that object's schema name alongside its key. Consequently, a
 reference object that is linked from another object must have a named (registered) schema. A reference to a value
 object carries no schema, since its owner's schema gives it, and a reference object that only such references reach
 carries its schema itself, `{"$schema": "Card", ...}`: an object carries its schema whenever nothing else gives it.
 
-A transaction is a flat sequence of symbol bindings and mutations. Mutations may be nested; transactions are not.
+A transaction is a flat sequence of mutations. Mutations may be nested; transactions are not.
 
-- Objects are identified over the wire by transaction symbols, which are strings. The identity of each object is
-  recorded as a direct assignment to its symbol.
-- A symbol binding is local to its transaction. A later transaction in the same file refers to the same object by
-  repeating the same string.
-- The serializer and deserializer are responsible for a precisely 1:1 mapping between in-memory identities and
-  symbols. The mapping must be consistent (the same object always gets the same symbol, different objects never share
-  one) and checkably so: a deserializer must reject a symbol assigned to two objects or an object assigned two symbols.
-- Symbols bind only to objects, never to values or entries.
-- Singletons are referenced by their global name and never need a symbol.
-- A value object is written nested, as a mapping of its properties and its adjacencies, without a symbol. Union and intersection values are written the
+- Objects are identified over the wire by their identities (Resolved, Reference identity): each reference object's
+  key is its identity qualified by its schema's registered name, `"crm.Feature/FEA-001"`, and a singleton's is its
+  global name alone. An identity is given when its object is created and never changes, so keys are not local to a
+  transaction or a snapshot: a later one refers to the same object by the same key, and loading a key the store
+  already holds updates that object, replacing its state with what the snapshot holds.
+- Keys name only reference objects, never values or entries.
+- A value object is written nested, as a mapping of its properties and its adjacencies, without a key. Union and intersection values are written the
   same way, keyed by branch or part name: a union value `{"phone": {"number": "1"}}` has exactly one key, and decoding
   rejects any other count; an intersection value `{"stamp": {...}, "audit": {...}}` has a key per part, and a missing
   part is for `Validators` to report.
@@ -375,12 +372,12 @@ A transaction is a flat sequence of symbol bindings and mutations. Mutations may
   objects written, and builds the objects read. `Schemas.OfScalar` converts scalars to forms plain
   data can hold (`bytes` as base64 text; non-finite floats as the strings `NaN`, `Infinity`, `-Infinity`), so text
   encodings never handle that themselves. An object's plain form includes its
-  adjacencies; linked objects appear as transaction symbol references, not nested content. Deserializing a snapshot
+  adjacencies; linked objects appear as references by key, not nested content. Deserializing a snapshot
   that references an object it does not contain is an error.
-  An object snapshot is `{"root": symbol, "objects": {symbol: object}}`. Each object maps property names to plain
+  An object snapshot is `{"root": key, "objects": {key: object}}`. Each object maps property names to plain
   values and adjacency names to lists of entries; an entry maps the other links to references and the entry properties
-  to plain values (the object's own link is implied). A reference is `{"$ref": symbol, "$schema": name}`, to a reference object. Symbols are
-  assigned in the order objects are first referenced. `Plain.ToPlain(store).OfObject` includes only the root, so its references
+  to plain values (the object's own link is implied). A reference is `{"$ref": key, "$schema": name}`, to a reference object. Objects are
+  written in the order they are first referenced, the root first. `Plain.ToPlain(store).OfObject` includes only the root, so its references
   are unresolved; `Plain.ToPlain(store).Reachable` includes every object reachable through adjacencies. An entry appears under
   each object it links, and reading counts it once: by value where the relation has a `unique` clause, and in an open
   relation the k-th entry equal to a given one in one list is the k-th in another. A one-link relation's entries
@@ -404,12 +401,13 @@ Mistakes in the calling program keep their usual classes, e.g. a root schema tha
 
 - `reason` is one line of text with no location in it.
 - The location is `line` and `column` for text (1-based, counted in code points), or `path` for plain data, e.g.
-  `$.objects.s0.addresses[1].label`. Keys that are not identifiers are written in brackets, as JSON strings:
-  `$.objects["my key"]`. A problem may have no location, e.g. undecodable bytes.
+  `$.objects["Contact/CON-001"].addresses[1].label`. Keys that are not identifiers, as an object's key never is, are
+  written in brackets, as JSON strings. A problem may have no location, e.g. undecodable bytes.
 - The message is `line 3, column 7: reason`, or `$.path: reason`, or just the reason.
 - If text has several problems, the first in the text is reported. A snapshot is checked in a fixed order that every
-  binding follows: its shape, then the references (inferring each object's schema), then each object's keys and
-  values in snapshot order, and last any object nothing references.
+  binding follows: its shape, then the references (inferring each object's schema), then, in snapshot order, each
+  object's key against its schema (qualified by its name, or a singleton's global name, and a name its naming pattern
+  gives) and its keys and values, and last any object nothing references.
 - Nothing is built when a `DecodeError` is raised: a snapshot's shape, references and scalar values are all checked
   before any builder is called.
 - Reasons and locations are identical in every binding, with one exception. For YAML syntax errors (and for
@@ -427,10 +425,11 @@ schema's properties). Links target reference objects only (Resolved, The visitor
 referenced by entries"). The terms are to replace "value object" and "object" throughout the API's messages and these
 documents.
 
-- **Every object has an identity**, and a reference object can be linked by relations. What distinguishes the two kinds is
+- **A reference object has an identity** (Resolved, Reference identity), and can be linked by relations; a value
+  object has none (`as_identity()` is None), and is known by its owner and the property holding it. What distinguishes the two kinds is
   ownership, and the schema says which kind it describes: `Schemas.OfObject.Builder().ref()` marks a *reference object
   schema*; an object schema without it is a *value object schema*. A singleton's schema is a reference object schema.
-- **A reference object** stands on its own: a snapshot writes it once among its `objects`, under its symbol. A
+- **A reference object** stands on its own: a snapshot writes it once among its `objects`, under its key. A
   snapshot's root is a reference object, and a store's builders (`store.<Name>()`) make only reference objects. A reference
   object schema is never a property's type, directly or as a union's branch or an intersection's part held by a
   property, nor an entry property's: `validate()` reports it ("a reference object schema cannot be a property's
@@ -444,8 +443,8 @@ documents.
   cannot have adjacencies" is dropped. A value object's schema follows from its owner's, so a value object schema needs
   no registration. Writers, proxies and `Validators` refuse a link to a value object ("a link targets a reference
   object, never a value object").
-- **Ownership is exclusive and deep.** Editing a value object through its owner's builder keeps its identity. Setting
-  it into another owner, or `clone()` of its owner, copies it with a new identity, with its entries. Clearing the property, or replacing its value, removes the value
+- **Ownership is exclusive and deep.** Editing a value object through its owner's builder keeps it, the same object. Setting
+  it into another owner, or `clone()` of its owner, copies it, with its entries. Clearing the property, or replacing its value, removes the value
   object and its entries.
 - **Entry properties may be value objects, never reference objects.** Such a value object is owned by the object that
   added its entry, is written nested in the entry, and keys and compares the entry by its properties. Where the entry
@@ -453,7 +452,7 @@ documents.
   value object held by an entry cannot have adjacencies"); a one-link relation's entry is written once, so its value
   objects may have lists.
 - **Value objects are written nested**, inside their owner, with their lists nested in them as a reference
-  object's adjacencies are, and carry no symbol: nothing links to them. Decoding rejects a reference without `$schema`
+  object's adjacencies are, and carry no key: nothing links to them. Decoding rejects a reference without `$schema`
   ("a reference names its target's schema").
 - **Reachability goes through value objects**: the reference objects linked by their entries' values are reached
   as a reference object's are.
@@ -746,7 +745,7 @@ it is fixed here:
 | Keyword arguments | `ToJSON(..., indent=2)` | options objects: `ToJSON(..., { indent: 2 })` |
 | Dynamic proxies | `__getattr__`, `__call__` | a `Proxy` with a function target, its `name` and `length` hidden; JavaScript protocol probes (`then`, `toJSON`, symbols) are not schema lookups |
 | Scalar sugar | dunders (`str(card.name)`, `int(...)`) | `[Symbol.toPrimitive]` and `valueOf` (`` `${card.name}` ``, `+card.age`) |
-| Object identity (`as_identity()`) | `id(self)` as text | a counter as text, never reused |
+| Identities | a UUID from `uuid.uuid4()`; the weak directory a `weakref.WeakValueDictionary`, which forgets an object when its last reference goes | a UUID from `crypto.getRandomValues`; `WeakRef`s and a `FinalizationRegistry`, which forget an object when the garbage collector runs |
 | Incomparable (`Comparison`) | `None` | `null` |
 | JSON | `json` with strict options | own reader and writer reproducing Python's output; ints and floats kept distinct |
 | YAML | PyYAML (optional extra), YAML 1.2 core loader | `yaml` package loader, own block emitter; the same quoting |
@@ -785,10 +784,10 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   `Plain.FromPlain(store).Reachable(schema, plain)` (still marked PROPOSED in the example).
 - Snapshot determinism: must two serializations of the same state produce identical output? Entries are now written
   with links and properties in the relation's declared order, and an adjacency's entries sorted by its key where the
-  key is of ordered values, but symbols are numbered in first-reference order, and other adjacencies' entry order
-  depends on history, so a round trip can renumber symbols (see the `FamilyTree` and `University` examples, which
-  compare snapshots up to renumbering). Full determinism would need a canonical order for entries keyed by links, or
-  not keyed at all.
+  key is of ordered values, and objects keep their identities, but objects are written in first-reference order, and
+  other adjacencies' entry order depends on history, so a round trip can reorder entries, and with them the objects
+  (PLN-08; the `FamilyTree` and `University` examples compare snapshots up to that order). Full determinism would need
+  a canonical order for entries keyed by links, or not keyed at all.
 - Uniqueness is global to a relation, but `Validators.Validate(...).Reachable` checks it only over the entries
   reachable from what was validated. Entries in another component that share only property values can go unchecked.
   Is a relation-wide check needed?
@@ -802,7 +801,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   `OfIntersection`). There is no separate "any value" kind yet.
 - Reading an object's entries back (e.g. a contact's phones), and removing an entry through a builder.
 - Is "an owned child must be part of an ownership chain rooted in an object with a directory entry" still a
-  well-formedness constraint under symbol-based serialization?
+  well-formedness constraint under identity-based serialization?
 
 ### Resolved
 
@@ -818,10 +817,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     per schema", "one directory per schema within each store"; "allocated IDs are strictly increasing (even in the
     presence of yet to be designed deletions)", so loading a snapshot advances a schema's counter past every ID it
     reads ("yes");
-  - programs read an identity through `Visitors.OfObject.as_identity` and find an object by `Stores.by_identity(id)`,
-    the id in the qualified form written on the wire; they "cannot set or modify their identity", so decoding is the
-    one writer of a loaded object's identity, and "on snapshot load, repeated appearance of the same ID is interpreted
-    as update";
+  - programs read an identity through `Visitors.OfObject.as_identity` and find an object by `Stores.by_identity`
+    (its arguments below); they "cannot set or modify their identity", so decoding is the one writer of a loaded
+    object's identity, and "on snapshot load, repeated appearance of the same ID is interpreted as update";
   - the qualified form is the schema's registered name, `/`, then the name (`"crm.Feature/FEA-001"`), a global name
     written alone, being unique in a store ("that is fine"); `by_identity` finds every live object of the store, through a
     weak directory, not only its data ("yes, every live object");
@@ -836,6 +834,25 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - "for value objects as_identity should return None", and so does any visitor without an identity (an empty one, a
     builder of an object not yet created): "it feels like None/null is a better representative of no identity, but I
     don't have a strong opinion", so it was taken.
+
+  Choices made in building it, for the user's review:
+  - `Schemas.Module` is a reference object schema with the naming pattern `module-(\d+)`, so that the meta-schemas'
+    own snapshots are reproducible; `Modules.module` creates the module, which gives it its identity, then fills it
+    from its snapshot;
+  - a naming pattern is literal text around one group of digits, `\d+` followed by `\d`s for its minimum width
+    (`FEA-(\d+\d\d)`); `validate()` refuses any other ("naming pattern 'X' is not literal text around one group of
+    digits"), and a name is matched by that split, ASCII digits only, rather than by a regular expression, whose
+    dialects differ between languages; numbers are never given twice in a store, even once their objects are gone;
+  - decoders create an object of a snapshot's identity through `Stores.Store.restore(name, identity)`, a builder whose
+    `create()` gives that identity; a program's `create()` always gets a new one. Creating an identity that is live
+    is refused ("a 'X' with the identity 'Y' is already live; update it"); one whose object is gone may be created
+    again;
+  - an update from a snapshot replaces the object's state: the properties and entries the snapshot does not hold are
+    removed, since a snapshot holds an object's whole state;
+  - a visitor of nothing (an absent value, another kind, a member the schema lacks) has no schema, `as_schema()` None,
+    as it has no identity; presence is tested by `as_schema()`, an identity being absent from every value object;
+  - snapshot key errors: "a 'X' is keyed by its identity qualified by its schema's name, e.g. 'X/<name>'", "the
+    singleton 'X' is keyed by its global name 'G'", and "'N' is not a name 'X''s naming pattern 'P' gives".
 
 - **The visitor pattern** ([Visitor pattern](VISITOR_PATTERN.md), which holds the protocol as the user designed it), as
   the user decided, finding that the framework had the pattern backwards: "the Visitors interface is supposed to expose

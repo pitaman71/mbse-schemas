@@ -149,7 +149,7 @@ export { IntlAddress, addr1 };
 
 // --- Serialization ---
 
-// A single-object snapshot includes addr1's adjacencies, so it references alice by symbol without containing her.
+// A single-object snapshot includes addr1's adjacencies, so it references alice by key without containing her.
 // Deserializing it on its own is an error: the reference cannot be resolved.
 const plain = Plain.ToPlain(store)(IntlAddress, addr1);
 // equivalent to
@@ -157,14 +157,24 @@ const plain = Plain.ToPlain(store)(IntlAddress, addr1);
 void plain;
 
 // PROPOSED: a snapshot of addr1 and every object reachable through adjacencies (alice, her phone and email), so all
-// symbol references resolve within the snapshot.
+// references resolve within the snapshot. Each object is keyed by its identity, qualified by its schema's name.
 const graph = Plain.ToPlain(store).Reachable(IntlAddress, addr1);
-const roundtrip = Plain.FromPlain(store).Reachable(IntlAddress, graph);
-assert(roundtrip !== addr1);
-assert(equal(Plain.ToPlain(store).Reachable(IntlAddress, roundtrip as Proxies.Instance), graph));
+assert(graph.get("root") === `IntlAddress/${addr1.as_identity()}`);
+
+// Read into another store, the snapshot builds objects of the same identities there.
+const backup = new Proxies.OfStore();
+for (const schema of [IntlAddress, Contact, PhoneNumber, EmailAddress, ContactAddresses, ContactPhones, ContactEmails]) {
+  backup.register(schema);
+}
+const roundtrip = Plain.FromPlain(backup).Reachable(IntlAddress, graph) as Proxies.Instance;
+assert(roundtrip !== addr1 && roundtrip.as_identity() === addr1.as_identity());
+assert(equal(Plain.ToPlain(backup).Reachable(IntlAddress, roundtrip), graph));
+
+// Read into the store that holds them, it replaces their state with the snapshot's.
+assert(Plain.FromPlain(store).Reachable(IntlAddress, graph) === addr1);
 
 // The same snapshot as JSON text, and back.
 const text = JSON.ToJSON(store).Reachable(IntlAddress, addr1, { indent: 2 });
-const fromJson = JSON.FromJSON(store).Reachable(IntlAddress, text) as Proxies.Instance;
-assert(fromJson !== addr1 && String(fromJson.street1) === String(addr1.street1));
+const fromJson = JSON.FromJSON(backup).Reachable(IntlAddress, text) as Proxies.Instance;
+assert(fromJson === roundtrip && String(fromJson.street1) === String(addr1.street1)); // the backup's, updated
 assert(equal(JSON.loads(text), graph));

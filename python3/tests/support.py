@@ -50,7 +50,12 @@ def value_of(read: Any) -> Any:
     found: list[Any] = []
     read.as_value(lambda a: a.as_object(lambda v: found.append(v) or v).as_union(lambda v: found.append(v) or v)
                   .as_intersection(lambda v: found.append(v) or v))
-    return next((v for v in found if v.as_identity() != ""), None)
+    return next((v for v in found if v.as_schema() is not None), None)  # a visitor of nothing has no schema
+
+
+def root_of(snapshot: dict) -> dict:
+    """A snapshot's root object."""
+    return snapshot["objects"][snapshot["root"]]
 
 
 def is_adjacency(value: Any) -> bool:
@@ -61,11 +66,12 @@ def is_adjacency(value: Any) -> bool:
 
 
 def same_graph(a: dict, b: dict) -> bool:
-    """Snapshot equality up to symbol numbering and entry order. Objects are identified by their own property values,
-    which must be distinct within each graph, and value objects by their owner's and the path to them."""
+    """Snapshot equality up to the keys objects are written under, the order they are written in, and entry order.
+    Objects are identified by their own property values, which must be distinct within each graph, and value objects by
+    their owner's and the path to them."""
 
     def content(value: Any) -> Any:
-        """A value without the symbols and entries in it."""
+        """A value without the keys and entries in it."""
         if isinstance(value, dict):
             return sorted((k, content(v)) for k, v in value.items() if k != "$id" and not is_adjacency(v))
         if isinstance(value, list):

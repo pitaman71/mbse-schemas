@@ -50,7 +50,7 @@ def _held(read: Any, schema: Any) -> Any:
               Schemas.OfIntersection.Data: "as_intersection"}[type(schema)]
     found: list[Any] = []
     read.as_value(lambda a: getattr(a, select)(lambda v: found.append(v) or v) or a)
-    return found[0] if found and found[0].as_identity() != "" else None
+    return found[0] if found and found[0].as_schema() is not None else None  # a visitor of nothing has no schema
 
 
 def _member(read: Any, schema: Any) -> Any:
@@ -58,7 +58,12 @@ def _member(read: Any, schema: Any) -> Any:
     a visitor, or None."""
     if isinstance(Schemas.structure(schema), Schemas.OfScalar.Data):
         return read.get()
-    return read if read.as_identity() != "" else None
+    return read if read.as_schema() is not None else None
+
+
+def _identity(target: Any) -> Hashable:
+    """A linked object's identity, unique among the objects of every schema: an identity is unique within its schema."""
+    return id(target.as_schema()), target.as_identity()
 
 
 # --- Checks ---
@@ -110,7 +115,7 @@ def _property_value(read: Any, schema: Any) -> Any:
 def _entry_key(entry: Any, adjacency: Schemas.OfAdjacency.Data) -> Hashable:
     """An entry's equality key: its other links' targets by identity and its values by `_key`."""
     relation = adjacency.relation
-    links = tuple((name, getattr(entry, name).as_identity()) for name in relation.entry.links if name != adjacency.me)
+    links = tuple((name, _identity(getattr(entry, name))) for name in relation.entry.links if name != adjacency.me)
     values = tuple((name, _key(prop.type, _property_value(getattr(entry, name), prop.type)))
                    for name, prop in relation.entry.properties.items())
     return links, values
@@ -195,8 +200,8 @@ class _Check:
         for name, prop in relation.entry.properties.items():
             problems += self._value_problems(f"{label}.{name}", prop.type,
                                              _property_value(getattr(entry, name), prop.type))
-        links = {name: getattr(entry, name).as_identity() for name in relation.entry.links if name != adjacency.me}
-        links[adjacency.me] = owner.as_identity()
+        links = {name: _identity(getattr(entry, name)) for name in relation.entry.links if name != adjacency.me}
+        links[adjacency.me] = _identity(owner)
         values = {name: _key(prop.type, _property_value(getattr(entry, name), prop.type))
                   for name, prop in relation.entry.properties.items()
                   if _property_value(getattr(entry, name), prop.type) is not None}

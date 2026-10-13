@@ -1,7 +1,7 @@
 {
-  "root": "s0",
+  "root": "Board/board-1",
   "objects": {
-    "s0": {
+    "Board/board-1": {
       "name": "rack",
       "tags": [
         {

@@ -77,7 +77,7 @@ def _read_held(read: Any, schema: Any) -> Any:
               Schemas.OfIntersection.Data: "as_intersection"}[type(schema)]
     found: list[Any] = []
     read.as_value(lambda a: getattr(a, select)(lambda v: found.append(v) or v) or a)
-    return found[0] if found and found[0].as_identity() != "" else None
+    return found[0] if found and found[0].as_schema() is not None else None  # a visitor of nothing has no schema
 
 
 def _read_property(read: Any, schema: Any) -> Any:
@@ -90,7 +90,7 @@ def _read_member(read: Any, schema: Any) -> Any:
     """A union's branch's or an intersection's part's value, read through its visitor of its type's kind."""
     if isinstance(Schemas.structure(schema), Schemas.OfScalar.Data):
         return read.get()
-    return read if read.as_identity() != "" else None
+    return read if read.as_schema() is not None else None
 
 
 # --- Comparing ---
@@ -145,8 +145,8 @@ def _entries(adjacency: Schemas.OfAdjacency.Data, a: Any, b: Any) -> Result:
 
 def _links(a: Any, b: Any) -> Result:
     """Links compare by their targets' identities: a link targets a reference object, never a value object."""
-    a_id = "" if a is None else a.as_identity()
-    b_id = "" if b is None else b.as_identity()
+    a_id = None if a is None or a.as_identity() is None else (id(a.as_schema()), a.as_identity())
+    b_id = None if b is None or b.as_identity() is None else (id(b.as_schema()), b.as_identity())
     if not a_id or not b_id:
         return 0 if not a_id and not b_id else None
     return 0 if a_id == b_id else None

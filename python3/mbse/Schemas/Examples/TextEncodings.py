@@ -112,9 +112,9 @@ assert from_yaml(Station, YAML.ToYAML(store)(Station, paris)).wmo_id.get() == '0
 # --- Hand-written YAML follows the YAML 1.2 core schema ---
 
 written = """
-root: s0
+root: Reading/noon
 objects:
-  s0:
+  Reading/noon:
     observed: 2026-09-28T12:00:00Z   # unquoted, but stays a string
     quality: 010                     # ten, not eight
     value: .inf
@@ -127,21 +127,21 @@ assert (reading.observed.get(), reading.quality.get(), reading.value.get(), read
 
 # 'yes' is a string in YAML 1.2, so it is not accepted for a bool.
 with raises(DecodeError):
-    from_yaml(Reading, "root: s0\nobjects:\n  s0:\n    valid: yes\n")
+    from_yaml(Reading, "root: Reading/noon\nobjects:\n  Reading/noon:\n    valid: yes\n")
 
 # --- Malformed text is rejected ---
 
-for bad in ['{"root": "s0", "objects": {"s0": {"value": NaN}}}',  # NaN literal: not JSON
-            '{"root": "s0", "root": "s1", "objects": {}}',  # duplicate key
-            '{"root": "s0", "objects": ',  # truncated
-            '{"root": "s0", "objects": {"s0": {"value": "nan"}}}']:  # only 'NaN', 'Infinity', '-Infinity'
+for bad in ['{"root": "Reading/a", "objects": {"Reading/a": {"value": NaN}}}',  # NaN literal: not JSON
+            '{"root": "Reading/a", "root": "Reading/b", "objects": {}}',  # duplicate key
+            '{"root": "Reading/a", "objects": ',  # truncated
+            '{"root": "Reading/a", "objects": {"Reading/a": {"value": "nan"}}}']:  # only 'NaN', 'Infinity', '-Infinity'
     with raises(DecodeError):
         from_json(Reading, bad)
 
-for bad in ['root: s0\nroot: s1\nobjects: {}',  # duplicate key
-            'root: s0\nobjects:\n  s0:\n    raw: !!binary AAAA',  # tagged binary: not plain data
+for bad in ['root: Reading/a\nroot: Reading/b\nobjects: {}',  # duplicate key
+            'root: Reading/a\nobjects:\n  Reading/a:\n    raw: !!binary AAAA',  # tagged binary: not plain data
             '1: x',  # non-string key
-            '---\nroot: s0\n---\nroot: s1',  # two documents
+            '---\nroot: Reading/a\n---\nroot: Reading/b',  # two documents
             'root: [unclosed']:
     with raises(DecodeError):
         from_yaml(Reading, bad)
@@ -157,12 +157,16 @@ lyon = (
     .create()
 )
 graph = Plain.ToPlain(store).Reachable(Station, lyon)
-for text, decode in [(JSON.ToJSON(store).Reachable(Station, lyon), from_json.Reachable),
-                     (YAML.ToYAML(store).Reachable(Station, lyon), from_yaml.Reachable)]:
-    restored = decode(Station, text)
-    assert restored is not lyon and str(restored.name) == 'Lyon-Saint-Exupéry'
-    assert same_graph(Plain.ToPlain(store).Reachable(Station, restored), graph)
-    assert validate.Reachable(Station, restored) == []
+for text, decoder in [(JSON.ToJSON(store).Reachable(Station, lyon), JSON.FromJSON),
+                      (YAML.ToYAML(store).Reachable(Station, lyon), YAML.FromYAML)]:
+    elsewhere = Proxies.OfStore()  # read into another store: objects of the same identities
+    for schema in [Reading, Station, Readings]:
+        elsewhere.register(schema)
+    restored = decoder(elsewhere).Reachable(Station, text)
+    assert restored is not lyon and restored.as_identity() == lyon.as_identity()
+    assert str(restored.name) == 'Lyon-Saint-Exupéry'
+    assert same_graph(Plain.ToPlain(elsewhere).Reachable(Station, restored), graph)
+    assert Validators.Validate(elsewhere).Reachable(Station, restored) == []
 
 # A single-object snapshot leaves references unresolved, in any encoding.
 with raises(DecodeError):

@@ -149,10 +149,17 @@ assert Validators.Validate(store).Reachable(Person, ada) == []
 
 # --- Round trips, from any root ---
 
+# Read into another store, a snapshot builds objects of the same identities; read into the store that holds them, it
+# replaces their state with the snapshot's.
+archive = Proxies.OfStore()
+for schema in (Person, Parentage, Mentorship):
+    archive.register(schema)
 for root in (ada, carol, loner):
     graph = Plain.ToPlain(store).Reachable(Person, root)
-    restored = Plain.FromPlain(store).Reachable(Person, graph)
-    assert restored is not root and str(restored.given_name) == str(root.given_name)
-    assert same_graph(Plain.ToPlain(store).Reachable(Person, restored), graph)
+    restored = Plain.FromPlain(archive).Reachable(Person, graph)
+    assert restored is not root and restored.as_identity() == root.as_identity()
+    assert str(restored.given_name) == str(root.given_name)
+    assert same_graph(Plain.ToPlain(archive).Reachable(Person, restored), graph)
+    assert Plain.FromPlain(store).Reachable(Person, graph) is root
 
 print('FamilyTree: all checks passed')

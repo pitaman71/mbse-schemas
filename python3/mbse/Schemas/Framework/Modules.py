@@ -45,7 +45,8 @@ def module(store: Stores.Store, schemas: Iterable[Any]) -> Any:
         raise ValueError("a module holds named schemas; name each with its builder's .name()")
     writer = _Writer()
     entries = [{"name": schema.name, "schema": writer.definition(schema)} for schema in schemas]
-    return Plain.FromPlain(store)(Schemas.Module.Schema, {"root": "s0", "objects": {"s0": {"schemas": entries}}})
+    key = f"{MODULE}/{store.builder(MODULE).create().as_identity()}"  # a new identity
+    return Plain.FromPlain(store)(Schemas.Module.Schema, {"root": key, "objects": {key: {"schemas": entries}}})
 
 
 Make = Callable[[Any], Any]
@@ -116,7 +117,8 @@ class _Writer:
                            for name, adjacency in schema.adjacencies.items()]
             return _kind_of("object", parameters=parameters, properties=self._members(schema.properties.values()),
                             adjacencies=adjacencies,
-                            singleton=schema.singleton, ref=schema.ref, description=schema.description)
+                            singleton=schema.singleton, ref=schema.ref, pattern=schema.pattern,
+                            description=schema.description)
         if isinstance(schema, Schemas.OfRelation.Data):
             return _kind_of("relation", parameters=parameters, links=self._members(schema.entry.links.values()),
                             properties=self._members(schema.entry.properties.values()),
@@ -283,7 +285,7 @@ class _Reader:
             schema.adjacencies = {a["name"]: Schemas.OfAdjacency.Data(a["name"], self._relation(a["relation"]), a["me"],
                                                                       a.get("description"))
                                   for a in body.get("adjacencies", [])}
-            schema.singleton, schema.ref = body.get("singleton"), body.get("ref", False)
+            schema.singleton, schema.ref, schema.pattern = body.get("singleton"), body.get("ref", False), body.get("pattern")
         elif kind == "relation":
             links = self._members(body.get("links", []), Schemas.OfSymbol.Data, "link")
             schema.entry = Schemas.OfEntry.Data({link.name: link for link in links}, {p.name: p for p in properties})

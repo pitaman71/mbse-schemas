@@ -1,13 +1,14 @@
 {
-  "root": "s0",
+  "root": "Schemas.Module/module-1",
   "objects": {
-    "s0": {
+    "Schemas.Module/module-1": {
       "schemas": [
         {
           "name": "Address",
           "schema": {
             "object": {
               "ref": true,
+              "pattern": "address-(\\d+)",
               "properties": [
                 {
                   "name": "street1",
@@ -138,6 +139,7 @@
           "schema": {
             "object": {
               "ref": true,
+              "pattern": "board-(\\d+)",
               "properties": [
                 {
                   "name": "name",
@@ -642,6 +644,7 @@
           "schema": {
             "object": {
               "ref": true,
+              "pattern": "card-(\\d+)",
               "properties": [
                 {
                   "name": "name",
@@ -914,6 +917,7 @@
           "schema": {
             "object": {
               "ref": true,
+              "pattern": "contact-(\\d+)",
               "properties": [
                 {
                   "name": "given_name",
@@ -997,6 +1001,7 @@
           "schema": {
             "object": {
               "ref": true,
+              "pattern": "deck-(\\d+)",
               "properties": [
                 {
                   "name": "title",
@@ -1314,6 +1319,7 @@
           "schema": {
             "object": {
               "ref": true,
+              "pattern": "person-(\\d+)",
               "properties": [
                 {
                   "name": "given_name",

@@ -78,7 +78,7 @@ function readHeld(read: any, schema: unknown): any {
     : schema instanceof Schemas.OfIntersection.Data ? "as_intersection" : "as_object";
   const found: any[] = [];
   read.as_value((a: any) => a[select]((v: any) => found.push(v)));
-  return found.length > 0 && found[0].as_identity() !== "" ? found[0] : null;
+  return found.length > 0 && found[0].as_schema() !== null ? found[0] : null; // a visitor of nothing has no schema
 }
 
 /** A property's value, read through its visitor: a scalar, a visitor, or null. */
@@ -90,7 +90,7 @@ function readProperty(read: any, schema: unknown): any {
 /** A union's branch's or an intersection's part's value, read through its visitor of its type's kind. */
 function readMember(read: any, schema: unknown): any {
   if (Schemas.structure(schema) instanceof Schemas.OfScalar.Data) return read.get();
-  return read.as_identity() !== "" ? read : null;
+  return read.as_schema() !== null ? read : null;
 }
 
 // --- Comparing ---
@@ -138,12 +138,13 @@ function entries(adjacency: Schemas.OfAdjacency.Data, a: any, b: any): Result {
   return allEqual([...links, ...values]);
 }
 
-/** Links compare by their targets' identities: a link targets a reference object, never a value object. */
+/** Links compare by their targets' identities, each unique within its schema: a link targets a reference object, never
+ * a value object. */
 function compareLinks(a: any, b: any): Result {
-  const x = a === null || a === undefined ? "" : a.as_identity();
-  const y = b === null || b === undefined ? "" : b.as_identity();
-  if (!x || !y) return !x && !y ? 0 : null;
-  return x === y ? 0 : null;
+  const x = a === null || a === undefined ? null : a.as_identity();
+  const y = b === null || b === undefined ? null : b.as_identity();
+  if (x === null || y === null) return x === null && y === null ? 0 : null;
+  return x === y && a.as_schema() === b.as_schema() ? 0 : null;
 }
 
 /** A scalar value, which must have exactly the schema's scalar type; null for absent. */

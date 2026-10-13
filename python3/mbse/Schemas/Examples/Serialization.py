@@ -96,9 +96,10 @@ back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty))
 assert (back.label.get(), back.payload.get(), back.count.get(), back.ratio.get()) == ('', b'', 0, 0.0)
 assert back.flag.get() is None  # never set, so absent
 
-# An object with nothing set serializes to an empty object.
+# An object with nothing set serializes to an empty object, keyed by its identity qualified by its schema's name.
 blank = store.Sample().create()
-assert Plain.ToPlain(store)(Sample, blank) == {'root': 's0', 'objects': {'s0': {}}}
+key = f'Sample/{blank.as_identity()}'
+assert Plain.ToPlain(store)(Sample, blank) == {'root': key, 'objects': {key: {}}}
 
 # Per-kind entry points.
 assert Plain.ToPlain(store)(Schemas.OfScalar.Data(bytes), b'\x01') == Plain.ToPlain(store).OfScalar(Schemas.OfScalar.Data(bytes), b'\x01') == 'AQ=='

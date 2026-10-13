@@ -12,7 +12,7 @@ import type * as Schemas from "./Schemas.js";
 
 /** The root and every reference object reachable from it through adjacencies, in first-reference order. */
 export function of(root: Readers.OfObject): Readers.OfObject[] {
-  const seen = new Map<string, Readers.OfObject>([[root.as_identity(), root]]);
+  const seen = new Set<Readers.OfObject>([root]); // by object: an identity is unique within its schema only
   const queue = [root];
 
   const adjacency = (read: Readers.OfAdjacency): Readers.OfAdjacency => {
@@ -26,8 +26,8 @@ export function of(root: Readers.OfObject): Readers.OfObject[] {
   };
 
   const found = (target: Readers.OfObject): void => {
-    if (!seen.has(target.as_identity())) {
-      seen.set(target.as_identity(), target);
+    if (!seen.has(target)) {
+      seen.add(target);
       queue.push(target);
     }
   };

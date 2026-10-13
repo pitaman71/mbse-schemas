@@ -21,11 +21,11 @@ def entries(schema, obj, adjacency):
 
 
 def same_graph(a, b):
-    """Snapshot equality up to symbol numbering and entry order.
+    """Snapshot equality up to entry order, and the order objects are written in.
 
-    Symbols are numbered in first-reference order, which depends on entry order, and entries form a set whose order
-    depends on history. Each object is identified here by its own property values instead, which the examples keep
-    unique within a graph.
+    Objects are written in first-reference order, which depends on entry order, and entries form a set whose order
+    depends on history. Each object is identified here by its own property values, which the examples keep unique
+    within a graph.
     """
 
     def canonical(graph):

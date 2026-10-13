@@ -1,1031 +1,1031 @@
 {
-  "root": "s0",
+  "root": "Notebook/notebook-1",
   "objects": {
-    "s0": {
+    "Notebook/notebook-1": {
       "title": "tricky",
       "notes": [
         {
           "note": {
-            "$ref": "s1",
+            "$ref": "Note/note-1",
             "$schema": "Note"
           },
           "page": 0
         },
         {
           "note": {
-            "$ref": "s2",
+            "$ref": "Note/note-2",
             "$schema": "Note"
           },
           "page": 1
         },
         {
           "note": {
-            "$ref": "s3",
+            "$ref": "Note/note-3",
             "$schema": "Note"
           },
           "page": 2
         },
         {
           "note": {
-            "$ref": "s4",
+            "$ref": "Note/note-4",
             "$schema": "Note"
           },
           "page": 3
         },
         {
           "note": {
-            "$ref": "s5",
+            "$ref": "Note/note-5",
             "$schema": "Note"
           },
           "page": 4
         },
         {
           "note": {
-            "$ref": "s6",
+            "$ref": "Note/note-6",
             "$schema": "Note"
           },
           "page": 5
         },
         {
           "note": {
-            "$ref": "s7",
+            "$ref": "Note/note-7",
             "$schema": "Note"
           },
           "page": 6
         },
         {
           "note": {
-            "$ref": "s8",
+            "$ref": "Note/note-8",
             "$schema": "Note"
           },
           "page": 7
         },
         {
           "note": {
-            "$ref": "s9",
+            "$ref": "Note/note-9",
             "$schema": "Note"
           },
           "page": 8
         },
         {
           "note": {
-            "$ref": "s10",
+            "$ref": "Note/note-10",
             "$schema": "Note"
           },
           "page": 9
         },
         {
           "note": {
-            "$ref": "s11",
+            "$ref": "Note/note-11",
             "$schema": "Note"
           },
           "page": 10
         },
         {
           "note": {
-            "$ref": "s12",
+            "$ref": "Note/note-12",
             "$schema": "Note"
           },
           "page": 11
         },
         {
           "note": {
-            "$ref": "s13",
+            "$ref": "Note/note-13",
             "$schema": "Note"
           },
           "page": 12
         },
         {
           "note": {
-            "$ref": "s14",
+            "$ref": "Note/note-14",
             "$schema": "Note"
           },
           "page": 13
         },
         {
           "note": {
-            "$ref": "s15",
+            "$ref": "Note/note-15",
             "$schema": "Note"
           },
           "page": 14
         },
         {
           "note": {
-            "$ref": "s16",
+            "$ref": "Note/note-16",
             "$schema": "Note"
           },
           "page": 15
         },
         {
           "note": {
-            "$ref": "s17",
+            "$ref": "Note/note-17",
             "$schema": "Note"
           },
           "page": 16
         },
         {
           "note": {
-            "$ref": "s18",
+            "$ref": "Note/note-18",
             "$schema": "Note"
           },
           "page": 17
         },
         {
           "note": {
-            "$ref": "s19",
+            "$ref": "Note/note-19",
             "$schema": "Note"
           },
           "page": 18
         },
         {
           "note": {
-            "$ref": "s20",
+            "$ref": "Note/note-20",
             "$schema": "Note"
           },
           "page": 19
         },
         {
           "note": {
-            "$ref": "s21",
+            "$ref": "Note/note-21",
             "$schema": "Note"
           },
           "page": 20
         },
         {
           "note": {
-            "$ref": "s22",
+            "$ref": "Note/note-22",
             "$schema": "Note"
           },
           "page": 21
         },
         {
           "note": {
-            "$ref": "s23",
+            "$ref": "Note/note-23",
             "$schema": "Note"
           },
           "page": 22
         },
         {
           "note": {
-            "$ref": "s24",
+            "$ref": "Note/note-24",
             "$schema": "Note"
           },
           "page": 23
         },
         {
           "note": {
-            "$ref": "s25",
+            "$ref": "Note/note-25",
             "$schema": "Note"
           },
           "page": 24
         },
         {
           "note": {
-            "$ref": "s26",
+            "$ref": "Note/note-26",
             "$schema": "Note"
           },
           "page": 25
         },
         {
           "note": {
-            "$ref": "s27",
+            "$ref": "Note/note-27",
             "$schema": "Note"
           },
           "page": 26
         },
         {
           "note": {
-            "$ref": "s28",
+            "$ref": "Note/note-28",
             "$schema": "Note"
           },
           "page": 27
         },
         {
           "note": {
-            "$ref": "s29",
+            "$ref": "Note/note-29",
             "$schema": "Note"
           },
           "page": 28
         },
         {
           "note": {
-            "$ref": "s30",
+            "$ref": "Note/note-30",
             "$schema": "Note"
           },
           "page": 29
         },
         {
           "note": {
-            "$ref": "s31",
+            "$ref": "Note/note-31",
             "$schema": "Note"
           },
           "page": 30
         },
         {
           "note": {
-            "$ref": "s32",
+            "$ref": "Note/note-32",
             "$schema": "Note"
           },
           "page": 31
         },
         {
           "note": {
-            "$ref": "s33",
+            "$ref": "Note/note-33",
             "$schema": "Note"
           },
           "page": 32
         },
         {
           "note": {
-            "$ref": "s34",
+            "$ref": "Note/note-34",
             "$schema": "Note"
           },
           "page": 33
         },
         {
           "note": {
-            "$ref": "s35",
+            "$ref": "Note/note-35",
             "$schema": "Note"
           },
           "page": 34
         },
         {
           "note": {
-            "$ref": "s36",
+            "$ref": "Note/note-36",
             "$schema": "Note"
           },
           "page": 35
         },
         {
           "note": {
-            "$ref": "s37",
+            "$ref": "Note/note-37",
             "$schema": "Note"
           },
           "page": 36
         },
         {
           "note": {
-            "$ref": "s38",
+            "$ref": "Note/note-38",
             "$schema": "Note"
           },
           "page": 37
         },
         {
           "note": {
-            "$ref": "s39",
+            "$ref": "Note/note-39",
             "$schema": "Note"
           },
           "page": 38
         },
         {
           "note": {
-            "$ref": "s40",
+            "$ref": "Note/note-40",
             "$schema": "Note"
           },
           "page": 39
         },
         {
           "note": {
-            "$ref": "s41",
+            "$ref": "Note/note-41",
             "$schema": "Note"
           },
           "page": 40
         },
         {
           "note": {
-            "$ref": "s42",
+            "$ref": "Note/note-42",
             "$schema": "Note"
           },
           "page": 41
         },
         {
           "note": {
-            "$ref": "s43",
+            "$ref": "Note/note-43",
             "$schema": "Note"
           },
           "page": 42
         },
         {
           "note": {
-            "$ref": "s44",
+            "$ref": "Note/note-44",
             "$schema": "Note"
           },
           "page": 43
         },
         {
           "note": {
-            "$ref": "s45",
+            "$ref": "Note/note-45",
             "$schema": "Note"
           },
           "page": 44
         },
         {
           "note": {
-            "$ref": "s46",
+            "$ref": "Note/note-46",
             "$schema": "Note"
           },
           "page": 45
         },
         {
           "note": {
-            "$ref": "s47",
+            "$ref": "Note/note-47",
             "$schema": "Note"
           },
           "page": 46
         },
         {
           "note": {
-            "$ref": "s48",
+            "$ref": "Note/note-48",
             "$schema": "Note"
           },
           "page": 47
         },
         {
           "note": {
-            "$ref": "s49",
+            "$ref": "Note/note-49",
             "$schema": "Note"
           },
           "page": 48
         },
         {
           "note": {
-            "$ref": "s50",
+            "$ref": "Note/note-50",
             "$schema": "Note"
           },
           "page": 49
         },
         {
           "note": {
-            "$ref": "s51",
+            "$ref": "Note/note-51",
             "$schema": "Note"
           },
           "page": 50
         },
         {
           "note": {
-            "$ref": "s52",
+            "$ref": "Note/note-52",
             "$schema": "Note"
           },
           "page": 51
         },
         {
           "note": {
-            "$ref": "s53",
+            "$ref": "Note/note-53",
             "$schema": "Note"
           },
           "page": 52
         },
         {
           "note": {
-            "$ref": "s54",
+            "$ref": "Note/note-54",
             "$schema": "Note"
           },
           "page": 53
         }
       ]
     },
-    "s1": {
+    "Note/note-1": {
       "text": "yes",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 0
         }
       ]
     },
-    "s2": {
+    "Note/note-2": {
       "text": "No",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 1
         }
       ]
     },
-    "s3": {
+    "Note/note-3": {
       "text": "on",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 2
         }
       ]
     },
-    "s4": {
+    "Note/note-4": {
       "text": "OFF",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 3
         }
       ]
     },
-    "s5": {
+    "Note/note-5": {
       "text": "y",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 4
         }
       ]
     },
-    "s6": {
+    "Note/note-6": {
       "text": "true",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 5
         }
       ]
     },
-    "s7": {
+    "Note/note-7": {
       "text": "null",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 6
         }
       ]
     },
-    "s8": {
+    "Note/note-8": {
       "text": "~",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 7
         }
       ]
     },
-    "s9": {
+    "Note/note-9": {
       "text": "",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 8
         }
       ]
     },
-    "s10": {
+    "Note/note-10": {
       "text": "010",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 9
         }
       ]
     },
-    "s11": {
+    "Note/note-11": {
       "text": "0o17",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 10
         }
       ]
     },
-    "s12": {
+    "Note/note-12": {
       "text": "0x1F",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 11
         }
       ]
     },
-    "s13": {
+    "Note/note-13": {
       "text": "1e3",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 12
         }
       ]
     },
-    "s14": {
+    "Note/note-14": {
       "text": "1_000",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 13
         }
       ]
     },
-    "s15": {
+    "Note/note-15": {
       "text": "1:30",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 14
         }
       ]
     },
-    "s16": {
+    "Note/note-16": {
       "text": "2026-09-01",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 15
         }
       ]
     },
-    "s17": {
+    "Note/note-17": {
       "text": ".inf",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 16
         }
       ]
     },
-    "s18": {
+    "Note/note-18": {
       "text": ".nan",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 17
         }
       ]
     },
-    "s19": {
+    "Note/note-19": {
       "text": "NaN",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 18
         }
       ]
     },
-    "s20": {
+    "Note/note-20": {
       "text": "Infinity",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 19
         }
       ]
     },
-    "s21": {
+    "Note/note-21": {
       "text": "-0.0",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 20
         }
       ]
     },
-    "s22": {
+    "Note/note-22": {
       "text": "+1",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 21
         }
       ]
     },
-    "s23": {
+    "Note/note-23": {
       "text": " lead",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 22
         }
       ]
     },
-    "s24": {
+    "Note/note-24": {
       "text": "trail ",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 23
         }
       ]
     },
-    "s25": {
+    "Note/note-25": {
       "text": "a: b",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 24
         }
       ]
     },
-    "s26": {
+    "Note/note-26": {
       "text": "- dash",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 25
         }
       ]
     },
-    "s27": {
+    "Note/note-27": {
       "text": "#hash",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 26
         }
       ]
     },
-    "s28": {
+    "Note/note-28": {
       "text": "x #y",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 27
         }
       ]
     },
-    "s29": {
+    "Note/note-29": {
       "text": "\"dq\"",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 28
         }
       ]
     },
-    "s30": {
+    "Note/note-30": {
       "text": "'sq'",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 29
         }
       ]
     },
-    "s31": {
+    "Note/note-31": {
       "text": "@at",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 30
         }
       ]
     },
-    "s32": {
+    "Note/note-32": {
       "text": "`tick",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 31
         }
       ]
     },
-    "s33": {
+    "Note/note-33": {
       "text": "%pct",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 32
         }
       ]
     },
-    "s34": {
+    "Note/note-34": {
       "text": "!bang",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 33
         }
       ]
     },
-    "s35": {
+    "Note/note-35": {
       "text": "&amp",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 34
         }
       ]
     },
-    "s36": {
+    "Note/note-36": {
       "text": "*star",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 35
         }
       ]
     },
-    "s37": {
+    "Note/note-37": {
       "text": "|",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 36
         }
       ]
     },
-    "s38": {
+    "Note/note-38": {
       "text": ">",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 37
         }
       ]
     },
-    "s39": {
+    "Note/note-39": {
       "text": "{}",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 38
         }
       ]
     },
-    "s40": {
+    "Note/note-40": {
       "text": "[]",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 39
         }
       ]
     },
-    "s41": {
+    "Note/note-41": {
       "text": ",",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 40
         }
       ]
     },
-    "s42": {
+    "Note/note-42": {
       "text": "?",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 41
         }
       ]
     },
-    "s43": {
+    "Note/note-43": {
       "text": "<<",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 42
         }
       ]
     },
-    "s44": {
+    "Note/note-44": {
       "text": "---",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 43
         }
       ]
     },
-    "s45": {
+    "Note/note-45": {
       "text": "...",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 44
         }
       ]
     },
-    "s46": {
+    "Note/note-46": {
       "text": "a\nb",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 45
         }
       ]
     },
-    "s47": {
+    "Note/note-47": {
       "text": "\t",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 46
         }
       ]
     },
-    "s48": {
+    "Note/note-48": {
       "text": "\u0000",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 47
         }
       ]
     },
-    "s49": {
+    "Note/note-49": {
       "text": "\u0007",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 48
         }
       ]
     },
-    "s50": {
+    "Note/note-50": {
       "text": "﻿bom",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 49
         }
       ]
     },
-    "s51": {
+    "Note/note-51": {
       "text": "ab",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 50
         }
       ]
     },
-    "s52": {
+    "Note/note-52": {
       "text": "a b",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 51
         }
       ]
     },
-    "s53": {
+    "Note/note-53": {
       "text": "日本語 🚀",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 52
         }
       ]
     },
-    "s54": {
+    "Note/note-54": {
       "text": "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word ",
       "notebooks": [
         {
           "notebook": {
-            "$ref": "s0",
+            "$ref": "Notebook/notebook-1",
             "$schema": "Notebook"
           },
           "page": 53

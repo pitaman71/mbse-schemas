@@ -5,7 +5,9 @@
 
 Each implementation builds the same corpus of schemas and objects, statement for statement
 (`python3/mbse/Schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`), and commits its snapshots here as
-`<implementation>/<case>.json` (reachable snapshot, indent 2) and `<case>.yaml`.
+`<implementation>/<case>.json` (reachable snapshot, indent 2) and `<case>.yaml`. Its reference object schemas take
+naming patterns (`contact-(\d+)`), so that every implementation gives the same objects the same identities, and
+snapshots keyed by them are reproducible ([FRAMEWORK.md](../docs/FRAMEWORK.md), Resolved, Reference identity).
 
 | Case | Covers |
 |---|---|

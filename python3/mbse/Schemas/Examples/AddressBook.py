@@ -184,21 +184,30 @@ alice = (
 
 # --- Serialization ---
 
-# A single-object snapshot includes addr1's adjacencies, so it references alice by symbol without containing her.
+# A single-object snapshot includes addr1's adjacencies, so it references alice by key without containing her.
 # Deserializing it on its own is an error: the reference cannot be resolved.
 plain = Plain.ToPlain(store)(IntlAddress, addr1)
 # equivalent to
 # plain = Plain.ToPlain(store).OfObject(IntlAddress, addr1)
 
 # PROPOSED: a snapshot of addr1 and every object reachable through adjacencies (alice, her phone and email), so all
-# symbol references resolve within the snapshot.
+# references resolve within the snapshot. Each object is keyed by its identity, qualified by its schema's name.
 graph = Plain.ToPlain(store).Reachable(IntlAddress, addr1)
-roundtrip = Plain.FromPlain(store).Reachable(IntlAddress, graph)
-assert roundtrip is not addr1
-assert Plain.ToPlain(store).Reachable(IntlAddress, roundtrip) == graph
+assert graph['root'] == f'IntlAddress/{addr1.as_identity()}'
+
+# Read into another store, the snapshot builds objects of the same identities there.
+backup = Proxies.OfStore()
+for schema in (IntlAddress, Contact, PhoneNumber, EmailAddress, ContactAddresses, ContactPhones, ContactEmails):
+    backup.register(schema)
+roundtrip = Plain.FromPlain(backup).Reachable(IntlAddress, graph)
+assert roundtrip is not addr1 and roundtrip.as_identity() == addr1.as_identity()
+assert Plain.ToPlain(backup).Reachable(IntlAddress, roundtrip) == graph
+
+# Read into the store that holds them, it replaces their state with the snapshot's.
+assert Plain.FromPlain(store).Reachable(IntlAddress, graph) is addr1
 
 # The same snapshot as JSON text, and back.
 text = JSON.ToJSON(store).Reachable(IntlAddress, addr1, indent=2)
-from_json = JSON.FromJSON(store).Reachable(IntlAddress, text)
-assert from_json is not addr1 and str(from_json.street1) == str(addr1.street1)
+from_json = JSON.FromJSON(backup).Reachable(IntlAddress, text)
+assert from_json is roundtrip and str(from_json.street1) == str(addr1.street1)  # the backup's, updated
 assert JSON.loads(text) == graph

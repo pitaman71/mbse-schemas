@@ -90,7 +90,7 @@ export function value_of(read: any): any {
     return v;
   };
   read.as_value((a: any) => a.as_object(keep).as_union(keep).as_intersection(keep));
-  return found.find((v) => v.as_identity() !== "") ?? null;
+  return found.find((v) => v.as_schema() !== null) ?? null; // a visitor of nothing has no schema
 }
 
 /** A stable text key for plain values (bigint, -0.0 and NaN included). */
@@ -105,16 +105,22 @@ export function key(value: unknown): string {
 
 /** Whether a snapshot's list is an adjacency: each of its entries links something, while a list a property holds never
  * has a reference at its top level. */
+/** A snapshot's root object. */
+export function root_of(snapshot: any): any {
+  return snapshot.get("objects").get(snapshot.get("root"));
+}
+
 export function is_adjacency(value: unknown): value is PlainMap[] {
   return Array.isArray(value) && value.length > 0 &&
     value.every((e) => e instanceof Map && [...e.values()].some((v) => v instanceof Map && v.has("$ref")));
 }
 
-/** Snapshot equality up to symbol numbering and entry order. Objects are identified by their own property values,
- * which must be distinct within each graph, and value objects by their owner's and the path to them. */
+/** Snapshot equality up to the keys objects are written under, the order they are written in, and entry order.
+ * Objects are identified by their own property values, which must be distinct within each graph, and value objects by
+ * their owner's and the path to them. */
 export function same_graph(a: PlainData, b: PlainData): boolean {
   const byKey = ([x]: [string, unknown], [y]: [string, unknown]) => (x < y ? -1 : x > y ? 1 : 0);
-  /** A value without the symbols and entries in it. */
+  /** A value without the keys and entries in it. */
   const content = (value: unknown): unknown => value instanceof Map
     ? [...value].filter(([k, v]) => k !== "$id" && !is_adjacency(v)).map(([k, v]) => [k, content(v)] as [string, unknown]).sort(byKey)
     : Array.isArray(value) ? value.map(content) : value;

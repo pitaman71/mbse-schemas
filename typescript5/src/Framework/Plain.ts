@@ -8,14 +8,17 @@
  * Plain data keeps Python's distinctions: an int is a `bigint` and a float is a `number`, and a mapping is a
  * `Map<string, PlainData>` (which keeps insertion order for every key, unlike object literals).
  *
- * An object snapshot has the shape `{"root": symbol, "objects": {symbol: object}}`. Each object maps property names
- * to plain values and adjacency names to lists of entries. An entry maps the other links to references and the entry
- * properties to plain values; the object's own link is implied. A reference is `{"$ref": symbol, "$schema": name}`:
- * object content carries no schema, so references carry the schema name, and the root schema is passed in.
+ * An object snapshot has the shape `{"root": key, "objects": {key: object}}`. An object's key is its identity
+ * qualified by its schema's registered name, `"Feature/FEA-001"`, or a singleton's global name alone. Each object maps
+ * property names to plain values and adjacency names to lists of entries. An entry maps the other links to references
+ * and the entry properties to plain values; the object's own link is implied. A reference is
+ * `{"$ref": key, "$schema": name}`: object content carries no schema, so references carry the schema name, and the
+ * root schema is passed in.
  *
  * `ToPlain(store).OfObject` includes only the root object, so its references are unresolved and `FromPlain` rejects
  * them. `ToPlain(store).Reachable` also includes every object reachable through adjacencies (see `Reachable`). Decoding
- * builds new objects in the store, except an object of a singleton schema, which updates the store's instance.
+ * builds each object in the store with the identity its key gives, or, where the store holds a live object of that
+ * identity (a singleton's instance included), replaces that object's state.
  *
  * The serializers read values through the visitor protocol (`Readers.OfObject`), and decoding writes them through a
  * store's builders (`Visitors.OfObject`).
@@ -60,9 +63,9 @@ type Ref = (target: Readers.OfObject) => PlainMap;
  * parts. */
 type RecordSchema = Schemas.OfObject.Data | Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
 
-/** Whether a value object's visitor visits one: an empty visitor has no identity. */
+/** Whether a value object's visitor visits one: a visitor of nothing has no schema. */
 function present(visitor: any): boolean {
-  return visitor.as_identity() !== "";
+  return visitor.as_schema() !== null;
 }
 
 /** A property's value as plain data, read through its visitor, and whether it has one. */
@@ -141,16 +144,16 @@ function entry(read: Readers.OfEntry, adjacency: Schemas.OfAdjacency.Data, ref: 
 
 // --- Snapshots ---
 
-/** Assigns symbols 1:1 to object identities, in first-reference order, and writes the included objects. */
+/** Writes the included objects, in first-reference order, each keyed by its qualified identity. */
 class Snapshot {
-  private readonly symbols = new Map<unknown, string>();
-
   constructor(private readonly store: Stores.Store) {}
 
+  /** An object's key in a snapshot, and in the links to it: its identity, qualified by its schema's registered name
+   * (`"crm.Feature/FEA-001"`); a global name alone, being unique in a store. */
   private symbol(value: Readers.OfObject): string {
-    let symbol = this.symbols.get(value.as_identity());
-    if (symbol === undefined) this.symbols.set(value.as_identity(), (symbol = `s${this.symbols.size}`));
-    return symbol;
+    const schema = value.as_schema();
+    if (schema.singleton !== null) return schema.singleton;
+    return `${this.store.name_of(schema)}/${value.as_identity()}`;
   }
 
   /** A reference to a linked object, which is a reference object: entries never reference value objects. */
@@ -164,7 +167,6 @@ class Snapshot {
     if (!schema.ref) {
       throw new TypeError(`a snapshot's root must be a reference object; ${repr(schema.name)} is a value object schema`);
     }
-    for (const value of include) this.symbol(value);
     const objects: PlainMap = new Map();
     for (const value of include) {
       const out = object(value, value.as_schema(), this.ref);
@@ -361,7 +363,7 @@ function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: 
 function references(value: unknown, where: Where, found: (ref: PlainMap, where: Where) => void): void {
   if (value instanceof Map && value.has(REF)) {
     if (!isRef(value)) {
-      throw new DecodeError("a reference is {'$ref': symbol, '$schema': name}, or {'$ref': symbol} to a value object",
+      throw new DecodeError("a reference is {'$ref': key, '$schema': name}, or {'$ref': key} to a value object",
         { path: path(...where) });
     }
     found(value, where);
@@ -378,13 +380,14 @@ type Decoded = Map<string, [Map<string, unknown>, Rows]>;
 /** Checks a snapshot against the schemas and decodes its values before anything is built. Returns the root symbol,
  * each reference object's schema name, the decoded reference objects, where each value object with a symbol is, and
  * the entries of value objects. Problems in the snapshot throw `DecodeError`. */
-function check(store: Stores.Store, schema: unknown, plain: unknown): [string, Map<string, string>, Decoded, [Found, Rows, Schemas.OfObject.Data][]] {
+function check(store: Stores.Store, schema: unknown, plain: unknown):
+  [string, Map<string, string>, Decoded, [Found, Rows, Schemas.OfObject.Data][], Map<string, string>] {
   if (!(schema instanceof Schemas.OfObject.Data)) {
     throw new TypeError(`the root schema must be an object schema, got ${schemaTypeName(schema)}`);
   }
   if (!schema.ref) throw new TypeError("the root schema must be a reference object schema");
   if (!(plain instanceof Map) || plain.size !== 2 || !plain.has("root") || !(plain.get("objects") instanceof Map)) {
-    throw new DecodeError("expected an object snapshot: {'root': symbol, 'objects': {symbol: object}}", { path: "$" });
+    throw new DecodeError("expected an object snapshot: {'root': key, 'objects': {key: object}}", { path: "$" });
   }
   const root: unknown = plain.get("root");
   const objects = plain.get("objects") as Map<string, unknown>;
@@ -423,6 +426,7 @@ function check(store: Stores.Store, schema: unknown, plain: unknown): [string, M
   // Pass 2: check every key against the schemas and decode the values.
   const decoded: Decoded = new Map();
   const entries: [Found, Rows, Schemas.OfObject.Data][] = [];
+  const identities = new Map<string, string>();
   for (const [symbol, obj] of objects as Map<string, PlainMap>) {
     const name = names.get(symbol);
     if (name === undefined) continue;
@@ -436,6 +440,7 @@ function check(store: Stores.Store, schema: unknown, plain: unknown): [string, M
       throw error;
     }
     if (!objectSchema.ref) throw new DecodeError(`${repr(name)} is not a reference object schema`, { path: path("objects", symbol) });
+    identities.set(symbol, identityOf(symbol, name, objectSchema));
     const context = new Context(symbol, entries);
     const properties = new Map<string, unknown>();
     const adjacencies: Rows = new Map();
@@ -461,17 +466,43 @@ function check(store: Stores.Store, schema: unknown, plain: unknown): [string, M
     throw new DecodeError(`a reference names its target's schema: ${repr(target)} has none, and a link targets a `
       + "reference object", { path: path(...where) });
   }
-  return [root, names, decoded, entries];
+  return [root, names, decoded, entries, identities];
 }
 
-function builderFor(store: Stores.Store, name: string, instance?: unknown): any {
-  return instance === undefined ? store.builder(name) : store.builder(name, instance);
+/** The identity a snapshot's key gives an object of `schema`, registered as `name`: the key is the identity, qualified
+ * by `name` (`"crm.Feature/FEA-001"`), or a singleton's global name alone. */
+function identityOf(symbol: string, name: string, schema: Schemas.OfObject.Data): string {
+  const where = path("objects", symbol);
+  if (schema.singleton !== null) {
+    if (symbol !== schema.singleton) {
+      throw new DecodeError(`the singleton ${repr(name)} is keyed by its global name ${repr(schema.singleton)}`, { path: where });
+    }
+    return symbol;
+  }
+  const identity = symbol.slice(name.length + 1);
+  if (!symbol.startsWith(`${name}/`) || identity === "") {
+    throw new DecodeError(`a ${repr(name)} is keyed by its identity qualified by its schema's name, e.g. '${name}/<name>'`,
+      { path: where });
+  }
+  if (schema.pattern !== null && schema.number_of(identity) === null) {
+    throw new DecodeError(`${repr(identity)} is not a name ${repr(name)}'s naming pattern ${repr(schema.pattern)} gives`,
+      { path: where });
+  }
+  return identity;
+}
+
+/** A builder over a live object that a snapshot updates, emptied: the snapshot holds the object's whole state, so what
+ * it does not hold, the object no longer does. */
+function replaced(builder: any): any {
+  for (const prop of [...builder.as_properties]) prop.as_value((v: any) => v.clear());
+  builder.as_adjacencies((a: any) => a.remove((e: any) => e)); // an empty template agrees with every entry
+  return builder;
 }
 
 /** Rebuilds objects from an object snapshot in `store`. Every reference must resolve within the snapshot:
  * reference objects are built first, with the value objects they hold, then the entries are added. */
 function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unknown): unknown {
-  const [root, names, decoded, entries] = check(store, schema, plain);
+  const [root, names, decoded, entries, identities] = check(store, schema, plain);
   const seen = new Map<string, number>();
 
   /** The entries of an adjacency not already added through another: entries written under each object they link are
@@ -498,14 +529,19 @@ function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unkn
   for (const [symbol, [properties, adjacencies]] of decoded) {
     const name = names.get(symbol) as string;
     const objectSchema = store.schema(name);
-    const globalName = objectSchema.singleton; // a singleton is the store's own instance, updated
-    const builder = builderFor(store, name, globalName === null ? undefined : store.singleton(globalName));
+    let existing: unknown = null;
+    try { // an identity the store already holds, a singleton's included, is an update of that object
+      existing = store.by_identity(name, identities.get(symbol) as string);
+    } catch (error) {
+      if (!(error instanceof LookupError)) throw error;
+    }
+    const builder = existing === null ? store.restore(name, identities.get(symbol) as string) : replaced(store.builder(name, existing));
     for (const [key, value] of properties) set(builder, key, value);
     for (const [key, rows] of adjacencies) { // a one-link relation's entries are its owner's, as its properties are
       if (!oneLink(objectSchema, key)) continue;
       for (const row of kept(objectSchema, symbol, key, rows)) builder[key].insert((x: any) => fill(x, row, () => null));
     }
-    created.set(symbol, globalName === null ? builder.create() : builder.update());
+    created.set(symbol, existing === null ? builder.create() : builder.update());
   }
 
   /** The reference object a symbol names: entries never reference value objects. */
@@ -536,12 +572,12 @@ function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unkn
 
   // The value objects that one-link entries hold come first, in every object: a link may target any of them.
   for (const symbol of decoded.keys()) {
-    const builder = builderFor(store, names.get(symbol) as string, created.get(symbol));
+    const builder = store.builder(names.get(symbol) as string, created.get(symbol));
     if (addNested(builder, symbol, true)) builder.update();
   }
   for (const [symbol, [, adjacencies]] of decoded) {
     const objectSchema = store.schema(names.get(symbol) as string);
-    const builder = builderFor(store, names.get(symbol) as string, created.get(symbol));
+    const builder = store.builder(names.get(symbol) as string, created.get(symbol));
     for (const [key, rows] of adjacencies) {
       if (oneLink(objectSchema, key)) continue;
       for (const row of kept(objectSchema, symbol, key, rows)) builder[key].insert((x: any) => fill(x, row, resolve));

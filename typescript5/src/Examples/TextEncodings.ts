@@ -107,9 +107,9 @@ assert((from_yaml(Station, YAML.ToYAML(store)(Station, paris)) as Instance).wmo_
 // --- Hand-written YAML follows the YAML 1.2 core schema ---
 
 const written = `
-root: s0
+root: Reading/noon
 objects:
-  s0:
+  Reading/noon:
     observed: 2026-09-28T12:00:00Z   # unquoted, but stays a string
     quality: 010                     # ten, not eight
     value: .inf
@@ -121,21 +121,21 @@ assert(reading.observed.get() === "2026-09-28T12:00:00Z" && reading.quality.get(
   reading.valid.get() === true && reading.note.get() === "1:30");
 
 // 'yes' is a string in YAML 1.2, so it is not accepted for a bool.
-raises(DecodeError, () => from_yaml(Reading, "root: s0\nobjects:\n  s0:\n    valid: yes\n"));
+raises(DecodeError, () => from_yaml(Reading, "root: Reading/noon\nobjects:\n  Reading/noon:\n    valid: yes\n"));
 
 // --- Malformed text is rejected ---
 
-for (const bad of ['{"root": "s0", "objects": {"s0": {"value": NaN}}}', // NaN literal: not JSON
-  '{"root": "s0", "root": "s1", "objects": {}}', // duplicate key
-  '{"root": "s0", "objects": ', // truncated
-  '{"root": "s0", "objects": {"s0": {"value": "nan"}}}']) { // only 'NaN', 'Infinity', '-Infinity'
+for (const bad of ['{"root": "Reading/a", "objects": {"Reading/a": {"value": NaN}}}', // NaN literal: not JSON
+  '{"root": "Reading/a", "root": "Reading/b", "objects": {}}', // duplicate key
+  '{"root": "Reading/a", "objects": ', // truncated
+  '{"root": "Reading/a", "objects": {"Reading/a": {"value": "nan"}}}']) { // only 'NaN', 'Infinity', '-Infinity'
   raises(DecodeError, () => from_json(Reading, bad));
 }
 
-for (const bad of ["root: s0\nroot: s1\nobjects: {}", // duplicate key
-  "root: s0\nobjects:\n  s0:\n    raw: !!binary AAAA", // tagged binary: not plain data
+for (const bad of ["root: Reading/a\nroot: Reading/b\nobjects: {}", // duplicate key
+  "root: Reading/a\nobjects:\n  Reading/a:\n    raw: !!binary AAAA", // tagged binary: not plain data
   "1: x", // non-string key
-  "---\nroot: s0\n---\nroot: s1", // two documents
+  "---\nroot: Reading/a\n---\nroot: Reading/b", // two documents
   "root: [unclosed"]) {
   raises(DecodeError, () => from_yaml(Reading, bad));
 }
@@ -149,12 +149,15 @@ const lyon = store.Station()
   .readings((a: any) => a.insert((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(71.0).valid(true)).sensor("rh")))
   .create();
 const graph = Plain.ToPlain(store).Reachable(Station, lyon);
-for (const [encoded, decode] of [[JSON.ToJSON(store).Reachable(Station, lyon), from_json.Reachable],
-  [YAML.ToYAML(store).Reachable(Station, lyon), from_yaml.Reachable]] as const) {
-  const restored = decode(Station, encoded) as Instance;
-  assert(restored !== lyon && String(restored.name) === "Lyon-Saint-Exupéry");
-  assert(same_graph(Plain.ToPlain(store).Reachable(Station, restored), graph));
-  assert(validate.Reachable(Station, restored).length === 0);
+for (const [encoded, decoder] of [[JSON.ToJSON(store).Reachable(Station, lyon), JSON.FromJSON],
+  [YAML.ToYAML(store).Reachable(Station, lyon), YAML.FromYAML]] as const) {
+  const elsewhere = new Proxies.OfStore(); // read into another store: objects of the same identities
+  for (const schema of [Reading, Station, Readings]) elsewhere.register(schema);
+  const restored = decoder(elsewhere).Reachable(Station, encoded) as Instance;
+  assert(restored !== lyon && restored.as_identity() === lyon.as_identity());
+  assert(String(restored.name) === "Lyon-Saint-Exupéry");
+  assert(same_graph(Plain.ToPlain(elsewhere).Reachable(Station, restored), graph));
+  assert(Validators.Validate(elsewhere).Reachable(Station, restored).length === 0);
 }
 
 // A single-object snapshot leaves references unresolved, in any encoding.

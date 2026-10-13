@@ -919,6 +919,18 @@ export namespace OfAdjacency {
 /** The object schemas being validated, so that one that holds itself is validated once. */
 const VALIDATING = new Set<unknown>();
 
+const LITERAL = String.raw`(?:[^\\()\[\]{}.*+?^$|]|\\[^A-Za-z0-9])*`;
+/** A naming pattern: literal text around one group of digits, `\d+` then any number of `\d`, the minimum width. */
+const NAMING = new RegExp(String.raw`^(${LITERAL})\(\\d\+((?:\\d)*)\)(${LITERAL})$`);
+
+/** A naming pattern's literal prefix, the width of its number and its literal suffix; null for another pattern. */
+function naming(pattern: unknown): [string, number, string] | null {
+  const found = typeof pattern === "string" ? NAMING.exec(pattern) : null;
+  if (found === null) return null;
+  const literal = (text: string) => text.replace(/\\([^\n])/g, "$1");
+  return [literal(found[1]!), 1 + found[2]!.length / 2, literal(found[3]!)];
+}
+
 class ObjectData {
   properties: Map<string, PropertyData>;
   adjacencies: Map<string, AdjacencyData>;
@@ -928,9 +940,12 @@ class ObjectData {
   name: string | null;
   description: string | null;
   parameters: Map<string, ParameterData>;
+  /** A reference object schema's naming pattern, e.g. `FEA-(\d+\d\d)`. */
+  pattern: string | null;
 
   constructor(fields: { properties?: Map<string, PropertyData>; adjacencies?: Map<string, AdjacencyData>; singleton?: string | null;
-    ref?: boolean; name?: string | null; description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
+    ref?: boolean; name?: string | null; description?: string | null; parameters?: Map<string, ParameterData>;
+    pattern?: string | null } = {}) {
     this.properties = fields.properties ?? new Map();
     this.adjacencies = fields.adjacencies ?? new Map();
     this.singleton = fields.singleton ?? null;
@@ -938,6 +953,25 @@ class ObjectData {
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
     this.parameters = fields.parameters ?? new Map();
+    this.pattern = fields.pattern ?? null;
+  }
+
+  /** The name the naming pattern gives the object numbered `number`: the number fills the pattern's group, at its
+   * minimum width, extending on the left. */
+  name_for(number: number): string {
+    const [prefix, width, suffix] = naming(this.pattern)!; // a valid pattern
+    return `${prefix}${String(number).padStart(width, "0")}${suffix}`;
+  }
+
+  /** The number of a name the naming pattern gives: its literal text around at least the minimum width of ASCII
+   * digits. Null for a name it does not give, or without a valid naming pattern. */
+  number_of(name: string): number | null {
+    const found = this.pattern === null ? null : naming(this.pattern);
+    if (found === null) return null;
+    const [prefix, width, suffix] = found;
+    const digits = name.slice(prefix.length, name.length - suffix.length);
+    const fits = name.startsWith(prefix) && name.endsWith(suffix) && name.length >= prefix.length + suffix.length;
+    return fits && digits.length >= width && /^[0-9]+$/.test(digits) ? Number(digits) : null;
   }
 
 
@@ -962,6 +996,16 @@ class ObjectData {
       ...parameterProblems(this.parameters), ...reserved([...this.properties.keys(), ...this.adjacencies.keys()]),
       ...visited([...this.properties.keys(), ...this.adjacencies.keys()])];
     if (this.singleton !== null && !this.ref) problems.push("a singleton's schema must be a reference object schema");
+    if (this.pattern !== null) {
+      if (!this.ref) problems.push("a naming pattern names reference objects; mark the schema .ref()");
+      if (this.singleton !== null) {
+        problems.push("a singleton's schema has no naming pattern: its one instance is named by its global name");
+      }
+      if (naming(this.pattern) === null) {
+        problems.push(`naming pattern ${repr(this.pattern)} is not literal text around one group of digits, `
+          + "e.g. 'FEA-(\\d+\\d\\d)'");
+      }
+    }
     const clashes = [...this.properties.keys()].filter((name) => this.adjacencies.has(name));
     if (clashes.length > 0) {
       problems.push(`names used as both property and adjacency: ${repr(sortedStrings(clashes))}`);
@@ -1011,9 +1055,12 @@ class ObjectBuilder extends NamedBuilder<ObjectData> {
   }
 
   /** Marks a reference object schema: its objects stand on their own, reached through relations, and no property holds
-   * one. Without it, the schema describes value objects, which properties hold. */
-  ref(): ObjectBuilder {
+   * one. Without it, the schema describes value objects, which properties hold. A reference object is named by a UUID
+   * its store gives when it is created, or, with a naming pattern (`FEA-(\d+\d\d)`), by the next name
+   * the pattern gives in its store. */
+  ref(pattern?: string): ObjectBuilder {
     this.state["ref"] = true;
+    if (pattern !== undefined) this.state["pattern"] = pattern;
     return this;
   }
 }
@@ -1678,7 +1725,8 @@ const RelationRef = new UnionBuilder().branches((b) => b.name("relation").of(Rel
 const AdjacencySchema = new ObjectBuilder().properties(
   namedText("name"), (p) => p.name("relation").of(RelationRef), namedText("me"), namedText("description")).create();
 const ObjectSchema = new ObjectBuilder().name("Schemas.Object").properties(
-  namedText("name"), namedText("singleton"), (p) => p.name("ref").of((t) => t.as_scalar(Boolean)), namedText("description"))
+  namedText("name"), namedText("singleton"), (p) => p.name("ref").of((t) => t.as_scalar(Boolean)), namedText("pattern"),
+  namedText("description"))
   .relations(Parameters, listing("properties", MEMBER),
     listing("adjacencies", fieldsOf(AdjacencySchema))).create();
 const Flat = (p: PropertyBuilder) => p.name("flat").of((t) => t.as_scalar(Boolean));
@@ -1725,7 +1773,7 @@ OfAny.Named = NamedSchema;
  * adjacency, each entry a `name` and a `schema`, a `Module.Definition` (a schema of any kind, relations and predicates
  * included), keyed by name. See `Modules` for the translation between schemas and modules. */
 export namespace Module {
-  export const Schema = new ObjectBuilder().name("Schemas.Module").ref()
+  export const Schema = new ObjectBuilder().name("Schemas.Module").ref(String.raw`module-(\d+)`)
     .relations(listing("schemas", [["name", Text], ["schema", DefinitionSchema]], true)).create();
   export const Definition = DefinitionSchema;
 }

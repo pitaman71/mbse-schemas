@@ -33,8 +33,9 @@ from `mbse.Schemas.Framework`, TypeScript from `@mbse/schemas/Framework`.
 ```python
 from mbse.Schemas.Framework import JSON, Proxies, Schemas, Validators
 
-Contact = Schemas.OfObject.Builder().name('Contact').ref().properties(lambda p: p.name('name').of(lambda t: t.as_scalar(str))).create()
-Address = Schemas.OfObject.Builder().name('Address').ref().properties(lambda p: p.name('street').of(lambda t: t.as_scalar(str))).create()
+# Reference objects stand on their own, each named in its store: CON-001, CON-002, ...
+Contact = Schemas.OfObject.Builder().name('Contact').ref(r'CON-(\d+\d\d)').properties(lambda p: p.name('name').of(lambda t: t.as_scalar(str))).create()
+Address = Schemas.OfObject.Builder().name('Address').ref(r'ADR-(\d+\d\d)').properties(lambda p: p.name('street').of(lambda t: t.as_scalar(str))).create()
 
 # Collections are relations: entries link objects and carry their own properties.
 ContactAddresses = (
@@ -46,25 +47,27 @@ ContactAddresses = (
 )
 Schemas.OfObject.Builder(Contact).relations(lambda adj: adj.name('addresses').of(ContactAddresses).me('contact')).update()
 Schemas.OfObject.Builder(Address).relations(lambda adj: adj.name('residents').of(ContactAddresses).me('address')).update()
-store = Proxies.OfStore()  # holds named schemas; the objects built with them belong to it
+store, other = Proxies.OfStore(), Proxies.OfStore()  # each holds named schemas; the objects built with them belong to it
 for schema in [Contact, Address, ContactAddresses]:
     store.register(schema)
+    other.register(schema)
 
 alice = (
     store.Contact()
     .name('Alice')
-    .addresses(lambda x: x.address(lambda a: a.street('10 Downing Street')).label('home'))
+    .addresses(lambda a: a.insert(lambda x: x.address(lambda y: y.street('10 Downing Street')).label('home')))
     .create()
 )
 
-text = JSON.ToJSON(store).Reachable(Contact, alice)       # the whole graph, shared objects written once
-copy = JSON.FromJSON(store).Reachable(Contact, text)
-assert Validators.Validate(store).Reachable(Contact, copy) == []
+text = JSON.ToJSON(store).Reachable(Contact, alice)  # the whole graph, shared objects written once
+copy = JSON.FromJSON(other).Reachable(Contact, text)  # the same objects, with the same identities, in another store
+assert copy.as_identity() == alice.as_identity() == 'CON-001' and Validators.Validate(other).Reachable(Contact, copy) == []
 ```
 
 ```json
-{"root": "s0", "objects": {"s0": {"name": "Alice", "addresses": [{"address": {"$ref": "s1", "$schema": "Address"}, "label": "home"}]},
-                           "s1": {"street": "10 Downing Street", "residents": [{"contact": {"$ref": "s0", "$schema": "Contact"}, "label": "home"}]}}}
+{"root": "Contact/CON-001",
+ "objects": {"Contact/CON-001": {"name": "Alice", "addresses": [{"address": {"$ref": "Address/ADR-001", "$schema": "Address"}, "label": "home"}]},
+             "Address/ADR-001": {"street": "10 Downing Street", "residents": [{"contact": {"$ref": "Contact/CON-001", "$schema": "Contact"}, "label": "home"}]}}}
 ```
 
 ## Why another schema language?

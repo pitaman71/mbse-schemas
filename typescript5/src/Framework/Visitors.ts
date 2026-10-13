@@ -112,7 +112,9 @@ export interface Properties extends Iterable<OfProperty> {
  * callable; `osv.<adjName>`, a `Visitors.OfAdjacency`). */
 export interface OfObject {
   as_schema(): Schemas.OfObject.Data;
-  as_identity(): string;
+  /** The object's identity in its store, unqualified: its global name, a name its naming pattern gives, or a UUID;
+   * null for a value object, or an object not created yet. */
+  as_identity(): string | null;
   /** The properties present, schema unaware. */
   readonly as_properties: Properties;
   /** Each adjacency, schema unaware; an adjacency is edited through what this hands over. */

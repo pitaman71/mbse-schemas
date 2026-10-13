@@ -12,3 +12,7 @@ declare class TextDecoder {
   constructor(label?: string, options?: TextDecoderOptions);
   decode(input?: Uint8Array): string;
 }
+
+declare const crypto: {
+  getRandomValues<T extends Uint8Array>(array: T): T;
+};

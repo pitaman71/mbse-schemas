@@ -44,8 +44,9 @@ export function module(store: Stores.Store, schemas: Iterable<Schema>): unknown 
   const writer = new _Writer();
   const entries = named.map((schema) => new Map<string, PlainData>([["name", schemaName(schema)], ["schema", writer.definition(schema)]]));
   const root = new Map<string, PlainData>([["schemas", entries]]);
+  const key = `${MODULE}/${store.builder(MODULE).create().as_identity()}`; // a new identity
   return Plain.FromPlain(store)(Schemas.Module.Schema,
-    new Map<string, PlainData>([["root", "s0"], ["objects", new Map([["s0", root]])]]));
+    new Map<string, PlainData>([["root", key], ["objects", new Map([[key, root]])]]));
 }
 
 /** Makes a term of a `Schemas.Form` read from a module, e.g. a dialect's. */
@@ -123,7 +124,8 @@ export class _Writer {
       const adjacencies = [...schema.adjacencies].map(([name, adjacency]) => present([["name", name],
         ["relation", this.reference(adjacency.relation)], ["me", adjacency.me], ["description", adjacency.description]]));
       return kindOf("object", [["parameters", parameters], ["properties", this.members(schema.properties.values())],
-        ["adjacencies", adjacencies], ["singleton", schema.singleton], ["ref", schema.ref], ["description", schema.description]]);
+        ["adjacencies", adjacencies], ["singleton", schema.singleton], ["ref", schema.ref], ["pattern", schema.pattern],
+        ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfRelation.Data) {
       return kindOf("relation", [["parameters", parameters], ["links", this.members(schema.entry.links.values())],
@@ -316,6 +318,7 @@ class _Reader {
           me: a.get("me") as string, description: (a.get("description") as string | undefined) ?? null })]));
       schema.singleton = (body.get("singleton") as string | undefined) ?? null;
       schema.ref = (body.get("ref") as boolean | undefined) ?? false;
+      schema.pattern = (body.get("pattern") as string | undefined) ?? null;
     } else if (schema instanceof Schemas.OfRelation.Data) {
       const links = this.members(body.get("links"), "link", (f) => new Schemas.OfSymbol.Data(f));
       schema.entry = new Schemas.OfEntry.Data({ links: new Map(links.map((link) => [link.name, link])), properties: properties() });

@@ -105,6 +105,16 @@ class Store(Protocol):
         `update()` of `instance`."""
         ...
 
+    def by_identity(self, name: str, identity: str) -> Readers.OfObject:
+        """The live object of the schema `name` whose identity (unqualified, as `as_identity()` gives it) is `identity`;
+        `LookupError` if there is none."""
+        ...
+
+    def restore(self, name: str, identity: str) -> Any:
+        """For decoders: a builder for the object schema `name` whose `create()` gives the object the identity a snapshot
+        names. A program's `create()` is always given a new identity, which it cannot set or change."""
+        ...
+
     def member(self, instance: Any, name: str) -> Any:
         """The value `instance` holds in its property `name`, e.g. a value object or a union's branch."""
         ...
@@ -170,8 +180,8 @@ class Catalog:
         found: list[Readers.OfObject] = []
         for root in self._singletons.values():
             for value in Reachable.of(root):
-                if value.as_identity() not in seen:
-                    seen.add(value.as_identity())
+                if id(value) not in seen:
+                    seen.add(id(value))
                     if value.as_schema().name == name:
                         found.append(value)
         return tuple(found)
@@ -220,6 +230,12 @@ class Combined:
     def builder(self, name: str, instance: Any = None) -> Any:
         return self._owner(name, AttributeError).builder(name, instance)
 
+    def by_identity(self, name: str, identity: str) -> Readers.OfObject:
+        return self._owner(name, AttributeError).by_identity(name, identity)
+
+    def restore(self, name: str, identity: str) -> Any:
+        return self._owner(name, AttributeError).restore(name, identity)
+
     def member(self, instance: Any, name: str) -> Any:
         return self._owner(instance.as_schema().name, AttributeError).member(instance, name)
 
@@ -242,8 +258,8 @@ class Combined:
         found: list[Readers.OfObject] = []
         reached = (value for root in self._singletons.values() for value in Reachable.of(root))
         for value in (*owner.extent(name), *reached):
-            if value.as_identity() not in seen:
-                seen.add(value.as_identity())
+            if id(value) not in seen:
+                seen.add(id(value))
                 if value.as_schema().name == name:
                     found.append(value)
         return tuple(found)

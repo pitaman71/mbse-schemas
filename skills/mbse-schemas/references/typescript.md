@@ -68,6 +68,7 @@ if (Validators.Validate(B).Reachable(Component, copy).length > 0) throw new Erro
 
 ```typescript fragment
 new S.OfObject.Builder().ref().properties(spec, ...).relations(spec, ...).create(); // .ref(): a reference object schema
+new S.OfObject.Builder().ref(String.raw`FEA-(\d+\d\d)`);  // its objects named FEA-001, FEA-002, ... in each store; else UUIDs
 new S.OfObject.Builder().properties(spec, ...).create();  // a value object schema, for a property's type
 new S.OfObject.Builder(existing).relations(...).update();   // add adjacencies once the relations exist
 new S.OfRelation.Builder().links("a", "b").properties(spec, ...).unique("a").create();
@@ -106,7 +107,8 @@ B.Name(obj).tags((a: any) => a.remove((e: any) => e.value("x")));   // remove ev
 obj.tags.select((e: any) => e.value("x"), (e: any) => e);  // visit the entries agreeing with a template, or equal to a value
 B.Name().unionProp((p: any) => p.as_value((v: any) => v.as_union((u: any) => u.phone(spec))));   // a branch by name
 obj.as_properties; obj.as_adjacencies((a: any) => a);      // schema unaware: the properties set, every adjacency
-obj.as_schema(); obj.as_identity();                        // what every visitor has: its schema; an object's identity
+obj.as_schema(); obj.as_identity();                        // what every visitor has: its schema; an object's identity, else null
+store.by_identity("Feature", "FEA-001");                   // the live object of that schema with that identity
 Proxies.owner_of(valueObject);                             // the object a value object belongs to
 JSON.ToJSON(store).Reachable(schema, root); JSON.FromJSON(store).Reachable(schema, text);
 Validators.Validate(store)(schema, obj); Validators.Validate(store).Reachable(schema, root);

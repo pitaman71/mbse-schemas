@@ -130,7 +130,10 @@ class OfObject(Protocol):
 
     def as_schema(self) -> Schemas.OfObject.Data: ...
 
-    def as_identity(self) -> str: ...
+    def as_identity(self) -> str | None:
+        """The object's identity in its store, unqualified: its global name, a name its naming pattern gives, or a
+        UUID; None for a value object, or an object not created yet."""
+        ...
 
     @property
     def as_properties(self) -> _Properties:

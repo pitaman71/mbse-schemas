@@ -87,9 +87,10 @@ const back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty))
 assert(back.label.get() === "" && equal(back.payload.get(), bytes()) && back.count.get() === 0n && back.ratio.get() === 0);
 assert(back.flag.get() === null); // never set, so absent
 
-// An object with nothing set serializes to an empty object.
+// An object with nothing set serializes to an empty object, keyed by its identity qualified by its schema's name.
 const blank = store.Sample().create();
-assert(equal(Plain.ToPlain(store)(Sample, blank), map({ root: "s0", objects: { s0: {} } })));
+const key = `Sample/${blank.as_identity()}`;
+assert(equal(Plain.ToPlain(store)(Sample, blank), map({ root: key, objects: { [key]: {} } })));
 
 // Per-kind entry points.
 const bytesSchema = new Schemas.OfScalar.Data(Uint8Array);

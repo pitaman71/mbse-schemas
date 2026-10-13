@@ -43,10 +43,10 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   const store = new Proxies.OfStore();
 
   // --- address_book ---
-  const Contact = new S.OfObject.Builder().name("Contact").ref().properties(text("given_name"), text("family_name"), text("birth_date")).create();
-  const Address = new S.OfObject.Builder().name("Address").ref().properties(text("street1"), text("locality"), text("postal_code"),
+  const Contact = new S.OfObject.Builder().name("Contact").ref(String.raw`contact-(\d+)`).properties(text("given_name"), text("family_name"), text("birth_date")).create();
+  const Address = new S.OfObject.Builder().name("Address").ref(String.raw`address-(\d+)`).properties(text("street1"), text("locality"), text("postal_code"),
     text("country_code")).create();
-  const Phone = new S.OfObject.Builder().name("Phone").ref().properties(text("number")).create();
+  const Phone = new S.OfObject.Builder().name("Phone").ref(String.raw`phone-(\d+)`).properties(text("number")).create();
   const ContactAddresses = new S.OfRelation.Builder().name("ContactAddresses").links("contact", "address").properties(text("label")).create();
   const ContactPhones = new S.OfRelation.Builder().name("ContactPhones").links("contact", "phone").properties(text("label")).create();
   new S.OfObject.Builder(Contact).relations((a) => a.name("addresses").of(ContactAddresses).me("contact"),
@@ -55,15 +55,15 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   new S.OfObject.Builder(Phone).relations((a) => a.name("contacts").of(ContactPhones).me("phone")).update();
 
   // --- scalars ---
-  const Bag = new S.OfObject.Builder().name("Bag").ref().properties(text("name")).create();
-  const Sample = new S.OfObject.Builder().name("Sample").ref().properties(text("label"), text("payload", Uint8Array), text("count", BigInt),
+  const Bag = new S.OfObject.Builder().name("Bag").ref(String.raw`bag-(\d+)`).properties(text("name")).create();
+  const Sample = new S.OfObject.Builder().name("Sample").ref(String.raw`sample-(\d+)`).properties(text("label"), text("payload", Uint8Array), text("count", BigInt),
     text("ratio", Number), text("flag", Boolean)).create();
   const Holds = new S.OfRelation.Builder().name("Holds").links("bag", "item").properties(text("slot", BigInt)).unique("bag", "slot").create();
   new S.OfObject.Builder(Bag).relations((a) => a.name("items").of(Holds).me("bag")).update();
   new S.OfObject.Builder(Sample).relations((a) => a.name("bags").of(Holds).me("item")).update();
 
   // --- family ---
-  const Person = new S.OfObject.Builder().name("Person").ref().properties(text("given_name"), text("birth_date")).create();
+  const Person = new S.OfObject.Builder().name("Person").ref(String.raw`person-(\d+)`).properties(text("given_name"), text("birth_date")).create();
   const Parentage = new S.OfRelation.Builder().name("Parentage").links("parent", "child").properties(text("kind")).create();
   const Mentorship = new S.OfRelation.Builder().name("Mentorship").links("mentor", "mentee").create();
   new S.OfObject.Builder(Person).relations((a) => a.name("children").of(Parentage).me("parent"),
@@ -72,9 +72,9 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
     (a) => a.name("mentors").of(Mentorship).me("mentee")).update();
 
   // --- enrollment ---
-  const Student = new S.OfObject.Builder().name("Student").ref().properties(text("name")).create();
-  const Course = new S.OfObject.Builder().name("Course").ref().properties(text("code")).create();
-  const Term = new S.OfObject.Builder().name("Term").ref().properties(text("code"), text("starts")).create();
+  const Student = new S.OfObject.Builder().name("Student").ref(String.raw`student-(\d+)`).properties(text("name")).create();
+  const Course = new S.OfObject.Builder().name("Course").ref(String.raw`course-(\d+)`).properties(text("code")).create();
+  const Term = new S.OfObject.Builder().name("Term").ref(String.raw`term-(\d+)`).properties(text("code"), text("starts")).create();
   const Enrollment = new S.OfRelation.Builder().name("Enrollment").links("student", "course", "term")
     .properties(text("credits", BigInt), text("score", Number), text("audit", Boolean)).create();
   new S.OfObject.Builder(Student).relations((a) => a.name("enrollments").of(Enrollment).me("student")).update();
@@ -82,8 +82,8 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   new S.OfObject.Builder(Term).relations((a) => a.name("enrollments").of(Enrollment).me("term")).update();
 
   // --- yaml_strings ---
-  const Notebook = new S.OfObject.Builder().name("Notebook").ref().properties(text("title")).create();
-  const Note = new S.OfObject.Builder().name("Note").ref().properties(text("text")).create();
+  const Notebook = new S.OfObject.Builder().name("Notebook").ref(String.raw`notebook-(\d+)`).properties(text("title")).create();
+  const Note = new S.OfObject.Builder().name("Note").ref(String.raw`note-(\d+)`).properties(text("text")).create();
   const Pages = new S.OfRelation.Builder().name("Pages").links("notebook", "note").properties(text("page", BigInt)).create();
   new S.OfObject.Builder(Notebook).relations((a) => a.name("notes").of(Pages).me("notebook")).update();
   new S.OfObject.Builder(Note).relations((a) => a.name("notebooks").of(Pages).me("note")).update();
@@ -101,10 +101,10 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
   const CardAudit = new Schemas.OfObject.Builder().properties(text("by"), text("updated")).create();
   const CardMeta = new Schemas.OfIntersection.Builder().parts((p) => p.name("stamp").of(CardStamp),
     (p) => p.name("audit").of(CardAudit)).create();
-  const Card = new Schemas.OfObject.Builder().name("Card").ref().properties(text("name"), (p) => p.name("home").of(CardPhone),
+  const Card = new Schemas.OfObject.Builder().name("Card").ref(String.raw`card-(\d+)`).properties(text("name"), (p) => p.name("home").of(CardPhone),
     (p) => p.name("reach").of(Reach), (p) => p.name("ident").of(Ident), (p) => p.name("meta").of(CardMeta)).create();
   const Holding = new Schemas.OfRelation.Builder().name("Holding").links("deck", "card").create();
-  const Deck = new Schemas.OfObject.Builder().name("Deck").ref().properties(text("title")).relations((a) => a.name("cards").of(Holding).me("deck")).create();
+  const Deck = new Schemas.OfObject.Builder().name("Deck").ref(String.raw`deck-(\d+)`).properties(text("title")).relations((a) => a.name("cards").of(Holding).me("deck")).create();
   new Schemas.OfObject.Builder(Card).relations((a) => a.name("decks").of(Holding).me("card")).update();
 
   // --- lists: one-link relations, open (lists) or keyed by what a `unique` clause leaves out: of scalars, of lists,
@@ -116,7 +116,7 @@ export function build(): Map<string, [Schemas.OfObject.Data, Instance, Stores.St
     (b) => b.name("note").of((t) => t.as_scalar(String))).create();
   const Row = new Schemas.OfObject.Builder().relations(list("values", [text("value", BigInt)])).create();
   const Bank = new Schemas.OfObject.Builder().relations(list("sockets", [held("socket", Socket)])).create();
-  const Board = new Schemas.OfObject.Builder().name("Board").ref().properties(text("name")).relations(
+  const Board = new Schemas.OfObject.Builder().name("Board").ref(String.raw`board-(\d+)`).properties(text("name")).relations(
     list("tags", [text("value")]), list("blobs", [text("value", Uint8Array)]), list("grid", [held("row", Row)]),
     list("readings", [held("reading", Reading)]), list("sockets", [held("socket", Socket)]),
     list("banks", [held("bank", Bank)]),

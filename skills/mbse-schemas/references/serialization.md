@@ -6,18 +6,20 @@ and TypeScript write byte-identical JSON, and each reads the other's.
 ## The snapshot format
 
 ```json
-{"root": "s0", "objects": {
-  "s0": {"name": "cpu", "ports": [{"port": {"$ref": "s1", "$schema": "Port"}}]},
-  "s1": {"name": "irq", "signal": {"width": 1, "unit": "bit"},
-         "reach": {"phone": {"number": "1"}},
-         "owner": [{"owner": {"$ref": "s0", "$schema": "Component"}}]}}}
+{"root": "Component/CMP-001", "objects": {
+  "Component/CMP-001": {"name": "cpu", "ports": [{"port": {"$ref": "Port/PRT-001", "$schema": "Port"}}]},
+  "Port/PRT-001": {"name": "irq", "signal": {"width": 1, "unit": "bit"},
+                   "reach": {"phone": {"number": "1"}},
+                   "owner": [{"owner": {"$ref": "Component/CMP-001", "$schema": "Component"}}]}}}
 ```
 
-- Objects are keyed by *symbols* (`s0`, `s1`, ...), local to one snapshot. Each object appears once, however many
-  objects link to it, and cycles need no special handling.
+- Objects are keyed by their identities, qualified by their schemas' registered names (`Port/PRT-001`; a singleton's
+  key is its global name alone). Each object appears once, however many objects link to it, and cycles need no
+  special handling. Identities are kept across snapshots and stores: reading a snapshot into a store that holds an
+  object of the same identity updates that object, replacing its state.
 - An object maps property names to values, and adjacency names to lists of entries. An entry holds the other links
-  as references `{"$ref": symbol, "$schema": name}` and its own properties. The object's own link is implied.
-- A value object is a nested mapping, with its lists nested in it, and no symbol: nothing links to it.
+  as references `{"$ref": key, "$schema": name}` and its own properties. The object's own link is implied.
+- A value object is a nested mapping, with its lists nested in it, and no key: nothing links to it.
   Union and intersection values are nested mappings keyed by branch or part name: a union value has exactly one key,
   and an intersection value one per part. A list, a dict or a map is an adjacency's entries like any other,
   `"tags": [{"value": "a"}, {"value": "b"}]`, sorted by the key its relation declares where that key's values are
@@ -47,7 +49,7 @@ one inline; a name resolves within the module, then in the store. A schema that 
 |---|---|
 | `ToPlain(store).OfObject`, and the JSON and YAML forms | the root only; its references stay unresolved, and decoding rejects them |
 | `ToPlain(store).Reachable`, and the JSON and YAML forms | the root and everything reachable through adjacencies |
-| `FromPlain(store)(schema, data)`, and the JSON and YAML forms | builds in the store given; a snapshot is how objects move between stores |
+| `FromPlain(store)(schema, data)`, and the JSON and YAML forms | builds in the store given, with the snapshot's identities, updating an object the store holds; a snapshot is how objects move between stores |
 
 ## Strictness
 
@@ -56,7 +58,7 @@ one inline; a name resolves within the module, then in the store. A schema that 
 - An adjacency's entries are written sorted by the key its relation declares from that end, where the key's values
   are ordered (numbers, strings, booleans); otherwise in the order they were added.
 - Every problem in the input raises `DecodeError` (a `ValueError`) with a one-line reason and a location: a line and
-  column for text, or a path such as `$.objects.s0.signal.width`. The reasons are identical in both languages, except
+  column for text, or a path such as `$.objects["Port/PRT-001"].signal.width`. The reasons are identical in both languages, except
   for YAML syntax errors.
 - Decoding checks everything before building anything, so a rejected snapshot builds nothing.
 - Decoding does not validate. Call `Validators.Validate(builders).Reachable(schema, root)` afterwards if you need to.
@@ -65,7 +67,7 @@ one inline; a name resolves within the module, then in the store. A schema that 
 
 | Topic | Read |
 |---|---|
-| Symbols, references, why the schema isn't stored, injected builders | [tutorial 6, Saving and loading](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/06_Saving_And_Loading.ipynb) |
+| Identities, references, why the schema isn't stored, injected builders | [tutorial 6, Saving and loading](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/06_Saving_And_Loading.ipynb) |
 | JSON and YAML details, the Norway problem | [tutorial 7, JSON and YAML](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/07_JSON_And_YAML.ipynb) |
 | What decoding accepts, and every decoding error | [FRAMEWORK.md, Serialization](https://github.com/pitaman71/mbse-schemas/blob/main/docs/FRAMEWORK.md#serialization) |
 | Snapshots both languages must read identically | [conformance/](https://github.com/pitaman71/mbse-schemas/blob/main/conformance/README.md) |

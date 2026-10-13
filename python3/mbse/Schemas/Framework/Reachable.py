@@ -17,7 +17,7 @@ __all__ = ["of"]
 
 def of(root: Readers.OfObject) -> list[Readers.OfObject]:
     """The root and every reference object reachable from it through adjacencies, in first-reference order."""
-    seen: dict[str, Readers.OfObject] = {root.as_identity(): root}
+    seen: dict[int, Readers.OfObject] = {id(root): root}  # an identity is unique within its schema only
     queue = [root]
 
     def adjacency(read: Readers.OfAdjacency) -> Readers.OfAdjacency:
@@ -29,8 +29,8 @@ def of(root: Readers.OfObject) -> list[Readers.OfObject]:
         return read
 
     def found(target: Any) -> None:
-        if target.as_identity() not in seen:
-            seen[target.as_identity()] = target
+        if id(target) not in seen:
+            seen[id(target)] = target
             queue.append(target)
 
     while queue:

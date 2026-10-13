@@ -141,11 +141,17 @@ assert(Validators.Validate(store).Reachable(Person, ada).length === 0);
 
 // --- Round trips, from any root ---
 
+// Read into another store, a snapshot builds objects of the same identities; read into the store that holds them, it
+// replaces their state with the snapshot's.
+const archive = new Proxies.OfStore();
+for (const schema of [Person, Parentage, Mentorship]) archive.register(schema);
 for (const root of [ada, carol, loner]) {
   const graph = Plain.ToPlain(store).Reachable(Person, root);
-  const restored = Plain.FromPlain(store).Reachable(Person, graph) as Instance;
-  assert(restored !== root && String(restored.given_name) === String(root.given_name));
-  assert(same_graph(Plain.ToPlain(store).Reachable(Person, restored), graph));
+  const restored = Plain.FromPlain(archive).Reachable(Person, graph) as Instance;
+  assert(restored !== root && restored.as_identity() === root.as_identity());
+  assert(String(restored.given_name) === String(root.given_name));
+  assert(same_graph(Plain.ToPlain(archive).Reachable(Person, restored), graph));
+  assert(Plain.FromPlain(store).Reachable(Person, graph) === root);
 }
 
 console.log("FamilyTree: all checks passed");

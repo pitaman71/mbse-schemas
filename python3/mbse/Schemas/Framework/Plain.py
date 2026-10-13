@@ -4,14 +4,16 @@
 `ToPlain(store).OfObject(...)` etc. are the per-kind forms. The store (see `Stores`) names the schemas of the objects
 written, and builds the objects read. JSON and YAML are thin text encodings of plain data.
 
-An object snapshot has the shape `{"root": symbol, "objects": {symbol: object}}`. Each object maps property names to
-plain values and adjacency names to lists of entries. An entry maps the other links to references and the entry
-properties to plain values; the object's own link is implied. A reference is `{"$ref": symbol, "$schema": name}`:
+An object snapshot has the shape `{"root": key, "objects": {key: object}}`. An object's key is its identity qualified
+by its schema's registered name, `"Feature/FEA-001"`, or a singleton's global name alone. Each object maps property
+names to plain values and adjacency names to lists of entries. An entry maps the other links to references and the
+entry properties to plain values; the object's own link is implied. A reference is `{"$ref": key, "$schema": name}`:
 object content carries no schema, so references carry the schema name, and the root schema is passed in.
 
 `ToPlain(store).OfObject` includes only the root object, so its references are unresolved and `FromPlain` rejects them.
 `ToPlain(store).Reachable` also includes every object reachable through adjacencies (see `Reachable`). Decoding builds
-new objects in the store, except an object of a singleton schema, which updates the store's instance.
+each object in the store with the identity its key gives, or, where the store holds a live object of that identity (a
+singleton's instance included), replaces that object's state.
 
 The serializers read values through the visitor protocol (`Readers.OfObject`), and decoding writes them through a
 store's builders (`Visitors.OfObject`).
@@ -47,8 +49,8 @@ Ref = Callable[[Readers.OfObject], dict[str, PlainData]]
 
 
 def _present(visitor: Any) -> bool:
-    """Whether a value object's visitor visits one: an empty visitor has no identity."""
-    return visitor.as_identity() != ""
+    """Whether a value object's visitor visits one: a visitor of nothing has no schema."""
+    return visitor.as_schema() is not None
 
 
 def _value(read: Readers.OfProperty, schema: Schemas.OfAny.Data, ref: Ref) -> tuple[bool, PlainData]:
@@ -116,14 +118,18 @@ def _entry(read: Readers.OfEntry, adjacency: Schemas.OfAdjacency.Data, ref: Ref)
 
 
 class _Snapshot:
-    """Assigns symbols 1:1 to object identities, in first-reference order, and writes the included objects."""
+    """Writes the included objects, in first-reference order, each keyed by its qualified identity."""
 
     def __init__(self, store: Stores.Store) -> None:
         self._store = store
-        self._symbols: dict[Hashable, str] = {}
 
     def _symbol(self, value: Readers.OfObject) -> str:
-        return self._symbols.setdefault(value.as_identity(), f"s{len(self._symbols)}")
+        """An object's key in a snapshot, and in the links to it: its identity, qualified by its schema's registered
+        name (`"crm.Feature/FEA-001"`); a global name alone, being unique in a store."""
+        schema = value.as_schema()
+        if schema.singleton is not None:
+            return schema.singleton
+        return f"{self._store.name_of(schema)}/{value.as_identity()}"
 
     def _ref(self, target: Readers.OfObject) -> dict[str, PlainData]:
         """A reference to a linked object, which is a reference object: entries never reference value objects."""
@@ -136,8 +142,6 @@ class _Snapshot:
             raise TypeError(f"value is a {root.as_schema().name!r}, not an instance of the given schema")
         if not schema.ref:
             raise TypeError(f"a snapshot's root must be a reference object; {schema.name!r} is a value object schema")
-        for value in include:
-            self._symbol(value)
         objects: dict[str, PlainData] = {}
         for value in include:
             out = _object(value, value.as_schema(), self._ref)
@@ -176,7 +180,7 @@ def _sort_entries(schema: Any, plain: PlainData) -> None:
 
 
 def _is_ref(value: PlainData) -> bool:
-    """A reference: `{'$ref': symbol, '$schema': name}` to a reference object, or `{'$ref': symbol}` to a value object."""
+    """A reference: `{'$ref': key, '$schema': name}` to a reference object, or `{'$ref': key}` to a value object."""
     return (isinstance(value, dict) and set(value) in ({REF, SCHEMA}, {REF})
             and all(isinstance(v, str) for v in value.values()))
 
@@ -322,7 +326,7 @@ def _references(value: PlainData, where: tuple, found: Callable[[dict[str, Any],
     lists nested in it. A mapping with a `$ref` key is a reference; nothing else is."""
     if isinstance(value, dict) and REF in value:
         if not _is_ref(value):
-            raise DecodeError("a reference is {'$ref': symbol, '$schema': name}, or {'$ref': symbol} to a value object",
+            raise DecodeError("a reference is {'$ref': key, '$schema': name}, or {'$ref': key} to a value object",
                               path=path(*where))
         found(value, where)
     elif isinstance(value, (dict, list)):
@@ -343,7 +347,7 @@ def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
     if not schema.ref:
         raise TypeError("the root schema must be a reference object schema")
     if not isinstance(plain, dict) or set(plain) != {"root", "objects"} or not isinstance(plain["objects"], dict):
-        raise DecodeError("expected an object snapshot: {'root': symbol, 'objects': {symbol: object}}", path="$")
+        raise DecodeError("expected an object snapshot: {'root': key, 'objects': {key: object}}", path="$")
     root, objects = plain["root"], plain["objects"]
     if not isinstance(root, str) or root not in objects:
         raise DecodeError(f"root {root!r} is not in the snapshot's objects", path="$.root")
@@ -372,6 +376,7 @@ def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
     # Pass 2: check every key against the schemas and decode the values.
     decoded: _Decoded = {}
     entries: list[tuple[_Found, Rows, Any]] = []
+    identities: dict[str, str] = {}
     for symbol, obj in objects.items():
         if symbol not in names:
             continue
@@ -381,6 +386,7 @@ def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
             raise DecodeError(f"no object schema registered as {names[symbol]!r}", path=path("objects", symbol)) from None
         if not object_schema.ref:
             raise DecodeError(f"{names[symbol]!r} is not a reference object schema", path=path("objects", symbol))
+        identities[symbol] = _identity(symbol, names[symbol], object_schema)
         context = _Context(symbol, entries)
         properties: dict[str, Any] = {}
         adjacencies: Rows = {}
@@ -400,13 +406,30 @@ def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
     for target, where in unnamed:
         raise DecodeError(f"a reference names its target's schema: {target!r} has none, and a link targets a "
                           "reference object", path=path(*where))
-    return root, names, decoded, entries
+    return root, names, decoded, entries, identities
+
+
+def _identity(symbol: str, name: str, schema: Schemas.OfObject.Data) -> str:
+    """The identity a snapshot's key gives an object of `schema`, registered as `name`: the key is the identity,
+    qualified by `name` (`"crm.Feature/FEA-001"`), or a singleton's global name alone."""
+    where = path("objects", symbol)
+    if schema.singleton is not None:
+        if symbol != schema.singleton:
+            raise DecodeError(f"the singleton {name!r} is keyed by its global name {schema.singleton!r}", path=where)
+        return symbol
+    identity = symbol[len(name) + 1:]
+    if not symbol.startswith(f"{name}/") or not identity:
+        raise DecodeError(f"a {name!r} is keyed by its identity qualified by its schema's name, e.g. '{name}/<name>'",
+                          path=where)
+    if schema.pattern is not None and schema.number_of(identity) is None:
+        raise DecodeError(f"{identity!r} is not a name {name!r}'s naming pattern {schema.pattern!r} gives", path=where)
+    return identity
 
 
 def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
     """Rebuilds objects from an object snapshot in `store`. Every reference must resolve within the snapshot:
     reference objects are built first, with the value objects they hold, then the entries are added."""
-    root, names, decoded, entries = _check(store, schema, plain)
+    root, names, decoded, entries, identities = _check(store, schema, plain)
 
     seen: dict[Hashable, int] = {}
 
@@ -428,15 +451,19 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
     created: dict[str, Any] = {}
     for symbol, (properties, adjacencies) in decoded.items():
         object_schema = store.schema(names[symbol])
-        global_name = object_schema.singleton  # a singleton is the store's own instance, updated
-        builder = store.builder(names[symbol], None if global_name is None else store.singleton(global_name))
+        try:  # an identity the store already holds, a singleton's included, is an update of that object
+            existing = store.by_identity(names[symbol], identities[symbol])
+        except LookupError:
+            existing = None
+        builder = store.restore(names[symbol], identities[symbol]) if existing is None else _replaced(
+            store.builder(names[symbol], existing))
         for key, value in properties.items():
             _set(builder, key, value)
         for key, rows in adjacencies.items():  # a one-link relation's entries are its owner's, as its properties are
             if len(object_schema.adjacencies[key].relation.entry.links) == 1:
                 for row in kept(object_schema, symbol, key, rows):
                     getattr(builder, key).insert(lambda x, r=row: _fill(x, r, lambda symbol: None))
-        created[symbol] = builder.create() if global_name is None else builder.update()
+        created[symbol] = builder.create() if existing is None else builder.update()
 
     def resolve(symbol: str) -> Any:
         """The reference object a symbol names: entries never reference value objects."""
@@ -476,6 +503,15 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
         add_nested(builder, symbol, one_link=False)
         builder.update()
     return created[root]
+
+
+def _replaced(builder: Any) -> Any:
+    """A builder over a live object that a snapshot updates, emptied: the snapshot holds the object's whole state, so
+    what it does not hold, the object no longer does."""
+    for prop in list(builder.as_properties):
+        prop.as_value(lambda v: v.clear())
+    builder.as_adjacencies(lambda a: a.remove(lambda e: e))  # an empty template agrees with every entry
+    return builder
 
 
 def _row_key(relation: Any, me: str, owner: Hashable, row: dict[str, Any]) -> Hashable:

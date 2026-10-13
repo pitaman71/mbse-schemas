@@ -32,6 +32,9 @@ from __future__ import annotations
 from collections.abc import Callable, Hashable, Iterator, Mapping
 from typing import Any
 
+import uuid
+import weakref
+
 from . import Schemas, Stores
 from .Errors import ReadOnlyError
 from .Visitors import Scalar
@@ -53,6 +56,7 @@ class OfStore(Stores.Catalog):
 
     def __init__(self) -> None:
         super().__init__()
+        self._directories: dict[str, _Directory] = {}
         for schema in Stores.META:
             self.register(schema)
 
@@ -63,10 +67,45 @@ class OfStore(Stores.Catalog):
             raise ValueError(f"singleton {global_name!r} is already registered")
         super().register(schema)
         if global_name is not None:
-            self._singletons[global_name] = _ObjectData(self, schema, schema.name)
+            self._singletons[global_name] = self._enter(schema.name, _ObjectData(self, schema, schema.name, global_name))
 
     def builder(self, name: str, instance: Any = None) -> _ObjectBuilder:
         return _ObjectBuilder(self, self.schema(name), name, instance)
+
+    def by_identity(self, name: str, identity: str) -> _ObjectData:
+        """The live object of the schema `name` whose identity is `identity`; `LookupError` if there is none."""
+        self.schema(name)
+        found = self._directory(name).live.get(identity)
+        if found is None:
+            raise LookupError(f"no {name!r} has the identity {identity!r}")
+        return found
+
+    def restore(self, name: str, identity: str) -> _ObjectBuilder:
+        """For decoders: a builder whose `create()` gives the object the identity a snapshot names. A program's
+        `create()` is always given a new one."""
+        builder = _ObjectBuilder(self, self.schema(name), name)
+        builder._identity = identity
+        return builder
+
+    def _directory(self, name: str) -> _Directory:
+        return self._directories.setdefault(name, _Directory())
+
+    def _issue(self, schema: ObjectSchema, name: str) -> str:
+        """A new identity for an object of `schema`: the next name its naming pattern gives in this store, else a UUID."""
+        if schema.pattern is None:
+            return str(uuid.uuid4())
+        directory = self._directory(name)
+        directory.issued += 1
+        return schema.name_for(directory.issued)
+
+    def _enter(self, name: str, target: _ObjectData) -> _ObjectData:
+        """Enters an object in its schema's directory, which a name its naming pattern gives advances."""
+        directory = self._directory(name)
+        if target._identity in directory.live:
+            raise ValueError(f"a {name!r} with the identity {target._identity!r} is already live; update it")
+        directory.live[target._identity] = target
+        directory.issued = max(directory.issued, target._schema.number_of(target._identity) or 0)
+        return target
 
     def member(self, instance: Any, name: str) -> Any:
         """The value an instance or value object holds in its property `name`."""
@@ -84,6 +123,15 @@ class OfStore(Stores.Catalog):
         if len(names) != 1:
             raise TypeError(f"expected exactly one object schema filling link {link!r}, found {names}")
         return names[0]
+
+
+class _Directory:
+    """One schema's identities in a store: its live objects by identity, held weakly, and the last number its naming
+    pattern gave, which only increases."""
+
+    def __init__(self) -> None:
+        self.issued = 0
+        self.live: weakref.WeakValueDictionary[str, _ObjectData] = weakref.WeakValueDictionary()
 
 
 def _store_of(value: Any) -> OfStore | None:
@@ -150,7 +198,7 @@ class _Entry:
             return self._links[name]
         prop = self._relation.entry.properties.get(name)
         if prop is None:
-            return _Empty(None, f"{name!r} is not a link or property of the relation")
+            return _Empty(f"{name!r} is not a link or property of the relation")
         return _Property(self._properties, name, prop, None, self, writable=False)
 
     def __setattr__(self, name: str, value: object) -> None:
@@ -313,8 +361,7 @@ class _Empty(_Dunders):
     """A visitor of nothing: an absent value, a value of another kind than asked for, or a member the schema lacks. It
     reads as empty in every protocol, and refuses every write, saying why."""
 
-    def __init__(self, schema: Any, reason: str):
-        object.__setattr__(self, "_schema", schema)
+    def __init__(self, reason: str):
         object.__setattr__(self, "_reason", reason)
 
     _writable = False
@@ -328,11 +375,11 @@ class _Empty(_Dunders):
     def _label(self) -> str:
         return "the value"
 
-    def as_schema(self) -> Any:
-        return self._schema
+    def as_schema(self) -> None:
+        return None  # it visits nothing: no value, so no schema
 
-    def as_identity(self) -> str:
-        return ""
+    def as_identity(self) -> None:
+        return None
 
     def get(self) -> None:
         return None
@@ -347,7 +394,7 @@ class _Empty(_Dunders):
     def _hand(self, cb: Any) -> _Empty:
         if not _is_function(cb):
             raise ReadOnlyError(self._reason)
-        _visit(cb, _Empty(None, self._reason))
+        _visit(cb, _Empty(self._reason))
         return self
 
     as_value = as_scalar = as_object = as_union = as_intersection = as_adjacencies = _hand
@@ -363,7 +410,7 @@ class _Empty(_Dunders):
     def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):
             raise AttributeError(name)
-        return _Empty(None, self._reason)
+        return _Empty(self._reason)
 
     def __repr__(self) -> str:
         return "<empty>"
@@ -436,7 +483,7 @@ class _Any(_Unassignable):
         if isinstance(self._type, Schemas.OfUnion.Data) and self._type.flat:
             return self._flat_scalar(cb, value)
         if not isinstance(self._type, Schemas.OfScalar.Data):
-            return self._hand(cb, _Empty(None, f"{self._label} holds {_a(_noun(self._type))}, not a scalar"))
+            return self._hand(cb, _Empty(f"{self._label} holds {_a(_noun(self._type))}, not a scalar"))
         scalar = _Scalar(self._values, self._name, self._type, self._writable, self._label, self, self._on_write)
         if _is_function(cb):
             _visit(cb, scalar)
@@ -455,7 +502,7 @@ class _Any(_Unassignable):
                 _visit(cb, _Scalar(value._values, branch, Schemas.structure(self._type.properties[branch].type),
                                    False, self._label))
                 return self
-        _visit(cb, _Empty(None, f"{self._label} holds no scalar"))
+        _visit(cb, _Empty(f"{self._label} holds no scalar"))
         return self
 
     def as_object(self, cb: Any) -> _Any:
@@ -474,7 +521,7 @@ class _Any(_Unassignable):
     def _record(self, kind: type, cb: Any) -> _Any:
         noun = {Schemas.OfObject.Data: "value object", Schemas.OfUnion.Data: "union value"}.get(kind, "intersection value")
         if not isinstance(self._type, kind):
-            return self._hand(cb, _Empty(None, f"{self._label} does not hold {_a(noun)}"))
+            return self._hand(cb, _Empty(f"{self._label} does not hold {_a(noun)}"))
         value = self._values.get(self._name)
         if not self._writable:
             if isinstance(value, _RecordData):
@@ -482,7 +529,7 @@ class _Any(_Unassignable):
                     _visit(cb, value)
                     return self
                 raise ReadOnlyError(f"{self._label} is read-only; write through a builder")
-            return self._hand(cb, _Empty(self._type, f"{self._label} is read-only; write through a builder"))
+            return self._hand(cb, _Empty(f"{self._label} is read-only; write through a builder"))
         if _is_function(cb):
             self._write_record(cb)
         else:
@@ -626,7 +673,7 @@ def _kind_visitor(values: dict[str, Any], name: str, schema: Any, store: OfStore
     if isinstance(held, Schemas.OfScalar.Data):
         return _Scalar(values, name, held, writable, label, parent, on_write)
     if not writable:
-        return value if isinstance(value, _RecordData) else _Empty(held, f"{label} is not set")
+        return value if isinstance(value, _RecordData) else _Empty(f"{label} is not set")
     if isinstance(value, _RecordBuilder):
         return value
 
@@ -643,9 +690,10 @@ def _kind_visitor(values: dict[str, Any], name: str, schema: Any, store: OfStore
 class _ObjectData:
     """A proxy instance: a read-only `Visitors.OfObject`, whose properties and adjacencies are members."""
 
-    __slots__ = ("_store", "_schema", "_schema_name", "_values", "_adjacent", "__weakref__")
+    __slots__ = ("_store", "_schema", "_schema_name", "_identity", "_values", "_adjacent", "__weakref__")
 
-    def __init__(self, store: OfStore, schema: ObjectSchema, schema_name: str):
+    def __init__(self, store: OfStore, schema: ObjectSchema, schema_name: str, identity: str):
+        object.__setattr__(self, "_identity", identity)
         object.__setattr__(self, "_adjacent", {})
         object.__setattr__(self, "_store", store)
         object.__setattr__(self, "_schema", schema)
@@ -670,7 +718,7 @@ class _ObjectData:
         return self._schema
 
     def as_identity(self) -> str:
-        return str(id(self))
+        return self._identity
 
     @property
     def as_properties(self) -> _Properties:
@@ -713,8 +761,8 @@ class _RecordData:
     def as_schema(self) -> Any:
         return self._schema
 
-    def as_identity(self) -> str:
-        return str(id(self))
+    def as_identity(self) -> None:
+        return None  # a value object has no identity of its own
 
     @property
     def as_properties(self) -> _Properties:
@@ -740,14 +788,14 @@ def _member(owner: Any, name: str) -> Any:
     part = _owning_part(schema, name)
     if part is not None:
         held = values.get(part)
-        return _member(held, name) if isinstance(held, _RecordData) else _Empty(None, f"part {part!r} is not set")
+        return _member(held, name) if isinstance(held, _RecordData) else _Empty(f"part {part!r} is not set")
     if isinstance(schema, Schemas.OfUnion.Data) and schema.flat:  # a flat union's value reads as its branch's
         held = next(iter(values.values()), None)
-        return _member(held, name) if isinstance(held, _RecordData) else _Empty(None, f"{name!r} is not a member of the branch held")
+        return _member(held, name) if isinstance(held, _RecordData) else _Empty(f"{name!r} is not a member of the branch held")
     adjacency = schema.adjacencies.get(name) if isinstance(schema, ObjectSchema) else None
     if adjacency is not None:
         return _Adjacency(_linking(adjacency.relation, adjacency.me, owner), adjacency, owner)
-    return _Empty(None, f"{name!r} is not a member of {_a(_noun(schema))}")
+    return _Empty(f"{name!r} is not a member of {_a(_noun(schema))}")
 
 
 def _read(value: Any, name: str) -> Any:
@@ -1083,8 +1131,8 @@ class _RecordBuilder(_Unassignable):
     def as_schema(self) -> Any:
         return self._schema
 
-    def as_identity(self) -> str:
-        return "" if self._source is None else self._source.as_identity()
+    def as_identity(self) -> None:
+        return None  # a value object has no identity of its own
 
     @property
     def as_properties(self) -> _Properties:
@@ -1115,7 +1163,7 @@ class _RecordBuilder(_Unassignable):
             return member
         if isinstance(schema, ObjectSchema) and name in schema.adjacencies:
             return _AdjacencyBuilder(self, name)
-        return _Empty(None, f"{name!r} is not a member of {_a(_noun(schema))}")
+        return _Empty(f"{name!r} is not a member of {_a(_noun(schema))}")
 
     def __call__(self, spec: Any) -> Any:
         """As a union's branch or an intersection's part: writes through a Spec, selecting the branch."""
@@ -1201,13 +1249,13 @@ class _LinkMember(_Unassignable):
     def _target(self) -> Any:
         target = self._entry._links.get(self._name)
         if isinstance(target, _ObjectBuilder):
-            return target._source if target._source is not None else _Empty(target._schema, "not created yet")
-        return target if target is not None else _Empty(None, f"link {self._name!r} is not set")
+            return target._source if target._source is not None else _Empty("not created yet")
+        return target if target is not None else _Empty(f"link {self._name!r} is not set")
 
     def as_schema(self) -> Any:
         return self._target().as_schema()
 
-    def as_identity(self) -> str:
+    def as_identity(self) -> str | None:
         return self._target().as_identity()
 
     @property
@@ -1268,7 +1316,7 @@ class _EntryBuilder(_Unassignable):
         prop = self._relation.entry.properties.get(name)
         if prop is not None:
             return _Property(self._values, name, prop, self._store, self, True)
-        return _Empty(None, f"{name!r} is not a link this entry can set, nor a property of the relation")
+        return _Empty(f"{name!r} is not a link this entry can set, nor a property of the relation")
 
     def __repr__(self) -> str:
         return f"<entry builder of {self._relation.name or 'a relation'}>"
@@ -1324,6 +1372,7 @@ class _ObjectBuilder(_Unassignable):
         if not schema.ref:
             raise TypeError(f"{schema_name!r} is a value object schema; a value object is built through its owner")
         self._store, self._schema, self._schema_name, self._source = store, schema, schema_name, instance
+        self._identity: str | None = None  # the identity a decoder restores (`OfStore.restore`)
         self._values: dict[str, Any] = {}
         self._entries: dict[str, list[_EntryBuilder]] = {}
         if instance is not None:
@@ -1338,8 +1387,8 @@ class _ObjectBuilder(_Unassignable):
     def as_schema(self) -> ObjectSchema:
         return self._schema
 
-    def as_identity(self) -> str:
-        return "" if self._source is None else self._source.as_identity()
+    def as_identity(self) -> str | None:
+        return None if self._source is None else self._source.as_identity()
 
     @property
     def as_properties(self) -> _Properties:
@@ -1357,7 +1406,7 @@ class _ObjectBuilder(_Unassignable):
             return _Property(self._values, name, self._schema.properties[name], self._store, self, True)
         if name in self._schema.adjacencies:
             return _AdjacencyBuilder(self, name)
-        return _Empty(None, f"{name!r} is not a property or adjacency of {self._schema_name!r}")
+        return _Empty(f"{name!r} is not a property or adjacency of {self._schema_name!r}")
 
     def __repr__(self) -> str:
         return f"<builder of {self._schema_name}>"
@@ -1366,13 +1415,17 @@ class _ObjectBuilder(_Unassignable):
         if self._source is not None:
             raise ValueError("create() is only valid without a source instance; use clone() or update()")
         self._not_singleton("create")
-        return self._write(_ObjectData(self._store, self._schema, self._schema_name))
+        return self._write(self._new(self._identity or self._store._issue(self._schema, self._schema_name)))
 
     def clone(self) -> _ObjectData:
         if self._source is None:
             raise ValueError("clone() is only valid with a source instance")
         self._not_singleton("clone")
-        return self._write(_ObjectData(self._store, self._schema, self._schema_name))
+        return self._write(self._new(self._store._issue(self._schema, self._schema_name)))
+
+    def _new(self, identity: str) -> _ObjectData:
+        """A new object of the builder's schema, entered in its directory under `identity`."""
+        return self._store._enter(self._schema_name, _ObjectData(self._store, self._schema, self._schema_name, identity))
 
     def update(self) -> _ObjectData:
         if self._source is None:

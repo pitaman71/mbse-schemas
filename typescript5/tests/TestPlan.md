@@ -59,7 +59,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
 | `17_Lists.ipynb` | LST | 7 | as in Python; an adjacency reads as a callable `Proxy` over a frozen array, and `at` takes an array for a key of two values |
 | `18_Modules.ipynb` | MOD | 7 | as in Python; schemas are given as a Map or a record, and read back as a Map |
-| `20_Stores.ipynb` | STO | 6 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), and STO-05 builds its unplaced value object through `Proxies._internals` |
+| `20_Stores.ipynb` | STO | 7 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), STO-05 builds its unplaced value object through `Proxies._internals`, and STO-07 runs the garbage collector (`gc()`, the suites running with `--expose-gc`), then awaits the store's forgetting |
 | `21_Random.ipynb` | RND | 3 | as in Python; PCG32 computes on `bigint`s, and the UTF-8 bytes of keys are encoded without `TextEncoder` |
 | `22_Parametrics.ipynb` | PAR | 7 | as in Python; an application's arguments, and a form's attributes, may be given as a Map or a record; an evaluator's scope is a `ReadonlyMap`, and an outcome is compared by its fields |
 
@@ -84,7 +84,7 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | Scalar sugar | the dunders, each of its own type | `[Symbol.toPrimitive]` and `valueOf`; never `===` on a member | VIS-06 |
 | Scalar comparison | a scalar visitor compares, orders and hashes as its value (`card.name == "Ada"`) | compared once read (`card.name.get() === "Ada"`) | VIS-06 |
 | Name collisions (F2) | names starting with `_` and a builder's own methods are never members | the same, and declared names win over JavaScript's own members | PRX-04 |
-| Identity (F12), `as_identity()` | `id(self)` as text, may be reused after collection | a counter as text, never reused | PRX-02 |
+| A store's weak directory (`by_identity`) | forgets an object as soon as its last reference goes | forgets it when the garbage collector runs | STO-07 |
 | Finalizer arguments | extra arguments raise `TypeError` | the same, checked explicitly (JavaScript ignores extra arguments) | SCH-09, PRX-04 |
 | Lone surrogate to UTF-8 | raises `UnicodeEncodeError` | `TextEncoder` substitutes U+FFFD | JSN-06 |
 | YAML text | PyYAML's layout (folds long lines, `...` after a top-level scalar) | own block emitter (no folding, no end marker); values are identical | YML-04, YML-08, CONF-03 |

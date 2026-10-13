@@ -33,8 +33,10 @@ How to express an interface or data model with the schema elements. The same mod
 **Reference object or value object?** Use a reference object, whose schema is marked `.ref()`, if the thing is shared
 by several owners, navigated back from, part of a cycle, or referred to by identity; it is reached through relations
 and never held by a property. Otherwise use a value object: a property holds it, it is copied by
-value and written nested. A value object has an identity too, and may have lists of its own, but nothing links to
-it: a component's ports that connectors link are reference objects.
+value and written nested. A value object has no identity, and may have lists of its own, but nothing links to
+it: a component's ports that connectors link are reference objects. A reference object has an identity, given when it
+is created: a UUID, or the next name its schema's naming pattern gives in its store (`.ref(r"FEA-(\d+\d\d)")`
+names features `FEA-001`, `FEA-002`, ...). Give one where people read the names, or output must be reproducible.
 
 **A one-link relation is a list.** Its entries hold values for their one owner (a contact's own phone numbers as
 entries holding `number`); declare it inline in the adjacency, `.of(lambda rel: rel.links("contact").properties(...))`.

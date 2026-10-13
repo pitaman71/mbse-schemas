@@ -51,8 +51,9 @@ export function entries(_schema: unknown, obj: Instance, adjacency: string): Map
   });
 }
 
-/** Snapshot equality up to symbol numbering and entry order. Objects are identified by their own property values,
- * which the examples keep unique within a graph. */
+/** Snapshot equality up to entry order, and the order objects are written in. Objects are written in first-reference
+ * order, which depends on entry order, and entries form a set whose order depends on history. Each object is
+ * identified here by its own property values, which the examples keep unique within a graph. */
 export function same_graph(a: PlainData, b: PlainData): boolean {
   const canonical = (graph: PlainMap): string => {
     const objects = graph.get("objects") as Map<string, PlainMap>;

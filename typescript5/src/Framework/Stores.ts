@@ -92,6 +92,13 @@ export interface Store {
    * `update()` of `instance`. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   builder(name: string, instance?: unknown): any;
+  /** The live object of the schema `name` whose identity (unqualified, as `as_identity()` gives it) is `identity`;
+   * `LookupError` if there is none. */
+  by_identity(name: string, identity: string): Readers.OfObject;
+  /** For decoders: a builder for the object schema `name` whose `create()` gives the object the identity a snapshot
+   * names. A program's `create()` is always given a new identity, which it cannot set or change. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  restore(name: string, identity: string): any;
   /** The value `instance` holds in its property `name`, e.g. a value object or a union's branch. */
   member(instance: unknown, name: string): unknown;
   /** The one instance of the singleton schema whose global name is `name`; `LookupError` if there is none. */
@@ -152,8 +159,8 @@ export class Catalog {
     const found: Readers.OfObject[] = [];
     for (const root of this._singletons.values()) {
       for (const value of Reachable.of(root)) {
-        if (!seen.has(value.as_identity())) {
-          seen.add(value.as_identity());
+        if (!seen.has(value)) {
+          seen.add(value);
           if (value.as_schema().name === name) found.push(value);
         }
       }
@@ -218,6 +225,15 @@ export class Combined implements Store {
     return this.owner(name, AttributeError).builder(name, instance);
   }
 
+  by_identity(name: string, identity: string): Readers.OfObject {
+    return this.owner(name, AttributeError).by_identity(name, identity);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  restore(name: string, identity: string): any {
+    return this.owner(name, AttributeError).restore(name, identity);
+  }
+
   member(instance: unknown, name: string): unknown {
     return this.owner((instance as Readers.OfObject).as_schema().name as string, AttributeError).member(instance, name);
   }
@@ -241,8 +257,8 @@ export class Combined implements Store {
     const found: Readers.OfObject[] = [];
     const reached = [...this._singletons.values()].flatMap((root) => Reachable.of(root));
     for (const value of [...owner.extent(name), ...reached]) {
-      if (!seen.has(value.as_identity())) {
-        seen.add(value.as_identity());
+      if (!seen.has(value)) {
+        seen.add(value);
         if (value.as_schema().name === name) found.push(value);
       }
     }

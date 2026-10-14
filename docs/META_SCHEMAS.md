@@ -108,12 +108,13 @@ skill regenerated. No release comes between phases.
   Before it is built, the open points in FRAMEWORK.md's Open questions ("Containers") are settled.
 
 5. **Meta-schemas as linked objects**: links built with a schema given as itself (`.<link>.of(schema, spec)`);
-   `OfAny` removed, a type given as itself; every schema a reference object of its kind's meta-schema, every reference
-   to one a link through a meta-relation, the ends at which a schema is referred to anonymous adjacencies (built here,
-   for any relation, as TODO.md's "Anonymous adjacencies"); `OfModule` and `Defines`, nestable, names qualified with
-   dots; `Schemas.OfStore.root_module()`, the root module, registering schemas by module-qualified name, in place of
-   `Reflection`; modules written as snapshots; `Schemas.Module`, `Modules.reference` and `resolve`, and `Stores.META`
-   removed.
+   `Schemas.OfAny.Schema` removed, a type given as itself (`Visitors.OfAny`, `Schemas.OfAny.Builder` and `Data` kept,
+   and `OfAny` added as a kind, a value of any type: FRAMEWORK.md, Resolved, "`OfAny` returns"); every schema a
+   reference object of its kind's meta-schema, every reference to one a link through a meta-relation, the ends at which
+   a schema is referred to anonymous adjacencies (built here, for any relation, as TODO.md's "Anonymous adjacencies");
+   `OfModule` and `Defines`, nestable, names qualified with dots; `Schemas.OfStore.root_module()`, the root module,
+   registering schemas by module-qualified name, in place of `Reflection`; modules written as snapshots;
+   `Schemas.Module`, `Modules.reference` and `resolve`, and `Stores.META` removed.
 6. **Dependents**, each pinning the workspace's mbse-schemas:
 
    | Repository | Adapts |

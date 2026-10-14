@@ -872,6 +872,22 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - not yet: reading a container whose index is neither ordered nor hashable from a snapshot (its index would have to
     be built as a standalone value object).
 
+- **`OfAny` returns** (after Containers), as the user decided: "Now that we have re-introduced containers, OfAny
+  seems to have purpose again", choosing, of the options put to them, "3": keep `Visitors.OfAny`, `Schemas.OfAny.Builder`
+  and `Schemas.OfAny.Spec`, and `Schemas.OfAny.Data`, and add `OfAny` as a kind, a value of any type, so that a
+  container may hold values of mixed kinds. This amends The meta-schemas overhaul's "`Schemas.OfAny` ... go[es]": only
+  the meta-schema `Schemas.OfAny.Schema` (a type written inline or `named`) goes, when types become links in phase 5.
+  - `Visitors.OfAny` visits a value of any kind: a property's value (`as_value`), and a container's every element
+    (`at(i)`);
+  - `Schemas.OfAny.Builder` builds a type of any kind inline (`t.as_scalar(str)`, `t.as_container(...)`), and
+    `Schemas.OfAny.Spec` is what `of(...)`, `.index(...)` and `.element(...)` take;
+  - not yet decided, for the new kind: how its schema is written and built (one marker schema, or the builder's own
+    `as_any()`), and so how `Schemas.OfAny.Data`, today the union of the kinds' data, is told apart from it; how a
+    value of any type says its kind on the wire, where JSON alone cannot (an int from a float, bytes from text, a
+    value object's schema), as `Schemas.Form.Value` tags a scalar (`{"int": 3}`); whether a value object of any type
+    names its schema, as a reference does with `$schema`; and how such values validate and compare (equal only under
+    one kind and type, as Equality has values of different kinds incomparable).
+
 - **Reference identity** ([Visitor pattern](VISITOR_PATTERN.md), "Reference Identity", as the user wrote it), refining
   The visitor pattern's "global name, otherwise a UUID":
   - a reference object with a global name (`.singleton("foo")`) uses it on the wire; a reference object schema may
@@ -1080,7 +1096,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - every schema is a reference object of its kind's meta-schema, and every reference to a schema is a link, through
     meta-relations (`Properties`, `Adjacencies`, `Applies`, `Parameters`, `Typing`, `Defines`, and a union's branches
     and an intersection's parts while those kinds remain); `Schemas.Module.Entry`, `Schemas.Module.Definition`,
-    `Schemas.OfAny`, `Modules.reference` and `resolve`, and `Stores.META` go;
+    `Schemas.OfAny` (amended: its meta-schema only, `OfAny` returns, below), `Modules.reference` and `resolve`, and
+    `Stores.META` go;
   - a link builds its target with a schema given as itself, `.<link>.of(schema, spec)`, never by name or inferred
     (the exploration's "builder notation for ambiguously typed link targets", which the meta-schemas need: a
     property's type is a link that schemas of several kinds may fill);

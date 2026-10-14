@@ -753,7 +753,8 @@ it is fixed here:
 - **Open-world modeling**: independent extension of schemas a module does not own, by intersections as subtyping
   (reference intersections, extents over parts), policies for undeclared properties (preserved, or extension
   properties declared elsewhere), and evolution that keeps data valid. A proposal, with its decisions and the work
-  it entails, in [Open-world modeling](OPEN_WORLD.md).
+  it entails, in [Open-world modeling](OPEN_WORLD.md). A restricted `OfAny` refuses a value of a type outside its
+  restriction, which open-world modeling "would require different handling" for (Resolved, "`OfAny` returns").
 - **Parametrics**, beyond the proposal (see Parametrics): type parameters now or later; equality of differently
   written applications that substitute alike (`Matrix(n, n)` and `Square(n)`); and what proxies accept for data
   whose shape depends on an unbound parameter.
@@ -894,11 +895,14 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - values of any type compare and validate under the kind and type they hold: equal only under the same kind and
     type, otherwise incomparable, as Equality has values of different kinds; validation checks each value against
     the kind it says it is ("yes");
-  - proposed in drafting, for the user's review: an unrestricted `OfAny` always tags, since every type is possible;
-    a restricted one is invalid where two of its types share a plain form that cannot be told apart (as a flat union
-    is where its branches are not told apart by type), or its value is tagged there; a value of a type outside the
-    restriction is refused when written and when read; and the tag of a value object is its schema's registered
-    name, `{"crm.Phone": {...}}`, as a scalar's is its token's name.
+  - an unrestricted `OfAny` always tags, since every type is possible ("yes");
+  - a restricted one is invalid where two of its types share a plain form that cannot be told apart, as a flat union
+    is where its branches are not told apart by type ("yes");
+  - a value of a type outside the restriction is refused when written and when read ("yes - but for open-world, which
+    we are not yet undertaking, this would require different handling");
+  - a value object is tagged by its schema's registered name, `{"crm.Phone": {...}}`, as a scalar is by its token's
+    name, but "only when the value object's schema is not clear from the parent schema": where the restriction leaves
+    one object schema the value can be, it is written bare.
 
 - **Reference identity** ([Visitor pattern](VISITOR_PATTERN.md), "Reference Identity", as the user wrote it), refining
   The visitor pattern's "global name, otherwise a UUID":

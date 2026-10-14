@@ -903,6 +903,16 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - a value object is tagged by its schema's registered name, `{"crm.Phone": {...}}`, as a scalar is by its token's
     name, but "only when the value object's schema is not clear from the parent schema": where the restriction leaves
     one object schema the value can be, it is written bare.
+  - "The common case is that a schema path through OfAny will already be configured with a subschema before any
+    objects are created with that schema": a restricted `OfAny`, whose values are written bare and built through the
+    visitors as any value of their type is, with nothing added to them. "The idea of assigning a value to OfAny where
+    that schema has not yet been restricted has secondary value as a step towards open-world, which we are not fully
+    undertaking at this time"; it "does require tagging over the wire and extra arguments or fluent clauses along the
+    way. But be careful not to clutter the api supporting this secondary scenario": an unrestricted `OfAny` takes a
+    scalar, or a value given as itself (a value object, union value, intersection value or container, which carries
+    its schema, copied), and refuses a Spec, which has no schema to build by; no visitor gains a method or argument;
+  - "`Visitors.OfX.as_any` - no visitor should have this method": `as_any` is the schema builder's
+    (`Schemas.OfAny.Builder`) alone.
 
 - **Reference identity** ([Visitor pattern](VISITOR_PATTERN.md), "Reference Identity", as the user wrote it), refining
   The visitor pattern's "global name, otherwise a UUID":

@@ -647,17 +647,21 @@ class _AdjacencyData:
     description: str | None = None
 
     def validate(self) -> list[str]:
-        problems = _description_problems(self.description, f"adjacency {self.name!r}: ")
+        label = f"adjacency {self.name!r}" if self.name else "an anonymous adjacency"
+        problems = _description_problems(self.description, f"{label}: ")
         if problems:
             return problems
         if self.relation is None:
-            return [f"adjacency {self.name!r} has no relation"]
+            return [f"{label} has no relation"]
         if self.me not in self.relation.entry.links:
-            return [f"adjacency {self.name!r}: {self.me!r} is not a link of its relation {tuple(self.relation.entry.links)}"]
+            return [f"{label}: {self.me!r} is not a link of its relation {tuple(self.relation.entry.links)}"]
         return []
 
 
 class _AdjacencyBuilder(_Builder[_AdjacencyData]):
+    """An adjacency: named, the object's member through which it reads and writes its entries; anonymous (no name), it
+    only declares that the object may fill the link `me`, with no member and nothing held on the object."""
+
     _data = _AdjacencyData
 
     def name(self, name: str) -> _AdjacencyBuilder:
@@ -713,6 +717,11 @@ class _ObjectData:
     description: str | None = None
     parameters: dict[str, _ParameterData] = field(default_factory=dict)
     pattern: str | None = None  # a reference object schema's naming pattern, e.g. r"FEA-(\d+\d\d)"
+    anonymous: list[_AdjacencyData] = field(default_factory=list)  # the links it may fill with no member
+
+    def fills(self, relation: Any, link: str) -> bool:
+        """Whether an object of this schema may fill `link` of `relation`: an adjacency, named or anonymous, says so."""
+        return any(a.relation is relation and a.me == link for a in (*self.adjacencies.values(), *self.anonymous))
 
     def name_for(self, number: int) -> str:
         """The name the naming pattern gives the object numbered `number`: the number fills the pattern's group, at its
@@ -762,11 +771,12 @@ class _ObjectData:
         for name, prop in self.properties.items():
             problems += [f"property {name!r}: {p}" for p in _validate(prop.type) + _embedded_problems(prop.type)
                          + _description_problems(prop.description)]
-        for name, adjacency in self.adjacencies.items():
+        for adjacency in (*self.adjacencies.values(), *self.anonymous):
             problems += adjacency.validate()
             if not self.ref:
-                problems.append(f"adjacency {name!r}: a value object schema has no adjacencies: entries never link value "
-                                "objects, which are never shared")
+                label = f"adjacency {adjacency.name!r}" if adjacency.name else "an anonymous adjacency"
+                problems.append(f"{label}: a value object schema has no adjacencies: entries never link value objects, "
+                                "which are never shared")
         return problems
 
 
@@ -779,9 +789,13 @@ class _ObjectBuilder(_NamedBuilder[_ObjectData]):
 
     def relations(self, *specs: OfAdjacency.Spec) -> _ObjectBuilder:
         adjacencies = self._fields.setdefault("adjacencies", {})
+        anonymous = self._fields.setdefault("anonymous", [])
         for spec in specs:
             adjacency = _resolve(spec, _AdjacencyData, _AdjacencyBuilder)
-            adjacencies[adjacency.name] = adjacency
+            if adjacency.name:
+                adjacencies[adjacency.name] = adjacency
+            else:  # anonymous: the object may fill the link, and holds no member for it
+                anonymous.append(adjacency)
         return self
 
     def singleton(self, name: str) -> _ObjectBuilder:

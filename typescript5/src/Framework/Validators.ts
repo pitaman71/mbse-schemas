@@ -127,10 +127,11 @@ function scalarProblem(schema: Schemas.OfScalar.Data, value: unknown): string | 
   return null;
 }
 
-/** Whether an object of `schema` may fill link `name` of `relation`: its schema must declare an adjacency via it. */
+/** Whether an object of `schema` may fill link `name` of `relation`: its schema must declare an adjacency via it, named
+ * or anonymous. */
 function filling(relation: Schemas.OfRelation.Data, name: string, schema: Schemas.OfObject.Data): string | null {
-  if ([...schema.adjacencies.values()].some((a) => a.relation === relation && a.me === name)) return null;
-  return `a ${repr(schema.name)} cannot fill link ${repr(name)}; its schema declares no adjacency to this relation via ${repr(name)}`;
+  if (schema.fills(relation, name)) return null;
+  return `a ${repr(schema.name)} cannot fill link ${repr(name)}; its schema declares no adjacency, named or anonymous, to this relation via ${repr(name)}`;
 }
 
 const ABSENT = "absent";

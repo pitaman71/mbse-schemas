@@ -818,8 +818,13 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     (`Basic.Operators.Add`).
   - domains: "domains refine scalar schemas" (mbse-expressions' value domains).
   - relations: "mbse-schemas.Schemas.OfRelation is by default a all-directional link. Anonymous adjacencies allow for
-    some adjacencies to be omitted." So an object fills a link without its schema declaring an adjacency through it;
-    validation's requirement that it does goes.
+    some adjacencies to be omitted." An entry "may be rejected if the linked object is of the wrong type. That's
+    exactly why we have anonymous adjacencies at all. They still participate in type checking even though they omit
+    access from the adjacent object to the relation." Built: an adjacency declared with no name
+    (`r.of(Owns).me("item")`) is anonymous; the object may fill the link, and has no member and holds nothing for it.
+    Validation accepts a linked object whose schema declares the link, named or anonymous (VAL-15), and modules write
+    an anonymous adjacency with no name. Their absence was a bug: an object could fill a link only through a named
+    adjacency, a member it may not need.
 
 - **Containers** (planned: [Meta-schemas overhaul](META_SCHEMAS.md), V5), as the user decided, superseding in part
   The meta-schemas overhaul ("Relations completely subsume collections ... subsumes OfIndexed and requires 1-ary

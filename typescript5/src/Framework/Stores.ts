@@ -168,10 +168,10 @@ export class Catalog {
     return found;
   }
 
-  /** The names of the object schemas that declare an adjacency to `relation` via `link`. */
+  /** The names of the object schemas that declare an adjacency, named or anonymous, to `relation` via `link`. */
   _filling(relation: RelationSchema, link: string): string[] {
     return [...this._schemas]
-      .filter(([, s]) => s instanceof Schemas.OfObject.Data && [...s.adjacencies.values()].some((a) => a.relation === relation && a.me === link))
+      .filter(([, s]) => s instanceof Schemas.OfObject.Data && s.fills(relation, link))
       .map(([name]) => name);
   }
 }

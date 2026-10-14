@@ -116,9 +116,9 @@ class _Writer:
                             bits=_literal(schema.bits), bytes=_literal(schema.bytes),
                             terms=_terms(bits=schema.bits, bytes=schema.bytes), description=schema.description)
         if isinstance(schema, Schemas.OfObject.Data):
-            adjacencies = [_present(name=name, relation=self.reference(adjacency.relation), me=adjacency.me,
-                                    description=adjacency.description)
-                           for name, adjacency in schema.adjacencies.items()]
+            adjacencies = [_present(name=adjacency.name or None, relation=self.reference(adjacency.relation),
+                                    me=adjacency.me, description=adjacency.description)
+                           for adjacency in (*schema.adjacencies.values(), *schema.anonymous)]  # anonymous: no name
             return _kind_of("object", parameters=parameters, properties=self._members(schema.properties.values()),
                             adjacencies=adjacencies,
                             singleton=schema.singleton, ref=schema.ref, pattern=schema.pattern,
@@ -290,10 +290,12 @@ class _Reader:
             schema.bits, schema.bytes = self._slot(body, "bits"), self._slot(body, "bytes")
         elif kind == "object":
             schema.properties = {p.name: p for p in properties}
-            _once(body.get("adjacencies", []), "adjacency")
-            schema.adjacencies = {a["name"]: Schemas.OfAdjacency.Data(a["name"], self._relation(a["relation"]), a["me"],
-                                                                      a.get("description"))
-                                  for a in body.get("adjacencies", [])}
+            listed = body.get("adjacencies", [])
+            _once([a for a in listed if "name" in a], "adjacency")
+            made = [Schemas.OfAdjacency.Data(a.get("name", ""), self._relation(a["relation"]), a["me"], a.get("description"))
+                    for a in listed]
+            schema.adjacencies = {a.name: a for a in made if a.name}
+            schema.anonymous = [a for a in made if not a.name]
             schema.singleton, schema.ref, schema.pattern = body.get("singleton"), body.get("ref", False), body.get("pattern")
         elif kind == "relation":
             links = self._members(body.get("links", []), Schemas.OfSymbol.Data, "link")

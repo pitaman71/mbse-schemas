@@ -862,16 +862,19 @@ class AdjacencyData {
   }
 
   validate(): string[] {
-    const problems = descriptionProblems(this.description, `adjacency ${repr(this.name)}: `);
+    const label = this.name ? `adjacency ${repr(this.name)}` : "an anonymous adjacency";
+    const problems = descriptionProblems(this.description, `${label}: `);
     if (problems.length > 0) return problems;
-    if (this.relation === null) return [`adjacency ${repr(this.name)} has no relation`];
+    if (this.relation === null) return [`${label} has no relation`];
     if (!this.relation.entry.links.has(this.me)) {
-      return [`adjacency ${repr(this.name)}: ${repr(this.me)} is not a link of its relation ${repr(new Tuple([...this.relation.entry.links.keys()]))}`];
+      return [`${label}: ${repr(this.me)} is not a link of its relation ${repr(new Tuple([...this.relation.entry.links.keys()]))}`];
     }
     return [];
   }
 }
 
+/** An adjacency: named, the object's member through which it reads and writes its entries; anonymous (no name), it only
+ * declares that the object may fill the link `me`, with no member and nothing held on the object. */
 class AdjacencyBuilder extends Builder<AdjacencyData> {
   protected make(fields: Record<string, unknown>): AdjacencyData {
     return new AdjacencyData(fields as ConstructorParameters<typeof AdjacencyData>[0]);
@@ -938,10 +941,12 @@ class ObjectData {
   parameters: Map<string, ParameterData>;
   /** A reference object schema's naming pattern, e.g. `FEA-(\d+\d\d)`. */
   pattern: string | null;
+  /** The links it may fill with no member. */
+  anonymous: AdjacencyData[];
 
   constructor(fields: { properties?: Map<string, PropertyData>; adjacencies?: Map<string, AdjacencyData>; singleton?: string | null;
     ref?: boolean; name?: string | null; description?: string | null; parameters?: Map<string, ParameterData>;
-    pattern?: string | null } = {}) {
+    pattern?: string | null; anonymous?: AdjacencyData[] } = {}) {
     this.properties = fields.properties ?? new Map();
     this.adjacencies = fields.adjacencies ?? new Map();
     this.singleton = fields.singleton ?? null;
@@ -950,6 +955,12 @@ class ObjectData {
     this.description = fields.description ?? null;
     this.parameters = fields.parameters ?? new Map();
     this.pattern = fields.pattern ?? null;
+    this.anonymous = fields.anonymous ?? [];
+  }
+
+  /** Whether an object of this schema may fill `link` of `relation`: an adjacency, named or anonymous, says so. */
+  fills(relation: unknown, link: string): boolean {
+    return [...this.adjacencies.values(), ...this.anonymous].some((a) => a.relation === relation && a.me === link);
   }
 
   /** The name the naming pattern gives the object numbered `number`: the number fills the pattern's group, at its
@@ -1010,10 +1021,11 @@ class ObjectData {
       problems.push(...[...validateSchema(prop.type), ...embeddedProblems(prop.type), ...descriptionProblems(prop.description)]
         .map((p) => `property ${repr(name)}: ${p}`));
     }
-    for (const [name, adjacency] of this.adjacencies) {
+    for (const adjacency of [...this.adjacencies.values(), ...this.anonymous]) {
       problems.push(...adjacency.validate());
       if (!this.ref) {
-        problems.push(`adjacency ${repr(name)}: a value object schema has no adjacencies: entries never link value objects, `
+        const label = adjacency.name ? `adjacency ${repr(adjacency.name)}` : "an anonymous adjacency";
+        problems.push(`${label}: a value object schema has no adjacencies: entries never link value objects, `
           + "which are never shared");
       }
     }
@@ -1033,9 +1045,11 @@ class ObjectBuilder extends NamedBuilder<ObjectData> {
 
   relations(...specs: OfAdjacency.Spec[]): ObjectBuilder {
     const adjacencies = (this.state["adjacencies"] ??= new Map()) as Map<string, AdjacencyData>;
+    const anonymous = (this.state["anonymous"] ??= []) as AdjacencyData[];
     for (const spec of specs) {
       const adjacency = resolveSpec(spec, isAdjacencyData, () => new AdjacencyBuilder());
-      adjacencies.set(adjacency.name, adjacency);
+      if (adjacency.name) adjacencies.set(adjacency.name, adjacency);
+      else anonymous.push(adjacency); // anonymous: the object may fill the link, and holds no member for it
     }
     return this;
   }

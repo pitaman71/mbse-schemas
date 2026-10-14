@@ -187,9 +187,9 @@ class Catalog:
         return tuple(found)
 
     def _filling(self, relation: Schemas.OfRelation.Data, link: str) -> list[str]:
-        """The names of the object schemas that declare an adjacency to `relation` via `link`."""
+        """The names of the object schemas that declare an adjacency, named or anonymous, to `relation` via `link`."""
         return [name for name, schema in self._schemas.items() if isinstance(schema, Schemas.OfObject.Data)
-                and any(a.relation is relation and a.me == link for a in schema.adjacencies.values())]
+                and schema.fills(relation, link)]
 
 
 class Combined:

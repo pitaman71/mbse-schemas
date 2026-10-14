@@ -118,11 +118,12 @@ def _scalar_problem(schema: Schemas.OfScalar.Data, value: Any) -> str | None:
 
 
 def _filling(relation: Schemas.OfRelation.Data, name: str, schema: Schemas.OfObject.Data) -> str | None:
-    """Whether an object of `schema` may fill link `name` of `relation`: its schema must declare an adjacency via it."""
-    if any(a.relation is relation and a.me == name for a in schema.adjacencies.values()):
+    """Whether an object of `schema` may fill link `name` of `relation`: its schema must declare an adjacency via it,
+    named or anonymous."""
+    if schema.fills(relation, name):
         return None
-    return (f"a {schema.name!r} cannot fill link {name!r}; its schema declares no adjacency to this relation via "
-            f"{name!r}")
+    return (f"a {schema.name!r} cannot fill link {name!r}; its schema declares no adjacency, named or anonymous, to this "
+            f"relation via {name!r}")
 
 
 _ABSENT = ("absent",)

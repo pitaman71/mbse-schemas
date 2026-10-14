@@ -30,6 +30,7 @@ S.OfObject.Builder(Component).relations(lambda r: r.name("ports").of(Ownership).
 S.OfObject.Builder(Port).relations(lambda r: r.name("owner").of(Ownership).me("port"),
                                    lambda r: r.name("fanout").of(Wire).me("source"),
                                    lambda r: r.name("fanin").of(Wire).me("target")).update()
+# An object may fill a link its schema declares with no name (an anonymous adjacency): no member, but still checked.
 # A store holds named schemas, each under its own name; the objects built with them belong to it.
 store = Proxies.OfStore()
 for schema in [Component, Port, Ownership, Wire]:

@@ -124,8 +124,9 @@ export class _Writer {
         ["terms", _terms([["bits", schema.bits], ["bytes", schema.bytes]])], ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfObject.Data) {
-      const adjacencies = [...schema.adjacencies].map(([name, adjacency]) => present([["name", name],
-        ["relation", this.reference(adjacency.relation)], ["me", adjacency.me], ["description", adjacency.description]]));
+      const adjacencies = [...schema.adjacencies.values(), ...schema.anonymous].map((adjacency) => present([ // anonymous: no name
+        ["name", adjacency.name || null], ["relation", this.reference(adjacency.relation)], ["me", adjacency.me],
+        ["description", adjacency.description]]));
       return kindOf("object", [["parameters", parameters], ["properties", this.members(schema.properties.values())],
         ["adjacencies", adjacencies], ["singleton", schema.singleton], ["ref", schema.ref], ["pattern", schema.pattern],
         ["description", schema.description]]);
@@ -324,10 +325,13 @@ class _Reader {
       schema.bytes = this.slot(body, "bytes");
     } else if (schema instanceof Schemas.OfObject.Data) {
       schema.properties = properties();
-      once(list("adjacencies") as PlainMap[], "adjacency");
-      schema.adjacencies = new Map((list("adjacencies") as PlainMap[]).map((a) => [a.get("name") as string,
-        new Schemas.OfAdjacency.Data({ name: a.get("name") as string, relation: this.relation(a.get("relation") as Definition),
-          me: a.get("me") as string, description: (a.get("description") as string | undefined) ?? null })]));
+      const listed = list("adjacencies") as PlainMap[];
+      once(listed.filter((a) => a.has("name")), "adjacency");
+      const made = listed.map((a) => new Schemas.OfAdjacency.Data({ name: (a.get("name") as string | undefined) ?? "",
+        relation: this.relation(a.get("relation") as Definition), me: a.get("me") as string,
+        description: (a.get("description") as string | undefined) ?? null }));
+      schema.adjacencies = new Map(made.filter((a) => a.name).map((a) => [a.name, a]));
+      schema.anonymous = made.filter((a) => !a.name);
       schema.singleton = (body.get("singleton") as string | undefined) ?? null;
       schema.ref = (body.get("ref") as boolean | undefined) ?? false;
       schema.pattern = (body.get("pattern") as string | undefined) ?? null;

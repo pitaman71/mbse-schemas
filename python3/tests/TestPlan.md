@@ -83,6 +83,7 @@ Total: 191 cases, the sum of the rows above. The 184 outside DC have the same ID
 | Scalar types are tokens; `basic` and the own format are read; a width is size only | SCH-18 |
 | Reference object schemas are marked `.ref()`; no property holds one; only they are built and rooted on their own | SCH-19, VAL-13 |
 | Value objects are value objects: owned, read-only, written nested; holding containers, without adjacencies or identity | EMB-01, EMB-02, EMB-04, EMB-09 |
+| Anonymous adjacencies: an object fills a link its schema declares with no name, with no member and nothing held; a wrong schema is still refused; refused on value object schemas; written and read by modules | VAL-15 |
 | Value objects are kept through edits, are copied with their entries, are removed with them; never linked: schemas, proxies and readers refuse a link to one | EMB-09, PLN-17 |
 | Union values hold one branch by name, in proxies and snapshots; validation checks there is exactly one | EMB-03..06 |
 | Intersection values hold every part by name; parts do not merge | EMB-08 |

@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import dataclasses
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar
 
@@ -48,6 +48,8 @@ __all__ = [
     "OfScalar",
     "OfSymbol",
     "OfUnion",
+    "OfUnique",
+    "identity_of",
 ]
 
 D = TypeVar("D")
@@ -132,8 +134,34 @@ class _PropertyMember(_Dunders):
             _visit(cb, _Value(self._label(), self._held, self._write, self._writable, self._prop.container,
                               lambda: getattr(self.as_schema(), "type", None)))
         else:
-            self._write(cb)
+            self._write(self._matched(cb))
         return self
+
+    def _matched(self, value: Any) -> Any:
+        """A value given whole (a shorthand), whose type must match the property's exactly: a scalar of its scalar
+        type; for a container, an iterable of its elements, or a map of names to them where it is arranged as a dict.
+        It sets the value, merging nothing; None clears it."""
+        held = S.structure(getattr(self.as_schema(), "type", None))
+        if value is None or held is None:
+            return value
+        if isinstance(held, S.OfScalar.Data):
+            items = [value]
+        elif isinstance(held, S.OfContainer.Data) and held.arrangement == "dict":
+            if not isinstance(value, Mapping):
+                raise TypeError(f"{self._label()} holds a map, got {type(value).__name__}")
+            value = dict(value)
+            items = list(value.values())
+        elif isinstance(held, S.OfContainer.Data):
+            if isinstance(value, (str, bytes, Mapping)) or not isinstance(value, Iterable):
+                raise TypeError(f"{self._label()} holds a list, got {type(value).__name__}")
+            value = items = list(value)
+        else:
+            return value
+        host = getattr(S.structure(held if isinstance(held, S.OfScalar.Data) else held.element), "type", None)
+        wrong = [item for item in items if host is not None and type(item) is not host]
+        if wrong:
+            raise TypeError(f"{self._label()} holds {host.__name__}, got {type(wrong[0]).__name__}")
+        return value
 
     def as_scalar(self, cb: Any) -> _PropertyMember:
         return self.as_value(lambda value: value.as_scalar(cb))
@@ -298,14 +326,16 @@ class _Members:
     """A member for an adjacency of the meta-schema, whose entries link the schema object being built and, at `link`,
     another (the referent). `items` and `store` read and write the referents from and to however the data stores
     them; `accepts` says which objects `link` may link, and `build` how a callback given to it builds one: through a
-    builder (a class, given lazily), or not at all (None: it links an
-    object that exists). `one`: at most one entry, as a `unique` clause of its relation makes it."""
+    builder (a class, given lazily), or not at all (None: it links an object that exists). `one`: at most one entry,
+    as a `unique` clause of its relation makes it. `keyed`: the relation's entries have one property, `name`, of string
+    type, which names the referent within the schema object (the data keeps it as the referent's `name`)."""
 
     name: str
 
     def __init__(self, link: str, *, items: Callable[[Any], list[Any]], store: Callable[[Any, list[Any]], None],
-                 accepts: Callable[[Any], bool], build: Any = None, one: bool = False):
+                 accepts: Callable[[Any], bool], build: Any = None, one: bool = False, keyed: bool = False):
         self.link, self.items, self.store, self.accepts, self.build, self.one = link, items, store, accepts, build, one
+        self.keyed = keyed
 
     def __set_name__(self, owner: type, name: str) -> None:
         self.name = name
@@ -351,11 +381,13 @@ class _AdjacencyMember(_Unassignable):
         if _is_function(spec):
             _visit(spec, entry)
         elif isinstance(spec, _Entry):
-            entry._referent = spec._referent
+            entry._referent, entry._name = spec._referent, spec._name
         else:
             raise TypeError(f"an entry, or a callback taking one, is expected; got {spec!r}")
         if entry._referent is None:
             raise ValueError(f"link {self._members.link!r} is not set")
+        if self._members.keyed and entry._name is not None:
+            entry._referent.name = entry._name
         held = self._held()
         if any(referent is entry._referent for referent in held):
             return self
@@ -379,11 +411,42 @@ class _AdjacencyMember(_Unassignable):
         return self
 
     def __call__(self, spec: Any) -> Any:
+        """Called with a callback, it visits through it. Called with an iterable, a shorthand: of referents (the peer
+        shorthand, where the relation's entries have two links and no properties), or of entries; each is inserted,
+        unless the relation allows one entry only, where it replaces the one held. A map is the peer + key shorthand,
+        where the entries have one property of string type, `name`: each referent linked under its name."""
         if _is_function(spec):
             _visit(spec, self)
+            return self._builder
+        if isinstance(spec, Mapping):
+            if not self._members.keyed:
+                raise TypeError(f"{self._members.name!r}: its entries carry no name to key them by; give an iterable of "
+                                "what it links")
+            pairs = list(spec.items())
+        elif isinstance(spec, (str, bytes)) or not isinstance(spec, Iterable):
+            raise TypeError(f"{self._members.name!r} takes an iterable of what it links, or of entries, or a callback "
+                            f"taking the adjacency; got {spec!r}")
         else:
-            for entry in spec:  # an iterable of entries, each inserted
-                self.insert(entry)
+            pairs = [(None, item) for item in spec]
+        self._builder._check()
+        for key, item in pairs:
+            if isinstance(item, _Entry) and key is None:
+                referent, key = item._referent, item._name
+            elif self._members.accepts(item):
+                if key is None and self._members.keyed:
+                    raise TypeError(f"{self._members.name!r}: its entries name what they link; give a map of names to "
+                                    "what it links")
+                if key is not None and (not isinstance(key, str) or not key):
+                    raise TypeError(f"{self._members.name!r}: a name is non-empty text, got {key!r}")
+                referent = item
+            else:
+                raise TypeError(f"link {self._members.link!r} cannot link {item!r}")
+            if key is not None:
+                referent.name = key
+            held = self._held()
+            if any(other is referent for other in held):
+                continue
+            self._store([referent] if self._members.one else [*held, referent])
         return self._builder
 
     def __repr__(self) -> str:
@@ -397,6 +460,7 @@ class _Entry(_Unassignable):
     def __init__(self, adjacency: _AdjacencyMember, index: int | None = None, referent: Any = None):
         self._adjacency, self._index, self._referent = adjacency, index, referent
         self._template: list[Any] | None = None  # what the callback that built the referent wrote
+        self._name: str | None = None  # the name written (`env.name`), where the entries are keyed
 
     def as_schema(self) -> Any:
         schema = self._adjacency.as_schema()
@@ -407,7 +471,24 @@ class _Entry(_Unassignable):
             raise AttributeError(name)
         if name == self._adjacency._members.link:
             return _Link(self)
+        if name == "name" and self._adjacency._members.keyed:
+            return _EntryName(self)
         return _Empty(f"{name!r} is not a link this entry can set, nor a property of the relation")
+
+    def _named(self) -> str | None:
+        """The entry's name: the one written, else its referent's."""
+        if self._name is not None:
+            return self._name
+        return getattr(self._referent, "name", None) or None
+
+    def _rename(self, name: str | None) -> None:
+        if name is not None and (not isinstance(name, str) or not name):
+            raise TypeError(f"a name is non-empty text, got {name!r}")
+        self._name = name
+        if self._index is not None:  # an entry held: its referent is renamed in place
+            self._adjacency._builder._check()
+            self._referent.name = name or ""
+            self._adjacency._store(self._adjacency._held())
 
     def _relink(self, referent: Any, template: list[Any] | None) -> None:
         self._referent, self._template = referent, template
@@ -415,6 +496,8 @@ class _Entry(_Unassignable):
             self._adjacency._replace(self._index, referent)
 
     def _agrees(self, referent: Any) -> bool:
+        if self._name is not None and getattr(referent, "name", None) != self._name:
+            return False
         if self._referent is None:
             return True
         if self._template is None:
@@ -424,6 +507,47 @@ class _Entry(_Unassignable):
 
     def __repr__(self) -> str:
         return f"<entry of {self._adjacency._members.name!r}>"
+
+
+class _EntryName(_Dunders):
+    """`Visitors.OfProperty` over an entry's name, the one property of the entries of a keyed adjacency."""
+
+    def __init__(self, entry: _Entry):
+        self._entry, self._writable = entry, entry._adjacency._builder._writable
+
+    def _held(self) -> Any:
+        return self._entry._named()
+
+    def _scalar(self) -> Any:
+        return self._held()
+
+    def _label(self) -> str:
+        return "property 'name'"
+
+    def as_schema(self) -> Any:
+        entry = self._entry.as_schema()
+        return None if entry is None else entry.properties.get("name")
+
+    def get(self) -> Any:
+        return self._held()
+
+    def as_value(self, cb: Any) -> _EntryName:
+        if _is_function(cb):
+            _visit(cb, _Value(self._label(), self._held, self._entry._rename, self._writable, False,
+                              lambda: getattr(self.as_schema(), "type", None)))
+        else:
+            self._entry._rename(cb)
+        return self
+
+    def as_scalar(self, cb: Any) -> _EntryName:
+        return self.as_value(lambda value: value.as_scalar(cb))
+
+    def __call__(self, spec: Any) -> _Entry:
+        if _is_function(spec):
+            _visit(spec, self)
+        else:
+            self.as_value(spec)
+        return self._entry
 
 
 class _Link(_Unassignable):
@@ -628,7 +752,7 @@ class _KindBuilder(_Builder[D]):
 
     name = _Prop()
     description = _Prop()
-    parameters = _Members("parameter", accepts=lambda v: isinstance(v, S.OfParameter.Data),
+    parameters = _Members("parameter", keyed=True, accepts=lambda v: isinstance(v, S.OfParameter.Data),
                           build=lambda: ParameterBuilder, **_by_name("parameters"))
 
     def _allocate(self) -> str:
@@ -640,9 +764,9 @@ class _KindBuilder(_Builder[D]):
 
 
 class _TypedBuilder(_Builder[D]):
-    """A builder of a member with a name and a type: a property, a parameter, a symbol, a branch or a part."""
+    """A builder of a member with a type: a property, a parameter, a symbol, a branch or a part. Its name is the entry's
+    that links it to its owner."""
 
-    name = _Prop()
     description = _Prop()
     type = _type()
 
@@ -674,9 +798,10 @@ def _filled(data: S.OfAdjacency.Data) -> list[Any]:
 
 
 class AdjacencyBuilder(_Builder[S.OfAdjacency.Data]):
+    """An adjacency: named by the entry that links it to its object schema, or anonymous, with no name."""
+
     _data, _meta, _noun = S.OfAdjacency.Data, "Adjacency", "an adjacency"
 
-    name = _Prop()
     description = _Prop()
     relation = _Members("relation", accepts=lambda v: isinstance(v, S.OfRelation.Data), build=lambda: RelationBuilder,
                         **_one("relation"))
@@ -810,10 +935,10 @@ class ObjectBuilder(_KindBuilder[S.OfObject.Data]):
     pattern = _Prop()
     singleton = _Prop()
     refines = _refines()
-    properties = _Members("property", accepts=lambda v: isinstance(v, S.OfProperty.Data),
+    properties = _Members("property", keyed=True, accepts=lambda v: isinstance(v, S.OfProperty.Data),
                           build=lambda: PropertyBuilder, **_by_name("properties"))
     adjacencies = _Members(  # named ones by name, then anonymous ones, which have none
-        "adjacency", accepts=lambda v: isinstance(v, S.OfAdjacency.Data), build=lambda: AdjacencyBuilder,
+        "adjacency", keyed=True, accepts=lambda v: isinstance(v, S.OfAdjacency.Data), build=lambda: AdjacencyBuilder,
         items=lambda data: [*data.adjacencies.values(), *data.anonymous],
         store=lambda data, members: (setattr(data, "adjacencies", {m.name: m for m in members if m.name}),
                                      setattr(data, "anonymous", [m for m in members if not m.name])))
@@ -829,7 +954,7 @@ class UnionBuilder(_KindBuilder[S.OfUnion.Data]):
     _data, _meta, _noun = S.OfUnion.Data, "Union", "a union"
 
     flat = _Prop()
-    branches = _Members("branch", accepts=lambda v: isinstance(v, S.OfUnion.Branch), build=lambda: MemberBuilder,
+    branches = _Members("branch", keyed=True, accepts=lambda v: isinstance(v, S.OfUnion.Branch), build=lambda: MemberBuilder,
                         **_in_order("branches"))
 
 
@@ -837,7 +962,7 @@ class IntersectionBuilder(_KindBuilder[S.OfIntersection.Data]):
     _data, _meta, _noun = S.OfIntersection.Data, "Intersection", "an intersection"
 
     flat = _Prop()
-    parts = _Members("part", accepts=lambda v: isinstance(v, S.OfIntersection.Part), build=lambda: MemberBuilder,
+    parts = _Members("part", keyed=True, accepts=lambda v: isinstance(v, S.OfIntersection.Part), build=lambda: MemberBuilder,
                      **_in_order("parts"))
 
 
@@ -886,7 +1011,7 @@ class AnyValueBuilder(_KindBuilder[S.OfAny.Value]):
 class PredicateBuilder(_KindBuilder[S.OfPredicate.Data]):
     _data, _meta, _noun = S.OfPredicate.Data, "Predicate", "a predicate"
 
-    symbols = _Members("symbol", accepts=lambda v: isinstance(v, S.OfSymbol.Data), build=lambda: SymbolBuilder,
+    symbols = _Members("symbol", keyed=True, accepts=lambda v: isinstance(v, S.OfSymbol.Data), build=lambda: SymbolBuilder,
                        **_by_name("symbols"))
     requires = _Members("term", accepts=S._is_term, build=lambda: FormBuilder, **_one("requires"))
 
@@ -903,10 +1028,10 @@ class RelationBuilder(_KindBuilder[S.OfRelation.Data]):
 
     _data, _meta, _noun = S.OfRelation.Data, "Relation", "a relation"
 
-    links = _Members("link", accepts=lambda v: isinstance(v, S.OfSymbol.Data), build=lambda: SymbolBuilder,
+    links = _Members("link", keyed=True, accepts=lambda v: isinstance(v, S.OfSymbol.Data), build=lambda: SymbolBuilder,
                      items=lambda data: list(data.entry.links.values()),
                      store=lambda data, links: setattr(data.entry, "links", {m.name: m for m in links}))
-    properties = _Members("property", accepts=lambda v: isinstance(v, S.OfProperty.Data), build=lambda: PropertyBuilder,
+    properties = _Members("property", keyed=True, accepts=lambda v: isinstance(v, S.OfProperty.Data), build=lambda: PropertyBuilder,
                           items=lambda data: list(data.entry.properties.values()),
                           store=lambda data, props: setattr(data.entry, "properties", {m.name: m for m in props}))
     uniques = _Members("unique", accepts=lambda v: isinstance(v, _UniqueData), build=lambda: UniqueBuilder,
@@ -950,41 +1075,46 @@ class Meta:
 Text, Bool = S.OfScalar.Data(str), S.OfScalar.Data(bool)
 
 
-def _prop(name: str, schema: Any) -> Any:
-    """A `Specs.Callback[Visitors.OfEntry]`: an entry linking a property named `name`, of `schema`."""
-    return lambda e: e.property(lambda p: p.name(name).type(lambda adj: adj.insert(lambda t: t.schema(schema))))
+def _property(schema: Any) -> S.OfProperty.Data:
+    return PropertyBuilder().type([schema]).create()
 
 
-def _object(name: str, *props: Any, refines: Any = None) -> S.OfObject.Data:
-    """A meta-schema: a reference object schema, `Schemas.<name>`, with `props`, refining `refines`."""
-    builder = ObjectBuilder().name(f"Schemas.{name}").ref(True).properties(lambda adj: [adj.insert(p) for p in props])
+def _object(name: str, properties: dict[str, Any] | None = None, refines: Any = None) -> S.OfObject.Data:
+    """A meta-schema: a reference object schema, `Schemas.<name>`, with `properties` of their schemas, by name,
+    refining `refines`."""
+    builder = (
+        ObjectBuilder()
+        .name(f"Schemas.{name}")
+        .ref(True)
+        .properties({name: _property(schema) for name, schema in (properties or {}).items()})
+    )
     if refines is not None:
-        builder.refines(lambda adj: adj.insert(lambda e: e.refined(refines)))
+        builder.refines([refines])
     return builder.create()
 
 
-Meta.Schema = _object("Schema", _prop("name", Text), _prop("description", Text))
+Meta.Schema = _object("Schema", {"name": Text, "description": Text})
 Meta.Type = _object("Type", refines=Meta.Schema)
-Meta.Scalar = _object("Scalar", _prop("format", Text), _prop("token", Text), refines=Meta.Type)
-Meta.Object = _object("Object", _prop("ref", Bool), _prop("pattern", Text), _prop("singleton", Text), refines=Meta.Type)
-Meta.Union = _object("Union", _prop("flat", Bool), refines=Meta.Type)
-Meta.Intersection = _object("Intersection", _prop("flat", Bool), refines=Meta.Type)
-Meta.Container = _object("Container", _prop("layout", Text), refines=Meta.Type)
+Meta.Scalar = _object("Scalar", {"format": Text, "token": Text}, refines=Meta.Type)
+Meta.Object = _object("Object", {"ref": Bool, "pattern": Text, "singleton": Text}, refines=Meta.Type)
+Meta.Union = _object("Union", {"flat": Bool}, refines=Meta.Type)
+Meta.Intersection = _object("Intersection", {"flat": Bool}, refines=Meta.Type)
+Meta.Container = _object("Container", {"layout": Text}, refines=Meta.Type)
 Meta.Apply = _object("Apply", refines=Meta.Type)
 Meta.Any = _object("Any", refines=Meta.Type)
 Meta.Relation = _object("Relation", refines=Meta.Schema)
 Meta.Predicate = _object("Predicate", refines=Meta.Schema)
-Meta.Typed = _object("Typed", _prop("name", Text), _prop("description", Text))
+Meta.Typed = _object("Typed", {"description": Text})
 Meta.Property = _object("Property", refines=Meta.Typed)
 Meta.Parameter = _object("Parameter", refines=Meta.Typed)
 Meta.Symbol = _object("Symbol", refines=Meta.Typed)
 Meta.Member = _object("Member", refines=Meta.Typed)
-Meta.Adjacency = _object("Adjacency", _prop("name", Text), _prop("description", Text))
-Meta.Argument = _object("Argument", _prop("value", S.Form.Value))
+Meta.Adjacency = _object("Adjacency", {"description": Text})
+Meta.Argument = _object("Argument", {"value": S.Form.Value})
 Meta.Unique = _object("Unique")
 Meta.Term = _object("Term")
-Meta.Form = _object("Form", _prop("dialect", Text), _prop("kind", Text),
-                    _prop("attributes", S.OfContainer.Data(index=Text, element=S.Form.Value)), refines=Meta.Term)
+Meta.Form = _object("Form", {"dialect": Text, "kind": Text,
+                             "attributes": S.OfContainer.Data(index=Text, element=S.Form.Value)}, refines=Meta.Term)
 Meta.Module = (
     ObjectBuilder()
     .name("Schemas.Module")
@@ -994,39 +1124,32 @@ Meta.Module = (
 )
 
 
-def _symbol(name: str, schema: Any) -> S.OfSymbol.Data:
-    return SymbolBuilder().name(name).type(lambda adj: adj.insert(lambda e: e.schema(schema))).create()
+def _symbol(schema: Any) -> S.OfSymbol.Data:
+    return SymbolBuilder().type([schema]).create()
 
 
-def _relation(name: str, first: S.OfSymbol.Data, second: S.OfSymbol.Data,
-              determined: S.OfSymbol.Data | None = None) -> S.OfRelation.Data:
-    """A meta-schema relation, `Schemas.<name>`, linking `first` and `second`, where the other determines `determined`,
-    when given (a `unique` clause), else a list."""
-    builder = RelationBuilder().name(f"Schemas.{name}").links(
-        lambda adj: adj.insert(lambda e: e.link(first)).insert(lambda e: e.link(second)))
-    if determined is not None:
-        builder.uniques(lambda adj: adj.insert(
-            lambda e: e.unique(lambda u: u.named(lambda n: n.insert(lambda x: x.named(determined))))))
+def _relation(name: str, links: dict[str, S.OfSymbol.Data], how: str) -> S.OfRelation.Data:
+    """A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
+    `_RELATIONS`): a keyed relation's entries have `name`, which, with the owner, determines the member."""
+    first, second = links.values()
+    builder = RelationBuilder().name(f"Schemas.{name}").links(links)
+    determined = {"one": [second], "owned": [first], "keyed": [first, second], "list": []}[how]
+    if how == "keyed":
+        builder.properties({"name": _property(Text)})
+    builder.uniques([UniqueBuilder().named([named]).create() for named in determined])
     return builder.create()
 
 
-def _adjacency(relation: S.OfRelation.Data, link: S.OfSymbol.Data, name: str | None = None) -> Any:
-    """A `Specs.Callback[Visitors.OfEntry]`: an entry linking an adjacency to `relation` at `link`, named `name`, or
-    anonymous."""
-
-    def build(a: AdjacencyBuilder) -> AdjacencyBuilder:
-        if name is not None:
-            a.name(name)
-        return a.relation(lambda adj: adj.insert(lambda e: e.relation(relation))).me(
-            lambda adj: adj.insert(lambda e: e.link(link)))
-
-    return lambda e: e.adjacency(build)
+def _adjacency(relation: S.OfRelation.Data, link: S.OfSymbol.Data) -> S.OfAdjacency.Data:
+    """An adjacency to `relation` at `link`: named by the entry that links it to its object schema, or anonymous."""
+    return AdjacencyBuilder().relation([relation]).me([link]).create()
 
 
 _RELATIONS: list[tuple[str, tuple[str, Any, str | None], tuple[str, Any], str]] = [
     # (relation, (link, schema, adjacency named there), (link, schema), "one": the first determines the second;
-    # "owned": the second determines the first; "list": neither). An adjacency named "" is declared below, on the kinds
-    # that have it, rather than on the link's schema.
+    # "owned": the second determines the first; "keyed": owned, and named within its owner by the entry's `name`;
+    # "list": neither). An adjacency named "" is declared below, on the kinds that have it, rather than on the link's
+    # schema.
     ("Typing", ("typed", Meta.Typed, "type"), ("schema", Meta.Type), "one"),
     ("Refines", ("refinement", Meta.Type, ""), ("refined", Meta.Type), "one"),
     ("Indexing", ("container", Meta.Container, "index"), ("index", Meta.Type), "one"),
@@ -1040,37 +1163,52 @@ _RELATIONS: list[tuple[str, tuple[str, Any, str | None], tuple[str, Any], str]] 
     ("Requires", ("predicate", Meta.Predicate, "requires"), ("term", Meta.Term), "one"),
     ("BitWidth", ("scalar", Meta.Scalar, "bits"), ("width", Meta.Term), "one"),
     ("ByteWidth", ("scalar", Meta.Scalar, "bytes"), ("width", Meta.Term), "one"),
-    ("HasParameter", ("owner", Meta.Schema, "parameters"), ("parameter", Meta.Parameter), "owned"),
-    ("HasProperty", ("owner", Meta.Schema, ""), ("property", Meta.Property), "owned"),
-    ("HasAdjacency", ("owner", Meta.Object, "adjacencies"), ("adjacency", Meta.Adjacency), "owned"),
-    ("HasBranch", ("owner", Meta.Union, "branches"), ("branch", Meta.Member), "owned"),
-    ("HasPart", ("owner", Meta.Intersection, "parts"), ("part", Meta.Member), "owned"),
-    ("HasSymbol", ("owner", Meta.Predicate, "symbols"), ("symbol", Meta.Symbol), "owned"),
-    ("HasLink", ("owner", Meta.Relation, "links"), ("link", Meta.Symbol), "owned"),
+    ("HasParameter", ("owner", Meta.Schema, "parameters"), ("parameter", Meta.Parameter), "keyed"),
+    ("HasProperty", ("owner", Meta.Schema, ""), ("property", Meta.Property), "keyed"),
+    ("HasAdjacency", ("owner", Meta.Object, "adjacencies"), ("adjacency", Meta.Adjacency), "keyed"),
+    ("HasBranch", ("owner", Meta.Union, "branches"), ("branch", Meta.Member), "keyed"),
+    ("HasPart", ("owner", Meta.Intersection, "parts"), ("part", Meta.Member), "keyed"),
+    ("HasSymbol", ("owner", Meta.Predicate, "symbols"), ("symbol", Meta.Symbol), "keyed"),
+    ("HasLink", ("owner", Meta.Relation, "links"), ("link", Meta.Symbol), "keyed"),
     ("HasArgument", ("owner", Meta.Apply, "arguments"), ("argument", Meta.Argument), "owned"),
     ("HasUnique", ("owner", Meta.Relation, "uniques"), ("unique", Meta.Unique), "owned"),
     ("Naming", ("unique", Meta.Unique, "named"), ("named", Meta.Typed), "list"),
     ("Operands", ("form", Meta.Form, "operands"), ("operand", Meta.Term), "list"),
-    ("Defines", ("module", Meta.Module, "schemas"), ("schema", Meta.Schema), "owned"),
+    ("Defines", ("module", Meta.Module, "schemas"), ("schema", Meta.Schema), "keyed"),
 ]
 """Each relation between schema objects. A member belongs to one owner (`Has*`: the member determines its owner); a
 schema object has at most one type, refined schema, index, element, applied schema, relation, link, parameter, term or
 width (the first determines the second); types, named members, operands and definitions are lists."""
 
-_ADJACENCIES: dict[int, list[Any]] = {}
+_NAMED: dict[int, tuple[S.OfObject.Data, dict[str, S.OfAdjacency.Data], list[S.OfAdjacency.Data]]] = {}
+_ENDS: dict[str, tuple[S.OfSymbol.Data, S.OfSymbol.Data]] = {}
+
+
+def _declare(schema: S.OfObject.Data, adjacency: S.OfAdjacency.Data, name: str | None = None) -> None:
+    named, anonymous = _NAMED.setdefault(id(schema), (schema, {}, []))[1:]
+    if name is None:
+        anonymous.append(adjacency)
+    else:
+        named[name] = adjacency
+
+
 for _name, (_a, _a_schema, _named), (_b, _b_schema), _how in _RELATIONS:
-    _first, _second = _symbol(_a, _a_schema), _symbol(_b, _b_schema)
-    setattr(Meta, _name, _relation(_name, _first, _second, {"one": _second, "owned": _first, "list": None}[_how]))
+    _first, _second = _ENDS[_name] = _symbol(_a_schema), _symbol(_b_schema)
+    setattr(Meta, _name, _relation(_name, {_a: _first, _b: _second}, _how))
     if _named != "":
-        _ADJACENCIES.setdefault(id(_a_schema), [_a_schema]).append(_adjacency(getattr(Meta, _name), _first, _named))
-    _ADJACENCIES.setdefault(id(_b_schema), [_b_schema]).append(_adjacency(getattr(Meta, _name), _second))
+        _declare(_a_schema, _adjacency(getattr(Meta, _name), _first), _named)
+    _declare(_b_schema, _adjacency(getattr(Meta, _name), _second))
 for _owner in (Meta.Object, Meta.Relation):  # each has its own `properties`; any schema may be the owner
-    _ADJACENCIES[id(_owner)].append(_adjacency(Meta.HasProperty, Meta.HasProperty.entry.links["owner"], "properties"))
-for _scalar_object_container in (Meta.Scalar, Meta.Object, Meta.Container):  # only these refine
-    _ADJACENCIES.setdefault(id(_scalar_object_container), [_scalar_object_container]).append(
-        _adjacency(Meta.Refines, Meta.Refines.entry.links["refinement"], "refines"))
-for _schema, *_specs in _ADJACENCIES.values():
-    ObjectBuilder(_schema).adjacencies(lambda adj, specs=_specs: [adj.insert(spec) for spec in specs]).update()
+    _declare(_owner, _adjacency(Meta.HasProperty, _ENDS["HasProperty"][0]), "properties")
+for _refining in (Meta.Scalar, Meta.Object, Meta.Container):  # only these refine
+    _declare(_refining, _adjacency(Meta.Refines, _ENDS["Refines"][0]), "refines")
+for _schema, _by_name_, _anonymous in _NAMED.values():
+    (
+        ObjectBuilder(_schema)
+        .adjacencies(_by_name_)
+        .adjacencies(lambda adv, anonymous=_anonymous: [adv.insert(lambda env, a=a: env.adjacency(a)) for a in anonymous])
+        .update()
+    )
 
 
 # --- The namespaces, as `Schemas` gives them ---
@@ -1126,6 +1264,12 @@ class OfPredicate:
 
 class OfAny:
     Data, Builder, Schema = S.OfAny.Value, AnyValueBuilder, Meta.Any
+
+
+class OfUnique:
+    """A relation's `unique` clause."""
+
+    Builder, Schema = UniqueBuilder, Meta.Unique
 
 
 class Form:

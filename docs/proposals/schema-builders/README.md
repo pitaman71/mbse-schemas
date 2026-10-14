@@ -14,11 +14,12 @@ Every meta-schema (`Meta.X`, which becomes `Schemas.OfX.Schema`) is a reference 
 - **Kinds.** `Schemas.Schema` has `name` and `description`, and owns `parameters`.
   - `Schemas.Type` refines it. Scalar, Object, Union, Intersection, Container, Apply and Any refine `Type`.
   - Relation and Predicate refine `Schema` directly; they are not types.
-- **Members.** `Schemas.Typed` has `name`, `description` and a `type`. Property, Parameter, Symbol and Member (a
-  branch or a part) refine it.
+- **Members.** `Schemas.Typed` has a `description` and a `type`. Property, Parameter, Symbol and Member (a branch or
+  a part) refine it. A member's name is a property of the entry that links it to its owner (`HasProperty.name`, ...).
 - **Other schema objects.** Adjacency, Argument, Unique (a `unique` clause), Term (refined by `Form`) and Module.
-- **Properties hold values:** `name`, `description`, `ref`, `pattern`, `singleton`, `flat`, `layout`, `format`,
-  `token`, an argument's `value`, and a form's `dialect`, `kind` and `attributes` (a container).
+- **Properties hold values:** a kind's `name`, `description`, `ref`, `pattern`, `singleton`, `flat`, `layout`,
+  `format`, `token`, an argument's `value`, a form's `dialect`, `kind` and `attributes` (a container), and the `name`
+  of a member relation's entry.
 - **References are relations,** each with an adjacency named on the side that declares it, and anonymous on the
   other:
 
@@ -33,10 +34,11 @@ Every meta-schema (`Meta.X`, which becomes `Schemas.OfX.Schema`) is a reference 
 | Binding, ArgumentTerm | argument, parameter / term | Argument.`parameter`, `term` | one |
 | Requires | predicate, term | Predicate.`requires` | one |
 | BitWidth, ByteWidth | scalar, width | Scalar.`bits`, `bytes` | one; a width is a term |
-| HasParameter, HasProperty, HasAdjacency, HasBranch, HasPart, HasSymbol, HasLink, HasArgument, HasUnique | owner, member | `parameters`, `properties`, `adjacencies`, `branches`, `parts`, `symbols`, `links`, `arguments`, `uniques` | a member has one owner |
+| HasParameter, HasProperty, HasAdjacency, HasBranch, HasPart, HasSymbol, HasLink | owner, member; property `name` | `parameters`, `properties`, `adjacencies`, `branches`, `parts`, `symbols`, `links` | a member has one owner, and is named within it |
+| HasArgument, HasUnique | owner, member | `arguments`, `uniques` | a member has one owner |
 | Naming | unique, named | Unique.`named` | a list |
 | Operands | form, operand | Form.`operands` | a list |
-| Defines | module, schema | Module.`schemas` | a schema has one module |
+| Defines | module, schema; property `name` | Module.`schemas` | a schema has one module, and is named within it |
 
 "One" is a `unique` clause on the relation, which the builder enforces. Inserting a second entry raises, so you remove
 the first one; inserting an entry already held is elided.
@@ -73,22 +75,30 @@ Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over `Meta.X`, in V
 
 ## Old clause → new
 
+With VISITOR_PATTERN.md's shorthands:
+- a property takes its value whole, and its type must match exactly;
+- an adjacency whose entries name what they link takes a map of names to referents (the peer + key shorthand). This
+  covers a schema's members: properties, adjacencies, parameters, branches, parts, symbols and links. The entry
+  carries the member's `name`, so a member object has only its type and description;
+- any other adjacency takes an iterable of referents (the peer shorthand): a type, what a schema refines, a relation,
+  a link, a term. Where the relation allows only one entry, the shorthand replaces it.
+
 | Old | New |
 |---|---|
-| `.properties(lambda p: p.name("x").of(T))` | `.properties(lambda adj: adj.insert(lambda e: e.property(lambda p: p.name("x").type(lambda t: t.insert(lambda e: e.schema(T))))))` |
-| `.of(lambda t: t.as_scalar(int))` | `.type(lambda t: t.insert(lambda e: e.schema(S.OfScalar.Data(int))))`: the evaluation type, a schema that exists |
-| `.relations(lambda a: a.name("n").of(R).me("l"))` | `.adjacencies(...)`, with `e.adjacency(lambda a: a.name("n").relation(...).me(...))`; `me` links the symbol, by reference |
-| `.links("a", "b")` | `.links(lambda adj: adj.insert(lambda e: e.link(a)).insert(lambda e: e.link(b)))`, `a` and `b` symbols |
-| `.unique("a")` | `.uniques(lambda adj: adj.insert(lambda e: e.unique(lambda u: u.named(lambda n: n.insert(lambda e: e.named(a))))))` |
-| `.refines(T)` | `.refines(lambda r: r.insert(lambda e: e.refined(T)))` |
-| `.bits(8)` / `.bits(term)` | `.bits(lambda w: w.insert(lambda e: e.width(term)))`; 8 is `lambda f: f.kind("literal").attributes({"value": 8})` |
-| `.index(T)`, `.element(T)`, `.of(T)` on an application | `.index(...)`, `.element(...)`, `.of(...)`, each an adjacency |
-| `.arguments(width=8)` | `.arguments(lambda adj: adj.insert(lambda e: e.argument(lambda a: a.parameter(...).value(8))))`, by the parameter |
-| `.requires(term)` | `.requires(lambda r: r.insert(lambda e: e.term(term)))` |
+| `.properties(lambda p: p.name("x").of(T))` | `.properties({"x": x})`, `x` built first (`OfProperty.Builder().type([T]).create()`); or `.properties(lambda adv: adv.insert(lambda env: env.name("x").property(lambda p: p.type([T]))))` |
+| `.of(T)` on a property, parameter, symbol, branch, part | `.type([T])`, the evaluation type, a schema that exists (`[S.OfScalar.Data(int)]`) |
+| `.relations(lambda a: a.name("n").of(R).me("l"))` | `.adjacencies({"n": n})`, `n` built as `OfAdjacency.Builder().relation([R]).me([l])`, `l` the symbol; an anonymous one is inserted with no name |
+| `.links("a", "b")` | `.links({"a": a, "b": b})`, `a` and `b` symbols |
+| `.unique("a")` | `.uniques([OfUnique.Builder().named([a]).create()])`, `a` the link or property |
+| `.refines(T)` | `.refines([T])` |
+| `.bits(8)` / `.bits(term)` | `.bits([term])`; 8 is `Form.Builder().kind("literal").attributes({"value": 8}).create()` |
+| `.index(T)`, `.element(T)`, `.of(T)` on an application | `.index([T])`, `.element([T])`, `.of([T])` |
+| `.arguments(width=8)` | `.arguments(lambda adv: adv.insert(lambda env: env.argument(lambda a: a.parameter([width]).value(8))))` |
+| `.requires(term)` | `.requires([term])` |
 | `.ref()`, `.ref(pattern)` | `.ref(True)`, `.ref(True).pattern(pattern)` |
 | `.flat()`, `.dense()` | `.flat(True)`, `.layout("dense")` |
 | `.type(int)`, `.token(fmt, name)` on a scalar | `.token("int")`, `.format(fmt).token(name)` |
-| `S.OfAny.Builder().as_scalar(...)` selector | an `AnyOf` adjacency (`Schemas.OfAny.Builder().types(...)`) |
+| `S.OfAny.Builder().as_scalar(...)` selector | `OfAny.Builder().types([T, U])` |
 | `.entry(spec)`, `OfEntry.Builder` | gone: a relation's `links` and `properties` are its own |
 
 ## Points for your review
@@ -104,8 +114,9 @@ Still open:
    objects. That changes the module format and the conformance corpora.
 2. **Construction order.** A reference must exist before it is linked. So a relation whose `unique` clause names its
    own links is built from symbols made first (see `Knows` in the examples), and `me` links a symbol of the relation.
-3. **Size.** Every reference is now an adjacency, so a typed property is three nested callbacks. The examples show
-   how that reads.
+3. **Members are owned.** A member belongs to one owner, as its `Has*` relation's `unique` clause says. Sharing a
+   member between two schemas, or renaming one through an entry, changes it for its owner. A clone of a schema still
+   shares its members with the original, as the data always has.
 4. **Unique identities.** A store refuses an identity that is already taken. Schemas aren't held in stores yet, so
    nothing here refuses one. A named schema cloned without a new identity takes its name, the same identity as the
    original's.

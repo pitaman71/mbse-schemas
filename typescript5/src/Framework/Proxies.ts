@@ -606,7 +606,8 @@ class _Empty extends Dunders {
     return this._hand(cb);
   }
 
-  select(_spec: unknown, _cb: unknown): any {
+  as_iterable(cb: unknown): any {
+    visit(cb, [][Symbol.iterator]());
     return this._proxy;
   }
 
@@ -1577,8 +1578,8 @@ class _Adjacency extends Array<any> implements Shellable {
     return this._schema;
   }
 
-  select(spec: unknown, cb: unknown): any {
-    for (const entry of [...this]) if (agrees(entry, spec, this._schema, storeOf(this._owner))) visit(cb, entry);
+  as_iterable(cb: unknown): any {
+    visit(cb, [...this][Symbol.iterator]());
     return this._proxy;
   }
 
@@ -1976,10 +1977,8 @@ class _AdjacencyBuilder extends Shelled {
     return [...this._entries()][Symbol.iterator]();
   }
 
-  select(spec: unknown, cb: unknown): any {
-    for (const entry of [...this._entries()]) {
-      if (agrees(entry, spec, this._schema, innerOf(this._builder)._store)) visit(cb, entry);
-    }
+  as_iterable(cb: unknown): any {
+    visit(cb, [...this._entries()][Symbol.iterator]());
     return this._proxy;
   }
 

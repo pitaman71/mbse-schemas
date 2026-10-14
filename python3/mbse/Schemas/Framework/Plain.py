@@ -568,13 +568,13 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
     # An update writes through the builders of what the object already holds: a property's value object and a container
     # are edited in place. A relation's entries have no order to visit by: a row is the entry agreeing with its links
     # and properties, the k-th equal row the k-th such entry, and added where none agrees.
+    ref = _Snapshot(store)
+
     def write(adjacency: Any, rows: list[tuple[int, dict[str, Any], int]], resolve: Callable[[str], Any]) -> None:
         """Writes `rows` into the adjacency builder `adjacency`."""
         for _, row, occurrence in rows:
             found: list[Any] = []
-            adjacency.select(lambda e, r=row: _fill(e, r, resolve), lambda e, r=row: (
-                found.append(e) if {n for n in e.as_schema().properties if _holds(e, n)} == set(r) - set(
-                    e.as_schema().links) else None) or e)
+            adjacency.as_iterable(lambda entries, r=row: found.extend(e for e in entries if _agrees(e, r, resolve, ref)))
             if occurrence < len(found):
                 _fill(found[occurrence], row, resolve)
             else:
@@ -606,15 +606,22 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
     return created[root]
 
 
-def _holds(entry: Any, name: str) -> bool:
-    """Whether an entry's visitor holds a value in its property `name`: a scalar, or a value of another kind."""
-    read = getattr(entry, name)
-    if read.get() is not None:
-        return True
-    found: list[Any] = []
-    read.as_value(lambda a: a.as_object(lambda v: found.append(v) or v).as_union(lambda v: found.append(v) or v)
-                  .as_intersection(lambda v: found.append(v) or v))
-    return any(_present(v) for v in found)
+def _agrees(entry: Any, row: dict[str, Any], resolve: Callable[[str], Any], ref: Ref) -> bool:
+    """Whether an entry's visitor agrees with a decoded row: it links the objects the row names, and holds each value the
+    row holds, equal by value, and no other. A value is compared as it reads back once written (`ref` writes the
+    references it would hold, though an entry's values hold none)."""
+    schema = entry.as_schema()
+    for name in schema.links:
+        if name in row:
+            linked, target = getattr(entry, name), resolve(row[name].symbol)
+            if linked.as_identity() != target.as_identity() or linked.as_schema() is not target.as_schema():
+                return False
+    for name, prop in schema.properties.items():
+        present, plain = _value(getattr(entry, name), prop.type, ref)
+        if present != (name in row) or present and _decoded_key(_decode(prop.type, plain, ())) != _decoded_key(row[name]):
+            return False
+    return True
+
 
 
 def _row_key(relation: Any, me: str, owner: Hashable, row: dict[str, Any]) -> Hashable:

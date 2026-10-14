@@ -159,7 +159,7 @@ export const PROTOCOLS: Record<string, Record<string, number>> = {
   OfAny: { as_schema: 0, as_scalar: 1, as_object: 1, as_union: 1, as_intersection: 1, as_container: 1, clear: 0 },
   OfProperty: { as_schema: 0, as_value: 1, as_scalar: 1, as_object: 1, get: 0 },
   OfObject: { as_schema: 0, as_identity: 0, as_adjacencies: 1 },
-  OfAdjacency: { as_schema: 0, select: 2, insert: 1, remove: 1 },
+  OfAdjacency: { as_schema: 0, as_iterable: 1, insert: 1, remove: 1 },
   OfEntry: { as_schema: 0 },
   OfUnion: { as_schema: 0 },
   OfIntersection: { as_schema: 0 },

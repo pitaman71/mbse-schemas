@@ -160,9 +160,8 @@ export interface OfObject {
 /** The entries of one relation seen from one object, which fills its own link; iterated, its entries. */
 export interface OfAdjacency extends Iterable<OfEntry> {
   as_schema(): Schemas.OfAdjacency.Data;
-  /** Calls `cb` with each entry that agrees with `spec`: equal to its value form, or agreeing with every link and
-   * property its function form sets (every entry, for an empty template). */
-  select(spec: Callback<OfEntry>, cb: Callback<OfEntry>): this;
+  /** Calls `cb` with an iterator over the entries, in order, for every relation. */
+  as_iterable(cb: (entries: Iterator<OfEntry>) => unknown): this;
   /** Adds an entry, the object's own link filled; an equal entry in a set is elided. */
   insert(spec: Callback<OfEntry>): this;
   /** Removes every entry that agrees with `spec`. */
@@ -202,7 +201,7 @@ export const PROTOCOL_METHODS = {
   OfAny: ["as_schema", "as_scalar", "as_object", "as_union", "as_intersection", "as_container", "clear"],
   OfProperty: ["as_schema", "as_value", "as_scalar", "as_object", "get"],
   OfObject: ["as_schema", "as_identity", "as_properties", "as_adjacencies"],
-  OfAdjacency: ["as_schema", "select", "insert", "remove"],
+  OfAdjacency: ["as_schema", "as_iterable", "insert", "remove"],
   OfEntry: ["as_schema"],
   OfUnion: ["as_schema"],
   OfIntersection: ["as_schema"],

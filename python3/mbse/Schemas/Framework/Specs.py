@@ -2,9 +2,9 @@
 
 A `Specs.Callback[V]`, for a visitor protocol `V` (`Visitors.OfX`), is either a value, `Visitors.DataType[V]`, or a
 callable taking a `V` and returning it. It serves as a mutator, where it is written (`b.name("Ada")`,
-`b.name.as_scalar(lambda s: s.set("Ada"))`), or as a limited value-matching query, where it selects
-(`adjacency.select(spec, cb)`, `adjacency.remove(spec)`): a value matches what is equal to it, and a callable is a
-template that matches what agrees with everything it sets.
+`b.name.as_scalar(lambda s: s.set("Ada"))`), or as a limited value-matching query, where it removes
+(`adjacency.remove(spec)`): a value matches what is equal to it, and a callable is a template that matches what agrees
+with everything it sets.
 
 `Visitors.DataType[V]`, the value form, is by kind:
 

@@ -98,7 +98,7 @@ obj.value_prop.as_object(lambda r: ...)                     # a value object's v
 [(e.target, str(e.label)) for e in irq.fanout]              # an adjacency iterates its entries; a link is the object itself
 irq.fanout.project("target"); contact.phones.at("home")     # each entry's link or property; the entry by its key
 B.Name(obj).tags(lambda a: a.remove(lambda e: e.value("x")))   # remove every entry agreeing with a template
-obj.tags.select(lambda e: e.value("x"), lambda e: ...)      # visit the entries agreeing with a template, or equal to a value
+obj.likes.as_iterable(lambda entries: ...)                  # an iterator over an adjacency's entries, in order
 B.Name().union_prop(lambda p: p.as_value(lambda v: v.as_union(lambda u: u.phone(spec))))   # a branch by name
 obj.as_properties; obj.as_adjacencies(lambda a: a)          # schema unaware: the properties set, every adjacency
 obj.as_schema(); obj.as_identity()                          # what every visitor has: its schema; an object's identity, else None

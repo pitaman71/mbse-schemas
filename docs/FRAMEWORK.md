@@ -773,12 +773,10 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Versioning schema names: whether a version is part of a name (`crm.Contact.v2`) or beside it. Snapshot keys are
   qualified by the registered name, so a program that registers a schema under another name than the writer's cannot
   read its snapshots (tutorial 9 reads old data in a store of its own, under the writer's name).
-- Containers (Resolved, Containers), to settle while V5 is built: the names on the wire (a sparse block's start and
-  run, an entry-like element's index and element, a flat dense container's shape) and the writer's option for several
-  int indices; whether a dense container's shape is a constraint (Parametrics) or data; how containers of one index
-  type compare (element by element, in order, as lists do) and validate (each index against the index type, each
-  element against the element type); the names `Visitors.OfIterator` and `Visitors.OfPosition`, which the draft in
-  [Visitor pattern](VISITOR_PATTERN.md) uses for one thing.
+- Containers (Resolved, Containers): V5 is built with the choices listed there for the user's review (the names on
+  the wire, the writer's option for several int indices, comparison and validation, `Visitors.OfIterator` as the one
+  name where the draft in [Visitor pattern](VISITOR_PATTERN.md) also says `Visitors.OfPosition`), which await
+  confirmation; still open: whether a dense container's shape is a constraint (Parametrics) or data.
 - Equality edge cases listed in `EQUALITY.md` are proposals; confirm them.
 - Multi-object snapshot naming: confirm `Plain.ToPlain(store).Reachable(schema, value)` /
   `Plain.FromPlain(store).Reachable(schema, plain)` (still marked PROPOSED in the example).
@@ -976,9 +974,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     adjacency, or link may be named `as_*`", which `validate()` refuses; every `Visitors.OfX` has `as_schema()`, in
     place of conveniences such as `OfProperty.name` and `OfObject.has`, so `Schemas.OfEntry` (and its meta-schema)
     "must exist"; an object's identity is a scalar, `as_identity`;
-  - relations are modified "entirely" through `Visitors.OfAdjacency` (`select`, `insert`, `remove`), whose
-    `remove` removes "all that match"; relation operations are the visitor protocol's, not an expression dialect's
-    ("Relation operators do not belong in Expressions.Basic. They never did");
+  - relations are modified "entirely" through `Visitors.OfAdjacency` (`select`, since replaced by `as_iterable`;
+    `insert`, `remove`), whose `remove` removes "all that match"; relation operations are the visitor protocol's, not
+    an expression dialect's ("Relation operators do not belong in Expressions.Basic. They never did");
   - anything that has a builder has a `Spec`, "a callable taking and returning that builder", or "an instance of the
     built object" (mbse-basis P-004, amended);
   - `OfScalar` "completely displaces" `OfNative`, in `Schemas` and `Visitors`: a module writes `{"scalar": {"format":

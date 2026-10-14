@@ -244,7 +244,7 @@ function entry(read: Readers.OfEntry, adjacency: Schemas.OfAdjacency.Data, ref: 
 
 /** Writes the included objects, in first-reference order, each keyed by its qualified identity. */
 class Snapshot {
-  private readonly ref: Ref;
+  readonly ref: Ref;
 
   constructor(private readonly store: Stores.Store, flat = false) {
     /** A reference to a linked object, which is a reference object: entries never reference value objects. */
@@ -662,16 +662,13 @@ function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unkn
   // An update writes through the builders of what the object already holds: a property's value object and a container
   // are edited in place. A relation's entries have no order to visit by: a row is the entry agreeing with its links and
   // properties, the k-th equal row the k-th such entry, and added where none agrees.
+  const ref = new Snapshot(store).ref;
   /** Writes `rows` into the adjacency builder `adjacency`. */
   const write = (adjacency: any, rows: Kept[], resolve: (symbol: string) => unknown): void => {
     for (const [, row, occurrence] of rows) {
       const found: any[] = [];
-      adjacency.select((e: any) => fill(e, row, resolve), (e: any) => {
-        const links = new Set((e.as_schema() as Schemas.OfEntry.Data).links.keys());
-        const holding = [...(e.as_schema() as Schemas.OfEntry.Data).properties.keys()].filter((n) => holds(e, n));
-        const wanted = [...row.keys()].filter((n) => !links.has(n));
-        if (holding.length === wanted.length && wanted.every((n) => holding.includes(n))) found.push(e);
-        return e;
+      adjacency.as_iterable((entries: Iterator<any>) => {
+        for (const e of { [Symbol.iterator]: () => entries }) if (agrees(e, row, resolve, ref)) found.push(e);
       });
       if (occurrence < found.length) fill(found[occurrence], row, resolve);
       else adjacency.insert((x: any) => fill(x, row, resolve));
@@ -725,17 +722,23 @@ function schemaNumber(relation: object): number {
 /** A row kept for writing: its position in the snapshot's list, its decoded values, and which of the equal rows it is. */
 type Kept = [number, Map<string, unknown>, number];
 
-/** Whether an entry's visitor holds a value in its property `name`: a scalar, or a value of another kind. */
-function holds(entry: any, name: string): boolean {
-  const read = entry[name];
-  if (read.get() !== null) return true;
-  const found: any[] = [];
-  const keep = (v: any): any => {
-    found.push(v);
-    return v;
-  };
-  read.as_value((a: any) => a.as_object(keep).as_union(keep).as_intersection(keep));
-  return found.some(present);
+/** Whether an entry's visitor agrees with a decoded row: it links the objects the row names, and holds each value the
+ * row holds, equal by value, and no other. A value is compared as it reads back once written (`ref` writes the
+ * references it would hold, though an entry's values hold none). */
+function agrees(entry: any, row: Map<string, unknown>, resolve: (symbol: string) => unknown, ref: Ref): boolean {
+  const schema = entry.as_schema() as Schemas.OfEntry.Data;
+  for (const name of schema.links.keys()) {
+    const link = row.get(name);
+    if (link === undefined) continue;
+    const [linked, target] = [entry[name], resolve((link as Link).symbol) as any];
+    if (linked.as_identity() !== target.as_identity() || linked.as_schema() !== target.as_schema()) return false;
+  }
+  for (const [name, prop] of schema.properties) {
+    const [has, plain] = value(entry[name], prop.type, ref);
+    if (has !== row.has(name)) return false;
+    if (has && decodedKey(decode(prop.type as Schemas.OfAny.Data, plain, [])) !== decodedKey(row.get(name))) return false;
+  }
+  return true;
 }
 
 /** The `Visitors.OfAny` method that selects a record kind. */

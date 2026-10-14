@@ -63,7 +63,7 @@ export interface OfObject {
 
 export interface OfAdjacency extends Iterable<OfEntry> {
   as_schema(): Schemas.OfAdjacency.Data;
-  select(spec: unknown, cb: Read<OfEntry>): this;
+  as_iterable(cb: Read<Iterator<OfEntry>>): this;
 }
 
 export interface OfEntry {

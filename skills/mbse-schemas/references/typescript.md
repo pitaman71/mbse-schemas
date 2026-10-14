@@ -105,7 +105,7 @@ obj.valueProp.as_object((r: any) => r);                    // a value object's v
 [...irq.fanout].map((e: any) => [e.target, `${e.label}`]);  // an adjacency iterates its entries; a link is the object itself
 irq.fanout.project("target"); contact.phones.at("home");   // each entry's link or property; the entry by its key
 B.Name(obj).tags((a: any) => a.remove((e: any) => e.value("x")));   // remove every entry agreeing with a template
-obj.tags.select((e: any) => e.value("x"), (e: any) => e);  // visit the entries agreeing with a template, or equal to a value
+obj.likes.as_iterable((entries: Iterator<any>) => entries);  // an iterator over an adjacency's entries, in order
 B.Name().unionProp((p: any) => p.as_value((v: any) => v.as_union((u: any) => u.phone(spec))));   // a branch by name
 obj.as_properties; obj.as_adjacencies((a: any) => a);      // schema unaware: the properties set, every adjacency
 obj.as_schema(); obj.as_identity();                        // what every visitor has: its schema; an object's identity, else null

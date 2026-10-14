@@ -169,9 +169,8 @@ class OfAdjacency(Iterable["OfEntry"], Protocol):
 
     def __iter__(self) -> Iterator[OfEntry]: ...
 
-    def select(self, spec: Callback[OfEntry], cb: Callback[OfEntry]) -> Self:
-        """Calls `cb` with each entry that agrees with `spec`: equal to its value form, or agreeing with every link and
-        property its callable form sets (every entry, for an empty template)."""
+    def as_iterable(self, cb: Callback[Iterator[OfEntry]]) -> Self:
+        """Calls `cb` with an iterator over the entries, in order, for every relation."""
         ...
 
     def insert(self, spec: Callback[OfEntry]) -> Self:

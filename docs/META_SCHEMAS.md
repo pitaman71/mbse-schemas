@@ -85,7 +85,7 @@ skill regenerated. No release comes between phases.
   built so far: `Schemas.OfContainer`, its meta-schema and modules (SCH-23, MOD-08); `Visitors.OfContainer` and
   `OfIterator`, proxies, snapshots, validation and comparison (CNT); the dataclasses adapter (DC); relations of two
   links or more, every one-link relation (the meta-schemas' lists, a module's schemas, tests, tutorials, the corpus,
-  the skill) a container; not yet: the new adjacency API, with `select` removed;
+  the skill) a container; the adjacency API, `as_iterable`, `insert` and `remove`, with `select` removed. V5 is built;
   - `Schemas.OfContainer`, a variant of `OfAny`, with an index type and an element type, each an `OfAny`, and
     `.dense()` or `.sparse()`, at most one, defaulting to dense for an index with a total order and to a dict for a
     hashable one; several int indices for tensors; its meta-schema beside `OfRelation`'s; `validate()` refusing both

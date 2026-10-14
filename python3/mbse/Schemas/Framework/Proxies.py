@@ -424,7 +424,8 @@ class _Empty(_Dunders):
 
     as_value = as_scalar = as_object = as_union = as_intersection = as_adjacencies = _hand
 
-    def select(self, spec: Any, cb: Any) -> _Empty:
+    def as_iterable(self, cb: Any) -> _Empty:
+        _visit(cb, iter(()))
         return self
 
     as_container = _hand
@@ -1192,10 +1193,8 @@ class _Adjacency(_Unassignable, tuple):  # type: ignore[type-arg]
     def as_schema(self) -> Schemas.OfAdjacency.Data:
         return self._schema
 
-    def select(self, spec: Any, cb: Any) -> _Adjacency:
-        for entry in list(self):
-            if _agrees(entry, spec, self._schema, _store_of(self._owner)):
-                _visit(cb, entry)
+    def as_iterable(self, cb: Any) -> _Adjacency:
+        _visit(cb, iter(list(self)))
         return self
 
     def insert(self, spec: Any) -> _Adjacency:
@@ -1526,10 +1525,8 @@ class _AdjacencyBuilder(_Unassignable):
     def __iter__(self) -> Iterator[_EntryBuilder]:
         return iter(list(self._entries()))
 
-    def select(self, spec: Any, cb: Any) -> _AdjacencyBuilder:
-        for entry in list(self._entries()):
-            if _agrees(entry, spec, self._schema, self._builder._store):
-                _visit(cb, entry)
+    def as_iterable(self, cb: Any) -> _AdjacencyBuilder:
+        _visit(cb, iter(list(self._entries())))
         return self
 
     def insert(self, spec: Any) -> _AdjacencyBuilder:

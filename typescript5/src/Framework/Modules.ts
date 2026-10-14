@@ -114,20 +114,30 @@ export class _Writer {
       ["description", m.description]]));
   }
 
+  /** The schema `schema` refines, or null. */
+  private refined(schema: { refines: unknown }): Definition | null {
+    return schema.refines === null ? null : this.reference(schema.refines);
+  }
+
   private contents(schema: unknown): Definition {
     const declared = (schema as { parameters?: unknown } | null)?.parameters;
     const parameters = declared instanceof Map ? this.members(declared.values()) : [];
     if (schema instanceof Schemas.OfScalar.Data) {
       if (!(schema.token instanceof Schemas.OfScalar.Token)) throw new TypeError(`unsupported scalar type ${repr(schema.token)}`);
-      return kindOf("scalar", [["parameters", parameters], ["format", schema.token.format], ["token", schema.token.name],
+      return kindOf("scalar", [["parameters", parameters], ["refines", this.refined(schema)], ["format", schema.token.format], ["token", schema.token.name],
         ["bits", _literal(schema.bits)], ["bytes", _literal(schema.bytes)],
         ["terms", _terms([["bits", schema.bits], ["bytes", schema.bytes]])], ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfObject.Data) {
-      const adjacencies = [...schema.adjacencies.values(), ...schema.anonymous].map((adjacency) => present([ // anonymous: no name
+      // Only its own members: those it has from the schema it refines are that one's.
+      const [properties, named, anonymous] = Schemas.inherited(schema);
+      const own = [...[...schema.adjacencies].filter(([n]) => !named.has(n)).map(([, a]) => a),
+        ...schema.anonymous.filter((a) => !anonymous.includes(a))];
+      const adjacencies = own.map((adjacency) => present([ // anonymous: no name
         ["name", adjacency.name || null], ["relation", this.reference(adjacency.relation)], ["me", adjacency.me],
         ["description", adjacency.description]]));
-      return kindOf("object", [["parameters", parameters], ["properties", this.members(schema.properties.values())],
+      return kindOf("object", [["parameters", parameters], ["refines", this.refined(schema)],
+        ["properties", this.members([...schema.properties].filter(([n]) => !properties.has(n)).map(([, p]) => p))],
         ["adjacencies", adjacencies], ["singleton", schema.singleton], ["ref", schema.ref], ["pattern", schema.pattern],
         ["description", schema.description]]);
     }
@@ -146,7 +156,7 @@ export class _Writer {
         ["flat", schema.flat || null], ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfContainer.Data) {
-      return kindOf("container", [["parameters", parameters], ["index", this.reference(schema.index)],
+      return kindOf("container", [["parameters", parameters], ["refines", this.refined(schema)], ["index", this.reference(schema.index)],
         ["element", this.reference(schema.element)], ["layout", schema.layout], ["description", schema.description]]);
     }
     if (schema instanceof Schemas.OfAny.Value) {
@@ -237,6 +247,8 @@ function contentsOf(definition: Definition): [string, PlainMap] {
  * to it, recursive ones included, resolve to it. */
 class _Reader {
   private readonly defined = new Map<string, Schema>();
+  /** The object schemas read that refine another, settled once all are read. */
+  private readonly refining: Schemas.OfObject.Data[] = [];
 
   constructor(private readonly store: Stores.Store, private readonly definitions: PlainMap,
     private readonly make: Make | null = null) {}
@@ -248,6 +260,7 @@ class _Reader {
       this.defined.set(name, blank);
     }
     for (const [name, definition] of this.definitions) this.fill(this.defined.get(name) as Schema, definition as Definition);
+    for (const schema of this.refining) Schemas.settle(schema); // each now has every member of what it refines
     return new Map(this.defined);
   }
 
@@ -319,6 +332,7 @@ class _Reader {
       .map((p) => [p.name, p]));
     const properties = () => new Map(this.members(body.get("properties"), "property", (f) => new Schemas.OfProperty.Data(f))
       .map((p) => [p.name, p]));
+    if (body.has("refines") && "refines" in schema) schema.refines = this.type(body.get("refines") as Definition);
     if (schema instanceof Schemas.OfScalar.Data) {
       schema.token = new Schemas.OfScalar.Token(body.get("format") as string, body.get("token") as string);
       schema.bits = this.slot(body, "bits");
@@ -335,6 +349,7 @@ class _Reader {
       schema.singleton = (body.get("singleton") as string | undefined) ?? null;
       schema.ref = (body.get("ref") as boolean | undefined) ?? false;
       schema.pattern = (body.get("pattern") as string | undefined) ?? null;
+      if (schema.refines !== null) this.refining.push(Schemas.settle(schema));
     } else if (schema instanceof Schemas.OfRelation.Data) {
       const links = this.members(body.get("links"), "link", (f) => new Schemas.OfSymbol.Data(f));
       schema.entry = new Schemas.OfEntry.Data({ links: new Map(links.map((link) => [link.name, link])), properties: properties() });

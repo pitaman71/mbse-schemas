@@ -389,6 +389,8 @@ export interface Widths {
   name?: string | null;
   description?: string | null;
   parameters?: Map<string, ParameterData>;
+  /** The scalar schema it refines. */
+  refines?: unknown;
 }
 
 /** A scalar type: a token, and optionally a width in bits or in bytes, an int or a term. A host type given in place of
@@ -400,6 +402,8 @@ class ScalarData {
   name: string | null;
   description: string | null;
   parameters: Map<string, ParameterData>;
+  /** The scalar schema it refines, or null. */
+  refines: unknown;
 
   constructor(token: unknown = null, widths: Widths = {}) {
     this.token = SCALAR_NAMES.has(token) ? new TokenClass(BASIC, SCALAR_NAMES.get(token) as string) : token;
@@ -408,6 +412,7 @@ class ScalarData {
     this.name = widths.name ?? null;
     this.description = widths.description ?? null;
     this.parameters = widths.parameters ?? new Map();
+    this.refines = widths.refines ?? null;
   }
 
   /** The host type the token maps to, or null when this implementation cannot read the token. */
@@ -427,7 +432,8 @@ class ScalarData {
   equals(other: unknown): boolean {
     return other instanceof ScalarData && sameValue(this.bits, other.bits) && sameValue(this.bytes, other.bytes)
       && other.name === this.name && other.description === this.description && sameParameters(this.parameters, other.parameters)
-      && (this.token instanceof TokenClass ? this.token.equals(other.token) : other.token === this.token);
+      && other.refines === this.refines
+      && sameToken(this.token, other.token);
   }
 
   validate(): string[] {
@@ -446,7 +452,7 @@ class ScalarData {
       }
     }
     if (this.bits !== null && this.bytes !== null) problems.push("a width is in bits or in bytes, not both");
-    return problems;
+    return [...problems, ...refinementProblems(this)];
   }
 
   /** Converts a scalar value to plain data that every text encoding can hold: `bytes` become base64 text, and
@@ -493,7 +499,7 @@ class ScalarBuilder extends NamedBuilder<ScalarData> {
   protected make(fields: Record<string, unknown>): ScalarData {
     return new ScalarData(fields["token"] ?? null, { bits: fields["bits"], bytes: fields["bytes"],
       name: fields["name"] as string | null, description: fields["description"] as string | null,
-      parameters: fields["parameters"] as Map<string, ParameterData> | undefined });
+      parameters: fields["parameters"] as Map<string, ParameterData> | undefined, refines: fields["refines"] });
   }
 
   /** A host type: shorthand for the `basic` token of the same name. */
@@ -516,6 +522,16 @@ class ScalarBuilder extends NamedBuilder<ScalarData> {
 
   bytes(width: unknown): ScalarBuilder {
     this.state["bytes"] = width;
+    return this;
+  }
+
+  /** The scalar schema this one refines (a Spec): its values are the refined schema's, of its token, which it takes
+   * unless one is given, narrowed by its own widths. */
+  refines(spec: OfAny.Spec): ScalarBuilder {
+    const base = OfAny.resolve(spec);
+    this.state["refines"] = base;
+    const held = structure(base);
+    if ((this.state["token"] ?? null) === null && held instanceof ScalarData) this.state["token"] = held.token;
     return this;
   }
 }
@@ -943,10 +959,12 @@ class ObjectData {
   pattern: string | null;
   /** The links it may fill with no member. */
   anonymous: AdjacencyData[];
+  /** The object schema it refines, whose members it inherits, or null. */
+  refines: unknown;
 
   constructor(fields: { properties?: Map<string, PropertyData>; adjacencies?: Map<string, AdjacencyData>; singleton?: string | null;
     ref?: boolean; name?: string | null; description?: string | null; parameters?: Map<string, ParameterData>;
-    pattern?: string | null; anonymous?: AdjacencyData[] } = {}) {
+    pattern?: string | null; anonymous?: AdjacencyData[]; refines?: unknown } = {}) {
     this.properties = fields.properties ?? new Map();
     this.adjacencies = fields.adjacencies ?? new Map();
     this.singleton = fields.singleton ?? null;
@@ -956,6 +974,7 @@ class ObjectData {
     this.parameters = fields.parameters ?? new Map();
     this.pattern = fields.pattern ?? null;
     this.anonymous = fields.anonymous ?? [];
+    this.refines = fields.refines ?? null;
   }
 
   /** Whether an object of this schema may fill `link` of `relation`: an adjacency, named or anonymous, says so. */
@@ -1029,7 +1048,7 @@ class ObjectData {
           + "which are never shared");
       }
     }
-    return problems;
+    return [...problems, ...refinementProblems(this)];
   }
 }
 
@@ -1041,6 +1060,28 @@ class ObjectBuilder extends NamedBuilder<ObjectData> {
   properties(...specs: OfProperty.Spec[]): ObjectBuilder {
     addProperties(this.state, specs);
     return this;
+  }
+
+  /** The object schema this one refines (a Spec): an object of this schema is an object of that one, so it has that
+   * one's properties and adjacencies, which this one may redeclare narrower, and fills its links. A refinement of a
+   * reference object schema is one too. */
+  refines(spec: OfAny.Spec): ObjectBuilder {
+    this.state["refines"] = OfAny.resolve(spec);
+    const held = structure(this.state["refines"]);
+    if (held instanceof ObjectData && held.ref) this.state["ref"] = true;
+    return this;
+  }
+
+  override create(...args: unknown[]): ObjectData {
+    return settle(super.create(...args));
+  }
+
+  override clone(...args: unknown[]): ObjectData {
+    return settle(super.clone(...args));
+  }
+
+  override update(...args: unknown[]): ObjectData {
+    return settle(super.update(...args));
   }
 
   relations(...specs: OfAdjacency.Spec[]): ObjectBuilder {
@@ -1376,15 +1417,18 @@ class ContainerData {
   name: string | null;
   description: string | null;
   parameters: Map<string, ParameterData>;
+  /** The container schema it refines, or null. */
+  refines: unknown;
 
   constructor(fields: { index?: AnyData | null; element?: AnyData | null; layout?: string | null; name?: string | null;
-    description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
+    description?: string | null; parameters?: Map<string, ParameterData>; refines?: unknown } = {}) {
     this.index = fields.index ?? null;
     this.element = fields.element ?? null;
     this.layout = fields.layout ?? null;
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
     this.parameters = fields.parameters ?? new Map();
+    this.refines = fields.refines ?? null;
   }
 
   /** How the container holds its elements: "dense", "sparse", "dict" (by a hashable index), or "entries" (each element
@@ -1410,7 +1454,7 @@ class ContainerData {
       problems.push(`a ${this.layout} container's index has a total order: an int, float, str or bool, or a value `
         + "object of them");
     }
-    return problems;
+    return [...problems, ...refinementProblems(this)];
   }
 }
 
@@ -1422,6 +1466,19 @@ class ContainerBuilder extends NamedBuilder<ContainerData> {
   /** The index type, a schema of any kind (a Spec): `(t) => t.as_scalar(BigInt)`, or a value object of ints. */
   index(spec: OfAny.Spec): ContainerBuilder {
     this.state["index"] = OfAny.resolve(spec);
+    return this;
+  }
+
+  /** The container schema this one refines (a Spec): its values are the refined schema's, its index and element each
+   * the refined one's or narrower, which it takes unless given. */
+  refines(spec: OfAny.Spec): ContainerBuilder {
+    const base = OfAny.resolve(spec);
+    this.state["refines"] = base;
+    const held = structure(base);
+    if (held instanceof ContainerData) {
+      this.state["index"] ??= held.index;
+      this.state["element"] ??= held.element;
+    }
     return this;
   }
 
@@ -1786,6 +1843,129 @@ function kindOf(value: unknown): unknown {
   return value === null || value === undefined ? null : (value as object).constructor;
 }
 
+// --- Refinement ---
+
+/** Whether two scalar tokens are the same: by value, or the same object where one is not a token. */
+function sameToken(a: unknown, b: unknown): boolean {
+  return a instanceof TokenClass ? a.equals(b) : a === b;
+}
+
+function kindNoun(schema: unknown): string {
+  const nouns: [Function, string][] = [[ScalarData, "a scalar schema"], [ObjectData, "an object schema"],
+    [ContainerData, "a container schema"], [UnionData, "a union"], [IntersectionData, "an intersection"],
+    [AnyValueData, "a value of any type"], [ApplyData, "an application"]];
+  return nouns.find(([kind]) => schema instanceof kind)?.[1] ?? "nothing"; // an application of nothing
+}
+
+/** Whether `schema` is `base` or refines it, directly or not: a value of it is then a value of `base`. */
+export function is_a(schema: unknown, base: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current: unknown = schema;
+  while (current !== null && current !== undefined && !seen.has(current)) {
+    if (current === base) return true;
+    seen.add(current);
+    current = (structure(current) as { refines?: unknown }).refines ?? null;
+  }
+  return false;
+}
+
+/** Whether validation confirms that every value of `fresh` is a value of `old`: the same schema, a refinement of it,
+ * or a scalar or container schema whose parts each narrow `old`'s. */
+function narrows(fresh: unknown, old: unknown): boolean {
+  if (fresh === old || is_a(fresh, old)) return true;
+  const [a, b] = [structure(fresh), structure(old)];
+  if (a instanceof ScalarData && b instanceof ScalarData) {
+    return sameToken(a.token, b.token) && widening(a, b).length === 0;
+  }
+  if (a instanceof ContainerData && b instanceof ContainerData) return narrows(a.index, b.index) && narrows(a.element, b.element);
+  return false;
+}
+
+/** What keeps validation from confirming `fresh`'s widths are within `old`'s: a width `old` limits that `fresh` lifts,
+ * widens, or gives as a term. */
+function widening(fresh: ScalarData, old: ScalarData): string[] {
+  const found: string[] = [];
+  for (const unit of ["bits", "bytes"] as const) {
+    const [limit, width] = [old[unit], fresh[unit]];
+    if (typeof limit === "bigint" && !(typeof width === "bigint" && width <= limit)) {
+      found.push(`its width in ${unit} cannot be confirmed within ${limit}`);
+    }
+  }
+  return found;
+}
+
+/** A refinement's problems: it refines a schema of its own kind, not itself, and narrows what it redeclares. */
+function refinementProblems(schema: ScalarData | ObjectData | ContainerData): string[] {
+  if (schema.refines === null) return [];
+  const base = structure(schema.refines);
+  if (!(base instanceof (schema.constructor as new () => unknown))) {
+    return [`refines ${kindNoun(base)}: a refinement stays within its kind, scalar, container or object`];
+  }
+  if (is_a(base, schema)) return ["refines itself"];
+  if (schema instanceof ScalarData) {
+    const held = base as ScalarData;
+    if (!sameToken(schema.token, held.token)) return [`refines a scalar of ${String(held.token)}, with ${String(schema.token)}`];
+    return widening(schema, held);
+  }
+  if (schema instanceof ContainerData) {
+    const held = base as ContainerData;
+    return (["index", "element"] as const).filter((role) => !narrows(schema[role], held[role]))
+      .map((role) => `its ${role} cannot be confirmed to narrow the refined container's`);
+  }
+  const held = base as ObjectData;
+  const problems = schema.ref === held.ref ? [] : ["a refinement is a reference object schema exactly where what it "
+    + "refines is one"];
+  for (const [name, prop] of held.properties) {
+    const own = schema.properties.get(name);
+    if (own !== undefined && own !== prop && !narrows(own.type, prop.type)) {
+      problems.push(`property ${repr(name)} cannot be confirmed to narrow the refined schema's`);
+    }
+  }
+  for (const [name, adjacency] of held.adjacencies) {
+    const own = schema.adjacencies.get(name);
+    if (own !== undefined && own !== adjacency && (own.relation !== adjacency.relation || own.me !== adjacency.me)) {
+      problems.push(`adjacency ${repr(name)} redeclares the refined schema's with another relation or link`);
+    }
+  }
+  return problems;
+}
+
+/** What an object schema has from the one it refines rather than its own, and the schemas that refine it. */
+const INHERITED = new WeakMap<ObjectData, { properties: Set<string>; adjacencies: Set<string>; anonymous: AdjacencyData[] }>();
+const REFINEMENTS = new WeakMap<ObjectData, ObjectData[]>();
+
+/** The properties' and adjacencies' names, and the anonymous adjacencies, an object schema has from the one it refines
+ * rather than its own. */
+export function inherited(schema: ObjectData): [Set<string>, Set<string>, AdjacencyData[]] {
+  const found = INHERITED.get(schema);
+  return found === undefined ? [new Set(), new Set(), []] : [found.properties, found.adjacencies, found.anonymous];
+}
+
+/** Gives an object schema the members of the schema it refines, which it has not redeclared, and passes the change on
+ * to the schemas that refine it. */
+export function settle(schema: ObjectData): ObjectData {
+  const base = schema.refines === null ? null : structure(schema.refines);
+  if (base instanceof ObjectData && !is_a(base, schema)) {
+    const [properties, adjacencies, anonymous] = inherited(schema);
+    const ownProperties = new Map([...schema.properties].filter(([n]) => !properties.has(n)));
+    const ownAdjacencies = new Map([...schema.adjacencies].filter(([n]) => !adjacencies.has(n)));
+    const ownAnonymous = schema.anonymous.filter((a) => !anonymous.includes(a));
+    schema.properties = new Map([...[...base.properties].map(([n, p]) => [n, ownProperties.get(n) ?? p] as const),
+      ...[...ownProperties].filter(([n]) => !base.properties.has(n))]);
+    schema.adjacencies = new Map([...[...base.adjacencies].map(([n, a]) => [n, ownAdjacencies.get(n) ?? a] as const),
+      ...[...ownAdjacencies].filter(([n]) => !base.adjacencies.has(n))]);
+    schema.anonymous = [...base.anonymous, ...ownAnonymous];
+    INHERITED.set(schema, { properties: new Set([...base.properties.keys()].filter((n) => !ownProperties.has(n))),
+      adjacencies: new Set([...base.adjacencies.keys()].filter((n) => !ownAdjacencies.has(n))), anonymous: [...base.anonymous] });
+    const refinements = REFINEMENTS.get(base) ?? [];
+    if (!refinements.includes(schema)) REFINEMENTS.set(base, [...refinements, schema]);
+  }
+  for (const refinement of REFINEMENTS.get(schema) ?? []) {
+    if (refinement.refines !== null && structure(refinement.refines) === schema) settle(refinement);
+  }
+  return schema;
+}
+
 function validateSchema(schema: unknown): string[] {
   if (!isAnyData(schema)) return [`not a schema: ${repr(schema)}`];
   return schema.validate();
@@ -1942,8 +2122,9 @@ const FormSchema = new ObjectBuilder().properties(namedText("dialect"), namedTex
 new ObjectBuilder(FormSchema).properties(listing("arguments", [["term", FormSchema]])).update();
 const WidthTerms = new ObjectBuilder().properties((p) => p.name("bits").of(FormSchema), (p) => p.name("bytes").of(FormSchema))
   .create();
+const Refines = (p: PropertyBuilder) => p.name("refines").of(AnySchema);
 const ScalarSchema = new ObjectBuilder().name("Schemas.Scalar").properties(
-  namedText("name"), namedText("format"), namedText("token"), (p) => p.name("bits").of(Int), (p) => p.name("bytes").of(Int),
+  namedText("name"), Refines, namedText("format"), namedText("token"), (p) => p.name("bits").of(Int), (p) => p.name("bytes").of(Int),
   (p) => p.name("terms").of(WidthTerms), namedText("description"), Parameters).create();
 const ClauseSchema = new ObjectBuilder().properties(listing("names", [["name", Text]])).create();
 const RelationSchema = new ObjectBuilder().name("Schemas.Relation").properties(namedText("name"), namedText("description"),
@@ -1954,7 +2135,7 @@ const RelationRef = new UnionBuilder().branches((b) => b.name("relation").of(Rel
 const AdjacencySchema = new ObjectBuilder().properties(
   namedText("name"), (p) => p.name("relation").of(RelationRef), namedText("me"), namedText("description")).create();
 const ObjectSchema = new ObjectBuilder().name("Schemas.Object").properties(
-  namedText("name"), namedText("singleton"), (p) => p.name("ref").of((t) => t.as_scalar(Boolean)), namedText("pattern"),
+  namedText("name"), Refines, namedText("singleton"), (p) => p.name("ref").of((t) => t.as_scalar(Boolean)), namedText("pattern"),
   namedText("description"), Parameters, listing("properties", MEMBER), listing("adjacencies", fieldsOf(AdjacencySchema)))
   .create();
 const Flat = (p: PropertyBuilder) => p.name("flat").of((t) => t.as_scalar(Boolean));
@@ -1963,7 +2144,7 @@ const UnionSchema = new ObjectBuilder().name("Schemas.Union").properties(namedTe
 const IntersectionSchema = new ObjectBuilder().name("Schemas.Intersection").properties(
   namedText("name"), Flat, namedText("description"), Parameters, listing("parts", MEMBER)).create();
 const ContainerSchema = new ObjectBuilder().name("Schemas.Container").properties(
-  namedText("name"), (p) => p.name("index").of(AnySchema), (p) => p.name("element").of(AnySchema), namedText("layout"),
+  namedText("name"), Refines, (p) => p.name("index").of(AnySchema), (p) => p.name("element").of(AnySchema), namedText("layout"),
   namedText("description"), Parameters).create();
 const ArgumentSchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("value").of(ScalarValue),
   (p) => p.name("term").of(FormSchema)).create();

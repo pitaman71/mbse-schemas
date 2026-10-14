@@ -96,7 +96,7 @@ export interface Store {
    * `LookupError` if there is none. */
   by_identity(name: string, identity: string): Readers.OfObject;
   /** For decoders: a builder for the object schema `name` whose `create()` gives the object the identity a snapshot
-   * names. A program's `create()` is always given a new identity, which it cannot set or change. */
+   * names. A program writes one through the builder's `as_identity`. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   restore(name: string, identity: string): any;
   /** The value `instance` holds in its property `name`, e.g. a value object or a union's branch. */
@@ -154,14 +154,14 @@ export class Catalog {
   }
 
   extent(name: string): readonly Readers.OfObject[] {
-    this.schema(name);
+    const schema = this.schema(name);
     const seen = new Set<unknown>();
     const found: Readers.OfObject[] = [];
     for (const root of this._singletons.values()) {
       for (const value of Reachable.of(root)) {
         if (!seen.has(value)) {
           seen.add(value);
-          if (value.as_schema().name === name) found.push(value);
+          if (Schemas.is_a(value.as_schema(), schema)) found.push(value); // a refinement's objects are its too
         }
       }
     }
@@ -252,14 +252,14 @@ export class Combined implements Store {
   /** The owning store's extent, then the objects of the schema the other stores' singletons reach. */
   extent(name: string): readonly Readers.OfObject[] {
     const owner = this.owner(name, AttributeError);
-    owner.schema(name);
+    const schema = owner.schema(name);
     const seen = new Set<unknown>();
     const found: Readers.OfObject[] = [];
     const reached = [...this._singletons.values()].flatMap((root) => Reachable.of(root));
     for (const value of [...owner.extent(name), ...reached]) {
       if (!seen.has(value)) {
         seen.add(value);
-        if (value.as_schema().name === name) found.push(value);
+        if (Schemas.is_a(value.as_schema(), schema)) found.push(value);
       }
     }
     return found;

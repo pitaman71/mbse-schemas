@@ -134,9 +134,11 @@ class OfObject(Protocol):
 
     def as_schema(self) -> Schemas.OfObject.Data: ...
 
-    def as_identity(self) -> str | None:
-        """The object's identity in its store, unqualified: its global name, a name its naming pattern gives, or a
-        UUID; None for a value object, or an object not created yet."""
+    def as_identity(self, identity: str | None = None) -> Any:
+        """Read (no argument), the object's identity in its store, unqualified: its global name, a name its naming
+        pattern gives, a UUID, or one written; None for a value object, or an object not created yet that none was
+        written for. Written (in a builder), the identity the object takes: its store gives one only where none is set
+        by the object it updates or by this. A data instance refuses a write."""
         ...
 
     @property

@@ -90,6 +90,10 @@ class _Writer:
         name = getattr(schema, "name", None)
         return {"named": {"name": name}} if name is not None else self.definition(schema)
 
+    def _refined(self, schema: Any) -> Definition | None:
+        """The schema `schema` refines, or None."""
+        return None if schema.refines is None else self.reference(schema.refines)
+
     def definition(self, schema: Any) -> Definition:
         """A schema written inline."""
         if id(schema) in self._inline:
@@ -112,14 +116,20 @@ class _Writer:
         if isinstance(schema, Schemas.OfScalar.Data):
             if not isinstance(schema.token, Schemas.OfScalar.Token):
                 raise TypeError(f"unsupported scalar type {schema.token!r}")
-            return _kind_of("scalar", parameters=parameters, format=schema.token.format, token=schema.token.name,
+            return _kind_of("scalar", parameters=parameters, refines=self._refined(schema), format=schema.token.format,
+                            token=schema.token.name,
                             bits=_literal(schema.bits), bytes=_literal(schema.bytes),
                             terms=_terms(bits=schema.bits, bytes=schema.bytes), description=schema.description)
         if isinstance(schema, Schemas.OfObject.Data):
+            # Only its own members: those it has from the schema it refines are that one's.
+            properties, named, anonymous = Schemas.inherited(schema)
+            own = [*(a for n, a in schema.adjacencies.items() if n not in named),
+                   *(a for a in schema.anonymous if not any(a is b for b in anonymous))]
             adjacencies = [_present(name=adjacency.name or None, relation=self.reference(adjacency.relation),
                                     me=adjacency.me, description=adjacency.description)
-                           for adjacency in (*schema.adjacencies.values(), *schema.anonymous)]  # anonymous: no name
-            return _kind_of("object", parameters=parameters, properties=self._members(schema.properties.values()),
+                           for adjacency in own]  # anonymous: no name
+            return _kind_of("object", parameters=parameters, refines=self._refined(schema),
+                            properties=self._members(p for n, p in schema.properties.items() if n not in properties),
                             adjacencies=adjacencies,
                             singleton=schema.singleton, ref=schema.ref, pattern=schema.pattern,
                             description=schema.description)
@@ -135,7 +145,7 @@ class _Writer:
             return _kind_of("intersection", parameters=parameters, parts=self._members(schema.parts),
                             flat=schema.flat or None, description=schema.description)
         if isinstance(schema, Schemas.OfContainer.Data):
-            return _kind_of("container", parameters=parameters, index=self.reference(schema.index),
+            return _kind_of("container", parameters=parameters, refines=self._refined(schema), index=self.reference(schema.index),
                             element=self.reference(schema.element), layout=schema.layout, description=schema.description)
         if isinstance(schema, Schemas.OfAny.Value):
             return _kind_of("any", parameters=parameters, types=[self.reference(t) for t in schema.types],
@@ -221,6 +231,7 @@ class _Reader:
     def __init__(self, store: Stores.Store, definitions: dict[str, Definition], make: Make | None = None):
         self._store, self._definitions, self._make = store, definitions, make
         self._defined: dict[str, Any] = {}
+        self._refining: list[Any] = []  # the object schemas read that refine another, settled once all are read
 
     def read(self) -> dict[str, Any]:
         for name, definition in self._definitions.items():
@@ -228,6 +239,8 @@ class _Reader:
             self._defined[name].name = name
         for name, definition in self._definitions.items():
             self._fill(self._defined[name], definition)
+        for schema in self._refining:  # each now has every member of what it refines
+            Schemas._settle(schema)
         return dict(self._defined)
 
     def _named(self, name: str) -> Any:
@@ -285,6 +298,8 @@ class _Reader:
         schema.description = body.get("description")
         schema.parameters = {p.name: p for p in self._members(body.get("parameters", []), Schemas.OfParameter.Data, "parameter")}
         properties = self._members(body.get("properties", []), Schemas.OfProperty.Data, "property")
+        if "refines" in body:
+            schema.refines = self.type(body["refines"])
         if kind == "scalar":
             schema.token = Schemas.OfScalar.Token(body["format"], body["token"])
             schema.bits, schema.bytes = self._slot(body, "bits"), self._slot(body, "bytes")
@@ -297,6 +312,8 @@ class _Reader:
             schema.adjacencies = {a.name: a for a in made if a.name}
             schema.anonymous = [a for a in made if not a.name]
             schema.singleton, schema.ref, schema.pattern = body.get("singleton"), body.get("ref", False), body.get("pattern")
+            if schema.refines is not None:
+                self._refining.append(Schemas._settle(schema))
         elif kind == "relation":
             links = self._members(body.get("links", []), Schemas.OfSymbol.Data, "link")
             schema.entry = Schemas.OfEntry.Data({link.name: link for link in links}, {p.name: p for p in properties})

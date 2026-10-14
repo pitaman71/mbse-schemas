@@ -31,6 +31,8 @@ S.OfObject.Builder(Port).relations(lambda r: r.name("owner").of(Ownership).me("p
                                    lambda r: r.name("fanout").of(Wire).me("source"),
                                    lambda r: r.name("fanin").of(Wire).me("target")).update()
 # An object may fill a link its schema declares with no name (an anonymous adjacency): no member, but still checked.
+# A refinement has the members of the schema it refines, and its own; its objects are that schema's objects too.
+Board = S.OfObject.Builder().name("Board").refines(Component).properties(scalar("revision", int)).create()
 # A store holds named schemas, each under its own name; the objects built with them belong to it.
 store = Proxies.OfStore()
 for schema in [Component, Port, Ownership, Wire]:
@@ -39,7 +41,7 @@ B = store
 
 # Builders and data instances implement the visitor protocol: members named after the schema's names.
 irq = B.Port().name("irq").signal(lambda p: p.as_object(lambda s: s.width(1).unit("bit"))).create()
-pic_in = B.Port().name("pic_in").create()
+pic_in = B.Port().as_identity("pic-in").name("pic_in").create()  # an identity written; else the store gives one
 cpu = B.Component().name("cpu").ports(lambda a: a.insert(lambda e: e.port(irq))).create()
 B.Port(irq).fanout(lambda a: a.insert(lambda e: e.target(pic_in).label("interrupt"))).update()
 assert str(irq.name) == "irq" and [e.target for e in irq.fanout] == [pic_in]

@@ -224,8 +224,8 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
     return found;
   }
 
-  /** For decoders: a builder whose `create()` gives the object the identity a snapshot names. A program's `create()`
-   * is always given a new one. */
+  /** For decoders: a builder whose `create()` gives the object the identity a snapshot names, whether or not the
+   * schema's naming pattern gives it (decoding checks that). A program writes one through `as_identity`. */
   restore(name: string, identity: string): any {
     const builder = makeObjectBuilder(this, this.schema(name), name);
     innerOf(builder)._identity = identity;
@@ -244,6 +244,21 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
     const directory = this._directory(name);
     directory.issued += 1;
     return schema.name_for(directory.issued);
+  }
+
+  /** Gives a live object a new identity, which no other live object of its schema may have. */
+  _rename(name: string, target: Instance, identity: string): void {
+    const directory = this._directory(name);
+    if (directory.live.get(identity)?.deref() !== undefined) {
+      throw new ValueError(`a ${repr(name)} with the identity ${repr(identity)} is already live; update it`);
+    }
+    const inner = innerOf(target) as _ObjectData;
+    directory.live.delete(inner._identity);
+    inner._identity = identity;
+    const held = new WeakRef(target);
+    directory.live.set(identity, held);
+    FORGET.register(target, () => directory.live.get(identity) === held && directory.live.delete(identity));
+    directory.issued = Math.max(directory.issued, inner._schema.number_of(identity) ?? 0);
   }
 
   /** Enters an object in its schema's directory, which a name its naming pattern gives advances. */
@@ -566,7 +581,8 @@ class _Empty extends Dunders {
     return null; // it visits nothing: no value, so no schema
   }
 
-  as_identity(): null {
+  as_identity(identity: string | null = null): null {
+    if (identity !== null) throw new ReadOnlyError(this._reason);
     return null;
   }
 
@@ -1474,7 +1490,7 @@ class _ObjectData extends Shelled {
   readonly _adjacent = new Map<RelationSchema, Map<string, unknown>>();
 
   constructor(readonly _store: OfStore, readonly _schema: ObjectSchema, readonly _schemaName: string,
-    readonly _identity: string) {
+    public _identity: string) {
     super();
   }
 
@@ -1502,7 +1518,8 @@ class _ObjectData extends Shelled {
     return this._schema;
   }
 
-  as_identity(): string {
+  as_identity(identity: string | null = null): string {
+    if (identity !== null) throw new ReadOnlyError("a data instance is read-only; write through a builder");
     return this._identity;
   }
 
@@ -1565,8 +1582,9 @@ class _RecordData extends Shelled {
     return this._schema;
   }
 
-  as_identity(): null {
-    return null; // a value object has no identity of its own
+  as_identity(identity: string | null = null): null {
+    if (identity !== null) throw new TypeError("a value object has no identity of its own");
+    return null;
   }
 
   get as_properties(): any {
@@ -1970,8 +1988,9 @@ class _RecordBuilder extends Shelled {
     return this._schema;
   }
 
-  as_identity(): null {
-    return null; // a value object has no identity of its own
+  as_identity(identity: string | null = null): null {
+    if (identity !== null) throw new TypeError("a value object has no identity of its own");
+    return null;
   }
 
   get as_properties(): any {
@@ -2130,8 +2149,8 @@ class _LinkMember extends Shelled {
     return this._target().as_schema();
   }
 
-  as_identity(): string | null {
-    return this._target().as_identity();
+  as_identity(identity: string | null = null): string | null {
+    return this._target().as_identity(identity);
   }
 
   get as_properties(): unknown {
@@ -2276,15 +2295,27 @@ class _ObjectBuilder extends Shelled {
     super();
   }
 
-  /** The identity a decoder restores (`OfStore.restore`). */
+  /** The identity written (`as_identity`), or a decoder restores. */
   _identity: string | null = null;
 
   as_schema(): ObjectSchema {
     return this._schema;
   }
 
-  as_identity(): string | null {
-    return this._source === null ? null : this._source.as_identity();
+  /** Read, the identity the object will have: the one written, its source's, or null for a new object, which its store
+   * gives one when created. Written, the object's identity: a global ID, such as an operator's, or another name; a
+   * schema's naming pattern must give it, and a singleton's is its global name. */
+  as_identity(identity: string | null = null): any {
+    if (identity === null) return this._identity ?? (this._source === null ? null : this._source.as_identity());
+    if (typeof identity !== "string" || identity === "") throw new TypeError(`an identity is non-empty text, got ${repr(identity)}`);
+    if (this._schema.singleton !== null) {
+      throw new ValueError(`a singleton's identity is its global name, ${repr(this._schema.singleton)}`);
+    }
+    if (this._schema.pattern !== null && this._schema.number_of(identity) === null) {
+      throw new ValueError(`${repr(identity)} is not a name ${repr(this._schemaName)}'s naming pattern ${repr(this._schema.pattern)} gives`);
+    }
+    this._identity = identity;
+    return this._proxy;
   }
 
   get as_properties(): any {
@@ -2322,7 +2353,7 @@ class _ObjectBuilder extends Shelled {
     noArguments("clone", args);
     if (this._source === null) throw new ValueError("clone() is only valid with a source instance");
     this._notSingleton("clone");
-    return this._write(this._new(this._store._issue(this._schema, this._schemaName)));
+    return this._write(this._new(this._identity ?? this._store._issue(this._schema, this._schemaName)));
   }
 
   /** A new object of the builder's schema, entered in its directory under `identity`. */
@@ -2333,6 +2364,9 @@ class _ObjectBuilder extends Shelled {
   update(...args: unknown[]): Instance {
     noArguments("update", args);
     if (this._source === null) throw new ValueError("update() is only valid with a source instance");
+    if (this._identity !== null && this._identity !== (innerOf(this._source) as _ObjectData)._identity) { // renamed
+      this._store._rename(this._schemaName, this._source, this._identity);
+    }
     const tables = orders(this._schema, this._source);
     for (const adjacency of this._schema.adjacencies.values()) {
       discardLinking(adjacency.relation as RelationSchema, adjacency.me, this._source);

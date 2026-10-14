@@ -53,6 +53,8 @@ __all__ = [
     "Form",
     "Evaluate",
     "structure",
+    "is_a",
+    "inherited",
     "plain_forms",
     "equivalent",
     "Module",
@@ -304,12 +306,15 @@ class _ScalarData:
     name: str | None
     description: str | None
     parameters: dict[str, _ParameterData]
+    refines: Any  # the scalar schema it refines, or None
 
     def __init__(self, token: Any = None, bits: Any = None, bytes: Any = None, name: str | None = None,
-                 description: str | None = None, parameters: dict[str, _ParameterData] | None = None):
+                 description: str | None = None, parameters: dict[str, _ParameterData] | None = None,
+                 refines: Any = None):
         self.token = _Token(BASIC, _BASIC_NAMES[token]) if isinstance(token, type) and token in _BASIC_NAMES else token
         self.bits, self.bytes, self.name, self.description = bits, bytes, name, description
         self.parameters = {} if parameters is None else parameters
+        self.refines = refines
 
     @property
     def type(self) -> type[Scalar] | None:
@@ -338,7 +343,7 @@ class _ScalarData:
                 problems.append(f"a width in {unit} must be a positive int or a term, got {width!r}")
         if self.bits is not None and self.bytes is not None:
             problems.append("a width is in bits or in bytes, not both")
-        return problems
+        return problems + _refinement_problems(self)
 
     def to_plain(self, value: Scalar) -> int | float | str | bool:
         """Converts a scalar value to plain data that every text encoding can hold: `bytes` become base64 text, and
@@ -402,6 +407,16 @@ class _ScalarBuilder(_NamedBuilder[_ScalarData]):
 
     def bytes(self, width: Any) -> _ScalarBuilder:
         self._fields["bytes"] = width
+        return self
+
+    def refines(self, spec: Any) -> _ScalarBuilder:
+        """The scalar schema this one refines (a Spec): its values are the refined schema's, of its token, which it
+        takes unless one is given, narrowed by its own widths."""
+        base = OfAny.resolve(spec)
+        self._fields["refines"] = base
+        held = structure(base)
+        if self._fields.get("token") is None and isinstance(held, _ScalarData):
+            self._fields["token"] = held.token
         return self
 
 
@@ -718,6 +733,7 @@ class _ObjectData:
     parameters: dict[str, _ParameterData] = field(default_factory=dict)
     pattern: str | None = None  # a reference object schema's naming pattern, e.g. r"FEA-(\d+\d\d)"
     anonymous: list[_AdjacencyData] = field(default_factory=list)  # the links it may fill with no member
+    refines: Any = None  # the object schema it refines, whose members it inherits, or None
 
     def fills(self, relation: Any, link: str) -> bool:
         """Whether an object of this schema may fill `link` of `relation`: an adjacency, named or anonymous, says so."""
@@ -777,7 +793,7 @@ class _ObjectData:
                 label = f"adjacency {adjacency.name!r}" if adjacency.name else "an anonymous adjacency"
                 problems.append(f"{label}: a value object schema has no adjacencies: entries never link value objects, "
                                 "which are never shared")
-        return problems
+        return problems + _refinement_problems(self)
 
 
 class _ObjectBuilder(_NamedBuilder[_ObjectData]):
@@ -786,6 +802,25 @@ class _ObjectBuilder(_NamedBuilder[_ObjectData]):
     def properties(self, *specs: OfProperty.Spec) -> _ObjectBuilder:
         _properties(self._fields, specs)
         return self
+
+    def refines(self, spec: Any) -> _ObjectBuilder:
+        """The object schema this one refines (a Spec): an object of this schema is an object of that one, so it has
+        that one's properties and adjacencies, which this one may redeclare narrower, and fills its links. A
+        refinement of a reference object schema is one too."""
+        self._fields["refines"] = OfAny.resolve(spec)
+        held = structure(self._fields["refines"])
+        if isinstance(held, _ObjectData) and held.ref:
+            self._fields["ref"] = True
+        return self
+
+    def create(self) -> _ObjectData:
+        return _settle(super().create())
+
+    def clone(self) -> _ObjectData:
+        return _settle(super().clone())
+
+    def update(self) -> _ObjectData:
+        return _settle(super().update())
 
     def relations(self, *specs: OfAdjacency.Spec) -> _ObjectBuilder:
         adjacencies = self._fields.setdefault("adjacencies", {})
@@ -1043,6 +1078,7 @@ class _ContainerData:
     name: str | None = None
     description: str | None = None
     parameters: dict[str, _ParameterData] = field(default_factory=dict)
+    refines: Any = None  # the container schema it refines, or None
 
     @property
     def arrangement(self) -> str:
@@ -1065,7 +1101,7 @@ class _ContainerData:
         elif self.layout is not None and isinstance(self.index, _KINDS) and _index_kind(self.index) != "ordered":
             problems.append(f"a {self.layout} container's index has a total order: an int, float, str or bool, or a "
                             "value object of them")
-        return problems
+        return problems + _refinement_problems(self)
 
 
 class _ContainerBuilder(_NamedBuilder[_ContainerData]):
@@ -1074,6 +1110,17 @@ class _ContainerBuilder(_NamedBuilder[_ContainerData]):
     def index(self, spec: Any) -> _ContainerBuilder:
         """The index type, a schema of any kind (a Spec): `lambda t: t.as_scalar(int)`, or a value object of ints."""
         self._fields["index"] = OfAny.resolve(spec)
+        return self
+
+    def refines(self, spec: Any) -> _ContainerBuilder:
+        """The container schema this one refines (a Spec): its values are the refined schema's, its index and element
+        each the refined one's or narrower, which it takes unless given."""
+        base = OfAny.resolve(spec)
+        self._fields["refines"] = base
+        held = structure(base)
+        if isinstance(held, _ContainerData):
+            self._fields.setdefault("index", held.index)
+            self._fields.setdefault("element", held.element)
         return self
 
     def element(self, spec: Any) -> _ContainerBuilder:
@@ -1365,6 +1412,112 @@ class OfPredicate:
 _KINDS = (_ScalarData, _ObjectData, _UnionData, _IntersectionData, _ContainerData, _ApplyData, _AnyValueData)
 
 
+# --- Refinement ---
+
+_KIND_NOUNS = {_ScalarData: "a scalar schema", _ObjectData: "an object schema", _ContainerData: "a container schema",
+               _UnionData: "a union", _IntersectionData: "an intersection", _AnyValueData: "a value of any type",
+               _ApplyData: "an application"}
+
+
+def _kind_noun(schema: Any) -> str:
+    return _KIND_NOUNS.get(type(schema), "nothing")  # an application of nothing
+
+
+def is_a(schema: Any, base: Any) -> bool:
+    """Whether `schema` is `base` or refines it, directly or not: a value of it is then a value of `base`."""
+    seen: set[int] = set()
+    while schema is not None and id(schema) not in seen:
+        if schema is base:
+            return True
+        seen.add(id(schema))
+        schema = getattr(structure(schema), "refines", None)
+    return False
+
+
+def _narrows(new: Any, old: Any) -> bool:
+    """Whether validation confirms that every value of `new` is a value of `old`: the same schema, a refinement of it,
+    or a scalar, container or value object schema whose parts each narrow `old`'s."""
+    if new is old or is_a(new, old):
+        return True
+    new, old = structure(new), structure(old)
+    if isinstance(new, _ScalarData) and isinstance(old, _ScalarData):
+        return new.token == old.token and not _widening(new, old)
+    if isinstance(new, _ContainerData) and isinstance(old, _ContainerData):
+        return _narrows(new.index, old.index) and _narrows(new.element, old.element)
+    return False
+
+
+def _widening(new: _ScalarData, old: _ScalarData) -> list[str]:
+    """What keeps validation from confirming `new`'s widths are within `old`'s: a width `old` limits that `new` lifts,
+    widens, or gives as a term."""
+    found = []
+    for unit in ("bits", "bytes"):
+        limit, width = getattr(old, unit), getattr(new, unit)
+        if type(limit) is int and not (type(width) is int and width <= limit):
+            found.append(f"its width in {unit} cannot be confirmed within {limit}")
+    return found
+
+
+def _refinement_problems(schema: Any) -> list[str]:
+    """A refinement's problems: it refines a schema of its own kind, not itself, and narrows what it redeclares."""
+    if schema.refines is None:
+        return []
+    base = structure(schema.refines)
+    if type(base) is not type(schema):
+        return [f"refines {_kind_noun(base)}: a refinement stays within its kind, scalar, container or object"]
+    if is_a(base, schema):
+        return ["refines itself"]
+    if isinstance(schema, _ScalarData):
+        if schema.token != base.token:
+            return [f"refines a scalar of {base.token}, with {schema.token}"]
+        return _widening(schema, base)
+    if isinstance(schema, _ContainerData):
+        return [f"its {role} cannot be confirmed to narrow the refined container's"
+                for role in ("index", "element") if not _narrows(getattr(schema, role), getattr(base, role))]
+    problems = [] if schema.ref == base.ref else ["a refinement is a reference object schema exactly where what it "
+                                                  "refines is one"]
+    for name, prop in base.properties.items():
+        own = schema.properties.get(name)
+        if own is not None and own is not prop and not _narrows(own.type, prop.type):
+            problems.append(f"property {name!r} cannot be confirmed to narrow the refined schema's")
+    for name, adjacency in base.adjacencies.items():
+        own = schema.adjacencies.get(name)
+        if own is not None and own is not adjacency and (own.relation is not adjacency.relation or own.me != adjacency.me):
+            problems.append(f"adjacency {name!r} redeclares the refined schema's with another relation or link")
+    return problems
+
+
+def _settle(schema: _ObjectData) -> _ObjectData:
+    """Gives an object schema the members of the schema it refines, which it has not redeclared, and passes the change
+    on to the schemas that refine it."""
+    base = structure(schema.refines) if schema.refines is not None else None
+    if isinstance(base, _ObjectData) and not is_a(base, schema):
+        inherited = schema.__dict__.get("_inherited", (set(), set(), []))
+        own_properties = {n: p for n, p in schema.properties.items() if n not in inherited[0]}
+        own_adjacencies = {n: a for n, a in schema.adjacencies.items() if n not in inherited[1]}
+        own_anonymous = [a for a in schema.anonymous if not any(a is b for b in inherited[2])]
+        schema.properties = {**{n: own_properties.get(n, p) for n, p in base.properties.items()},
+                             **{n: p for n, p in own_properties.items() if n not in base.properties}}
+        schema.adjacencies = {**{n: own_adjacencies.get(n, a) for n, a in base.adjacencies.items()},
+                              **{n: a for n, a in own_adjacencies.items() if n not in base.adjacencies}}
+        schema.anonymous = [*base.anonymous, *own_anonymous]
+        schema.__dict__["_inherited"] = ({n for n in base.properties if n not in own_properties},
+                                         {n for n in base.adjacencies if n not in own_adjacencies}, list(base.anonymous))
+        refinements = base.__dict__.setdefault("_refinements", [])
+        if not any(r is schema for r in refinements):
+            refinements.append(schema)
+    for refinement in list(schema.__dict__.get("_refinements", [])):
+        if refinement.refines is not None and structure(refinement.refines) is schema:
+            _settle(refinement)
+    return schema
+
+
+def inherited(schema: _ObjectData) -> tuple[set[str], set[str], list[Any]]:
+    """The properties' and adjacencies' names, and the anonymous adjacencies, an object schema has from the one it
+    refines rather than its own."""
+    return schema.__dict__.get("_inherited", (set(), set(), []))
+
+
 def _validate(schema: Any) -> list[str]:
     if not isinstance(schema, _KINDS):
         return [f"not a schema: {schema!r}"]
@@ -1505,8 +1658,9 @@ _FormSchema = OfObject.Builder().properties(_named_text("dialect"), _named_text(
 OfObject.Builder(_FormSchema).properties(_listing("arguments", {"term": _FormSchema})).update()
 _WidthTerms = OfObject.Builder().properties(lambda p: p.name("bits").of(_FormSchema),
                                             lambda p: p.name("bytes").of(_FormSchema)).create()
+_Refines: OfProperty.Spec = lambda p: p.name("refines").of(_AnySchema)  # noqa: E731
 _ScalarSchema = OfObject.Builder().name("Schemas.Scalar").properties(
-    _named_text("name"), _named_text("format"), _named_text("token"), lambda p: p.name("bits").of(_int),
+    _named_text("name"), _Refines, _named_text("format"), _named_text("token"), lambda p: p.name("bits").of(_int),
     lambda p: p.name("bytes").of(_int), lambda p: p.name("terms").of(_WidthTerms), _named_text("description"), _Parameters).create()
 _Clause = OfObject.Builder().properties(_listing("names", {"name": _Text})).create()
 _RelationSchema = OfObject.Builder().name("Schemas.Relation").properties(
@@ -1518,7 +1672,7 @@ _AdjacencySchema = OfObject.Builder().properties(
     _named_text("name"), lambda p: p.name("relation").of(_RelationRef), _named_text("me"),
     _named_text("description")).create()
 _ObjectSchema = OfObject.Builder().name("Schemas.Object").properties(
-    _named_text("name"), _named_text("singleton"), lambda p: p.name("ref").of(lambda t: t.as_scalar(bool)),
+    _named_text("name"), _Refines, _named_text("singleton"), lambda p: p.name("ref").of(lambda t: t.as_scalar(bool)),
     _named_text("pattern"), _named_text("description"), _Parameters, _listing("properties", _MEMBER),
     _listing("adjacencies", {name: prop.type for name, prop in _AdjacencySchema.properties.items()})).create()
 _Flat: OfProperty.Spec = lambda p: p.name("flat").of(lambda t: t.as_scalar(bool))  # noqa: E731
@@ -1527,7 +1681,7 @@ _UnionSchema = OfObject.Builder().name("Schemas.Union").properties(
 _IntersectionSchema = OfObject.Builder().name("Schemas.Intersection").properties(
     _named_text("name"), _Flat, _named_text("description"), _Parameters, _listing("parts", _MEMBER)).create()
 _ContainerSchema = OfObject.Builder().name("Schemas.Container").properties(
-    _named_text("name"), lambda p: p.name("index").of(_AnySchema), lambda p: p.name("element").of(_AnySchema),
+    _named_text("name"), _Refines, lambda p: p.name("index").of(_AnySchema), lambda p: p.name("element").of(_AnySchema),
     _named_text("layout"), _named_text("description"), _Parameters).create()
 _ArgumentSchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("value").of(_ScalarValue),
                                                 lambda p: p.name("term").of(_FormSchema)).create()

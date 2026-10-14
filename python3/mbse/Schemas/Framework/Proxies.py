@@ -90,8 +90,8 @@ class OfStore(Stores.Catalog):
         return found
 
     def restore(self, name: str, identity: str) -> _ObjectBuilder:
-        """For decoders: a builder whose `create()` gives the object the identity a snapshot names. A program's
-        `create()` is always given a new one."""
+        """For decoders: a builder whose `create()` gives the object the identity a snapshot names, whether or not the
+        schema's naming pattern gives it (decoding checks that). A program writes one through `as_identity`."""
         builder = _ObjectBuilder(self, self.schema(name), name)
         builder._identity = identity
         return builder
@@ -115,6 +115,16 @@ class OfStore(Stores.Catalog):
         directory.live[target._identity] = target
         directory.issued = max(directory.issued, target._schema.number_of(target._identity) or 0)
         return target
+
+    def _rename(self, name: str, target: _ObjectData, identity: str) -> None:
+        """Gives a live object a new identity, which no other live object of its schema may have."""
+        directory = self._directory(name)
+        if identity in directory.live:
+            raise ValueError(f"a {name!r} with the identity {identity!r} is already live; update it")
+        del directory.live[target._identity]
+        object.__setattr__(target, "_identity", identity)
+        directory.live[identity] = target
+        directory.issued = max(directory.issued, target._schema.number_of(identity) or 0)
 
     def member(self, instance: Any, name: str) -> Any:
         """The value an instance or value object holds in its property `name`."""
@@ -413,7 +423,9 @@ class _Empty(_Dunders):
     def as_schema(self) -> None:
         return None  # it visits nothing: no value, so no schema
 
-    def as_identity(self) -> None:
+    def as_identity(self, identity: str | None = None) -> None:
+        if identity is not None:
+            self._refuse()
         return None
 
     def get(self) -> None:
@@ -1148,7 +1160,9 @@ class _ObjectData:
     def as_schema(self) -> ObjectSchema:
         return self._schema
 
-    def as_identity(self) -> str:
+    def as_identity(self, identity: str | None = None) -> str:
+        if identity is not None:
+            raise ReadOnlyError("a data instance is read-only; write through a builder")
         return self._identity
 
     @property
@@ -1191,8 +1205,10 @@ class _RecordData:
     def as_schema(self) -> Any:
         return self._schema
 
-    def as_identity(self) -> None:
-        return None  # a value object has no identity of its own
+    def as_identity(self, identity: str | None = None) -> None:
+        if identity is not None:
+            raise TypeError("a value object has no identity of its own")
+        return None
 
     @property
     def as_properties(self) -> _Properties:
@@ -1525,8 +1541,10 @@ class _RecordBuilder(_Unassignable):
     def as_schema(self) -> Any:
         return self._schema
 
-    def as_identity(self) -> None:
-        return None  # a value object has no identity of its own
+    def as_identity(self, identity: str | None = None) -> None:
+        if identity is not None:
+            raise TypeError("a value object has no identity of its own")
+        return None
 
     @property
     def as_properties(self) -> _Properties:
@@ -1637,8 +1655,8 @@ class _LinkMember(_Unassignable):
     def as_schema(self) -> Any:
         return self._target().as_schema()
 
-    def as_identity(self) -> str | None:
-        return self._target().as_identity()
+    def as_identity(self, identity: str | None = None) -> str | None:
+        return self._target().as_identity(identity)
 
     @property
     def as_properties(self) -> Any:
@@ -1752,7 +1770,7 @@ class _ObjectBuilder(_Unassignable):
             raise TypeError(f"{schema_name!r} is a value object schema; build a value through its owner, or standalone "
                             "through the store")
         self._store, self._schema, self._schema_name, self._source = store, schema, schema_name, instance
-        self._identity: str | None = None  # the identity a decoder restores (`OfStore.restore`)
+        self._identity: str | None = None  # the identity written (`as_identity`), or a decoder restores
         self._values: dict[str, Any] = {}
         self._entries: dict[str, list[_EntryBuilder]] = {}
         if instance is not None:
@@ -1767,8 +1785,22 @@ class _ObjectBuilder(_Unassignable):
     def as_schema(self) -> ObjectSchema:
         return self._schema
 
-    def as_identity(self) -> str | None:
-        return None if self._source is None else self._source.as_identity()
+    def as_identity(self, identity: str | None = None) -> Any:
+        """Read, the identity the object will have: the one written, its source's, or None for a new object, which its
+        store gives one when created. Written, the object's identity: a global ID, such as an operator's, or another
+        name; a schema's naming pattern must give it, and a singleton's is its global name."""
+        if identity is None:
+            return self._identity if self._identity is not None else (
+                None if self._source is None else self._source.as_identity())
+        if not isinstance(identity, str) or not identity:
+            raise TypeError(f"an identity is non-empty text, got {identity!r}")
+        if self._schema.singleton is not None:
+            raise ValueError(f"a singleton's identity is its global name, {self._schema.singleton!r}")
+        if self._schema.pattern is not None and self._schema.number_of(identity) is None:
+            raise ValueError(f"{identity!r} is not a name {self._schema_name!r}'s naming pattern "
+                             f"{self._schema.pattern!r} gives")
+        self._identity = identity
+        return self
 
     @property
     def as_properties(self) -> _Properties:
@@ -1801,7 +1833,7 @@ class _ObjectBuilder(_Unassignable):
         if self._source is None:
             raise ValueError("clone() is only valid with a source instance")
         self._not_singleton("clone")
-        return self._write(self._new(self._store._issue(self._schema, self._schema_name)))
+        return self._write(self._new(self._identity or self._store._issue(self._schema, self._schema_name)))
 
     def _new(self, identity: str) -> _ObjectData:
         """A new object of the builder's schema, entered in its directory under `identity`."""
@@ -1810,6 +1842,8 @@ class _ObjectBuilder(_Unassignable):
     def update(self) -> _ObjectData:
         if self._source is None:
             raise ValueError("update() is only valid with a source instance")
+        if self._identity is not None and self._identity != self._source._identity:  # renamed
+            self._store._rename(self._schema_name, self._source, self._identity)
         orders = _orders(self._schema, self._source)
         for adjacency in self._schema.adjacencies.values():
             _discard_linking(adjacency.relation, adjacency.me, self._source)

@@ -112,7 +112,7 @@ class Store(Protocol):
 
     def restore(self, name: str, identity: str) -> Any:
         """For decoders: a builder for the object schema `name` whose `create()` gives the object the identity a snapshot
-        names. A program's `create()` is always given a new identity, which it cannot set or change."""
+        names. A program writes one through the builder's `as_identity`."""
         ...
 
     def member(self, instance: Any, name: str) -> Any:
@@ -124,8 +124,8 @@ class Store(Protocol):
         ...
 
     def extent(self, name: str) -> Iterable[Readers.OfObject]:
-        """The store's reference objects of the schema `name`: those reachable from its singletons, in first-reference
-        order."""
+        """The store's reference objects of the schema `name`, or of a schema refining it: those reachable from its
+        singletons, in first-reference order."""
         ...
 
 
@@ -175,14 +175,14 @@ class Catalog:
         return self._singletons[name]
 
     def extent(self, name: str) -> tuple[Readers.OfObject, ...]:
-        self.schema(name)
+        schema = self.schema(name)
         seen: set[Any] = set()
         found: list[Readers.OfObject] = []
         for root in self._singletons.values():
             for value in Reachable.of(root):
                 if id(value) not in seen:
                     seen.add(id(value))
-                    if value.as_schema().name == name:
+                    if Schemas.is_a(value.as_schema(), schema):  # a refinement's objects are its too
                         found.append(value)
         return tuple(found)
 
@@ -253,14 +253,14 @@ class Combined:
     def extent(self, name: str) -> tuple[Readers.OfObject, ...]:
         """The owning store's extent, then the objects of the schema the other stores' singletons reach."""
         owner = self._owner(name, AttributeError)
-        owner.schema(name)
+        schema = owner.schema(name)
         seen: set[Any] = set()
         found: list[Readers.OfObject] = []
         reached = (value for root in self._singletons.values() for value in Reachable.of(root))
         for value in (*owner.extent(name), *reached):
             if id(value) not in seen:
                 seen.add(id(value))
-                if value.as_schema().name == name:
+                if Schemas.is_a(value.as_schema(), schema):
                     found.append(value)
         return tuple(found)
 

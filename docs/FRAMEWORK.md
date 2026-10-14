@@ -811,11 +811,27 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - refinement: the user is "open to adding Schemas.Refines as a relation all its own"; "Refinement across the scalar
     vs. container vs. object boundary fails validation"; an "instance of a refinement is an instance of what it
     refines"; "narrowing allowed if it can be statically confirmed by validation". A one-part intersection, which the
-    user called "trivial refinement", is what `Refines` states.
+    user called "trivial refinement", is what `Refines` states. Built as a builder clause, `.refines(schema)`, on
+    scalar, object and container schemas (SCH-24), until schemas are linked objects (phase 5) and it becomes a relation
+    of its own:
+    - an object refinement has the refined schema's properties and adjacencies, named and anonymous, before its own,
+      and follows later changes to them; it may redeclare one narrower, a property with a type that refines the
+      inherited one (or a scalar of the same token within its widths, or a container whose index and element each
+      narrow), an adjacency only with the same relation and link. It is a reference object schema exactly where what
+      it refines is one. Its objects fill the refined schema's links, and the refined schema's extent holds them.
+    - a scalar refinement has the refined token and widths within the refined ones; a container refinement, an index
+      and an element that each narrow the refined ones.
+    - validation refuses a refinement of another kind, of itself, and what it cannot confirm narrows ("cannot be
+      confirmed"). Modules write `refines` and a refinement's own members only.
+    - proposed in building, for the user's review: refinement of unions, intersections, values of any type and
+      applications is refused for now, as a refinement of another kind would be.
   - identity: "change policy to allow an object's identity to be read + written by `as_identity`. Builder will
     allocate only if it's not set in the pre-existing object or by the fluent clauses". This supersedes, in part,
     "Reference identity" (below): a program may now set an identity, such as an operator's global ID
-    (`Basic.Operators.Add`).
+    (`Basic.Operators.Add`). Built (STO-08): a builder's `as_identity(identity)` writes it, and `as_identity()` reads
+    the one written, else the source's; `create()` and `clone()` give one only where none is written, and `update()`
+    renames the object. An identity no other live object of its schema has, which its naming pattern gives where it
+    has one; a singleton's is its global name; data instances and value objects refuse a write.
   - domains: "domains refine scalar schemas" (mbse-expressions' value domains).
   - relations: "mbse-schemas.Schemas.OfRelation is by default a all-directional link. Anonymous adjacencies allow for
     some adjacencies to be omitted." An entry "may be rejected if the linked object is of the wrong type. That's

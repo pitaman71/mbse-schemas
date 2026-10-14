@@ -827,6 +827,12 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     a schema's properties are an adjacency, its members objects linked to it, which answers META_SCHEMAS.md's phase 5
     question 2 (members as reference objects, not value objects keyed by name). A member that is neither a data
     property nor an adjacency is not a builder's.
+  - which member lists are adjacencies and which containers (a container holds values by index; an adjacency is a
+    relation's entries linking reference objects): proposed in building, an adjacency where the elements are members
+    with identity, an object's `properties` (as decided) and `adjacencies` (anonymous ones included), every kind's
+    `parameters`, a union's `branches`, an intersection's `parts`, a predicate's `symbols`, a relation entry's `links`
+    and `properties`; a container where they are values, a relation's `uniques` and an `OfAny`'s `types`. The user:
+    "apply arguments is probably an adjacency because expression terms are ref objects".
 
 - **Refinement, identities and relations** (2026-10-14), as the user decided, for mbse-expressions' framework and
   dialects as model (mbse-basis P-018):

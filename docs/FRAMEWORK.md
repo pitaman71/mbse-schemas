@@ -497,8 +497,9 @@ These replace the earlier design, in which a union's branches were chosen by pre
 
 ## Lists
 
-A list, a dict, a map or a tensor of values is a property holding a container, `OfContainer` (Resolved, Containers,
-as the user decided, reversing the earlier "a list is a one-link relation"). A relation has two links or more.
+A list, a dict, a map or a tensor of values, value objects among them, is a property holding a container,
+`OfContainer` (Resolved, Containers, as the user decided, reversing the earlier "a list is a one-link relation").
+Reference objects are never kept in containers: a collection of them is a relation, which has two links or more.
 
 - **A container holds elements by index**: `p.name("tags").of(lambda t: t.as_container(lambda c:
   c.index(Int).element(Text)))`. Dense by position for an integer-like index (an int, or a value object of ints for a
@@ -1184,8 +1185,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Deserializing a snapshot that references an object it does not contain is an error.
 - Relation links are untyped names (`.links('contact', 'address')`); objects declare adjacencies with
   `.relations(lambda adj: adj.name(...).of(Relation).me(link))`.
-- Lists, dicts, maps and tensors of values are containers, held by properties (see Lists). Collections of linked
-  objects are relations of two links or more.
+- Lists, dicts, maps and tensors of values, value objects among them, are containers, held by properties (see Lists).
+  Reference objects are never kept in containers: collections of them are relations of two links or more.
 - Cardinality is declared with `unique(S)` clauses; ownership is `unique(parent)`; a relation with a `unique` clause
   holds a set and duplicates are elided, and one without is open, its entries a list from each end.
 - An object may have more than one owner.

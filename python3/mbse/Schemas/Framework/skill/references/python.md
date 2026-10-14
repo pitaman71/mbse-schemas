@@ -116,7 +116,7 @@ JSON.ToJSON(store)(...), JSON.FromJSON(store)(...); YAML.ToYAML(store)(...), YAM
 Validators.Validate(store)(schema, obj); Validators.Validate(store).Reachable(schema, root)
 Comparison.OfObject(schema, a).compare(Comparison.OfObject(schema, b))   # -1, 0, 1, or None if incomparable
 
-# Dataclasses: scalar fields are properties; list/dict of scalars and set/list/dict of dataclasses are relations.
+# Dataclasses: scalar fields are properties, list/dict of scalars containers; set/list/dict of dataclasses are relations.
 # Defaults, mandatoriness and nesting are not translated.
 from mbse.Schemas.Adapters.Dataclasses import FromDataclass, ToDataclass
 FromDataclass.model(Contact)       # {"Contact": ..., "Address": ..., "ContactAddresses": ...}, named, ready to register

@@ -83,7 +83,8 @@ skill regenerated. No release comes between phases.
   `$ref`, `$schema` kept; patterns wherever output must be reproducible.
 - V5. **Containers**, as FRAMEWORK.md, Resolved, "Containers" decides, reversing phases 2 to 4's collections, one unit:
   built so far: `Schemas.OfContainer`, its meta-schema and modules (SCH-23, MOD-08); `Visitors.OfContainer` and
-  `OfIterator`, proxies, snapshots, validation and comparison (CNT); relations not yet limited to two links;
+  `OfIterator`, proxies, snapshots, validation and comparison (CNT); the dataclasses adapter (DC); relations not yet
+  limited to two links;
   - `Schemas.OfContainer`, a variant of `OfAny`, with an index type and an element type, each an `OfAny`, and
     `.dense()` or `.sparse()`, at most one, defaulting to dense for an index with a total order and to a dict for a
     hashable one; several int indices for tensors; its meta-schema beside `OfRelation`'s; `validate()` refusing both

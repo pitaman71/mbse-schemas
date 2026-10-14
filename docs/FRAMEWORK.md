@@ -246,7 +246,9 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   language. Python has `Adapters.Dataclasses`: `FromDataclass(cls)` returns the `OfObject` a dataclass describes and
   `ToDataclass(schema, name)` returns a new dataclass, both through `ast` trees rather than source text;
   `FromDataclass.model(*classes)` and `ToDataclass.model(schemas)` translate several at once. Only types are
-  translated. Scalar fields are properties. A container of dataclasses (`set[X]`, `list[X]`, `dict[K, X]`) is a
+  translated. Scalar fields are properties, and so are lists and dicts of scalars, nested or not: each holds a
+  container, by an int index (dense) or by its scalar key (sparse for an int key), written back as `list[E]` and
+  `dict[K, E]`. A container of dataclasses (`set[X]`, `list[X]`, `dict[K, X]`) is a
   relation with links `owner` and `item`, plus `index: int` or `key: K` with `unique(item)` for lists and dicts: the
   owner's adjacency is the field, and each element class gets an adjacency via `item`. Adjacencies declare which
   object schemas may fill a link, so writing a class finds a container's element type by reverse lookup, and writes
@@ -866,6 +868,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     in any order (a dict's insertion order is not compared), and otherwise incomparable, never ordered; uniqueness
     compares containers the same way. Validation checks each element present under the element schema, reported at
     its index, `card.tags[2]`, `card.grid[[0, 1]]`, `card.phones['home'].number`;
+  - the dataclasses adapter: `list[N]` holds a container by an int index, dense, and `dict[K, N]` one by `K`, sparse
+    where `K` is `int`, so a dict's keys are not padded into positions; a container by any other scalar index is
+    written back as a `dict`, and one by a value object index (a tensor) has no field type;
   - not yet: reading a container whose index is neither ordered nor hashable from a snapshot (its index would have to
     be built as a standalone value object), and a value object with list adjacencies inside a container in a snapshot
     (lists become containers in V5).

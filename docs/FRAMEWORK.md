@@ -814,11 +814,10 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   names (V1). This comes next, before the dependents (META_SCHEMAS.md, Plan), since mbse-expressions "cannot be
   written correctly without it". How each collision is resolved is to be proposed for the user's review. The user
   then decided:
-  - "Schemas.OfX.Data is necessarily bespoke"
-  - "Schemas.OfX.Builder is necessarily bespoke"
+  - "Schemas.OfX.{Builder, Data, Schema} are necessarily bespoke"
   - "Schemas.OfX.Builder must implement Visitors.OfX"
-  - "the implementation of Schemas.OfX.Builder will be a lot easier and cleaner if the bespoke Schemas.OfX.Data
-    classes use members the same way that proxies do to store properties and relation adjacencies"
+  - "correct implementation of Schemas.OfX.{Builder, Data, Schema} will be a lot easier and cleaner if the bespoke
+    Schemas.OfX.Data classes use members the same way that proxies do to store properties and relation adjacencies"
   - "Dataclasses do not have to implement Visitors or Builders"
 
 - **Refinement, identities and relations** (2026-10-14), as the user decided, for mbse-expressions' framework and

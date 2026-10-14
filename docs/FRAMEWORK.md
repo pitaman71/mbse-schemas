@@ -881,12 +881,24 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     (`at(i)`);
   - `Schemas.OfAny.Builder` builds a type of any kind inline (`t.as_scalar(str)`, `t.as_container(...)`), and
     `Schemas.OfAny.Spec` is what `of(...)`, `.index(...)` and `.element(...)` take;
-  - not yet decided, for the new kind: how its schema is written and built (one marker schema, or the builder's own
-    `as_any()`), and so how `Schemas.OfAny.Data`, today the union of the kinds' data, is told apart from it; how a
-    value of any type says its kind on the wire, where JSON alone cannot (an int from a float, bytes from text, a
-    value object's schema), as `Schemas.Form.Value` tags a scalar (`{"int": 3}`); whether a value object of any type
-    names its schema, as a reference does with `$schema`; and how such values validate and compare (equal only under
-    one kind and type, as Equality has values of different kinds incomparable).
+  - the new kind is a distinct marker kind, built by the builder's `as_any()`, and `Schemas.OfAny.Data` stays the union
+    of the kinds' data (the user: "yes" to "a distinct marker kind (say `Schemas.OfAny.Value`), built with
+    `t.as_any()`, and leave `OfAny.Data` as the union");
+  - on the wire a value of any type is tagged by its kind and type, as `Schemas.Form.Value` tags a scalar
+    (`{"int": 3}`), except where the schema narrows it: "there are some situations in which the type of OfAny can be
+    inferred from its schema, in which case wrapping the value over the wire is just wasted characters", the
+    situation being, of those put to the user, "(b)": an `OfAny` may be restricted to a set of types
+    (`t.as_any(int, str, Phone)`), and a value is written bare where only one of those types fits its plain form,
+    tagged otherwise;
+  - "a value object of any [type] must be a registered schema", so that its name can be written and read back;
+  - values of any type compare and validate under the kind and type they hold: equal only under the same kind and
+    type, otherwise incomparable, as Equality has values of different kinds; validation checks each value against
+    the kind it says it is ("yes");
+  - proposed in drafting, for the user's review: an unrestricted `OfAny` always tags, since every type is possible;
+    a restricted one is invalid where two of its types share a plain form that cannot be told apart (as a flat union
+    is where its branches are not told apart by type), or its value is tagged there; a value of a type outside the
+    restriction is refused when written and when read; and the tag of a value object is its schema's registered
+    name, `{"crm.Phone": {...}}`, as a scalar's is its token's name.
 
 - **Reference identity** ([Visitor pattern](VISITOR_PATTERN.md), "Reference Identity", as the user wrote it), refining
   The visitor pattern's "global name, otherwise a UUID":

@@ -816,11 +816,19 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   then decided:
   - "Schemas.OfX.{Builder, Data, Schema} are necessarily bespoke"
   - "Schemas.OfX.Builder must implement Visitors.OfX"
-  - "correct implementation of Schemas.OfX.{Builder, Data, Schema} will be a lot easier and cleaner if the bespoke
-    Schemas.OfX.Data classes use members the same way that proxies do to store properties and relation adjacencies"
-  - "Dataclasses do not need to implement Visitors or Readers" (the user's correction of "... Visitors or Builders",
+  - "Visitors.OfX should support the usage examples in @VISITOR_PATTERN.md as faithfully as possible. This should have
+    little to no effect on the `Schemas.OfX.Data` and `Schemas.OfX.Schema`."
+  - "Dataclasses do not have to implement Visitors or Readers" (the user's correction of "... Visitors or Builders",
     which they "mistyped"); "the `properties` member of the dataclass can be a list of adjacency entries or whatever
     the underlying storage model is".
+  - an object schema's `properties`, which the meta-schema lists as a container while the builder's member is an
+    adjacency: "the Data class can store `Schemas.OfObject.Data.properties` any way it wants.
+    `Schemas.OfObject.Builder` must be smart enough to wrap that adjacency in an a class that adapts your storage choice
+    to the Visitors.OfAdjacency protocol. If that means `Schemas.OfObject.Data.properties` ends up being
+    `List[Schemas.HasProperty.EntryData]` so be it".
+  - "NO LONGER A GOAL: correct implementation of Schemas.OfX.{Builder, Data, Schema} will be a lot easier and cleaner
+    if the bespoke Schemas.OfX.Data classes use members the same way that proxies do to store properties and relation
+    adjacencies"
   - "Schemas.OfObject.Builder is a Visitors.OfObject which has a member for each data property or adjacency and methods
     `as_*` as required by Visitors.OfObject"; e.g. "Schemas.OfObject.Data.name : str", "Schemas.OfObject.Builder.name(name:
     str) # sets property .name", and "Schemas.OfObject.Builder.properties(cb: Specs.Callback[Visitors.OfAdjacency])":

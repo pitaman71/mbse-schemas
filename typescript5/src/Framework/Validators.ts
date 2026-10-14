@@ -50,7 +50,7 @@ function selecting(schema: unknown): string {
 function held(read: any, schema: unknown): any {
   const found: any[] = [];
   read.as_value((a: any) => a[selecting(schema)]((v: any) => found.push(v)));
-  return found.length > 0 && found[0].as_schema() !== null ? found[0] : null; // a visitor of nothing has no schema
+  return found[0].as_schema() !== null ? found[0] : null; // a callback is always called; a visitor of nothing has no schema
 }
 
 /** A union's branch's or an intersection's part's value, read through its visitor of its own type's kind: a scalar, a

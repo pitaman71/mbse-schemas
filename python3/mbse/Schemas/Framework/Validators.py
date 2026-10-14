@@ -52,7 +52,7 @@ def _held(read: Any, schema: Any) -> Any:
     absent. An empty visitor has no identity."""
     found: list[Any] = []
     read.as_value(lambda a: getattr(a, _SELECT[type(schema)])(lambda v: found.append(v) or v) or a)
-    return found[0] if found and found[0].as_schema() is not None else None  # a visitor of nothing has no schema
+    return found[0] if found[0].as_schema() is not None else None  # a callback is always called; a visitor of nothing has no schema
 
 
 def _member(read: Any, schema: Any) -> Any:

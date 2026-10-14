@@ -39,9 +39,9 @@ text = JSON.ToJSON(store)(S.Module.Schema, Modules.module(store, [Contact, Phone
 schemas = Modules.schemas(store, JSON.FromJSON(store)(S.Module.Schema, text))   # {"Contact": ..., "Phone": ...}
 ```
 
-Each schema in a module is an entry, its name and its definition inline by kind (`{"object": {...}}`), sorted by name. A
-schema's own lists (properties, links, branches, parameters, ...) are entries too, `[{"name": ..., "type": ...}]`, in
-declaration order. A schema refers to a named schema by its name (`{"named": {"name": "Phone"}}`) and writes an unnamed
+A module writes its schemas as a mapping by name, each definition inline by kind (`{"Phone": {"object": {...}}}`), in the
+order given. A schema's own lists (properties, links, branches, parameters, ...) are containers of value objects,
+`[{"name": ..., "type": ...}]`, in declaration order. A schema refers to a named schema by its name (`{"named": {"name": "Phone"}}`) and writes an unnamed
 one inline; a name resolves within the module, then in the store. A schema that refers to itself must be named.
 
 ## Calls

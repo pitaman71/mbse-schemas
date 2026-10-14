@@ -1408,16 +1408,11 @@ def _named_text(name: str) -> OfProperty.Spec:
     return lambda p: p.name(name).of(lambda t: t.as_scalar(str))
 
 
-def _listing(adjacency: str, fields: dict[str, Any], keyed: bool = False) -> Callable[[Any], Any]:
-    """An adjacency listing elements of a schema: a one-link relation of its own (`owner`), each entry holding `fields`.
-    A schema's members are a list, in declaration order, which a schema read back keeps. Keyed, as a module's schemas
-    are, entries are keyed by name (`unique` over all but `name`), so written sorted by it."""
-
-    def relation(rel: Any) -> Any:
-        rel.links("owner").properties(*[lambda p, n=n, t=t: p.name(n).of(t) for n, t in fields.items()])
-        return rel.unique(*[n for n in fields if n != "name"]) if keyed else rel
-
-    return lambda r: r.name(adjacency).me("owner").of(relation)
+def _listing(name: str, fields: dict[str, Any]) -> OfProperty.Spec:
+    """A property listing elements of a schema: a container of value objects by position, each holding `fields`. A
+    schema's members are a list, in declaration order, which a schema read back keeps."""
+    element = OfObject.Builder().properties(*[lambda p, n=n, t=t: p.name(n).of(t) for n, t in fields.items()]).create()
+    return lambda p: p.name(name).of(lambda t: t.as_container(lambda c: c.index(_int).element(element)))
 
 
 def _Text(t: _AnyBuilder) -> _AnyBuilder:
@@ -1436,20 +1431,18 @@ _MEMBER = {name: prop.type for name, prop in _PropertySchema.properties.items()}
 _Parameters = _listing("parameters", _MEMBER)
 _ScalarValue = OfUnion.Builder().branches(
     *[lambda b, n=n, t=t: b.name(n).of(lambda x: x.as_scalar(t)) for t, n in _BASIC_NAMES.items()]).create()
-_FormSchema = OfObject.Builder().properties(_named_text("dialect"), _named_text("kind")).relations(
-    _listing("attributes", {"name": _Text, "value": _ScalarValue})).create()
-OfObject.Builder(_FormSchema).relations(_listing("arguments", {"term": _FormSchema})).update()
+_FormSchema = OfObject.Builder().properties(_named_text("dialect"), _named_text("kind"),
+                                            _listing("attributes", {"name": _Text, "value": _ScalarValue})).create()
+OfObject.Builder(_FormSchema).properties(_listing("arguments", {"term": _FormSchema})).update()
 _WidthTerms = OfObject.Builder().properties(lambda p: p.name("bits").of(_FormSchema),
                                             lambda p: p.name("bytes").of(_FormSchema)).create()
 _ScalarSchema = OfObject.Builder().name("Schemas.Scalar").properties(
     _named_text("name"), _named_text("format"), _named_text("token"), lambda p: p.name("bits").of(_int),
-    lambda p: p.name("bytes").of(_int), lambda p: p.name("terms").of(_WidthTerms), _named_text("description")).relations(
-    _Parameters).create()
-_Clause = OfObject.Builder().relations(_listing("names", {"name": _Text})).create()
+    lambda p: p.name("bytes").of(_int), lambda p: p.name("terms").of(_WidthTerms), _named_text("description"), _Parameters).create()
+_Clause = OfObject.Builder().properties(_listing("names", {"name": _Text})).create()
 _RelationSchema = OfObject.Builder().name("Schemas.Relation").properties(
-    _named_text("name"), _named_text("description")).relations(
-    _Parameters, _listing("links", _MEMBER), _listing("properties", _MEMBER),
-    _listing("uniques", {"clause": _Clause})).create()
+    _named_text("name"), _named_text("description"), _Parameters, _listing("links", _MEMBER),
+    _listing("properties", _MEMBER), _listing("uniques", {"clause": _Clause})).create()
 _RelationRef = OfUnion.Builder().branches(lambda b: b.name("relation").of(_RelationSchema),
                                           lambda b: b.name("named").of(_Named)).create()
 _AdjacencySchema = OfObject.Builder().properties(
@@ -1457,25 +1450,24 @@ _AdjacencySchema = OfObject.Builder().properties(
     _named_text("description")).create()
 _ObjectSchema = OfObject.Builder().name("Schemas.Object").properties(
     _named_text("name"), _named_text("singleton"), lambda p: p.name("ref").of(lambda t: t.as_scalar(bool)),
-    _named_text("pattern"), _named_text("description")).relations(
-    _Parameters, _listing("properties", _MEMBER),
+    _named_text("pattern"), _named_text("description"), _Parameters, _listing("properties", _MEMBER),
     _listing("adjacencies", {name: prop.type for name, prop in _AdjacencySchema.properties.items()})).create()
 _Flat: OfProperty.Spec = lambda p: p.name("flat").of(lambda t: t.as_scalar(bool))  # noqa: E731
 _UnionSchema = OfObject.Builder().name("Schemas.Union").properties(
-    _named_text("name"), _Flat, _named_text("description")).relations(_Parameters, _listing("branches", _MEMBER)).create()
+    _named_text("name"), _Flat, _named_text("description"), _Parameters, _listing("branches", _MEMBER)).create()
 _IntersectionSchema = OfObject.Builder().name("Schemas.Intersection").properties(
-    _named_text("name"), _Flat, _named_text("description")).relations(_Parameters, _listing("parts", _MEMBER)).create()
+    _named_text("name"), _Flat, _named_text("description"), _Parameters, _listing("parts", _MEMBER)).create()
 _ContainerSchema = OfObject.Builder().name("Schemas.Container").properties(
     _named_text("name"), lambda p: p.name("index").of(_AnySchema), lambda p: p.name("element").of(_AnySchema),
-    _named_text("layout"), _named_text("description")).relations(_Parameters).create()
+    _named_text("layout"), _named_text("description"), _Parameters).create()
 _ArgumentSchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("value").of(_ScalarValue),
                                                 lambda p: p.name("term").of(_FormSchema)).create()
 _ApplySchema = OfObject.Builder().name("Schemas.Apply").properties(
-    _named_text("name"), lambda p: p.name("of").of(_AnySchema), _named_text("description")).relations(
+    _named_text("name"), lambda p: p.name("of").of(_AnySchema), _named_text("description"),
     _Parameters, _listing("arguments", {name: prop.type for name, prop in _ArgumentSchema.properties.items()})).create()
-_EntrySchema = OfObject.Builder().relations(_listing("links", _MEMBER), _listing("properties", _MEMBER)).create()
+_EntrySchema = OfObject.Builder().properties(_listing("links", _MEMBER), _listing("properties", _MEMBER)).create()
 _PredicateSchema = OfObject.Builder().name("Schemas.Predicate").properties(
-    _named_text("name"), lambda p: p.name("requires").of(_FormSchema), _named_text("description")).relations(
+    _named_text("name"), lambda p: p.name("requires").of(_FormSchema), _named_text("description"),
     _Parameters, _listing("symbols", _MEMBER)).create()
 _KIND_SCHEMAS = (("scalar", _ScalarSchema), ("object", _ObjectSchema), ("union", _UnionSchema),
                  ("intersection", _IntersectionSchema), ("container", _ContainerSchema), ("apply", _ApplySchema))
@@ -1507,10 +1499,9 @@ OfAny.Named = _Named  # type: ignore[attr-defined]
 
 
 class Module:
-    """A named set of schemas, as data. `Module.Schema` is the reference object schema of a module: its `schemas` are an
-    adjacency, each entry a `name` and a `schema`, a `Module.Definition` (a schema of any kind, relations and predicates
-    included), keyed by name. See `Modules` for the translation between schemas and modules."""
+    """A named set of schemas, as data. `Module.Schema` is the reference object schema of a module: its `schemas` are a
+    container by name, each element a `Module.Definition` (a schema of any kind, relations and predicates included). See `Modules` for the translation between schemas and modules."""
 
-    Schema = OfObject.Builder().name("Schemas.Module").ref(r"module-(\d+)").relations(
-        _listing("schemas", {"name": _Text, "schema": _Definition}, keyed=True)).create()
+    Schema = OfObject.Builder().name("Schemas.Module").ref(r"module-(\d+)").properties(
+        lambda p: p.name("schemas").of(lambda t: t.as_container(lambda c: c.index(_Text).element(_Definition)))).create()
     Definition = _Definition

@@ -2,8 +2,48 @@ root: Schemas.Module/module-1
 objects:
   Schemas.Module/module-1:
     schemas:
-    - name: Address
-      schema:
+      Int32:
+        scalar:
+          format: basic
+          token: int
+          bits: 32
+      Size:
+        scalar:
+          format: ccpp
+          token: size_t
+          bytes: 8
+      Contact:
+        object:
+          ref: true
+          pattern: contact-(\d+)
+          properties:
+          - name: given_name
+            type:
+              scalar:
+                format: basic
+                token: str
+          - name: family_name
+            type:
+              scalar:
+                format: basic
+                token: str
+          - name: birth_date
+            type:
+              scalar:
+                format: basic
+                token: str
+          adjacencies:
+          - name: addresses
+            relation:
+              named:
+                name: ContactAddresses
+            me: contact
+          - name: phones
+            relation:
+              named:
+                name: ContactPhones
+            me: contact
+      Address:
         object:
           ref: true
           pattern: address-(\d+)
@@ -34,44 +74,210 @@ objects:
               named:
                 name: ContactAddresses
             me: address
-    - name: Applied
-      schema:
-        object:
+      ContactAddresses:
+        relation:
+          links:
+          - name: contact
+          - name: address
           properties:
-          - name: big
+          - name: label
             type:
-              apply:
-                of:
-                  named:
-                    name: Grid
-                arguments:
-                - name: 'n'
-                  value:
-                    int: 1180591620717411303424
-                - name: x
-                  value:
-                    float: NaN
-          - name: odd
+              scalar:
+                format: basic
+                token: str
+      Person:
+        object:
+          ref: true
+          pattern: person-(\d+)
+          properties:
+          - name: given_name
             type:
-              apply:
-                of:
-                  named:
-                    name: Tricky
-                arguments:
-                - name: a
-                  value:
-                    float: -0.0
-                - name: b
-                  value:
-                    str: 日本語 🚀
-                - name: c
-                  value:
-                    bytes: AP8=
-                - name: d
-                  value:
-                    bool: false
-    - name: Board
-      schema:
+              scalar:
+                format: basic
+                token: str
+          - name: birth_date
+            type:
+              scalar:
+                format: basic
+                token: str
+          adjacencies:
+          - name: children
+            relation:
+              named:
+                name: Parentage
+            me: parent
+          - name: parents
+            relation:
+              named:
+                name: Parentage
+            me: child
+          - name: mentees
+            relation:
+              named:
+                name: Mentorship
+            me: mentor
+          - name: mentors
+            relation:
+              named:
+                name: Mentorship
+            me: mentee
+      Parentage:
+        relation:
+          links:
+          - name: parent
+          - name: child
+          properties:
+          - name: kind
+            type:
+              scalar:
+                format: basic
+                token: str
+      Card:
+        object:
+          ref: true
+          pattern: card-(\d+)
+          properties:
+          - name: name
+            type:
+              scalar:
+                format: basic
+                token: str
+          - name: home
+            type:
+              object:
+                properties:
+                - name: number
+                  type:
+                    scalar:
+                      format: basic
+                      token: str
+                - name: label
+                  type:
+                    scalar:
+                      format: basic
+                      token: str
+                adjacencies:
+                - name: extensions
+                  relation:
+                    relation:
+                      links:
+                      - name: owner
+                      properties:
+                      - name: value
+                        type:
+                          scalar:
+                            format: basic
+                            token: str
+                  me: owner
+          - name: reach
+            type:
+              union:
+                branches:
+                - name: phone
+                  type:
+                    object:
+                      properties:
+                      - name: number
+                        type:
+                          scalar:
+                            format: basic
+                            token: str
+                      - name: label
+                        type:
+                          scalar:
+                            format: basic
+                            token: str
+                      adjacencies:
+                      - name: extensions
+                        relation:
+                          relation:
+                            links:
+                            - name: owner
+                            properties:
+                            - name: value
+                              type:
+                                scalar:
+                                  format: basic
+                                  token: str
+                        me: owner
+                - name: email
+                  type:
+                    object:
+                      properties:
+                      - name: address
+                        type:
+                          scalar:
+                            format: basic
+                            token: str
+          - name: ident
+            type:
+              union:
+                branches:
+                - name: number
+                  type:
+                    scalar:
+                      format: basic
+                      token: int
+                - name: code
+                  type:
+                    scalar:
+                      format: basic
+                      token: str
+          - name: meta
+            type:
+              intersection:
+                parts:
+                - name: stamp
+                  type:
+                    object:
+                      properties:
+                      - name: updated
+                        type:
+                          scalar:
+                            format: basic
+                            token: str
+                - name: audit
+                  type:
+                    object:
+                      properties:
+                      - name: by
+                        type:
+                          scalar:
+                            format: basic
+                            token: str
+                      - name: updated
+                        type:
+                          scalar:
+                            format: basic
+                            token: str
+          adjacencies:
+          - name: decks
+            relation:
+              named:
+                name: Holding
+            me: card
+      Deck:
+        object:
+          ref: true
+          pattern: deck-(\d+)
+          properties:
+          - name: title
+            type:
+              scalar:
+                format: basic
+                token: str
+          adjacencies:
+          - name: cards
+            relation:
+              named:
+                name: Holding
+            me: deck
+      Holding:
+        relation:
+          links:
+          - name: deck
+          - name: card
+      Board:
         object:
           ref: true
           pattern: board-(\d+)
@@ -317,209 +523,24 @@ objects:
                     names:
                     - name: value
             me: owner
-    - name: Card
-      schema:
-        object:
-          ref: true
-          pattern: card-(\d+)
-          properties:
-          - name: name
-            type:
-              scalar:
-                format: basic
-                token: str
-          - name: home
-            type:
-              object:
-                properties:
-                - name: number
-                  type:
-                    scalar:
-                      format: basic
-                      token: str
-                - name: label
-                  type:
-                    scalar:
-                      format: basic
-                      token: str
-                adjacencies:
-                - name: extensions
-                  relation:
-                    relation:
-                      links:
-                      - name: owner
-                      properties:
-                      - name: value
-                        type:
-                          scalar:
-                            format: basic
-                            token: str
-                  me: owner
-          - name: reach
-            type:
-              union:
-                branches:
-                - name: phone
-                  type:
-                    object:
-                      properties:
-                      - name: number
-                        type:
-                          scalar:
-                            format: basic
-                            token: str
-                      - name: label
-                        type:
-                          scalar:
-                            format: basic
-                            token: str
-                      adjacencies:
-                      - name: extensions
-                        relation:
-                          relation:
-                            links:
-                            - name: owner
-                            properties:
-                            - name: value
-                              type:
-                                scalar:
-                                  format: basic
-                                  token: str
-                        me: owner
-                - name: email
-                  type:
-                    object:
-                      properties:
-                      - name: address
-                        type:
-                          scalar:
-                            format: basic
-                            token: str
-          - name: ident
-            type:
-              union:
-                branches:
-                - name: number
-                  type:
-                    scalar:
-                      format: basic
-                      token: int
-                - name: code
-                  type:
-                    scalar:
-                      format: basic
-                      token: str
-          - name: meta
-            type:
-              intersection:
-                parts:
-                - name: stamp
-                  type:
-                    object:
-                      properties:
-                      - name: updated
-                        type:
-                          scalar:
-                            format: basic
-                            token: str
-                - name: audit
-                  type:
-                    object:
-                      properties:
-                      - name: by
-                        type:
-                          scalar:
-                            format: basic
-                            token: str
-                      - name: updated
-                        type:
-                          scalar:
-                            format: basic
-                            token: str
-          adjacencies:
-          - name: decks
-            relation:
-              named:
-                name: Holding
-            me: card
-    - name: Choice
-      schema:
-        union:
-          flat: true
-          branches:
-          - name: 'n'
+      Word:
+        scalar:
+          format: basic
+          token: int
+          terms:
+            bits:
+              kind: variable
+              attributes:
+              - name: name
+                value:
+                  str: w
+          parameters:
+          - name: w
             type:
               scalar:
                 format: basic
                 token: int
-          - name: s
-            type:
-              scalar:
-                format: basic
-                token: str
-    - name: Contact
-      schema:
-        object:
-          ref: true
-          pattern: contact-(\d+)
-          properties:
-          - name: given_name
-            type:
-              scalar:
-                format: basic
-                token: str
-          - name: family_name
-            type:
-              scalar:
-                format: basic
-                token: str
-          - name: birth_date
-            type:
-              scalar:
-                format: basic
-                token: str
-          adjacencies:
-          - name: addresses
-            relation:
-              named:
-                name: ContactAddresses
-            me: contact
-          - name: phones
-            relation:
-              named:
-                name: ContactPhones
-            me: contact
-    - name: ContactAddresses
-      schema:
-        relation:
-          links:
-          - name: contact
-          - name: address
-          properties:
-          - name: label
-            type:
-              scalar:
-                format: basic
-                token: str
-    - name: Deck
-      schema:
-        object:
-          ref: true
-          pattern: deck-(\d+)
-          properties:
-          - name: title
-            type:
-              scalar:
-                format: basic
-                token: str
-          adjacencies:
-          - name: cards
-            relation:
-              named:
-                name: Holding
-            me: deck
-    - name: Grid
-      schema:
+      Grid:
         object:
           parameters:
           - name: 'n'
@@ -574,20 +595,107 @@ objects:
                         value:
                           int: 8
             me: owner
-    - name: Holding
-      schema:
-        relation:
-          links:
-          - name: deck
-          - name: card
-    - name: Int32
-      schema:
-        scalar:
-          format: basic
-          token: int
-          bits: 32
-    - name: Lives
-      schema:
+      Square:
+        apply:
+          of:
+            named:
+              name: Grid
+          parameters:
+          - name: m
+            type:
+              scalar:
+                format: basic
+                token: int
+          arguments:
+          - name: 'n'
+            term:
+              kind: variable
+              attributes:
+              - name: name
+                value:
+                  str: m
+          - name: x
+            value:
+              bool: true
+      Tricky:
+        object:
+          parameters:
+          - name: a
+          - name: b
+          - name: c
+          - name: d
+      Applied:
+        object:
+          properties:
+          - name: big
+            type:
+              apply:
+                of:
+                  named:
+                    name: Grid
+                arguments:
+                - name: 'n'
+                  value:
+                    int: 1180591620717411303424
+                - name: x
+                  value:
+                    float: NaN
+          - name: odd
+            type:
+              apply:
+                of:
+                  named:
+                    name: Tricky
+                arguments:
+                - name: a
+                  value:
+                    float: -0.0
+                - name: b
+                  value:
+                    str: 日本語 🚀
+                - name: c
+                  value:
+                    bytes: AP8=
+                - name: d
+                  value:
+                    bool: false
+      Choice:
+        union:
+          flat: true
+          branches:
+          - name: 'n'
+            type:
+              scalar:
+                format: basic
+                token: int
+          - name: s
+            type:
+              scalar:
+                format: basic
+                token: str
+      Marked:
+        intersection:
+          flat: true
+          parts:
+          - name: when
+            type:
+              object:
+                properties:
+                - name: at
+                  type:
+                    scalar:
+                      format: basic
+                      token: int
+          - name: who
+            type:
+              object:
+                properties:
+                - name: by
+                  type:
+                    scalar:
+                      format: basic
+                      token: str
+      Lives:
         predicate:
           requires:
             dialect: basic
@@ -626,130 +734,3 @@ objects:
               named:
                 name: Address
             description: A home
-    - name: Marked
-      schema:
-        intersection:
-          flat: true
-          parts:
-          - name: when
-            type:
-              object:
-                properties:
-                - name: at
-                  type:
-                    scalar:
-                      format: basic
-                      token: int
-          - name: who
-            type:
-              object:
-                properties:
-                - name: by
-                  type:
-                    scalar:
-                      format: basic
-                      token: str
-    - name: Parentage
-      schema:
-        relation:
-          links:
-          - name: parent
-          - name: child
-          properties:
-          - name: kind
-            type:
-              scalar:
-                format: basic
-                token: str
-    - name: Person
-      schema:
-        object:
-          ref: true
-          pattern: person-(\d+)
-          properties:
-          - name: given_name
-            type:
-              scalar:
-                format: basic
-                token: str
-          - name: birth_date
-            type:
-              scalar:
-                format: basic
-                token: str
-          adjacencies:
-          - name: children
-            relation:
-              named:
-                name: Parentage
-            me: parent
-          - name: parents
-            relation:
-              named:
-                name: Parentage
-            me: child
-          - name: mentees
-            relation:
-              named:
-                name: Mentorship
-            me: mentor
-          - name: mentors
-            relation:
-              named:
-                name: Mentorship
-            me: mentee
-    - name: Size
-      schema:
-        scalar:
-          format: ccpp
-          token: size_t
-          bytes: 8
-    - name: Square
-      schema:
-        apply:
-          of:
-            named:
-              name: Grid
-          parameters:
-          - name: m
-            type:
-              scalar:
-                format: basic
-                token: int
-          arguments:
-          - name: 'n'
-            term:
-              kind: variable
-              attributes:
-              - name: name
-                value:
-                  str: m
-          - name: x
-            value:
-              bool: true
-    - name: Tricky
-      schema:
-        object:
-          parameters:
-          - name: a
-          - name: b
-          - name: c
-          - name: d
-    - name: Word
-      schema:
-        scalar:
-          format: basic
-          token: int
-          terms:
-            bits:
-              kind: variable
-              attributes:
-              - name: name
-                value:
-                  str: w
-          parameters:
-          - name: w
-            type:
-              scalar:
-                format: basic
-                token: int

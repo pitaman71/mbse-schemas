@@ -2,1495 +2,1438 @@
   "root": "Schemas.Module/module-1",
   "objects": {
     "Schemas.Module/module-1": {
-      "schemas": [
-        {
-          "name": "Address",
-          "schema": {
-            "object": {
-              "ref": true,
-              "pattern": "address-(\\d+)",
-              "properties": [
-                {
-                  "name": "street1",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "str"
-                    }
-                  }
-                },
-                {
-                  "name": "locality",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "str"
-                    }
-                  }
-                },
-                {
-                  "name": "postal_code",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "str"
-                    }
-                  }
-                },
-                {
-                  "name": "country_code",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "str"
-                    }
-                  }
-                }
-              ],
-              "adjacencies": [
-                {
-                  "name": "contacts",
-                  "relation": {
-                    "named": {
-                      "name": "ContactAddresses"
-                    }
-                  },
-                  "me": "address"
-                }
-              ]
-            }
+      "schemas": {
+        "Int32": {
+          "scalar": {
+            "format": "basic",
+            "token": "int",
+            "bits": 32
           }
         },
-        {
-          "name": "Applied",
-          "schema": {
-            "object": {
-              "properties": [
-                {
-                  "name": "big",
-                  "type": {
-                    "apply": {
-                      "of": {
-                        "named": {
-                          "name": "Grid"
-                        }
-                      },
-                      "arguments": [
-                        {
-                          "name": "n",
-                          "value": {
-                            "int": 1180591620717411303424
-                          }
-                        },
-                        {
-                          "name": "x",
-                          "value": {
-                            "float": "NaN"
-                          }
-                        }
-                      ]
-                    }
-                  }
-                },
-                {
-                  "name": "odd",
-                  "type": {
-                    "apply": {
-                      "of": {
-                        "named": {
-                          "name": "Tricky"
-                        }
-                      },
-                      "arguments": [
-                        {
-                          "name": "a",
-                          "value": {
-                            "float": -0.0
-                          }
-                        },
-                        {
-                          "name": "b",
-                          "value": {
-                            "str": "日本語 🚀"
-                          }
-                        },
-                        {
-                          "name": "c",
-                          "value": {
-                            "bytes": "AP8="
-                          }
-                        },
-                        {
-                          "name": "d",
-                          "value": {
-                            "bool": false
-                          }
-                        }
-                      ]
-                    }
-                  }
-                }
-              ]
-            }
+        "Size": {
+          "scalar": {
+            "format": "ccpp",
+            "token": "size_t",
+            "bytes": 8
           }
         },
-        {
-          "name": "Board",
-          "schema": {
-            "object": {
-              "ref": true,
-              "pattern": "board-(\\d+)",
-              "properties": [
-                {
-                  "name": "name",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "str"
-                    }
+        "Contact": {
+          "object": {
+            "ref": true,
+            "pattern": "contact-(\\d+)",
+            "properties": [
+              {
+                "name": "given_name",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "str"
                   }
                 }
-              ],
-              "adjacencies": [
-                {
-                  "name": "tags",
-                  "relation": {
-                    "relation": {
-                      "links": [
-                        {
-                          "name": "owner"
-                        }
-                      ],
-                      "properties": [
-                        {
-                          "name": "value",
-                          "type": {
-                            "scalar": {
-                              "format": "basic",
-                              "token": "str"
-                            }
+              },
+              {
+                "name": "family_name",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "str"
+                  }
+                }
+              },
+              {
+                "name": "birth_date",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "str"
+                  }
+                }
+              }
+            ],
+            "adjacencies": [
+              {
+                "name": "addresses",
+                "relation": {
+                  "named": {
+                    "name": "ContactAddresses"
+                  }
+                },
+                "me": "contact"
+              },
+              {
+                "name": "phones",
+                "relation": {
+                  "named": {
+                    "name": "ContactPhones"
+                  }
+                },
+                "me": "contact"
+              }
+            ]
+          }
+        },
+        "Address": {
+          "object": {
+            "ref": true,
+            "pattern": "address-(\\d+)",
+            "properties": [
+              {
+                "name": "street1",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "str"
+                  }
+                }
+              },
+              {
+                "name": "locality",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "str"
+                  }
+                }
+              },
+              {
+                "name": "postal_code",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "str"
+                  }
+                }
+              },
+              {
+                "name": "country_code",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "str"
+                  }
+                }
+              }
+            ],
+            "adjacencies": [
+              {
+                "name": "contacts",
+                "relation": {
+                  "named": {
+                    "name": "ContactAddresses"
+                  }
+                },
+                "me": "address"
+              }
+            ]
+          }
+        },
+        "ContactAddresses": {
+          "relation": {
+            "links": [
+              {
+                "name": "contact"
+              },
+              {
+                "name": "address"
+              }
+            ],
+            "properties": [
+              {
+                "name": "label",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "str"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "Person": {
+          "object": {
+            "ref": true,
+            "pattern": "person-(\\d+)",
+            "properties": [
+              {
+                "name": "given_name",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "str"
+                  }
+                }
+              },
+              {
+                "name": "birth_date",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "str"
+                  }
+                }
+              }
+            ],
+            "adjacencies": [
+              {
+                "name": "children",
+                "relation": {
+                  "named": {
+                    "name": "Parentage"
+                  }
+                },
+                "me": "parent"
+              },
+              {
+                "name": "parents",
+                "relation": {
+                  "named": {
+                    "name": "Parentage"
+                  }
+                },
+                "me": "child"
+              },
+              {
+                "name": "mentees",
+                "relation": {
+                  "named": {
+                    "name": "Mentorship"
+                  }
+                },
+                "me": "mentor"
+              },
+              {
+                "name": "mentors",
+                "relation": {
+                  "named": {
+                    "name": "Mentorship"
+                  }
+                },
+                "me": "mentee"
+              }
+            ]
+          }
+        },
+        "Parentage": {
+          "relation": {
+            "links": [
+              {
+                "name": "parent"
+              },
+              {
+                "name": "child"
+              }
+            ],
+            "properties": [
+              {
+                "name": "kind",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "str"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "Card": {
+          "object": {
+            "ref": true,
+            "pattern": "card-(\\d+)",
+            "properties": [
+              {
+                "name": "name",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "str"
+                  }
+                }
+              },
+              {
+                "name": "home",
+                "type": {
+                  "object": {
+                    "properties": [
+                      {
+                        "name": "number",
+                        "type": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "str"
                           }
                         }
-                      ]
-                    }
-                  },
-                  "me": "owner"
-                },
-                {
-                  "name": "blobs",
-                  "relation": {
-                    "relation": {
-                      "links": [
-                        {
-                          "name": "owner"
-                        }
-                      ],
-                      "properties": [
-                        {
-                          "name": "value",
-                          "type": {
-                            "scalar": {
-                              "format": "basic",
-                              "token": "bytes"
-                            }
+                      },
+                      {
+                        "name": "label",
+                        "type": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "str"
                           }
                         }
-                      ]
-                    }
-                  },
-                  "me": "owner"
-                },
-                {
-                  "name": "grid",
-                  "relation": {
-                    "relation": {
-                      "links": [
-                        {
-                          "name": "owner"
-                        }
-                      ],
-                      "properties": [
-                        {
-                          "name": "row",
-                          "type": {
-                            "object": {
-                              "adjacencies": [
-                                {
-                                  "name": "values",
+                      }
+                    ],
+                    "adjacencies": [
+                      {
+                        "name": "extensions",
+                        "relation": {
+                          "relation": {
+                            "links": [
+                              {
+                                "name": "owner"
+                              }
+                            ],
+                            "properties": [
+                              {
+                                "name": "value",
+                                "type": {
+                                  "scalar": {
+                                    "format": "basic",
+                                    "token": "str"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "me": "owner"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "reach",
+                "type": {
+                  "union": {
+                    "branches": [
+                      {
+                        "name": "phone",
+                        "type": {
+                          "object": {
+                            "properties": [
+                              {
+                                "name": "number",
+                                "type": {
+                                  "scalar": {
+                                    "format": "basic",
+                                    "token": "str"
+                                  }
+                                }
+                              },
+                              {
+                                "name": "label",
+                                "type": {
+                                  "scalar": {
+                                    "format": "basic",
+                                    "token": "str"
+                                  }
+                                }
+                              }
+                            ],
+                            "adjacencies": [
+                              {
+                                "name": "extensions",
+                                "relation": {
                                   "relation": {
-                                    "relation": {
-                                      "links": [
-                                        {
-                                          "name": "owner"
-                                        }
-                                      ],
-                                      "properties": [
-                                        {
-                                          "name": "value",
-                                          "type": {
-                                            "scalar": {
-                                              "format": "basic",
-                                              "token": "int"
-                                            }
+                                    "links": [
+                                      {
+                                        "name": "owner"
+                                      }
+                                    ],
+                                    "properties": [
+                                      {
+                                        "name": "value",
+                                        "type": {
+                                          "scalar": {
+                                            "format": "basic",
+                                            "token": "str"
                                           }
                                         }
-                                      ]
-                                    }
-                                  },
-                                  "me": "owner"
-                                }
-                              ]
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  "me": "owner"
-                },
-                {
-                  "name": "readings",
-                  "relation": {
-                    "relation": {
-                      "links": [
-                        {
-                          "name": "owner"
-                        }
-                      ],
-                      "properties": [
-                        {
-                          "name": "reading",
-                          "type": {
-                            "union": {
-                              "branches": [
-                                {
-                                  "name": "value",
-                                  "type": {
-                                    "scalar": {
-                                      "format": "basic",
-                                      "token": "float"
-                                    }
+                                      }
+                                    ]
                                   }
                                 },
-                                {
-                                  "name": "note",
-                                  "type": {
-                                    "scalar": {
-                                      "format": "basic",
-                                      "token": "str"
-                                    }
-                                  }
-                                }
-                              ]
-                            }
+                                "me": "owner"
+                              }
+                            ]
                           }
                         }
-                      ]
-                    }
-                  },
-                  "me": "owner"
-                },
-                {
-                  "name": "sockets",
-                  "relation": {
-                    "relation": {
-                      "links": [
-                        {
-                          "name": "owner"
-                        }
-                      ],
-                      "properties": [
-                        {
-                          "name": "socket",
-                          "type": {
-                            "object": {
-                              "properties": [
-                                {
-                                  "name": "name",
-                                  "type": {
-                                    "scalar": {
-                                      "format": "basic",
-                                      "token": "str"
-                                    }
+                      },
+                      {
+                        "name": "email",
+                        "type": {
+                          "object": {
+                            "properties": [
+                              {
+                                "name": "address",
+                                "type": {
+                                  "scalar": {
+                                    "format": "basic",
+                                    "token": "str"
                                   }
                                 }
-                              ],
-                              "adjacencies": [
-                                {
-                                  "name": "pins",
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "ident",
+                "type": {
+                  "union": {
+                    "branches": [
+                      {
+                        "name": "number",
+                        "type": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "int"
+                          }
+                        }
+                      },
+                      {
+                        "name": "code",
+                        "type": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "str"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "meta",
+                "type": {
+                  "intersection": {
+                    "parts": [
+                      {
+                        "name": "stamp",
+                        "type": {
+                          "object": {
+                            "properties": [
+                              {
+                                "name": "updated",
+                                "type": {
+                                  "scalar": {
+                                    "format": "basic",
+                                    "token": "str"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "name": "audit",
+                        "type": {
+                          "object": {
+                            "properties": [
+                              {
+                                "name": "by",
+                                "type": {
+                                  "scalar": {
+                                    "format": "basic",
+                                    "token": "str"
+                                  }
+                                }
+                              },
+                              {
+                                "name": "updated",
+                                "type": {
+                                  "scalar": {
+                                    "format": "basic",
+                                    "token": "str"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ],
+            "adjacencies": [
+              {
+                "name": "decks",
+                "relation": {
+                  "named": {
+                    "name": "Holding"
+                  }
+                },
+                "me": "card"
+              }
+            ]
+          }
+        },
+        "Deck": {
+          "object": {
+            "ref": true,
+            "pattern": "deck-(\\d+)",
+            "properties": [
+              {
+                "name": "title",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "str"
+                  }
+                }
+              }
+            ],
+            "adjacencies": [
+              {
+                "name": "cards",
+                "relation": {
+                  "named": {
+                    "name": "Holding"
+                  }
+                },
+                "me": "deck"
+              }
+            ]
+          }
+        },
+        "Holding": {
+          "relation": {
+            "links": [
+              {
+                "name": "deck"
+              },
+              {
+                "name": "card"
+              }
+            ]
+          }
+        },
+        "Board": {
+          "object": {
+            "ref": true,
+            "pattern": "board-(\\d+)",
+            "properties": [
+              {
+                "name": "name",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "str"
+                  }
+                }
+              }
+            ],
+            "adjacencies": [
+              {
+                "name": "tags",
+                "relation": {
+                  "relation": {
+                    "links": [
+                      {
+                        "name": "owner"
+                      }
+                    ],
+                    "properties": [
+                      {
+                        "name": "value",
+                        "type": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "str"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "me": "owner"
+              },
+              {
+                "name": "blobs",
+                "relation": {
+                  "relation": {
+                    "links": [
+                      {
+                        "name": "owner"
+                      }
+                    ],
+                    "properties": [
+                      {
+                        "name": "value",
+                        "type": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "bytes"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "me": "owner"
+              },
+              {
+                "name": "grid",
+                "relation": {
+                  "relation": {
+                    "links": [
+                      {
+                        "name": "owner"
+                      }
+                    ],
+                    "properties": [
+                      {
+                        "name": "row",
+                        "type": {
+                          "object": {
+                            "adjacencies": [
+                              {
+                                "name": "values",
+                                "relation": {
                                   "relation": {
-                                    "relation": {
-                                      "links": [
-                                        {
-                                          "name": "owner"
-                                        }
-                                      ],
-                                      "properties": [
-                                        {
-                                          "name": "value",
-                                          "type": {
-                                            "scalar": {
-                                              "format": "basic",
-                                              "token": "str"
-                                            }
+                                    "links": [
+                                      {
+                                        "name": "owner"
+                                      }
+                                    ],
+                                    "properties": [
+                                      {
+                                        "name": "value",
+                                        "type": {
+                                          "scalar": {
+                                            "format": "basic",
+                                            "token": "int"
                                           }
                                         }
-                                      ]
-                                    }
-                                  },
-                                  "me": "owner"
-                                }
-                              ]
-                            }
+                                      }
+                                    ]
+                                  }
+                                },
+                                "me": "owner"
+                              }
+                            ]
                           }
                         }
-                      ]
-                    }
-                  },
-                  "me": "owner"
+                      }
+                    ]
+                  }
                 },
-                {
-                  "name": "banks",
+                "me": "owner"
+              },
+              {
+                "name": "readings",
+                "relation": {
                   "relation": {
-                    "relation": {
-                      "links": [
-                        {
-                          "name": "owner"
+                    "links": [
+                      {
+                        "name": "owner"
+                      }
+                    ],
+                    "properties": [
+                      {
+                        "name": "reading",
+                        "type": {
+                          "union": {
+                            "branches": [
+                              {
+                                "name": "value",
+                                "type": {
+                                  "scalar": {
+                                    "format": "basic",
+                                    "token": "float"
+                                  }
+                                }
+                              },
+                              {
+                                "name": "note",
+                                "type": {
+                                  "scalar": {
+                                    "format": "basic",
+                                    "token": "str"
+                                  }
+                                }
+                              }
+                            ]
+                          }
                         }
-                      ],
-                      "properties": [
-                        {
-                          "name": "bank",
-                          "type": {
-                            "object": {
-                              "adjacencies": [
-                                {
-                                  "name": "sockets",
+                      }
+                    ]
+                  }
+                },
+                "me": "owner"
+              },
+              {
+                "name": "sockets",
+                "relation": {
+                  "relation": {
+                    "links": [
+                      {
+                        "name": "owner"
+                      }
+                    ],
+                    "properties": [
+                      {
+                        "name": "socket",
+                        "type": {
+                          "object": {
+                            "properties": [
+                              {
+                                "name": "name",
+                                "type": {
+                                  "scalar": {
+                                    "format": "basic",
+                                    "token": "str"
+                                  }
+                                }
+                              }
+                            ],
+                            "adjacencies": [
+                              {
+                                "name": "pins",
+                                "relation": {
                                   "relation": {
-                                    "relation": {
-                                      "links": [
-                                        {
-                                          "name": "owner"
+                                    "links": [
+                                      {
+                                        "name": "owner"
+                                      }
+                                    ],
+                                    "properties": [
+                                      {
+                                        "name": "value",
+                                        "type": {
+                                          "scalar": {
+                                            "format": "basic",
+                                            "token": "str"
+                                          }
                                         }
-                                      ],
-                                      "properties": [
-                                        {
-                                          "name": "socket",
-                                          "type": {
-                                            "object": {
-                                              "properties": [
-                                                {
-                                                  "name": "name",
-                                                  "type": {
-                                                    "scalar": {
-                                                      "format": "basic",
-                                                      "token": "str"
-                                                    }
+                                      }
+                                    ]
+                                  }
+                                },
+                                "me": "owner"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "me": "owner"
+              },
+              {
+                "name": "banks",
+                "relation": {
+                  "relation": {
+                    "links": [
+                      {
+                        "name": "owner"
+                      }
+                    ],
+                    "properties": [
+                      {
+                        "name": "bank",
+                        "type": {
+                          "object": {
+                            "adjacencies": [
+                              {
+                                "name": "sockets",
+                                "relation": {
+                                  "relation": {
+                                    "links": [
+                                      {
+                                        "name": "owner"
+                                      }
+                                    ],
+                                    "properties": [
+                                      {
+                                        "name": "socket",
+                                        "type": {
+                                          "object": {
+                                            "properties": [
+                                              {
+                                                "name": "name",
+                                                "type": {
+                                                  "scalar": {
+                                                    "format": "basic",
+                                                    "token": "str"
                                                   }
                                                 }
-                                              ],
-                                              "adjacencies": [
-                                                {
-                                                  "name": "pins",
+                                              }
+                                            ],
+                                            "adjacencies": [
+                                              {
+                                                "name": "pins",
+                                                "relation": {
                                                   "relation": {
-                                                    "relation": {
-                                                      "links": [
-                                                        {
-                                                          "name": "owner"
-                                                        }
-                                                      ],
-                                                      "properties": [
-                                                        {
-                                                          "name": "value",
-                                                          "type": {
-                                                            "scalar": {
-                                                              "format": "basic",
-                                                              "token": "str"
-                                                            }
+                                                    "links": [
+                                                      {
+                                                        "name": "owner"
+                                                      }
+                                                    ],
+                                                    "properties": [
+                                                      {
+                                                        "name": "value",
+                                                        "type": {
+                                                          "scalar": {
+                                                            "format": "basic",
+                                                            "token": "str"
                                                           }
                                                         }
-                                                      ]
-                                                    }
-                                                  },
-                                                  "me": "owner"
-                                                }
-                                              ]
-                                            }
+                                                      }
+                                                    ]
+                                                  }
+                                                },
+                                                "me": "owner"
+                                              }
+                                            ]
                                           }
                                         }
-                                      ]
-                                    }
-                                  },
-                                  "me": "owner"
-                                }
-                              ]
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  "me": "owner"
-                },
-                {
-                  "name": "matrix",
-                  "relation": {
-                    "relation": {
-                      "links": [
-                        {
-                          "name": "owner"
-                        }
-                      ],
-                      "properties": [
-                        {
-                          "name": "i",
-                          "type": {
-                            "scalar": {
-                              "format": "basic",
-                              "token": "int"
-                            }
-                          }
-                        },
-                        {
-                          "name": "j",
-                          "type": {
-                            "scalar": {
-                              "format": "basic",
-                              "token": "int"
-                            }
-                          }
-                        },
-                        {
-                          "name": "value",
-                          "type": {
-                            "scalar": {
-                              "format": "basic",
-                              "token": "int"
-                            }
-                          }
-                        }
-                      ],
-                      "uniques": [
-                        {
-                          "clause": {
-                            "names": [
-                              {
-                                "name": "value"
-                              }
-                            ]
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  "me": "owner"
-                },
-                {
-                  "name": "attrs",
-                  "relation": {
-                    "relation": {
-                      "links": [
-                        {
-                          "name": "owner"
-                        }
-                      ],
-                      "properties": [
-                        {
-                          "name": "key",
-                          "type": {
-                            "scalar": {
-                              "format": "basic",
-                              "token": "str"
-                            }
-                          }
-                        },
-                        {
-                          "name": "value",
-                          "type": {
-                            "scalar": {
-                              "format": "basic",
-                              "token": "float"
-                            }
-                          }
-                        }
-                      ],
-                      "uniques": [
-                        {
-                          "clause": {
-                            "names": [
-                              {
-                                "name": "value"
-                              }
-                            ]
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  "me": "owner"
-                },
-                {
-                  "name": "weights",
-                  "relation": {
-                    "relation": {
-                      "links": [
-                        {
-                          "name": "owner"
-                        }
-                      ],
-                      "properties": [
-                        {
-                          "name": "key",
-                          "type": {
-                            "scalar": {
-                              "format": "basic",
-                              "token": "float"
-                            }
-                          }
-                        },
-                        {
-                          "name": "value",
-                          "type": {
-                            "scalar": {
-                              "format": "basic",
-                              "token": "str"
-                            }
-                          }
-                        }
-                      ],
-                      "uniques": [
-                        {
-                          "clause": {
-                            "names": [
-                              {
-                                "name": "value"
-                              }
-                            ]
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  "me": "owner"
-                },
-                {
-                  "name": "cells",
-                  "relation": {
-                    "relation": {
-                      "links": [
-                        {
-                          "name": "owner"
-                        }
-                      ],
-                      "properties": [
-                        {
-                          "name": "key",
-                          "type": {
-                            "object": {
-                              "properties": [
-                                {
-                                  "name": "r",
-                                  "type": {
-                                    "scalar": {
-                                      "format": "basic",
-                                      "token": "int"
-                                    }
+                                      }
+                                    ]
                                   }
                                 },
-                                {
-                                  "name": "c",
-                                  "type": {
-                                    "scalar": {
-                                      "format": "basic",
-                                      "token": "int"
-                                    }
-                                  }
-                                }
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "name": "value",
-                          "type": {
-                            "scalar": {
-                              "format": "basic",
-                              "token": "int"
-                            }
-                          }
-                        }
-                      ],
-                      "uniques": [
-                        {
-                          "clause": {
-                            "names": [
-                              {
-                                "name": "value"
+                                "me": "owner"
                               }
                             ]
                           }
                         }
-                      ]
-                    }
-                  },
-                  "me": "owner"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Card",
-          "schema": {
-            "object": {
-              "ref": true,
-              "pattern": "card-(\\d+)",
-              "properties": [
-                {
-                  "name": "name",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "str"
-                    }
+                      }
+                    ]
                   }
                 },
-                {
-                  "name": "home",
-                  "type": {
-                    "object": {
-                      "properties": [
-                        {
-                          "name": "number",
-                          "type": {
-                            "scalar": {
-                              "format": "basic",
-                              "token": "str"
-                            }
-                          }
-                        },
-                        {
-                          "name": "label",
-                          "type": {
-                            "scalar": {
-                              "format": "basic",
-                              "token": "str"
-                            }
+                "me": "owner"
+              },
+              {
+                "name": "matrix",
+                "relation": {
+                  "relation": {
+                    "links": [
+                      {
+                        "name": "owner"
+                      }
+                    ],
+                    "properties": [
+                      {
+                        "name": "i",
+                        "type": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "int"
                           }
                         }
-                      ],
-                      "adjacencies": [
-                        {
-                          "name": "extensions",
-                          "relation": {
-                            "relation": {
-                              "links": [
-                                {
-                                  "name": "owner"
+                      },
+                      {
+                        "name": "j",
+                        "type": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "int"
+                          }
+                        }
+                      },
+                      {
+                        "name": "value",
+                        "type": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "int"
+                          }
+                        }
+                      }
+                    ],
+                    "uniques": [
+                      {
+                        "clause": {
+                          "names": [
+                            {
+                              "name": "value"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                "me": "owner"
+              },
+              {
+                "name": "attrs",
+                "relation": {
+                  "relation": {
+                    "links": [
+                      {
+                        "name": "owner"
+                      }
+                    ],
+                    "properties": [
+                      {
+                        "name": "key",
+                        "type": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "str"
+                          }
+                        }
+                      },
+                      {
+                        "name": "value",
+                        "type": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "float"
+                          }
+                        }
+                      }
+                    ],
+                    "uniques": [
+                      {
+                        "clause": {
+                          "names": [
+                            {
+                              "name": "value"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                "me": "owner"
+              },
+              {
+                "name": "weights",
+                "relation": {
+                  "relation": {
+                    "links": [
+                      {
+                        "name": "owner"
+                      }
+                    ],
+                    "properties": [
+                      {
+                        "name": "key",
+                        "type": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "float"
+                          }
+                        }
+                      },
+                      {
+                        "name": "value",
+                        "type": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "str"
+                          }
+                        }
+                      }
+                    ],
+                    "uniques": [
+                      {
+                        "clause": {
+                          "names": [
+                            {
+                              "name": "value"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                "me": "owner"
+              },
+              {
+                "name": "cells",
+                "relation": {
+                  "relation": {
+                    "links": [
+                      {
+                        "name": "owner"
+                      }
+                    ],
+                    "properties": [
+                      {
+                        "name": "key",
+                        "type": {
+                          "object": {
+                            "properties": [
+                              {
+                                "name": "r",
+                                "type": {
+                                  "scalar": {
+                                    "format": "basic",
+                                    "token": "int"
+                                  }
                                 }
-                              ],
-                              "properties": [
+                              },
+                              {
+                                "name": "c",
+                                "type": {
+                                  "scalar": {
+                                    "format": "basic",
+                                    "token": "int"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "name": "value",
+                        "type": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "int"
+                          }
+                        }
+                      }
+                    ],
+                    "uniques": [
+                      {
+                        "clause": {
+                          "names": [
+                            {
+                              "name": "value"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                "me": "owner"
+              }
+            ]
+          }
+        },
+        "Word": {
+          "scalar": {
+            "format": "basic",
+            "token": "int",
+            "terms": {
+              "bits": {
+                "kind": "variable",
+                "attributes": [
+                  {
+                    "name": "name",
+                    "value": {
+                      "str": "w"
+                    }
+                  }
+                ]
+              }
+            },
+            "parameters": [
+              {
+                "name": "w",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "int"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "Grid": {
+          "object": {
+            "parameters": [
+              {
+                "name": "n",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "int"
+                  }
+                },
+                "description": "Its side"
+              },
+              {
+                "name": "x"
+              }
+            ],
+            "properties": [
+              {
+                "name": "mask",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "int",
+                    "terms": {
+                      "bits": {
+                        "dialect": "basic",
+                        "kind": "operation",
+                        "attributes": [
+                          {
+                            "name": "name",
+                            "value": {
+                              "str": "mul"
+                            }
+                          }
+                        ],
+                        "arguments": [
+                          {
+                            "term": {
+                              "kind": "variable",
+                              "attributes": [
                                 {
-                                  "name": "value",
-                                  "type": {
-                                    "scalar": {
-                                      "format": "basic",
-                                      "token": "str"
-                                    }
+                                  "name": "name",
+                                  "value": {
+                                    "str": "n"
                                   }
                                 }
                               ]
                             }
                           },
-                          "me": "owner"
-                        }
-                      ]
-                    }
-                  }
-                },
-                {
-                  "name": "reach",
-                  "type": {
-                    "union": {
-                      "branches": [
-                        {
-                          "name": "phone",
-                          "type": {
-                            "object": {
-                              "properties": [
+                          {
+                            "term": {
+                              "kind": "variable",
+                              "attributes": [
                                 {
-                                  "name": "number",
-                                  "type": {
-                                    "scalar": {
-                                      "format": "basic",
-                                      "token": "str"
-                                    }
-                                  }
-                                },
-                                {
-                                  "name": "label",
-                                  "type": {
-                                    "scalar": {
-                                      "format": "basic",
-                                      "token": "str"
-                                    }
-                                  }
-                                }
-                              ],
-                              "adjacencies": [
-                                {
-                                  "name": "extensions",
-                                  "relation": {
-                                    "relation": {
-                                      "links": [
-                                        {
-                                          "name": "owner"
-                                        }
-                                      ],
-                                      "properties": [
-                                        {
-                                          "name": "value",
-                                          "type": {
-                                            "scalar": {
-                                              "format": "basic",
-                                              "token": "str"
-                                            }
-                                          }
-                                        }
-                                      ]
-                                    }
-                                  },
-                                  "me": "owner"
-                                }
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "name": "email",
-                          "type": {
-                            "object": {
-                              "properties": [
-                                {
-                                  "name": "address",
-                                  "type": {
-                                    "scalar": {
-                                      "format": "basic",
-                                      "token": "str"
-                                    }
+                                  "name": "name",
+                                  "value": {
+                                    "str": "n"
                                   }
                                 }
                               ]
                             }
                           }
-                        }
-                      ]
-                    }
-                  }
-                },
-                {
-                  "name": "ident",
-                  "type": {
-                    "union": {
-                      "branches": [
-                        {
-                          "name": "number",
-                          "type": {
-                            "scalar": {
-                              "format": "basic",
-                              "token": "int"
-                            }
-                          }
-                        },
-                        {
-                          "name": "code",
-                          "type": {
-                            "scalar": {
-                              "format": "basic",
-                              "token": "str"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  }
-                },
-                {
-                  "name": "meta",
-                  "type": {
-                    "intersection": {
-                      "parts": [
-                        {
-                          "name": "stamp",
-                          "type": {
-                            "object": {
-                              "properties": [
-                                {
-                                  "name": "updated",
-                                  "type": {
-                                    "scalar": {
-                                      "format": "basic",
-                                      "token": "str"
-                                    }
-                                  }
-                                }
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "name": "audit",
-                          "type": {
-                            "object": {
-                              "properties": [
-                                {
-                                  "name": "by",
-                                  "type": {
-                                    "scalar": {
-                                      "format": "basic",
-                                      "token": "str"
-                                    }
-                                  }
-                                },
-                                {
-                                  "name": "updated",
-                                  "type": {
-                                    "scalar": {
-                                      "format": "basic",
-                                      "token": "str"
-                                    }
-                                  }
-                                }
-                              ]
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  }
-                }
-              ],
-              "adjacencies": [
-                {
-                  "name": "decks",
-                  "relation": {
-                    "named": {
-                      "name": "Holding"
-                    }
-                  },
-                  "me": "card"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Choice",
-          "schema": {
-            "union": {
-              "flat": true,
-              "branches": [
-                {
-                  "name": "n",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "int"
-                    }
-                  }
-                },
-                {
-                  "name": "s",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "str"
-                    }
-                  }
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Contact",
-          "schema": {
-            "object": {
-              "ref": true,
-              "pattern": "contact-(\\d+)",
-              "properties": [
-                {
-                  "name": "given_name",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "str"
-                    }
-                  }
-                },
-                {
-                  "name": "family_name",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "str"
-                    }
-                  }
-                },
-                {
-                  "name": "birth_date",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "str"
-                    }
-                  }
-                }
-              ],
-              "adjacencies": [
-                {
-                  "name": "addresses",
-                  "relation": {
-                    "named": {
-                      "name": "ContactAddresses"
-                    }
-                  },
-                  "me": "contact"
-                },
-                {
-                  "name": "phones",
-                  "relation": {
-                    "named": {
-                      "name": "ContactPhones"
-                    }
-                  },
-                  "me": "contact"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "ContactAddresses",
-          "schema": {
-            "relation": {
-              "links": [
-                {
-                  "name": "contact"
-                },
-                {
-                  "name": "address"
-                }
-              ],
-              "properties": [
-                {
-                  "name": "label",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "str"
-                    }
-                  }
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Deck",
-          "schema": {
-            "object": {
-              "ref": true,
-              "pattern": "deck-(\\d+)",
-              "properties": [
-                {
-                  "name": "title",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "str"
-                    }
-                  }
-                }
-              ],
-              "adjacencies": [
-                {
-                  "name": "cards",
-                  "relation": {
-                    "named": {
-                      "name": "Holding"
-                    }
-                  },
-                  "me": "deck"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Grid",
-          "schema": {
-            "object": {
-              "parameters": [
-                {
-                  "name": "n",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "int"
-                    }
-                  },
-                  "description": "Its side"
-                },
-                {
-                  "name": "x"
-                }
-              ],
-              "properties": [
-                {
-                  "name": "mask",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "int",
-                      "terms": {
-                        "bits": {
-                          "dialect": "basic",
-                          "kind": "operation",
-                          "attributes": [
-                            {
-                              "name": "name",
-                              "value": {
-                                "str": "mul"
-                              }
-                            }
-                          ],
-                          "arguments": [
-                            {
-                              "term": {
-                                "kind": "variable",
-                                "attributes": [
-                                  {
-                                    "name": "name",
-                                    "value": {
-                                      "str": "n"
-                                    }
-                                  }
-                                ]
-                              }
-                            },
-                            {
-                              "term": {
-                                "kind": "variable",
-                                "attributes": [
-                                  {
-                                    "name": "name",
-                                    "value": {
-                                      "str": "n"
-                                    }
-                                  }
-                                ]
-                              }
-                            }
-                          ]
-                        }
+                        ]
                       }
                     }
                   }
                 }
-              ],
-              "adjacencies": [
-                {
-                  "name": "cells",
+              }
+            ],
+            "adjacencies": [
+              {
+                "name": "cells",
+                "relation": {
                   "relation": {
-                    "relation": {
-                      "links": [
-                        {
-                          "name": "owner"
-                        }
-                      ],
-                      "properties": [
-                        {
-                          "name": "cell",
-                          "type": {
-                            "apply": {
-                              "of": {
-                                "named": {
-                                  "name": "Word"
+                    "links": [
+                      {
+                        "name": "owner"
+                      }
+                    ],
+                    "properties": [
+                      {
+                        "name": "cell",
+                        "type": {
+                          "apply": {
+                            "of": {
+                              "named": {
+                                "name": "Word"
+                              }
+                            },
+                            "arguments": [
+                              {
+                                "name": "w",
+                                "value": {
+                                  "int": 8
                                 }
-                              },
-                              "arguments": [
-                                {
-                                  "name": "w",
-                                  "value": {
-                                    "int": 8
-                                  }
-                                }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
-                      ]
-                    }
-                  },
-                  "me": "owner"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Holding",
-          "schema": {
-            "relation": {
-              "links": [
-                {
-                  "name": "deck"
-                },
-                {
-                  "name": "card"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Int32",
-          "schema": {
-            "scalar": {
-              "format": "basic",
-              "token": "int",
-              "bits": 32
-            }
-          }
-        },
-        {
-          "name": "Lives",
-          "schema": {
-            "predicate": {
-              "requires": {
-                "dialect": "basic",
-                "kind": "operation",
-                "attributes": [
-                  {
-                    "name": "name",
-                    "value": {
-                      "str": "and"
-                    }
-                  }
-                ],
-                "arguments": [
-                  {
-                    "term": {
-                      "kind": "variable",
-                      "attributes": [
-                        {
-                          "name": "name",
-                          "value": {
-                            "str": "who"
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "term": {
-                      "kind": "variable",
-                      "attributes": [
-                        {
-                          "name": "name",
-                          "value": {
-                            "str": "since"
-                          }
-                        }
-                      ]
-                    }
-                  }
-                ]
-              },
-              "description": "Who lives where",
-              "parameters": [
-                {
-                  "name": "since",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "int"
-                    }
-                  }
-                }
-              ],
-              "symbols": [
-                {
-                  "name": "who",
-                  "type": {
-                    "named": {
-                      "name": "Contact"
-                    }
+                      }
+                    ]
                   }
                 },
-                {
-                  "name": "where",
-                  "type": {
-                    "named": {
-                      "name": "Address"
-                    }
-                  },
-                  "description": "A home"
-                }
-              ]
-            }
+                "me": "owner"
+              }
+            ]
           }
         },
-        {
-          "name": "Marked",
-          "schema": {
-            "intersection": {
-              "flat": true,
-              "parts": [
-                {
-                  "name": "when",
-                  "type": {
-                    "object": {
-                      "properties": [
-                        {
-                          "name": "at",
-                          "type": {
-                            "scalar": {
-                              "format": "basic",
-                              "token": "int"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  }
-                },
-                {
-                  "name": "who",
-                  "type": {
-                    "object": {
-                      "properties": [
-                        {
-                          "name": "by",
-                          "type": {
-                            "scalar": {
-                              "format": "basic",
-                              "token": "str"
-                            }
-                          }
-                        }
-                      ]
-                    }
+        "Square": {
+          "apply": {
+            "of": {
+              "named": {
+                "name": "Grid"
+              }
+            },
+            "parameters": [
+              {
+                "name": "m",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "int"
                   }
                 }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Parentage",
-          "schema": {
-            "relation": {
-              "links": [
-                {
-                  "name": "parent"
-                },
-                {
-                  "name": "child"
-                }
-              ],
-              "properties": [
-                {
-                  "name": "kind",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "str"
+              }
+            ],
+            "arguments": [
+              {
+                "name": "n",
+                "term": {
+                  "kind": "variable",
+                  "attributes": [
+                    {
+                      "name": "name",
+                      "value": {
+                        "str": "m"
+                      }
                     }
-                  }
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Person",
-          "schema": {
-            "object": {
-              "ref": true,
-              "pattern": "person-(\\d+)",
-              "properties": [
-                {
-                  "name": "given_name",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "str"
-                    }
-                  }
-                },
-                {
-                  "name": "birth_date",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "str"
-                    }
-                  }
-                }
-              ],
-              "adjacencies": [
-                {
-                  "name": "children",
-                  "relation": {
-                    "named": {
-                      "name": "Parentage"
-                    }
-                  },
-                  "me": "parent"
-                },
-                {
-                  "name": "parents",
-                  "relation": {
-                    "named": {
-                      "name": "Parentage"
-                    }
-                  },
-                  "me": "child"
-                },
-                {
-                  "name": "mentees",
-                  "relation": {
-                    "named": {
-                      "name": "Mentorship"
-                    }
-                  },
-                  "me": "mentor"
-                },
-                {
-                  "name": "mentors",
-                  "relation": {
-                    "named": {
-                      "name": "Mentorship"
-                    }
-                  },
-                  "me": "mentee"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Size",
-          "schema": {
-            "scalar": {
-              "format": "ccpp",
-              "token": "size_t",
-              "bytes": 8
-            }
-          }
-        },
-        {
-          "name": "Square",
-          "schema": {
-            "apply": {
-              "of": {
-                "named": {
-                  "name": "Grid"
+                  ]
                 }
               },
-              "parameters": [
+              {
+                "name": "x",
+                "value": {
+                  "bool": true
+                }
+              }
+            ]
+          }
+        },
+        "Tricky": {
+          "object": {
+            "parameters": [
+              {
+                "name": "a"
+              },
+              {
+                "name": "b"
+              },
+              {
+                "name": "c"
+              },
+              {
+                "name": "d"
+              }
+            ]
+          }
+        },
+        "Applied": {
+          "object": {
+            "properties": [
+              {
+                "name": "big",
+                "type": {
+                  "apply": {
+                    "of": {
+                      "named": {
+                        "name": "Grid"
+                      }
+                    },
+                    "arguments": [
+                      {
+                        "name": "n",
+                        "value": {
+                          "int": 1180591620717411303424
+                        }
+                      },
+                      {
+                        "name": "x",
+                        "value": {
+                          "float": "NaN"
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "odd",
+                "type": {
+                  "apply": {
+                    "of": {
+                      "named": {
+                        "name": "Tricky"
+                      }
+                    },
+                    "arguments": [
+                      {
+                        "name": "a",
+                        "value": {
+                          "float": -0.0
+                        }
+                      },
+                      {
+                        "name": "b",
+                        "value": {
+                          "str": "日本語 🚀"
+                        }
+                      },
+                      {
+                        "name": "c",
+                        "value": {
+                          "bytes": "AP8="
+                        }
+                      },
+                      {
+                        "name": "d",
+                        "value": {
+                          "bool": false
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "Choice": {
+          "union": {
+            "flat": true,
+            "branches": [
+              {
+                "name": "n",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "int"
+                  }
+                }
+              },
+              {
+                "name": "s",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "str"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "Marked": {
+          "intersection": {
+            "flat": true,
+            "parts": [
+              {
+                "name": "when",
+                "type": {
+                  "object": {
+                    "properties": [
+                      {
+                        "name": "at",
+                        "type": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "int"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "who",
+                "type": {
+                  "object": {
+                    "properties": [
+                      {
+                        "name": "by",
+                        "type": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "str"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "Lives": {
+          "predicate": {
+            "requires": {
+              "dialect": "basic",
+              "kind": "operation",
+              "attributes": [
                 {
-                  "name": "m",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "int"
-                    }
+                  "name": "name",
+                  "value": {
+                    "str": "and"
                   }
                 }
               ],
               "arguments": [
                 {
-                  "name": "n",
                   "term": {
                     "kind": "variable",
                     "attributes": [
                       {
                         "name": "name",
                         "value": {
-                          "str": "m"
+                          "str": "who"
                         }
                       }
                     ]
                   }
                 },
                 {
-                  "name": "x",
-                  "value": {
-                    "bool": true
+                  "term": {
+                    "kind": "variable",
+                    "attributes": [
+                      {
+                        "name": "name",
+                        "value": {
+                          "str": "since"
+                        }
+                      }
+                    ]
                   }
                 }
               ]
-            }
-          }
-        },
-        {
-          "name": "Tricky",
-          "schema": {
-            "object": {
-              "parameters": [
-                {
-                  "name": "a"
-                },
-                {
-                  "name": "b"
-                },
-                {
-                  "name": "c"
-                },
-                {
-                  "name": "d"
+            },
+            "description": "Who lives where",
+            "parameters": [
+              {
+                "name": "since",
+                "type": {
+                  "scalar": {
+                    "format": "basic",
+                    "token": "int"
+                  }
                 }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Word",
-          "schema": {
-            "scalar": {
-              "format": "basic",
-              "token": "int",
-              "terms": {
-                "bits": {
-                  "kind": "variable",
-                  "attributes": [
-                    {
-                      "name": "name",
-                      "value": {
-                        "str": "w"
-                      }
-                    }
-                  ]
+              }
+            ],
+            "symbols": [
+              {
+                "name": "who",
+                "type": {
+                  "named": {
+                    "name": "Contact"
+                  }
                 }
               },
-              "parameters": [
-                {
-                  "name": "w",
-                  "type": {
-                    "scalar": {
-                      "format": "basic",
-                      "token": "int"
-                    }
+              {
+                "name": "where",
+                "type": {
+                  "named": {
+                    "name": "Address"
                   }
-                }
-              ]
-            }
+                },
+                "description": "A home"
+              }
+            ]
           }
         }
-      ]
+      }
     }
   }
 }

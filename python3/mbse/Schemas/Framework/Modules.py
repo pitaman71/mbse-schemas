@@ -8,7 +8,7 @@ like any other objects:
     text = JSON.ToJSON(store)(Schemas.Module.Schema, Modules.module(store, [Contact, Phone]))
     schemas = Modules.schemas(store, JSON.FromJSON(store)(Schemas.Module.Schema, text))
 
-Within a module, each schema is an entry, its name and its definition, inline, as a value object of its kind. A schema
+Within a module, each schema is an element by its name, its definition inline, as a value object of its kind. A schema
 refers to a named schema by its name, so shared and recursive schemas are written once, and writes an unnamed one
 inline. A name resolves within the module, then in the store. A schema that refers to itself must be named.
 
@@ -44,9 +44,13 @@ def module(store: Stores.Store, schemas: Iterable[Any]) -> Any:
     if unnamed:
         raise ValueError("a module holds named schemas; name each with its builder's .name()")
     writer = _Writer()
-    entries = [{"name": schema.name, "schema": writer.definition(schema)} for schema in schemas]
+    names = [schema.name for schema in schemas]
+    twice = next((name for name in names if names.count(name) > 1), None)
+    if twice is not None:
+        raise ValueError(f"the module defines {twice!r} twice")
+    definitions = {schema.name: writer.definition(schema) for schema in schemas}
     key = f"{MODULE}/{store.builder(MODULE).create().as_identity()}"  # a new identity
-    return Plain.FromPlain(store)(Schemas.Module.Schema, {"root": key, "objects": {key: {"schemas": entries}}})
+    return Plain.FromPlain(store)(Schemas.Module.Schema, {"root": key, "objects": {key: {"schemas": definitions}}})
 
 
 Make = Callable[[Any], Any]
@@ -57,8 +61,8 @@ def schemas(store: Stores.Store, module: Any, make: Make | None = None) -> dict[
     """The schemas `module` holds, by name. Names resolve within the module, then in `store`. Terms are read as forms,
     or made by `make`."""
     plain = Plain.ToPlain(store)(Schemas.Module.Schema, module)
-    entries = plain["objects"][plain["root"]].get("schemas", [])  # type: ignore[index, union-attr]
-    return _Reader(store, entries, make).read()
+    definitions = plain["objects"][plain["root"]].get("schemas", {})  # type: ignore[index, union-attr]
+    return _Reader(store, definitions, make).read()
 
 
 def reference(schema: Any) -> Definition:
@@ -69,7 +73,7 @@ def reference(schema: Any) -> Definition:
 
 def resolve(store: Stores.Store, definition: Definition, make: Make | None = None) -> Any:
     """The type a plain form describes: a name resolves in `store`, and an inline schema is read."""
-    return _Reader(store, [], make).type(definition)
+    return _Reader(store, {}, make).type(definition)
 
 
 # --- Schemas to plain data ---
@@ -208,21 +212,19 @@ def _contents_of(definition: Definition) -> tuple[str, dict[str, Any]]:
 
 
 class _Reader:
-    """Reads the schemas of a module's plain entries. Each named schema is created first, so that references to it,
-    recursive ones included, resolve to it."""
+    """Reads the schemas of a module's plain definitions, by name. Each named schema is created first, so that
+    references to it, recursive ones included, resolve to it."""
 
-    def __init__(self, store: Stores.Store, entries: list[dict[str, Any]], make: Make | None = None):
-        self._store, self._entries, self._make = store, entries, make
+    def __init__(self, store: Stores.Store, definitions: dict[str, Definition], make: Make | None = None):
+        self._store, self._definitions, self._make = store, definitions, make
         self._defined: dict[str, Any] = {}
 
     def read(self) -> dict[str, Any]:
-        for entry in self._entries:
-            if entry["name"] in self._defined:
-                raise ValueError(f"the module defines {entry['name']!r} twice")
-            self._defined[entry["name"]] = _BLANK[_contents_of(entry["schema"])[0]]()
-            self._defined[entry["name"]].name = entry["name"]
-        for entry in self._entries:
-            self._fill(self._defined[entry["name"]], entry["schema"])
+        for name, definition in self._definitions.items():
+            self._defined[name] = _BLANK[_contents_of(definition)[0]]()
+            self._defined[name].name = name
+        for name, definition in self._definitions.items():
+            self._fill(self._defined[name], definition)
         return dict(self._defined)
 
     def _named(self, name: str) -> Any:

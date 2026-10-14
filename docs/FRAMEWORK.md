@@ -560,16 +560,16 @@ Schemas are data: each schema kind's data has a meta-schema, `Schemas.OfX.Schema
 are written, read, validated and compared like any other objects.
 
 - **A module holds named schemas.** `Schemas.Module.Schema` is a reference object schema, registered in every store of
-  proxies as `Schemas.Module`, whose `schemas` are an adjacency to a one-link relation, each entry a `name` and a
-  `schema`, a `Schemas.Module.Definition`: a union of the schema kinds, `scalar`, `object`, `union`, `intersection`,
-  `apply`, `relation` and `predicate`. The entries are keyed by name, so written sorted by it, and an entry written twice
-  is read once. A snapshot of schemas is a snapshot of a module. A module is a reference object, whose own adjacencies
-  do not compare ([Equality](EQUALITY.md)), so two modules are equal when their wire forms are.
+  proxies as `Schemas.Module`, whose `schemas` property holds a container by name, each element a
+  `Schemas.Module.Definition`: a union of the schema kinds, `scalar`, `object`, `union`, `intersection`, `container`,
+  `apply`, `relation` and `predicate`. A module is written as a mapping by name, in the order its schemas were given;
+  `Modules.module` refuses two schemas of one name. A snapshot of schemas is a snapshot of a module, and modules compare
+  by the schemas they hold ([Equality](EQUALITY.md)).
 - **`Modules` translates.** `Modules.module(store, schemas)` returns a module holding named schemas, each under its
   name, built in the store, and `Modules.schemas(store, module)` the schemas a module holds, by name, each read back
   with its name. Both go through the module's plain form.
-- **Within a module, schemas are value objects, nested inline**, and their members are adjacencies to one-link
-  relations of their own (each linking only its `owner`), lists in declared order: an object schema's `properties`
+- **Within a module, schemas are value objects, nested inline**, and their members are properties holding containers
+  of value objects by position, lists in declared order: an object schema's `properties`
   (`name`, `type`, `description`) and `adjacencies` (`name`, `relation`, `me`, `description`), with its `singleton`
   and `ref`; a union's `branches` and an intersection's `parts` (`name`, `type`, `description`); a relation's `links`
   (`name`), `properties` and `uniques` (a `clause`, whose `names` list the names it holds, sorted); an application's
@@ -582,7 +582,7 @@ are written, read, validated and compared like any other objects.
 - **Each member keeps its own meta-schema**, as every `Schemas.OfX.Schema` does: `Schemas.OfProperty.Schema` (a
   property's, a union's branch's, an intersection's part's and, as `Schemas.OfParameter.Schema`, a parameter's `name`,
   `type` and `description`, and as `Schemas.OfSymbol.Schema` a predicate's symbol's), `Schemas.OfAdjacency.Schema` and
-  `Schemas.OfApply.Argument`. A member list's entries hold exactly the properties its member's meta-schema declares, of
+  `Schemas.OfApply.Argument`. A member list's elements hold exactly the properties its member's meta-schema declares, of
   the same types, so the two cannot drift apart. `Schemas.OfEntry.Schema` is an entry's schema's: its `links`, as
   symbols, and its `properties`; a module writes them in the relation, whose `Schemas.OfRelation.Data.entry` holds
   them (Resolved, The visitor pattern).

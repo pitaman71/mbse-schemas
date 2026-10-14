@@ -9,7 +9,7 @@
  *     const text = JSON.ToJSON(store)(Schemas.Module.Schema, Modules.module(store, [Contact, Phone]));
  *     const schemas = Modules.schemas(store, JSON.FromJSON(store)(Schemas.Module.Schema, text));
  *
- * Within a module, each schema is an entry, its name and its definition, inline, as a value object of its kind. A
+ * Within a module, each schema is an element by its name, its definition inline, as a value object of its kind. A
  * schema refers to a named schema by its name, so shared and recursive schemas are written once, and writes an unnamed
  * one inline. A name resolves within the module, then in the store. A schema that refers to itself must be named.
  *
@@ -41,9 +41,12 @@ export function module(store: Stores.Store, schemas: Iterable<Schema>): unknown 
   if (named.some((schema) => schemaName(schema) === null)) {
     throw new ValueError("a module holds named schemas; name each with its builder's .name()");
   }
+  const names = named.map((schema) => schemaName(schema) as string);
+  const twice = names.find((name, i) => names.indexOf(name) !== i);
+  if (twice !== undefined) throw new ValueError(`the module defines ${repr(twice)} twice`);
   const writer = new _Writer();
-  const entries = named.map((schema) => new Map<string, PlainData>([["name", schemaName(schema)], ["schema", writer.definition(schema)]]));
-  const root = new Map<string, PlainData>([["schemas", entries]]);
+  const definitions = new Map<string, PlainData>(named.map((schema, i) => [names[i] as string, writer.definition(schema)]));
+  const root = new Map<string, PlainData>([["schemas", definitions]]);
   const key = `${MODULE}/${store.builder(MODULE).create().as_identity()}`; // a new identity
   return Plain.FromPlain(store)(Schemas.Module.Schema,
     new Map<string, PlainData>([["root", key], ["objects", new Map([[key, root]])]]));
@@ -57,7 +60,7 @@ export type Make = (form: Schemas.Form.Data) => unknown;
 export function schemas(store: Stores.Store, module: unknown, make: Make | null = null): Map<string, Schema> {
   const plain = Plain.ToPlain(store)(Schemas.Module.Schema, module as never) as PlainMap;
   const root = (plain.get("objects") as PlainMap).get(plain.get("root") as string) as PlainMap;
-  return new _Reader(store, (root.get("schemas") as PlainMap[] | undefined) ?? [], make).read();
+  return new _Reader(store, (root.get("schemas") as PlainMap | undefined) ?? new Map(), make).read();
 }
 
 /** The plain form of a type (`Schemas.OfAny.Schema`'s): `{"named": {"name": ...}}` for a named schema, else the
@@ -74,7 +77,7 @@ function schemaName(schema: unknown): string | null {
 
 /** The type a plain form describes: a name resolves in `store`, and an inline schema is read. */
 export function resolve(store: Stores.Store, definition: PlainMap, make: Make | null = null): Schemas.OfAny.Data {
-  return new _Reader(store, [], make).type(definition);
+  return new _Reader(store, new Map(), make).type(definition);
 }
 
 // --- Schemas to plain data ---
@@ -224,22 +227,21 @@ function contentsOf(definition: Definition): [string, PlainMap] {
   return [...definition][0] as [string, PlainMap];
 }
 
-/** Reads the schemas of a module's plain entries. Each named schema is created first, so that references to it,
- * recursive ones included, resolve to it. */
+/** Reads the schemas of a module's plain definitions, by name. Each named schema is created first, so that references
+ * to it, recursive ones included, resolve to it. */
 class _Reader {
   private readonly defined = new Map<string, Schema>();
 
-  constructor(private readonly store: Stores.Store, private readonly entries: PlainMap[], private readonly make: Make | null = null) {}
+  constructor(private readonly store: Stores.Store, private readonly definitions: PlainMap,
+    private readonly make: Make | null = null) {}
 
   read(): Map<string, Schema> {
-    for (const entry of this.entries) {
-      const name = entry.get("name") as string;
-      if (this.defined.has(name)) throw new ValueError(`the module defines ${repr(name)} twice`);
-      const blank = (BLANK[contentsOf(entry.get("schema") as Definition)[0]] as () => Schema)();
+    for (const [name, definition] of this.definitions) {
+      const blank = (BLANK[contentsOf(definition as Definition)[0]] as () => Schema)();
       blank.name = name;
       this.defined.set(name, blank);
     }
-    for (const entry of this.entries) this.fill(this.defined.get(entry.get("name") as string) as Schema, entry.get("schema") as Definition);
+    for (const [name, definition] of this.definitions) this.fill(this.defined.get(name) as Schema, definition as Definition);
     return new Map(this.defined);
   }
 

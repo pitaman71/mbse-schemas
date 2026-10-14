@@ -1822,18 +1822,16 @@ function namedText(name: string) {
   return (p: PropertyBuilder) => p.name(name).of((t) => t.as_scalar(String));
 }
 
-/** An adjacency listing elements of a schema: a one-link relation of its own (`owner`), each entry holding `fields`.
- * A schema's members are a list, in declaration order, which a schema read back keeps. Keyed, as a module's schemas
- * are, entries are keyed by name (`unique` over all but `name`), so written sorted by it. */
-function listing(adjacency: string, fields: [string, OfAny.Spec][], keyed = false) {
-  return (r: AdjacencyBuilder) => r.name(adjacency).me("owner").of((rel: RelationBuilder) => {
-    rel.links("owner").properties(...fields.map(([name, spec]) => (p: PropertyBuilder) => p.name(name).of(spec)));
-    return keyed ? rel.unique(...fields.map(([name]) => name).filter((name) => name !== "name")) : rel;
-  });
-}
-
 const Text = (t: AnyBuilder) => t.as_scalar(String);
 const Int = (t: AnyBuilder) => t.as_scalar(BigInt);
+
+/** A property listing elements of a schema: a container of value objects by position, each holding `fields`. A
+ * schema's members are a list, in declaration order, which a schema read back keeps. */
+function listing(name: string, fields: [string, OfAny.Spec][]) {
+  const element = new ObjectBuilder().properties(...fields.map(([n, spec]) => (p: PropertyBuilder) => p.name(n).of(spec)))
+    .create();
+  return (p: PropertyBuilder) => p.name(name).of((t) => t.as_container((c) => c.index(Int).element(element)));
+}
 const NamedSchema = new ObjectBuilder().properties(namedText("name")).create();
 const AnySchema = new UnionBuilder().create(); // a type; its branches, which refer back to it, are added below
 const PropertySchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("type").of(AnySchema),
@@ -1845,43 +1843,42 @@ const MEMBER = fieldsOf(PropertySchema); // a member's entry holds a property's
 const Parameters = listing("parameters", MEMBER);
 const ScalarValue = new UnionBuilder().branches(
   ...SCALAR_TYPES.map((host) => (b: MemberBuilder) => b.name(tokenName(host)).of((x) => x.as_scalar(host)))).create();
-const FormSchema = new ObjectBuilder().properties(namedText("dialect"), namedText("kind")).relations(
+const FormSchema = new ObjectBuilder().properties(namedText("dialect"), namedText("kind"),
   listing("attributes", [["name", Text], ["value", ScalarValue]])).create();
-new ObjectBuilder(FormSchema).relations(listing("arguments", [["term", FormSchema]])).update();
+new ObjectBuilder(FormSchema).properties(listing("arguments", [["term", FormSchema]])).update();
 const WidthTerms = new ObjectBuilder().properties((p) => p.name("bits").of(FormSchema), (p) => p.name("bytes").of(FormSchema))
   .create();
 const ScalarSchema = new ObjectBuilder().name("Schemas.Scalar").properties(
   namedText("name"), namedText("format"), namedText("token"), (p) => p.name("bits").of(Int), (p) => p.name("bytes").of(Int),
-  (p) => p.name("terms").of(WidthTerms), namedText("description")).relations(Parameters).create();
-const ClauseSchema = new ObjectBuilder().relations(listing("names", [["name", Text]])).create();
-const RelationSchema = new ObjectBuilder().name("Schemas.Relation").properties(namedText("name"), namedText("description"))
-  .relations(Parameters, listing("links", MEMBER), listing("properties", MEMBER),
-    listing("uniques", [["clause", ClauseSchema]])).create();
+  (p) => p.name("terms").of(WidthTerms), namedText("description"), Parameters).create();
+const ClauseSchema = new ObjectBuilder().properties(listing("names", [["name", Text]])).create();
+const RelationSchema = new ObjectBuilder().name("Schemas.Relation").properties(namedText("name"), namedText("description"),
+  Parameters, listing("links", MEMBER), listing("properties", MEMBER), listing("uniques", [["clause", ClauseSchema]]))
+  .create();
 const RelationRef = new UnionBuilder().branches((b) => b.name("relation").of(RelationSchema),
   (b) => b.name("named").of(NamedSchema)).create();
 const AdjacencySchema = new ObjectBuilder().properties(
   namedText("name"), (p) => p.name("relation").of(RelationRef), namedText("me"), namedText("description")).create();
 const ObjectSchema = new ObjectBuilder().name("Schemas.Object").properties(
   namedText("name"), namedText("singleton"), (p) => p.name("ref").of((t) => t.as_scalar(Boolean)), namedText("pattern"),
-  namedText("description"))
-  .relations(Parameters, listing("properties", MEMBER),
-    listing("adjacencies", fieldsOf(AdjacencySchema))).create();
+  namedText("description"), Parameters, listing("properties", MEMBER), listing("adjacencies", fieldsOf(AdjacencySchema)))
+  .create();
 const Flat = (p: PropertyBuilder) => p.name("flat").of((t) => t.as_scalar(Boolean));
-const UnionSchema = new ObjectBuilder().name("Schemas.Union").properties(namedText("name"), Flat, namedText("description"))
-  .relations(Parameters, listing("branches", MEMBER)).create();
+const UnionSchema = new ObjectBuilder().name("Schemas.Union").properties(namedText("name"), Flat, namedText("description"),
+  Parameters, listing("branches", MEMBER)).create();
 const IntersectionSchema = new ObjectBuilder().name("Schemas.Intersection").properties(
-  namedText("name"), Flat, namedText("description")).relations(Parameters, listing("parts", MEMBER)).create();
+  namedText("name"), Flat, namedText("description"), Parameters, listing("parts", MEMBER)).create();
 const ContainerSchema = new ObjectBuilder().name("Schemas.Container").properties(
   namedText("name"), (p) => p.name("index").of(AnySchema), (p) => p.name("element").of(AnySchema), namedText("layout"),
-  namedText("description")).relations(Parameters).create();
+  namedText("description"), Parameters).create();
 const ArgumentSchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("value").of(ScalarValue),
   (p) => p.name("term").of(FormSchema)).create();
 const ApplySchema = new ObjectBuilder().name("Schemas.Apply").properties(
-  namedText("name"), (p) => p.name("of").of(AnySchema), namedText("description")).relations(
+  namedText("name"), (p) => p.name("of").of(AnySchema), namedText("description"),
   Parameters, listing("arguments", fieldsOf(ArgumentSchema))).create();
-const EntrySchema = new ObjectBuilder().relations(listing("links", MEMBER), listing("properties", MEMBER)).create();
+const EntrySchema = new ObjectBuilder().properties(listing("links", MEMBER), listing("properties", MEMBER)).create();
 const PredicateSchema = new ObjectBuilder().name("Schemas.Predicate").properties(
-  namedText("name"), (p) => p.name("requires").of(FormSchema), namedText("description")).relations(
+  namedText("name"), (p) => p.name("requires").of(FormSchema), namedText("description"),
   Parameters, listing("symbols", MEMBER)).create();
 const KIND_SCHEMAS: [string, ObjectData][] = [["scalar", ScalarSchema], ["object", ObjectSchema], ["union", UnionSchema],
   ["intersection", IntersectionSchema], ["container", ContainerSchema], ["apply", ApplySchema]];
@@ -1910,11 +1907,10 @@ Form.Value = ScalarValue;
 OfAny.Schema = AnySchema;
 OfAny.Named = NamedSchema;
 
-/** A named set of schemas, as data. `Module.Schema` is the reference object schema of a module: its `schemas` are an
- * adjacency, each entry a `name` and a `schema`, a `Module.Definition` (a schema of any kind, relations and predicates
- * included), keyed by name. See `Modules` for the translation between schemas and modules. */
+/** A named set of schemas, as data. `Module.Schema` is the reference object schema of a module: its `schemas` are a
+ * container by name, each element a `Module.Definition` (a schema of any kind, relations and predicates included). See `Modules` for the translation between schemas and modules. */
 export namespace Module {
   export const Schema = new ObjectBuilder().name("Schemas.Module").ref(String.raw`module-(\d+)`)
-    .relations(listing("schemas", [["name", Text], ["schema", DefinitionSchema]], true)).create();
+    .properties((p) => p.name("schemas").of((t) => t.as_container((c) => c.index(Text).element(DefinitionSchema)))).create();
   export const Definition = DefinitionSchema;
 }

@@ -40,7 +40,7 @@ Contact = (
         .insert(lambda e: e.property(lambda p: (
             p
             .name("age")
-            .type(lambda t: t.insert(lambda e: e.schema(lambda k: k.scalar(lambda s: s.token("int")))))
+            .type(lambda t: t.insert(lambda e: e.schema(B.OfScalar.Data(int))))
         )))
     ))
     .create()
@@ -217,13 +217,18 @@ for schema in (Names, Shape, Either, Mutual):
     assert schema.validate() == [], (schema, schema.validate())
 assert Names.arrangement == "dense" and Either.types == (Int, Text) and Mutual.requires.kind == "call"
 
-# --- At most one entry where the relation says so; entries as values ---
+# --- At most one entry where the relation says so; a link to a type takes a schema, not a callback ---
 
 try:
     B.OfContainer.Builder(Names).index(lambda i: i.insert(lambda e: e.index(Text)))
     raise AssertionError("one index")
 except ValueError as error:
     assert "remove it before inserting another" in str(error)
+try:
+    B.OfProperty.Builder().type(lambda t: t.insert(lambda e: e.schema(lambda s: s)))
+    raise AssertionError("a type is linked, not built")
+except TypeError as error:
+    assert "links an object that exists" in str(error)
 Copy = (
     B.OfObject.Builder()
     .name("crm.Copy")

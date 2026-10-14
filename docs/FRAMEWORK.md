@@ -829,6 +829,21 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - "NO LONGER A GOAL: correct implementation of Schemas.OfX.{Builder, Data, Schema} will be a lot easier and cleaner
     if the bespoke Schemas.OfX.Data classes use members the same way that proxies do to store properties and relation
     adjacencies"
+  - the form: "@worktrees/meta-schemas/mbse-schemas/docs/VISITOR_PATTERN.md is the correct form": an adjacency's
+    `insert` hands over an entry, whose link to the member is a member (`e.property(...)`).
+  - references: "we should use references and desist fudging them, at least at the builder/visitor/meta-schema
+    surface"; "we already decided at least one time to make schema objects references. all of them."; "refines is
+    100% a relation, at least on the builder/visitor/meta-schema surface"; a width is not an int but a relation to a
+    term ("why are 'bits' and 'bytes' taking ints instead of being relations to a term?"). A property is not limited to
+    scalars: it "has as schema which must be OfAny and that can hold scalars, containers, value objects, or any nesting
+    thereof"; what refers to another schema object is a relation.
+  - a property's type: `e1.type(lambda adj: adj.insert(lambda e2: e2.schema(Contact)))`; "For Schemas.OfProperty.type
+    we can interpret `.schema` as designating its evaluation type. So OfScalar(int) would do": a link to a type takes
+    a schema that exists, not a callback that builds one.
+  - shortcuts are refused: a member's write has no side effect besides it, and none of the meta-schemas' references
+    are left as names or values.
+  - proposed in building, for the user's review: docs/proposals/schema-builders/ (the meta-schemas as reference objects
+    and relations, and the builders over them).
   - "Schemas.OfObject.Builder is a Visitors.OfObject which has a member for each data property or adjacency and methods
     `as_*` as required by Visitors.OfObject"; e.g. "Schemas.OfObject.Data.name : str", "Schemas.OfObject.Builder.name(name:
     str) # sets property .name", and "Schemas.OfObject.Builder.properties(cb: Specs.Callback[Visitors.OfAdjacency])":

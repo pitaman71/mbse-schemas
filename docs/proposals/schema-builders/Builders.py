@@ -287,7 +287,7 @@ class _Members:
     """A member for an adjacency of the meta-schema, whose entries link the schema object being built and, at `link`,
     another (the referent). `items` and `store` read and write the referents from and to however the data stores
     them; `accepts` says which objects `link` may link, and `build` how a callback given to it builds one: through a
-    builder (a class, given lazily), through `_Kinds` ("kinds", a schema of any kind), or not at all (None: it links an
+    builder (a class, given lazily), or not at all (None: it links an
     object that exists). `one`: at most one entry, as a `unique` clause of its relation makes it."""
 
     name: str
@@ -459,12 +459,7 @@ class _Link(_Unassignable):
         if _is_function(spec):
             if members.build is None:
                 raise TypeError(f"link {members.link!r} links an object that exists: give it, not a callback")
-            if members.build == "kinds":
-                kinds = _Kinds(entry._referent)
-                _visit(spec, kinds)
-                result, written = kinds._result, kinds._written
-            else:
-                result, written = _build(members.build(), entry._referent, spec)
+            result, written = _build(members.build(), entry._referent, spec)
             if result is not None:
                 entry._relink(result, written)
             return entry
@@ -486,53 +481,6 @@ def _build(builder_class: type, current: Any, cb: Any) -> tuple[Any, list[Any]]:
     if current is not None and not builder._written:
         return None, []
     return (builder._edited() if current is not None else builder.create()), builder._written
-
-
-class _Kinds(_Unassignable):
-    """A link to a schema of any kind, called with a callback: a `Visitors.OfUnion` over the kinds (`Meta.Type`'s
-    refinements), each branch a member taking that kind's builder, or a schema of that kind. Building one of the
-    kind linked updates it; another kind builds a new one."""
-
-    def __init__(self, current: Any):
-        self._current, self._result, self._written = current, None, []
-
-    def as_schema(self) -> Any:
-        return getattr(Meta, "Type", None)
-
-    def _select(self, kind: str, cb: Any) -> _Kinds:
-        data_class, builder_class = _KIND_BUILDERS[kind]
-        if not _is_function(cb):
-            value = S.OfScalar.Data(cb) if kind == "scalar" and isinstance(cb, type) else cb
-            if not isinstance(value, data_class):
-                raise TypeError(f"branch {kind!r} takes {builder_class()._noun}, or a callback taking its builder")
-            self._result = value
-            return self
-        current = self._current if type(self._current) is data_class else None
-        result, written = _build(builder_class(), current, cb)
-        if result is not None:
-            self._result, self._written = result, written
-        return self
-
-    def scalar(self, cb: Any) -> _Kinds:
-        return self._select("scalar", cb)
-
-    def object(self, cb: Any) -> _Kinds:
-        return self._select("object", cb)
-
-    def union(self, cb: Any) -> _Kinds:
-        return self._select("union", cb)
-
-    def intersection(self, cb: Any) -> _Kinds:
-        return self._select("intersection", cb)
-
-    def container(self, cb: Any) -> _Kinds:
-        return self._select("container", cb)
-
-    def apply(self, cb: Any) -> _Kinds:
-        return self._select("apply", cb)
-
-    def any(self, cb: Any) -> _Kinds:
-        return self._select("any", cb)
 
 
 # --- Builders ---
@@ -647,8 +595,9 @@ class _Builder(_Unassignable, Generic[D]):
 
 
 def _type(field: str = "type") -> _Members:
-    """The adjacency to the schema something has as its type, of any kind (`Schemas.Typing`)."""
-    return _Members("schema", accepts=_is_schema, build="kinds", **_one(field))
+    """The adjacency to the schema something has as its type, its evaluation type, of any kind (`Schemas.Typing`): a
+    schema that exists, such as `Schemas.OfScalar.Data(int)`."""
+    return _Members("schema", accepts=_is_schema, **_one(field))
 
 
 class _KindBuilder(_Builder[D]):
@@ -806,7 +755,7 @@ def _width(field_: str) -> _Members:
 
 
 def _refines() -> _Members:
-    return _Members("refined", accepts=_is_schema, build="kinds", **_one("refines"))
+    return _Members("refined", accepts=_is_schema, **_one("refines"))
 
 
 class ScalarBuilder(_KindBuilder[S.OfScalar.Data]):
@@ -878,8 +827,8 @@ class ContainerBuilder(_KindBuilder[S.OfContainer.Data]):
 
     layout = _Prop()  # "dense", "sparse", or None
     refines = _refines()
-    index = _Members("index", accepts=_is_schema, build="kinds", **_one("index"))
-    element = _Members("element", accepts=_is_schema, build="kinds", **_one("element"))
+    index = _Members("index", accepts=_is_schema, **_one("index"))
+    element = _Members("element", accepts=_is_schema, **_one("element"))
 
     def _finalize(self, target: S.OfContainer.Data) -> S.OfContainer.Data:
         base = S.structure(target.refines)
@@ -898,7 +847,7 @@ def _arguments(data: S.OfApply.Data) -> list[_ArgumentData]:
 class ApplyBuilder(_KindBuilder[S.OfApply.Data]):
     _data, _meta, _noun = S.OfApply.Data, "Apply", "an application"
 
-    of = _Members("applied", accepts=_is_schema, build="kinds", **_one("of"))
+    of = _Members("applied", accepts=_is_schema, **_one("of"))
     arguments = _Members("argument", accepts=lambda v: isinstance(v, _ArgumentData), build=lambda: ArgumentBuilder,
                          items=_arguments,
                          store=lambda data, members: setattr(data, "arguments",
@@ -910,7 +859,7 @@ class AnyValueBuilder(_KindBuilder[S.OfAny.Value]):
 
     _data, _meta, _noun = S.OfAny.Value, "Any", "a value of any type"
 
-    types = _Members("schema", accepts=_is_schema, build="kinds", **_in_order("types"))
+    types = _Members("schema", accepts=_is_schema, **_in_order("types"))
 
 
 class PredicateBuilder(_KindBuilder[S.OfPredicate.Data]):
@@ -950,17 +899,6 @@ class RelationBuilder(_KindBuilder[S.OfRelation.Data]):
         return changed
 
 
-_KIND_BUILDERS: dict[str, tuple[type, Callable[[], type]]] = {
-    "scalar": (S.OfScalar.Data, lambda: ScalarBuilder),
-    "object": (S.OfObject.Data, lambda: ObjectBuilder),
-    "union": (S.OfUnion.Data, lambda: UnionBuilder),
-    "intersection": (S.OfIntersection.Data, lambda: IntersectionBuilder),
-    "container": (S.OfContainer.Data, lambda: ContainerBuilder),
-    "apply": (S.OfApply.Data, lambda: ApplyBuilder),
-    "any": (S.OfAny.Value, lambda: AnyValueBuilder),
-}
-"""The kinds of schema a link to a type links, each its data and its builder, by `_Kinds`' branch."""
-
 _BUILDERS: dict[type, type] = {
     S.OfScalar.Data: ScalarBuilder, S.OfObject.Data: ObjectBuilder, S.OfUnion.Data: UnionBuilder,
     S.OfIntersection.Data: IntersectionBuilder, S.OfContainer.Data: ContainerBuilder, S.OfApply.Data: ApplyBuilder,
@@ -976,7 +914,7 @@ def _builder_for(referent: Any) -> type | None:
     return _BUILDERS.get(type(referent))
 
 
-_VALUES = (_PropertyMember, _Value, _ScalarVisitor, _Mapping, _AdjacencyMember, _Entry, _Link, _Kinds, _Builder, _Empty,
+_VALUES = (_PropertyMember, _Value, _ScalarVisitor, _Mapping, _AdjacencyMember, _Entry, _Link, _Builder, _Empty,
            _Properties)
 """The classes whose instances are values, not the callable form of a Spec, though some are callable."""
 

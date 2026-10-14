@@ -74,7 +74,7 @@ Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over `Meta.X`, in V
 | Old | New |
 |---|---|
 | `.properties(lambda p: p.name("x").of(T))` | `.properties(lambda adj: adj.insert(lambda e: e.property(lambda p: p.name("x").type(lambda t: t.insert(lambda e: e.schema(T))))))` |
-| `.of(lambda t: t.as_scalar(int))` | `.type(lambda t: t.insert(lambda e: e.schema(lambda k: k.scalar(lambda s: s.token("int")))))` |
+| `.of(lambda t: t.as_scalar(int))` | `.type(lambda t: t.insert(lambda e: e.schema(S.OfScalar.Data(int))))`: the evaluation type, a schema that exists |
 | `.relations(lambda a: a.name("n").of(R).me("l"))` | `.adjacencies(...)`, with `e.adjacency(lambda a: a.name("n").relation(...).me(...))`; `me` links the symbol, by reference |
 | `.links("a", "b")` | `.links(lambda adj: adj.insert(lambda e: e.link(a)).insert(lambda e: e.link(b)))`, `a` and `b` symbols |
 | `.unique("a")` | `.uniques(lambda adj: adj.insert(lambda e: e.unique(lambda u: u.named(lambda n: n.insert(lambda e: e.named(a))))))` |
@@ -86,23 +86,19 @@ Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over `Meta.X`, in V
 | `.ref()`, `.ref(pattern)` | `.ref(True)`, `.ref(True).pattern(pattern)` |
 | `.flat()`, `.dense()` | `.flat(True)`, `.layout("dense")` |
 | `.type(int)`, `.token(fmt, name)` on a scalar | `.token("int")`, `.format(fmt).token(name)` |
-| `S.OfAny.Builder().as_scalar(...)` selector | an `AnyOf` adjacency (`Schemas.OfAny.Builder().types(...)`); a link to a type, `k.scalar(...)` |
+| `S.OfAny.Builder().as_scalar(...)` selector | an `AnyOf` adjacency (`Schemas.OfAny.Builder().types(...)`) |
 | `.entry(spec)`, `OfEntry.Builder` | gone: a relation's `links` and `properties` are its own |
 
 ## Points for your review
 
-1. **Links to a schema of any kind.** Called with a callback, `e.schema(...)` hands over a visitor with one branch per
-   kind: `k.scalar(...)`, `k.object(...)`, and so on. That matches `Visitors.OfUnion`, but in the meta-schemas
-   `Schemas.Type` is a schema that the kinds refine, not a union. Is that the right reading of a callback on a link
-   to a refined schema?
-2. **Literal widths.** An int width reads as `Form("literal", {"value": 8})`, and a form like that is stored back as
+1. **Literal widths.** An int width reads as `Form("literal", {"value": 8})`, and a form like that is stored back as
    the int. The `literal` kind is my choice. mbse-schemas has no dialect to take one from.
-3. **Identity.** A kind's identity is its global name. A member's identity would come from a store, and schemas aren't
+2. **Identity.** A kind's identity is its global name. A member's identity would come from a store, and schemas aren't
    held in stores yet. Should every schema object live in a store, such as its module's?
-4. **Wire format.** Modules and Plain still read and write schemas through bespoke code, in the old container shape.
+3. **Wire format.** Modules and Plain still read and write schemas through bespoke code, in the old container shape.
    Under P-018 they should read and write through these meta-schemas like any other model, as linked reference
    objects. That changes the module format and the conformance corpora.
-5. **Construction order.** A reference must exist before it is linked. So a relation whose `unique` clause names its
+4. **Construction order.** A reference must exist before it is linked. So a relation whose `unique` clause names its
    own links is built from symbols made first (see `Knows` in the examples), and `me` links a symbol of the relation.
-6. **Size.** Every reference is now an adjacency, so a typed property is three nested callbacks. The examples show
+5. **Size.** Every reference is now an adjacency, so a typed property is three nested callbacks. The examples show
    how that reads.

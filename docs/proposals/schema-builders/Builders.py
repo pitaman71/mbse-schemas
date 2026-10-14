@@ -23,6 +23,7 @@ finalized by `create()` (no data given), `clone()` (new data) or `update()` (wri
 from __future__ import annotations
 
 import dataclasses
+import uuid
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar
@@ -60,6 +61,16 @@ def _is_function(spec: Any) -> bool:
 def _visit(cb: Any, visitor: Any) -> None:
     """Hands `visitor` to a callable Spec, which reads or writes through it; its return value is the visitor's own."""
     cb(visitor)
+
+
+def identity_of(data: Any) -> str | None:
+    """A schema object's identity, which its builder gives it on creation; None for data no builder created."""
+    return getattr(data, "__dict__", {}).get("_identity")
+
+
+def _identify(data: Any, identity: str) -> Any:
+    object.__setattr__(data, "_identity", identity)  # a form is frozen; its identity is not one of its fields
+    return data
 
 
 def _same(a: Any, b: Any) -> bool:
@@ -505,6 +516,7 @@ class _Builder(_Unassignable, Generic[D]):
             raise TypeError(f"a builder of {self._noun} is given {original!r}")
         self._original, self._writable = original, writable
         self._written: list[Any] = []  # the members written, in order
+        self._identity: str | None = None  # the identity written (`as_identity`)
         self._working = self._make()
         if original is not None:
             self._update(self._working, original)
@@ -529,20 +541,25 @@ class _Builder(_Unassignable, Generic[D]):
         """Returns new data. Only valid without data given."""
         if self._original is not None:
             raise ValueError("create() is only valid without a source instance; use clone() or update()")
-        return self._finalize(self._working)
+        return _identify(self._finalize(self._working), self._identity or self._allocate())
 
     def clone(self) -> D:
         """Returns new data, leaving the data given as it is. Only valid with data given."""
         if self._original is None:
             raise ValueError("clone() is only valid with a source instance")
-        return self._finalize(self._working)
+        return _identify(self._finalize(self._working), self._identity or self._allocate())
 
     def update(self) -> D:
         """Writes the builder's state into the data given, and returns it. Only valid with data given."""
         if self._original is None:
             raise ValueError("update() is only valid with a source instance")
         self._update(self._original, self._working)
-        return self._finalize(self._original)
+        return _identify(self._finalize(self._original),
+                         self._identity or identity_of(self._original) or self._allocate())
+
+    def _allocate(self) -> str:
+        """The identity a schema object is given on creation, where none is written: a UUID."""
+        return str(uuid.uuid4())
 
     def _edited(self) -> D:
         """A referent edited through its link: updated, as a reference object is."""
@@ -562,10 +579,16 @@ class _Builder(_Unassignable, Generic[D]):
         return getattr(Meta, self._meta, None)
 
     def as_identity(self, identity: str | None = None) -> Any:
-        """None: a schema object is given its identity by the store that holds it, and this one is held by none."""
-        if identity is not None:
-            raise TypeError(f"{self._noun} is given its identity by the store that holds it")
-        return None
+        """Read, the identity written, else the one of the data given; None for a schema object not created yet that
+        none is written for. Written, the identity the object takes, and the builder: created or cloned, it is given one
+        only where none is written; updated, it keeps its own unless one is written, which renames it."""
+        if identity is None:
+            return self._identity or identity_of(self._original)
+        if not isinstance(identity, str) or not identity:
+            raise TypeError(f"an identity is non-empty text, got {identity!r}")
+        self._check()
+        self._identity = identity
+        return self
 
     def _ordered(self, kind: type, declared: str) -> list[str]:
         """The names of the members of `kind`, in the order the meta-schema declares them (its `declared` dict)."""
@@ -601,18 +624,16 @@ def _type(field: str = "type") -> _Members:
 
 
 class _KindBuilder(_Builder[D]):
-    """A builder of a kind of schema: named, described, and parametric. Its identity is its name, a global one."""
+    """A builder of a kind of schema: named, described, and parametric."""
 
     name = _Prop()
     description = _Prop()
     parameters = _Members("parameter", accepts=lambda v: isinstance(v, S.OfParameter.Data),
                           build=lambda: ParameterBuilder, **_by_name("parameters"))
 
-    def as_identity(self, identity: str | None = None) -> Any:
-        """The schema's identity, its global name: read, or written (as `name`)."""
-        if identity is not None:
-            self._write(_KindBuilder.__dict__["name"], identity)
-        return self._working.name
+    def _allocate(self) -> str:
+        """A named schema's identity is its name, a global one; an unnamed one's, a UUID."""
+        return self._working.name or super()._allocate()
 
 
 # --- Builders of members ---

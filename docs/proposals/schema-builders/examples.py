@@ -105,7 +105,7 @@ assert len(Contact.anonymous) == 1
 # --- Reading back: members are child visitors; a link reads its referent ---
 
 builder = B.OfObject.Builder(Contact)
-assert builder.name == "crm.Contact" and builder.ref.get() is True and builder.as_identity() == "crm.Contact"
+assert builder.name == "crm.Contact" and builder.ref.get() is True
 assert [str(e.property.name) for e in builder.properties] == ["given_name", "age"]
 assert [e.property.type.as_schema().relation.name for e in builder.properties] == ["Schemas.Typing", "Schemas.Typing"]
 assert builder.as_schema() is B.Meta.Object and builder.properties.as_schema() is B.Meta.Object.adjacencies["properties"]
@@ -118,6 +118,16 @@ try:
     raise AssertionError("a link read is read-only")
 except B.ReadOnlyError:
     pass
+
+# --- Every schema object is given an identity on creation: a named schema its name, others a UUID ---
+
+assert B.identity_of(Contact) == "crm.Contact" and B.identity_of(B.Meta.Typing) == "Schemas.Typing"
+assert len(B.identity_of(Contact.properties["age"])) == 36 and builder.as_identity() == "crm.Contact"
+pinned = B.OfProperty.Builder().as_identity("crm.Contact.nickname").name("nickname").create()
+assert B.identity_of(pinned) == "crm.Contact.nickname"
+assert B.identity_of(B.OfObject.Builder(Contact).description("people").update()) == "crm.Contact"
+Twin = B.OfObject.Builder(Contact).as_identity("crm.Twin").clone()
+assert B.identity_of(Twin) == "crm.Twin" and B.identity_of(Contact) == "crm.Contact"
 
 # --- Editing a member through its link updates it; removing by template ---
 

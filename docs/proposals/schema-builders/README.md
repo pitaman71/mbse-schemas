@@ -59,7 +59,9 @@ Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over `Meta.X`, in V
 - **`as_*`:**
   - `as_schema()` returns `Meta.X`, and every member's `as_schema()` returns its meta-schema property or adjacency;
   - `as_properties` and `as_adjacencies` follow the meta-schema's order;
-  - `as_identity()` is a kind's global name (written, it sets `name`), and None for a member, which no store holds.
+  - `as_identity()` reads the identity, and `as_identity(x)` writes it. Every schema object is a reference object,
+    so it gets an identity when it is created: the one written, else its name for a named kind, else a UUID.
+    `update()` keeps an object's identity, unless one is written, which renames it.
 - **Data.** Each member is adapted to however the data stores it:
   - a dict of members by name, or a tuple;
   - a field holding the referent;
@@ -91,14 +93,19 @@ Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over `Meta.X`, in V
 
 ## Points for your review
 
-1. **Literal widths.** An int width reads as `Form("literal", {"value": 8})`, and a form like that is stored back as
-   the int. The `literal` kind is my choice. mbse-schemas has no dialect to take one from.
-2. **Identity.** A kind's identity is its global name. A member's identity would come from a store, and schemas aren't
-   held in stores yet. Should every schema object live in a store, such as its module's?
-3. **Wire format.** Modules and Plain still read and write schemas through bespoke code, in the old container shape.
+Decided:
+- an int width reads as `Form("literal", {"value": 8})` ("leave it that way. forms may go away but not yet");
+- "all schema objects are reference objects and all reference objects get an ID on creation".
+
+Still open:
+
+1. **Wire format.** Modules and Plain still read and write schemas through bespoke code, in the old container shape.
    Under P-018 they should read and write through these meta-schemas like any other model, as linked reference
    objects. That changes the module format and the conformance corpora.
-4. **Construction order.** A reference must exist before it is linked. So a relation whose `unique` clause names its
+2. **Construction order.** A reference must exist before it is linked. So a relation whose `unique` clause names its
    own links is built from symbols made first (see `Knows` in the examples), and `me` links a symbol of the relation.
-5. **Size.** Every reference is now an adjacency, so a typed property is three nested callbacks. The examples show
+3. **Size.** Every reference is now an adjacency, so a typed property is three nested callbacks. The examples show
    how that reads.
+4. **Unique identities.** A store refuses an identity that is already taken. Schemas aren't held in stores yet, so
+   nothing here refuses one. A named schema cloned without a new identity takes its name, the same identity as the
+   original's.

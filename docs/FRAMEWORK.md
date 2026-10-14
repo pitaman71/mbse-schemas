@@ -806,6 +806,21 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 ### Resolved
 
+- **Refinement, identities and relations** (2026-10-14), as the user decided, for mbse-expressions' framework and
+  dialects as model (mbse-basis P-018):
+  - refinement: the user is "open to adding Schemas.Refines as a relation all its own"; "Refinement across the scalar
+    vs. container vs. object boundary fails validation"; an "instance of a refinement is an instance of what it
+    refines"; "narrowing allowed if it can be statically confirmed by validation". A one-part intersection, which the
+    user called "trivial refinement", is what `Refines` states.
+  - identity: "change policy to allow an object's identity to be read + written by `as_identity`. Builder will
+    allocate only if it's not set in the pre-existing object or by the fluent clauses". This supersedes, in part,
+    "Reference identity" (below): a program may now set an identity, such as an operator's global ID
+    (`Basic.Operators.Add`).
+  - domains: "domains refine scalar schemas" (mbse-expressions' value domains).
+  - relations: "mbse-schemas.Schemas.OfRelation is by default a all-directional link. Anonymous adjacencies allow for
+    some adjacencies to be omitted." So an object fills a link without its schema declaring an adjacency through it;
+    validation's requirement that it does goes.
+
 - **Containers** (planned: [Meta-schemas overhaul](META_SCHEMAS.md), V5), as the user decided, superseding in part
   The meta-schemas overhaul ("Relations completely subsume collections ... subsumes OfIndexed and requires 1-ary
   relations", and the one-link relations and lists that followed from it): the user, "very close to deciding to

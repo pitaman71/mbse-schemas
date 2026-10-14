@@ -648,7 +648,7 @@ class _Builder(_Unassignable, Generic[D]):
 
 def _type(field: str = "type") -> _Members:
     """The adjacency to the schema something has as its type, of any kind (`Schemas.Typing`)."""
-    return _Members("type", accepts=_is_schema, build="kinds", **_one(field))
+    return _Members("schema", accepts=_is_schema, build="kinds", **_one(field))
 
 
 class _KindBuilder(_Builder[D]):
@@ -910,7 +910,7 @@ class AnyValueBuilder(_KindBuilder[S.OfAny.Value]):
 
     _data, _meta, _noun = S.OfAny.Value, "Any", "a value of any type"
 
-    types = _Members("type", accepts=_is_schema, build="kinds", **_in_order("types"))
+    types = _Members("schema", accepts=_is_schema, build="kinds", **_in_order("types"))
 
 
 class PredicateBuilder(_KindBuilder[S.OfPredicate.Data]):
@@ -993,7 +993,7 @@ Text, Bool = S.OfScalar.Data(str), S.OfScalar.Data(bool)
 
 def _prop(name: str, schema: Any) -> Any:
     """A `Specs.Callback[Visitors.OfEntry]`: an entry linking a property named `name`, of `schema`."""
-    return lambda e: e.property(lambda p: p.name(name).type(lambda adj: adj.insert(lambda t: t.type(schema))))
+    return lambda e: e.property(lambda p: p.name(name).type(lambda adj: adj.insert(lambda t: t.schema(schema))))
 
 
 def _object(name: str, *props: Any, refines: Any = None) -> S.OfObject.Data:
@@ -1036,7 +1036,7 @@ Meta.Module = (
 
 
 def _symbol(name: str, schema: Any) -> S.OfSymbol.Data:
-    return SymbolBuilder().name(name).type(lambda adj: adj.insert(lambda e: e.type(schema))).create()
+    return SymbolBuilder().name(name).type(lambda adj: adj.insert(lambda e: e.schema(schema))).create()
 
 
 def _relation(name: str, first: S.OfSymbol.Data, second: S.OfSymbol.Data,
@@ -1068,12 +1068,12 @@ _RELATIONS: list[tuple[str, tuple[str, Any, str | None], tuple[str, Any], str]] 
     # (relation, (link, schema, adjacency named there), (link, schema), "one": the first determines the second;
     # "owned": the second determines the first; "list": neither). An adjacency named "" is declared below, on the kinds
     # that have it, rather than on the link's schema.
-    ("Typing", ("typed", Meta.Typed, "type"), ("type", Meta.Type), "one"),
+    ("Typing", ("typed", Meta.Typed, "type"), ("schema", Meta.Type), "one"),
     ("Refines", ("refinement", Meta.Type, ""), ("refined", Meta.Type), "one"),
     ("Indexing", ("container", Meta.Container, "index"), ("index", Meta.Type), "one"),
     ("Containing", ("container", Meta.Container, "element"), ("element", Meta.Type), "one"),
     ("Applying", ("application", Meta.Apply, "of"), ("applied", Meta.Type), "one"),
-    ("AnyOf", ("any", Meta.Any, "types"), ("type", Meta.Type), "list"),
+    ("AnyOf", ("any", Meta.Any, "types"), ("schema", Meta.Type), "list"),
     ("Relating", ("adjacency", Meta.Adjacency, "relation"), ("relation", Meta.Relation), "one"),
     ("Filling", ("adjacency", Meta.Adjacency, "me"), ("link", Meta.Symbol), "one"),
     ("Binding", ("argument", Meta.Argument, "parameter"), ("parameter", Meta.Parameter), "one"),

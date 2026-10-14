@@ -24,11 +24,11 @@ Every meta-schema (`Meta.X`, which becomes `Schemas.OfX.Schema`) is a reference 
 
 | Relation | Links | Adjacency | Entries |
 |---|---|---|---|
-| Typing | typed, type | Typed.`type` | one per typed |
+| Typing | typed, schema | Typed.`type` | one per typed |
 | Refines | refinement, refined | Scalar/Object/Container.`refines` | one |
 | Indexing, Containing | container, index / element | Container.`index`, `element` | one |
 | Applying | application, applied | Apply.`of` | one |
-| AnyOf | any, type | Any.`types` | a list |
+| AnyOf | any, schema | Any.`types` | a list |
 | Relating, Filling | adjacency, relation / link | Adjacency.`relation`, `me` | one |
 | Binding, ArgumentTerm | argument, parameter / term | Argument.`parameter`, `term` | one |
 | Requires | predicate, term | Predicate.`requires` | one |
@@ -73,8 +73,8 @@ Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over `Meta.X`, in V
 
 | Old | New |
 |---|---|
-| `.properties(lambda p: p.name("x").of(T))` | `.properties(lambda adj: adj.insert(lambda e: e.property(lambda p: p.name("x").type(lambda t: t.insert(lambda e: e.type(T))))))` |
-| `.of(lambda t: t.as_scalar(int))` | `.type(lambda t: t.insert(lambda e: e.type(lambda k: k.scalar(lambda s: s.token("int")))))` |
+| `.properties(lambda p: p.name("x").of(T))` | `.properties(lambda adj: adj.insert(lambda e: e.property(lambda p: p.name("x").type(lambda t: t.insert(lambda e: e.schema(T))))))` |
+| `.of(lambda t: t.as_scalar(int))` | `.type(lambda t: t.insert(lambda e: e.schema(lambda k: k.scalar(lambda s: s.token("int")))))` |
 | `.relations(lambda a: a.name("n").of(R).me("l"))` | `.adjacencies(...)`, with `e.adjacency(lambda a: a.name("n").relation(...).me(...))`; `me` links the symbol, by reference |
 | `.links("a", "b")` | `.links(lambda adj: adj.insert(lambda e: e.link(a)).insert(lambda e: e.link(b)))`, `a` and `b` symbols |
 | `.unique("a")` | `.uniques(lambda adj: adj.insert(lambda e: e.unique(lambda u: u.named(lambda n: n.insert(lambda e: e.named(a))))))` |
@@ -91,7 +91,7 @@ Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over `Meta.X`, in V
 
 ## Points for your review
 
-1. **Links to a schema of any kind.** Called with a callback, `e.type(...)` hands over a visitor with one branch per
+1. **Links to a schema of any kind.** Called with a callback, `e.schema(...)` hands over a visitor with one branch per
    kind: `k.scalar(...)`, `k.object(...)`, and so on. That matches `Visitors.OfUnion`, but in the meta-schemas
    `Schemas.Type` is a schema that the kinds refine, not a union. Is that the right reading of a callback on a link
    to a refined schema?

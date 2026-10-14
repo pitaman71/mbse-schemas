@@ -22,7 +22,7 @@ for name, schema in vars(B.Meta).items():
         assert schema.validate() == [], (name, schema.validate())
 assert B.Meta.Object.ref and list(B.Meta.Object.properties) == ["name", "description", "ref", "pattern", "singleton"]
 assert list(B.Meta.Object.adjacencies) == ["parameters", "adjacencies", "properties", "refines"]
-assert B.Meta.Typing.uniques == (frozenset({"type"}),) and B.Meta.HasProperty.uniques == (frozenset({"owner"}),)
+assert B.Meta.Typing.uniques == (frozenset({"schema"}),) and B.Meta.HasProperty.uniques == (frozenset({"owner"}),)
 
 # --- An object schema: properties hold values; properties and types are adjacencies ---
 
@@ -35,12 +35,12 @@ Contact = (
         .insert(lambda e: e.property(lambda p: (
             p
             .name("given_name")
-            .type(lambda t: t.insert(lambda e: e.type(Text)))
+            .type(lambda t: t.insert(lambda e: e.schema(Text)))
         )))
         .insert(lambda e: e.property(lambda p: (
             p
             .name("age")
-            .type(lambda t: t.insert(lambda e: e.type(lambda k: k.scalar(lambda s: s.token("int")))))
+            .type(lambda t: t.insert(lambda e: e.schema(lambda k: k.scalar(lambda s: s.token("int")))))
         )))
     ))
     .create()
@@ -53,19 +53,19 @@ assert list(Contact.properties) == ["given_name", "age"] and Contact.properties[
 knower = (
     B.OfSymbol.Builder()
     .name("knower")
-    .type(lambda t: t.insert(lambda e: e.type(Contact)))
+    .type(lambda t: t.insert(lambda e: e.schema(Contact)))
     .create()
 )
 known = (
     B.OfSymbol.Builder()
     .name("known")
-    .type(lambda t: t.insert(lambda e: e.type(Contact)))
+    .type(lambda t: t.insert(lambda e: e.schema(Contact)))
     .create()
 )
 since = (
     B.OfProperty.Builder()
     .name("since")
-    .type(lambda t: t.insert(lambda e: e.type(Int)))
+    .type(lambda t: t.insert(lambda e: e.schema(Int)))
     .create()
 )
 Knows = (
@@ -145,7 +145,7 @@ Integer = (
     .parameters(lambda adj: adj.insert(lambda e: e.parameter(lambda p: (
         p
         .name("width")
-        .type(lambda t: t.insert(lambda e: e.type(Int)))
+        .type(lambda t: t.insert(lambda e: e.schema(Int)))
     ))))
     .bits(lambda w: w.insert(lambda e: e.width(lambda f: f.kind("variable").attributes({"name": "width"}))))
     .create()
@@ -188,8 +188,8 @@ Shape = (
     .flat(True)
     .branches(lambda adj: (
         adj
-        .insert(lambda e: e.branch(lambda b: b.name("count").type(lambda t: t.insert(lambda e: e.type(Int)))))
-        .insert(lambda e: e.branch(lambda b: b.name("label").type(lambda t: t.insert(lambda e: e.type(Text)))))
+        .insert(lambda e: e.branch(lambda b: b.name("count").type(lambda t: t.insert(lambda e: e.schema(Int)))))
+        .insert(lambda e: e.branch(lambda b: b.name("label").type(lambda t: t.insert(lambda e: e.schema(Text)))))
     ))
     .create()
 )
@@ -197,8 +197,8 @@ Either = (
     B.OfAny.Builder()
     .types(lambda adj: (
         adj
-        .insert(lambda e: e.type(Int))
-        .insert(lambda e: e.type(Text))
+        .insert(lambda e: e.schema(Int))
+        .insert(lambda e: e.schema(Text))
     ))
     .create()
 )
@@ -207,8 +207,8 @@ Mutual = (
     .name("crm.Mutual")
     .symbols(lambda adj: (
         adj
-        .insert(lambda e: e.symbol(lambda s: s.name("a").type(lambda t: t.insert(lambda e: e.type(Contact)))))
-        .insert(lambda e: e.symbol(lambda s: s.name("b").type(lambda t: t.insert(lambda e: e.type(Contact)))))
+        .insert(lambda e: e.symbol(lambda s: s.name("a").type(lambda t: t.insert(lambda e: e.schema(Contact)))))
+        .insert(lambda e: e.symbol(lambda s: s.name("b").type(lambda t: t.insert(lambda e: e.schema(Contact)))))
     ))
     .requires(lambda r: r.insert(lambda e: e.term(lambda f: f.kind("call").attributes({"name": "knows"}))))
     .create()

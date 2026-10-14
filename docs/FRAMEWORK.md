@@ -882,15 +882,20 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     (`at(i)`);
   - `Schemas.OfAny.Builder` builds a type of any kind inline (`t.as_scalar(str)`, `t.as_container(...)`), and
     `Schemas.OfAny.Spec` is what `of(...)`, `.index(...)` and `.element(...)` take;
-  - the new kind is a distinct marker kind, built by the builder's `as_any()`, and `Schemas.OfAny.Data` stays the union
-    of the kinds' data (the user: "yes" to "a distinct marker kind (say `Schemas.OfAny.Value`), built with
-    `t.as_any()`, and leave `OfAny.Data` as the union");
+  - the new kind is a distinct marker kind, `Schemas.OfAny.Value`, and `Schemas.OfAny.Data` stays the union of the
+    kinds' data (the user: "yes" to "a distinct marker kind (say `Schemas.OfAny.Value`) ... and leave `OfAny.Data` as
+    the union"); there is no `as_any`, the user asking "why would `as_any` live on `Schemas.OfAny.Builder`?" and
+    correcting the two signatures: "`Schemas.OfAny.Builder.as_scalar(int|float|str|...) -> Schemas.OfAny.Builder`"
+    and "`Visitors.OfAny.as_scalar(spec: Specs.Callback[Visitors.OfScalar]) -> Visitors.OfAny`";
+  - proposed in building, for the user's review: `Schemas.OfAny.Builder`'s own `as_<kind>` calls restrict it, each
+    adding a subschema: none selected is an unrestricted `OfAny` (`lambda t: t`), one is that kind's data, as before
+    (the common case), and several an `OfAny` restricted to them (`t.as_scalar(int).as_scalar(str).as_object(Phone)`);
   - on the wire a value of any type is tagged by its kind and type, as `Schemas.Form.Value` tags a scalar
     (`{"int": 3}`), except where the schema narrows it: "there are some situations in which the type of OfAny can be
     inferred from its schema, in which case wrapping the value over the wire is just wasted characters", the
     situation being, of those put to the user, "(b)": an `OfAny` may be restricted to a set of types
-    (`t.as_any(int, str, Phone)`), and a value is written bare where only one of those types fits its plain form,
-    tagged otherwise;
+    (`t.as_scalar(int).as_scalar(str).as_object(Phone)`), and a value is written bare where only one of those types
+    fits its plain form, tagged otherwise;
   - "a value object of any [type] must be a registered schema", so that its name can be written and read back;
   - values of any type compare and validate under the kind and type they hold: equal only under the same kind and
     type, otherwise incomparable, as Equality has values of different kinds; validation checks each value against
@@ -911,8 +916,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     way. But be careful not to clutter the api supporting this secondary scenario": an unrestricted `OfAny` takes a
     scalar, or a value given as itself (a value object, union value, intersection value or container, which carries
     its schema, copied), and refuses a Spec, which has no schema to build by; no visitor gains a method or argument;
-  - "`Visitors.OfX.as_any` - no visitor should have this method": `as_any` is the schema builder's
-    (`Schemas.OfAny.Builder`) alone.
+  - "`Visitors.OfX.as_any` - no visitor should have this method"; nor has the schema builder one (above).
 
 - **Reference identity** ([Visitor pattern](VISITOR_PATTERN.md), "Reference Identity", as the user wrote it), refining
   The visitor pattern's "global name, otherwise a UUID":

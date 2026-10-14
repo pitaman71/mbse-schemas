@@ -39,6 +39,7 @@ source = ["mbse.Schemas.Framework", "mbse.Schemas.Adapters"]
 branch = true
 parallel = true
 patch = ["subprocess"]
+sigterm = true  # a notebook kernel stopped by SIGTERM at shutdown saves its data
 
 [tool.coverage.report]
 show_missing = true

@@ -917,6 +917,11 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     scalar, or a value given as itself (a value object, union value, intersection value or container, which carries
     its schema, copied), and refuses a Spec, which has no schema to build by; no visitor gains a method or argument;
   - "`Visitors.OfX.as_any` - no visitor should have this method"; nor has the schema builder one (above).
+  - a value of any type is built where its schema is known, and assigned as a value: `store.builder(name)` (and
+    `store.<Name>()`) builds a standalone value of a registered value object, union, intersection or container schema,
+    whose `create()` gives a value, copied when assigned, in place of refusing ("a value object is built through its
+    owner"); the user: "yes" to relaxing that refusal rather than adding a method or an argument. Decoding writes an
+    unrestricted `OfAny`'s tagged value the same way.
 
 - **Reference identity** ([Visitor pattern](VISITOR_PATTERN.md), "Reference Identity", as the user wrote it), refining
   The visitor pattern's "global name, otherwise a UUID":

@@ -26,8 +26,8 @@ const Named = new Schemas.OfObject.Builder()
   .create();
 assert(Named.properties.get("first")?.type === Text && Named.properties.get("last")?.type === Text);
 
-// An OfAny builder with no kind selected cannot be finalized.
-raises(ValueError, () => new Schemas.OfAny.Builder().create());
+// An OfAny builder with no kind selected is a value of any type; with several, of one of them.
+assert((new Schemas.OfAny.Builder().create() as Schemas.OfAny.Value).types.length === 0);
 
 // A Spec callable must return its builder.
 raises(TypeError, () => new Schemas.OfObject.Builder().properties((() => undefined) as never).create()); // deliberate misuse

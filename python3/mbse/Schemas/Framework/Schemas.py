@@ -53,6 +53,7 @@ __all__ = [
     "Form",
     "Evaluate",
     "structure",
+    "plain_forms",
     "equivalent",
     "Module",
 ]
@@ -1091,6 +1092,69 @@ class OfContainer:
         return _resolve(spec, _ContainerData, _ContainerBuilder)
 
 
+# --- OfAny.Value: a value of any type ---
+
+
+def plain_forms(schema: Any) -> frozenset[str]:
+    """The plain forms a value of `schema` may take: "bool", "int", "float", "text", "mapping" or "list". A float may be
+    text (`"NaN"`, `"Infinity"`), bytes are text (base64), a dense tensor a mapping where written flat, and a scalar
+    whose token this implementation cannot read any form."""
+    held = _structure(schema)
+    if isinstance(held, _ScalarData):
+        forms = {bool: {"bool"}, int: {"int"}, float: {"float", "text"}, str: {"text"}, bytes: {"text"}}
+        return frozenset(forms.get(held.type, {"bool", "int", "float", "text", "mapping", "list"}))
+    if isinstance(held, _ContainerData):
+        index = _structure(held.index)
+        if held.arrangement == "dict" and isinstance(index, _ScalarData) and index.type is str:
+            return frozenset({"mapping"})
+        tensor = held.arrangement == "dense" and isinstance(index, _ObjectData)
+        return frozenset({"list", "mapping"}) if tensor else frozenset({"list"})
+    if isinstance(held, _AnyValueData):
+        return frozenset().union(*map(plain_forms, held.types)) if held.types else frozenset({"mapping"})
+    return frozenset({"mapping"}) if held is not None else frozenset()
+
+
+def _shown_type(schema: Any) -> str:
+    """A type in a message: its name, a scalar's token name, or its kind."""
+    held = _structure(schema)
+    if getattr(schema, "name", None) is not None:
+        return schema.name
+    if isinstance(held, _ScalarData) and isinstance(held.token, _Token):
+        return held.token.name
+    return {_ObjectData: "a value object", _UnionData: "a union", _IntersectionData: "an intersection",
+            _ContainerData: "a container"}.get(type(held), "a schema")
+
+
+@dataclass(eq=False)
+class _AnyValueData:
+    """A value of any type: of one of `types`, where they are given (an `OfAny` restricted to them), else of any type.
+    Restricted, a value is written bare, its type the one whose plain form it takes; unrestricted, it is tagged with its
+    type, a scalar's token name or a registered schema's name."""
+
+    types: tuple[Any, ...] = ()  # OfAny.Data each
+    name: str | None = None
+    description: str | None = None
+    parameters: dict[str, _ParameterData] = field(default_factory=dict)
+
+    def validate(self) -> list[str]:
+        problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
+        valid = []
+        for schema in self.types:
+            if not isinstance(schema, _KINDS):
+                problems.append(f"an OfAny's types are schemas, got {schema!r}")
+            elif isinstance(_structure(schema), _AnyValueData):
+                problems.append("an OfAny's types are schemas of other kinds, not an OfAny")
+            else:
+                valid.append(schema)
+                problems += [f"{_shown_type(schema)}: {p}" for p in _validate(schema)]
+        for i, a in enumerate(valid):
+            for b in valid[i + 1:]:
+                if plain_forms(a) & plain_forms(b):
+                    problems.append(f"an OfAny's types {_shown_type(a)} and {_shown_type(b)} are not told apart on the "
+                                    "wire")
+        return problems
+
+
 # --- OfApply: a parametric schema applied to arguments ---
 
 
@@ -1284,7 +1348,7 @@ class OfPredicate:
 
 # --- OfAny ---
 
-_KINDS = (_ScalarData, _ObjectData, _UnionData, _IntersectionData, _ContainerData, _ApplyData)
+_KINDS = (_ScalarData, _ObjectData, _UnionData, _IntersectionData, _ContainerData, _ApplyData, _AnyValueData)
 
 
 def _validate(schema: Any) -> list[str]:
@@ -1299,6 +1363,8 @@ def _members_of(schema: Any) -> list[Any]:
     schema = _structure(schema)
     if isinstance(schema, _ContainerData):
         return [schema.index, schema.element]
+    if isinstance(schema, _AnyValueData):
+        return list(schema.types)
     return [m.type for m in schema.properties.values()] if isinstance(schema, (_ObjectData, _UnionData, _IntersectionData)) else []
 
 
@@ -1316,55 +1382,57 @@ def _embedded_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[
 
 
 class _AnyBuilder:
-    """Selects a kind through `as_<kind>(spec)`. Finalizing yields that kind's data, not a wrapper."""
+    """Selects a type through `as_<kind>(spec)`. Finalizing yields that kind's data, not a wrapper; selecting several
+    types restricts an `OfAny` to them (`OfAny.Value`), and selecting none leaves it unrestricted."""
 
     def __init__(self, instance: OfAny.Data | None = None):
         self._source = instance
-        self._selected: OfAny.Data | None = None
+        self._types: list[OfAny.Data] = []
 
     def as_scalar(self, spec: OfScalar.Spec) -> _AnyBuilder:
-        self._selected = OfScalar.resolve(spec)
+        self._types.append(OfScalar.resolve(spec))
         return self
 
     def as_object(self, spec: OfObject.Spec) -> _AnyBuilder:
-        self._selected = OfObject.resolve(spec)
+        self._types.append(OfObject.resolve(spec))
         return self
 
     def as_union(self, spec: OfUnion.Spec) -> _AnyBuilder:
-        self._selected = OfUnion.resolve(spec)
+        self._types.append(OfUnion.resolve(spec))
         return self
 
     def as_intersection(self, spec: OfIntersection.Spec) -> _AnyBuilder:
-        self._selected = OfIntersection.resolve(spec)
+        self._types.append(OfIntersection.resolve(spec))
         return self
 
     def as_container(self, spec: OfContainer.Spec) -> _AnyBuilder:
-        self._selected = OfContainer.resolve(spec)
+        self._types.append(OfContainer.resolve(spec))
         return self
 
     def as_apply(self, spec: OfApply.Spec) -> _AnyBuilder:
-        self._selected = OfApply.resolve(spec)
+        self._types.append(OfApply.resolve(spec))
         return self
 
-    def _require_selected(self) -> OfAny.Data:
-        if self._selected is None:
-            raise ValueError("no kind selected; call an as_<kind> method")
-        return self._selected
+    def _selected(self) -> OfAny.Data:
+        """The type selected: one kind's data, or an `OfAny.Value` of every type selected, of none for any type."""
+        return self._types[0] if len(self._types) == 1 else _AnyValueData(tuple(self._types))
 
     def create(self) -> OfAny.Data:
         if self._source is not None:
             raise ValueError("create() is only valid without a source instance; use clone() or update()")
-        return self._require_selected()
+        return self._selected()
 
     def clone(self) -> OfAny.Data:
         if self._source is None:
             raise ValueError("clone() is only valid with a source instance")
-        return self._selected if self._selected is not None else copy.copy(self._source)
+        return self._selected() if self._types else copy.copy(self._source)
 
     def update(self) -> OfAny.Data:
         if self._source is None:
             raise ValueError("update() is only valid with a source instance")
-        selected = self._require_selected()
+        if not self._types:  # nothing selected: the source as it is, as clone() copies it
+            return self._source
+        selected = self._selected()
         if type(selected) is not type(self._source):
             raise TypeError("update() cannot change the kind of the source schema")
         for f in dataclasses.fields(selected):
@@ -1373,9 +1441,11 @@ class _AnyBuilder:
 
 
 class OfAny:
-    """Where a schema of any kind is expected. `OfAny.Data` is any schema kind's data."""
+    """Where a schema of any kind is expected. `OfAny.Data` is any schema kind's data; `OfAny.Value`, the kind of a value
+    of any type, or of one of the types it is restricted to."""
 
-    Data = _ScalarData | _ObjectData | _UnionData | _IntersectionData | _ContainerData | _ApplyData
+    Data = _ScalarData | _ObjectData | _UnionData | _IntersectionData | _ContainerData | _ApplyData | _AnyValueData
+    Value = _AnyValueData
     Builder = _AnyBuilder
     Spec = Data | Callable[[_AnyBuilder], _AnyBuilder]
 
@@ -1454,8 +1524,12 @@ _EntrySchema = OfObject.Builder().properties(_listing("links", _MEMBER), _listin
 _PredicateSchema = OfObject.Builder().name("Schemas.Predicate").properties(
     _named_text("name"), lambda p: p.name("requires").of(_FormSchema), _named_text("description"),
     _Parameters, _listing("symbols", _MEMBER)).create()
+_AnyValueSchema = OfObject.Builder().name("Schemas.Any").properties(
+    _named_text("name"), lambda p: p.name("types").of(lambda t: t.as_container(lambda c: c.index(_int).element(_AnySchema))),
+    _named_text("description"), _Parameters).create()
 _KIND_SCHEMAS = (("scalar", _ScalarSchema), ("object", _ObjectSchema), ("union", _UnionSchema),
-                 ("intersection", _IntersectionSchema), ("container", _ContainerSchema), ("apply", _ApplySchema))
+                 ("intersection", _IntersectionSchema), ("container", _ContainerSchema), ("apply", _ApplySchema),
+                 ("any", _AnyValueSchema))
 OfUnion.Builder(_AnySchema).branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
                                      lambda b: b.name("named").of(_Named)).update()
 _Definition = OfUnion.Builder().branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
@@ -1475,6 +1549,7 @@ OfObject.Schema = _ObjectSchema  # type: ignore[attr-defined]
 OfUnion.Schema = _UnionSchema  # type: ignore[attr-defined]
 OfIntersection.Schema = _IntersectionSchema  # type: ignore[attr-defined]
 OfContainer.Schema = _ContainerSchema  # type: ignore[attr-defined]
+OfAny.Value.Schema = _AnyValueSchema  # type: ignore[attr-defined]
 OfApply.Schema = _ApplySchema  # type: ignore[attr-defined]
 OfApply.Argument = _ArgumentSchema  # type: ignore[attr-defined]
 Form.Schema = _FormSchema  # type: ignore[attr-defined]

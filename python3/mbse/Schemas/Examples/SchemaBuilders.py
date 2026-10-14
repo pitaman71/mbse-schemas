@@ -27,9 +27,8 @@ Named = (
 )
 assert Named.properties['first'].type is Text and Named.properties['last'].type is Text
 
-# An OfAny builder with no kind selected cannot be finalized.
-with raises(ValueError):
-    Schemas.OfAny.Builder().create()
+# An OfAny builder with no kind selected is a value of any type; with several, of one of them.
+assert Schemas.OfAny.Builder().create().types == ()
 
 # A Spec callable must return its builder.
 with raises(TypeError):

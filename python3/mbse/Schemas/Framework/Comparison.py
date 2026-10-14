@@ -76,10 +76,27 @@ _SELECT = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
            Schemas.OfIntersection.Data: "as_intersection", Schemas.OfContainer.Data: "as_container"}
 
 
+def _any_of(read: Any) -> Any:
+    """The value of any type a `Visitors.OfAny` holds: a scalar, a visitor of its own kind, or None."""
+    found: list[Any] = []
+    read.as_scalar(lambda s: found.extend([] if s.get() is None else [s.get()]) or s)
+    for select in ("as_object", "as_union", "as_intersection", "as_container"):
+        getattr(read, select)(lambda v: found.extend([v] if v.as_schema() is not None else []) or v)
+    return found[0] if found else None
+
+
+def _own(value: Any) -> Any:
+    """The type a value of any type has: a scalar's, or its visitor's schema."""
+    return Schemas.OfScalar.Data(type(value)) if type(value) in Schemas.SCALAR_TYPES else value.as_schema()
+
+
 def _read_held(read: Any, schema: Any) -> Any:
     """The value object, union value or intersection value a property's visitor holds, as its own visitor; None when
     absent. An empty visitor has no identity."""
     found: list[Any] = []
+    if isinstance(schema, Schemas.OfAny.Value):
+        read.as_value(lambda a: found.append(_any_of(a)) or a)
+        return found[0]
     read.as_value(lambda a: getattr(a, _SELECT[type(schema)])(lambda v: found.append(v) or v) or a)
     return found[0] if found and found[0].as_schema() is not None else None  # a visitor of nothing has no schema
 
@@ -103,6 +120,8 @@ def _read_element(read: Any, schema: Any) -> Any:
     found: list[Any] = []
     if isinstance(held, Schemas.OfScalar.Data) or held is None:
         read.as_scalar(lambda s: found.append(s.get()) or s)
+    elif isinstance(held, Schemas.OfAny.Value):
+        return _any_of(read)
     else:
         getattr(read, _SELECT[type(held)])(lambda v: found.append(v) or v)
     return found[0]
@@ -130,6 +149,8 @@ def _compare(schema: Any, a: Any, b: Any) -> Result:
         return _objects(held, a, b, deep=True)
     if isinstance(held, Schemas.OfContainer.Data):
         return _containers(held, a, b)
+    if isinstance(held, Schemas.OfAny.Value):  # values of any type: comparable under one type only
+        return _compare(_own(a), a, b) if _same_type(_own(a), _own(b)) else None
     return _all_equal([_compare(m.type, _read_member(getattr(a, name), m.type), _read_member(getattr(b, name), m.type))
                        for name, m in held.properties.items()])
 

@@ -232,6 +232,11 @@ function isScalar(value: unknown): value is Scalar {
   return SCALAR_TYPES.some((token) => isScalarOf(token, value));
 }
 
+/** The host type of a scalar value, or null for a value that is not one. */
+export function hostOf(value: unknown): ScalarToken | null {
+  return SCALAR_TYPES.find((token) => isScalarOf(token, value)) ?? null;
+}
+
 /** Scalar values equal as Python's `==` finds them: the same type and value, bytes by content. */
 function sameScalar(a: unknown, b: unknown): boolean {
   if (a instanceof Uint8Array && b instanceof Uint8Array) return a.length === b.length && a.every((byte, i) => byte === b[i]);
@@ -1673,13 +1678,94 @@ export namespace OfPredicate {
   }
 }
 
+// --- OfAny.Value: a value of any type ---
+
+const ALL_FORMS = ["bool", "int", "float", "text", "mapping", "list"];
+
+/** The plain forms a value of `schema` may take: "bool", "int", "float", "text", "mapping" or "list". A float may be
+ * text (`"NaN"`, `"Infinity"`), bytes are text (base64), a dense tensor a mapping where written flat, and a scalar whose
+ * token this implementation cannot read any form. */
+export function plain_forms(schema: unknown): Set<string> {
+  const held = structure(schema);
+  if (held instanceof ScalarData) {
+    const forms = new Map<unknown, string[]>([[Boolean, ["bool"]], [BigInt, ["int"]], [Number, ["float", "text"]],
+      [String, ["text"]], [Uint8Array, ["text"]]]);
+    return new Set(forms.get(held.type) ?? ALL_FORMS);
+  }
+  if (held instanceof ContainerData) {
+    const index = structure(held.index);
+    if (held.arrangement === "dict" && index instanceof ScalarData && index.type === String) return new Set(["mapping"]);
+    const tensor = held.arrangement === "dense" && index instanceof ObjectData;
+    return new Set(tensor ? ["list", "mapping"] : ["list"]);
+  }
+  if (held instanceof AnyValueData) {
+    return held.types.length > 0 ? new Set(held.types.flatMap((t) => [...plain_forms(t)])) : new Set(["mapping"]);
+  }
+  return new Set(held !== null ? ["mapping"] : []);
+}
+
+/** A type in a message: its name, a scalar's token name, or its kind. */
+function shownType(schema: unknown): string {
+  const held = structure(schema);
+  const name = (schema as { name?: unknown }).name;
+  if (typeof name === "string") return name;
+  if (held instanceof ScalarData && held.token instanceof TokenClass) return held.token.name;
+  return held instanceof ObjectData ? "a value object" : held instanceof UnionData ? "a union"
+    : held instanceof IntersectionData ? "an intersection" : held instanceof ContainerData ? "a container" : "a schema";
+}
+
+/** A value of any type: of one of `types`, where they are given (an `OfAny` restricted to them), else of any type.
+ * Restricted, a value is written bare, its type the one whose plain form it takes; unrestricted, it is tagged with its
+ * type, a scalar's token name or a registered schema's name. */
+class AnyValueData {
+  types: AnyData[];
+  name: string | null;
+  description: string | null;
+  parameters: Map<string, ParameterData>;
+
+  constructor(types: readonly unknown[] = [], fields: { name?: string | null; description?: string | null;
+    parameters?: Map<string, ParameterData> } = {}) {
+    this.types = [...types] as AnyData[];
+    this.name = fields.name ?? null;
+    this.description = fields.description ?? null;
+    this.parameters = fields.parameters ?? new Map();
+  }
+
+  equals(other: unknown): boolean {
+    return other === this;
+  }
+
+  validate(): string[] {
+    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
+    const valid: AnyData[] = [];
+    for (const schema of this.types as unknown[]) {
+      if (!isAnyData(schema)) problems.push(`an OfAny's types are schemas, got ${repr(schema)}`);
+      else if (structure(schema) instanceof AnyValueData) problems.push("an OfAny's types are schemas of other kinds, not an OfAny");
+      else {
+        valid.push(schema);
+        problems.push(...validateSchema(schema).map((p) => `${shownType(schema)}: ${p}`));
+      }
+    }
+    valid.forEach((a, i) => {
+      for (const b of valid.slice(i + 1)) {
+        const forms = plain_forms(b);
+        if ([...plain_forms(a)].some((form) => forms.has(form))) {
+          problems.push(`an OfAny's types ${shownType(a)} and ${shownType(b)} are not told apart on the wire`);
+        }
+      }
+    });
+    return problems;
+  }
+}
+
 // --- OfAny ---
 
-type AnyData = ScalarData | ObjectData | UnionData | IntersectionData | ContainerData | ApplyData;
+type AnyData = ScalarData | ObjectData | UnionData | IntersectionData | ContainerData | ApplyData | AnyValueData;
 
 function isAnyData(value: unknown): value is AnyData {
   return value instanceof ScalarData || value instanceof ObjectData || value instanceof UnionData ||
-    value instanceof IntersectionData || value instanceof ContainerData || value instanceof ApplyData;
+    value instanceof IntersectionData || value instanceof ContainerData || value instanceof ApplyData
+    || value instanceof AnyValueData;
 }
 
 function kindOf(value: unknown): unknown {
@@ -1696,6 +1782,7 @@ function validateSchema(schema: unknown): string[] {
 function membersOf(type: unknown): unknown[] {
   const schema = structure(type);
   if (schema instanceof ContainerData) return [schema.index, schema.element];
+  if (schema instanceof AnyValueData) return [...schema.types];
   return schema instanceof ObjectData || schema instanceof UnionData || schema instanceof IntersectionData
     ? [...schema.properties.values()].map((member) => member.type) : [];
 }
@@ -1711,51 +1798,51 @@ function embeddedProblems(type: unknown, seen: ReadonlySet<unknown> = new Set())
   return sortedStrings(new Set(membersOf(schema).flatMap((member) => embeddedProblems(member, inner))));
 }
 
-/** Selects a kind through `as_<kind>(spec)`. Finalizing yields that kind's data, not a wrapper. */
+/** Selects a type through `as_<kind>(spec)`. Finalizing yields that kind's data, not a wrapper; selecting several types
+ * restricts an `OfAny` to them (`OfAny.Value`), and selecting none leaves it unrestricted. */
 class AnyBuilder {
   private readonly source: AnyData | undefined;
-  private selected: AnyData | undefined;
+  private readonly types: AnyData[] = [];
 
   constructor(instance?: AnyData) {
     this.source = instance;
-    this.selected = undefined;
   }
 
   as_scalar(spec: (builder: ScalarBuilder) => ScalarBuilder): AnyBuilder;
   as_scalar(spec: OfScalar.Spec): AnyBuilder;
   as_scalar(spec: OfScalar.Spec): AnyBuilder {
-    this.selected = OfScalar.resolve(spec);
+    this.types.push(OfScalar.resolve(spec));
     return this;
   }
 
   as_object(spec: OfObject.Spec): AnyBuilder {
-    this.selected = OfObject.resolve(spec);
+    this.types.push(OfObject.resolve(spec));
     return this;
   }
 
   as_union(spec: OfUnion.Spec): AnyBuilder {
-    this.selected = OfUnion.resolve(spec);
+    this.types.push(OfUnion.resolve(spec));
     return this;
   }
 
   as_intersection(spec: OfIntersection.Spec): AnyBuilder {
-    this.selected = OfIntersection.resolve(spec);
+    this.types.push(OfIntersection.resolve(spec));
     return this;
   }
 
   as_container(spec: OfContainer.Spec): AnyBuilder {
-    this.selected = OfContainer.resolve(spec);
+    this.types.push(OfContainer.resolve(spec));
     return this;
   }
 
   as_apply(spec: OfApply.Spec): AnyBuilder {
-    this.selected = OfApply.resolve(spec);
+    this.types.push(OfApply.resolve(spec));
     return this;
   }
 
-  private requireSelected(): AnyData {
-    if (this.selected === undefined) throw new ValueError("no kind selected; call an as_<kind> method");
-    return this.selected;
+  /** The type selected: one kind's data, or an `OfAny.Value` of every type selected, of none for any type. */
+  private selected(): AnyData {
+    return this.types.length === 1 ? this.types[0] as AnyData : new AnyValueData(this.types);
   }
 
   create(...args: unknown[]): AnyData {
@@ -1763,13 +1850,13 @@ class AnyBuilder {
     if (this.source !== undefined) {
       throw new ValueError("create() is only valid without a source instance; use clone() or update()");
     }
-    return this.requireSelected();
+    return this.selected();
   }
 
   clone(...args: unknown[]): AnyData {
     noArguments("clone", args);
     if (this.source === undefined) throw new ValueError("clone() is only valid with a source instance");
-    if (this.selected !== undefined) return this.selected;
+    if (this.types.length > 0) return this.selected();
     const copy = Object.create(Object.getPrototypeOf(this.source)) as AnyData;
     return Object.assign(copy, this.source);
   }
@@ -1777,7 +1864,8 @@ class AnyBuilder {
   update(...args: unknown[]): AnyData {
     noArguments("update", args);
     if (this.source === undefined) throw new ValueError("update() is only valid with a source instance");
-    const selected = this.requireSelected();
+    if (this.types.length === 0) return this.source; // nothing selected: the source as it is, as clone() copies it
+    const selected = this.selected();
     if (selected.constructor !== this.source.constructor) {
       throw new TypeError("update() cannot change the kind of the source schema");
     }
@@ -1793,8 +1881,11 @@ export namespace OfAny {
   export let Schema: UnionData;
   /** A name, as a type refers to a schema by it. */
   export let Named: ObjectData;
-  /** Where a schema of any kind is expected. `OfAny.Data` is any schema kind's data. */
+  /** Where a schema of any kind is expected. `OfAny.Data` is any schema kind's data; `OfAny.Value`, the kind of a value
+   * of any type, or of one of the types it is restricted to. */
   export type Data = AnyData;
+  export const Value = AnyValueData;
+  export type Value = AnyValueData;
   export const Builder = AnyBuilder;
   export type Builder = AnyBuilder;
   export type Spec = AnyData | ((builder: AnyBuilder) => AnyBuilder);
@@ -1869,8 +1960,11 @@ const EntrySchema = new ObjectBuilder().properties(listing("links", MEMBER), lis
 const PredicateSchema = new ObjectBuilder().name("Schemas.Predicate").properties(
   namedText("name"), (p) => p.name("requires").of(FormSchema), namedText("description"),
   Parameters, listing("symbols", MEMBER)).create();
+const AnyValueSchema = new ObjectBuilder().name("Schemas.Any").properties(
+  namedText("name"), (p) => p.name("types").of((t) => t.as_container((c) => c.index(Int).element(AnySchema))),
+  namedText("description"), Parameters).create();
 const KIND_SCHEMAS: [string, ObjectData][] = [["scalar", ScalarSchema], ["object", ObjectSchema], ["union", UnionSchema],
-  ["intersection", IntersectionSchema], ["container", ContainerSchema], ["apply", ApplySchema]];
+  ["intersection", IntersectionSchema], ["container", ContainerSchema], ["apply", ApplySchema], ["any", AnyValueSchema]];
 const kindBranches = KIND_SCHEMAS.map(([name, schema]) => (b: MemberBuilder) => b.name(name).of(schema));
 new UnionBuilder(AnySchema).branches(...kindBranches, (b) => b.name("named").of(NamedSchema)).update();
 const DefinitionSchema = new UnionBuilder().branches(...kindBranches, (b) => b.name("relation").of(RelationSchema),
@@ -1888,6 +1982,7 @@ OfObject.Schema = ObjectSchema;
 OfUnion.Schema = UnionSchema;
 OfIntersection.Schema = IntersectionSchema;
 OfContainer.Schema = ContainerSchema;
+(OfAny.Value as unknown as { Schema: ObjectData }).Schema = AnyValueSchema;
 OfParameter.Schema = PropertySchema;
 OfApply.Schema = ApplySchema;
 OfApply.Argument = ArgumentSchema;

@@ -18,7 +18,8 @@ proxies as the in-memory representation.
 
 The schema elements include:
 
-- `OfAny` : a value of any type
+- `OfAny` : where a schema of any kind is expected; `Schemas.OfAny.Value`, the kind of a value of any type, unrestricted
+            or restricted to the types an `OfAny.Builder` selects (Resolved, "`OfAny` returns")
 - `OfScalar` : a scalar value, whose type is a token `{format, name}` (see Scalar types below), with an optional width in
                bits or bytes. In Python the host types are `int`, `float`, `str`, `bool` and `bytes`.
                Conversion between the scalar format and the over-the-wire format is the responsibility of `Schemas.OfScalar`.
@@ -917,6 +918,14 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     scalar, or a value given as itself (a value object, union value, intersection value or container, which carries
     its schema, copied), and refuses a Spec, which has no schema to build by; no visitor gains a method or argument;
   - "`Visitors.OfX.as_any` - no visitor should have this method"; nor has the schema builder one (above).
+  - proposed in building, for the user's review: where a value of any type is held, a Spec of another kind than the
+    value held is handed an empty visitor, so that it neither replaces the value nor fails a read; with nothing held,
+    a restricted `OfAny` builds the one type of that kind it allows, and an unrestricted one hands a Spec an empty
+    visitor that refuses writes ("... give a value, which carries its schema, not a Spec"); a restricted value's type
+    is checked when written to a snapshot (a scalar's, which builders do not check) and on assignment (a value's); a
+    standalone value is adopted by the first object it is assigned to and copied by every later one; and
+    `Proxies.OfObject.Builder` given a value object schema directly refuses it ("build a value through its owner, or
+    standalone through the store").
   - a value of any type is built where its schema is known, and assigned as a value: `store.builder(name)` (and
     `store.<Name>()`) builds a standalone value of a registered value object, union, intersection or container schema,
     whose `create()` gives a value, copied when assigned, in place of refusing ("a value object is built through its

@@ -137,6 +137,9 @@ class _Writer:
         if isinstance(schema, Schemas.OfContainer.Data):
             return _kind_of("container", parameters=parameters, index=self.reference(schema.index),
                             element=self.reference(schema.element), layout=schema.layout, description=schema.description)
+        if isinstance(schema, Schemas.OfAny.Value):
+            return _kind_of("any", parameters=parameters, types=[self.reference(t) for t in schema.types],
+                            description=schema.description)
         if isinstance(schema, Schemas.OfApply.Data):
             return _kind_of("apply", parameters=parameters, of=self.reference(schema.of),
                             arguments=_arguments(schema.arguments), description=schema.description)
@@ -201,7 +204,7 @@ def _present(**contents: Any) -> dict[str, Any]:
 
 _BLANK = {"scalar": Schemas.OfScalar.Data, "object": Schemas.OfObject.Data, "relation": Schemas.OfRelation.Data,
           "union": Schemas.OfUnion.Data, "intersection": Schemas.OfIntersection.Data,
-          "container": Schemas.OfContainer.Data, "apply": Schemas.OfApply.Data,
+          "container": Schemas.OfContainer.Data, "apply": Schemas.OfApply.Data, "any": Schemas.OfAny.Value,
           "predicate": Schemas.OfPredicate.Data}
 
 
@@ -306,6 +309,8 @@ class _Reader:
         elif kind == "container":
             schema.index, schema.element = self.type(body["index"]), self.type(body["element"])
             schema.layout = body.get("layout")
+        elif kind == "any":
+            schema.types = tuple(self.type(t) for t in body.get("types", []))
         elif kind == "apply":
             schema.of = self.type(body["of"])
             schema.arguments = self.arguments(body.get("arguments", []))

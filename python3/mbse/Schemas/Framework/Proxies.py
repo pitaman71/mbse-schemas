@@ -46,6 +46,8 @@ __all__ = ["OfStore", "store_of", "owner_of", "OfObject", "OfEntry", "OfAdjacenc
 ObjectSchema = Schemas.OfObject.Data
 RelationSchema = Schemas.OfRelation.Data
 RECORD_KINDS = (Schemas.OfObject.Data, Schemas.OfUnion.Data, Schemas.OfIntersection.Data)
+VALUE_KINDS = (*RECORD_KINDS, Schemas.OfContainer.Data)
+SCALARS = (int, float, str, bool, bytes)
 
 
 # --- Stores ---
@@ -71,7 +73,12 @@ class OfStore(Stores.Catalog):
         if global_name is not None:
             self._singletons[global_name] = self._enter(schema.name, _ObjectData(self, schema, schema.name, global_name))
 
-    def builder(self, name: str, instance: Any = None) -> _ObjectBuilder:
+    def builder(self, name: str, instance: Any = None) -> Any:
+        """A builder of an object of the schema registered as `name`; for a value object, union, intersection or
+        container schema, of a standalone value, whose `create()` gives a value to assign, copied when placed."""
+        registered = self._schemas.get(name)
+        if isinstance(registered, VALUE_KINDS) and not getattr(registered, "ref", False):
+            return _standalone(registered, instance, self)
         return _ObjectBuilder(self, self.schema(name), name, instance)
 
     def by_identity(self, name: str, identity: str) -> _ObjectData:
@@ -113,9 +120,12 @@ class OfStore(Stores.Catalog):
         """The value an instance or value object holds in its property `name`."""
         return _read(instance, name)
 
-    def __getattr__(self, name: str) -> Callable[..., _ObjectBuilder]:
+    def __getattr__(self, name: str) -> Callable[..., Any]:
         if name.startswith("_"):
             raise AttributeError(name)
+        registered = self._schemas.get(name)
+        if isinstance(registered, VALUE_KINDS) and not getattr(registered, "ref", False):
+            return lambda instance=None: _standalone(registered, instance, self)
         schema = self.schema(name)
         return lambda instance=None: _ObjectBuilder(self, schema, name, instance)
 
@@ -513,6 +523,36 @@ class _Any(_Unassignable):
         self._values, self._name, self._store, self._writable = values, name, store, writable
         self._schema, self._label, self._on_write = schema, label, on_write
         self._type = Schemas.structure(schema)
+        self._any = self._type if isinstance(self._type, Schemas.OfAny.Value) else None
+        self._unbuilt = ""  # why a Spec has nothing to build: where the value is of any type and its type unknown
+        if self._any is not None:  # a value of any type: of the type the value held has
+            held = values.get(name)
+            self._type = held._schema if isinstance(held, (_RecordData, _RecordBuilder, _Containing)) else None
+
+    def _only(self, kind: Any) -> Any:
+        """Where the value is of any type: the one type of `kind` its restriction allows, else None."""
+        found = [held for held in map(Schemas.structure, self._any.types) if isinstance(held, kind)]  # type: ignore[union-attr]
+        return found[0] if len(found) == 1 else None
+
+    def _allows(self, schema: Any) -> bool:
+        """Where the value is of any type: whether its restriction allows a value of `schema`; any, unrestricted."""
+        return not self._any.types or any(Schemas.structure(t) is schema for t in self._any.types)  # type: ignore[union-attr]
+
+    def _of_any(self, kind: Any, cb: Any) -> None:
+        """Where the value is of any type, takes the type a write of `kind` gives: the value's own, if it is one the
+        restriction allows, else the one type of `kind` it allows; a Spec has no other schema to build by."""
+        if self._any is None or isinstance(self._type, kind):
+            return
+        value = cb._values.get(cb._name) if isinstance(cb, _Property) else cb
+        if not _is_function(cb) and isinstance(value, (_RecordData, _RecordBuilder, _Containing)):
+            if not self._allows(value._schema):
+                raise TypeError(f"{self._label} does not hold a value of {_shown_type(value._schema)}")
+            self._type = value._schema
+        elif self._writable and self._values.get(self._name) is None:  # a Spec, where nothing is held
+            self._type = self._only(kind)
+            if not self._any.types:
+                self._unbuilt = (f"{self._label} holds a value of any type: give a value, which carries its schema, "
+                                 "not a Spec")
 
     def as_schema(self) -> Any:
         return self._schema
@@ -523,9 +563,11 @@ class _Any(_Unassignable):
 
     def as_scalar(self, cb: Any) -> _Any:
         value = self._values.get(self._name)
+        if self._any is not None and self._type is None:  # a scalar of any type, or of the one its restriction allows
+            self._type = self._only(Schemas.OfScalar.Data) or self._any
         if isinstance(self._type, Schemas.OfUnion.Data) and self._type.flat:
             return self._flat_scalar(cb, value)
-        if not isinstance(self._type, Schemas.OfScalar.Data):
+        if not isinstance(self._type, (Schemas.OfScalar.Data, Schemas.OfAny.Value)):
             return self._hand(cb, _Empty(f"{self._label} holds {_a(_noun(self._type))}, not a scalar"))
         scalar = _Scalar(self._values, self._name, self._type, self._writable, self._label, self, self._on_write)
         if _is_function(cb):
@@ -558,8 +600,9 @@ class _Any(_Unassignable):
         return self._record(Schemas.OfIntersection.Data, cb)
 
     def as_container(self, cb: Any) -> _Any:
+        self._of_any(Schemas.OfContainer.Data, cb)
         if not isinstance(self._type, Schemas.OfContainer.Data):
-            return self._hand(cb, _Empty(f"{self._label} does not hold a container"))
+            return self._hand(cb, _Empty(self._unbuilt or f"{self._label} does not hold a container"))
         value = self._values.get(self._name)
         if not self._writable:
             if isinstance(value, _ContainerData):
@@ -602,8 +645,9 @@ class _Any(_Unassignable):
 
     def _record(self, kind: type, cb: Any) -> _Any:
         noun = {Schemas.OfObject.Data: "value object", Schemas.OfUnion.Data: "union value"}.get(kind, "intersection value")
+        self._of_any(kind, cb)
         if not isinstance(self._type, kind):
-            return self._hand(cb, _Empty(f"{self._label} does not hold {_a(noun)}"))
+            return self._hand(cb, _Empty(self._unbuilt or f"{self._label} does not hold {_a(noun)}"))
         value = self._values.get(self._name)
         if not self._writable:
             if isinstance(value, _RecordData):
@@ -652,6 +696,8 @@ class _Any(_Unassignable):
         _write(self._writable, f"{self._label} is read-only; write through a builder")
         if isinstance(value, _Property):
             value = value._values.get(value._name)
+        if self._any is not None and isinstance(value, (_RecordData, _RecordBuilder, _Containing)):
+            self._of_any(type(value._schema), value)
         held = Schemas.structure(self._type)
         if isinstance(held, Schemas.OfUnion.Data) and held.flat and not (
                 isinstance(value, (_RecordData, _RecordBuilder)) and value._schema is held):
@@ -667,6 +713,19 @@ class _Any(_Unassignable):
     def clear(self) -> None:
         _write(self._writable, f"{self._label} is read-only; write through a builder")
         self._values.pop(self._name, None)
+
+def _shown_type(schema: Any) -> str:
+    """A type in a message: its name, or its kind."""
+    return schema.name if getattr(schema, "name", None) is not None else _a(_noun(schema))
+
+
+def _standalone(schema: Any, source: Any, store: OfStore) -> Any:
+    """A builder of a standalone value of a value object, union, intersection or container schema, starting from
+    `source` if given: its `create()` gives a value, held by nothing until assigned."""
+    if isinstance(schema, Schemas.OfContainer.Data):
+        return _ContainerBuilder(schema, source, store, lambda builder: None, f"a {schema.name!r}")
+    return _RecordBuilder(schema, source, store)
+
 
 # --- Containers ---
 
@@ -861,6 +920,10 @@ class _ContainerBuilder(_Containing):
     def build(self) -> _ContainerData:
         items = {key: built for key, built in ((k, _built(v)) for k, v in self._items.items()) if built is not None}
         return _ContainerData(self._schema, items, {key: self._indices.get(key, key) for key in items})
+
+    def create(self) -> _ContainerData:
+        """A standalone container's value, to assign (see `OfStore.builder`)."""
+        return self.build()
 
 
 class _Iterator(_Unassignable):
@@ -1298,7 +1361,7 @@ def _noun(schema: Any) -> str:
         return "union value"
     if isinstance(schema, Schemas.OfIntersection.Data):
         return "intersection value"
-    return "value object"
+    return "container" if isinstance(schema, Schemas.OfContainer.Data) else "value object"
 
 
 def _a(noun: str) -> str:
@@ -1508,6 +1571,10 @@ class _RecordBuilder(_Unassignable):
     def build(self) -> _RecordData:
         return _RecordData(self._schema, _finalized(self._values), self._source, self._copy_of)
 
+    def create(self) -> _RecordData:
+        """A standalone value's value, to assign (see `OfStore.builder`)."""
+        return self.build()
+
 
 class _AdjacencyBuilder(_Unassignable):
     """A writable `Visitors.OfAdjacency` over one adjacency of an object's builder: iterated, its entries' builders."""
@@ -1682,7 +1749,8 @@ class _ObjectBuilder(_Unassignable):
 
     def __init__(self, store: OfStore, schema: ObjectSchema, schema_name: str, instance: _ObjectData | None = None):
         if not schema.ref:
-            raise TypeError(f"{schema_name!r} is a value object schema; a value object is built through its owner")
+            raise TypeError(f"{schema_name!r} is a value object schema; build a value through its owner, or standalone "
+                            "through the store")
         self._store, self._schema, self._schema_name, self._source = store, schema, schema_name, instance
         self._identity: str | None = None  # the identity a decoder restores (`OfStore.restore`)
         self._values: dict[str, Any] = {}

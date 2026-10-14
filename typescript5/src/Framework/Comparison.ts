@@ -79,10 +79,36 @@ function selecting(schema: unknown): string {
     : schema instanceof Schemas.OfContainer.Data ? "as_container" : "as_object";
 }
 
+/** The value of any type a `Visitors.OfAny` holds: a scalar, a visitor of its own kind, or null. */
+function anyOf(read: any): any {
+  const found: any[] = [];
+  read.as_scalar((s: any) => {
+    if (s.get() !== null) found.push(s.get());
+    return s;
+  });
+  for (const select of ["as_object", "as_union", "as_intersection", "as_container"]) {
+    read[select]((v: any) => {
+      if (v.as_schema() !== null) found.push(v);
+      return v;
+    });
+  }
+  return found.length > 0 ? found[0] : null;
+}
+
+/** The type a value of any type has: a scalar's, or its visitor's schema. */
+function own(value: any): any {
+  const host = Schemas.hostOf(value);
+  return host !== null ? new Schemas.OfScalar.Data(host) : value.as_schema();
+}
+
 /** The value object, union value or intersection value a property's visitor holds, as its own visitor; null when
  * absent. An empty visitor has no identity. */
 function readHeld(read: any, schema: unknown): any {
   const found: any[] = [];
+  if (schema instanceof Schemas.OfAny.Value) {
+    read.as_value((a: any) => found.push(anyOf(a)));
+    return found[0];
+  }
   read.as_value((a: any) => a[selecting(schema)]((v: any) => found.push(v)));
   return found.length > 0 && found[0].as_schema() !== null ? found[0] : null; // a visitor of nothing has no schema
 }
@@ -104,6 +130,7 @@ function readElement(read: any, schema: unknown): any {
   const type = Schemas.structure(schema);
   const found: unknown[] = [];
   if (type instanceof Schemas.OfScalar.Data || type === null) read.as_scalar((s: any) => found.push(s.get()));
+  else if (type instanceof Schemas.OfAny.Value) return anyOf(read);
   else read[selecting(type)]((v: any) => found.push(v));
   return found[0];
 }
@@ -126,6 +153,7 @@ function compareValues(schema: unknown, a: any, b: any): Result {
   if (held instanceof Schemas.OfScalar.Data) return typeName(a) !== typeName(b) ? null : compareScalars(a, b);
   if (held instanceof Schemas.OfObject.Data) return objects(held, a, b, true);
   if (held instanceof Schemas.OfContainer.Data) return containers(held, a, b);
+  if (held instanceof Schemas.OfAny.Value) return sameType(own(a), own(b)) ? compareValues(own(a), a, b) : null; // under one type only
   const record = held as Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
   return allEqual([...record.properties].map(([name, m]) => compareValues(m.type, readMember(a[name], m.type), readMember(b[name], m.type))));
 }

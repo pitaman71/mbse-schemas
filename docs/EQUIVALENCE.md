@@ -100,6 +100,7 @@ noticed.
 | Reading callbacks (`Readers.Read`) | `Callable[[V], V]` | `(reader: V) => any`, so that every `Visitors.OfX`, whose callbacks return the writable visitor, is a `Readers.OfX` to the type checker | TypeScript checks callback return types covariantly | VIS-01 |
 | Keyword arguments | `indent=2` | `{ indent: 2 }` | no keyword arguments | JSN-04 |
 | A container's index of several ints | a tuple, `(1, 2)` | an array, `[1n, 2n]` | no tuples in JavaScript; messages show either as a list, `[1, 2]` | CNT-01, CNT-06 |
+| A value of any type's types (`Schemas.OfAny.Value`) | a tuple, `OfAny.Value((Int,), description=...)`; `plain_forms` a `frozenset` | an array, `new OfAny.Value([Int], { description })`; `plain_forms` a `Set` | each language's sequence and set | ANY-01, ANY-05 |
 | A container's size | `len(container)` | `container.length` | each language's own | CNT-01 |
 | Arguments of an application by name | `.arguments(rows=2, cols=3)` | `.arguments({ rows: 2n, cols: 3n })`, or a `Map` | no keyword arguments | PAR-03 |
 | Finalizer arguments | extra arguments raise `TypeError` | checked explicitly | JavaScript ignores extra arguments | SCH-09, PRX-04 |

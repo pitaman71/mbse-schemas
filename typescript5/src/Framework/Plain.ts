@@ -60,7 +60,7 @@ export function schemaTypeName(schema: unknown): string {
 // --- Writing: plain data read through the visitor protocol ---
 
 /** How the writers reference a linked object; `flat` says how a dense container of several int indices is written. */
-type Ref = ((target: Readers.OfObject) => PlainMap) & { flat?: boolean };
+type Ref = ((target: Readers.OfObject) => PlainMap) & { flat?: boolean; store?: Stores.Store };
 
 /** The schema of a record: a value object's, or a union's or intersection's, whose properties are its branches or
  * parts. */
@@ -98,6 +98,8 @@ function anyValue(read: any, schema: unknown, ref: Ref): [boolean, PlainData] {
       if (present(c)) found.push(container(c, held, ref));
       return c;
     });
+  } else if (held instanceof Schemas.OfAny.Value) {
+    return anyOfAny(read, held, ref);
   } else {
     const pick = (r: any): any => {
       if (present(r)) found.push(record(r, held as RecordSchema, ref));
@@ -107,6 +109,44 @@ function anyValue(read: any, schema: unknown, ref: Ref): [boolean, PlainData] {
     else read.as_intersection(pick);
   }
   return found.length > 0 ? [true, found[0] as PlainData] : [false, null];
+}
+
+/** A value of any type as plain data, and whether there is one: restricted, written bare as the type it holds;
+ * unrestricted, tagged with its type, a scalar's token name or its schema's registered name. */
+function anyOfAny(read: any, schema: Schemas.OfAny.Value, ref: Ref): [boolean, PlainData] {
+  const found: any[] = [];
+  read.as_scalar((s: any) => {
+    if (s.get() !== null) found.push(s.get());
+    return s;
+  });
+  for (const select of ["as_object", "as_union", "as_intersection", "as_container"]) {
+    read[select]((v: any) => {
+      if (present(v)) found.push(v);
+      return v;
+    });
+  }
+  if (found.length === 0) return [false, null];
+  const [value] = found;
+  const types = schema.types.map((t) => Schemas.structure(t));
+  const host = Schemas.hostOf(value);
+  if (host !== null) {
+    const scalar = new Schemas.OfScalar.Data(host);
+    if (types.length === 0) return [true, new Map([[(scalar.token as Schemas.OfScalar.Token).name, scalar.to_plain(value)]])];
+    const own = types.find((t) => t instanceof Schemas.OfScalar.Data && t.type === scalar.type);
+    if (own === undefined) { // builders do not check scalars' types; proxies refuse a value of another schema
+      throw new TypeError(`a value of any type holds one of its types; ${typeName(value)} is not one`);
+    }
+    return anyValue(read, own, ref);
+  }
+  const own = value.as_schema();
+  if (types.length > 0) return [true, anyValue(read, own, ref)[1]];
+  let name: string;
+  try {
+    name = (ref.store as Stores.Store).name_of(own);
+  } catch { // a store's name_of refuses an unregistered schema
+    throw new TypeError(`a value of any type is of a registered schema; ${repr(own.name)} is not registered`);
+  }
+  return [true, new Map([[name, anyValue(read, own, ref)[1]]])];
 }
 
 /** The names of a container's int indices, where its index is a value object of ints; null otherwise. */
@@ -249,7 +289,7 @@ class Snapshot {
   constructor(private readonly store: Stores.Store, flat = false) {
     /** A reference to a linked object, which is a reference object: entries never reference value objects. */
     this.ref = Object.assign((target: Readers.OfObject): PlainMap =>
-      new Map<string, PlainData>([[REF, this.symbol(target)], [SCHEMA, this.store.name_of(target.as_schema())]]), { flat });
+      new Map<string, PlainData>([[REF, this.symbol(target)], [SCHEMA, this.store.name_of(target.as_schema())]]), { flat, store });
   }
 
   /** An object's key in a snapshot, and in the links to it: its identity, qualified by its schema's registered name
@@ -330,6 +370,19 @@ class DecodedRecord {
   constructor(readonly schema: RecordSchema, readonly values: Map<string, unknown>) {}
 }
 
+/** A decoded value of an unrestricted `OfAny`'s registered schema, `name`: built standalone, through the store's
+ * builder, and assigned as a value. */
+class Assigned {
+  constructor(readonly name: string, readonly value: unknown, readonly store: Stores.Store) {}
+
+  make(): any {
+    const builder = this.store.builder(this.name);
+    if (this.value instanceof DecodedElements) fillElements(builder, this.value);
+    else build(builder, this.value as DecodedRecord);
+    return builder.create();
+  }
+}
+
 /** A decoded container: its elements, each with its index, which `fillElements` writes into its builder. */
 class DecodedElements {
   constructor(readonly schema: Schemas.OfContainer.Data, readonly items: [unknown, unknown][]) {}
@@ -346,8 +399,9 @@ type Where = (string | number)[];
 type Rows = Map<string, Map<string, unknown>[]>;
 /** The value `plain` holds under `schema`, located at the path `where`: a scalar, a `DecodedRecord` or
  * `DecodedElements`. */
-function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where): unknown {
+function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where, store: Stores.Store | null = null): unknown {
   const schema = Schemas.structure(type) as Schemas.OfAny.Data;
+  if (schema instanceof Schemas.OfAny.Value) return decodeAny(schema, plain, where, store);
   if (schema instanceof Schemas.OfScalar.Data) {
     try {
       return schema.from_plain(plain);
@@ -355,7 +409,7 @@ function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where): unknown
       throw (error as DecodeError).at(path(...where)); // from_plain throws only DecodeError
     }
   }
-  if (schema instanceof Schemas.OfContainer.Data) return decodeContainer(schema, plain, where);
+  if (schema instanceof Schemas.OfContainer.Data) return decodeContainer(schema, plain, where, store);
   const [what, owner, member] = recordNames(schema as RecordSchema);
   if (!(plain instanceof Map)) throw new DecodeError(`${what} must be a mapping, got ${typeName(plain)}`, { path: path(...where) });
   const record = schema as RecordSchema;
@@ -363,12 +417,54 @@ function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where): unknown
   for (const [key, item] of plain as PlainMap) {
     const type = record.properties.get(key)?.type as Schemas.OfAny.Data | undefined;
     if (type === undefined) throw new DecodeError(`${owner} has no ${member} ${repr(key)}`, { path: path(...where, key) });
-    values.set(key, decode(type, item, [...where, key]));
+    values.set(key, decode(type, item, [...where, key], store));
   }
   if (record instanceof Schemas.OfUnion.Data && values.size !== 1) {
     throw new DecodeError(`a union value holds exactly one branch, got ${values.size}`, { path: path(...where) });
   }
   return new DecodedRecord(record, values);
+}
+
+/** The plain form a plain value takes, as `Schemas.plain_forms` names them. */
+function formOf(plain: unknown): string | null {
+  if (typeof plain === "boolean") return "bool";
+  if (typeof plain === "bigint") return "int";
+  if (typeof plain === "number") return "float";
+  if (typeof plain === "string") return "text";
+  if (plain instanceof Map) return "mapping";
+  return Array.isArray(plain) ? "list" : null;
+}
+
+/** A value of any type: restricted, of the one type whose plain form it takes; unrestricted, a mapping of its type, a
+ * scalar's token name or a schema's registered name, to its value. */
+function decodeAny(schema: Schemas.OfAny.Value, plain: unknown, where: Where, store: Stores.Store | null): unknown {
+  if (schema.types.length > 0) {
+    const form = formOf(plain);
+    const fits = schema.types.filter((t) => form !== null && Schemas.plain_forms(t).has(form));
+    if (fits.length !== 1) {
+      throw new DecodeError(`a value of any type takes the plain form of one of its types, got ${typeName(plain)}`,
+        { path: path(...where) });
+    }
+    return decode(fits[0] as Schemas.OfAny.Data, plain, where, store);
+  }
+  if (!(plain instanceof Map) || plain.size !== 1) {
+    throw new DecodeError("a value of any type is {type: value}, its type a scalar's token name or a registered schema's name",
+      { path: path(...where) });
+  }
+  const [tag, value] = [...plain][0] as [string, unknown];
+  const scalar = Schemas.SCALAR_TYPES.find((t) => new Schemas.OfScalar.Data(t).token instanceof Schemas.OfScalar.Token
+    && (new Schemas.OfScalar.Data(t).token as Schemas.OfScalar.Token).name === tag);
+  if (scalar !== undefined) return decode(new Schemas.OfScalar.Data(scalar), value, [...where, tag as string], store);
+  let registered: unknown;
+  try {
+    registered = (store as Stores.Store).registered(tag as string);
+  } catch { // a store's registered refuses a name it does not hold
+    throw new DecodeError(`no schema registered as ${repr(tag)}`, { path: path(...where, tag as string) });
+  }
+  const valueKind = (registered instanceof Schemas.OfObject.Data && !registered.ref) || registered instanceof Schemas.OfUnion.Data
+    || registered instanceof Schemas.OfIntersection.Data || registered instanceof Schemas.OfContainer.Data;
+  if (!valueKind) throw new DecodeError(`${repr(tag)} is not a value's schema`, { path: path(...where, tag as string) });
+  return new Assigned(tag as string, decode(registered as Schemas.OfAny.Data, value, [...where, tag as string], store), store as Stores.Store);
 }
 
 /** An index read from its plain form: a scalar, or a value object index as the array of its properties. */
@@ -389,10 +485,11 @@ function decodeIndex(schema: Schemas.OfContainer.Data, plain: unknown, where: Wh
 
 /** A container read from the plain form its arrangement writes (see `container`); a dense one of several int indices
  * nested or flat, whichever it is. */
-function decodeContainer(schema: Schemas.OfContainer.Data, plain: unknown, where: Where): DecodedElements {
+function decodeContainer(schema: Schemas.OfContainer.Data, plain: unknown, where: Where,
+  store: Stores.Store | null = null): DecodedElements {
   const items: [unknown, unknown][] = [];
   const element = (index: unknown, value: unknown, at: Where): void => {
-    if (value !== null) items.push([index, decode(schema.element as Schemas.OfAny.Data, value, at)]);
+    if (value !== null) items.push([index, decode(schema.element as Schemas.OfAny.Data, value, at, store)]);
   };
   const names = tensor(schema);
   const arrangement = schema.arrangement;
@@ -456,6 +553,7 @@ function decodeContainer(schema: Schemas.OfContainer.Data, plain: unknown, where
 
 /** Equality key of a decoded value, per EQUALITY.md. */
 function decodedKey(value: unknown): string {
+  if (value instanceof Assigned) return `assigned:${value.name}:${decodedKey(value.value)}`;
   if (value instanceof DecodedElements) {
     const keyed = value.items.map(([index, item]) => [Array.isArray(index) ? JSON.stringify(index.map(Proxies.scalarKey))
       : Proxies.scalarKey(index), decodedKey(item)]);
@@ -475,7 +573,8 @@ function recordNames(schema: RecordSchema): [string, string, string] {
 }
 
 /** The entries of one adjacency, at `where` + `key`. */
-function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: Where, key: string): Map<string, unknown>[] {
+function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: Where, key: string,
+  store: Stores.Store | null = null): Map<string, unknown>[] {
   if (!Array.isArray(value)) throw new DecodeError("an adjacency must be a list of entries", { path: path(...where, key) });
   const relation = adjacency.relation as Schemas.OfRelation.Data;
   return value.map((entry, i) => {
@@ -491,7 +590,7 @@ function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: 
         if (!isRef(item)) throw new DecodeError("a link must be a reference", { path: at });
         row.set(name, new Link(item.get(REF) as string));
       } else if (entryType !== undefined) {
-        row.set(name, decode(entryType, item, [...where, key, i, name]));
+        row.set(name, decode(entryType, item, [...where, key, i, name], store));
       } else {
         throw new DecodeError(`the relation has no link or property ${repr(name)}`, { path: at });
       }
@@ -590,9 +689,9 @@ function check(store: Stores.Store, schema: unknown, plain: unknown): [string, M
       const adjacency = objectSchema.adjacencies.get(key);
       const propertyType = objectSchema.properties.get(key)?.type as Schemas.OfAny.Data | undefined;
       if (adjacency !== undefined) {
-        adjacencies.set(key, decodeRows(adjacency, value, where, key));
+        adjacencies.set(key, decodeRows(adjacency, value, where, key, store));
       } else if (propertyType !== undefined) {
-        properties.set(key, decode(propertyType, value, [...where, key]));
+        properties.set(key, decode(propertyType, value, [...where, key], store));
       } else {
         throw new DecodeError(`${repr(name)} has no property or adjacency ${repr(key)}`, { path: path(...where, key) });
       }
@@ -736,7 +835,9 @@ function agrees(entry: any, row: Map<string, unknown>, resolve: (symbol: string)
   for (const [name, prop] of schema.properties) {
     const [has, plain] = value(entry[name], prop.type, ref);
     if (has !== row.has(name)) return false;
-    if (has && decodedKey(decode(prop.type as Schemas.OfAny.Data, plain, [])) !== decodedKey(row.get(name))) return false;
+    if (has && decodedKey(decode(prop.type as Schemas.OfAny.Data, plain, [], ref.store as Stores.Store)) !== decodedKey(row.get(name))) {
+      return false;
+    }
   }
   return true;
 }
@@ -756,7 +857,8 @@ function holdsMembers(visitor: any): boolean {
 /** Writes a decoded value into the member `name`: a scalar, a value object, union value or intersection value. */
 function set(visitor: any, name: string, value: unknown): void {
   const member = visitor[name];
-  if (value instanceof DecodedElements) {
+  if (value instanceof Assigned) member.as_value(value.make());
+  else if (value instanceof DecodedElements) {
     if (holdsMembers(visitor)) member((held: any) => fillElements(held, value));
     else member.as_value((a: any) => a.as_container((held: any) => fillElements(held, value)));
   } else if (!(value instanceof DecodedRecord)) member(value);
@@ -773,7 +875,11 @@ function fillElements(held: any, elements: DecodedElements): any {
 /** Writes a decoded value through a `Visitors.OfAny`: a scalar, a value object, union value or intersection value, or a
  * container. */
 function put(element: any, value: unknown): void {
-  if (value instanceof DecodedElements) element.as_container((held: any) => fillElements(held, value));
+  if (value instanceof Assigned) {
+    const made = value.make();
+    const schema = made.as_schema();
+    element[schema instanceof Schemas.OfContainer.Data ? "as_container" : selectOf(schema.constructor)](made);
+  } else if (value instanceof DecodedElements) element.as_container((held: any) => fillElements(held, value));
   else if (value instanceof DecodedRecord) element[selectOf(value.schema.constructor)]((held: any) => build(held, value));
   else element.as_scalar(value);
 }

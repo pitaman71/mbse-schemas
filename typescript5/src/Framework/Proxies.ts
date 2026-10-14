@@ -186,6 +186,8 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
         if (typeof prop === "symbol" || prop in t || STORE_MEMBERS.has(prop)) return Reflect.get(t, prop, receiver);
         if (prop.startsWith("_")) throw new AttributeError(prop);
         if (!t._schemas.has(prop) && _probes.has(prop)) return Reflect.get(t, prop, receiver);
+        const registered = t._schemas.get(prop);
+        if (isValueSchema(registered)) return (instance?: unknown) => standalone(registered, instance ?? null, receiver as OfStore);
         const found = t.schema(prop);
         return (instance?: Instance) => makeObjectBuilder(receiver as OfStore, found, prop, instance);
       },
@@ -205,8 +207,12 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
     }
   }
 
-  /** A builder for the object schema `name`; typed loosely, as the store's members are. */
+  /** A builder of an object of the schema registered as `name`; for a value object, union, intersection or container
+   * schema, of a standalone value, whose `create()` gives a value to assign, copied when placed. Typed loosely, as the
+   * store's members are. */
   builder(name: string, instance?: unknown): any {
+    const registered = this._schemas.get(name);
+    if (isValueSchema(registered)) return standalone(registered, instance ?? null, this);
     return makeObjectBuilder(this, this.schema(name), name, instance as Instance | undefined);
   }
 
@@ -717,11 +723,48 @@ function makeScalar(values: Values, name: string, schema: unknown, writable: boo
 /** `Visitors.OfAny` over one key of a values map, holding a value of `schema`. Read-only, it hands over the value's own
  * visitor, or an empty one; writable, it selects the kind, refusing one the schema does not hold. */
 class _Any {
-  readonly _type: unknown;
+  _type: unknown;
+  readonly _any: Schemas.OfAny.Value | null;
+  /** Why a Spec has nothing to build: where the value is of any type and its type unknown. */
+  _unbuilt = "";
 
   constructor(readonly _values: Values, readonly _name: string, readonly _schema: unknown, readonly _store: OfStore | null,
     readonly _writable: boolean, readonly _label: string, readonly _onWrite: (() => void) | null = null) {
     this._type = Schemas.structure(_schema);
+    this._any = this._type instanceof Schemas.OfAny.Value ? this._type : null;
+    if (this._any !== null) { // a value of any type: of the type the value held has
+      const held = _values.get(_name);
+      this._type = isRecordData(held) || isRecordBuilder(held) || isContaining(held) ? innerOf(held)._schema : null;
+    }
+  }
+
+  /** Where the value is of any type: the one type of `kind` its restriction allows, else null. */
+  _only(kind: abstract new (...args: never[]) => unknown): unknown {
+    const found = (this._any as Schemas.OfAny.Value).types.map((t) => Schemas.structure(t)).filter((t) => t instanceof kind);
+    return found.length === 1 ? found[0] : null;
+  }
+
+  /** Where the value is of any type: whether its restriction allows a value of `schema`; any, unrestricted. */
+  _allows(schema: unknown): boolean {
+    const types = (this._any as Schemas.OfAny.Value).types;
+    return types.length === 0 || types.some((t) => Schemas.structure(t) === schema);
+  }
+
+  /** Where the value is of any type, takes the type a write of `kind` gives: the value's own, if it is one the
+   * restriction allows, else the one type of `kind` it allows; a Spec has no other schema to build by. */
+  _ofAny(kind: abstract new (...args: never[]) => unknown, cb: unknown): void {
+    if (this._any === null || this._type instanceof kind) return;
+    const value = isProperty(cb) ? innerOf(cb)._values.get(innerOf(cb)._name) : cb;
+    if (!isFunction(cb) && (isRecordData(value) || isRecordBuilder(value) || isContaining(value))) {
+      const schema = innerOf(value)._schema;
+      if (!this._allows(schema)) throw new TypeError(`${this._label} does not hold a value of ${shownType(schema)}`);
+      this._type = schema;
+    } else if (this._writable && (this._values.get(this._name) ?? null) === null) { // a Spec, where nothing is held
+      this._type = this._only(kind);
+      if (this._any.types.length === 0) {
+        this._unbuilt = `${this._label} holds a value of any type: give a value, which carries its schema, not a Spec`;
+      }
+    }
   }
 
   as_schema(): unknown {
@@ -734,8 +777,11 @@ class _Any {
 
   as_scalar(cb: unknown): this {
     const value = this._values.get(this._name);
+    if (this._any !== null && this._type === null) { // a scalar of any type, or of the one its restriction allows
+      this._type = this._only(Schemas.OfScalar.Data) ?? this._any;
+    }
     if (this._type instanceof Schemas.OfUnion.Data && this._type.flat) return this._flatScalar(cb, value);
-    if (!(this._type instanceof Schemas.OfScalar.Data)) {
+    if (!(this._type instanceof Schemas.OfScalar.Data || this._type instanceof Schemas.OfAny.Value)) {
       return this._hand(cb, makeEmpty(`${this._label} holds ${withArticle(noun(this._type))}, not a scalar`));
     }
     const scalar = makeScalar(this._values, this._name, this._type, this._writable, this._label, this, this._onWrite);
@@ -777,7 +823,10 @@ class _Any {
   }
 
   as_container(cb: unknown): this {
-    if (!(this._type instanceof Schemas.OfContainer.Data)) return this._hand(cb, makeEmpty(`${this._label} does not hold a container`));
+    this._ofAny(Schemas.OfContainer.Data, cb);
+    if (!(this._type instanceof Schemas.OfContainer.Data)) {
+      return this._hand(cb, makeEmpty(this._unbuilt || `${this._label} does not hold a container`));
+    }
     const value = this._values.get(this._name);
     if (!this._writable) {
       if (isContainerData(value)) {
@@ -826,7 +875,8 @@ class _Any {
   _record(kind: abstract new (...args: never[]) => RecordSchema, cb: unknown): this {
     const what = kind === Schemas.OfObject.Data ? "value object" : kind === Schemas.OfUnion.Data ? "union value"
       : "intersection value";
-    if (!(this._type instanceof kind)) return this._hand(cb, makeEmpty(`${this._label} does not hold ${withArticle(what)}`));
+    this._ofAny(kind, cb);
+    if (!(this._type instanceof kind)) return this._hand(cb, makeEmpty(this._unbuilt || `${this._label} does not hold ${withArticle(what)}`));
     const value = this._values.get(this._name);
     if (!this._writable) {
       if (isRecordData(value)) {
@@ -877,6 +927,9 @@ class _Any {
   write(value: unknown): void {
     write(this._writable, `${this._label} is read-only; write through a builder`);
     if (isProperty(value)) value = innerOf(value)._values.get(innerOf(value)._name);
+    if (this._any !== null && (isRecordData(value) || isRecordBuilder(value) || isContaining(value))) {
+      this._ofAny(innerOf(value)._schema.constructor, value);
+    }
     const held = Schemas.structure(this._type);
     if (held instanceof Schemas.OfUnion.Data && held.flat
       && !((isRecordData(value) || isRecordBuilder(value)) && innerOf(value)._schema === held)) {
@@ -1145,6 +1198,32 @@ class _ContainerBuilder extends _Containing {
     const items = finalized(this._items);
     return makeContainerData(this._schema, items, new Map([...items.keys()].map((key) => [key, this._indices.get(key)])));
   }
+
+  /** A standalone container's value, to assign (see `OfStore.builder`). */
+  create(): unknown {
+    return this.build();
+  }
+}
+
+/** A type in a message: its name, or its kind. */
+function shownType(schema: unknown): string {
+  const name = (schema as { name?: unknown }).name;
+  return typeof name === "string" ? name : withArticle(noun(schema));
+}
+
+/** Whether a registered schema is a value's: a value object, union, intersection or container schema. */
+function isValueSchema(schema: unknown): schema is RecordSchema | Schemas.OfContainer.Data {
+  return (schema instanceof Schemas.OfObject.Data && !schema.ref) || schema instanceof Schemas.OfUnion.Data
+    || schema instanceof Schemas.OfIntersection.Data || schema instanceof Schemas.OfContainer.Data;
+}
+
+/** A builder of a standalone value of a value object, union, intersection or container schema, starting from `source`
+ * if given: its `create()` gives a value, held by nothing until assigned. */
+function standalone(schema: RecordSchema | Schemas.OfContainer.Data, source: unknown, store: OfStore): any {
+  if (schema instanceof Schemas.OfContainer.Data) {
+    return makeContainerBuilder(schema, source, store, () => undefined, `a ${repr(schema.name)}`);
+  }
+  return makeRecordBuilder(schema, source, store);
 }
 
 function makeContainerBuilder(schema: Schemas.OfContainer.Data, source: unknown, store: OfStore | null,
@@ -1155,6 +1234,11 @@ function makeContainerBuilder(schema: Schemas.OfContainer.Data, source: unknown,
 
 function isContainerData(value: unknown): boolean {
   return innerOf(value) instanceof _ContainerData;
+}
+
+/** Whether a value is a container or a container's builder. */
+function isContaining(value: unknown): boolean {
+  return innerOf(value) instanceof _Containing;
 }
 
 function isContainerBuilder(value: unknown): boolean {
@@ -1712,7 +1796,7 @@ function branchOf(name: string, schema: Schemas.OfUnion.Data, value: unknown): S
 function noun(schema: unknown): string {
   if (schema instanceof Schemas.OfUnion.Data) return "union value";
   if (schema instanceof Schemas.OfIntersection.Data) return "intersection value";
-  return "value object";
+  return schema instanceof Schemas.OfContainer.Data ? "container" : "value object";
 }
 
 function withArticle(noun: string): string {
@@ -1942,6 +2026,11 @@ class _RecordBuilder extends Shelled {
 
   build(): ValueObject {
     return makeRecordData(this._schema, finalized(this._values), this._source, this._copyOf);
+  }
+
+  /** A standalone value's value, to assign (see `OfStore.builder`). */
+  create(): ValueObject {
+    return this.build();
   }
 }
 
@@ -2300,7 +2389,8 @@ function isObjectBuilder(value: unknown): boolean {
 
 function makeObjectBuilder(store: OfStore, schema: ObjectSchema, schemaName: string, instance?: unknown): DynamicBuilder {
   if (!schema.ref) {
-    throw new TypeError(`${repr(schemaName)} is a value object schema; a value object is built through its owner`);
+    throw new TypeError(`${repr(schemaName)} is a value object schema; build a value through its owner, or standalone `
+      + "through the store");
   }
   if (instance !== undefined && instance !== null) {
     if (!isObjectData(instance)) throw new TypeError("a builder's source must be a proxy instance");

@@ -45,10 +45,36 @@ function selecting(schema: unknown): string {
     : schema instanceof Schemas.OfContainer.Data ? "as_container" : "as_object";
 }
 
+/** The value of any type a `Visitors.OfAny` holds: a scalar, a visitor of its own kind, or null. */
+function anyOf(read: any): any {
+  const found: any[] = [];
+  read.as_scalar((s: any) => {
+    if (s.get() !== null) found.push(s.get());
+    return s;
+  });
+  for (const select of ["as_object", "as_union", "as_intersection", "as_container"]) {
+    read[select]((v: any) => {
+      if (v.as_schema() !== null) found.push(v);
+      return v;
+    });
+  }
+  return found.length > 0 ? found[0] : null;
+}
+
+/** The type a value of any type has: a scalar's, or its visitor's schema. */
+function own(value: any): any {
+  const host = Schemas.hostOf(value);
+  return host !== null ? new Schemas.OfScalar.Data(host) : value.as_schema();
+}
+
 /** The value object, union value or intersection value a property's visitor holds, as its own visitor; null when
  * absent. An empty visitor has no identity. */
 function held(read: any, schema: unknown): any {
   const found: any[] = [];
+  if (schema instanceof Schemas.OfAny.Value) {
+    read.as_value((a: any) => found.push(anyOf(a)));
+    return found[0];
+  }
   read.as_value((a: any) => a[selecting(schema)]((v: any) => found.push(v)));
   return found[0].as_schema() !== null ? found[0] : null; // a callback is always called; a visitor of nothing has no schema
 }
@@ -65,6 +91,7 @@ function element(read: any, schema: unknown): any {
   const type = Schemas.structure(schema);
   const found: unknown[] = [];
   if (type instanceof Schemas.OfScalar.Data || type === null) read.as_scalar((s: any) => found.push(s.get()));
+  else if (type instanceof Schemas.OfAny.Value) return anyOf(read);
   else read[selecting(type)]((v: any) => found.push(v));
   return found[0];
 }
@@ -81,9 +108,13 @@ let schemaCount = 0;
 
 /** A linked object's identity, unique among the objects of every schema: an identity is unique within its schema. */
 function identity(target: any): string {
-  const schema = target.as_schema();
+  return `${numberOf(target.as_schema())}:${target.as_identity()}`;
+}
+
+/** A number for each schema, as Python's `id()` of it. */
+function numberOf(schema: object): number {
   if (!schemaNumbers.has(schema)) schemaNumbers.set(schema, ++schemaCount);
-  return `${schemaNumbers.get(schema)}:${target.as_identity()}`;
+  return schemaNumbers.get(schema) as number;
 }
 
 // --- Checks ---
@@ -110,6 +141,10 @@ function key(schema: unknown, value: any): string {
   const type = Schemas.structure(schema);
   if (value === null || value === undefined) return ABSENT;
   if (type instanceof Schemas.OfScalar.Data || type === null) return scalarKey(value);
+  if (type instanceof Schemas.OfAny.Value) {
+    const of = own(value);
+    return `any:${of instanceof Schemas.OfScalar.Data ? (of.token as Schemas.OfScalar.Token).name : numberOf(of)}:${key(of, value)}`;
+  }
   if (type instanceof Schemas.OfContainer.Data) {
     const keyed = pairs(value).map(([index, e]) => JSON.stringify([
       Array.isArray(index) ? index.map(scalarKey) : scalarKey(index), // a value object index by its values too
@@ -185,6 +220,7 @@ class Checker {
       const problem = scalarProblem(schema, item);
       return problem === null ? [] : [`${label}: ${problem}`];
     }
+    if (schema instanceof Schemas.OfAny.Value) return this.anyProblems(label, schema, item);
     if (schema instanceof Schemas.OfContainer.Data) {
       return pairs(item).flatMap(([index, e]) =>
         this.valueProblems(`${label}[${repr(index)}]`, schema.element, element(e, schema.element)));
@@ -201,6 +237,32 @@ class Checker {
 
   /** Problems with one entry: each linked object's schema declares an adjacency to the relation via its link, and its
    * values have their types. */
+  /** Problems with a value of any type: that it is of one of its types, where it is restricted, or of a registered
+   * schema, where it is not a scalar; and its own, under its own type. */
+  private anyProblems(label: string, schema: Schemas.OfAny.Value, item: any): string[] {
+    const of = own(item);
+    const types = schema.types.map((t) => Schemas.structure(t));
+    let allowed: boolean;
+    let shown: string;
+    if (of instanceof Schemas.OfScalar.Data) {
+      allowed = types.length === 0 || types.some((t) => t instanceof Schemas.OfScalar.Data && t.type === of.type);
+      shown = (of.token as Schemas.OfScalar.Token).name;
+    } else {
+      allowed = types.some((t) => t === of);
+      shown = repr(of.name);
+      if (types.length === 0) {
+        try {
+          this.store.name_of(of);
+          allowed = true;
+        } catch { // a store's name_of refuses an unregistered schema
+          return [`${label}: a value of any type is of a registered schema; ${shown} is not registered`];
+        }
+      }
+    }
+    if (!allowed) return [`${label}: ${shown} is not one of its types`];
+    return this.valueProblems(label, of, item);
+  }
+
   private entry(label: string, adjacency: Schemas.OfAdjacency.Data, owner: any, entry: any): string[] {
     const relation = adjacency.relation as Schemas.OfRelation.Data;
     this.schema(`of ${label}`, relation);

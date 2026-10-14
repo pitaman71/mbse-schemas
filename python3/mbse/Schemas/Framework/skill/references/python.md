@@ -67,6 +67,8 @@ S.OfIntersection.Builder().parts(lambda p: p.name("stamp").of(spec), ...).create
 p.name("tags").of(lambda t: t.as_container(lambda c: c.index(Int).element(Text)))   # a list: a container by position
 S.OfContainer.Builder().index(Cell).element(Float).sparse().create()   # by a value object of ints: a tensor; dense default
 obj.tags.as_value(lambda v: v.as_container(lambda c: c.at(0)))  # elements by index, each a Visitors.OfAny
+p.name("id").of(lambda t: t.as_scalar(int).as_object(Phone))  # a value of any of these types, written bare; none: any type
+store.Phone().number("1").create()                         # a standalone value, assigned to an unrestricted OfAny, tagged
 schema.validate()                                           # the schema's own problems, [] when valid
 
 S.OfObject.Builder().name("crm.Contact")                    # a name, identifiers separated by dots, on any kind of schema

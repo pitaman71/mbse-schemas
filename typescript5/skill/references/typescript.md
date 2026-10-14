@@ -78,6 +78,8 @@ new S.OfIntersection.Builder().parts((p) => p.name("stamp").of(spec), ...).creat
 p.name("tags").of((t) => t.as_container((c) => c.index(Int).element(Text)));   // a list: a container by position
 new S.OfContainer.Builder().index(Cell).element(Float).sparse().create();   // by a value object of ints: a tensor; dense default
 obj.tags.as_value((v) => v.as_container((c) => c.at(0n)));  // elements by index, each a Visitors.OfAny; an array index [i, j]
+p.name("id").of((t) => t.as_scalar(BigInt).as_object(Phone));  // a value of any of these types, written bare; none: any type
+store.Phone().number("1").create();                        // a standalone value, assigned to an unrestricted OfAny, tagged
 new S.OfObject.Builder().name("crm.Contact");                     // a name, identifiers separated by dots, on any kind
 new S.OfObject.Builder().description("A person we know");         // documentation, on any element: schema, property,
 schema.properties.get("home")?.type;                              // adjacency, branch or part; a property is an element

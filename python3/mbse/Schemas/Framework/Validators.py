@@ -47,10 +47,27 @@ _SELECT = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
            Schemas.OfIntersection.Data: "as_intersection", Schemas.OfContainer.Data: "as_container"}
 
 
+def _any_of(read: Any) -> Any:
+    """The value of any type a `Visitors.OfAny` holds: a scalar, a visitor of its own kind, or None."""
+    found: list[Any] = []
+    read.as_scalar(lambda s: found.extend([] if s.get() is None else [s.get()]) or s)
+    for select in ("as_object", "as_union", "as_intersection", "as_container"):
+        getattr(read, select)(lambda v: found.extend([v] if v.as_schema() is not None else []) or v)
+    return found[0] if found else None
+
+
+def _own(value: Any) -> Any:
+    """The type a value of any type has: a scalar's, or its visitor's schema."""
+    return Schemas.OfScalar.Data(type(value)) if type(value) in _SCALARS else value.as_schema()
+
+
 def _held(read: Any, schema: Any) -> Any:
     """The value object, union value or intersection value a property's visitor holds, as its own visitor; None when
     absent. An empty visitor has no identity."""
     found: list[Any] = []
+    if isinstance(schema, Schemas.OfAny.Value):
+        read.as_value(lambda a: found.append(_any_of(a)) or a)
+        return found[0]
     read.as_value(lambda a: getattr(a, _SELECT[type(schema)])(lambda v: found.append(v) or v) or a)
     return found[0] if found[0].as_schema() is not None else None  # a callback is always called; a visitor of nothing has no schema
 
@@ -70,6 +87,8 @@ def _element(read: Any, schema: Any) -> Any:
     if isinstance(held, Schemas.OfScalar.Data) or held is None:
         read.as_scalar(lambda s: found.append(s.get()) or s)
         return found[0]
+    if isinstance(held, Schemas.OfAny.Value):
+        return _any_of(read)
     getattr(read, _SELECT[type(held)])(lambda v: found.append(v) or v)
     return found[0]
 
@@ -117,6 +136,9 @@ def _key(schema: Any, value: Any) -> Hashable:
         return _ABSENT
     if isinstance(held, Schemas.OfScalar.Data) or held is None:
         return ("float", value.hex()) if isinstance(value, float) else (type(value).__name__, value)
+    if isinstance(held, Schemas.OfAny.Value):
+        own = _own(value)
+        return ("any", own.token.name if isinstance(own, Schemas.OfScalar.Data) else id(own), _key(own, value))
     if isinstance(held, Schemas.OfContainer.Data):
         return ("container", frozenset((index if not hasattr(index, "as_schema") else _key(held.index, index),
                                         _key(held.element, _element(e, held.element))) for index, e in _pairs(value)))
@@ -183,6 +205,8 @@ class _Check:
         if isinstance(schema, Schemas.OfScalar.Data):
             problem = _scalar_problem(schema, item)
             return [f"{label}: {problem}"] if problem else []
+        if isinstance(schema, Schemas.OfAny.Value):
+            return self._any_problems(label, schema, item)
         if isinstance(schema, Schemas.OfContainer.Data):
             problems = []
             for index, element in _pairs(item):
@@ -199,6 +223,25 @@ class _Check:
         if isinstance(schema, Schemas.OfIntersection.Data) and missing:
             problems.append(f"{label}: parts {missing} are not set")
         return problems
+
+    def _any_problems(self, label: str, schema: Schemas.OfAny.Value, item: Any) -> list[str]:
+        """Problems with a value of any type: that it is of one of its types, where it is restricted, or of a
+        registered schema, where it is not a scalar; and its own, under its own type."""
+        own, types = _own(item), [Schemas.structure(t) for t in schema.types]
+        if isinstance(own, Schemas.OfScalar.Data):
+            allowed = not types or any(isinstance(t, Schemas.OfScalar.Data) and t.type is own.type for t in types)
+            shown = own.token.name
+        else:
+            allowed, shown = any(t is own for t in types), repr(own.name)
+            if not types:
+                try:
+                    self._store.name_of(own)
+                    allowed = True
+                except LookupError:
+                    return [f"{label}: a value of any type is of a registered schema; {shown} is not registered"]
+        if not allowed:
+            return [f"{label}: {shown} is not one of its types"]
+        return self._value_problems(label, own, item)
 
     def _entry(self, label: str, adjacency: Schemas.OfAdjacency.Data, owner: Any, entry: Any) -> list[str]:
         """Problems with one entry: each linked object's schema declares an adjacency to the relation via its link, and

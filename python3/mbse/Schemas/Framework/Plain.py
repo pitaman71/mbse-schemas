@@ -73,10 +73,34 @@ def _any(read: Readers.OfAny, schema: Schemas.OfAny.Data, ref: Ref) -> tuple[boo
         read.as_object(lambda o: found.extend([_object(o, held, ref)] if _present(o) else []) or o)
     elif isinstance(held, Schemas.OfContainer.Data):
         read.as_container(lambda c: found.extend([_container(c, held, ref)] if _present(c) else []) or c)
+    elif isinstance(held, Schemas.OfAny.Value):
+        return _any_value(read, held, ref)
     else:
         select = "as_union" if isinstance(held, Schemas.OfUnion.Data) else "as_intersection"
         getattr(read, select)(lambda r: found.extend([_record(r, held, ref)] if _present(r) else []) or r)
     return (True, found[0]) if found else (False, None)
+
+
+def _any_value(read: Readers.OfAny, schema: Schemas.OfAny.Value, ref: Ref) -> tuple[bool, PlainData]:
+    """A value of any type as plain data, and whether there is one: restricted, written bare as the type it holds;
+    unrestricted, tagged with its type, a scalar's token name or its schema's registered name."""
+    found: list[Any] = []
+    read.as_scalar(lambda s: found.extend([] if s.get() is None else [s.get()]) or s)
+    for select in ("as_object", "as_union", "as_intersection", "as_container"):
+        getattr(read, select)(lambda v: found.extend([v] if _present(v) else []) or v)
+    if not found:
+        return False, None
+    value, types = found[0], [Schemas.structure(t) for t in schema.types]
+    if type(value) in Schemas.SCALAR_TYPES:
+        scalar = Schemas.OfScalar.Data(type(value))
+        if not types:
+            return True, {scalar.token.name: scalar.to_plain(value)}
+        own = next((t for t in types if isinstance(t, Schemas.OfScalar.Data) and t.type is type(value)), None)
+        if own is None:  # builders do not check scalars' types; proxies refuse a value of another schema
+            raise TypeError(f"a value of any type holds one of its types; {type(value).__name__} is not one")
+        return _any(read, own, ref)
+    own = value.as_schema()
+    return True, {ref.name_of(own): _any(read, own, ref)[1]} if not types else _any(read, own, ref)[1]
 
 
 def _tensor(schema: Schemas.OfContainer.Data) -> list[str] | None:
@@ -206,7 +230,7 @@ class _Snapshot:
     """Writes the included objects, in first-reference order, each keyed by its qualified identity."""
 
     def __init__(self, store: Stores.Store, flat: bool = False) -> None:
-        self._store, self.flat = store, flat  # flat: how a dense container of several int indices is written
+        self.store, self.flat = store, flat  # flat: how a dense container of several int indices is written
 
     def __call__(self, target: Readers.OfObject) -> dict[str, PlainData]:  # the snapshot is the writers' `Ref`
         return self._ref(target)
@@ -217,11 +241,18 @@ class _Snapshot:
         schema = value.as_schema()
         if schema.singleton is not None:
             return schema.singleton
-        return f"{self._store.name_of(schema)}/{value.as_identity()}"
+        return f"{self.store.name_of(schema)}/{value.as_identity()}"
+
+    def name_of(self, schema: Any) -> str:
+        """The name a value of any type is tagged with: its schema's registered name."""
+        try:
+            return self.store.name_of(schema)
+        except LookupError:
+            raise TypeError(f"a value of any type is of a registered schema; {schema.name!r} is not registered") from None
 
     def _ref(self, target: Readers.OfObject) -> dict[str, PlainData]:
         """A reference to a linked object, which is a reference object: entries never reference value objects."""
-        return {REF: self._symbol(target), SCHEMA: self._store.name_of(target.as_schema())}
+        return {REF: self._symbol(target), SCHEMA: self.store.name_of(target.as_schema())}
 
     def run(
         self, schema: Schemas.OfObject.Data, root: Readers.OfObject, include: list[Readers.OfObject]
@@ -275,6 +306,23 @@ class _Record(NamedTuple):
     values: dict[str, Any]
 
 
+class _Assigned(NamedTuple):
+    """A decoded value of an unrestricted `OfAny`'s registered schema, `name`: built standalone, through the store's
+    builder, and assigned as a value."""
+
+    name: str
+    value: Any
+    store: Any
+
+    def make(self) -> Any:
+        builder = self.store.builder(self.name)
+        if isinstance(self.value, _Elements):
+            _fill_elements(builder, self.value)
+        else:
+            _build(builder, self.value)
+        return builder.create()
+
+
 class _Elements(NamedTuple):
     """A decoded container: its elements, each with its index, which `_fill` writes into its builder."""
 
@@ -293,16 +341,19 @@ Rows = dict[str, list[dict[str, Any]]]
 """Per adjacency, its decoded entries: each maps links to `_Link`s and properties to decoded values."""
 
 
-def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple) -> Any:
-    """The value `plain` holds under `schema`, located at the path `where`: a scalar, a `_Record` or `_Elements`."""
+def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, store: Any = None) -> Any:
+    """The value `plain` holds under `schema`, located at the path `where`: a scalar, a `_Record`, `_Elements`, or an
+    `_Assigned` value of a schema `store` registers."""
     schema = Schemas.structure(schema)
+    if isinstance(schema, Schemas.OfAny.Value):
+        return _decode_any(schema, plain, where, store)
     if isinstance(schema, Schemas.OfScalar.Data):
         try:
             return schema.from_plain(plain)
         except DecodeError as error:
             raise error.at(path(*where)) from None
     if isinstance(schema, Schemas.OfContainer.Data):
-        return _decode_container(schema, plain, where)
+        return _decode_container(schema, plain, where, store)
     noun, owner, member = _RECORDS[type(schema)]
     if not isinstance(plain, dict):
         raise DecodeError(f"{noun} must be a mapping, got {type(plain).__name__}", path=path(*where))
@@ -310,10 +361,38 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple) -> Any:
     for key, item in plain.items():
         if key not in schema.properties:
             raise DecodeError(f"{owner} has no {member} {key!r}", path=path(*where, key))
-        values[key] = _decode(schema.properties[key].type, item, (*where, key))
+        values[key] = _decode(schema.properties[key].type, item, (*where, key), store)
     if isinstance(schema, Schemas.OfUnion.Data) and len(values) != 1:
         raise DecodeError(f"a union value holds exactly one branch, got {len(values)}", path=path(*where))
     return _Record(schema, values)
+
+
+_FORMS = {bool: "bool", int: "int", float: "float", str: "text", dict: "mapping", list: "list"}
+
+
+def _decode_any(schema: Schemas.OfAny.Value, plain: PlainData, where: tuple, store: Any) -> Any:
+    """A value of any type: restricted, of the one type whose plain form it takes; unrestricted, a mapping of its type,
+    a scalar's token name or a schema's registered name, to its value."""
+    if schema.types:
+        fits = [t for t in schema.types if _FORMS.get(type(plain)) in Schemas.plain_forms(t)]
+        if len(fits) != 1:
+            raise DecodeError(f"a value of any type takes the plain form of one of its types, got "
+                              f"{type(plain).__name__}", path=path(*where))
+        return _decode(fits[0], plain, where, store)
+    if not isinstance(plain, dict) or len(plain) != 1:
+        raise DecodeError("a value of any type is {type: value}, its type a scalar's token name or a registered "
+                          "schema's name", path=path(*where))
+    ((tag, value),) = plain.items()
+    scalar = next((t for t in Schemas.SCALAR_TYPES if Schemas.OfScalar.Data(t).token.name == tag), None)
+    if scalar is not None:
+        return _decode(Schemas.OfScalar.Data(scalar), value, (*where, tag), store)
+    try:
+        registered = store.registered(tag)
+    except LookupError:
+        raise DecodeError(f"no schema registered as {tag!r}", path=path(*where, tag)) from None
+    if not isinstance(registered, (*_RECORDS, Schemas.OfContainer.Data)) or getattr(registered, "ref", False):
+        raise DecodeError(f"{tag!r} is not a value's schema", path=path(*where, tag))
+    return _Assigned(tag, _decode(registered, value, (*where, tag), store), store)
 
 
 def _decode_index(schema: Schemas.OfContainer.Data, plain: PlainData, where: tuple) -> Any:
@@ -331,14 +410,14 @@ def _decode_index(schema: Schemas.OfContainer.Data, plain: PlainData, where: tup
     return tuple(record.values[name] for name in held.properties)
 
 
-def _decode_container(schema: Schemas.OfContainer.Data, plain: PlainData, where: tuple) -> _Elements:
+def _decode_container(schema: Schemas.OfContainer.Data, plain: PlainData, where: tuple, store: Any = None) -> _Elements:
     """A container read from the plain form its arrangement writes (see `_container`); a dense one of several int
     indices nested or flat, whichever it is."""
     items: list[tuple[Any, Any]] = []
 
     def element(index: Any, value: PlainData, at: tuple) -> None:
         if value is not None:
-            items.append((index, _decode(schema.element, value, at)))
+            items.append((index, _decode(schema.element, value, at, store)))
 
     def entries(value: PlainData) -> None:
         if not isinstance(value, list):
@@ -395,6 +474,8 @@ def _decode_container(schema: Schemas.OfContainer.Data, plain: PlainData, where:
 
 def _decoded_key(value: Any) -> Hashable:
     """Equality key of a decoded value, per EQUALITY.md."""
+    if isinstance(value, _Assigned):
+        return ("assigned", value.name, _decoded_key(value.value))
     if isinstance(value, _Elements):
         return ("container", frozenset((index, _decoded_key(v)) for index, v in value.items))
     if isinstance(value, _Record):
@@ -410,7 +491,8 @@ _RECORDS = {
 }
 
 
-def _decode_rows(adjacency: Schemas.OfAdjacency.Data, value: PlainData, where: tuple, key: str) -> list[dict[str, Any]]:
+def _decode_rows(adjacency: Schemas.OfAdjacency.Data, value: PlainData, where: tuple, key: str,
+                 store: Any = None) -> list[dict[str, Any]]:
     """The entries of one adjacency, at `where` + `key`."""
     if not isinstance(value, list):
         raise DecodeError("an adjacency must be a list of entries", path=path(*where, key))
@@ -429,7 +511,7 @@ def _decode_rows(adjacency: Schemas.OfAdjacency.Data, value: PlainData, where: t
                     raise DecodeError("a link must be a reference", path=at)
                 row[name] = _Link(item[REF])
             elif name in relation.entry.properties:
-                row[name] = _decode(relation.entry.properties[name].type, item, (*where, key, i, name))
+                row[name] = _decode(relation.entry.properties[name].type, item, (*where, key, i, name), store)
             else:
                 raise DecodeError(f"the relation has no link or property {name!r}", path=at)
         missing = [n for n in relation.entry.links if n != adjacency.me and n not in entry]
@@ -510,9 +592,9 @@ def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
         for key, value in obj.items():
             where = ("objects", symbol)
             if key in object_schema.adjacencies:
-                adjacencies[key] = _decode_rows(object_schema.adjacencies[key], value, where, key)
+                adjacencies[key] = _decode_rows(object_schema.adjacencies[key], value, where, key, store)
             elif key in object_schema.properties:
-                properties[key] = _decode(object_schema.properties[key].type, value, (*where, key))
+                properties[key] = _decode(object_schema.properties[key].type, value, (*where, key), store)
             else:
                 raise DecodeError(f"{names[symbol]!r} has no property or adjacency {key!r}", path=path(*where, key))
         decoded[symbol] = (properties, adjacencies)
@@ -618,7 +700,8 @@ def _agrees(entry: Any, row: dict[str, Any], resolve: Callable[[str], Any], ref:
                 return False
     for name, prop in schema.properties.items():
         present, plain = _value(getattr(entry, name), prop.type, ref)
-        if present != (name in row) or present and _decoded_key(_decode(prop.type, plain, ())) != _decoded_key(row[name]):
+        if present != (name in row) or present and _decoded_key(_decode(prop.type, plain, (), ref.store)) != _decoded_key(
+                row[name]):
             return False
     return True
 
@@ -645,7 +728,9 @@ def _set(visitor: Any, name: str, value: Any) -> None:
     """Writes a decoded value into the member `name`: a scalar, a value object, union value or intersection value, or a
     container."""
     member = getattr(visitor, name)
-    if isinstance(value, _Elements):
+    if isinstance(value, _Assigned):
+        member.as_value(value.make())
+    elif isinstance(value, _Elements):
         if _holds_members(visitor):
             member(lambda held: _fill_elements(held, value))
         else:
@@ -668,7 +753,10 @@ def _fill_elements(container: Any, elements: _Elements) -> Any:
 def _put(element: Any, value: Any) -> None:
     """Writes a decoded value through a `Visitors.OfAny`: a scalar, a value object, union value or intersection value,
     or a container."""
-    if isinstance(value, _Elements):
+    if isinstance(value, _Assigned):
+        made = value.make()
+        getattr(element, _SELECT.get(type(made.as_schema()), "as_container"))(made)
+    elif isinstance(value, _Elements):
         element.as_container(lambda held: _fill_elements(held, value))
     elif isinstance(value, _Record):
         getattr(element, _SELECT[type(value.schema)])(lambda held: _build(held, value))

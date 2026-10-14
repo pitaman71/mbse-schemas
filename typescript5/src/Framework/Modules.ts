@@ -148,6 +148,10 @@ export class _Writer {
       return kindOf("container", [["parameters", parameters], ["index", this.reference(schema.index)],
         ["element", this.reference(schema.element)], ["layout", schema.layout], ["description", schema.description]]);
     }
+    if (schema instanceof Schemas.OfAny.Value) {
+      return kindOf("any", [["parameters", parameters], ["types", schema.types.map((t) => this.reference(t))],
+        ["description", schema.description]]);
+    }
     if (schema instanceof Schemas.OfApply.Data) {
       return kindOf("apply", [["parameters", parameters], ["of", this.reference(schema.of)], ["arguments", _arguments(schema.arguments)],
         ["description", schema.description]]);
@@ -219,6 +223,7 @@ const BLANK: Record<string, () => Schema> = {
   intersection: () => new Schemas.OfIntersection.Data(),
   container: () => new Schemas.OfContainer.Data(),
   apply: () => new Schemas.OfApply.Data(),
+  any: () => new Schemas.OfAny.Value(),
   predicate: () => new Schemas.OfPredicate.Data(),
 };
 
@@ -341,6 +346,8 @@ class _Reader {
       schema.index = this.type(body.get("index") as Definition);
       schema.element = this.type(body.get("element") as Definition);
       schema.layout = (body.get("layout") as string | undefined) ?? null;
+    } else if (schema instanceof Schemas.OfAny.Value) {
+      schema.types = (list("types") as Definition[]).map((t) => this.type(t));
     } else if (schema instanceof Schemas.OfApply.Data) {
       schema.of = this.type(body.get("of") as Definition);
       schema.arguments = this.arguments(list("arguments") as PlainMap[]);

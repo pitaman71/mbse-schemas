@@ -38,6 +38,12 @@ mbse-schemas first, in a workspace (`polyrepo.py workspace <dir> --branch meta-s
 phases that each keep both implementations equivalent and at 100% coverage, the corpora, test plans, tutorials and
 skill regenerated. No release comes between phases.
 
+**Reordered after V5** (2026-10-14), as the user decided: asked whether it "would be less risky for us to park the
+meta-schemas work and bring the dependent libraries up to compliance", they agreed ("yes") to this order: phase 6
+(dependents, in dependency order: mbse-expressions, mbse-programs, mbse-patterns, mbse-codegen-python) and phase 7
+(the release, 0.11.0, of V1 to V5 and `OfAny`) come next; phase 5 (meta-schemas as linked objects) is parked until
+after the release, its design draft (below) kept for review.
+
 0. **Decisions recorded** (this document; FRAMEWORK.md, Resolved; mbse-expressions' EXPRESSIONS.md, Resolved;
    mbse-basis V-025).
 1. **Adjacencies that project**: `OfRelation.Data.keys(me)` and `key(me)`; an adjacency member stays a tuple (a frozen

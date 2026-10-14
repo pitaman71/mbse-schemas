@@ -64,8 +64,9 @@ S.OfObject.Builder(existing).relations(...).update()        # add adjacencies on
 S.OfRelation.Builder().links("a", "b").properties(spec, ...).unique("a").create()
 S.OfUnion.Builder().branches(lambda b: b.name("phone").of(spec), ...).create()
 S.OfIntersection.Builder().parts(lambda p: p.name("stamp").of(spec), ...).create()
-r.name("tags").me("owner").of(lambda rel: rel.links("owner").properties(text("value")))   # a list: a one-link relation inline
-rel.links("owner").properties(text("key"), text("value")).unique("value")   # a dict, keyed by `key`; several keys: a matrix
+p.name("tags").of(lambda t: t.as_container(lambda c: c.index(Int).element(Text)))   # a list: a container by position
+S.OfContainer.Builder().index(Cell).element(Float).sparse().create()   # by a value object of ints: a tensor; dense default
+obj.tags.as_value(lambda v: v.as_container(lambda c: c.at(0)))  # elements by index, each a Visitors.OfAny
 schema.validate()                                           # the schema's own problems, [] when valid
 
 S.OfObject.Builder().name("crm.Contact")                    # a name, identifiers separated by dots, on any kind of schema
@@ -126,8 +127,8 @@ ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromD
 ## Traps
 
 - `True` is not an `int`, and `1.0` is not an `int`. Validation reports `expected int, got bool`.
-- A two-link entry's properties hold scalars and value objects without adjacencies; a one-link entry's value objects
-  may have lists. Link a reference object for anything richer.
+- A relation has two links or more, and a value object no adjacencies: a list of values is a container, and anything
+  that is linked is a reference object.
 - Setting a value object into a property or an entry copies it. Edit one in place through a Spec instead.
 - A schema's name is its own (`.name("crm.Contact")`), the same in every store that registers it. Registering an
   unnamed schema, or a name twice in one store, raises `ValueError`, and an object of one store cannot be linked from

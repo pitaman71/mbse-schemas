@@ -112,8 +112,8 @@ assert Ownership.validate() == [] and Directory.validate() == []
 
 # Building an invalid schema succeeds; validate() reports the problems.
 NoLinks = Schemas.OfRelation.Builder().create()
-assert any('at least one link' in p for p in NoLinks.validate())
-assert Schemas.OfRelation.Builder().links('contact').create().validate() == []  # one link: its entries hold values
+assert any('two links or more' in p for p in NoLinks.validate())
+assert any('a list of values is a container' in p for p in Schemas.OfRelation.Builder().links('contact').create().validate())
 
 Clash = (
     Schemas.OfRelation.Builder()
@@ -124,7 +124,7 @@ Clash = (
 assert any('both link and property' in p for p in Clash.validate())
 
 DuplicateLinks = Schemas.OfRelation.Builder().links('node', 'node').create()
-assert list(DuplicateLinks.entry.links) == ['node']  # links are by name, as properties are
+assert list(DuplicateLinks.entry.links) == ['node'] and DuplicateLinks.validate() != []  # by name, as properties are
 
 UnknownUnique = Schemas.OfRelation.Builder().links('a', 'b').unique('c').create()
 assert any('unknown' in p for p in UnknownUnique.validate())

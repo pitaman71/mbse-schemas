@@ -14,8 +14,7 @@ object content carries no schema, so references carry the schema name, and the r
 `ToPlain(store).Reachable` also includes every object reachable through adjacencies (see `Reachable`). Decoding builds
 each object in the store with the identity its key gives, or, where the store holds a live object of that identity (a
 singleton's instance included), updates that object through its builder: what the snapshot holds is written, what it
-omits is kept, a one-link relation's entries are overwritten in the order written, and another relation's entry is the
-one agreeing with a row.
+omits is kept, a container is written element by element, and a relation's entry is the one agreeing with a row.
 
 The serializers read values through the visitor protocol (`Readers.OfObject`), and decoding writes them through a
 store's builders (`Visitors.OfObject`).
@@ -242,26 +241,14 @@ class _Snapshot:
 _ORDERED = (bool, int, float, str)
 
 
-def _sort_entries(schema: Any, plain: PlainData) -> None:
-    """Sorts the entries of each adjacency written in `plain`, a value of `schema`, nested value objects' too (those
-    its entries hold among them), by the key their relation declares from the adjacency's end
-    (`Schemas.OfRelation.Data.key`): where every entry has each of its values, and each holds values of one ordered
-    type (booleans false first, numbers by value, strings by code point). Otherwise, as where a key holds a link, entries keep the order they were written in."""
-    schema = Schemas.structure(schema)
-    if not isinstance(schema, (Schemas.OfObject.Data, Schemas.OfUnion.Data, Schemas.OfIntersection.Data)):
-        return
-    for name, prop in schema.properties.items():
-        if name in plain:
-            _sort_entries(prop.type, plain[name])
-    for name, adjacency in schema.adjacencies.items() if isinstance(schema, Schemas.OfObject.Data) else ():
+def _sort_entries(schema: Schemas.OfObject.Data, plain: dict[str, PlainData]) -> None:
+    """Sorts the entries of each adjacency written in `plain`, an object of `schema`, by the key their relation
+    declares from the adjacency's end (`Schemas.OfRelation.Data.key`): where every entry has each of its values, and
+    each holds values of one ordered type (booleans false first, numbers by value, strings by code point). Otherwise, as
+    where a key holds a link, entries keep the order they were written in."""
+    for name, adjacency in schema.adjacencies.items():
         entries, names = plain.get(name), adjacency.relation.key(adjacency.me)
-        if not isinstance(entries, list):
-            continue
-        for entry in entries:  # an entry's value objects, held by its properties
-            for held, prop in adjacency.relation.entry.properties.items():
-                if held in entry:
-                    _sort_entries(prop.type, entry[held])
-        if names is None:
+        if entries is None or names is None:
             continue
         keys = [tuple(entry.get(n) for n in names) for entry in entries]
         if all(len({type(key[i]) for key in keys}) == 1 and type(keys[0][i]) in _ORDERED for i in range(len(names))):
@@ -282,7 +269,7 @@ class _Link(NamedTuple):
 
 class _Record(NamedTuple):
     """A decoded value object (an object's, a union value or an intersection value), which `_build` writes into its
-    builder. Its entries are added once every object is built."""
+    builder."""
 
     schema: Any
     values: dict[str, Any]
@@ -306,30 +293,8 @@ Rows = dict[str, list[dict[str, Any]]]
 """Per adjacency, its decoded entries: each maps links to `_Link`s and properties to decoded values."""
 
 
-Step = str | tuple[str, int, str]
-Steps = tuple[tuple[Step, type], ...]
-"""The way from a reference object to a value object in it: each step a property name, or an entry of a one-link
-relation's adjacency (its name, its position and the property holding the value), and the kind of the
-value found there."""
-
-
-class _Found(NamedTuple):
-    """Where decoding found a value object: its reference object's symbol, and the steps from it."""
-
-    owner: str
-    steps: Steps
-
-
-class _Context:
-    """What decoding a reference object's values collects: the entries of the value objects in it."""
-
-    def __init__(self, owner: str, entries: list[tuple[_Found, Rows, Any]]):
-        self.owner, self.entries = owner, entries
-
-
-def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context: _Context | None = None,
-            steps: Steps = ()) -> Any:
-    """The value `plain` holds under `schema`, located at the path `where`: a scalar or a `_Record`."""
+def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple) -> Any:
+    """The value `plain` holds under `schema`, located at the path `where`: a scalar, a `_Record` or `_Elements`."""
     schema = Schemas.structure(schema)
     if isinstance(schema, Schemas.OfScalar.Data):
         try:
@@ -341,21 +306,13 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, context:
     noun, owner, member = _RECORDS[type(schema)]
     if not isinstance(plain, dict):
         raise DecodeError(f"{noun} must be a mapping, got {type(plain).__name__}", path=path(*where))
-    adjacencies = schema.adjacencies if isinstance(schema, Schemas.OfObject.Data) else {}
     values: dict[str, Any] = {}
-    rows: Rows = {}
     for key, item in plain.items():
-        if key in adjacencies and context is not None:  # a value object an entry of two links holds has none (validate())
-            rows[key] = _decode_rows(adjacencies[key], item, where, key, context, steps)
-        elif key in schema.properties:
-            values[key] = _decode(schema.properties[key].type, item, (*where, key), context,
-                                  (*steps, (key, _kind(schema.properties[key].type))))
-        else:
+        if key not in schema.properties:
             raise DecodeError(f"{owner} has no {member} {key!r}", path=path(*where, key))
+        values[key] = _decode(schema.properties[key].type, item, (*where, key))
     if isinstance(schema, Schemas.OfUnion.Data) and len(values) != 1:
         raise DecodeError(f"a union value holds exactly one branch, got {len(values)}", path=path(*where))
-    if rows:
-        context.entries.append((_Found(context.owner, steps), rows, schema))  # type: ignore[union-attr]
     return _Record(schema, values)
 
 
@@ -436,11 +393,6 @@ def _decode_container(schema: Schemas.OfContainer.Data, plain: PlainData, where:
     return _Elements(schema, items)
 
 
-def _kind(schema: Schemas.OfAny.Data) -> type:
-    """The kind of a type's values: its structure's (see `Schemas.structure`)."""
-    return type(Schemas.structure(schema))
-
-
 def _decoded_key(value: Any) -> Hashable:
     """Equality key of a decoded value, per EQUALITY.md."""
     if isinstance(value, _Elements):
@@ -458,16 +410,8 @@ _RECORDS = {
 }
 
 
-def _decode_entry_property(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple) -> Any:
-    """An entry property's value: a scalar or a value object, which has no symbol or adjacencies of its own."""
-    return _decode(schema, plain, where)
-
-
-def _decode_rows(adjacency: Schemas.OfAdjacency.Data, value: PlainData, where: tuple, key: str,
-                 context: _Context | None = None, steps: Steps = ()) -> list[dict[str, Any]]:
-    """The entries of one adjacency, at `where` + `key`. The value objects a one-link relation's entries hold, which
-    are written only with their one owner, may have symbols and entries of their own: `context` collects them, at
-    `steps` from the owner through the entry."""
+def _decode_rows(adjacency: Schemas.OfAdjacency.Data, value: PlainData, where: tuple, key: str) -> list[dict[str, Any]]:
+    """The entries of one adjacency, at `where` + `key`."""
     if not isinstance(value, list):
         raise DecodeError("an adjacency must be a list of entries", path=path(*where, key))
     relation = adjacency.relation
@@ -484,11 +428,8 @@ def _decode_rows(adjacency: Schemas.OfAdjacency.Data, value: PlainData, where: t
                 if not _is_ref(item):
                     raise DecodeError("a link must be a reference", path=at)
                 row[name] = _Link(item[REF])
-            elif name in relation.entry.properties and len(relation.entry.links) == 1 and context is not None:
-                held = relation.entry.properties[name].type
-                row[name] = _decode(held, item, (*where, key, i, name), context, (*steps, ((key, i, name), _kind(held))))
             elif name in relation.entry.properties:
-                row[name] = _decode_entry_property(relation.entry.properties[name].type, item, (*where, key, i, name))
+                row[name] = _decode(relation.entry.properties[name].type, item, (*where, key, i, name))
             else:
                 raise DecodeError(f"the relation has no link or property {name!r}", path=at)
         missing = [n for n in relation.entry.links if n != adjacency.me and n not in entry]
@@ -516,9 +457,10 @@ _Decoded = dict[str, tuple[dict[str, Any], Rows]]
 
 
 def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
-           ) -> tuple[str, dict[str, str], _Decoded, list[tuple[_Found, Rows, Any]]]:
+           ) -> tuple[str, dict[str, str], _Decoded, dict[str, str]]:
     """Checks a snapshot against the schemas and decodes its values before anything is built. Returns the root symbol,
-    each reference object's schema name, the decoded reference objects, and the entries of value objects. Problems in the snapshot raise `DecodeError`."""
+    each reference object's schema name, the decoded reference objects and their identities. Problems in the snapshot
+    raise `DecodeError`."""
     if not isinstance(schema, Schemas.OfObject.Data):
         raise TypeError(f"the root schema must be an object schema, got {type(schema).__name__}")
     if not schema.ref:
@@ -552,7 +494,6 @@ def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
             _references(value, ("objects", symbol, key), found)
     # Pass 2: check every key against the schemas and decode the values.
     decoded: _Decoded = {}
-    entries: list[tuple[_Found, Rows, Any]] = []
     identities: dict[str, str] = {}
     for symbol, obj in objects.items():
         if symbol not in names:
@@ -564,16 +505,14 @@ def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
         if not object_schema.ref:
             raise DecodeError(f"{names[symbol]!r} is not a reference object schema", path=path("objects", symbol))
         identities[symbol] = _identity(symbol, names[symbol], object_schema)
-        context = _Context(symbol, entries)
         properties: dict[str, Any] = {}
         adjacencies: Rows = {}
         for key, value in obj.items():
             where = ("objects", symbol)
             if key in object_schema.adjacencies:
-                adjacencies[key] = _decode_rows(object_schema.adjacencies[key], value, where, key, context)
+                adjacencies[key] = _decode_rows(object_schema.adjacencies[key], value, where, key)
             elif key in object_schema.properties:
-                properties[key] = _decode(object_schema.properties[key].type, value, (*where, key), context,
-                                          ((key, _kind(object_schema.properties[key].type)),))
+                properties[key] = _decode(object_schema.properties[key].type, value, (*where, key))
             else:
                 raise DecodeError(f"{names[symbol]!r} has no property or adjacency {key!r}", path=path(*where, key))
         decoded[symbol] = (properties, adjacencies)
@@ -583,7 +522,7 @@ def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
     for target, where in unnamed:
         raise DecodeError(f"a reference names its target's schema: {target!r} has none, and a link targets a "
                           "reference object", path=path(*where))
-    return root, names, decoded, entries, identities
+    return root, names, decoded, identities
 
 
 def _identity(symbol: str, name: str, schema: Schemas.OfObject.Data) -> str:
@@ -605,8 +544,8 @@ def _identity(symbol: str, name: str, schema: Schemas.OfObject.Data) -> str:
 
 def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
     """Rebuilds objects from an object snapshot in `store`. Every reference must resolve within the snapshot:
-    reference objects are built first, with the value objects they hold, then the entries are added."""
-    root, names, decoded, entries, identities = _check(store, schema, plain)
+    reference objects are built first, with the values they hold, then the entries are added."""
+    root, names, decoded, identities = _check(store, schema, plain)
 
     seen: dict[Hashable, int] = {}
 
@@ -626,37 +565,19 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
                 kept_rows.append((position, row, index))
         return kept_rows
 
-    # An update writes through the builders of what the object already holds: a property's value object is edited in
-    # place. A one-link relation's rows overwrite the entries it held, visited in the order a snapshot writes them,
-    # rows past those added: its entries are its owner's alone, so their order travels with the snapshot. A relation
-    # of more links has no order to visit by: a row is the entry agreeing with its links and properties, the k-th
-    # equal row the k-th such entry, and added where none agrees.
-    held: dict[tuple, int] = {}  # per one-link adjacency, the entries it held before decoding
-    placed: dict[tuple, int] = {}  # per entry of a list decoded, its position in the adjacency
-
-    def write(adjacency: Any, at: tuple, rows: list[tuple[int, dict[str, Any], int]],
-              resolve: Callable[[str], Any]) -> None:
-        """Writes `rows` into the adjacency builder `adjacency`, found at `at`."""
-        if len(adjacency.as_schema().relation.entry.links) > 1:
-            for _, row, occurrence in rows:
-                found: list[Any] = []
-                adjacency.select(lambda e, r=row: _fill(e, r, resolve), lambda e, r=row: (
-                    found.append(e) if {n for n in e.as_schema().properties if _holds(e, n)} == set(r) - set(
-                        e.as_schema().links) else None) or e)
-                if occurrence < len(found):
-                    _fill(found[occurrence], row, resolve)
-                else:
-                    adjacency.insert(lambda x, r=row: _fill(x, r, resolve))
-            return
-        before = held.setdefault(at, len(list(adjacency)))
-        order = _written_order(list(adjacency)[:before], adjacency.as_schema())
-        for position, row, _ in rows:
-            entries = list(adjacency)
-            if position < before:
-                placed[(*at, position)] = order[position]
-                _fill(entries[order[position]], row, resolve)
+    # An update writes through the builders of what the object already holds: a property's value object and a container
+    # are edited in place. A relation's entries have no order to visit by: a row is the entry agreeing with its links
+    # and properties, the k-th equal row the k-th such entry, and added where none agrees.
+    def write(adjacency: Any, rows: list[tuple[int, dict[str, Any], int]], resolve: Callable[[str], Any]) -> None:
+        """Writes `rows` into the adjacency builder `adjacency`."""
+        for _, row, occurrence in rows:
+            found: list[Any] = []
+            adjacency.select(lambda e, r=row: _fill(e, r, resolve), lambda e, r=row: (
+                found.append(e) if {n for n in e.as_schema().properties if _holds(e, n)} == set(r) - set(
+                    e.as_schema().links) else None) or e)
+            if occurrence < len(found):
+                _fill(found[occurrence], row, resolve)
             else:
-                placed[(*at, position)] = len(entries)
                 adjacency.insert(lambda x, r=row: _fill(x, r, resolve))
 
     created: dict[str, Any] = {}
@@ -668,55 +589,19 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
             existing = None
         builder = store.restore(names[symbol], identities[symbol]) if existing is None else store.builder(
             names[symbol], existing)
-        for key in object_schema.adjacencies:  # before decoding adds any; a one-link relation's are read
-            held[(symbol, (), key)] = 0 if existing is None else len(list(getattr(builder, key)))
         for key, value in properties.items():
             _set(builder, key, value)
-        for key, rows in adjacencies.items():  # a one-link relation's entries are its owner's, as its properties are
-            if len(object_schema.adjacencies[key].relation.entry.links) == 1:
-                write(getattr(builder, key), (symbol, (), key), kept(object_schema, symbol, key, rows), lambda symbol: None)
         created[symbol] = builder.create() if existing is None else builder.update()
 
     def resolve(symbol: str) -> Any:
         """The reference object a symbol names: entries never reference value objects."""
         return created[symbol]
 
-
-    nested: dict[str, list[tuple[_Found, Rows, Any]]] = {}
-    for found, rows, value_schema in entries:
-        nested.setdefault(found.owner, []).append((found, rows, value_schema))
-
-    def add_nested(builder: Any, symbol: str, one_link: bool) -> bool:
-        """Adds the entries of the value objects `symbol` holds, of one-link relations or of the others; whether any.
-        Outer value objects first: decoding found the inner ones first, and an inner one may be held by an outer one's
-        entry."""
-        added = False
-        for found, rows, value_schema in sorted(nested.get(symbol, []), key=lambda held: len(held[0].steps)):
-            owner = found
-            rows = {key: kept(value_schema, owner, key, listed) for key, listed in rows.items()
-                    if (len(value_schema.adjacencies[key].relation.entry.links) == 1) == one_link}
-            if any(rows.values()):  # an edit with nothing to add would drop what another just added
-                def add(visitor: Any, rows: dict = rows, found: _Found = found) -> None:
-                    for key, listed in rows.items():
-                        write(getattr(visitor, key), (found.owner, found.steps, key), listed, resolve)
-
-                _within(builder, found.steps, add, lambda prefix, name, position, owner=found.owner: placed[
-                    (owner, prefix, name, position)])
-                added = True
-        return added
-
-    # The value objects that one-link entries hold come first, in every object: a link may target any of them.
-    for symbol in decoded:
-        builder = store.builder(names[symbol], created[symbol])
-        if add_nested(builder, symbol, one_link=True):
-            builder.update()
     for symbol, (_, adjacencies) in decoded.items():
         object_schema = store.schema(names[symbol])
         builder = store.builder(names[symbol], created[symbol])
         for key, rows in adjacencies.items():
-            if len(object_schema.adjacencies[key].relation.entry.links) > 1:
-                write(getattr(builder, key), (symbol, (), key), kept(object_schema, symbol, key, rows), resolve)
-        add_nested(builder, symbol, one_link=False)
+            write(getattr(builder, key), kept(object_schema, symbol, key, rows), resolve)
         builder.update()
     return created[root]
 
@@ -730,23 +615,6 @@ def _holds(entry: Any, name: str) -> bool:
     read.as_value(lambda a: a.as_object(lambda v: found.append(v) or v).as_union(lambda v: found.append(v) or v)
                   .as_intersection(lambda v: found.append(v) or v))
     return any(_present(v) for v in found)
-
-
-def _written_order(entries: list[Any], adjacency: Schemas.OfAdjacency.Data) -> list[int]:
-    """The positions of a one-link relation's entries in the order a snapshot writes them (see `_sort_entries`)."""
-    order, relation, names = list(range(len(entries))), adjacency.relation, adjacency.relation.key(adjacency.me)
-    if names is None or not entries:
-        return order
-
-    def plain(entry: Any, name: str) -> Any:  # a one-link relation's key holds properties only
-        scalar = Schemas.structure(relation.entry.properties[name].type)
-        value = getattr(entry, name).get() if isinstance(scalar, Schemas.OfScalar.Data) else None
-        return None if value is None else scalar.to_plain(value)  # a value object or nothing: unordered
-
-    keys = [tuple(plain(entry, n) for n in names) for entry in entries]
-    if all(len({type(key[i]) for key in keys}) == 1 and type(keys[0][i]) in _ORDERED for i in range(len(names))):
-        order.sort(key=lambda i: keys[i])
-    return order
 
 
 def _row_key(relation: Any, me: str, owner: Hashable, row: dict[str, Any]) -> Hashable:
@@ -764,29 +632,6 @@ def _holds_members(visitor: Any) -> bool:
     """Whether a visitor's members are a union's branches or an intersection's parts, each of its own type's kind,
     rather than properties."""
     return isinstance(visitor.as_schema(), (Schemas.OfUnion.Data, Schemas.OfIntersection.Data))
-
-
-def _within(visitor: Any, steps: Steps, then: Callable[[Any], None], place: Callable[[Steps, str, int], int],
-            done: Steps = ()) -> None:
-    """Calls `then` with the builder of the value object at `steps` from `visitor`, editing each value on the way.
-    `place` gives where the entry a snapshot lists at a position went, after the `done` steps."""
-    if not steps:
-        then(visitor)
-        return
-    (key, kind), rest = steps[0], steps[1:]
-
-    def into(held: Any) -> Any:
-        _within(held, rest, then, place, (*done, steps[0]))
-        return held
-
-    if isinstance(key, tuple):  # an entry's value: the entry the row at its position went to, then its property
-        adjacency, position, name = key
-        entry = list(getattr(visitor, adjacency))[place(done, adjacency, position)]
-        getattr(entry, name).as_value(lambda a: getattr(a, _SELECT[kind])(into) or a)
-    elif _holds_members(visitor):
-        into(getattr(visitor, key))
-    else:
-        getattr(visitor, key).as_value(lambda a: getattr(a, _SELECT[kind])(into) or a)
 
 
 def _set(visitor: Any, name: str, value: Any) -> None:

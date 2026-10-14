@@ -3,7 +3,7 @@
 `Reachable.of(root)` returns the root and every reference object reachable from it, in the order each is first
 referenced. It reads through the visitor protocol (`Readers.OfObject`): each object's adjacencies, in its schema's
 order, their entries, in order, and each entry's links other than the object's own, in the relation's order. A value
-object's adjacencies are to one-link relations, whose entries link nothing else, so values are not followed.
+object has no adjacencies, and no entry links one, so values are not followed.
 """
 
 from __future__ import annotations

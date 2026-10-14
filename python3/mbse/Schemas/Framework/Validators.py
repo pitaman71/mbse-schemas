@@ -111,7 +111,7 @@ _ABSENT = ("absent",)
 
 def _key(schema: Any, value: Any) -> Hashable:
     """Equality key per EQUALITY.md, of a value read as `_property_value` reads it: distinct scalar types never compare
-    equal; floats compare by bit pattern; a value object by its properties and its entries, in order."""
+    equal; floats compare by bit pattern; a value object by its properties."""
     held = Schemas.structure(schema)
     if value is None:
         return _ABSENT
@@ -123,9 +123,7 @@ def _key(schema: Any, value: Any) -> Hashable:
     if isinstance(held, Schemas.OfObject.Data):
         properties = tuple((p.as_schema().name, _key(p.as_schema().type, _property_value(p, p.as_schema().type)))
                            for p in value.as_properties)
-        entries = tuple((name, tuple(_entry_key(e, a) for e in getattr(value, name)))
-                        for name, a in held.adjacencies.items())
-        return ("object", properties, entries)
+        return ("object", properties)
     members = tuple((name, _key(m.type, _member(getattr(value, name), m.type))) for name, m in held.properties.items())
     return ("record", members)
 
@@ -133,15 +131,6 @@ def _key(schema: Any, value: Any) -> Hashable:
 def _property_value(read: Any, schema: Any) -> Any:
     held = Schemas.structure(schema)
     return _scalar(read) if isinstance(held, Schemas.OfScalar.Data) or held is None else _held(read, held)
-
-
-def _entry_key(entry: Any, adjacency: Schemas.OfAdjacency.Data) -> Hashable:
-    """An entry's equality key: its other links' targets by identity and its values by `_key`."""
-    relation = adjacency.relation
-    links = tuple((name, _identity(getattr(entry, name))) for name in relation.entry.links if name != adjacency.me)
-    values = tuple((name, _key(prop.type, _property_value(getattr(entry, name), prop.type)))
-                   for name, prop in relation.entry.properties.items())
-    return links, values
 
 
 class _Entry:
@@ -201,11 +190,7 @@ class _Check:
                 problems += self._value_problems(f"{label}[{at}]", schema.element, _element(element, schema.element))
             return problems
         if isinstance(schema, Schemas.OfObject.Data):
-            problems = self._properties(label, schema, item)
-            for name, adjacency in schema.adjacencies.items():
-                for i, entry in enumerate(getattr(item, name)):
-                    problems += self._entry(f"{label}.{name}[{i}]", adjacency, item, entry)
-            return problems
+            return self._properties(label, schema, item)
         problems = []
         held = {name: _member(getattr(item, name), m.type) for name, m in schema.properties.items()}
         for name, member in schema.properties.items():

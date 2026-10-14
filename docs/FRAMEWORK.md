@@ -32,10 +32,9 @@ The schema elements include:
                  is assumed unless declared by `unique` clauses (see Cardinality below). Relations completely subsume maps/dictionaries and pointers: since entries
                  carry properties, a map `a -> [key] -> b` is represented as a relation with
                  links `a` and `b` and property `key`.
-                 A relation may have one link: its entries hold values for their one owner, as a list does (a
-                 contact's own phone numbers as entries holding `number`), declared inline in the adjacency:
-                 `r.name("numbers").me("contact").of(lambda rel: rel.links("contact").properties(...))`. Data
-                 that several objects share is an `OfObject`, linked to each.
+                 A relation has two links or more: values that belong to one owner, a contact's own phone
+                 numbers, are a container (`OfContainer`), held by a property. Data that several objects share
+                 is an `OfObject`, linked to each.
 - `OfProperty` : a property of an object or a relation's entries: its `name` and `type`, an `OfAny`. An object's or
                  relation's `properties` map each name to its `OfProperty`, in declared order, so a property's type is
                  `schema.properties['home'].type`.
@@ -57,8 +56,11 @@ The schema elements include:
 - `OfIntersection` : of two or more named parts, each an OfX schema (all of the same kind). Used to implement object and
                      aspect oriented structures. A value holds every part, by name; parts do not merge, so two parts may
                      declare the same property, even with different types.
+- `OfContainer` : elements of an element type, each at an index of an index type, both `OfAny`: dense by position for
+                  an integer-like index, a dict for any other hashable one, or entry-like elements; `.dense()` or
+                  `.sparse()` set its layout (see Lists, and Resolved, Containers).
 
-A list, a dict or a map is not a kind of schema: it is an adjacency to a one-link relation of its own (see Lists).
+A list, a dict, a map or a tensor of values is a container, held by a property (see Lists).
 
 Every element may be described: each kind of schema, each property, adjacency, union branch and intersection
 part takes `.description(text)` on its builder, and its data holds `description`, text or none. A description is
@@ -66,10 +68,9 @@ documentation, for people and for generated code; validation reports one that is
 conversion or comparison of data reads it. A scalar's description is part of the scalar, as its name is.
 
 A property whose schema is an `OfObject` holds a *value object*: a read-only record of that
-schema's properties that belongs to its owner, copied with it and written nested in its owner's snapshot. It has an
-identity, and its schema may declare adjacencies, however it is held (directly, through a union branch or an
-intersection part); see Value objects and reference objects. A one-link relation's entry holds a value object for
-its owner the same way, and no property holds a list (see Lists).
+schema's properties that belongs to its owner, copied with it and written nested in its owner's snapshot. It has no
+identity, and its schema declares no adjacencies, however it is held (directly, through a union branch, an
+intersection part, a container or an entry); see Value objects and reference objects.
 A property whose schema is an `OfUnion` holds a union value: a record whose properties are the union's branches, holding
 exactly one of them. A property whose schema is an `OfIntersection` holds an intersection value: a record whose
 properties are the intersection's parts, holding each of them. `Visitors.OfUnion` and `Visitors.OfIntersection` read
@@ -383,8 +384,8 @@ A transaction is a flat sequence of mutations. Mutations may be nested; transact
   written in the order they are first referenced, the root first. `Plain.ToPlain(store).OfObject` includes only the root, so its references
   are unresolved; `Plain.ToPlain(store).Reachable` includes every object reachable through adjacencies. An entry appears under
   each object it links, and reading counts it once: by value where the relation has a `unique` clause, and in an open
-  relation the k-th entry equal to a given one in one list is the k-th in another. A one-link relation's entries
-  are written once, with their owner, so their value objects may have entries of their own.
+  relation the k-th entry equal to a given one in one list is the k-th in another. A container is written inside its
+  owner, as its arrangement writes it (Resolved, Containers).
 - `JSON` : `JSON.ToJSON(store)(schema, value)` returns JSON text and `JSON.FromJSON(store)(schema, text)` rebuilds values;
   both mirror `Plain` (`.OfScalar`, `.OfObject`, `.Reachable`). Output is strict JSON (RFC 8259) with key order kept;
   input with NaN / Infinity literals or duplicate keys is rejected.
@@ -440,31 +441,24 @@ documents.
 - **A value object** is held by a property whose schema is a value object schema, and belongs to that one owner, a
   reference object or another value object. Union and intersection values are value objects, and so are the objects they hold.
   `Proxies.owner_of(value)` gives a value object's owner, and None for a reference object.
-- **A value object may have adjacencies, to one-link relations only**, its lists, whose entries link nothing but it;
-  `validate()` reports a value object schema's adjacency to a relation of more links ("a value object schema's
-  adjacency is to a one-link relation, since entries never reference value objects"). The decision "a value object
-  cannot have adjacencies" is dropped. A value object's schema follows from its owner's, so a value object schema needs
-  no registration. Writers, proxies and `Validators` refuse a link to a value object ("a link targets a reference
-  object, never a value object").
-- **Ownership is exclusive and deep.** Editing a value object through its owner's builder keeps it, the same object. Setting
-  it into another owner, or `clone()` of its owner, copies it, with its entries. Clearing the property, or replacing its value, removes the value
-  object and its entries.
+- **A value object has no adjacencies**: entries never link value objects, which are never shared. `validate()`
+  reports a value object schema's adjacency ("a value object schema has no adjacencies: entries never link value
+  objects, which are never shared"). Its lists are containers, held by its properties. A value object's schema follows
+  from its owner's, so a value object schema needs no registration. Writers, proxies and `Validators` refuse a link to
+  a value object ("a link targets a reference object, never a value object").
+- **Ownership is exclusive and deep.** Editing a value object through its owner's builder keeps it, the same object.
+  Setting it into another owner, or `clone()` of its owner, copies it, with what it holds. Clearing the property, or
+  replacing its value, removes the value object.
 - **Entry properties may be value objects, never reference objects.** Such a value object is owned by the object that
-  added its entry, is written nested in the entry, and keys and compares the entry by its properties. Where the entry
-  links two objects or more, it cannot have adjacencies, since the entry is written under each object it links ("a
-  value object held by an entry cannot have adjacencies"); a one-link relation's entry is written once, so its value
-  objects may have lists.
-- **Value objects are written nested**, inside their owner, with their lists nested in them as a reference
-  object's adjacencies are, and carry no key: nothing links to them. Decoding rejects a reference without `$schema`
-  ("a reference names its target's schema").
-- **Reachability goes through value objects**: the reference objects linked by their entries' values are reached
-  as a reference object's are.
-- **Decoding** rebuilds a value object through its owner's builder, with its lists. `Store.member(instance, name)`
-  reads the value an instance holds in a property (a union's branch, an intersection's part).
-- **Value objects compare deeply**: by their properties, recursively, and by their lists' entries. Their identity does
-  not take part. Reference objects compare by identity when linked.
-- **Proxies keep value objects read-only**, with adjacencies set through the owner's builder, e.g.
-  `.home(lambda r: r.number("1").extensions(lambda x: x.extension("12")))`.
+  added its entry, is written nested in the entry, and keys and compares the entry by its properties.
+- **Value objects are written nested**, inside their owner, with their containers nested in them, and carry no key:
+  nothing links to them. Decoding rejects a reference without `$schema` ("a reference names its target's schema").
+- **Decoding** rebuilds a value object through its owner's builder. `Store.member(instance, name)` reads the value an
+  instance holds in a property (a union's branch, an intersection's part).
+- **Value objects compare deeply**: by their properties, recursively, containers included. They have no identity.
+  Reference objects compare by identity when linked.
+- **Proxies keep value objects read-only**, written through the owner's builder, e.g.
+  `.home(lambda p: p.as_object(lambda r: r.number("1")))`.
 
 ## Unions and intersections by name
 
@@ -503,31 +497,26 @@ These replace the earlier design, in which a union's branches were chosen by pre
 
 ## Lists
 
-A list, a dict or a map is an adjacency's entries, never a property's value: `OfIndexed` is gone (Resolved, The
-meta-schemas overhaul, which decides what follows: one-link relations, sets and lists by `unique`, the wire form,
-deduplication, and extents giving way to shape constraints).
+A list, a dict, a map or a tensor of values is a property holding a container, `OfContainer` (Resolved, Containers,
+as the user decided, reversing the earlier "a list is a one-link relation"). A relation has two links or more.
 
-- **A list is a one-link relation of its own**, declared inline in its owner's adjacency, its entries holding the
-  values: `r.name("tags").me("owner").of(lambda rel: rel.links("owner").properties(text("value")))`. Without a
-  `unique` clause it is open, a list in the order added, equal entries kept; with one it is a set, keyed by the
-  properties the clause leaves out (`OfRelation.Data.key`): `.properties(text("key"), text("value")).unique("value")`
-  is a dict, and `i`, `j` and `value` with `unique("value")` a matrix.
-- **Entries hold the owner's values.** A value object a one-link entry holds belongs to the entry's owner: it has an
-  identity, may have entries of its own, nested lists among them, is copied with its owner and removed with its
-  entry, and is written nested in the entry. A two-link relation's entry
-  holds value objects without adjacencies only (Value objects and reference objects).
-- **Proxies read a list as its adjacency**: iterate its entries, index them by position (`tags[0]`), project them by a
-  property (`tags.project("value")`), and find one by its key (`attrs.at("gain")`, `matrix.at((1, 2))`). A builder
-  adds entries (`.tags(lambda e: e.value("a"))`), and edits or removes them through `adjacency(name, callback)`,
-  `Visitors.OfAdjacency`'s `entries`, `add` and `remove`; an edited value object keeps its identity.
-- **Over the wire, a list is an array of entries**, `"tags": [{"value": "a"}]`, sorted by the key where its values
-  are ordered (Serialization). Reading counts an entry once however many lists repeat it.
-- **Validation** checks each entry's values at the path `label.tags[0].value`, and a keyed list's key as a `unique`
-  clause (Cardinality).
-- **Comparison**: an open list's entries compare in order, and a set's as a set (Equality). Lists are not ordered
-  against each other: they are equal or incomparable.
-- **No bound is part of a list.** An array's size, a capacity or a tensor's shape is a constraint on the type of the
-  property that keys the entries, which constraints (planned) will express; until then nothing checks it.
+- **A container holds elements by index**: `p.name("tags").of(lambda t: t.as_container(lambda c:
+  c.index(Int).element(Text)))`. Dense by position for an integer-like index (an int, or a value object of ints for a
+  tensor), a dict for any other hashable index, and entry-like elements otherwise; `.dense()` or `.sparse()` sets the
+  layout where the index has a total order.
+- **Elements belong to the owner.** A value object a container holds is copied with its owner, edited in place, and
+  removed with its element.
+- **Proxies read a container through `Visitors.OfContainer`**: `at(index)` gives an element's `Visitors.OfAny`,
+  `as_entries` each element with its index, `as_ordered` an iterator over the positions of a dense or sparse
+  container, `as_dict` a dict's elements; a builder writes through the same visitors, and `remove(index)`.
+- **Over the wire**, a dense container is an array (nested, or flat with its shape, for a tensor), a sparse one its
+  blocks, a dict by text a mapping, and any other an array of `{"index", "element"}` (Serialization).
+- **Validation** checks each element at the path `label.tags[0]`; **comparison** is element by element, by index;
+  containers of different index or element types are incomparable (Equality).
+- **An open relation's entries are a list** from each end, in the order added, equal entries kept; with a `unique`
+  clause a relation holds a set (Cardinality).
+- **No bound is part of a list.** An array's size, a capacity or a tensor's shape is a constraint on the type of a
+  container's index, which constraints (planned) will express; until then nothing checks it.
 
 ## Scalar types
 
@@ -871,9 +860,18 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - the dataclasses adapter: `list[N]` holds a container by an int index, dense, and `dict[K, N]` one by `K`, sparse
     where `K` is `int`, so a dict's keys are not padded into positions; a container by any other scalar index is
     written back as a `dict`, and one by a value object index (a tensor) has no field type;
+  - a relation has two links or more: `validate()` refuses fewer ("a relation has two links or more, got 1; a list of
+    values is a container"), the check in `OfEntry.validate()`; and, since entries never link value objects, a value
+    object schema has no adjacencies ("a value object schema has no adjacencies: entries never link value objects,
+    which are never shared"), which makes the check that an entry's value object has none redundant, so it went;
+  - the meta-schemas' member lists are properties holding containers by position of value objects with the fields the
+    entries held, so a module's wire form for them is unchanged; a module's `schemas` are a container by name whose
+    elements are the definitions, written as a mapping in the order the schemas were given (no longer sorted), and
+    `Modules.module` refuses two schemas of one name; modules now compare by the schemas they hold;
+  - the Lists suite (LST) is removed, its cases covered by CNT or gone with one-link relations; the conformance
+    corpus's `lists` case keeps its name and holds containers instead;
   - not yet: reading a container whose index is neither ordered nor hashable from a snapshot (its index would have to
-    be built as a standalone value object), and a value object with list adjacencies inside a container in a snapshot
-    (lists become containers in V5).
+    be built as a standalone value object).
 
 - **Reference identity** ([Visitor pattern](VISITOR_PATTERN.md), "Reference Identity", as the user wrote it), refining
   The visitor pattern's "global name, otherwise a UUID":
@@ -905,9 +903,10 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     pre-existing object already has that property and return a builder on that property, etc.": decoding writes into
     a live object through its builder, editing a property's value object in place, and what the snapshot omits is
     kept, not cleared. Reloading must not add entries ("reloading them adds entries is not desirable"), and entries
-    without a key are matched by "overwriting what is present in the order being co-visited". Until relations are
-    split from containers (Open questions), that holds for one-link relations, whose entries are their owner's alone
-    and whose order a snapshot carries: the i-th row overwrites the i-th entry held, in the order a snapshot writes
+    without a key are matched by "overwriting what is present in the order being co-visited". Until relations were
+    split from containers (Containers, above; one-link relations are gone, and a container is rewritten element by
+    element), that held for one-link relations, whose entries are their owner's alone and whose order a snapshot
+    carries: the i-th row overwrites the i-th entry held, in the order a snapshot writes
     them, and rows past those are added. A relation of two links or more has no order to co-visit, an entry sitting
     in a list at each end, so a row is the entry held that agrees with its links and properties, the k-th equal row
     the k-th such entry, and is added where none agrees ("finish V4 that way"). Builders keep every object's entries
@@ -986,8 +985,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     ..., "token": ...}}`;
   - a reference object is named by its global name if it has one, otherwise by "a UUID on creation by `.create()` or
     `.clone()` that is saved on the wire" (refined by Reference identity: a naming pattern may take the UUID's place); "value objects are never shared"; "value objects cannot be referenced by
-    entries"; a value object may have adjacencies only to one-link relations, of "zero or more" properties; "Paths go
-    away";
+    entries"; a value object may have adjacencies only to one-link relations, of "zero or more" properties (since
+    Containers, above, a value object has none: its lists are containers); "Paths go away";
   - `.ref()` declares a reference object schema, and an object schema without it is a value object schema ("drop the
     `.value()` for now");
   - `Schemas.OfPredicate`, after mbse-patterns' predicate: its symbols, its parameters and its constraint as a
@@ -1028,8 +1027,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   The meta-schemas overhaul's "we can keep paths", and decision C in mbse-expressions; and, in the sections above, what
   the reverse protocol built (`accept`, `Plain`'s writers and `Validators`' and `Comparison`'s recorders implementing
   `Visitors`, `Bindings.accept`, `Reflection`'s `accept`), value objects that links target, and `Paths`. It is built:
-  links that target only reference objects, and value objects' adjacencies to one-link relations only, in
-  META_SCHEMAS.md's V1, and the protocol itself, with `Bindings`, `Paths` and `Reflection` removed, in V2 and V3.
+  links that target only reference objects, and value objects' adjacencies to one-link relations only (since gone:
+  Containers, above), in META_SCHEMAS.md's V1, and the protocol itself, with `Bindings`, `Paths` and `Reflection` removed, in V2 and V3.
 
 - **The meta-schemas overhaul** ([Meta-schemas overhaul](META_SCHEMAS.md), which plans it; its collections superseded
   by Containers, above), as the user decided: of
@@ -1179,8 +1178,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   `Schemas.Module.Schema`, translated by `Modules` (see Meta-schemas).
 - Mutations apply to anything with a schema; one vocabulary per schema kind.
 - A map `a -> [key] -> b` is a relation with links `a`, `b` and property `key`; named references work the same way.
-- A relation may have one link, its entries holding values for their one owner (relaxed from "a one-link relation
-  merges a relation and an object", as the user decided).
+- A relation has two links or more (Resolved, Containers); values that belong to one owner are a container.
 - No relation builder is exposed to the caller; entries are added through adjacency accessors on the object builder,
   which take an entry `Spec`, e.g. `.addresses(lambda x: x.address(addr1).label('work'))`. A link takes an existing
   object or a `Spec` that builds a new one.
@@ -1188,8 +1186,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Deserializing a snapshot that references an object it does not contain is an error.
 - Relation links are untyped names (`.links('contact', 'address')`); objects declare adjacencies with
   `.relations(lambda adj: adj.name(...).of(Relation).me(link))`.
-- Lists, dicts and maps are adjacencies to one-link relations, declared inline, whose entries hold the values for
-  their owner; no property holds a list (see Lists). Collections of linked objects are relations of two links or more.
+- Lists, dicts, maps and tensors of values are containers, held by properties (see Lists). Collections of linked
+  objects are relations of two links or more.
 - Cardinality is declared with `unique(S)` clauses; ownership is `unique(parent)`; a relation with a `unique` clause
   holds a set and duplicates are elided, and one without is open, its entries a list from each end.
 - An object may have more than one owner.

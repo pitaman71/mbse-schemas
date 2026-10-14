@@ -27,6 +27,24 @@ def entries(obj, adjacency):
     return rows
 
 
+def elements(prop):
+    """The elements of the container a property holds, as (index, element) pairs in order: each element a scalar, or
+    a visitor where it is not one. (Case study 2.)
+
+    A property's visitor holds its value, here read as a container; the container's elements are each visited
+    through their own visitor, read as a scalar first.
+    """
+    pairs, found = [], []
+    prop.as_value(lambda v: v.as_container(lambda c: c.as_entries(pairs.extend)))
+    for index, element in pairs:
+        value = []
+        element.as_scalar(lambda s: value.append(s.get()) or s)
+        if value[0] is None:
+            element.as_object(lambda o: value.__setitem__(0, o) or o)
+        found.append((index, value[0]))
+    return found
+
+
 def remove_entries(obj, adjacency, where):
     """Removes the entries of `obj`'s adjacency for which `where(row)` is true; `row` is as returned by `entries`.
     (Case study 3.)"""

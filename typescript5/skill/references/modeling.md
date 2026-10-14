@@ -15,9 +15,11 @@ How to express an interface or data model with the schema elements. The same mod
 | Multiplicity upper bound (0..1) | a `unique(...)` clause |
 | Multiplicity lower bound (1, 1..*) | not expressible yet: constraints are planned |
 | Qualified association, map, dictionary | relation with a key property: `.unique("owner", "key")` |
-| Ordered list of values or parts (tags, a component's ports) | a one-link relation, inline in its adjacency, whose entries hold the value: `r.name("tags").me("owner").of(lambda rel: rel.links("owner").properties(text("value")))`, scalars or value objects |
-| Dictionary, associative array, sparse tensor (values by key) | the same with a key property and `unique` over the value: `.properties(text("key"), text("value")).unique("value")`; the key may be a scalar or a value object (e.g. `{row, col}`), and several properties (`i`, `j`) key a matrix |
-| Fixed-size array, dense tensor dimension | a list keyed by an integer property; its bounds are a constraint on that property's type, which is planned |
+| Ordered list of values or parts (tags, a component's ports) | a property holding a container by an int index: `p.name("tags").of(lambda t: t.as_container(lambda c: c.index(Int).element(Text)))`, its elements scalars, value objects or containers |
+| Dictionary, associative array (values by key) | a container by a hashable index: `c.index(Text).element(...)`, written as a mapping where the index is text |
+| Dense tensor, matrix | a container by a value object of ints (`{row, col}`), dense: every cell of the box its indices span; written nested or, configured on the writer, flat with its shape |
+| Sparse array or tensor | `.sparse()` on the container: blocks of consecutive elements, each where it starts |
+| Fixed-size array | a container by an int index; its bounds are a constraint on the index type, which is planned |
 | Ordered list of shared objects | relation with an index property: `.links("owner", "item").properties(index).unique("owner", "index")` |
 | Tagged union, variant, `oneOf`, `xsd:choice` | `OfUnion`: named, same-kind branches; a value holds exactly one |
 | Mixin, aspect, `allOf` | `OfIntersection`: named, same-kind parts; a value holds every one. Supported for property values. Objects with identity composed from aspects are not yet |
@@ -33,14 +35,14 @@ How to express an interface or data model with the schema elements. The same mod
 **Reference object or value object?** Use a reference object, whose schema is marked `.ref()`, if the thing is shared
 by several owners, navigated back from, part of a cycle, or referred to by identity; it is reached through relations
 and never held by a property. Otherwise use a value object: a property holds it, it is copied by
-value and written nested. A value object has no identity, and may have lists of its own, but nothing links to
-it: a component's ports that connectors link are reference objects. A reference object has an identity, given when it
+value and written nested. A value object has no identity and no adjacencies, though it may hold containers, and
+nothing links to it: a component's ports that connectors link are reference objects. A reference object has an identity, given when it
 is created: a UUID, or the next name its schema's naming pattern gives in its store (`.ref(r"FEA-(\d+\d\d)")`
 names features `FEA-001`, `FEA-002`, ...). Give one where people read the names, or output must be reproducible.
 
-**A one-link relation is a list.** Its entries hold values for their one owner (a contact's own phone numbers as
-entries holding `number`); declare it inline in the adjacency, `.of(lambda rel: rel.links("contact").properties(...))`.
-Data that several objects share is an object, linked to each.
+**A container is a list of values.** Its elements belong to their one owner (a contact's own phone numbers, a
+container of text), so it is a property, copied and written with it. Data that several objects share is an object,
+linked to each by a relation of two links or more.
 
 **Set or list comes from `unique`.** A relation with a `unique` clause holds a set, and an equal entry is elided; one
 without is open, its entries a list, equal entries kept. `.unique()` names nothing and only makes it a set.

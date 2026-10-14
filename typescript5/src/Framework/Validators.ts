@@ -105,7 +105,7 @@ function filling(relation: Schemas.OfRelation.Data, name: string, schema: Schema
 const ABSENT = "absent";
 
 /** Equality key per EQUALITY.md, of a value read as `propertyValue` reads it: distinct scalar types never compare
- * equal; floats compare by bit pattern; a value object by its properties and its entries, in order. */
+ * equal; floats compare by bit pattern; a value object by its properties. */
 function key(schema: unknown, value: any): string {
   const type = Schemas.structure(schema);
   if (value === null || value === undefined) return ABSENT;
@@ -119,8 +119,7 @@ function key(schema: unknown, value: any): string {
   if (type instanceof Schemas.OfObject.Data) {
     const properties = [...value.as_properties as Iterable<Readers.OfProperty>].map((p) =>
       [p.as_schema().name, key(p.as_schema().type, propertyValue(p, p.as_schema().type))]);
-    const entries = [...type.adjacencies].map(([name, a]) => [name, [...value[name]].map((e) => entryKey(e, a))]);
-    return `object:${JSON.stringify(properties)}:${JSON.stringify(entries)}`;
+    return `object:${JSON.stringify(properties)}`;
   }
   const record = type as Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
   const members = [...record.properties].map(([name, m]) => [name, key(m.type, member(value[name], m.type))]);
@@ -130,15 +129,6 @@ function key(schema: unknown, value: any): string {
 function propertyValue(read: any, schema: unknown): any {
   const type = Schemas.structure(schema);
   return type instanceof Schemas.OfScalar.Data || type === null ? scalar(read) : held(read, type);
-}
-
-/** An entry's equality key: its other links' targets by identity and its values by `key`. */
-function entryKey(entry: any, adjacency: Schemas.OfAdjacency.Data): string {
-  const relation = adjacency.relation as Schemas.OfRelation.Data;
-  const links = [...relation.entry.links.keys()].filter((name) => name !== adjacency.me)
-    .map((name) => [name, identity(entry[name])]);
-  const values = [...relation.entry.properties].map(([name, prop]) => [name, key(prop.type, propertyValue(entry[name], prop.type))]);
-  return JSON.stringify([links, values]);
 }
 
 /** One relation entry with all its links, from whichever end it was seen: identities and value keys. */
@@ -199,14 +189,7 @@ class Checker {
       return pairs(item).flatMap(([index, e]) =>
         this.valueProblems(`${label}[${repr(index)}]`, schema.element, element(e, schema.element)));
     }
-    if (schema instanceof Schemas.OfObject.Data) {
-      const problems = this.properties(label, item);
-      for (const [name, adjacency] of schema.adjacencies) {
-        [...(item[name] as Iterable<unknown>)].forEach((entry, i) =>
-          problems.push(...this.entry(`${label}.${name}[${i}]`, adjacency, item, entry)));
-      }
-      return problems;
-    }
+    if (schema instanceof Schemas.OfObject.Data) return this.properties(label, item);
     const record = schema as Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
     const problems: string[] = [];
     const members = new Map([...record.properties].map(([name, m]) => [name, member(item[name], m.type)]));

@@ -33,6 +33,24 @@ export function entries(obj: Proxies.Instance, adjacency: string): Row[] {
   });
 }
 
+/**
+ * The elements of the container a property holds, as [index, element] pairs in order: each element a scalar, or a
+ * visitor where it is not one. (Case study 2.)
+ *
+ * A property's visitor holds its value, here read as a container; the container's elements are each visited through
+ * their own visitor, read as a scalar first.
+ */
+export function elements(prop: any): [unknown, any][] {
+  const pairs: [unknown, any][] = [];
+  prop.as_value((v: any) => v.as_container((c: any) => c.as_entries((it: Iterable<[unknown, any]>) => pairs.push(...it))));
+  return pairs.map(([index, element]) => {
+    let value: any = null;
+    element.as_scalar((s: any) => (value = s.get()) ?? s);
+    if (value === null) element.as_object((o: any) => (value = o));
+    return [index, value];
+  });
+}
+
 /** Removes the entries of `obj`'s adjacency for which `where(row)` is true; `row` is as returned by `entries`.
  * Returns the updated object. (Case study 3.) */
 export function remove_entries(obj: Proxies.Instance, adjacency: string, where: (row: Row) => boolean): Proxies.Instance {

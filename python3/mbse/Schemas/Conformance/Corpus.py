@@ -20,30 +20,31 @@ def _text(name, scalar=str):
     return lambda prop: prop.name(name).of(lambda t: t.as_scalar(scalar))
 
 
-def _list(name, *properties, unique=()):
-    """An adjacency `name` to a one-link relation of its own, whose entries hold `properties`: a list, or keyed where
-    `unique` names the values its other properties determine."""
+def _list(name, element, index=lambda t: t.as_scalar(int), layout=None):
+    """A property `name` holding a container of `element` by `index`: dense by position, by default."""
 
-    def relation(rel):
-        rel.links("owner").properties(*properties)
-        return rel.unique(*unique) if unique else rel
+    def container(c):
+        c.index(index).element(element)
+        return c.sparse() if layout == "sparse" else c
 
-    return lambda a: a.name(name).me("owner").of(relation)
-
-
-def _held(name, spec):
-    return lambda prop: prop.name(name).of(spec)
+    return lambda prop: prop.name(name).of(lambda t: t.as_container(container))
 
 
-def _entries(name, values):
-    """A Spec adding an entry to the adjacency `name` for each of `values`, each a Spec of the entry."""
+def _write(pairs):
+    """Writes a container's elements, each a scalar or, given a callable, through its `Visitors.OfAny`."""
 
-    def spec(builder):
-        for value in values:
-            getattr(builder, name).insert(value)
-        return builder
+    def write(container):
+        for index, value in pairs:
+            element = container.at(index)
+            value(element) if callable(value) else element.as_scalar(value)
+        return container
 
-    return spec
+    return write
+
+
+def _put(pairs):
+    """A Spec writing the elements of the container a property holds."""
+    return lambda prop: prop.as_value(lambda a: a.as_container(_write(pairs)))
 
 
 def build():
@@ -97,10 +98,10 @@ def build():
     S.OfObject.Builder(Notebook).relations(lambda a: a.name("notes").of(Pages).me("notebook")).update()
     S.OfObject.Builder(Note).relations(lambda a: a.name("notebooks").of(Pages).me("note")).update()
 
-    # --- embedded: value objects (one with a list of its own), union values of objects and of scalars, and an
+    # --- embedded: value objects (one with a container of its own), union values of objects and of scalars, and an
     # intersection value ---
-    CardPhone = S.OfObject.Builder().properties(_text("number"), _text("label")).relations(
-        _list("extensions", _text("value"))).create()
+    CardPhone = S.OfObject.Builder().properties(_text("number"), _text("label"),
+                                                _list("extensions", lambda t: t.as_scalar(str))).create()
     CardEmail = S.OfObject.Builder().properties(_text("address")).create()
     Reach = S.OfUnion.Builder().branches(lambda b: b.name("phone").of(CardPhone),
                                          lambda b: b.name("email").of(CardEmail)).create()
@@ -117,23 +118,20 @@ def build():
     Deck = S.OfObject.Builder().name("Deck").ref(r"deck-(\d+)").properties(_text("title")).relations(lambda a: a.name("cards").of(Holding).me("deck")).create()
     S.OfObject.Builder(Card).relations(lambda a: a.name("decks").of(Holding).me("card")).update()
 
-    # --- lists: one-link relations, open (lists) or keyed by what a `unique` clause leaves out: of scalars, of lists,
-    # of union values and of value objects, which have lists of their own; keyed by text, by a float, by a value object
-    # and by a pair of ints ---
-    Socket = S.OfObject.Builder().properties(_text("name")).relations(_list("pins", _text("value"))).create()
+    # --- lists: containers, dense by position: of scalars, of containers, of union values and of value objects, which
+    # hold containers of their own; a tensor by a pair of ints, sparse by an int, a dict by text, and entries by a float ---
+    Text, Int = (lambda t: t.as_scalar(str)), (lambda t: t.as_scalar(int))
+    Socket = S.OfObject.Builder().properties(_text("name"), _list("pins", Text)).create()
     Coord = S.OfObject.Builder().properties(_text("r", int), _text("c", int)).create()
     Reading = S.OfUnion.Builder().branches(lambda b: b.name("value").of(lambda t: t.as_scalar(float)),
                                            lambda b: b.name("note").of(lambda t: t.as_scalar(str))).create()
-    Row = S.OfObject.Builder().relations(_list("values", _text("value", int))).create()
-    Bank = S.OfObject.Builder().relations(_list("sockets", _held("socket", Socket))).create()
-    Board = S.OfObject.Builder().name("Board").ref(r"board-(\d+)").properties(_text("name")).relations(
-        _list("tags", _text("value")), _list("blobs", _text("value", bytes)), _list("grid", _held("row", Row)),
-        _list("readings", _held("reading", Reading)), _list("sockets", _held("socket", Socket)),
-        _list("banks", _held("bank", Bank)),
-        _list("matrix", _text("i", int), _text("j", int), _text("value", int), unique=("value",)),
-        _list("attrs", _text("key"), _text("value", float), unique=("value",)),
-        _list("weights", _text("key", float), _text("value"), unique=("value",)),
-        _list("cells", _held("key", Coord), _text("value", int), unique=("value",))).create()
+    Row = S.OfContainer.Builder().index(Int).element(Int).create()
+    Bank = S.OfObject.Builder().properties(_list("sockets", Socket)).create()
+    Board = S.OfObject.Builder().name("Board").ref(r"board-(\d+)").properties(
+        _text("name"), _list("tags", Text), _list("blobs", lambda t: t.as_scalar(bytes)), _list("grid", Row),
+        _list("readings", Reading), _list("sockets", Socket), _list("banks", Bank), _list("matrix", Int, Coord),
+        _list("cells", Int, layout="sparse"), _list("attrs", lambda t: t.as_scalar(float), Text),
+        _list("weights", Text, lambda t: t.as_scalar(float))).create()
 
     for schema in [Contact, Address, Phone, ContactAddresses, ContactPhones, Bag, Sample, Holds, Person, Parentage, Mentorship, Student, Course, Term, Enrollment, Notebook, Note, Pages, Card, Deck, Holding, Board]:
         store.register(schema)
@@ -195,7 +193,7 @@ def build():
 
     deck = B.Deck().title("contacts").create()
     cards = [
-        B.Card().name("Ann").home(lambda p: p.as_object(lambda r: r.number("+1 555 0100").label("home").extensions(lambda a: a.insert(lambda e: e.value("12")))))
+        B.Card().name("Ann").home(lambda p: p.as_object(lambda r: r.number("+1 555 0100").label("home").extensions(_put([(0, "12")]))))
         .reach(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.email(lambda r: r.address("ann@example.com"))))).ident(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.number(7)))).create(),
         B.Card().name("Bo").reach(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.phone(lambda r: r.number("+44 20 7946 0000")))))
         .ident(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.code("B-2"))))
@@ -206,24 +204,19 @@ def build():
     for card in cards:
         B.Deck(deck).cards(lambda a: a.insert(lambda x, card=card: x.card(card))).update()
 
-    rack = B.Board().name("rack")
-    for value in ["", "日本語 🚀", "a"]:
-        rack.tags(lambda a: a.insert(lambda e, value=value: e.value(value)))
-    for value in [b"", b"\x00\xff"]:
-        rack.blobs(lambda a: a.insert(lambda e, value=value: e.value(value)))
-    for row in [[1, -(2**70)], [], [0]]:
-        rack.grid(lambda a: a.insert(lambda e, row=row: e.row(lambda p: p.as_object(_entries("values", [lambda x, v=v: x.value(v) for v in row])))))
-    rack.readings(lambda a: a.insert(lambda e: e.reading(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.value(-0.0)))))).readings(lambda a: a.insert(lambda e: e.reading(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.note("off"))))))
-    rack.readings(lambda a: a.insert(lambda e: e.reading(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.value(math.inf))))))
-    rack.sockets(lambda a: a.insert(lambda e: e.socket(lambda p: p.as_object(lambda o: o.name("in").pins(lambda a: a.insert(lambda x: x.value("1"))).pins(lambda a: a.insert(lambda x: x.value("2")))))))
-    rack.sockets(lambda a: a.insert(lambda e: e.socket(lambda p: p.as_object(lambda o: o.name("out")))))
-    rack.banks(lambda a: a.insert(lambda e: e.bank(lambda p: p.as_object(lambda b: b)))).banks(lambda a: a.insert(lambda e: e.bank(lambda p: p.as_object(lambda b: b.sockets(lambda a: a.insert(
-        lambda x: x.socket(lambda p: p.as_object(lambda o: o.name("spare").pins(lambda a: a.insert(lambda y: y.value("9")))))))))))
-    for i, j, value in [(2, 1, 0), (1, 1, 1), (1, 2, 0), (2, 2, 1)]:
-        rack.matrix(lambda a: a.insert(lambda e, i=i, j=j, value=value: e.i(i).j(j).value(value)))
-    rack.attrs(lambda a: a.insert(lambda e: e.key("gain").value(1.5))).attrs(lambda a: a.insert(lambda e: e.key("").value(-0.0)))
-    rack.weights(lambda a: a.insert(lambda e: e.key(0.5).value("half"))).weights(lambda a: a.insert(lambda e: e.key(math.nan).value("none")))
-    rack.cells(lambda a: a.insert(lambda e: e.key(lambda p: p.as_object(lambda c: c.r(2).c(3))).value(6))).cells(lambda a: a.insert(lambda e: e.key(lambda p: p.as_object(lambda c: c.r(0).c(0))).value(0)))
+    rack = B.Board().name("rack").tags(_put(enumerate(["", "日本語 🚀", "a"]))).blobs(_put(enumerate([b"", b"\x00\xff"])))
+    rack.grid(_put([(i, lambda e, row=row: e.as_container(_write(enumerate(row))))
+                    for i, row in enumerate([[1, -(2**70)], [], [0]])]))
+    rack.readings(_put([(0, lambda e: e.as_union(lambda u: u.value(-0.0))), (1, lambda e: e.as_union(lambda u: u.note("off"))),
+                        (2, lambda e: e.as_union(lambda u: u.value(math.inf)))]))
+    rack.sockets(_put([(0, lambda e: e.as_object(lambda o: o.name("in").pins(_put([(0, "1"), (1, "2")])))),
+                       (1, lambda e: e.as_object(lambda o: o.name("out")))]))
+    rack.banks(_put([(0, lambda e: e.as_object(lambda b: b)), (1, lambda e: e.as_object(lambda b: b.sockets(_put(
+        [(0, lambda x: x.as_object(lambda o: o.name("spare").pins(_put([(0, "9")]))))]))))]))
+    rack.matrix(_put([((2, 1), 0), ((1, 1), 1), ((1, 2), 0), ((2, 2), 1)]))
+    rack.cells(_put([(5, 6), (6, 7), (0, 0)]))
+    rack.attrs(_put([("gain", 1.5), ("", -0.0)]))
+    rack.weights(_put([(0.5, "half"), (-2.5, "neg")]))
     board = rack.create()
 
     # --- module: the corpus's own schemas as data, with scalars of widths and another format's token, parametric
@@ -235,8 +228,8 @@ def build():
     Grid = S.OfObject.Builder().name("Grid").parameters(lambda p: p.name("n").of(int_).description("Its side"),
                                                         lambda p: p.name("x")).properties(
         lambda p: p.name("mask").of(lambda t: t.as_scalar(lambda w: w.type(int).bits(
-            S.Form.Data("operation", {"name": "mul"}, (n, n), "basic"))))).relations(
-        _list("cells", _held("cell", lambda c: c.as_apply(lambda a: a.of(Word).arguments(w=8))))).create()
+            S.Form.Data("operation", {"name": "mul"}, (n, n), "basic")))),
+        _list("cells", lambda c: c.as_apply(lambda a: a.of(Word).arguments(w=8)))).create()
     Square = S.OfApply.Builder().name("Square").parameters(lambda p: p.name("m").of(int_)).of(Grid).argument(
         "n", S.Form.Data("variable", {"name": "m"})).argument("x", True).create()
     Tricky = S.OfObject.Builder().name("Tricky").parameters(*[lambda p, x=x: p.name(x) for x in "abcd"]).create()

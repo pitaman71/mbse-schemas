@@ -273,32 +273,25 @@
                             "token": "str"
                           }
                         }
-                      }
-                    ],
-                    "adjacencies": [
+                      },
                       {
                         "name": "extensions",
-                        "relation": {
-                          "relation": {
-                            "links": [
-                              {
-                                "name": "owner"
+                        "type": {
+                          "container": {
+                            "index": {
+                              "scalar": {
+                                "format": "basic",
+                                "token": "int"
                               }
-                            ],
-                            "properties": [
-                              {
-                                "name": "value",
-                                "type": {
-                                  "scalar": {
-                                    "format": "basic",
-                                    "token": "str"
-                                  }
-                                }
+                            },
+                            "element": {
+                              "scalar": {
+                                "format": "basic",
+                                "token": "str"
                               }
-                            ]
+                            }
                           }
-                        },
-                        "me": "owner"
+                        }
                       }
                     ]
                   }
@@ -331,32 +324,25 @@
                                     "token": "str"
                                   }
                                 }
-                              }
-                            ],
-                            "adjacencies": [
+                              },
                               {
                                 "name": "extensions",
-                                "relation": {
-                                  "relation": {
-                                    "links": [
-                                      {
-                                        "name": "owner"
+                                "type": {
+                                  "container": {
+                                    "index": {
+                                      "scalar": {
+                                        "format": "basic",
+                                        "token": "int"
                                       }
-                                    ],
-                                    "properties": [
-                                      {
-                                        "name": "value",
-                                        "type": {
-                                          "scalar": {
-                                            "format": "basic",
-                                            "token": "str"
-                                          }
-                                        }
+                                    },
+                                    "element": {
+                                      "scalar": {
+                                        "format": "basic",
+                                        "token": "str"
                                       }
-                                    ]
+                                    }
                                   }
-                                },
-                                "me": "owner"
+                                }
                               }
                             ]
                           }
@@ -532,491 +518,318 @@
                     "token": "str"
                   }
                 }
-              }
-            ],
-            "adjacencies": [
+              },
               {
                 "name": "tags",
-                "relation": {
-                  "relation": {
-                    "links": [
-                      {
-                        "name": "owner"
+                "type": {
+                  "container": {
+                    "index": {
+                      "scalar": {
+                        "format": "basic",
+                        "token": "int"
                       }
-                    ],
-                    "properties": [
-                      {
-                        "name": "value",
-                        "type": {
-                          "scalar": {
-                            "format": "basic",
-                            "token": "str"
-                          }
-                        }
+                    },
+                    "element": {
+                      "scalar": {
+                        "format": "basic",
+                        "token": "str"
                       }
-                    ]
+                    }
                   }
-                },
-                "me": "owner"
+                }
               },
               {
                 "name": "blobs",
-                "relation": {
-                  "relation": {
-                    "links": [
-                      {
-                        "name": "owner"
+                "type": {
+                  "container": {
+                    "index": {
+                      "scalar": {
+                        "format": "basic",
+                        "token": "int"
                       }
-                    ],
-                    "properties": [
-                      {
-                        "name": "value",
-                        "type": {
-                          "scalar": {
-                            "format": "basic",
-                            "token": "bytes"
-                          }
-                        }
+                    },
+                    "element": {
+                      "scalar": {
+                        "format": "basic",
+                        "token": "bytes"
                       }
-                    ]
+                    }
                   }
-                },
-                "me": "owner"
+                }
               },
               {
                 "name": "grid",
-                "relation": {
-                  "relation": {
-                    "links": [
-                      {
-                        "name": "owner"
+                "type": {
+                  "container": {
+                    "index": {
+                      "scalar": {
+                        "format": "basic",
+                        "token": "int"
                       }
-                    ],
-                    "properties": [
-                      {
-                        "name": "row",
-                        "type": {
-                          "object": {
-                            "adjacencies": [
-                              {
-                                "name": "values",
-                                "relation": {
-                                  "relation": {
-                                    "links": [
-                                      {
-                                        "name": "owner"
-                                      }
-                                    ],
-                                    "properties": [
-                                      {
-                                        "name": "value",
-                                        "type": {
-                                          "scalar": {
-                                            "format": "basic",
-                                            "token": "int"
-                                          }
-                                        }
-                                      }
-                                    ]
-                                  }
-                                },
-                                "me": "owner"
-                              }
-                            ]
+                    },
+                    "element": {
+                      "container": {
+                        "index": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "int"
+                          }
+                        },
+                        "element": {
+                          "scalar": {
+                            "format": "basic",
+                            "token": "int"
                           }
                         }
                       }
-                    ]
+                    }
                   }
-                },
-                "me": "owner"
+                }
               },
               {
                 "name": "readings",
-                "relation": {
-                  "relation": {
-                    "links": [
-                      {
-                        "name": "owner"
+                "type": {
+                  "container": {
+                    "index": {
+                      "scalar": {
+                        "format": "basic",
+                        "token": "int"
                       }
-                    ],
-                    "properties": [
-                      {
-                        "name": "reading",
-                        "type": {
-                          "union": {
-                            "branches": [
-                              {
-                                "name": "value",
-                                "type": {
-                                  "scalar": {
-                                    "format": "basic",
-                                    "token": "float"
-                                  }
-                                }
-                              },
-                              {
-                                "name": "note",
-                                "type": {
-                                  "scalar": {
-                                    "format": "basic",
-                                    "token": "str"
-                                  }
-                                }
+                    },
+                    "element": {
+                      "union": {
+                        "branches": [
+                          {
+                            "name": "value",
+                            "type": {
+                              "scalar": {
+                                "format": "basic",
+                                "token": "float"
                               }
-                            ]
+                            }
+                          },
+                          {
+                            "name": "note",
+                            "type": {
+                              "scalar": {
+                                "format": "basic",
+                                "token": "str"
+                              }
+                            }
                           }
-                        }
+                        ]
                       }
-                    ]
+                    }
                   }
-                },
-                "me": "owner"
+                }
               },
               {
                 "name": "sockets",
-                "relation": {
-                  "relation": {
-                    "links": [
-                      {
-                        "name": "owner"
+                "type": {
+                  "container": {
+                    "index": {
+                      "scalar": {
+                        "format": "basic",
+                        "token": "int"
                       }
-                    ],
-                    "properties": [
-                      {
-                        "name": "socket",
-                        "type": {
-                          "object": {
-                            "properties": [
-                              {
-                                "name": "name",
-                                "type": {
+                    },
+                    "element": {
+                      "object": {
+                        "properties": [
+                          {
+                            "name": "name",
+                            "type": {
+                              "scalar": {
+                                "format": "basic",
+                                "token": "str"
+                              }
+                            }
+                          },
+                          {
+                            "name": "pins",
+                            "type": {
+                              "container": {
+                                "index": {
+                                  "scalar": {
+                                    "format": "basic",
+                                    "token": "int"
+                                  }
+                                },
+                                "element": {
                                   "scalar": {
                                     "format": "basic",
                                     "token": "str"
                                   }
                                 }
                               }
-                            ],
-                            "adjacencies": [
-                              {
-                                "name": "pins",
-                                "relation": {
-                                  "relation": {
-                                    "links": [
-                                      {
-                                        "name": "owner"
-                                      }
-                                    ],
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "name": "banks",
+                "type": {
+                  "container": {
+                    "index": {
+                      "scalar": {
+                        "format": "basic",
+                        "token": "int"
+                      }
+                    },
+                    "element": {
+                      "object": {
+                        "properties": [
+                          {
+                            "name": "sockets",
+                            "type": {
+                              "container": {
+                                "index": {
+                                  "scalar": {
+                                    "format": "basic",
+                                    "token": "int"
+                                  }
+                                },
+                                "element": {
+                                  "object": {
                                     "properties": [
                                       {
-                                        "name": "value",
+                                        "name": "name",
                                         "type": {
                                           "scalar": {
                                             "format": "basic",
                                             "token": "str"
                                           }
                                         }
-                                      }
-                                    ]
-                                  }
-                                },
-                                "me": "owner"
-                              }
-                            ]
-                          }
-                        }
-                      }
-                    ]
-                  }
-                },
-                "me": "owner"
-              },
-              {
-                "name": "banks",
-                "relation": {
-                  "relation": {
-                    "links": [
-                      {
-                        "name": "owner"
-                      }
-                    ],
-                    "properties": [
-                      {
-                        "name": "bank",
-                        "type": {
-                          "object": {
-                            "adjacencies": [
-                              {
-                                "name": "sockets",
-                                "relation": {
-                                  "relation": {
-                                    "links": [
+                                      },
                                       {
-                                        "name": "owner"
-                                      }
-                                    ],
-                                    "properties": [
-                                      {
-                                        "name": "socket",
+                                        "name": "pins",
                                         "type": {
-                                          "object": {
-                                            "properties": [
-                                              {
-                                                "name": "name",
-                                                "type": {
-                                                  "scalar": {
-                                                    "format": "basic",
-                                                    "token": "str"
-                                                  }
-                                                }
+                                          "container": {
+                                            "index": {
+                                              "scalar": {
+                                                "format": "basic",
+                                                "token": "int"
                                               }
-                                            ],
-                                            "adjacencies": [
-                                              {
-                                                "name": "pins",
-                                                "relation": {
-                                                  "relation": {
-                                                    "links": [
-                                                      {
-                                                        "name": "owner"
-                                                      }
-                                                    ],
-                                                    "properties": [
-                                                      {
-                                                        "name": "value",
-                                                        "type": {
-                                                          "scalar": {
-                                                            "format": "basic",
-                                                            "token": "str"
-                                                          }
-                                                        }
-                                                      }
-                                                    ]
-                                                  }
-                                                },
-                                                "me": "owner"
+                                            },
+                                            "element": {
+                                              "scalar": {
+                                                "format": "basic",
+                                                "token": "str"
                                               }
-                                            ]
+                                            }
                                           }
                                         }
                                       }
                                     ]
                                   }
-                                },
-                                "me": "owner"
+                                }
                               }
-                            ]
+                            }
                           }
-                        }
+                        ]
                       }
-                    ]
+                    }
                   }
-                },
-                "me": "owner"
+                }
               },
               {
                 "name": "matrix",
-                "relation": {
-                  "relation": {
-                    "links": [
-                      {
-                        "name": "owner"
-                      }
-                    ],
-                    "properties": [
-                      {
-                        "name": "i",
-                        "type": {
-                          "scalar": {
-                            "format": "basic",
-                            "token": "int"
-                          }
-                        }
-                      },
-                      {
-                        "name": "j",
-                        "type": {
-                          "scalar": {
-                            "format": "basic",
-                            "token": "int"
-                          }
-                        }
-                      },
-                      {
-                        "name": "value",
-                        "type": {
-                          "scalar": {
-                            "format": "basic",
-                            "token": "int"
-                          }
-                        }
-                      }
-                    ],
-                    "uniques": [
-                      {
-                        "clause": {
-                          "names": [
-                            {
-                              "name": "value"
+                "type": {
+                  "container": {
+                    "index": {
+                      "object": {
+                        "properties": [
+                          {
+                            "name": "r",
+                            "type": {
+                              "scalar": {
+                                "format": "basic",
+                                "token": "int"
+                              }
                             }
-                          ]
-                        }
-                      }
-                    ]
-                  }
-                },
-                "me": "owner"
-              },
-              {
-                "name": "attrs",
-                "relation": {
-                  "relation": {
-                    "links": [
-                      {
-                        "name": "owner"
-                      }
-                    ],
-                    "properties": [
-                      {
-                        "name": "key",
-                        "type": {
-                          "scalar": {
-                            "format": "basic",
-                            "token": "str"
-                          }
-                        }
-                      },
-                      {
-                        "name": "value",
-                        "type": {
-                          "scalar": {
-                            "format": "basic",
-                            "token": "float"
-                          }
-                        }
-                      }
-                    ],
-                    "uniques": [
-                      {
-                        "clause": {
-                          "names": [
-                            {
-                              "name": "value"
+                          },
+                          {
+                            "name": "c",
+                            "type": {
+                              "scalar": {
+                                "format": "basic",
+                                "token": "int"
+                              }
                             }
-                          ]
-                        }
-                      }
-                    ]
-                  }
-                },
-                "me": "owner"
-              },
-              {
-                "name": "weights",
-                "relation": {
-                  "relation": {
-                    "links": [
-                      {
-                        "name": "owner"
-                      }
-                    ],
-                    "properties": [
-                      {
-                        "name": "key",
-                        "type": {
-                          "scalar": {
-                            "format": "basic",
-                            "token": "float"
                           }
-                        }
-                      },
-                      {
-                        "name": "value",
-                        "type": {
-                          "scalar": {
-                            "format": "basic",
-                            "token": "str"
-                          }
-                        }
+                        ]
                       }
-                    ],
-                    "uniques": [
-                      {
-                        "clause": {
-                          "names": [
-                            {
-                              "name": "value"
-                            }
-                          ]
-                        }
+                    },
+                    "element": {
+                      "scalar": {
+                        "format": "basic",
+                        "token": "int"
                       }
-                    ]
+                    }
                   }
-                },
-                "me": "owner"
+                }
               },
               {
                 "name": "cells",
-                "relation": {
-                  "relation": {
-                    "links": [
-                      {
-                        "name": "owner"
+                "type": {
+                  "container": {
+                    "index": {
+                      "scalar": {
+                        "format": "basic",
+                        "token": "int"
                       }
-                    ],
-                    "properties": [
-                      {
-                        "name": "key",
-                        "type": {
-                          "object": {
-                            "properties": [
-                              {
-                                "name": "r",
-                                "type": {
-                                  "scalar": {
-                                    "format": "basic",
-                                    "token": "int"
-                                  }
-                                }
-                              },
-                              {
-                                "name": "c",
-                                "type": {
-                                  "scalar": {
-                                    "format": "basic",
-                                    "token": "int"
-                                  }
-                                }
-                              }
-                            ]
-                          }
-                        }
-                      },
-                      {
-                        "name": "value",
-                        "type": {
-                          "scalar": {
-                            "format": "basic",
-                            "token": "int"
-                          }
-                        }
+                    },
+                    "element": {
+                      "scalar": {
+                        "format": "basic",
+                        "token": "int"
                       }
-                    ],
-                    "uniques": [
-                      {
-                        "clause": {
-                          "names": [
-                            {
-                              "name": "value"
-                            }
-                          ]
-                        }
-                      }
-                    ]
+                    },
+                    "layout": "sparse"
                   }
-                },
-                "me": "owner"
+                }
+              },
+              {
+                "name": "attrs",
+                "type": {
+                  "container": {
+                    "index": {
+                      "scalar": {
+                        "format": "basic",
+                        "token": "str"
+                      }
+                    },
+                    "element": {
+                      "scalar": {
+                        "format": "basic",
+                        "token": "float"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "name": "weights",
+                "type": {
+                  "container": {
+                    "index": {
+                      "scalar": {
+                        "format": "basic",
+                        "token": "float"
+                      }
+                    },
+                    "element": {
+                      "scalar": {
+                        "format": "basic",
+                        "token": "str"
+                      }
+                    }
+                  }
+                }
               }
             ]
           }
@@ -1119,43 +932,36 @@
                     }
                   }
                 }
-              }
-            ],
-            "adjacencies": [
+              },
               {
                 "name": "cells",
-                "relation": {
-                  "relation": {
-                    "links": [
-                      {
-                        "name": "owner"
+                "type": {
+                  "container": {
+                    "index": {
+                      "scalar": {
+                        "format": "basic",
+                        "token": "int"
                       }
-                    ],
-                    "properties": [
-                      {
-                        "name": "cell",
-                        "type": {
-                          "apply": {
-                            "of": {
-                              "named": {
-                                "name": "Word"
-                              }
-                            },
-                            "arguments": [
-                              {
-                                "name": "w",
-                                "value": {
-                                  "int": 8
-                                }
-                              }
-                            ]
+                    },
+                    "element": {
+                      "apply": {
+                        "of": {
+                          "named": {
+                            "name": "Word"
                           }
-                        }
+                        },
+                        "arguments": [
+                          {
+                            "name": "w",
+                            "value": {
+                              "int": 8
+                            }
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                },
-                "me": "owner"
+                }
               }
             ]
           }

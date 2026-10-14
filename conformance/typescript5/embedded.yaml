@@ -18,7 +18,7 @@ objects:
       number: '+1 555 0100'
       label: home
       extensions:
-      - value: '12'
+      - '12'
     reach:
       email:
         address: 'ann@example.com'

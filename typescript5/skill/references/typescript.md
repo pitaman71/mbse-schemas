@@ -75,8 +75,9 @@ new S.OfRelation.Builder().links("a", "b").properties(spec, ...).unique("a").cre
 S.OfScalar.resolve((n) => n.token("ccpp", "int32_t").bits(32n));   // any format's token; a width in bits or bytes
 new S.OfUnion.Builder().branches((b) => b.name("phone").of(spec), ...).create();
 new S.OfIntersection.Builder().parts((p) => p.name("stamp").of(spec), ...).create();
-r.name("tags").me("owner").of((rel) => rel.links("owner").properties(text("value")));   // a list: a one-link relation inline
-rel.links("owner").properties(text("key"), text("value")).unique("value");   // a dict, keyed by `key`; several keys: a matrix
+p.name("tags").of((t) => t.as_container((c) => c.index(Int).element(Text)));   // a list: a container by position
+new S.OfContainer.Builder().index(Cell).element(Float).sparse().create();   // by a value object of ints: a tensor; dense default
+obj.tags.as_value((v) => v.as_container((c) => c.at(0n)));  // elements by index, each a Visitors.OfAny; an array index [i, j]
 new S.OfObject.Builder().name("crm.Contact");                     // a name, identifiers separated by dots, on any kind
 new S.OfObject.Builder().description("A person we know");         // documentation, on any element: schema, property,
 schema.properties.get("home")?.type;                              // adjacency, branch or part; a property is an element

@@ -19,8 +19,8 @@
  * them. `ToPlain(store).Reachable` also includes every object reachable through adjacencies (see `Reachable`). Decoding
  * builds each object in the store with the identity its key gives, or, where the store holds a live object of that
  * identity (a singleton's instance included), updates that object through its builder: what the snapshot holds is
- * written, what it omits is kept, a one-link relation's entries are overwritten in the order written, and another
- * relation's entry is the one agreeing with a row.
+ * written, what it omits is kept, a container is written element by element, and a relation's entry is the one agreeing
+ * with a row.
  *
  * The serializers read values through the visitor protocol (`Readers.OfObject`), and decoding writes them through a
  * store's builders (`Visitors.OfObject`).
@@ -295,34 +295,21 @@ function compareKeys(a: readonly unknown[], b: readonly unknown[]): number {
   return 0;
 }
 
-/** Sorts the entries of each adjacency written in `plain`, a value of `type`, nested value objects' too (those its
- * entries hold among them), by the key their relation declares from the adjacency's end (`Schemas.OfRelation.Data.key`):
- * where every entry has each of its values, and each holds values of one ordered type (booleans false first, numbers by
- * value, strings by code point). Otherwise, as where a key holds a link, entries keep the order they were written in. */
-function sortEntries(type: unknown, plain: PlainData | undefined): void {
-  const schema = Schemas.structure(type);
-  if (!(schema instanceof Schemas.OfObject.Data || schema instanceof Schemas.OfUnion.Data || schema instanceof Schemas.OfIntersection.Data)) {
-    return;
-  }
-  const record = plain as PlainMap;
-  for (const [name, prop] of schema.properties) if (record.has(name)) sortEntries(prop.type, record.get(name));
-  if (!(schema instanceof Schemas.OfObject.Data)) return;
+/** Sorts the entries of each adjacency written in `plain`, an object of `schema`, by the key their relation declares
+ * from the adjacency's end (`Schemas.OfRelation.Data.key`): where every entry has each of its values, and each holds
+ * values of one ordered type (booleans false first, numbers by value, strings by code point). Otherwise, as where a key
+ * holds a link, entries keep the order they were written in. */
+function sortEntries(schema: Schemas.OfObject.Data, record: PlainMap): void {
   for (const [name, adjacency] of schema.adjacencies) {
     const relation = adjacency.relation as Schemas.OfRelation.Data;
-    const [entries, names] = [record.get(name), relation.key(adjacency.me)];
-    if (!Array.isArray(entries)) continue;
-    for (const entry of entries as PlainMap[]) { // an entry's value objects, held by its properties
-      for (const [held, prop] of relation.entry.properties) if (entry.has(held)) sortEntries(prop.type, entry.get(held));
-    }
-    if (names === null) continue;
-    const keys = (entries as PlainMap[]).map((entry) => names.map((n) => entry.get(n)));
+    const [entries, names] = [record.get(name) as PlainMap[] | undefined, relation.key(adjacency.me)];
+    if (entries === undefined || names === null) continue;
+    const keys = entries.map((entry) => names.map((n) => entry.get(n)));
     const ordered = names.every((_, i) => {
       const kinds = new Set(keys.map((key) => typeof key[i]));
       return kinds.size === 1 && ORDERED.has([...kinds][0] as string);
     });
-    if (ordered) {
-      (entries as PlainMap[]).sort((a, b) => compareKeys(names.map((n) => a.get(n)), names.map((n) => b.get(n))));
-    }
+    if (ordered) entries.sort((a, b) => compareKeys(names.map((n) => a.get(n)), names.map((n) => b.get(n))));
   }
 }
 
@@ -338,7 +325,7 @@ class Link {
 }
 
 /** A decoded value object (an object's, a union value or an intersection value), which `build` writes into its
- * builder. Its entries are added once every object is built. */
+ * builder. */
 class DecodedRecord {
   constructor(readonly schema: RecordSchema, readonly values: Map<string, unknown>) {}
 }
@@ -357,31 +344,9 @@ function build(visitor: any, record: DecodedRecord): any {
 type Where = (string | number)[];
 /** Per adjacency, its decoded entries: each maps links to `Link`s and properties to decoded values. */
 type Rows = Map<string, Map<string, unknown>[]>;
-/** A step to a value object: a property name, or an entry of a one-link relation's adjacency (its name, its position
- * and the property holding the value). */
-type Step = string | readonly [string, number, string];
-/** The way from a reference object to a value object in it, each step with the kind of the value found there. */
-type Steps = readonly (readonly [Step, ValueKind])[];
-type ValueKind = typeof Schemas.OfObject.Data | typeof Schemas.OfUnion.Data | typeof Schemas.OfIntersection.Data;
-
-/** Where decoding found a value object: its reference object's symbol, and the steps from it. */
-class Found {
-  constructor(readonly owner: string, readonly steps: Steps) {}
-}
-
-/** What decoding a reference object's values collects: the symbols of the value objects in it, and their entries. */
-class Context {
-  constructor(readonly owner: string, readonly entries: [Found, Rows, Schemas.OfObject.Data][]) {}
-}
-
-/** The kind of a type's values: its structure's (see `Schemas.structure`). */
-function kindOf(schema: Schemas.OfAny.Data): ValueKind {
-  return (Schemas.structure(schema) as Schemas.OfAny.Data).constructor as ValueKind;
-}
-
-/** The value `plain` holds under `schema`, located at the path `where`: a scalar or a `DecodedRecord`. */
-function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where, context: Context | null = null,
-  steps: Steps = []): unknown {
+/** The value `plain` holds under `schema`, located at the path `where`: a scalar, a `DecodedRecord` or
+ * `DecodedElements`. */
+function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where): unknown {
   const schema = Schemas.structure(type) as Schemas.OfAny.Data;
   if (schema instanceof Schemas.OfScalar.Data) {
     try {
@@ -394,24 +359,15 @@ function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where, context:
   const [what, owner, member] = recordNames(schema as RecordSchema);
   if (!(plain instanceof Map)) throw new DecodeError(`${what} must be a mapping, got ${typeName(plain)}`, { path: path(...where) });
   const record = schema as RecordSchema;
-  const adjacencies = record instanceof Schemas.OfObject.Data ? record.adjacencies : new Map<string, Schemas.OfAdjacency.Data>();
   const values = new Map<string, unknown>();
-  const rows: Rows = new Map();
   for (const [key, item] of plain as PlainMap) {
     const type = record.properties.get(key)?.type as Schemas.OfAny.Data | undefined;
-    const adjacency = adjacencies.get(key);
-    if (adjacency !== undefined && context !== null) { // a value object an entry of two links holds has none (validate())
-      rows.set(key, decodeRows(adjacency, item, where, key, context, steps));
-    } else if (type !== undefined) {
-      values.set(key, decode(type, item, [...where, key], context, [...steps, [key, kindOf(type)]]));
-    } else {
-      throw new DecodeError(`${owner} has no ${member} ${repr(key)}`, { path: path(...where, key) });
-    }
+    if (type === undefined) throw new DecodeError(`${owner} has no ${member} ${repr(key)}`, { path: path(...where, key) });
+    values.set(key, decode(type, item, [...where, key]));
   }
   if (record instanceof Schemas.OfUnion.Data && values.size !== 1) {
     throw new DecodeError(`a union value holds exactly one branch, got ${values.size}`, { path: path(...where) });
   }
-  if (rows.size > 0) (context as Context).entries.push([new Found((context as Context).owner, steps), rows, record as Schemas.OfObject.Data]);
   return new DecodedRecord(record, values);
 }
 
@@ -518,16 +474,8 @@ function recordNames(schema: RecordSchema): [string, string, string] {
   return ["a value object", "the value object", "property"];
 }
 
-/** An entry property's value: a scalar or a value object, which has no symbol or adjacencies of its own. */
-function decodeEntryProperty(schema: Schemas.OfAny.Data, plain: unknown, where: Where): Scalar {
-  return decode(schema, plain, where) as Scalar;
-}
-
-/** The entries of one adjacency, at `where` + `key`. The value objects a one-link relation's entries hold, which are
- * written only with their one owner, may have symbols and entries of their own: `context` collects them, at `steps`
- * from the owner through the entry. */
-function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: Where, key: string,
-  context: Context | null = null, steps: Steps = []): Map<string, unknown>[] {
+/** The entries of one adjacency, at `where` + `key`. */
+function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: Where, key: string): Map<string, unknown>[] {
   if (!Array.isArray(value)) throw new DecodeError("an adjacency must be a list of entries", { path: path(...where, key) });
   const relation = adjacency.relation as Schemas.OfRelation.Data;
   return value.map((entry, i) => {
@@ -542,10 +490,8 @@ function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: 
       if (relation.entry.links.has(name)) {
         if (!isRef(item)) throw new DecodeError("a link must be a reference", { path: at });
         row.set(name, new Link(item.get(REF) as string));
-      } else if (entryType !== undefined && relation.entry.links.size === 1 && context !== null) {
-        row.set(name, decode(entryType, item, [...where, key, i, name], context, [...steps, [[key, i, name], kindOf(entryType)]]));
       } else if (entryType !== undefined) {
-        row.set(name, decodeEntryProperty(entryType, item, [...where, key, i, name]));
+        row.set(name, decode(entryType, item, [...where, key, i, name]));
       } else {
         throw new DecodeError(`the relation has no link or property ${repr(name)}`, { path: at });
       }
@@ -576,10 +522,9 @@ function references(value: unknown, where: Where, found: (ref: PlainMap, where: 
 type Decoded = Map<string, [Map<string, unknown>, Rows]>;
 
 /** Checks a snapshot against the schemas and decodes its values before anything is built. Returns the root symbol,
- * each reference object's schema name, the decoded reference objects, where each value object with a symbol is, and
- * the entries of value objects. Problems in the snapshot throw `DecodeError`. */
-function check(store: Stores.Store, schema: unknown, plain: unknown):
-  [string, Map<string, string>, Decoded, [Found, Rows, Schemas.OfObject.Data][], Map<string, string>] {
+ * each reference object's schema name, the decoded reference objects and their identities. Problems in the snapshot
+ * throw `DecodeError`. */
+function check(store: Stores.Store, schema: unknown, plain: unknown): [string, Map<string, string>, Decoded, Map<string, string>] {
   if (!(schema instanceof Schemas.OfObject.Data)) {
     throw new TypeError(`the root schema must be an object schema, got ${schemaTypeName(schema)}`);
   }
@@ -623,7 +568,6 @@ function check(store: Stores.Store, schema: unknown, plain: unknown):
 
   // Pass 2: check every key against the schemas and decode the values.
   const decoded: Decoded = new Map();
-  const entries: [Found, Rows, Schemas.OfObject.Data][] = [];
   const identities = new Map<string, string>();
   for (const [symbol, obj] of objects as Map<string, PlainMap>) {
     const name = names.get(symbol);
@@ -639,7 +583,6 @@ function check(store: Stores.Store, schema: unknown, plain: unknown):
     }
     if (!objectSchema.ref) throw new DecodeError(`${repr(name)} is not a reference object schema`, { path: path("objects", symbol) });
     identities.set(symbol, identityOf(symbol, name, objectSchema));
-    const context = new Context(symbol, entries);
     const properties = new Map<string, unknown>();
     const adjacencies: Rows = new Map();
     for (const [key, value] of obj) {
@@ -647,9 +590,9 @@ function check(store: Stores.Store, schema: unknown, plain: unknown):
       const adjacency = objectSchema.adjacencies.get(key);
       const propertyType = objectSchema.properties.get(key)?.type as Schemas.OfAny.Data | undefined;
       if (adjacency !== undefined) {
-        adjacencies.set(key, decodeRows(adjacency, value, where, key, context));
+        adjacencies.set(key, decodeRows(adjacency, value, where, key));
       } else if (propertyType !== undefined) {
-        properties.set(key, decode(propertyType, value, [...where, key], context, [[key, kindOf(propertyType)]]));
+        properties.set(key, decode(propertyType, value, [...where, key]));
       } else {
         throw new DecodeError(`${repr(name)} has no property or adjacency ${repr(key)}`, { path: path(...where, key) });
       }
@@ -664,7 +607,7 @@ function check(store: Stores.Store, schema: unknown, plain: unknown):
     throw new DecodeError(`a reference names its target's schema: ${repr(target)} has none, and a link targets a `
       + "reference object", { path: path(...where) });
   }
-  return [root, names, decoded, entries, identities];
+  return [root, names, decoded, identities];
 }
 
 /** The identity a snapshot's key gives an object of `schema`, registered as `name`: the key is the identity, qualified
@@ -692,7 +635,7 @@ function identityOf(symbol: string, name: string, schema: Schemas.OfObject.Data)
 /** Rebuilds objects from an object snapshot in `store`. Every reference must resolve within the snapshot:
  * reference objects are built first, with the value objects they hold, then the entries are added. */
 function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unknown): unknown {
-  const [root, names, decoded, entries, identities] = check(store, schema, plain);
+  const [root, names, decoded, identities] = check(store, schema, plain);
   const seen = new Map<string, number>();
 
   /** The entries of an adjacency not already added through another, each with its position in the snapshot's list
@@ -716,53 +659,28 @@ function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unkn
     return keptRows;
   };
 
-  // An update writes through the builders of what the object already holds: a property's value object is edited in
-  // place. A one-link relation's rows overwrite the entries it held, visited in the order a snapshot writes them, rows
-  // past those added: its entries are its owner's alone, so their order travels with the snapshot. A relation of more
-  // links has no order to visit by: a row is the entry agreeing with its links and properties, the k-th equal row the
-  // k-th such entry, and added where none agrees.
-  const held = new Map<string, number>(); // per one-link adjacency, the entries it held before decoding
-  const placed = new Map<string, number>(); // per entry of a list decoded, its position in the adjacency
-
-  /** Writes `rows` into the adjacency builder `adjacency`, found at `at`. */
-  const write = (adjacency: any, at: string, rows: Kept[], resolve: (symbol: string) => unknown): void => {
-    if ((adjacency.as_schema() as Schemas.OfAdjacency.Data).relation instanceof Schemas.OfRelation.Data
-      && ((adjacency.as_schema() as Schemas.OfAdjacency.Data).relation as Schemas.OfRelation.Data).entry.links.size > 1) {
-      for (const [, row, occurrence] of rows) {
-        const found: any[] = [];
-        adjacency.select((e: any) => fill(e, row, resolve), (e: any) => {
-          const links = new Set((e.as_schema() as Schemas.OfEntry.Data).links.keys());
-          const holding = [...(e.as_schema() as Schemas.OfEntry.Data).properties.keys()].filter((n) => holds(e, n));
-          const wanted = [...row.keys()].filter((n) => !links.has(n));
-          if (holding.length === wanted.length && wanted.every((n) => holding.includes(n))) found.push(e);
-          return e;
-        });
-        if (occurrence < found.length) fill(found[occurrence], row, resolve);
-        else adjacency.insert((x: any) => fill(x, row, resolve));
-      }
-      return;
-    }
-    if (!held.has(at)) held.set(at, [...adjacency].length);
-    const before = held.get(at) as number;
-    const order = writtenOrder([...adjacency].slice(0, before), adjacency.as_schema());
-    for (const [position, row] of rows) {
-      const entries = [...adjacency];
-      if (position < before) {
-        placed.set(`${at}:${position}`, order[position] as number);
-        fill(entries[order[position] as number], row, resolve);
-      } else {
-        placed.set(`${at}:${position}`, entries.length);
-        adjacency.insert((x: any) => fill(x, row, resolve));
-      }
+  // An update writes through the builders of what the object already holds: a property's value object and a container
+  // are edited in place. A relation's entries have no order to visit by: a row is the entry agreeing with its links and
+  // properties, the k-th equal row the k-th such entry, and added where none agrees.
+  /** Writes `rows` into the adjacency builder `adjacency`. */
+  const write = (adjacency: any, rows: Kept[], resolve: (symbol: string) => unknown): void => {
+    for (const [, row, occurrence] of rows) {
+      const found: any[] = [];
+      adjacency.select((e: any) => fill(e, row, resolve), (e: any) => {
+        const links = new Set((e.as_schema() as Schemas.OfEntry.Data).links.keys());
+        const holding = [...(e.as_schema() as Schemas.OfEntry.Data).properties.keys()].filter((n) => holds(e, n));
+        const wanted = [...row.keys()].filter((n) => !links.has(n));
+        if (holding.length === wanted.length && wanted.every((n) => holding.includes(n))) found.push(e);
+        return e;
+      });
+      if (occurrence < found.length) fill(found[occurrence], row, resolve);
+      else adjacency.insert((x: any) => fill(x, row, resolve));
     }
   };
-  const oneLink = (schema: Schemas.OfObject.Data, key: string): boolean =>
-    ((schema.adjacencies.get(key) as Schemas.OfAdjacency.Data).relation as Schemas.OfRelation.Data).entry.links.size === 1;
 
   const created = new Map<string, unknown>();
-  for (const [symbol, [properties, adjacencies]] of decoded) {
+  for (const [symbol, [properties]] of decoded) {
     const name = names.get(symbol) as string;
-    const objectSchema = store.schema(name);
     let existing: unknown = null;
     try { // an identity the store already holds, a singleton's included, is an update of that object
       existing = store.by_identity(name, identities.get(symbol) as string);
@@ -770,59 +688,17 @@ function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unkn
       if (!(error instanceof LookupError)) throw error;
     }
     const builder = existing === null ? store.restore(name, identities.get(symbol) as string) : store.builder(name, existing);
-    for (const key of objectSchema.adjacencies.keys()) { // before decoding adds any; a one-link relation's are read
-      held.set(`${symbol}:[]:${key}`, existing === null ? 0 : [...builder[key]].length);
-    }
     for (const [key, value] of properties) set(builder, key, value);
-    for (const [key, rows] of adjacencies) { // a one-link relation's entries are its owner's, as its properties are
-      if (!oneLink(objectSchema, key)) continue;
-      write(builder[key], `${symbol}:[]:${key}`, kept(objectSchema, symbol, key, rows), () => null);
-    }
     created.set(symbol, existing === null ? builder.create() : builder.update());
   }
 
   /** The reference object a symbol names: entries never reference value objects. */
   const resolve = (symbol: string): unknown => created.get(symbol);
 
-  const nested = new Map<string, [Found, Rows, Schemas.OfObject.Data][]>();
-  for (const [found, rows, valueSchema] of entries) {
-    nested.set(found.owner, [...(nested.get(found.owner) ?? []), [found, rows, valueSchema]]);
-  }
-  /** Adds the entries of the value objects `symbol` holds, of one-link relations or of the others; whether any. Outer
-   * value objects first: decoding found the inner ones first, and an inner one may be held by an outer one's entry. */
-  const addNested = (builder: any, symbol: string, oneLinkOnly: boolean): boolean => {
-    let added = false;
-    const outerFirst = [...(nested.get(symbol) ?? [])].sort((a, b) => a[0].steps.length - b[0].steps.length);
-    for (const [found, rows, valueSchema] of outerFirst) {
-      const at = `${found.owner}:${JSON.stringify(found.steps.map(([k]) => k))}`;
-      const owner = `found:${at}`;
-      const listed = new Map([...rows].filter(([key]) => oneLink(valueSchema, key) === oneLinkOnly)
-        .map(([key, list]) => [key, kept(valueSchema, owner, key, list)] as const));
-      // an edit with nothing to add would drop what another just added
-      if ([...listed.values()].some((list) => list.length > 0)) {
-        const path = `${found.owner}:${JSON.stringify(found.steps)}`;
-        within(builder, found.steps, (v) => {
-          for (const [key, list] of listed) write(v[key], `${path}:${key}`, list, resolve);
-        }, (prefix, name, position) => placed.get(`${found.owner}:${JSON.stringify(prefix)}:${name}:${position}`) as number);
-        added = true;
-      }
-    }
-    return added;
-  };
-
-  // The value objects that one-link entries hold come first, in every object: a link may target any of them.
-  for (const symbol of decoded.keys()) {
-    const builder = store.builder(names.get(symbol) as string, created.get(symbol));
-    if (addNested(builder, symbol, true)) builder.update();
-  }
   for (const [symbol, [, adjacencies]] of decoded) {
     const objectSchema = store.schema(names.get(symbol) as string);
     const builder = store.builder(names.get(symbol) as string, created.get(symbol));
-    for (const [key, rows] of adjacencies) {
-      if (oneLink(objectSchema, key)) continue;
-      write(builder[key], `${symbol}:[]:${key}`, kept(objectSchema, symbol, key, rows), resolve);
-    }
-    addNested(builder, symbol, false);
+    for (const [key, rows] of adjacencies) write(builder[key], kept(objectSchema, symbol, key, rows), resolve);
     builder.update();
   }
   return created.get(root);
@@ -862,26 +738,6 @@ function holds(entry: any, name: string): boolean {
   return found.some(present);
 }
 
-/** The positions of a one-link relation's entries in the order a snapshot writes them (see `sortEntries`). */
-function writtenOrder(entries: any[], adjacency: Schemas.OfAdjacency.Data): number[] {
-  const order = entries.map((_, i) => i);
-  const relation = adjacency.relation as Schemas.OfRelation.Data;
-  const names = relation.key(adjacency.me);
-  if (names === null || entries.length === 0) return order;
-  const plain = (entry: any, name: string): unknown => { // a one-link relation's key holds properties only
-    const scalar = Schemas.structure((relation.entry.properties.get(name) as Schemas.OfProperty.Data).type);
-    const value = scalar instanceof Schemas.OfScalar.Data ? entry[name].get() : null;
-    return value === null ? null : (scalar as Schemas.OfScalar.Data).to_plain(value); // a value object or nothing: unordered
-  };
-  const keys = entries.map((entry) => names.map((n) => plain(entry, n)));
-  const ordered = names.every((_, i) => {
-    const kinds = new Set(keys.map((key) => typeof key[i]));
-    return kinds.size === 1 && ORDERED.has([...kinds][0] as string);
-  });
-  if (ordered) order.sort((a, b) => compareKeys(keys[a] as unknown[], keys[b] as unknown[]));
-  return order;
-}
-
 /** The `Visitors.OfAny` method that selects a record kind. */
 function selectOf(kind: unknown): "as_object" | "as_union" | "as_intersection" {
   return kind === Schemas.OfUnion.Data ? "as_union" : kind === Schemas.OfIntersection.Data ? "as_intersection" : "as_object";
@@ -892,30 +748,6 @@ function selectOf(kind: unknown): "as_object" | "as_union" | "as_intersection" {
 function holdsMembers(visitor: any): boolean {
   const schema = visitor.as_schema();
   return schema instanceof Schemas.OfUnion.Data || schema instanceof Schemas.OfIntersection.Data;
-}
-
-/** Calls `then` with the builder of the value object at `steps` from `visitor`, editing each value on the way.
- * `place` gives where the entry a snapshot lists at a position went, after the `done` steps. */
-function within(visitor: any, steps: Steps, then: (visitor: any) => void,
-  place: (done: Steps, name: string, position: number) => number, done: Steps = []): void {
-  if (steps.length === 0) {
-    then(visitor);
-    return;
-  }
-  const [[key, kind], ...rest] = steps as [readonly [Step, ValueKind], ...Steps];
-  const into = (held: any): any => {
-    within(held, rest, then, place, [...done, steps[0] as readonly [Step, ValueKind]]);
-    return held;
-  };
-  if (Array.isArray(key)) { // an entry's value: the entry the row at its position went to, then its property
-    const [adjacency, position, name] = key as readonly [string, number, string];
-    const found = [...visitor[adjacency]][place(done, adjacency, position)];
-    found[name].as_value((a: any) => a[selectOf(kind)](into));
-  } else if (holdsMembers(visitor)) {
-    into(visitor[key as string]);
-  } else {
-    visitor[key as string].as_value((a: any) => a[selectOf(kind)](into));
-  }
 }
 
 /** Writes a decoded value into the member `name`: a scalar, a value object, union value or intersection value. */

@@ -89,8 +89,8 @@ assert(Ownership.validate().length === 0 && Directory.validate().length === 0);
 
 // Building an invalid schema succeeds; validate() reports the problems.
 const NoLinks = new Schemas.OfRelation.Builder().create();
-assert(NoLinks.validate().some((p) => p.includes("at least one link")));
-assert(new Schemas.OfRelation.Builder().links("contact").create().validate().length === 0); // one link: its entries hold values
+assert(NoLinks.validate().some((p) => p.includes("two links or more")));
+assert(new Schemas.OfRelation.Builder().links("contact").create().validate().some((p) => p.includes("a list of values is a container")));
 
 const Clash = new Schemas.OfRelation.Builder()
   .links("owner", "item")
@@ -99,7 +99,7 @@ const Clash = new Schemas.OfRelation.Builder()
 assert(Clash.validate().some((p) => p.includes("both link and property")));
 
 const DuplicateLinks = new Schemas.OfRelation.Builder().links("node", "node").create();
-assert(DuplicateLinks.entry.links.size === 1); // links are by name, as properties are
+assert(DuplicateLinks.entry.links.size === 1 && DuplicateLinks.validate().length > 0); // by name, as properties are
 
 const UnknownUnique = new Schemas.OfRelation.Builder().links("a", "b").unique("c").create();
 assert(UnknownUnique.validate().some((p) => p.includes("unknown")));

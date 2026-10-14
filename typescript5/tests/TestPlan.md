@@ -49,7 +49,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `05_Plain.ipynb` | PLN | 17 | as in Python; the same 26 malformed snapshots with byte-identical `DecodeError` paths and reasons |
 | `06_JSON.ipynb` | JSN | 11 | as in Python, including Python's exact output format; the 62-row JSN-09 table of `DecodeError`s is shared verbatim and matches exactly |
 | `07_YAML.ipynb` | YML | 14 | as in Python; the `yaml` package in YAML 1.1 mode is the "stock 1.1 reader"; the shared YML-06 table matches exactly, syntax errors (YML-06b) carry the `yaml` package's reasons |
-| `08_Validators.ipynb` | VAL | 13 | as in Python, with byte-identical problem messages |
+| `08_Validators.ipynb` | VAL | 14 | as in Python, with byte-identical problem messages |
 | `09_Properties.ipynb` | PROP | 5 | as in Python, with fast-check |
 | `10_Examples.ipynb` | EX | 1 | every example exits cleanly in its own process |
 | `11_Conformance.ipynb` | CONF | 4 | as in Python, from this side |
@@ -57,7 +57,6 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `13_Comparison.ipynb` | CMP | 13 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
 | `14_Embedded.ipynb` | EMB | 11 | as in Python; the runtime's own probes (`then`, symbols) are not members, and `in` on a value object says what its schema declares |
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
-| `17_Lists.ipynb` | LST | 7 | as in Python; an adjacency reads as a callable `Proxy` over a frozen array, and `at` takes an array for a key of two values |
 | `18_Modules.ipynb` | MOD | 8 | as in Python; schemas are given as a Map or a record, and read back as a Map |
 | `20_Stores.ipynb` | STO | 7 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), STO-05 builds its unplaced value object through `Proxies._internals`, and STO-07 runs the garbage collector (`gc()`, the suites running with `--expose-gc`), then awaits the store's forgetting |
 | `21_Random.ipynb` | RND | 3 | as in Python; PCG32 computes on `bigint`s, and the UTF-8 bytes of keys are encoded without `TextEncoder` |

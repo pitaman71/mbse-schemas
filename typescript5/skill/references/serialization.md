@@ -20,7 +20,7 @@ and TypeScript write byte-identical JSON, and each reads the other's.
   reading it again changes nothing.
 - An object maps property names to values, and adjacency names to lists of entries. An entry holds the other links
   as references `{"$ref": key, "$schema": name}` and its own properties. The object's own link is implied.
-- A value object is a nested mapping, with its lists nested in it, and no key: nothing links to it.
+- A value object is a nested mapping, with its containers nested in it, and no key: nothing links to it.
   Union and intersection values are nested mappings keyed by branch or part name: a union value has exactly one key,
   and an intersection value one per part. A list, a dict or a map is an adjacency's entries like any other,
   `"tags": [{"value": "a"}, {"value": "b"}]`, sorted by the key its relation declares where that key's values are

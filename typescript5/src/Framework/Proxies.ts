@@ -468,12 +468,6 @@ function reorder(tables: Orders, rewritten: Map<unknown, unknown>): void {
   }
 }
 
-/** Discards every entry that links `target`, through any link. */
-function discardTarget(target: unknown): void {
-  const adjacent: Map<RelationSchema, Map<string, unknown>> = innerOf(target)._adjacent;
-  for (const [relation, entries] of [...adjacent]) discard(relation, [...entries.values()]);
-}
-
 // --- Visitors over values ---
 
 /** Whether a `Specs.Callback` is its function form; data instances and visitors are callable too, but are values. */
@@ -1448,25 +1442,22 @@ function isObjectData(value: unknown): boolean {
 
 /** A value object: the value of a property whose schema is an `OfObject`, a read-only `Visitors.OfObject`; or a union
  * or intersection value, a read-only `Visitors.OfUnion` or `Visitors.OfIntersection`, whose branches or parts are
- * members giving the visitor of their own type's kind. It belongs to one owner and has an identity of its own. Built
- * but not yet placed in an owner, it holds its entries in `_pending` until its owner is created or updated. */
+ * members giving the visitor of their own type's kind. It belongs to one owner and has no identity of its own; nothing
+ * links it, so it has no adjacencies. */
 class _RecordData extends Shelled {
   readonly [TYPE_NAME] = "_RecordData";
   readonly _id = ++nextIdentity;
   readonly _values: Values;
   _owner: unknown = null;
-  /** The entries linking this value object, by relation and key. */
-  readonly _adjacent = new Map<RelationSchema, Map<string, unknown>>();
 
-  constructor(readonly _schema: RecordSchema, values: Values, public _pending: Map<string, any[]> = new Map(),
-    readonly _source: unknown = null, readonly _copyOf: unknown = null) {
+  constructor(readonly _schema: RecordSchema, values: Values, readonly _source: unknown = null,
+    readonly _copyOf: unknown = null) {
     super();
     this._values = new Map(values);
   }
 
   override _declares(name: string): boolean {
-    return this._schema.properties.has(name) || owningPart(this._schema, name) !== null
-      || (this._schema instanceof Schemas.OfObject.Data && this._schema.adjacencies.has(name));
+    return this._schema.properties.has(name) || owningPart(this._schema, name) !== null;
   }
 
   override _member(name: string): unknown {
@@ -1497,17 +1488,13 @@ class _RecordData extends Shelled {
     return propertiesOf(this._proxy, this._values, this._schema, storeOf(this._proxy), false);
   }
 
-  as_adjacencies(cb: unknown): any {
-    if (this._schema instanceof Schemas.OfObject.Data) {
-      for (const name of this._schema.adjacencies.keys()) visit(cb, member(this._proxy, name));
-    }
-    return this._proxy;
+  as_adjacencies(_cb: unknown): any {
+    return this._proxy; // a value object has none
   }
 }
 
-function makeRecordData(schema: RecordSchema, values: Values, pending?: Map<string, any[]>, source: unknown = null,
-  copyOf: unknown = null): ValueObject {
-  const state = new _RecordData(schema, values, pending, source, copyOf);
+function makeRecordData(schema: RecordSchema, values: Values, source: unknown = null, copyOf: unknown = null): ValueObject {
+  const state = new _RecordData(schema, values, source, copyOf);
   return shell(state, (spec) => state._call(spec));
 }
 
@@ -1769,37 +1756,21 @@ function stage(old: unknown, value: unknown, mapping: Mapping): unknown {
   return staged;
 }
 
-/** Stages the value objects a value object holds: its properties', and its entries'. */
+/** Stages the value objects a value object holds in its properties. */
 function stageValues(record: unknown, old: unknown, mapping: Mapping): void {
   const state: _RecordData = innerOf(record);
   const held: Values = old === null ? new Map() : innerOf(old)._values;
   for (const [name, value] of [...state._values]) state._values.set(name, stage(held.get(name), value, mapping));
-  for (const builders of state._pending.values()) {
-    for (const builder of builders) innerOf(builder)._stage(old ?? record, mapping);
-  }
 }
 
-/** A copy of a placed value object, with copies of the entries linking it and the value objects it holds. */
+/** A copy of a placed value object, with copies of the value objects it holds. */
 function copy(record: unknown): unknown {
   const state: _RecordData = innerOf(record);
-  const store = storeOf(record);
-  const builder = new _RecordBuilder(state._schema, null, store);
+  const builder = new _RecordBuilder(state._schema, null, storeOf(record));
   shell(builder);
   builder._copyOf = record;
   builder._values = new Map([...state._values].map(([name, value]) => [name, copyHeld(value)]));
-  const schema = state._schema;
-  for (const [name, adjacency] of schema instanceof Schemas.OfObject.Data ? schema.adjacencies : []) {
-    for (const entry of linking(adjacency.relation as RelationSchema, adjacency.me, record)) {
-      const held: _Entry = innerOf(entry);
-      const copied = makeEntryBuilder(adjacency.relation as RelationSchema, adjacency.me, store);
-      const target: _EntryBuilder = innerOf(copied);
-      target._links = new Map([...held._links].filter(([link]) => link !== adjacency.me));
-      target._values = new Map([...held._properties].map(([n, v]) => [n, copyHeld(v)]));
-      target._source = entry;
-      builder._entries.set(name, [...(builder._entries.get(name) ?? []), copied]);
-    }
-  }
-  return builder.build(); // a placed value object, the only kind copied, has no pending entries
+  return builder.build();
 }
 
 /** A copy of a held value: of a value object, or of a container and the value objects it holds. */
@@ -1828,73 +1799,16 @@ function finish(owner: unknown, old: unknown, value: unknown, mapping: Mapping):
   }
   state._owner = owner;
   for (const [name, held] of [...state._values]) state._values.set(name, finish(value, null, held, mapping));
-  addPending(value, mapping);
   return value;
 }
 
-/** Adds a value object's entries, whose value objects take the place of those in `mapping`. Its relations have one
- * link, its own, so no other object gives these entries. */
-function addPending(record: unknown, mapping: Mapping): void {
-  const state: _RecordData = innerOf(record);
-  for (const [name, builders] of state._pending) {
-    const relation = ((state._schema as ObjectSchema).adjacencies.get(name) as AdjacencySchema).relation as RelationSchema;
-    for (const builder of builders) {
-      innerOf(builder)._place(record, mapping);
-      addEntry(relation, innerOf(builder).build(record));
-    }
-  }
-  state._pending = new Map();
-}
-
-/** Writes an edit of a placed value object into it, so that it keeps its identity. */
+/** Writes an edit of a placed value object into it, so that it is the one its owner holds. */
 function merge(old: unknown, edit: unknown, mapping: Mapping): void {
   const target: _RecordData = innerOf(old);
-  const before = heldBy(old);
   const values = new Map([...innerOf(edit)._values as Values].map(([name, value]) =>
     [name, finish(old, target._values.get(name), value, mapping)] as const));
   target._values.clear();
   for (const [name, value] of values) target._values.set(name, value);
-  if (target._schema instanceof Schemas.OfObject.Data) {
-    for (const adjacency of target._schema.adjacencies.values()) {
-      discardLinking(adjacency.relation as RelationSchema, adjacency.me, old);
-    }
-  }
-  target._pending = innerOf(edit)._pending;
-  addPending(old, mapping);
-  drop(before, heldBy(old));
-}
-
-/** The value objects that `values` hold directly, or in the containers they hold. */
-function records(values: readonly unknown[]): unknown[] {
-  return values.flatMap((value) => isRecordData(value) ? [value]
-    : isContainerData(value) ? records([...(innerOf(value)._items as Values).values()]) : []);
-}
-
-/** The values an object or a value object holds: its properties', and those of the entries of its one-link relations,
- * which hold values for it alone. */
-function heldBy(owner: unknown): unknown[] {
-  const state = innerOf(owner);
-  const values: unknown[] = [...(state._values as Values).values()];
-  const schema: RecordSchema = state._schema;
-  for (const adjacency of schema instanceof Schemas.OfObject.Data ? schema.adjacencies.values() : []) {
-    const relation = adjacency.relation as RelationSchema;
-    if (relation.entry.links.size === 1) {
-      for (const entry of linking(relation, adjacency.me, owner)) values.push(...innerOf(entry)._properties.values());
-    }
-  }
-  return values;
-}
-
-/** Removes the value objects held among the values `before` and no longer among those `after`. */
-function drop(before: readonly unknown[], after: readonly unknown[]): void {
-  const kept = new Set(records(after));
-  for (const record of records(before)) if (!kept.has(record)) remove(record);
-}
-
-/** Removes a value object no longer held: the value objects it holds, its entries' too, and every entry linking it. */
-function remove(value: unknown): void {
-  for (const held of records(heldBy(value))) remove(held);
-  discardTarget(value);
 }
 
 /** Whether an entry builder adds its entry: an entry rewritten from one already held (`_source`), linking the same
@@ -1940,14 +1854,12 @@ function finalized(values: Values): Values {
 class _RecordBuilder extends Shelled {
   readonly [TYPE_NAME] = "_RecordBuilder";
   _values: Values;
-  _entries = new Map<string, any[]>();
   _copyOf: unknown = null;
 
   constructor(readonly _schema: RecordSchema, readonly _source: unknown = null, readonly _store: OfStore | null = null,
     public _attach: ((builder: unknown) => void) | null = null, readonly _parent: unknown = null) {
     super();
     this._values = new Map(_source === null ? [] : innerOf(_source)._values);
-    if (_source !== null) loadEntries(this._entries, _schema, _source);
   }
 
   /** Attaches the builder to what holds it, once, at its first write. */
@@ -1981,16 +1893,12 @@ class _RecordBuilder extends Shelled {
     return propertiesOf(this._proxy, this._values, this._schema, this._store, true, () => this._touch());
   }
 
-  as_adjacencies(cb: unknown): any {
-    if (this._schema instanceof Schemas.OfObject.Data) {
-      for (const name of this._schema.adjacencies.keys()) visit(cb, makeAdjacencyBuilder(this._proxy, name));
-    }
-    return this._proxy;
+  as_adjacencies(_cb: unknown): any {
+    return this._proxy; // a value object has none
   }
 
   override _declares(name: string): boolean {
-    return this._schema.properties.has(name) || owningPart(this._schema, name) !== null
-      || (this._schema instanceof Schemas.OfObject.Data && this._schema.adjacencies.has(name));
+    return this._schema.properties.has(name) || owningPart(this._schema, name) !== null;
   }
 
   override _member(name: string): unknown {
@@ -2008,7 +1916,6 @@ class _RecordBuilder extends Shelled {
       innerOf(found)._parent = this._proxy;
       return found;
     }
-    if (schema instanceof Schemas.OfObject.Data && schema.adjacencies.has(name)) return makeAdjacencyBuilder(this._proxy, name);
     return makeEmpty(`${repr(name)} is not a member of ${withArticle(noun(schema))}`);
   }
 
@@ -2022,8 +1929,6 @@ class _RecordBuilder extends Shelled {
         throw new TypeError(`${withArticle(noun(this._schema))} or a Spec is expected, got ${typeName(spec)}`);
       }
       this._values = new Map(innerOf(spec)._values);
-      this._entries = new Map();
-      loadEntries(this._entries, this._schema, spec);
       this._copyOf = spec;
       this._touch();
     }
@@ -2035,7 +1940,7 @@ class _RecordBuilder extends Shelled {
   }
 
   build(): ValueObject {
-    return makeRecordData(this._schema, finalized(this._values), this._entries, this._source, this._copyOf);
+    return makeRecordData(this._schema, finalized(this._values), this._source, this._copyOf);
   }
 }
 
@@ -2049,8 +1954,7 @@ function isRecordBuilder(value: unknown): boolean {
   return innerOf(value) instanceof _RecordBuilder;
 }
 
-/** A writable `Visitors.OfAdjacency` over one adjacency of an object's or a value object's builder: iterated, its
- * entries' builders, the pending ones included. */
+/** A writable `Visitors.OfAdjacency` over one adjacency of an object's builder: iterated, its entries' builders. */
 class _AdjacencyBuilder extends Shelled {
   readonly [TYPE_NAME] = "_AdjacencyBuilder";
   readonly _schema: AdjacencySchema;
@@ -2089,7 +1993,6 @@ class _AdjacencyBuilder extends Shelled {
       innerOf(entry)._links = new Map(links);
       innerOf(entry)._values = new Map(values);
     }
-    touch(builder);
     builder._entries.set(this._name, [...(builder._entries.get(this._name) ?? []), entry]);
     return this._proxy;
   }
@@ -2097,7 +2000,6 @@ class _AdjacencyBuilder extends Shelled {
   remove(spec: unknown): any {
     const builder = innerOf(this._builder);
     const kept = this._entries().filter((entry) => !agrees(entry, spec, this._schema, builder._store));
-    touch(builder);
     builder._entries.set(this._name, kept);
     return this._proxy;
   }
@@ -2116,10 +2018,6 @@ class _AdjacencyBuilder extends Shelled {
 function makeAdjacencyBuilder(builder: unknown, name: string): any {
   const state = new _AdjacencyBuilder(builder, name);
   return shell(state, (spec) => state._call(spec));
-}
-
-function touch(builder: unknown): void {
-  if (builder instanceof _RecordBuilder) builder._touch();
 }
 
 /** An entry builder's link: read, the linked object, read-only (an object is edited through its own builder); called
@@ -2262,11 +2160,10 @@ function makeEntryBuilder(relation: RelationSchema, me: string, store: OfStore |
   return shell(new _EntryBuilder(relation, me, store));
 }
 
-/** Loads the entries linking `source` into a builder, as entry builders, so that an update rewrites them; a union or
- * intersection value has none. */
-function loadEntries(entries: Map<string, any[]>, schema: RecordSchema, source: unknown): void {
+/** Loads the entries linking `source` into a builder, as entry builders, so that an update rewrites them. */
+function loadEntries(entries: Map<string, any[]>, schema: ObjectSchema, source: unknown): void {
   const store = storeOf(source);
-  for (const [name, adjacency] of schema instanceof Schemas.OfObject.Data ? schema.adjacencies : []) {
+  for (const [name, adjacency] of schema.adjacencies) {
     for (const entry of linking(adjacency.relation as RelationSchema, adjacency.me, source)) {
       const held: _Entry = innerOf(entry);
       const builder = makeEntryBuilder(adjacency.relation as RelationSchema, adjacency.me, store);
@@ -2276,9 +2173,6 @@ function loadEntries(entries: Map<string, any[]>, schema: RecordSchema, source: 
       state._source = entry;
       entries.set(name, [...(entries.get(name) ?? []), builder]);
     }
-  }
-  for (const [name, pending] of isRecordData(source) ? innerOf(source)._pending as Map<string, any[]> : []) {
-    entries.set(name, [...(entries.get(name) ?? []), ...pending]);
   }
 }
 
@@ -2351,13 +2245,12 @@ class _ObjectBuilder extends Shelled {
   update(...args: unknown[]): Instance {
     noArguments("update", args);
     if (this._source === null) throw new ValueError("update() is only valid with a source instance");
-    const before = heldBy(this._source);
     const tables = orders(this._schema, this._source);
     for (const adjacency of this._schema.adjacencies.values()) {
       discardLinking(adjacency.relation as RelationSchema, adjacency.me, this._source);
     }
     const rewritten = new Map<unknown, unknown>();
-    const written = this._write(this._source, before, rewritten);
+    const written = this._write(this._source, rewritten);
     reorder(tables, rewritten);
     return written;
   }
@@ -2369,9 +2262,8 @@ class _ObjectBuilder extends Shelled {
     }
   }
 
-  /** Writes the builder into `target`. Every value object it holds, its entries' too, is staged before any is placed,
-   * so that the entries among them link the right ones; those held `before` and no longer are removed. */
-  _write(target: Instance, before: unknown[] = [], rewritten?: Map<unknown, unknown>): Instance {
+  /** Writes the builder into `target`. Every value object it holds, its entries' too, is staged before any is placed. */
+  _write(target: Instance, rewritten?: Map<unknown, unknown>): Instance {
     const state: _ObjectData = innerOf(target);
     const mapping: Mapping = new Map();
     if (this._source !== null && target !== this._source) mapping.set(this._source, target); // a clone: its value objects link it, not the source
@@ -2395,7 +2287,6 @@ class _ObjectBuilder extends Shelled {
         }
       }
     }
-    drop(before, heldBy(target));
     return target;
   }
 }

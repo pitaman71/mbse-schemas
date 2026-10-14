@@ -3,73 +3,57 @@ objects:
   Board/board-1:
     name: rack
     tags:
-    - value: ''
-    - value: 日本語 🚀
-    - value: a
+    - ''
+    - 日本語 🚀
+    - a
     blobs:
-    - value: ''
-    - value: AP8=
+    - ''
+    - AP8=
     grid:
-    - row:
-        values:
-        - value: 1
-        - value: -1180591620717411303424
-    - row: {}
-    - row:
-        values:
-        - value: 0
+    - - 1
+      - -1180591620717411303424
+    - []
+    - - 0
     readings:
-    - reading:
-        value: -0.0
-    - reading:
-        note: 'off'
-    - reading:
-        value: Infinity
+    - value: -0.0
+    - note: 'off'
+    - value: Infinity
     sockets:
-    - socket:
-        name: in
-        pins:
-        - value: '1'
-        - value: '2'
-    - socket:
-        name: out
+    - name: in
+      pins:
+      - '1'
+      - '2'
+    - name: out
     banks:
-    - bank: {}
-    - bank:
-        sockets:
-        - socket:
-            name: spare
-            pins:
-            - value: '9'
+    - {}
+    - sockets:
+      - name: spare
+        pins:
+        - '9'
     matrix:
-    - i: 1
-      j: 1
-      value: 1
-    - i: 1
-      j: 2
-      value: 0
-    - i: 2
-      j: 1
-      value: 0
-    - i: 2
-      j: 2
-      value: 1
-    attrs:
-    - key: ''
-      value: -0.0
-    - key: gain
-      value: 1.5
-    weights:
-    - key: 0.5
-      value: half
-    - key: NaN
-      value: none
+    - - null
+      - null
+      - null
+    - - null
+      - 1
+      - 0
+    - - null
+      - 0
+      - 1
     cells:
-    - key:
-        r: 2
-        c: 3
-      value: 6
-    - key:
-        r: 0
-        c: 0
-      value: 0
+    - at: 0
+      items:
+      - 0
+    - at: 5
+      items:
+      - 6
+      - 7
+    attrs:
+      gain: 1.5
+      ? ''
+      : -0.0
+    weights:
+    - index: 0.5
+      element: half
+    - index: -2.5
+      element: neg

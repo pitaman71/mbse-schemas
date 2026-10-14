@@ -510,17 +510,16 @@ class _EntryData:
 
     def validate(self) -> list[str]:
         problems = _reserved([*self.links, *self.properties]) + _visited([*self.links, *self.properties])
-        if not self.links:
-            problems.append("a relation needs at least one link")
+        if len(self.links) < 2:
+            problems.append(f"a relation has two links or more, got {len(self.links)}; a list of values is a container")
         clashes = set(self.links) & set(self.properties)
         if clashes:
             problems.append(f"names used as both link and property: {sorted(clashes)}")
         for name, link in self.links.items():
             problems += [f"link {name!r}: {p}" for p in _symbol_problems(link)]
         for name, prop in self.properties.items():
-            held = _entry_value_problems(prop.type) if len(self.links) > 1 else []  # one owner: written once
             problems += [f"property {name!r}: {p}" for p in _validate(prop.type) + _embedded_problems(prop.type)
-                         + held + _description_problems(prop.description)]
+                         + _description_problems(prop.description)]
         return problems
 
 
@@ -590,18 +589,6 @@ class _RelationData:
         """The first of `keys(me)`, which an adjacency from `me` is indexed by (`at`); None when there is none."""
         keys = self.keys(me)
         return keys[0] if keys else None
-
-
-def _entry_value_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[str]:
-    """An entry property's value object has no adjacencies, where the entry links two objects or more: it is written
-    under each, so its value objects would be too, and nothing could link them once. `seen` holds the schemas on the
-    way, so that a schema that holds itself is checked once."""
-    if id(schema) in seen:
-        return []
-    if isinstance(schema, _ObjectData) and schema.adjacencies:
-        return ["a value object held by an entry cannot have adjacencies"]
-    inner = seen | {id(schema)}
-    return sorted({problem for member in _members_of(schema) for problem in _entry_value_problems(member, inner)})
 
 
 class _RelationBuilder(_NamedBuilder[_RelationData]):
@@ -776,11 +763,9 @@ class _ObjectData:
                          + _description_problems(prop.description)]
         for name, adjacency in self.adjacencies.items():
             problems += adjacency.validate()
-            links = len(adjacency.relation.entry.links) if isinstance(adjacency.relation, _RelationData) else 0
-            if not self.ref and links > 1:  # its entries would link it: value objects are never shared
-                named = "the relation" if adjacency.relation.name is None else repr(adjacency.relation.name)
-                problems.append(f"adjacency {name!r}: a value object schema's adjacency is to a one-link relation, "
-                                f"since entries never reference value objects; {named} has {links} links")
+            if not self.ref:
+                problems.append(f"adjacency {name!r}: a value object schema has no adjacencies: entries never link value "
+                                "objects, which are never shared")
         return problems
 
 
@@ -1015,7 +1000,7 @@ def _index_kind(index: Any) -> str | None:
     index = _structure(index)
     if isinstance(index, _ScalarData):
         return "ordered" if index.type in _ORDERED else "hashable"
-    if isinstance(index, _ObjectData) and not index.ref and not index.adjacencies and index.properties:
+    if isinstance(index, _ObjectData) and not index.ref and index.properties:
         kinds = {_index_kind(prop.type) if isinstance(_structure(prop.type), _ScalarData) else None
                  for prop in index.properties.values()}
         return None if None in kinds else "hashable" if "hashable" in kinds else "ordered"

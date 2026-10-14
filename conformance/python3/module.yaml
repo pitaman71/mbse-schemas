@@ -156,19 +156,17 @@ objects:
                     scalar:
                       format: basic
                       token: str
-                adjacencies:
                 - name: extensions
-                  relation:
-                    relation:
-                      links:
-                      - name: owner
-                      properties:
-                      - name: value
-                        type:
-                          scalar:
-                            format: basic
-                            token: str
-                  me: owner
+                  type:
+                    container:
+                      index:
+                        scalar:
+                          format: basic
+                          token: int
+                      element:
+                        scalar:
+                          format: basic
+                          token: str
           - name: reach
             type:
               union:
@@ -187,19 +185,17 @@ objects:
                           scalar:
                             format: basic
                             token: str
-                      adjacencies:
                       - name: extensions
-                        relation:
-                          relation:
-                            links:
-                            - name: owner
-                            properties:
-                            - name: value
-                              type:
-                                scalar:
-                                  format: basic
-                                  token: str
-                        me: owner
+                        type:
+                          container:
+                            index:
+                              scalar:
+                                format: basic
+                                token: int
+                            element:
+                              scalar:
+                                format: basic
+                                token: str
                 - name: email
                   type:
                     object:
@@ -287,242 +283,181 @@ objects:
               scalar:
                 format: basic
                 token: str
-          adjacencies:
           - name: tags
-            relation:
-              relation:
-                links:
-                - name: owner
-                properties:
-                - name: value
-                  type:
-                    scalar:
-                      format: basic
-                      token: str
-            me: owner
+            type:
+              container:
+                index:
+                  scalar:
+                    format: basic
+                    token: int
+                element:
+                  scalar:
+                    format: basic
+                    token: str
           - name: blobs
-            relation:
-              relation:
-                links:
-                - name: owner
-                properties:
-                - name: value
-                  type:
-                    scalar:
-                      format: basic
-                      token: bytes
-            me: owner
+            type:
+              container:
+                index:
+                  scalar:
+                    format: basic
+                    token: int
+                element:
+                  scalar:
+                    format: basic
+                    token: bytes
           - name: grid
-            relation:
-              relation:
-                links:
-                - name: owner
-                properties:
-                - name: row
-                  type:
-                    object:
-                      adjacencies:
-                      - name: values
-                        relation:
-                          relation:
-                            links:
-                            - name: owner
-                            properties:
-                            - name: value
-                              type:
-                                scalar:
-                                  format: basic
-                                  token: int
-                        me: owner
-            me: owner
+            type:
+              container:
+                index:
+                  scalar:
+                    format: basic
+                    token: int
+                element:
+                  container:
+                    index:
+                      scalar:
+                        format: basic
+                        token: int
+                    element:
+                      scalar:
+                        format: basic
+                        token: int
           - name: readings
-            relation:
-              relation:
-                links:
-                - name: owner
-                properties:
-                - name: reading
-                  type:
-                    union:
-                      branches:
-                      - name: value
-                        type:
-                          scalar:
-                            format: basic
-                            token: float
-                      - name: note
-                        type:
-                          scalar:
-                            format: basic
-                            token: str
-            me: owner
+            type:
+              container:
+                index:
+                  scalar:
+                    format: basic
+                    token: int
+                element:
+                  union:
+                    branches:
+                    - name: value
+                      type:
+                        scalar:
+                          format: basic
+                          token: float
+                    - name: note
+                      type:
+                        scalar:
+                          format: basic
+                          token: str
           - name: sockets
-            relation:
-              relation:
-                links:
-                - name: owner
-                properties:
-                - name: socket
-                  type:
-                    object:
-                      properties:
-                      - name: name
-                        type:
-                          scalar:
-                            format: basic
-                            token: str
-                      adjacencies:
-                      - name: pins
-                        relation:
-                          relation:
-                            links:
-                            - name: owner
-                            properties:
-                            - name: value
-                              type:
-                                scalar:
-                                  format: basic
-                                  token: str
-                        me: owner
-            me: owner
+            type:
+              container:
+                index:
+                  scalar:
+                    format: basic
+                    token: int
+                element:
+                  object:
+                    properties:
+                    - name: name
+                      type:
+                        scalar:
+                          format: basic
+                          token: str
+                    - name: pins
+                      type:
+                        container:
+                          index:
+                            scalar:
+                              format: basic
+                              token: int
+                          element:
+                            scalar:
+                              format: basic
+                              token: str
           - name: banks
-            relation:
-              relation:
-                links:
-                - name: owner
-                properties:
-                - name: bank
-                  type:
-                    object:
-                      adjacencies:
-                      - name: sockets
-                        relation:
-                          relation:
-                            links:
-                            - name: owner
-                            properties:
-                            - name: socket
-                              type:
-                                object:
-                                  properties:
-                                  - name: name
-                                    type:
+            type:
+              container:
+                index:
+                  scalar:
+                    format: basic
+                    token: int
+                element:
+                  object:
+                    properties:
+                    - name: sockets
+                      type:
+                        container:
+                          index:
+                            scalar:
+                              format: basic
+                              token: int
+                          element:
+                            object:
+                              properties:
+                              - name: name
+                                type:
+                                  scalar:
+                                    format: basic
+                                    token: str
+                              - name: pins
+                                type:
+                                  container:
+                                    index:
+                                      scalar:
+                                        format: basic
+                                        token: int
+                                    element:
                                       scalar:
                                         format: basic
                                         token: str
-                                  adjacencies:
-                                  - name: pins
-                                    relation:
-                                      relation:
-                                        links:
-                                        - name: owner
-                                        properties:
-                                        - name: value
-                                          type:
-                                            scalar:
-                                              format: basic
-                                              token: str
-                                    me: owner
-                        me: owner
-            me: owner
           - name: matrix
-            relation:
-              relation:
-                links:
-                - name: owner
-                properties:
-                - name: i
-                  type:
-                    scalar:
-                      format: basic
-                      token: int
-                - name: j
-                  type:
-                    scalar:
-                      format: basic
-                      token: int
-                - name: value
-                  type:
-                    scalar:
-                      format: basic
-                      token: int
-                uniques:
-                - clause:
-                    names:
-                    - name: value
-            me: owner
-          - name: attrs
-            relation:
-              relation:
-                links:
-                - name: owner
-                properties:
-                - name: key
-                  type:
-                    scalar:
-                      format: basic
-                      token: str
-                - name: value
-                  type:
-                    scalar:
-                      format: basic
-                      token: float
-                uniques:
-                - clause:
-                    names:
-                    - name: value
-            me: owner
-          - name: weights
-            relation:
-              relation:
-                links:
-                - name: owner
-                properties:
-                - name: key
-                  type:
-                    scalar:
-                      format: basic
-                      token: float
-                - name: value
-                  type:
-                    scalar:
-                      format: basic
-                      token: str
-                uniques:
-                - clause:
-                    names:
-                    - name: value
-            me: owner
+            type:
+              container:
+                index:
+                  object:
+                    properties:
+                    - name: r
+                      type:
+                        scalar:
+                          format: basic
+                          token: int
+                    - name: c
+                      type:
+                        scalar:
+                          format: basic
+                          token: int
+                element:
+                  scalar:
+                    format: basic
+                    token: int
           - name: cells
-            relation:
-              relation:
-                links:
-                - name: owner
-                properties:
-                - name: key
-                  type:
-                    object:
-                      properties:
-                      - name: r
-                        type:
-                          scalar:
-                            format: basic
-                            token: int
-                      - name: c
-                        type:
-                          scalar:
-                            format: basic
-                            token: int
-                - name: value
-                  type:
-                    scalar:
-                      format: basic
-                      token: int
-                uniques:
-                - clause:
-                    names:
-                    - name: value
-            me: owner
+            type:
+              container:
+                index:
+                  scalar:
+                    format: basic
+                    token: int
+                element:
+                  scalar:
+                    format: basic
+                    token: int
+                layout: sparse
+          - name: attrs
+            type:
+              container:
+                index:
+                  scalar:
+                    format: basic
+                    token: str
+                element:
+                  scalar:
+                    format: basic
+                    token: float
+          - name: weights
+            type:
+              container:
+                index:
+                  scalar:
+                    format: basic
+                    token: float
+                element:
+                  scalar:
+                    format: basic
+                    token: str
       Word:
         scalar:
           format: basic
@@ -577,24 +512,22 @@ objects:
                         - name: name
                           value:
                             str: 'n'
-          adjacencies:
           - name: cells
-            relation:
-              relation:
-                links:
-                - name: owner
-                properties:
-                - name: cell
-                  type:
-                    apply:
-                      of:
-                        named:
-                          name: Word
-                      arguments:
-                      - name: w
-                        value:
-                          int: 8
-            me: owner
+            type:
+              container:
+                index:
+                  scalar:
+                    format: basic
+                    token: int
+                element:
+                  apply:
+                    of:
+                      named:
+                        name: Word
+                    arguments:
+                    - name: w
+                      value:
+                        int: 8
       Square:
         apply:
           of:

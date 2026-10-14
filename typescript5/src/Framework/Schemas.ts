@@ -670,14 +670,15 @@ class EntryData {
   validate(): string[] {
     const names = [...this.links.keys(), ...this.properties.keys()];
     const problems = [...reserved(names), ...visited(names)];
-    if (this.links.size === 0) problems.push("a relation needs at least one link");
+    if (this.links.size < 2) {
+      problems.push(`a relation has two links or more, got ${this.links.size}; a list of values is a container`);
+    }
     const clashes = [...this.links.keys()].filter((link) => this.properties.has(link));
     if (clashes.length > 0) problems.push(`names used as both link and property: ${repr(sortedStrings(new Set(clashes)))}`);
     for (const [name, link] of this.links) problems.push(...symbolProblems(link).map((p) => `link ${repr(name)}: ${p}`));
     for (const [name, prop] of this.properties) {
-      const held = this.links.size > 1 ? entryValueProblems(prop.type) : []; // one owner: written once
-      problems.push(...[...validateSchema(prop.type), ...embeddedProblems(prop.type), ...held,
-        ...descriptionProblems(prop.description)].map((p) => `property ${repr(name)}: ${p}`));
+      problems.push(...[...validateSchema(prop.type), ...embeddedProblems(prop.type), ...descriptionProblems(prop.description)]
+        .map((p) => `property ${repr(name)}: ${p}`));
     }
     return problems;
   }
@@ -776,16 +777,6 @@ class RelationData {
   key(me: string): string[] | null {
     return this.keys(me)[0] ?? null;
   }
-}
-
-/** An entry property's value object has no adjacencies, where the entry links two objects or more: it is written
- * under each, so its value objects would be too, and nothing could link them once. `seen` holds the schemas on the way,
- * so that a schema that holds itself is checked once. */
-function entryValueProblems(schema: unknown, seen: ReadonlySet<unknown> = new Set()): string[] {
-  if (seen.has(schema)) return [];
-  if (schema instanceof ObjectData && schema.adjacencies.size > 0) return ["a value object held by an entry cannot have adjacencies"];
-  const inner = new Set([...seen, schema]);
-  return sortedStrings(new Set(membersOf(schema).flatMap((member) => entryValueProblems(member, inner))));
 }
 
 class RelationBuilder extends NamedBuilder<RelationData> {
@@ -1016,11 +1007,9 @@ class ObjectData {
     }
     for (const [name, adjacency] of this.adjacencies) {
       problems.push(...adjacency.validate());
-      const links = adjacency.relation instanceof RelationData ? adjacency.relation.entry.links.size : 0;
-      if (!this.ref && links > 1) { // its entries would link it: value objects are never shared
-        const named = (adjacency.relation as RelationData).name;
-        problems.push(`adjacency ${repr(name)}: a value object schema's adjacency is to a one-link relation, `
-          + `since entries never reference value objects; ${named === null ? "the relation" : repr(named)} has ${links} links`);
+      if (!this.ref) {
+        problems.push(`adjacency ${repr(name)}: a value object schema has no adjacencies: entries never link value objects, `
+          + "which are never shared");
       }
     }
     return problems;
@@ -1340,7 +1329,7 @@ const LAYOUTS = ["dense", "sparse"];
 function indexKind(type: unknown): "ordered" | "hashable" | null {
   const index = structure(type);
   if (index instanceof ScalarData) return ORDERED_TYPES.has(index.type) ? "ordered" : "hashable";
-  if (index instanceof ObjectData && !index.ref && index.adjacencies.size === 0 && index.properties.size > 0) {
+  if (index instanceof ObjectData && !index.ref && index.properties.size > 0) {
     const kinds = new Set([...index.properties.values()].map((prop) =>
       structure(prop.type) instanceof ScalarData ? indexKind(prop.type) : null));
     return kinds.has(null) ? null : kinds.has("hashable") ? "hashable" : "ordered";

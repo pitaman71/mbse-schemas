@@ -279,12 +279,6 @@ def _reorder(orders: list[tuple[dict[Hashable, _Entry], list[_Entry]]], rewritte
         table.update(ordered)
 
 
-def _discard_target(target: Any) -> None:
-    """Discards every entry that links `target`, through any link."""
-    for relation_id, table in list(object.__getattribute__(target, "_adjacent").items()):
-        _discard(relation_id, list(table.values()))
-
-
 # --- Visitors over values ---
 
 
@@ -1106,15 +1100,14 @@ class _ObjectData:
 class _RecordData:
     """A value object: the value of a property whose schema is an `OfObject`, a read-only `Visitors.OfObject`; or a
     union or intersection value, a read-only `Visitors.OfUnion` or `Visitors.OfIntersection`, whose branches or parts
-    are members giving the visitor of their own type's kind. It belongs to one owner and has an identity of its own.
-    Built but not yet placed in an owner, it holds its entries in `_pending` until its owner is created or updated."""
+    are members giving the visitor of their own type's kind. It belongs to one owner and has no identity of its own;
+    nothing links it, so it has no adjacencies."""
 
-    __slots__ = ("_schema", "_values", "_owner", "_pending", "_source", "_copy_of", "_adjacent")
+    __slots__ = ("_schema", "_values", "_owner", "_source", "_copy_of")
 
-    def __init__(self, schema: Any, values: dict[str, Any], pending: dict[str, list[_EntryBuilder]] | None = None,
-                 source: _RecordData | None = None, copy_of: Any = None):
-        for name, value in (("_schema", schema), ("_values", dict(values)), ("_owner", None),
-                            ("_pending", pending or {}), ("_source", source), ("_copy_of", copy_of), ("_adjacent", {})):
+    def __init__(self, schema: Any, values: dict[str, Any], source: _RecordData | None = None, copy_of: Any = None):
+        for name, value in (("_schema", schema), ("_values", dict(values)), ("_owner", None), ("_source", source),
+                            ("_copy_of", copy_of)):
             object.__setattr__(self, name, value)
 
     def __getattr__(self, name: str) -> Any:
@@ -1142,9 +1135,7 @@ class _RecordData:
         return _properties_of(self, self._values, self._schema, _store_of(self), False)
 
     def as_adjacencies(self, cb: Any) -> _RecordData:
-        for name in self._schema.adjacencies if isinstance(self._schema, ObjectSchema) else ():
-            _visit(cb, _member(self, name))
-        return self
+        return self  # a value object has none
 
 
 def _member(owner: Any, name: str) -> Any:
@@ -1357,29 +1348,18 @@ def _stage(old: Any, new: Any, mapping: dict[int, Any]) -> Any:
 
 
 def _stage_values(record: _RecordData, old: _RecordData | None, mapping: dict[int, Any]) -> None:
-    """Stages the value objects a value object holds: its properties', and its entries'."""
+    """Stages the value objects a value object holds in its properties."""
     held = {} if old is None else old._values
     for name, value in list(record._values.items()):
         _set(record, name, _stage(held.get(name), value, mapping))
-    for builders in record._pending.values():
-        for builder in builders:
-            builder._stage(record if old is None else old, mapping)
 
 
 def _copy(record: _RecordData) -> _RecordData:
-    """A copy of a placed value object, with copies of the entries linking it and the value objects it holds."""
-    store = _store_of(record)
-    builder = _RecordBuilder(record._schema, store=store)
+    """A copy of a placed value object, with copies of the value objects it holds."""
+    builder = _RecordBuilder(record._schema, store=_store_of(record))
     builder._copy_of = record
     builder._values = {name: _copied(v) for name, v in record._values.items()}
-    for name, adjacency in record._schema.adjacencies.items() if isinstance(record._schema, ObjectSchema) else ():
-        for entry in _linking(adjacency.relation, adjacency.me, record):
-            copied = _EntryBuilder(adjacency.relation, adjacency.me, store)
-            copied._links = {link: target for link, target in entry._links.items() if link != adjacency.me}
-            copied._values = {n: _copied(v) for n, v in entry._properties.items()}
-            copied._source = entry
-            builder._entries.setdefault(name, []).append(copied)
-    return builder.build()  # a placed value object, the only kind copied, has no pending entries
+    return builder.build()
 
 
 def _copied(value: Any) -> Any:
@@ -1406,70 +1386,14 @@ def _finish(owner: Any, old: Any, new: Any, mapping: dict[int, Any]) -> Any:
     object.__setattr__(new, "_owner", owner)
     for name, value in list(new._values.items()):
         _set(new, name, _finish(new, None, value, mapping))
-    _add_pending(new, mapping)
     return new
 
 
-def _add_pending(record: _RecordData, mapping: dict[int, Any]) -> None:
-    """Adds a value object's entries, whose value objects take the place of those in `mapping`. Its relations have one
-    link, its own, so no other object gives these entries."""
-    for name, builders in record._pending.items():
-        relation = record._schema.adjacencies[name].relation
-        for builder in builders:
-            builder._place(record, mapping)
-            _add_entry(relation, builder.build(record))
-    object.__setattr__(record, "_pending", {})
-
-
 def _merge(old: _RecordData, new: _RecordData, mapping: dict[int, Any]) -> None:
-    """Writes an edit of a placed value object into it, so that it keeps its identity."""
-    before = _held(old)
+    """Writes an edit of a placed value object into it, so that it is the one its owner holds."""
     values = {name: _finish(old, old._values.get(name), value, mapping) for name, value in new._values.items()}
     object.__getattribute__(old, "_values").clear()
     object.__getattribute__(old, "_values").update(values)
-    if isinstance(old._schema, ObjectSchema):
-        for adjacency in old._schema.adjacencies.values():
-            _discard_linking(adjacency.relation, adjacency.me, old)
-    object.__setattr__(old, "_pending", new._pending)
-    _add_pending(old, mapping)
-    _drop(before, _held(old))
-
-
-def _records(values: Any) -> list[_RecordData]:
-    """The value objects that `values` hold directly, or in the containers they hold."""
-    found: list[_RecordData] = []
-    for value in values:
-        if isinstance(value, _RecordData):
-            found.append(value)
-        elif isinstance(value, _ContainerData):
-            found += _records(value._items.values())
-    return found
-
-
-def _held(owner: Any) -> list[Any]:
-    """The values an object or a value object holds: its properties', and those of the entries of its one-link
-    relations, which hold values for it alone."""
-    values = list(object.__getattribute__(owner, "_values").values())
-    schema = object.__getattribute__(owner, "_schema")
-    for adjacency in schema.adjacencies.values() if isinstance(schema, ObjectSchema) else ():
-        if len(adjacency.relation.entry.links) == 1:
-            values += [value for entry in _linking(adjacency.relation, adjacency.me, owner) for value in entry._properties.values()]
-    return values
-
-
-def _drop(before: Any, after: Any) -> None:
-    """Removes the value objects held among the values `before` and no longer among those `after`."""
-    kept = {id(record) for record in _records(after)}
-    for record in _records(before):
-        if id(record) not in kept:
-            _remove(record)
-
-
-def _remove(value: _RecordData) -> None:
-    """Removes a value object no longer held: the value objects it holds, its entries' too, and every entry linking it."""
-    for held in _records(_held(value)):
-        _remove(held)
-    _discard_target(value)
 
 
 def _first_copy(relation: RelationSchema, builder: _EntryBuilder, target: Any, mapping: dict[Any, Any]) -> bool:
@@ -1520,9 +1444,6 @@ class _RecordBuilder(_Unassignable):
         self._schema, self._source, self._copy_of, self._store = schema, source, None, store
         self._attach, self._parent = attach, parent
         self._values: dict[str, Any] = {} if source is None else dict(object.__getattribute__(source, "_values"))
-        self._entries: dict[str, list[_EntryBuilder]] = {}
-        if source is not None:
-            _load_entries(self._entries, schema, source)
 
     def _touch(self) -> None:
         """Attaches the builder to what holds it, once, at its first write."""
@@ -1550,9 +1471,7 @@ class _RecordBuilder(_Unassignable):
         return _properties_of(self, self._values, self._schema, self._store, True, self._touch)
 
     def as_adjacencies(self, cb: Any) -> _RecordBuilder:
-        for name in self._schema.adjacencies if isinstance(self._schema, ObjectSchema) else ():
-            _visit(cb, _AdjacencyBuilder(self, name))
-        return self
+        return self  # a value object has none
 
     def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):
@@ -1572,8 +1491,6 @@ class _RecordBuilder(_Unassignable):
             member = self._member(part)._member(name)
             member._parent = self
             return member
-        if isinstance(schema, ObjectSchema) and name in schema.adjacencies:
-            return _AdjacencyBuilder(self, name)
         return _Empty(f"{name!r} is not a member of {_a(_noun(schema))}")
 
     def __call__(self, spec: Any) -> Any:
@@ -1585,19 +1502,16 @@ class _RecordBuilder(_Unassignable):
             if not isinstance(spec, _RecordData) or spec._schema is not self._schema:
                 raise TypeError(f"{_a(_noun(self._schema))} or a Spec is expected, got {type(spec).__name__}")
             self._values = dict(spec._values)
-            self._entries = {}
-            _load_entries(self._entries, self._schema, spec)
             self._copy_of = spec
             self._touch()
         return self._parent
 
     def build(self) -> _RecordData:
-        return _RecordData(self._schema, _finalized(self._values), self._entries, self._source, self._copy_of)
+        return _RecordData(self._schema, _finalized(self._values), self._source, self._copy_of)
 
 
 class _AdjacencyBuilder(_Unassignable):
-    """A writable `Visitors.OfAdjacency` over one adjacency of an object's or a value object's builder: iterated, its
-    entries' builders, the pending ones included."""
+    """A writable `Visitors.OfAdjacency` over one adjacency of an object's builder: iterated, its entries' builders."""
 
     def __init__(self, builder: Any, name: str):
         self._builder, self._name = builder, name
@@ -1625,13 +1539,11 @@ class _AdjacencyBuilder(_Unassignable):
         else:
             links, values = _entry_parts(spec, self._schema.me)
             entry._links, entry._values = dict(links), dict(values)
-        _touch(self._builder)
         self._builder._entries.setdefault(self._name, []).append(entry)
         return self
 
     def remove(self, spec: Any) -> _AdjacencyBuilder:
         kept = [e for e in self._entries() if not _agrees(e, spec, self._schema, self._builder._store)]
-        _touch(self._builder)
         self._builder._entries[self._name] = kept
         return self
 
@@ -1642,11 +1554,6 @@ class _AdjacencyBuilder(_Unassignable):
             for entry in spec:  # an iterable of entries, each inserted
                 self.insert(entry)
         return self._builder
-
-
-def _touch(builder: Any) -> None:
-    if isinstance(builder, _RecordBuilder):
-        builder._touch()
 
 
 class _LinkMember(_Unassignable):
@@ -1760,19 +1667,16 @@ class _EntryBuilder(_Unassignable):
         return _Entry(self._relation, links, _finalized(self._values))
 
 
-def _load_entries(entries: dict[str, list[_EntryBuilder]], schema: Any, source: Any) -> None:
-    """Loads the entries linking `source` into a builder, as entry builders, so that an update rewrites them; a union
-    or intersection value has none."""
+def _load_entries(entries: dict[str, list[_EntryBuilder]], schema: ObjectSchema, source: _ObjectData) -> None:
+    """Loads the entries linking `source` into a builder, as entry builders, so that an update rewrites them."""
     store = _store_of(source)
-    for name, adjacency in schema.adjacencies.items() if isinstance(schema, ObjectSchema) else ():
+    for name, adjacency in schema.adjacencies.items():
         for entry in _linking(adjacency.relation, adjacency.me, source):
             builder = _EntryBuilder(adjacency.relation, adjacency.me, store)
             builder._links = {link: target for link, target in entry._links.items() if link != adjacency.me}
             builder._values = dict(entry._properties)
             builder._source = entry
             entries.setdefault(name, []).append(builder)
-    for name, pending in object.__getattribute__(source, "_pending").items() if isinstance(source, _RecordData) else ():
-        entries.setdefault(name, []).extend(pending)
 
 
 class _ObjectBuilder(_Unassignable):
@@ -1841,12 +1745,11 @@ class _ObjectBuilder(_Unassignable):
     def update(self) -> _ObjectData:
         if self._source is None:
             raise ValueError("update() is only valid with a source instance")
-        before = _held(self._source)
         orders = _orders(self._schema, self._source)
         for adjacency in self._schema.adjacencies.values():
             _discard_linking(adjacency.relation, adjacency.me, self._source)
         rewritten: dict[int, _Entry] = {}
-        written = self._write(self._source, before, rewritten)
+        written = self._write(self._source, rewritten)
         _reorder(orders, rewritten)
         return written
 
@@ -1855,10 +1758,9 @@ class _ObjectBuilder(_Unassignable):
             raise ValueError(f"{method}() would make a second {self._schema_name!r}; its one instance is "
                              f"store.singleton({self._schema.singleton!r})")
 
-    def _write(self, target: _ObjectData, before: list[Any] | None = None,
-               rewritten: dict[int, _Entry] | None = None) -> _ObjectData:
+    def _write(self, target: _ObjectData, rewritten: dict[int, _Entry] | None = None) -> _ObjectData:
         """Writes the builder into `target`. Every value object it holds, its entries' too, is staged before any is
-        placed, so that the entries among them link the right ones; those held `before` and no longer are removed."""
+        placed."""
         mapping: dict[int, Any] = {}
         if self._source is not None and target is not self._source:  # a clone: its value objects link it, not the source
             mapping[id(self._source)] = target
@@ -1883,7 +1785,6 @@ class _ObjectBuilder(_Unassignable):
                     if rewritten is not None and entry._source is not None:  # by id: the entry it rewrites
                         # the entry held: a self-loop's is built from each end, and a set keeps one
                         rewritten[id(entry._source)] = _table(target, id(relation))[built._key()]
-        _drop(before or [], _held(target))
         return target
 
 

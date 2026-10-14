@@ -821,6 +821,12 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - "Dataclasses do not need to implement Visitors or Readers" (the user's correction of "... Visitors or Builders",
     which they "mistyped"); "the `properties` member of the dataclass can be a list of adjacency entries or whatever
     the underlying storage model is".
+  - "Schemas.OfObject.Builder is a Visitors.OfObject which has a member for each data property or adjacency and methods
+    `as_*` as required by Visitors.OfObject"; e.g. "Schemas.OfObject.Data.name : str", "Schemas.OfObject.Builder.name(name:
+    str) # sets property .name", and "Schemas.OfObject.Builder.properties(cb: Specs.Callback[Visitors.OfAdjacency])":
+    a schema's properties are an adjacency, its members objects linked to it, which answers META_SCHEMAS.md's phase 5
+    question 2 (members as reference objects, not value objects keyed by name). A member that is neither a data
+    property nor an adjacency is not a builder's.
 
 - **Refinement, identities and relations** (2026-10-14), as the user decided, for mbse-expressions' framework and
   dialects as model (mbse-basis P-018):

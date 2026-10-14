@@ -136,6 +136,54 @@ skill regenerated. No release comes between phases.
 7. **The release**: mbse-schemas 0.11.0 and a minor version of each dependent, landed together
    (`polyrepo.py land <dir>`).
 
+## Phase 5 design (draft, for review)
+
+What phase 5 builds, as FRAMEWORK.md, Resolved, "The meta-schemas overhaul" decides it, made concrete. Each point gives a
+recommendation and, where Resolved leaves a choice, the question it puts; nothing here is decided until confirmed.
+
+1. **What a schema is in memory.** `Schemas.OfX.Data` and its builders stay the form programs build and every consumer
+   reads (proxies, `Plain`, `Validators`, `Comparison`, code generators); a schema *as a linked object* is its
+   representation in a store, an object of its kind's meta-schema, which `root_module()` and `Modules` build from the
+   data and read back into it. Making the data themselves proxies would make every schema depend on a store, and the
+   meta-schemas on themselves. *Question:* is the linked form a representation of the data, translated both ways, or
+   does it replace the data?
+2. **Which elements are objects.** Every schema of every kind (`Schemas.Scalar`, `.Object`, `.Relation`, `.Union`,
+   `.Intersection`, `.Container`, `.Apply`, `.Any`, `.Predicate`) and every module (`Schemas.OfModule`) is a reference
+   object. A member that refers to a schema (a property, an adjacency, a union's branch, an intersection's part, a
+   parameter, a symbol, an entry's link) must be one too, since only a reference object can be linked: a value object
+   held in a container cannot hold a link. Members are then linked to their owner by ordered relations, in declaration
+   order (`Properties(owner, property)`, `Parameters`, `Branches`, `Parts`, `Symbols`, `Links`, `Adjacencies`), and
+   their name and description stay their properties. *Question:* members as reference objects, or members as value
+   objects with each type link drawn from the owner, keyed by the member's name (`Typing(owner, type)` with `member`)?
+3. **The type links.** `Typing(typed, type)` links whatever has a type to it: a property, a branch, a part, a
+   parameter, a symbol. A container's index and element, an `OfAny`'s types (in order) and an application's applied
+   schema need their own ends or a `role` on the entry: proposed, `Indexing(container, type)` and `Typing(container,
+   type)` for its element, `Allowing(any, type)` in declaration order, and `Applies(apply, schema)`, its arguments
+   staying values. An adjacency links its relation by `Relating(adjacency, relation)`. *Question:* these names and
+   splits, or one `Typing` with a `role` property?
+4. **Anonymous adjacencies.** The end at which a schema is referred to (`type` in `Typing`, `relation` in `Relating`,
+   `schema` in `Defines`) is declared without a name: `r.of(Typing).me("type")`. It gives the object no member and no
+   storage; it only lets objects of that schema fill the link (`Validators`' filling check counts it). A snapshot
+   writes an entry under its named ends only, and reads it from them; `Reachable` follows named adjacencies, so a
+   module reaches the schemas it uses, not the schemas that use them. Built for any relation, as decided.
+5. **Identities.** Each meta-schema has a naming pattern (`object-(\d+)`, `property-(\d+)`, ...), so that a module's
+   snapshot is reproducible; a schema's name is not its identity, since it lives where the schema is defined.
+6. **Modules and names.** `Defines(module, name, schema)` defines a schema or a module under a name; a schema defined
+   through nested modules has their names qualified with dots. `Schemas.OfStore.root_module()` returns the store's root
+   module, and `store.register(schema)` registers under the schema's qualified name, its modules made as needed.
+   *Question* (Open questions, "Resolving qualified names"): does an unqualified name resolve outward, through the
+   enclosing modules to the root, or only within its own module, anything else written qualified? Recommended:
+   outward, as most languages resolve, the innermost definition winning.
+7. **The wire.** A module is written as an object snapshot (`Plain.ToPlain(store).Reachable(Schemas.OfModule,
+   module)`): the schemas and modules it defines, and the unnamed schemas they reach, each under its identity, with
+   links as references. `Modules.module(store, schemas)` and `Modules.schemas(store, module)` keep translating
+   between data and the linked form; `Schemas.Module`, `Modules.reference` and `resolve`, `Stores.META` and the
+   meta-schema `Schemas.OfAny.Schema` go.
+8. **Building a link's target inline.** A link member builds a new target with its schema given:
+   `x.type.of(Schemas.Object.Schema, lambda o: o.properties(...))`, never by name or inferred, as decided. A Spec alone
+   keeps inferring where exactly one schema fills the link. *Question:* `.of(schema, spec)` on the link member, as
+   written, rather than an argument to the member's call?
+
 ## Open questions
 
 - **A value object held by an entry of a relation of two or more links, with adjacencies.** The entry is written under

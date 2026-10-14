@@ -806,6 +806,14 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 ### Resolved
 
+- **Schema builders align with their meta-schemas** (2026-10-14), as the user decided. FRAMEWORK.md requires "To make
+  schemas fully serializable, `Schemas.OfX.Builder` must implement `Visitors.OfX`", which the schema builders do not:
+  their fluent clauses are a second API beside the meta-schemas, and 15 of them collide with the members the
+  meta-schemas name. The user: "If the meta-schema does not align with visitor and proxy builder, the framework is
+  broken"; "Visitor protocols should only name members `as_*`", and `as_*` names are refused as property and link
+  names (V1). This comes next, before the dependents (META_SCHEMAS.md, Plan), since mbse-expressions "cannot be
+  written correctly without it". How each collision is resolved is to be proposed for the user's review.
+
 - **Refinement, identities and relations** (2026-10-14), as the user decided, for mbse-expressions' framework and
   dialects as model (mbse-basis P-018):
   - refinement: the user is "open to adding Schemas.Refines as a relation all its own"; "Refinement across the scalar

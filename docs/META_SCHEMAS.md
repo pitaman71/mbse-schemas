@@ -44,6 +44,13 @@ meta-schemas work and bring the dependent libraries up to compliance", they agre
 (the release, 0.11.0, of V1 to V5 and `OfAny`) come next; phase 5 (meta-schemas as linked objects) is parked until
 after the release, its design draft (below) kept for review.
 
+**Reordered again** (2026-10-14), as the user decided: the schema builders do not implement `Visitors.OfX`, which
+FRAMEWORK.md requires ("To make schemas fully serializable, `Schemas.OfX.Builder` must implement `Visitors.OfX`"),
+and "If the meta-schema does not align with visitor and proxy builder, the framework is broken". The user: "stop
+mbse-expressions work because it cannot be written correctly without it". Aligning the schema builders and data
+with their meta-schemas comes next, before the dependents (FRAMEWORK.md, Resolved, "Schema builders align with their
+meta-schemas").
+
 0. **Decisions recorded** (this document; FRAMEWORK.md, Resolved; mbse-expressions' EXPRESSIONS.md, Resolved;
    mbse-basis V-025).
 1. **Adjacencies that project**: `OfRelation.Data.keys(me)` and `key(me)`; an adjacency member stays a tuple (a frozen

@@ -931,6 +931,13 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     whose `create()` gives a value, copied when assigned, in place of refusing ("a value object is built through its
     owner"); the user: "yes" to relaxing that refusal rather than adding a method or an argument. Decoding writes an
     unrestricted `OfAny`'s tagged value the same way.
+  - proposed in building, for the user's review, so that mbse-expressions' terms (value objects, as the user decided
+    there, "2 = Y") can be written and read on their own: `ToPlain(store)(schema, value)` and
+    `FromPlain(store)(schema, plain)` take a standalone value of a value object, union, intersection, container or
+    `OfAny` schema, `ToPlain(store).Value` and `FromPlain(store).Value` being the per-kind forms. The value is written
+    nested, as a property holding it writes it (`{"number": "+44"}`; tagged, `{"Phone": {...}}`, only where an
+    unrestricted `OfAny` holds it), and read back through the store's builder of its schema, which the store
+    registers. A reference object schema still takes a snapshot, and `.OfObject` still refuses a value object schema.
 
 - **Reference identity** ([Visitor pattern](VISITOR_PATTERN.md), "Reference Identity", as the user wrote it), refining
   The visitor pattern's "global name, otherwise a UUID":

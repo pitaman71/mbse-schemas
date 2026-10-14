@@ -25,6 +25,10 @@
  * The serializers read values through the visitor protocol (`Readers.OfObject`), and decoding writes them through a
  * store's builders (`Visitors.OfObject`).
  *
+ * A standalone value, of a value object, union, intersection, container or `OfAny` schema, is written by
+ * `ToPlain(store)(schema, value)` as a property holding it writes it, and read back by `FromPlain(store)(schema, plain)`
+ * through the store's builder of its schema, which the store registers (`.Value` is the per-kind form).
+ *
  * A value object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties.
  * Union and intersection values are written the same way, with the union's branches or the intersection's parts as
  * the properties: a union value `{"phone": {"number": "+44"}}` holds exactly one branch, and an intersection value
@@ -278,6 +282,50 @@ function entry(read: Readers.OfEntry, adjacency: Schemas.OfAdjacency.Data, ref: 
     if (found) out.set(name, plain);
   }
   return out;
+}
+
+/** The schemas of the values `ToPlain(store).Value` and `FromPlain(store).Value` take. */
+const VALUES = [Schemas.OfObject.Data, Schemas.OfUnion.Data, Schemas.OfIntersection.Data, Schemas.OfContainer.Data,
+  Schemas.OfAny.Value] as const;
+
+/** The visitor of no value: no schema, and nothing to read. */
+const NOTHING = { as_schema: (): null => null, get: (): null => null };
+
+/** A standalone value, read as the `Readers.OfAny` that holds it: its own kind's visitor, or nothing for another; a
+ * scalar given as itself. */
+class Held {
+  constructor(private readonly value: any) {}
+
+  private hand(cb: (visitor: any) => unknown, kind: unknown): this {
+    const scalar = Schemas.hostOf(this.value) !== null;
+    if (kind === Schemas.OfScalar.Data) cb(scalar ? this : NOTHING);
+    else cb(!scalar && this.value.as_schema() instanceof (kind as Function) ? this.value : NOTHING);
+    return this;
+  }
+
+  get(): unknown {
+    return this.value;
+  }
+
+  as_scalar(cb: (visitor: any) => unknown): this {
+    return this.hand(cb, Schemas.OfScalar.Data);
+  }
+
+  as_object(cb: (visitor: any) => unknown): this {
+    return this.hand(cb, Schemas.OfObject.Data);
+  }
+
+  as_union(cb: (visitor: any) => unknown): this {
+    return this.hand(cb, Schemas.OfUnion.Data);
+  }
+
+  as_intersection(cb: (visitor: any) => unknown): this {
+    return this.hand(cb, Schemas.OfIntersection.Data);
+  }
+
+  as_container(cb: (visitor: any) => unknown): this {
+    return this.hand(cb, Schemas.OfContainer.Data);
+  }
 }
 
 // --- Snapshots ---
@@ -905,6 +953,10 @@ export interface ToPlainCall {
   OfObject(schema: Schemas.OfObject.Data, value: Readers.OfObject): PlainMap;
   /** Snapshot of `value` and every object reachable from it through adjacencies (see `Reachable`). */
   Reachable(schema: Schemas.OfObject.Data, value: Readers.OfObject): PlainMap;
+  /** A standalone value as plain data, written as a property holding it writes it: a value object, union value,
+   * intersection value or container of `schema`, read through its visitor, or a value of any type (`OfAny`), of a
+   * registered schema or a scalar. */
+  Value(schema: unknown, value: unknown): PlainData;
 }
 
 /** Serializes values to plain data, naming the schemas of objects in `store`: `ToPlain(store)(schema, value)`
@@ -913,15 +965,25 @@ export interface ToPlainCall {
 export function ToPlain(store: Stores.Store, options: { flat?: boolean } = {}): ToPlainCall {
   const flat = options.flat ?? false;
   const OfObject = (schema: Schemas.OfObject.Data, value: Readers.OfObject): PlainMap => new Snapshot(store, flat).run(schema, value, [value]);
+  const Value = (schema: unknown, value: any): PlainData => {
+    const held = Schemas.structure(schema);
+    if (!(held instanceof Schemas.OfAny.Value)) {
+      const own = value.as_schema();
+      if (own !== held) throw new TypeError(`value is a ${repr(own.name)}, not an instance of the given schema`);
+    }
+    return anyValue(new Held(value), schema, new Snapshot(store, flat).ref)[1];
+  };
   const call = (schema: unknown, value: unknown): PlainData => {
     if (schema instanceof Schemas.OfScalar.Data) return toPlainOfScalar(schema, value as Scalar);
-    if (schema instanceof Schemas.OfObject.Data) return OfObject(schema, value as Readers.OfObject);
+    if (schema instanceof Schemas.OfObject.Data && schema.ref) return OfObject(schema, value as Readers.OfObject);
+    if (VALUES.some((kind) => schema instanceof kind)) return Value(schema, value);
     throw new NotImplementedError(`${schemaTypeName(schema)} is not supported by Plain yet`);
   };
   return Object.assign(call, {
     OfScalar: toPlainOfScalar,
     OfObject,
     Reachable: (schema: Schemas.OfObject.Data, value: Readers.OfObject): PlainMap => new Snapshot(store, flat).run(schema, value, Reachable.of(value)),
+    Value,
   });
 }
 
@@ -930,6 +992,9 @@ export interface FromPlainCall {
   OfScalar(schema: Schemas.OfScalar.Data, plain: unknown): Scalar;
   OfObject(schema: Schemas.OfObject.Data, plain: unknown): unknown;
   Reachable(schema: Schemas.OfObject.Data, plain: unknown): unknown;
+  /** A standalone value, read from the plain form `ToPlain(store).Value` writes and built through the store's builder
+   * of its schema, which the store registers; a scalar as itself. */
+  Value(schema: unknown, plain: unknown): unknown;
 }
 
 /** Deserializes plain data, building objects in `store`: `FromPlain(store)(schema, plain)` dispatches on the schema's
@@ -943,10 +1008,25 @@ export function FromPlain(store: Stores.Store): FromPlainCall {
     }
   };
   const OfObject = (schema: Schemas.OfObject.Data, plain: unknown): unknown => restore(store, schema, plain);
+  const Value = (schema: unknown, plain: unknown): unknown => {
+    let decoded = decode(schema as Schemas.OfAny.Data, plain, [], store);
+    if (decoded instanceof DecodedRecord || decoded instanceof DecodedElements) {
+      let name: string;
+      try {
+        name = store.name_of(decoded.schema);
+      } catch { // name_of throws only LookupError
+        throw new TypeError("a standalone value is built through the store's builder of its schema, which the store "
+          + "registers; this one is not registered");
+      }
+      decoded = new Assigned(name, decoded, store);
+    }
+    return decoded instanceof Assigned ? decoded.make() : decoded;
+  };
   const call = (schema: unknown, plain: unknown): unknown => {
     if (schema instanceof Schemas.OfScalar.Data) return OfScalar(schema, plain);
-    if (schema instanceof Schemas.OfObject.Data) return OfObject(schema, plain);
+    if (schema instanceof Schemas.OfObject.Data && schema.ref) return OfObject(schema, plain);
+    if (VALUES.some((kind) => schema instanceof kind)) return Value(schema, plain);
     throw new NotImplementedError(`${schemaTypeName(schema)} is not supported by Plain yet`);
   };
-  return Object.assign(call, { OfScalar, OfObject, Reachable: OfObject });
+  return Object.assign(call, { OfScalar, OfObject, Reachable: OfObject, Value });
 }

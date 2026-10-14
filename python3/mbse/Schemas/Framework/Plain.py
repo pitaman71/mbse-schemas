@@ -19,6 +19,10 @@ omits is kept, a container is written element by element, and a relation's entry
 The serializers read values through the visitor protocol (`Readers.OfObject`), and decoding writes them through a
 store's builders (`Visitors.OfObject`).
 
+A standalone value, of a value object, union, intersection, container or `OfAny` schema, is written by
+`ToPlain(store)(schema, value)` as a property holding it writes it, and read back by `FromPlain(store)(schema, plain)`
+through the store's builder of its schema, which the store registers (`.Value` is the per-kind form).
+
 A value object (a property whose schema is an `OfObject`) is written nested, as a mapping of its properties. Union
 and intersection values are written the same way, with the union's branches or the intersection's parts as the
 properties: a union value `{"phone": {"number": "+44"}}` holds exactly one branch, and an intersection value
@@ -221,6 +225,55 @@ def _entry(read: Readers.OfEntry, adjacency: Schemas.OfAdjacency.Data, ref: Ref)
         if present:
             out[name] = plain
     return out
+
+
+_VALUES = (Schemas.OfObject.Data, Schemas.OfUnion.Data, Schemas.OfIntersection.Data, Schemas.OfContainer.Data,
+           Schemas.OfAny.Value)
+"""The schemas of the values `ToPlain(store).Value` and `FromPlain(store).Value` take."""
+
+
+class _Nothing:
+    """The visitor of no value: no schema, and nothing to read."""
+
+    def as_schema(self) -> None:
+        return None
+
+    def get(self) -> None:
+        return None
+
+
+class _Held:
+    """A standalone value, read as the `Readers.OfAny` that holds it: its own kind's visitor, or nothing for another;
+    a scalar given as itself."""
+
+    def __init__(self, value: Any) -> None:
+        self._value = value
+
+    def _hand(self, cb: Any, kind: type) -> _Held:
+        scalar = type(self._value) in Schemas.SCALAR_TYPES
+        if kind is Schemas.OfScalar.Data:
+            cb(self if scalar else _Nothing())
+        else:
+            cb(self._value if not scalar and isinstance(self._value.as_schema(), kind) else _Nothing())
+        return self
+
+    def get(self) -> Any:
+        return self._value
+
+    def as_scalar(self, cb: Any) -> _Held:
+        return self._hand(cb, Schemas.OfScalar.Data)
+
+    def as_object(self, cb: Any) -> _Held:
+        return self._hand(cb, Schemas.OfObject.Data)
+
+    def as_union(self, cb: Any) -> _Held:
+        return self._hand(cb, Schemas.OfUnion.Data)
+
+    def as_intersection(self, cb: Any) -> _Held:
+        return self._hand(cb, Schemas.OfIntersection.Data)
+
+    def as_container(self, cb: Any) -> _Held:
+        return self._hand(cb, Schemas.OfContainer.Data)
 
 
 # --- Snapshots ---
@@ -787,8 +840,10 @@ class ToPlain:
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> PlainData:
         if isinstance(schema, Schemas.OfScalar.Data):
             return self.OfScalar(schema, value)
-        if isinstance(schema, Schemas.OfObject.Data):
+        if isinstance(schema, Schemas.OfObject.Data) and schema.ref:
             return self.OfObject(schema, value)
+        if isinstance(schema, _VALUES):
+            return self.Value(schema, value)
         raise NotImplementedError(f"{type(schema).__name__} is not supported by Plain yet")
 
     @staticmethod
@@ -803,6 +858,17 @@ class ToPlain:
         """Snapshot of `value` and every object reachable from it through adjacencies (see `Reachable`)."""
         return _Snapshot(self._store, self._flat).run(schema, value, Reachable.of(value))
 
+    def Value(self, schema: Schemas.OfAny.Data, value: Any) -> PlainData:
+        """A standalone value as plain data, written as a property holding it writes it: a value object, union value,
+        intersection value or container of `schema`, read through its visitor, or a value of any type (`OfAny`), of a
+        registered schema or a scalar."""
+        held = Schemas.structure(schema)
+        if not isinstance(held, Schemas.OfAny.Value):
+            own = value.as_schema()
+            if own is not held:
+                raise TypeError(f"value is a {own.name!r}, not an instance of the given schema")
+        return _any(_Held(value), schema, _Snapshot(self._store, self._flat))[1]
+
 
 class FromPlain:
     """Deserializes plain data, building objects in `store`: `FromPlain(store)(schema, plain)` dispatches on the
@@ -814,8 +880,10 @@ class FromPlain:
     def __call__(self, schema: Schemas.OfAny.Data, plain: PlainData) -> Any:
         if isinstance(schema, Schemas.OfScalar.Data):
             return self.OfScalar(schema, plain)
-        if isinstance(schema, Schemas.OfObject.Data):
+        if isinstance(schema, Schemas.OfObject.Data) and schema.ref:
             return self.OfObject(schema, plain)
+        if isinstance(schema, _VALUES):
+            return self.Value(schema, plain)
         raise NotImplementedError(f"{type(schema).__name__} is not supported by Plain yet")
 
     @staticmethod
@@ -830,4 +898,17 @@ class FromPlain:
 
     def Reachable(self, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
         return _restore(self._store, schema, plain)
+
+    def Value(self, schema: Schemas.OfAny.Data, plain: PlainData) -> Any:
+        """A standalone value, read from the plain form `ToPlain(store).Value` writes and built through the store's
+        builder of its schema, which the store registers; a scalar as itself."""
+        decoded = _decode(schema, plain, (), self._store)
+        if isinstance(decoded, (_Record, _Elements)):
+            try:
+                name = self._store.name_of(decoded.schema)
+            except LookupError:
+                raise TypeError("a standalone value is built through the store's builder of its schema, which the store "
+                                "registers; this one is not registered") from None
+            decoded = _Assigned(name, decoded, self._store)
+        return decoded.make() if isinstance(decoded, _Assigned) else decoded
 

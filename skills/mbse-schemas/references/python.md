@@ -115,6 +115,7 @@ Stores.Combined(one, other)                                 # stores as one, eac
 # Everything else works for any schema.
 Reachable.of(root)                                          # root and everything reachable, in first-reference order
 Plain.ToPlain(store)(schema, obj); Plain.ToPlain(store).Reachable(schema, root); Plain.FromPlain(store)(schema, plain)
+Plain.ToPlain(store)(Phone, phone)   # a standalone value (value object, union, container, any): nested, {"number": ...}
 JSON.ToJSON(store)(...), JSON.FromJSON(store)(...); YAML.ToYAML(store)(...), YAML.FromYAML(store)(...)   # as Plain
 Validators.Validate(store)(schema, obj); Validators.Validate(store).Reachable(schema, root)
 Comparison.OfObject(schema, a).compare(Comparison.OfObject(schema, b))   # -1, 0, 1, or None if incomparable

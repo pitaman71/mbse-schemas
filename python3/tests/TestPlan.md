@@ -99,6 +99,7 @@ Total: 191 cases, the sum of the rows above. The 184 outside DC have the same ID
 | Reachability in first-reference order | RCH-01..08, PLN-04 |
 | Snapshot format; adjacencies included; links as `{$ref, $schema}`; unresolved references rejected | PLN-02, PLN-05, PLN-11, JSN-08, YML-10 |
 | Objects carry no schema; root schema passed in; references carry schema names | PLN-11, PLN-12 |
+| A standalone value (a value object, union, intersection, container, or a value of any type) written nested, as a property holding it writes it, and read back through the store's builder of its registered schema | PLN-18, SCH-19 |
 | `FromPlain(store)` builds in the store given; everything that looks schemas up takes a store | PLN-14, STO-01..05 |
 | Reference objects have identities, given at creation by a naming pattern or as a UUID and found while live; snapshots are keyed by them, qualified; loading an identity a store holds updates that object | SCH-19, PLN-02, PLN-06, PLN-11, STO-07 |
 | Stores hold schemas and the data their singletons reach, isolated from one another; extents; the protocol | STO-01..05 |

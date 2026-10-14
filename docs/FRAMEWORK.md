@@ -818,7 +818,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - "Schemas.OfX.Builder must implement Visitors.OfX"
   - "correct implementation of Schemas.OfX.{Builder, Data, Schema} will be a lot easier and cleaner if the bespoke
     Schemas.OfX.Data classes use members the same way that proxies do to store properties and relation adjacencies"
-  - "Dataclasses do not have to implement Visitors or Builders"
+  - "Dataclasses do not need to implement Visitors or Readers" (the user's correction of "... Visitors or Builders",
+    which they "mistyped"); "the `properties` member of the dataclass can be a list of adjacency entries or whatever
+    the underlying storage model is".
 
 - **Refinement, identities and relations** (2026-10-14), as the user decided, for mbse-expressions' framework and
   dialects as model (mbse-basis P-018):

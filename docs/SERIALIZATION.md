@@ -38,6 +38,8 @@ Mutations.OfObject.Ref # identity only, Module.Schema/ID
 Mutations.OfObject.Def # includes props
 ```
 
+- scalar payloads are untyped and interpreted according to their schema
+- `Mutations.OfObject.Def` carries a schema reference
 - reference objects are written as `Mutations.OfObject.{Def,Ref}` directly under `Mutations.OfObject.*` at the top level of the log, never nested as value objects are
 - reference objects are only written in "definition form" the first time they are encountered. subsequent encounters are written in "reference form" as identity
 

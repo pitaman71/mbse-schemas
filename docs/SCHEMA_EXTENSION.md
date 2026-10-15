@@ -1,0 +1,76 @@
+<!-- nav -->
+[← Open-world modeling](OPEN_WORLD.md) · [Home](../README.md) · [Serialization →](SERIALIZATION.md)
+
+# Schema extension
+
+1. Schema extension
+
+- Store already has a module lookup function but Visitors it returns must be read-only. 
+- Store needs an alternate module function `Store.extend(v: Callable[[Mutators.OfModules], Mutators.OfModules])` where the callback gets writeable mutators
+- `Store` must confirm that all mutations are extensions and refinements, not redefinitions of the existing schemas. It may do so in the passed builders or when `v` returns as a validation pass
+- at the moment, modification of existing schema items seems to be limited entirely to adding adjacencies and properties
+
+*Proposed (agent's notes, for review):*
+
+Allowing existing schemas to gain adjacencies and properties sidesteps the more general questions of union,
+intersection and multiple refinement: two packages that each extend `Schemas.Scalar` (one adds `bit_width`, another
+`unit`) simply both add members to it, and every scalar may have both; no schema needs two parents. It covers open
+families too: a link's accepted types are inferred from the adjacencies that declare it, so a dialect's new term kind
+declares an adjacency on, say, `Arguments`' `argument` link and may fill it from then on, with no union to open.
+
+```python
+store.extend(lambda m: (
+    m.Expressions.BitWidth(lambda r: r.links([
+        lambda t: t.name("scalar").type([Builders.Meta.Scalar]),
+        lambda t: t.name("width").type([Term]),
+    ]).uniques("scalar")),
+    m.Schemas.Scalar(Builders.Meta.Scalar, lambda o: o.adjacencies([      # an extension: a member added,
+        lambda t: t.name("bit_width").relation([BitWidth]).me("scalar"),   # nothing redefined
+    ])),
+))
+Word = store.Schemas.Scalar(lambda s: s.name("Word").token("int").bit_width([...]))  # the same builder, a new member
+```
+
+What the check would accept and refuse:
+
+- **May add:** properties and adjacencies to an existing object schema; properties to a relation's entries; perhaps
+  branches to a union, if unions stay.
+- **May not:** retype or remove a member, or change `ref`, `pattern`, `singleton`, `uniques`, a relation's links or a
+  scalar's token. Adding a link to an existing relation is refused too: every entry it holds would lack the link.
+- **Names:** an added member may not take a name the schema already has, its inherited members included (through
+  `refines`), nor one another extension added, nor one a schema refining it declares (a refinement inherits the
+  extension).
+- **Existing objects** gain the member, absent until written. In declaration order (mbse-basis P-001) added members
+  follow the schema's own, in the order they were added.
+- **Per store.** An extension of a framework schema (`Builders.Meta.Scalar`) belongs to the store that makes it, not to
+  the one object every store shares in the process: a store copies what it extends, or holds its extensions beside it.
+- **Snapshots** need no new vocabulary: an extension is `insert` mutations on the extended schema's `HasProperty` and
+  `HasAdjacency` entries (docs/SERIALIZATION.md). The writer, which writes no framework schema today, writes the
+  extensions of framework schemas and still assumes their own members; a reading store applies them through the same
+  check, which serves as a schema handshake.
+
+2. Extension
+
+Moving `.bits` and `.bytes`:
+
+RELATION Expressions.Framework.HasSchema(term=Expressions.Framework.Term, schema=Schemas.OfY)
+RELATION Expressions.Framework.HasDomain(schema=Schemas.OfY, domain=Expressions.Framework.Domain)
+
+Representing scalar values:
+
+PROPERTY [Schemas.OfScalar] Expressions.Dialects.Basic.AsIntValue(int)
+PROPERTY [Schemas.OfScalar] Expressions.Dialects.Basic.AsFloatValue(float)
+...
+
+3. relocating things in mbse-schemas
+
+Definitely:
+
+- constraining the size of Schemas.OfScalar : move to mbse-expressions via `HasSchema` and `HasDomain`
+- allowing schemas to define parameters on definition and bind them to expressions on instantiation : keep in mbse-schemas except for typing via `HasDomain`
+- allowing Schemas.OfScalar (maybe others) to be bound to an expression
+
+---
+
+<!-- nav -->
+[← Open-world modeling](OPEN_WORLD.md) · [Home](../README.md) · [Serialization →](SERIALIZATION.md)

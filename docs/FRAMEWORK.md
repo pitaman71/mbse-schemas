@@ -877,6 +877,15 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     schema by its string name. Creating objects for symbols is making me nuts." An adjacency's `me` names the link
     it fills, and a relation's `uniques` name its links and properties, as in the user's example (`.me("knower")`,
     `.uniques("since")`).
+  - serialization policy, revised (2026-10-15), as the user decided, superseding the snapshot form in Serialization
+    (`{"root", "objects"}`, every reference object keyed and referred to by `$ref`) and settling how objects the
+    builders rebuild on read are written:
+    - "ToPlain does the work"
+    - "all objects may be written nested whether value or reference"
+    - "reference objects are only written in 'defnition form' the first time they are encountered. subsequent
+      encounters are written in 'reference form' as identity"
+    - "for a snapshot, ToPlain writes modules with schemas nested, then named singletons, then objects reachable via
+      pattern identity, then the remaining reference objects"
   - the wire format of schemas, written and read through the meta-schemas (docs/proposals/schema-builders/WIRE.md
     holds the questions and their options), as the user decided (2026-10-15):
     1. an unnamed schema object's identity is derived from its owner and its name (`crm.Person.age`), given on

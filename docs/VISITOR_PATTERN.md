@@ -1,5 +1,5 @@
 <!-- nav -->
-[← Open-world modeling](OPEN_WORLD.md) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)
+[← Serialization](SERIALIZATION.md) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)
 
 # Visitor pattern
 
@@ -331,4 +331,4 @@ Quite a few other convenience methods have been born like OfProperty.name, OfObj
 ---
 
 <!-- nav -->
-[← Open-world modeling](OPEN_WORLD.md) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)
+[← Serialization](SERIALIZATION.md) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)

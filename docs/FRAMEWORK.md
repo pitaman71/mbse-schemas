@@ -877,6 +877,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     schema by its string name. Creating objects for symbols is making me nuts." An adjacency's `me` names the link
     it fills, and a relation's `uniques` name its links and properties, as in the user's example (`.me("knower")`,
     `.uniques("since")`).
+  - [Serialization](SERIALIZATION.md), the user's (2026-10-15), supersedes any conflicting policy here: "the contents of
+    this new doc should supersede any conflicting policy", including the two entries below and the section
+    Serialization; it is kept apart from this document for now ("Let's not merge it into FRAMEWORK.md just yet").
   - serialization policy, revised (2026-10-15), as the user decided, superseding the snapshot form in Serialization
     (`{"root", "objects"}`, every reference object keyed and referred to by `$ref`) and settling how objects the
     builders rebuild on read are written:

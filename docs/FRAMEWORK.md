@@ -895,6 +895,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
        creation, and changes when it is renamed;
     2. "strictly forbidden", which the user corrected: "A reference object no store built is strictly forbidden. Values
        can be built anywhere anytime." (an earlier reading here, "every type is built in the store", was wrong);
+       asked whether a scalar schema (`S.OfScalar.Data(int)`) counts as a value, built anywhere, or as a reference object
+       like every other schema object, the user chose the latter: a scalar schema is built in a store;
     3. what the builders rebuild on every read (an int width read as a literal form, an application's arguments,
        shared forms): "I think this is only value objects so (c)": written nested, as values;
     4. the declaration order of a schema object's members: a position property on their entries;

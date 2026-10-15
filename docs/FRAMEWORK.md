@@ -899,7 +899,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
        like every other schema object, the user chose the latter: a scalar schema is built in a store;
        and, asked whether every store should hold the basic scalars (`bool`, `int`, `float`, `str`, `bytes`) as named
        schemas from the start, as it holds the meta-schemas, so that programs link them and logs refer to them by name,
-       never foreign: "yes";
+       never foreign: "yes", named "Schemas.OfBool, Schemas.OfInt, ... no need to invent an alternate convention"
+       (`Schemas.OfBool`, `Schemas.OfInt`, `Schemas.OfFloat`, `Schemas.OfStr`, `Schemas.OfBytes`, after the basic tokens);
     3. what the builders rebuild on every read (an int width read as a literal form, an application's arguments,
        shared forms): "I think this is only value objects so (c)": written nested, as values;
     4. the declaration order of a schema object's members: a position property on their entries;

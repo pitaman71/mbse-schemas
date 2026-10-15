@@ -2,161 +2,142 @@
 #
 # Lines marked PROPOSED use syntax that FRAMEWORK.md does not define yet.
 
-from mbse.Schemas.Framework import Schemas, Proxies, Plain, JSON
+from mbse.Schemas.Framework import Builders, Schemas, Proxies, Plain, JSON
 
-store = Proxies.OfStore()
+Text = Schemas.OfScalar.Data(str)
+
+# Schemas and objects are built in a store, `store.<schema name>(...)`; a named schema registers itself as it is built.
+store = Builders.Store()
 
 # --- Schemas ---
 
-IntlAddress = (
-    Schemas.OfObject.Builder().name('IntlAddress').ref()
-    .properties(
-        lambda prop: prop.name('street1').of(lambda t: t.as_scalar(str)),
-        lambda prop: prop.name('street2').of(lambda t: t.as_scalar(str)),
-        lambda prop: prop.name('street3').of(lambda t: t.as_scalar(str)),
-        lambda prop: prop.name('dependent_locality').of(lambda t: t.as_scalar(str)),  # neighborhood, district
-        lambda prop: prop.name('locality').of(lambda t: t.as_scalar(str)),  # city, town, post town
-        lambda prop: prop.name('administrative_area').of(lambda t: t.as_scalar(str)),  # state, province, prefecture
-        lambda prop: prop.name('postal_code').of(lambda t: t.as_scalar(str)),
-        lambda prop: prop.name('sorting_code').of(lambda t: t.as_scalar(str)),  # e.g. French CEDEX
-        lambda prop: prop.name('country_code').of(lambda t: t.as_scalar(str)),  # ISO 3166-1 alpha-2
-    )
-    .create()
-)
+IntlAddress = store.Schemas.Object(lambda o: (
+    o
+    .name('IntlAddress')
+    .ref(True)
+    .properties([
+        lambda t: t.name('street1').type([Text]),
+        lambda t: t.name('street2').type([Text]),
+        lambda t: t.name('street3').type([Text]),
+        lambda t: t.name('dependent_locality').type([Text]),  # neighborhood, district
+        lambda t: t.name('locality').type([Text]),  # city, town, post town
+        lambda t: t.name('administrative_area').type([Text]),  # state, province, prefecture
+        lambda t: t.name('postal_code').type([Text]),
+        lambda t: t.name('sorting_code').type([Text]),  # e.g. French CEDEX
+        lambda t: t.name('country_code').type([Text]),  # ISO 3166-1 alpha-2
+    ])
+))
 
-Contact = (
-    Schemas.OfObject.Builder().name('Contact').ref()
-    .properties(
-        lambda prop: prop.name('given_name').of(lambda t: t.as_scalar(str)),
-        lambda prop: prop.name('family_name').of(lambda t: t.as_scalar(str)),
-        lambda prop: prop.name('birth_date').of(lambda t: t.as_scalar(str)),  # ISO 8601 calendar date, YYYY-MM-DD
-        lambda prop: prop.name('preferred_language').of(lambda t: t.as_scalar(str)),  # BCP 47 tag, e.g. 'fr-CA'
-    )
-    .create()
-)
+Contact = store.Schemas.Object(lambda o: (
+    o
+    .name('Contact')
+    .ref(True)
+    .properties([
+        lambda t: t.name('given_name').type([Text]),
+        lambda t: t.name('family_name').type([Text]),
+        lambda t: t.name('birth_date').type([Text]),  # ISO 8601 calendar date, YYYY-MM-DD
+        lambda t: t.name('preferred_language').type([Text]),  # BCP 47 tag, e.g. 'fr-CA'
+    ])
+))
 
-PhoneNumber = (
-    Schemas.OfObject.Builder().name('PhoneNumber').ref()
-    .properties(
-        lambda prop: prop.name('number').of(lambda t: t.as_scalar(str)),  # ITU-T E.164, e.g. '+14155550100'
-    )
-    .create()
-)
+PhoneNumber = store.Schemas.Object(lambda o: (
+    o
+    .name('PhoneNumber')
+    .ref(True)
+    .properties([
+        lambda t: t.name('number').type([Text]),  # ITU-T E.164, e.g. '+14155550100'
+    ])
+))
 
-EmailAddress = (
-    Schemas.OfObject.Builder().name('EmailAddress').ref()
-    .properties(
-        lambda prop: prop.name('address').of(lambda t: t.as_scalar(str)),  # RFC 5322 addr-spec
-    )
-    .create()
-)
+EmailAddress = store.Schemas.Object(lambda o: (
+    o
+    .name('EmailAddress')
+    .ref(True)
+    .properties([
+        lambda t: t.name('address').type([Text]),  # RFC 5322 addr-spec
+    ])
+))
 
 # Collections are relations. Links are untyped; each object declares its adjacencies below.
 
-ContactAddresses = (
-    Schemas.OfRelation.Builder().name('ContactAddresses')
-    .links('contact', 'address')
-    .properties(
-        lambda prop: prop.name('label').of(lambda t: t.as_scalar(str)),  # e.g. 'home', 'work'
-    )
-    .create()
-)
+ContactAddresses = store.Schemas.Relation(lambda r: (
+    r
+    .name('ContactAddresses')
+    .links([
+        lambda t: t.name('contact'),
+        lambda t: t.name('address'),
+    ])
+    .properties([
+        lambda t: t.name('label').type([Text]),  # e.g. 'home', 'work'
+    ])
+))
 
-ContactPhones = (
-    Schemas.OfRelation.Builder().name('ContactPhones')
-    .links('contact', 'phone')
-    .properties(
-        lambda prop: prop.name('label').of(lambda t: t.as_scalar(str)),  # e.g. 'mobile', 'work'
-    )
-    .create()
-)
+ContactPhones = store.Schemas.Relation(lambda r: (
+    r
+    .name('ContactPhones')
+    .links([
+        lambda t: t.name('contact'),
+        lambda t: t.name('phone'),
+    ])
+    .properties([
+        lambda t: t.name('label').type([Text]),  # e.g. 'mobile', 'work'
+    ])
+))
 
-ContactEmails = (
-    Schemas.OfRelation.Builder().name('ContactEmails')
-    .links('contact', 'email')
-    .properties(
-        lambda prop: prop.name('label').of(lambda t: t.as_scalar(str)),  # e.g. 'personal', 'work'
-    )
-    .create()
-)
+ContactEmails = store.Schemas.Relation(lambda r: (
+    r
+    .name('ContactEmails')
+    .links([
+        lambda t: t.name('contact'),
+        lambda t: t.name('email'),
+    ])
+    .properties([
+        lambda t: t.name('label').type([Text]),  # e.g. 'personal', 'work'
+    ])
+))
 
-Contact = (
-    Schemas.OfObject.Builder(Contact)
-    .relations(
-        lambda adj: adj.name('addresses').of(ContactAddresses).me('contact'),
-        lambda adj: adj.name('phones').of(ContactPhones).me('contact'),
-        lambda adj: adj.name('emails').of(ContactEmails).me('contact'),
-    )
-    .update()
-)
+# A schema and a callback: the schema, updated in place.
+store.Schemas.Object(Contact, lambda o: o.adjacencies([
+    lambda t: t.name('addresses').relation([ContactAddresses]).me('contact'),
+    lambda t: t.name('phones').relation([ContactPhones]).me('contact'),
+    lambda t: t.name('emails').relation([ContactEmails]).me('contact'),
+]))
+store.Schemas.Object(IntlAddress, lambda o: o.adjacencies([
+    lambda t: t.name('contacts').relation([ContactAddresses]).me('address'),
+]))
+store.Schemas.Object(PhoneNumber, lambda o: o.adjacencies([
+    lambda t: t.name('contacts').relation([ContactPhones]).me('phone'),
+]))
+store.Schemas.Object(EmailAddress, lambda o: o.adjacencies([
+    lambda t: t.name('contacts').relation([ContactEmails]).me('email'),
+]))
 
-IntlAddress = (
-    Schemas.OfObject.Builder(IntlAddress)
-    .relations(
-        lambda adj: adj.name('contacts').of(ContactAddresses).me('address')
-    )
-    .update()
-)
+# --- Building forms ---
 
-PhoneNumber = (
-    Schemas.OfObject.Builder(PhoneNumber)
-    .relations(
-        lambda adj: adj.name('contacts').of(ContactPhones).me('phone')
-    )
-    .update()
-)
-
-EmailAddress = (
-    Schemas.OfObject.Builder(EmailAddress)
-    .relations(
-        lambda adj: adj.name('contacts').of(ContactEmails).me('email')
-    )
-    .update()
-)
-
-store.register(IntlAddress)
-store.register(Contact)
-store.register(PhoneNumber)
-store.register(EmailAddress)
-store.register(ContactAddresses)
-store.register(ContactPhones)
-store.register(ContactEmails)
-
-# --- Builder forms ---
-
-# fluent "create" form
-addr1 = (
-    store.IntlAddress()
+# "create": a callback builds a new object
+addr1 = store.IntlAddress(lambda a: (
+    a
     .street1('10 Downing Street')
     .street2('bar')
     .street3('Whitehall')
     .locality('London')
     .postal_code('SW1A 2AA')
     .country_code('GB')
-    .create()
-)
+))
 
-# fluent "update" form: writes back into the source and returns it
-updated = (
-    store.IntlAddress(addr1)
-    .street2(lambda p: p.as_scalar(lambda v: v.set('baz')))  # equivalent to .street2('baz')
-    .update()
-)
+# "update": the object and a callback write into the object, and return it
+updated = store.IntlAddress(addr1, lambda a: a.street2(lambda p: p.as_scalar(lambda v: v.set('baz'))))  # .street2('baz')
 assert updated is addr1
 assert str(addr1.street2) == 'baz'
 
-# fluent "clone" form: returns a new object and leaves the source untouched
-cloned = (
-    store.IntlAddress(addr1)
-    .street2('shoe')
-    .clone()
-)
+# "clone": the object alone returns a new object, and leaves the source untouched
+cloned = store.IntlAddress(store.IntlAddress(addr1), lambda a: a.street2('shoe'))
 assert cloned is not addr1
 assert str(cloned.street2) == 'shoe'
 assert str(addr1.street2) == 'baz'
 
 # clearing a property makes it absent; an absent property's value reads as None
-store.IntlAddress(addr1).street3(lambda p: p.as_value(lambda v: v.clear())).update()
+store.IntlAddress(addr1, lambda a: a.street3(lambda p: p.as_value(lambda v: v.clear())))
 assert addr1.street3.get() is None
 
 # a property that was never set reads as None too
@@ -170,8 +151,8 @@ print(f"{addr1.street1}, {addr1.locality} {addr1.postal_code}, {addr1.country_co
 # Entries are inserted through the object builder's adjacencies, `insert` taking a Spec for the entry: the object
 # fills its own link ('contact'); the entry builder sets the other links and the entry properties. A link takes an
 # existing object or a Spec that builds a new one.
-alice = (
-    store.Contact()
+alice = store.Contact(lambda c: (
+    c
     .given_name('Alice')
     .family_name('Liddell')
     .birth_date('1852-05-04')
@@ -179,8 +160,7 @@ alice = (
     .addresses(lambda a: a.insert(lambda x: x.address(addr1).label('work')))
     .phones(lambda a: a.insert(lambda x: x.phone(lambda y: y.number('+447700900123')).label('mobile')))
     .emails(lambda a: a.insert(lambda x: x.email(lambda y: y.address('alice@example.org')).label('personal')))
-    .create()
-)
+))
 
 # --- Serialization ---
 

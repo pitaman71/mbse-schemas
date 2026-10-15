@@ -5,80 +5,84 @@
 
 import math
 
-from mbse.Schemas.Framework import Schemas, Proxies, Plain, Reachable, Validators
+from mbse.Schemas.Framework import Builders, Schemas, Proxies, Plain, Reachable, Validators
 from mbse.Schemas.Examples._support import entries, raises, same_graph
 
-store = Proxies.OfStore()
+Text = Schemas.OfScalar.Data(str)
+
+store = Builders.Store()
 
 
 def text(name):
-    return lambda prop: prop.name(name).of(lambda t: t.as_scalar(str))
+    return lambda t: t.name(name).type([Text])
 
 
 # --- Schemas ---
 
-Student = Schemas.OfObject.Builder().name('Student').ref().properties(text('name'), text('student_id')).create()
-Staff = Schemas.OfObject.Builder().name('Staff').ref().properties(text('name'), text('staff_id')).create()
-Course = Schemas.OfObject.Builder().name('Course').ref().properties(text('code'), text('title')).create()
-Term = (
-    Schemas.OfObject.Builder().name('Term').ref()
-    .properties(text('code'), text('starts'), text('ends'))  # ISO 8601 dates, e.g. '2026-09-01'
-    .create()
-)
-Room = Schemas.OfObject.Builder().name('Room').ref().properties(text('building'), text('number')).create()
+Student = store.Schemas.Object(lambda o: o.name('Student').ref(True).properties([text('name'), text('student_id')]))
+Staff = store.Schemas.Object(lambda o: o.name('Staff').ref(True).properties([text('name'), text('staff_id')]))
+Course = store.Schemas.Object(lambda o: o.name('Course').ref(True).properties([text('code'), text('title')]))
+Term = store.Schemas.Object(lambda o: (
+    o
+    .name('Term')
+    .ref(True)
+    .properties([text('code'), text('starts'), text('ends')])  # ISO 8601 dates, e.g. '2026-09-01'
+))
+Room = store.Schemas.Object(lambda o: o.name('Room').ref(True).properties([text('building'), text('number')]))
 
 # Three links: each entry is one student taking one course in one term.
-Enrollment = (
-    Schemas.OfRelation.Builder().name('Enrollment')
-    .links('student', 'course', 'term')
-    .properties(
-        lambda prop: prop.name('credits').of(lambda t: t.as_scalar(int)),
-        lambda prop: prop.name('score').of(lambda t: t.as_scalar(float)),
-        lambda prop: prop.name('audit').of(lambda t: t.as_scalar(bool)),
-    )
-    .unique('score', 'audit', 'credits')  # (student, course, term) determine the rest
-    .create()
-)
+Enrollment = store.Schemas.Relation(lambda r: (
+    r
+    .name('Enrollment')
+    .links([
+        lambda t: t.name('student'),
+        lambda t: t.name('course'),
+        lambda t: t.name('term'),
+    ])
+    .properties([
+        lambda t: t.name('credits').type([Schemas.OfScalar.Data(int)]),
+        lambda t: t.name('score').type([Schemas.OfScalar.Data(float)]),
+        lambda t: t.name('audit').type([Schemas.OfScalar.Data(bool)]),
+    ])
+    .uniques(['score', 'audit', 'credits'])  # (student, course, term) determine the rest
+))
 
 # Both Student and Staff can book rooms, so the 'booker' link is filled by more than one schema.
-Booking = (
-    Schemas.OfRelation.Builder().name('Booking')
-    .links('booker', 'room')
-    .properties(text('starts'))  # ISO 8601 date-time, e.g. '2026-09-14T09:00:00Z'
-    .create()
-)
+Booking = store.Schemas.Relation(lambda r: (
+    r
+    .name('Booking')
+    .links([
+        lambda t: t.name('booker'),
+        lambda t: t.name('room'),
+    ])
+    .properties([text('starts')])  # ISO 8601 date-time, e.g. '2026-09-14T09:00:00Z'
+))
 
-Student = (
-    Schemas.OfObject.Builder(Student)
-    .relations(
-        lambda adj: adj.name('enrollments').of(Enrollment).me('student'),
-        lambda adj: adj.name('bookings').of(Booking).me('booker'),
-    )
-    .update()
-)
-Staff = Schemas.OfObject.Builder(Staff).relations(lambda adj: adj.name('bookings').of(Booking).me('booker')).update()
-Course = Schemas.OfObject.Builder(Course).relations(lambda adj: adj.name('enrollments').of(Enrollment).me('course')).update()
-Term = Schemas.OfObject.Builder(Term).relations(lambda adj: adj.name('enrollments').of(Enrollment).me('term')).update()
-Room = Schemas.OfObject.Builder(Room).relations(lambda adj: adj.name('bookings').of(Booking).me('room')).update()
+store.Schemas.Object(Student, lambda o: o.adjacencies([
+    lambda t: t.name('enrollments').relation([Enrollment]).me('student'),
+    lambda t: t.name('bookings').relation([Booking]).me('booker'),
+]))
+store.Schemas.Object(Staff, lambda o: o.adjacencies([lambda t: t.name('bookings').relation([Booking]).me('booker')]))
+store.Schemas.Object(Course, lambda o: o.adjacencies([lambda t: t.name('enrollments').relation([Enrollment]).me('course')]))
+store.Schemas.Object(Term, lambda o: o.adjacencies([lambda t: t.name('enrollments').relation([Enrollment]).me('term')]))
+store.Schemas.Object(Room, lambda o: o.adjacencies([lambda t: t.name('bookings').relation([Booking]).me('room')]))
 
 for schema in [Student, Staff, Course, Term, Room, Enrollment, Booking]:
     assert schema.validate() == [], (schema.name, schema.validate())
-    store.register(schema)
 
 # --- A three-link relation ---
 
-fall = store.Term().code('2026-FA').starts('2026-09-01').ends('2026-12-18').create()
-cs101 = store.Course().code('CS101').title('Programs and Data').create()
+fall = store.Term(lambda t: t.code('2026-FA').starts('2026-09-01').ends('2026-12-18'))
+cs101 = store.Course(lambda c: c.code('CS101').title('Programs and Data'))
 
 # From the student's side, an entry sets the two other links; inline creation works because only Course fills 'course'.
-mia = (
-    store.Student()
+mia = store.Student(lambda s: (
+    s
     .name('Mia')
     .student_id('S-0001')
     .enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).credits(4)))
     .enrollments(lambda a: a.insert(lambda x: x.course(lambda c: c.code('MA201').title('Linear Algebra')).term(fall).credits(3)))
-    .create()
-)
+))
 assert sorted(str(e['course'].code) for e in entries(Student, mia, 'enrollments')) == ['CS101', 'MA201']
 
 # The same fact is visible from all three ends.
@@ -90,11 +94,11 @@ assert set(entries(Term, fall, 'enrollments')[0]) == {'student', 'course', 'cred
 
 # Every link other than the object's own must be set.
 with raises(ValueError):
-    store.Student().name('Noah').enrollments(lambda a: a.insert(lambda x: x.course(cs101))).create()
+    store.Student(lambda s: s.name('Noah').enrollments(lambda a: a.insert(lambda x: x.course(cs101))))
 
 # --- Entry property equality follows schema equality, not host-language == ---
 
-noah = store.Student().name('Noah').create()
+noah = store.Student(lambda s: s.name('Noah'))
 
 
 def enroll(student, **props):
@@ -104,7 +108,7 @@ def enroll(student, **props):
             getattr(x, key)(value)
         return x
 
-    store.Student(student).enrollments(lambda a: a.insert(spec)).update()
+    store.Student(student, lambda s: s.enrollments(lambda a: a.insert(spec)))
 
 
 enroll(noah, score=0.0)
@@ -113,7 +117,7 @@ enroll(noah, score=math.nan)
 enroll(noah, score=float('nan'))  # all NaNs are equal: elided
 assert len(entries(Student, noah, 'enrollments')) == 3
 
-zoe = store.Student().name('Zoe').create()
+zoe = store.Student(lambda s: s.name('Zoe'))
 enroll(zoe, credits=1)
 enroll(zoe, credits=True)  # the builder does not validate scalar types, and True is a different value from 1
 
@@ -131,36 +135,36 @@ with raises(TypeError):
 validate = Validators.Validate(store)
 assert validate(Student, zoe) == [
     'Student#0.enrollments[1].credits: expected int, got bool',
-    # Her two enrollments also share (student, course, term), which Enrollment's unique(...) clause forbids.
+    # Her two enrollments also share (student, course, term), which Enrollment's uniques clause forbids.
     "unique(audit, credits, score) violated: entries agreeing on ['course', 'student', 'term'] differ on "
     "['audit', 'credits', 'score']",
 ]
 
-# Noah's three enrollments share (student, course, term), which Enrollment's unique(...) clause says determine the rest.
+# Noah's three enrollments share (student, course, term), which Enrollment's uniques clause says determine the rest.
 assert any(p.startswith('unique(audit, credits, score) violated') for p in validate(Student, noah))
 
 # A linked object must have a schema that fills that link: here a Student is linked as a course.
-store.Student(noah).enrollments(lambda a: a.insert(lambda x: x.course(mia).term(fall))).update()
+store.Student(noah, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(mia).term(fall))))
 assert any("a 'Student' cannot fill link 'course'" in p for p in validate(Student, noah))
-store.Student(noah).enrollments(lambda a: a.remove(lambda e: e.course(mia))).update()
+store.Student(noah, lambda s: s.enrollments(lambda a: a.remove(lambda e: e.course(mia))))
 assert not any('cannot fill' in p for p in validate(Student, noah))
 
 # Remove the bad entry so the rest of the example can serialize.
-store.Student(zoe).enrollments(lambda a: a.remove(lambda e: e.credits(True))).update()
+store.Student(zoe, lambda s: s.enrollments(lambda a: a.remove(lambda e: e.credits(True))))
 assert [e['credits'] for e in entries(Student, zoe, 'enrollments')] == [1]
 
 # --- Schema inference through a link must be unambiguous ---
 
-lab = store.Room().building('Hopper Hall').number('B12').create()
+lab = store.Room(lambda r: r.building('Hopper Hall').number('B12'))
 
 # Both Student and Staff fill 'booker', so building one inline from the room's side is refused...
 with raises(TypeError):
-    store.Room(lab).bookings(lambda a: a.insert(lambda x: x.booker(lambda b: b.name('?')).starts('2026-09-14T09:00:00Z'))).update()
+    store.Room(lab, lambda r: r.bookings(lambda a: a.insert(lambda x: x.booker(lambda b: b.name('?')).starts('2026-09-14T09:00:00Z'))))
 
 # ...but linking an existing object works, whichever schema it has.
-grace = store.Staff().name('Grace').staff_id('F-0042').create()
-store.Room(lab).bookings(lambda a: a.insert(lambda x: x.booker(grace).starts('2026-09-14T09:00:00Z'))).update()
-store.Room(lab).bookings(lambda a: a.insert(lambda x: x.booker(mia).starts('2026-09-15T13:30:00Z'))).update()
+grace = store.Staff(lambda s: s.name('Grace').staff_id('F-0042'))
+store.Room(lab, lambda r: r.bookings(lambda a: a.insert(lambda x: x.booker(grace).starts('2026-09-14T09:00:00Z'))))
+store.Room(lab, lambda r: r.bookings(lambda a: a.insert(lambda x: x.booker(mia).starts('2026-09-15T13:30:00Z'))))
 assert sorted(e['booker'].as_schema().name for e in entries(Room, lab, 'bookings')) == ['Staff', 'Student']
 
 # References carry the schema name, so restoring knows Grace is Staff and Mia is a Student.

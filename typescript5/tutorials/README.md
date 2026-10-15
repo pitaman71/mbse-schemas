@@ -40,9 +40,9 @@ Expressions, which constraints will be made of, live in the separate
 
 | # | Notebook | The problem | What you learn |
 |---|---|---|---|
-| 1 | [A contact card](01_A_Contact_Card.ipynb) | One record that many programs must agree on | Schemas are values; builders and Specs; `create`/`update`/`clone`; read-only instances; absent is not `undefined`; why proxy callbacks take `(x: any)` |
+| 1 | [A contact card](01_A_Contact_Card.ipynb) | One record that many programs must agree on | Schemas are values, built in a store; builders and Specs; one call creates, updates or clones; read-only instances; absent is not `undefined`; why the store's callbacks take `(x: any)` |
 | 2 | [An address book](02_An_Address_Book.ipynb) | Contacts share addresses, and labels belong to neither side | Relations instead of arrays; untyped links; adjacencies; entries as shared facts; set semantics; reading through visitors |
-| 3 | [Moving house](03_Moving_House.ipynb) | Remove, relabel and copy relationships | Editing entries through builders; `clone()` and relations; what `update()` replaces |
+| 3 | [Moving house](03_Moving_House.ipynb) | Remove, relabel and copy relationships | Editing entries through builders; clones and relations; what an update replaces |
 | 4 | [A family tree](04_A_Family_Tree.ipynb) | People relate to people, in cycles | Self-relations; inverse views that can't disagree; `Reachable.of`; links filled by several kinds; `BigInt` for integers |
 | 5 | [A price list](05_A_Price_List.ipynb) | One price per currency; dirty partner feeds | `unique(...)` cardinality; maps as relations; validation on demand with paths |
 | 6 | [Saving and loading](06_Saving_And_Loading.ipynb) | Save shared, cyclic data without duplicates | Snapshots, identities and references; plain data as `Map`s; injected builders; `DecodeError` |
@@ -53,7 +53,7 @@ Expressions, which constraints will be made of, live in the separate
 ## Differences from the Python tutorial
 
 Where the TypeScript binding differs from Python's (`BigInt` for integers, `.equals()`, `Map` for plain data,
-`(x: any)` on proxy callbacks, and so on), the notebooks say so as they go. The full list, with the reasons, is in
+`(x: any)` on the callbacks given to the store and its builders, and so on), the notebooks say so as they go. The full list, with the reasons, is in
 [Equivalence](../../docs/EQUIVALENCE.md) under "Deliberate differences" and "Tutorials".
 
 ---

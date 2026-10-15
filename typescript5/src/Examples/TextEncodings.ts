@@ -6,41 +6,51 @@
 import * as Y from "yaml";
 
 import { DecodeError } from "@mbse/schemas/Framework/Errors";
-import { JSON, Plain, Proxies, Schemas, Validators, YAML } from "@mbse/schemas/Framework";
+import { Builders, JSON, Plain, Proxies, Schemas, Validators, YAML } from "@mbse/schemas/Framework";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { assert, equal, raises, same_graph } from "./_support.js";
 
-const store = new Proxies.OfStore();
+const Text = new Schemas.OfScalar.Data(String);
+
+const store: any = new Builders.Store();
 
 // --- Schemas ---
 
-let Reading = new Schemas.OfObject.Builder().name("Reading").ref()
-  .properties(
-    (prop) => prop.name("observed").of((t) => t.as_scalar(String)), // ISO 8601, e.g. '2026-09-28T12:00:00Z'
-    (prop) => prop.name("value").of((t) => t.as_scalar(Number)),
-    (prop) => prop.name("quality").of((t) => t.as_scalar(BigInt)),
-    (prop) => prop.name("valid").of((t) => t.as_scalar(Boolean)),
-    (prop) => prop.name("raw").of((t) => t.as_scalar(Uint8Array)),
-    (prop) => prop.name("note").of((t) => t.as_scalar(String)),
-  )
-  .create();
-let Station = new Schemas.OfObject.Builder().name("Station").ref()
-  .properties(
-    (prop) => prop.name("wmo_id").of((t) => t.as_scalar(String)), // e.g. '03772'; leading zeros matter
-    (prop) => prop.name("name").of((t) => t.as_scalar(String)),
-  )
-  .create();
-const Readings = new Schemas.OfRelation.Builder().name("Readings")
-  .links("station", "reading")
-  .properties((prop) => prop.name("sensor").of((t) => t.as_scalar(String)))
-  .unique("station", "sensor") // each reading comes from one sensor of one station
-  .create();
-Station = new Schemas.OfObject.Builder(Station).relations((adj) => adj.name("readings").of(Readings).me("station")).update();
-Reading = new Schemas.OfObject.Builder(Reading).relations((adj) => adj.name("station").of(Readings).me("reading")).update();
+const Reading = store.Schemas.Object((o: any) => (
+  o
+    .name("Reading")
+    .ref(true)
+    .properties([
+      (t: any) => t.name("observed").type([Text]), // ISO 8601, e.g. '2026-09-28T12:00:00Z'
+      (t: any) => t.name("value").type([new Schemas.OfScalar.Data(Number)]),
+      (t: any) => t.name("quality").type([new Schemas.OfScalar.Data(BigInt)]),
+      (t: any) => t.name("valid").type([new Schemas.OfScalar.Data(Boolean)]),
+      (t: any) => t.name("raw").type([new Schemas.OfScalar.Data(Uint8Array)]),
+      (t: any) => t.name("note").type([Text]),
+    ])
+));
+const Station = store.Schemas.Object((o: any) => (
+  o
+    .name("Station")
+    .ref(true)
+    .properties([
+      (t: any) => t.name("wmo_id").type([Text]), // e.g. '03772'; leading zeros matter
+      (t: any) => t.name("name").type([Text]),
+    ])
+));
+const Readings = store.Schemas.Relation((r: any) => (
+  r
+    .name("Readings")
+    .links([
+      (t: any) => t.name("station"),
+      (t: any) => t.name("reading"),
+    ])
+    .properties([(t: any) => t.name("sensor").type([Text])])
+    .uniques(["station", "sensor"]) // each reading comes from one sensor of one station
+));
+store.Schemas.Object(Station, (o: any) => o.adjacencies([(t: any) => t.name("readings").relation([Readings]).me("station")]));
+store.Schemas.Object(Reading, (o: any) => o.adjacencies([(t: any) => t.name("station").relation([Readings]).me("reading")]));
 
-for (const schema of [Reading, Station, Readings]) {
-  store.register(schema);
-}
 const validate = Validators.Validate(store);
 const from_json = JSON.FromJSON(store);
 const from_yaml = YAML.FromYAML(store);
@@ -50,7 +60,7 @@ const yaml11 = (text: string) => Y.parse(text, { version: "1.1", intAsBigInt: tr
 // --- Floats at their edges, through every encoding ---
 
 for (const value of [0.0, -0.0, 1e308, 5e-324, 0.1, Infinity, -Infinity, NaN]) {
-  const reading = store.Reading().value(value).create();
+  const reading = store.Reading((r: any) => r.value(value));
   for (const back of [
     Plain.FromPlain(store)(Reading, Plain.ToPlain(store)(Reading, reading)),
     from_json(Reading, JSON.ToJSON(store)(Reading, reading)),
@@ -62,19 +72,20 @@ for (const value of [0.0, -0.0, 1e308, 5e-324, 0.1, Infinity, -Infinity, NaN]) {
 }
 
 // Non-finite floats have a plain form, so JSON output stays strict (no NaN / Infinity literals).
-let text = JSON.ToJSON(store)(Reading, store.Reading().value(NaN).create());
+let text = JSON.ToJSON(store)(Reading, store.Reading((r: any) => r.value(NaN)));
 assert(text.includes('"NaN"') && globalThis.JSON.parse(text));
 
 // --- Every scalar type at once, and the three encodings agree ---
 
-const sample = store.Reading()
-  .observed("2026-09-28T12:00:00Z")
-  .value(-0.0)
-  .quality(2n ** 70n) // ints are unbounded; other languages may need a wider type
-  .valid(false)
-  .raw(new Uint8Array([0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff]))
-  .note('日本語 🚀 \x00 "quoted" \\ back\nsecond line')
-  .create();
+const sample = store.Reading((r: any) => (
+  r
+    .observed("2026-09-28T12:00:00Z")
+    .value(-0.0)
+    .quality(2n ** 70n) // ints are unbounded; other languages may need a wider type
+    .valid(false)
+    .raw(new Uint8Array([0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff]))
+    .note('日本語 🚀 \x00 "quoted" \\ back\nsecond line')
+));
 const plain = Plain.ToPlain(store)(Reading, sample);
 assert(equal(JSON.loads(JSON.ToJSON(store)(Reading, sample)), plain));
 assert(equal(YAML.loads(YAML.ToYAML(store)(Reading, sample)), plain));
@@ -92,7 +103,7 @@ const tricky = ["yes", "No", "on", "OFF", "true", "null", "~", "", "010", "0o17"
   "2026-09-01", ".inf", ".nan", "NaN", "Infinity", "-0.0", " lead", "trail ", "a: b", "- dash", "#hash",
   "x #y", '"dq"', "'sq'", "@at", "`tick", "%pct", "!bang", "&amp", "*star", "|", ">", "{}", "[]", "<<"];
 for (const note of tricky) {
-  const reading = store.Reading().note(note).create();
+  const reading = store.Reading((r: any) => r.note(note));
   text = YAML.ToYAML(store)(Reading, reading);
   assert((from_yaml(Reading, text) as Instance).note.get() === note, note);
   // The output is also read correctly by a stock YAML 1.1 loader.
@@ -100,7 +111,7 @@ for (const note of tricky) {
 }
 
 // WMO identifiers keep their leading zeros in both encodings.
-const paris = store.Station().wmo_id("07149").name("Paris-Orly").create();
+const paris = store.Station((s: any) => s.wmo_id("07149").name("Paris-Orly"));
 assert((from_json(Station, JSON.ToJSON(store)(Station, paris)) as Instance).wmo_id.get() === "07149");
 assert((from_yaml(Station, YAML.ToYAML(store)(Station, paris)) as Instance).wmo_id.get() === "07149");
 
@@ -142,12 +153,13 @@ for (const bad of ["root: Reading/a\nroot: Reading/b\nobjects: {}", // duplicate
 
 // --- A graph through each encoding ---
 
-const lyon = store.Station()
-  .wmo_id("07480")
-  .name("Lyon-Saint-Exupéry")
-  .readings((a: any) => a.insert((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(11.5).valid(true)).sensor("temp")))
-  .readings((a: any) => a.insert((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(71.0).valid(true)).sensor("rh")))
-  .create();
+const lyon = store.Station((s: any) => (
+  s
+    .wmo_id("07480")
+    .name("Lyon-Saint-Exupéry")
+    .readings((a: any) => a.insert((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(11.5).valid(true)).sensor("temp")))
+    .readings((a: any) => a.insert((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(71.0).valid(true)).sensor("rh")))
+));
 const graph = Plain.ToPlain(store).Reachable(Station, lyon);
 for (const [encoded, decoder] of [[JSON.ToJSON(store).Reachable(Station, lyon), JSON.FromJSON],
   [YAML.ToYAML(store).Reachable(Station, lyon), YAML.FromYAML]] as const) {

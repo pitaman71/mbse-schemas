@@ -23,6 +23,14 @@ Mutations.OfObject.{Exists, AsProperty}
 Mutations.OfRelation.{Insert, Remove, Clear, AsEntries}
 ```
 
+`Mutations.OfRelation.{Insert, Remove}` carry a reference to the relation schema and a list of `Mutations.OfEntry`, which
+itself carries `Mutations.OfProperty.*` and `Mutations.OfLink.*`, through `Mutations.OfEntry.{AsProperty, AsLink}`:
+
+```python
+Mutations.OfEntry.{AsProperty, AsLink}
+Mutations.OfLink.{Set, Clear}
+```
+
 `Mutations.OfRelation.AsEntries` carries a list of the following applied in modulo order:
 
 ```python
@@ -40,8 +48,8 @@ Mutations.OfUnion.AsBranch
 Mutations.OfIntersection.AsPart
 ```
 
-- `Mutations.OfAny.AsObject` carries a list of `Mutations.OfObject.AsProperty` with no `Ref`: the value object it changes is
-  the one it is nested in.
+- `Mutations.OfAny.AsObject` carries a list of `Mutations.OfObject.AsProperty` with no `Ref`: the reference object a path
+  starts from is named at its root, and the nested value verbs follow the path from there.
 - `Mutations.OfUnion.AsBranch` and `Mutations.OfIntersection.AsPart` name a branch or a part and carry a list of
   `Mutations.OfProperty.*`, as a property does; writing a branch clears the others (`Visitors.OfUnion`).
 - `Mutations.OfContainer.AsItems` carries a list of `Mutations.OfAny.*` applied in modulo order: with three mutations in
@@ -66,7 +74,7 @@ Mutations.OfObject.Def # includes props
 ```
 
 - scalar payloads are untyped and interpreted according to their schema
-- `Mutations.OfObject.Def` carries a schema reference
+- `Mutations.OfObject.Def` carries a schema reference, and its object's properties; never its adjacencies, which `Mutations.OfRelation.Insert` writes
 - reference objects are written as `Mutations.OfObject.{Def,Ref}` directly under `Mutations.OfObject.*` at the top level of the log, never nested as value objects are
 - reference objects are only written in "definition form" the first time they are encountered. subsequent encounters are written in "reference form" as identity
 

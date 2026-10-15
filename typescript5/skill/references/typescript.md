@@ -1,8 +1,9 @@
 # mbse-schemas in TypeScript
 
 Import from `@mbse/schemas/Framework`, and error classes from `@mbse/schemas/Framework/Errors`. The API mirrors
-Python name for name, snake_case included (`as_scalar`, `as_identity`). It runs on Node 22+, in browsers and in
-Deno.
+Python name for name, snake_case included (`as_scalar`, `as_identity`), but for building schemas: Python builds them
+in a store (`Builders.Store`), and TypeScript still with the older schema builders below, until it migrates. It runs
+on Node 22+, in browsers and in Deno.
 
 ## A complete program
 

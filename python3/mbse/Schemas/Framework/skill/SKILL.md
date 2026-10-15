@@ -7,8 +7,9 @@ description: Model structured data and interfaces once, as a neutral, language-i
 
 A schema here is an ordinary value, not a class. It is a semantically normalized formalization of an interface: every
 collection is a relation, nothing is implicit, and one schema means the same thing in every language. Python
-(`mbse.Schemas.Framework`) and TypeScript (`@mbse/schemas/Framework`) implement the same API, and they write
-byte-identical JSON.
+(`mbse.Schemas.Framework`) and TypeScript (`@mbse/schemas/Framework`) implement the same model, and they write
+byte-identical JSON. Python builds schemas in a store, as data is built (`Builders.Store`, below); TypeScript still
+builds them with the older schema builders its reference shows, until it migrates.
 
 ## When to use it
 
@@ -27,7 +28,7 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
    more, whose entries may carry properties. Each object sees a relation through one of its links (an *adjacency*,
    declared with `.me(link)`). A list, a dict or a tensor of values is a property holding an `OfContainer`: elements
    by index, dense by position for an int index, a dict for any other hashable one.
-2. **Reference or value.** A reference object (its schema marked `.ref()`) stands on its own and is reached through
+2. **Reference or value.** A reference object (its schema marked `.ref(True)`) stands on its own and is reached through
    relations only. A *value object* is held by a property, a container or an entry, its schema an `OfObject` without
    adjacencies; it belongs to that owner and is copied with it. Links target reference objects only: nothing links to
    a value object.
@@ -35,19 +36,25 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
 4. **Nothing is mandatory, and absent reads as `None`** (`null` in TypeScript): a property is a member, its visitor,
    whose `get()` is `None` when absent; no property holds `None` as a value, and an absent one is left out of what is
    written. A name the schema lacks reads as empty, and writing through it raises `ReadOnlyError`. Cardinality is
-   `unique(...)` on a relation. "At least one" constraints are not implemented yet.
+   a relation's `unique` clauses, `.uniques(...)`, which name its links and properties by string. "At least one"
+   constraints are not implemented yet.
 5. **Validation runs only when asked:** `Validators.Validate(store)(schema, value)`, or `.Reachable(...)` for a
    whole graph. It returns every problem, each with a path. Schemas have their own `.validate()`.
 6. **Scalar types are exact, never coerced.** `int`, `float`, `bool`, `str` and `bytes` are distinct. In TypeScript,
    `int` is `bigint`.
 7. **Objects are read-only visitors.** Read a scalar with `str(obj.name)` or `obj.name.get()` (TypeScript:
    `` `${obj.name}` ``). In Python a member compares and orders as its value (`obj.name == "Ada"`); in TypeScript
-   compare it once read (`obj.name.get() === "Ada"`), since `===` on the member itself is never true. Change objects through a builder, whose members take a
-   value or a callable given the visitor, and which ends with `create()`, `clone()` or `update()`; entries are
-   inserted and removed through an adjacency's visitor (`.phones(lambda a: a.insert(...))`).
-8. **Everything lives in a store.** `store = Proxies.OfStore()` holds named schemas, and as data what its
-   singletons reach: `store.register(schema)` (a schema named by its builder's `.name("crm.Contact")`), then
-   `store.<Name>(...)`. Serializers and validators take the store
+   compare it once read (`obj.name.get() === "Ada"`), since `===` on the member itself is never true. Change
+   objects in their store, through a builder whose members take a value or a callable given the visitor:
+   `store.crm.Contact(obj, lambda c: c.name("Ada"))` updates `obj`, `store.crm.Contact(lambda c: ...)` creates and
+   `store.crm.Contact(obj)` clones. Entries are inserted and removed through an adjacency's visitor
+   (`.phones(lambda a: a.insert(...))`).
+8. **Everything is built in a store.** `store = Builders.Store()` builds schemas,
+   `store.Schemas.Object(lambda o: o.name("crm.Contact").ref(True).properties([...]))`, registering each named one
+   under its name, and data, `store.crm.Contact(lambda c: ...)`, an attribute per part of the name; it keeps as data
+   what its singletons reach. A schema's members are its entries, each named by its entry
+   (`lambda t: t.name("given_name").type([Text])`), and a reference to another schema object is a list of what it
+   links (`.type([Text])`). Serializers and validators take the store
    (`JSON.ToJSON(store)`, `Validators.Validate(store)`). Stores are isolated; objects move between them as snapshots.
 
 ## Load the reference for your task

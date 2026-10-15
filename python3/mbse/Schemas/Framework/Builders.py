@@ -740,14 +740,21 @@ class _Builder(_Unassignable, Generic[D]):
         """Returns new data. Only valid without data given."""
         if self._original is not None:
             raise ValueError("create() is only valid without a source instance; use clone() or update()")
-        return self._identified(self._finalize(self._working), self._identity)
+        return self._detached(self._identified(self._finalize(self._working), self._identity))
 
     def clone(self) -> D:
         """Returns new data, leaving the data given as it is. Only valid with data given."""
         if self._original is None:
             raise ValueError("clone() is only valid with a source instance")
         self._clone_members()
-        return self._identified(self._finalize(self._working), self._identity)
+        return self._detached(self._identified(self._finalize(self._working), self._identity))
+
+    def _detached(self, data: D) -> D:
+        """`data`, finalized, which the builder no longer writes: it goes on working on a copy, so that finalizing it again
+        gives other data."""
+        self._working = self._make()
+        self._update(self._working, data)
+        return data
 
     def _clone_members(self) -> None:
         """A member has one owner: a clone has its own members, each cloned, with an identity of its own; those it

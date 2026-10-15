@@ -153,7 +153,10 @@ abstract class Shelled implements Shellable {
     return "a visitor's members cannot be assigned: call a member to write through it";
   }
 
-  abstract _repr(): string;
+  /** Python's default `repr()`, for a visitor that gives none of its own. */
+  _repr(): string {
+    return `<${this[TYPE_NAME]} object>`;
+  }
 
   [REPR](): string {
     return this._repr();
@@ -401,7 +404,7 @@ class _Entry extends Shelled {
     return "entries are read-only; use a builder";
   }
 
-  _repr(): string {
+  override _repr(): string {
     return `<entry of ${this._relation.name || "a relation"}>`;
   }
 
@@ -508,6 +511,21 @@ function write(writable: boolean, reason: string): void {
 
 function isBytes(value: unknown): value is Uint8Array {
   return value instanceof Uint8Array && Object.getPrototypeOf(value) === Uint8Array.prototype;
+}
+
+/** Whether a value is iterable, as Python's `Iterable` finds it. */
+export function _iterable(value: unknown): value is Iterable<unknown> {
+  return value !== null && value !== undefined && typeof (value as { [Symbol.iterator]?: unknown })[Symbol.iterator] === "function";
+}
+
+const isIterable = _iterable;
+
+/** A map's entries, as Python's `Mapping` gives them: a `Map`'s, or a record's (an object literal's) by name; null for
+ * any other value. */
+export function _mapping(value: unknown): [unknown, unknown][] | null {
+  if (value instanceof Map) return [...value];
+  const prototype = value !== null && typeof value === "object" ? Object.getPrototypeOf(value) : undefined;
+  return prototype === Object.prototype || prototype === null ? Object.entries(value as object) : null;
 }
 
 function isScalar(value: unknown): value is Visitors.Scalar {
@@ -672,7 +690,7 @@ class _Empty extends Dunders {
     return makeEmpty(this._reason);
   }
 
-  _repr(): string {
+  override _repr(): string {
     return "<empty>";
   }
 }
@@ -725,7 +743,7 @@ class _Scalar extends Dunders {
     return this._parent;
   }
 
-  _repr(): string {
+  override _repr(): string {
     return `<scalar ${this._labelText}>`;
   }
 }
@@ -874,8 +892,21 @@ class _Any {
       this._label);
   }
 
-  /** Writes a container given as a value: its elements are copied when it is placed. */
+  /** Writes a container given as a value: its elements are copied when it is placed. A map (by index) or an iterable
+   * (by position) is a shorthand for one holding its elements, which replaces the one held: nothing merges. */
   _replaceContainer(value: unknown): void {
+    const elements = _mapping(value) ?? (isIterable(value) && typeof value !== "string" && !isBytes(value)
+      ? [...value].map((element, i) => [BigInt(i), element] as [unknown, unknown]) : null);
+    if (elements !== null) {
+      const attach = (builder: unknown): void => {
+        this._touch();
+        this._values.set(this._name, builder);
+      };
+      const builder = makeContainerBuilder(this._type as Schemas.OfContainer.Data, null, this._store, attach, this._label);
+      innerOf(builder)._touch();
+      for (const [index, element] of elements) builder.at(index).write(element);
+      return;
+    }
     if (!(innerOf(value) instanceof _Containing) || innerOf(value)._schema !== this._type) {
       throw new TypeError(`${this._label} takes a container of its schema or a Spec, got ${typeName(value)}`);
     }
@@ -1170,7 +1201,7 @@ abstract class _Containing extends Shelled {
     return this._parent;
   }
 
-  _repr(): string {
+  override _repr(): string {
     return `<container of ${this._items.size}>`;
   }
 }
@@ -1407,7 +1438,7 @@ class _Property extends Dunders {
     return this._parent;
   }
 
-  _repr(): string {
+  override _repr(): string {
     return `<${this._label()}>`;
   }
 }
@@ -1439,7 +1470,7 @@ class _Properties extends Shelled {
     return this._owner;
   }
 
-  _repr(): string {
+  override _repr(): string {
     return "<properties>";
   }
 }
@@ -1510,7 +1541,7 @@ class _ObjectData extends Shelled {
     throw new ReadOnlyError("a data instance is read-only; write through a builder");
   }
 
-  _repr(): string {
+  override _repr(): string {
     return `<${this._schemaName}>`;
   }
 
@@ -1574,7 +1605,7 @@ class _RecordData extends Shelled {
     throw new ReadOnlyError(`${withArticle(noun(this._schema))} is read-only; write through a builder`);
   }
 
-  _repr(): string {
+  override _repr(): string {
     return `<${noun(this._schema)}>`;
   }
 
@@ -2039,7 +2070,7 @@ class _RecordBuilder extends Shelled {
     return this._parent;
   }
 
-  _repr(): string {
+  override _repr(): string {
     return `<builder of a ${noun(this._schema)}>`;
   }
 
@@ -2111,15 +2142,135 @@ class _AdjacencyBuilder extends Shelled {
     return this._proxy;
   }
 
+  /** Called with a callback, it visits through it. Called with an iterable, a shorthand, each item inserted, or
+   * replacing the entry held where the relation allows one only from this end: an entry (the entry shorthand), or,
+   * where the relation has two links (the peer shorthand), the object to link, or a function handed `_Them`, through
+   * which it sets the entry's properties, its link, and the linked object's members. */
   _call(spec: unknown): unknown {
-    if (isFunction(spec)) visit(spec, this._proxy);
-    else for (const entry of spec as Iterable<unknown>) this.insert(entry); // an iterable of entries, each inserted
+    if (isFunction(spec)) {
+      visit(spec, this._proxy);
+      return this._builder;
+    }
+    if (typeof spec === "string" || isBytes(spec) || spec instanceof Map || !isIterable(spec)) {
+      throw new TypeError(`adjacency ${repr(this._name)} takes an iterable of entries or of what it links, or a callback `
+        + `taking the adjacency; got ${repr(spec)}`);
+    }
+    const relation = this._schema.relation as RelationSchema;
+    const others = [...relation.entry.links.keys()].filter((link) => link !== this._schema.me);
+    for (const item of spec) {
+      let entry: unknown;
+      if (innerOf(item) instanceof _Entry || innerOf(item) instanceof _EntryBuilder) {
+        entry = item;
+      } else if (others.length !== 1) {
+        throw new TypeError(`adjacency ${repr(this._name)}: entries of ${relation.name || "its relation"} have more than `
+          + "two links; give entries");
+      } else if (isFunction(item)) {
+        const them = new _Them(this, others[0] as string);
+        visit(item, shell(them));
+        entry = them._entryBuilder();
+      } else {
+        entry = makeEntryBuilder(relation, this._schema.me, innerOf(this._builder)._store);
+        (entry as any)[others[0] as string](item);
+      }
+      if (single(relation, this._schema.me)) innerOf(this._builder)._entries.set(this._name, []);
+      this.insert(entry);
+    }
     return this._builder;
   }
 
-  _repr(): string {
+  override _repr(): string {
     return `<adjacency builder ${this._name}>`;
   }
+}
+
+/** Whether an object holds one entry of `relation` at most from its link `me`: a `unique` clause makes `me` determine
+ * every other link and property. */
+function single(relation: RelationSchema, me: string): boolean {
+  const names = [...relation.entry.links.keys(), ...relation.entry.properties.keys()];
+  return relation.uniques.some((unique) => {
+    const rest = names.filter((name) => !unique.has(name));
+    return rest.length === 1 && rest[0] === me;
+  });
+}
+
+/** `OfThem.Visitor`, for one item of the peer shorthand: an entry of a relation of two links, and the object it links
+ * (them). Its members are the entry's properties, its link (to link an object that exists), and the members of the
+ * object it links, written through that object's builder: a new one, or, where the link is set, that one, updated.
+ * Each, called, returns the visitor. */
+class _Them extends Shelled {
+  readonly [TYPE_NAME] = "_Them";
+  readonly _entry: any;
+  _object: any = null;
+
+  constructor(readonly _adjacency: _AdjacencyBuilder, readonly _other: string) {
+    super();
+    this._entry = makeEntryBuilder(_adjacency._schema.relation as RelationSchema, _adjacency._schema.me,
+      innerOf(_adjacency._builder)._store);
+  }
+
+  as_schema(): Schemas.OfEntry.Data {
+    return this._entry.as_schema();
+  }
+
+  _builder(): any {
+    if (this._object === null) {
+      const entry: _EntryBuilder = innerOf(this._entry);
+      const store = entry._store as OfStore;
+      const target = entry._links.get(this._other);
+      if (isObjectBuilder(target)) {
+        this._object = target;
+      } else {
+        const name = target === undefined ? store._filled(entry._relation, this._other) : innerOf(target)._schemaName;
+        this._object = makeObjectBuilder(store, store.schema(name), name, target as Instance | undefined);
+      }
+    }
+    return this._object;
+  }
+
+  override _member(name: string): unknown {
+    if (name === this._other || (innerOf(this._entry) as _EntryBuilder)._relation.entry.properties.has(name)) {
+      return makeChained(this._entry[name], this, name === this._other);
+    }
+    return makeChained(this._builder()[name], this, false);
+  }
+
+  /** The entry: linking the object given, updated where its members were written, or the one built. */
+  _entryBuilder(): any {
+    const entry: _EntryBuilder = innerOf(this._entry);
+    const builder = this._object;
+    const target = entry._links.get(this._other);
+    if (builder !== null && builder !== target) {
+      if (target === undefined) entry._links.set(this._other, builder);
+      else builder.update();
+    }
+    if (!entry._links.has(this._other)) throw new ValueError(`link ${repr(this._other)} is not set`);
+    return this._entry;
+  }
+}
+
+/** A member read through `_Them`: read as the member itself; called, it writes through the member and returns the
+ * `_Them` visitor, so that an item's clauses chain. */
+class _Chained extends Shelled {
+  readonly [TYPE_NAME] = "_Chained";
+
+  constructor(readonly _wrapped: any, readonly _them: _Them, readonly _link: boolean) {
+    super();
+  }
+
+  override _member(name: string): unknown {
+    return this._wrapped[name];
+  }
+
+  _call(spec: unknown): unknown {
+    if (this._link && this._them._object !== null) throw new ValueError("link the object before writing its members");
+    this._wrapped(spec);
+    return this._them._proxy;
+  }
+}
+
+function makeChained(member: unknown, them: _Them, link: boolean): any {
+  const state = new _Chained(member, them, link);
+  return shell(state, (spec) => state._call(spec));
 }
 
 function makeAdjacencyBuilder(builder: unknown, name: string): any {
@@ -2189,7 +2340,7 @@ class _LinkMember extends Shelled {
     return entry._proxy;
   }
 
-  _repr(): string {
+  override _repr(): string {
     return `<link ${repr(this._name)}>`;
   }
 }
@@ -2228,7 +2379,7 @@ class _EntryBuilder extends Shelled {
     return makeEmpty(`${repr(name)} is not a link this entry can set, nor a property of the relation`);
   }
 
-  _repr(): string {
+  override _repr(): string {
     return `<entry builder of ${this._relation.name || "a relation"}>`;
   }
 
@@ -2338,7 +2489,7 @@ class _ObjectBuilder extends Shelled {
     return makeEmpty(`${repr(name)} is not a property or adjacency of ${repr(this._schemaName)}`);
   }
 
-  _repr(): string {
+  override _repr(): string {
     return `<builder of ${this._schemaName}>`;
   }
 
@@ -2469,6 +2620,17 @@ export namespace OfEntry {
   export const Data = _Entry;
   export type Data = _Entry;
 }
+
+/** Whether a value is a visitor this module or `Builders` made (a shell), which is a value, though callable, never the
+ * function form of a `Specs.Callback`. */
+export function _isVisitor(value: unknown): boolean {
+  return INNER.has(value as object);
+}
+
+/** The shells visitors are made with, shared with `Builders`, as Python's `Builders` imports `_Dunders`, `_Empty`,
+ * `_Properties` and `_Unassignable`. */
+export { shell as _shell, Shelled as _Shelled, Dunders as _Dunders, makeEmpty as _makeEmpty,
+  makeProperties as _makeProperties, innerOf as _innerOf, uuid4 as _uuid4 };
 
 /** Internal classes, exposed for protocol conformance tests. */
 export const _internals = { makeRecordBuilder, _ObjectData, _RecordData, _Entry, _Empty, _Scalar, _Any, _Property, _Properties, _Adjacency,

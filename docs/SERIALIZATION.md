@@ -16,15 +16,23 @@
 
 ## Mutations : Vocabulary
 
-Verbs are the backbone and appear as top-level objects in the log:
+*Reference verbs* are the backbone and appear as top-level objects in the log:
 
 ```python
-Mutations.OfContainer.{Insert, Remove, Append, Prepend, Clear}
-Mutations.OfObject.{Exists, SetProp, ClearProp}
-Mutations.OfRelation.{Insert, Remove, Clear}
+Mutations.OfObject.{Exists, AsProperty}
+Mutations.OfRelation.{Insert, Remove, Clear, AsProperty}
 ```
 
-A few schema kinds OfX are intentionally omitted and should be covered by the mutations vocab above in a straightforward way.
+`Mutations.{OfObject, OfRelation}.AsProperty` carry a list of *Value verbs*:
+
+```python
+Mutations.OfProperty.{Set, Clear, AsAny}
+Mutations.OfContainer.{Insert, Remove, Append, Prepend, Clear, AsItems}
+Mutations.OfAny.{Set, Clear, AsScalar, AsContainer}
+Mutations.OfScalar.{Set, Clear}
+```
+
+`Mutations.OfX.AsY` has a list of `Mutations.OfY.*` 
 
 Exists is a reentrant version of create. Noop if the identity already exists. Exists carries a `Mutations.OfObject.Def`.
 

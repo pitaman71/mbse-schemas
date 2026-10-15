@@ -877,6 +877,18 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     schema by its string name. Creating objects for symbols is making me nuts." An adjacency's `me` names the link
     it fills, and a relation's `uniques` name its links and properties, as in the user's example (`.me("knower")`,
     `.uniques("since")`).
+  - the wire format of schemas, written and read through the meta-schemas (docs/proposals/schema-builders/WIRE.md
+    holds the questions and their options), as the user decided (2026-10-15):
+    1. an unnamed schema object's identity is derived from its owner and its name (`crm.Person.age`), given on
+       creation, and changes when it is renamed;
+    2. a type no store built (`S.OfScalar.Data(int)`) is "strictly forbidden": every type is built in the store;
+    3. what the builders rebuild on every read (an int width read as a literal form, an application's arguments,
+       shared forms): "I think this is only value objects so (c)": written nested, as values;
+    4. the declaration order of a schema object's members: a position property on their entries;
+    5. modules in the old format are no longer read;
+    6. "dotted paths indicate module nesting": `crm.sales.Order` is `Order` in module `sales` in module `crm`;
+    7. and 8. a module's references to schemas it does not hold, and data's references to the meta-schemas: "schema
+       handshake should be an explicit on any store connection, as a preparatory step for migrations".
   - building in a store: "no reference object can ever be built outside of a store!", schema objects included; a
     module is an object in a store, "alongside schemas and data". "This is the new canonical form for store-centric
     building: `store.moduleName.[...moduleName].schemaName(cb: Specs.Callback[Visitors.OfX])`".

@@ -119,9 +119,9 @@ As the user decided (2026-10-15), on the questions put to them:
     objects, implement them (sections 4 and 5).
 12. "any expression dialect can define scalar domains that make sense. the scalar types defined in mbse-schemas aren't
     special and could potentially go away".
-13. "expressions only deal in scalars. All object/relation functionality is moving up to mbse-patterns". Whether
-    terms themselves are value or reference objects is still to settle; extension favors reference objects, since only
-    a reference object can be linked by the relations other packages add (`HasSchema`, mbse-patterns' `requires`).
+13. "expressions only deal in scalars. All object/relation functionality is moving up to mbse-patterns". "terms are
+    reference objects", which the relations other packages add can link (`HasSchema`, mbse-patterns' `requires`).
+    Containers of scalars stay: "quantifiers over containers - starting with map/reduce - should be included".
 14. Parameters (section 4): "parameters that denote domains are moved to mbse-expressions entirely"; mbse-schemas
     keeps parameters that denote schemas (`List[T]`), so today's value parameters (`Matrix(rows, cols)`, a `Word`'s
     width `w`) move with their bindings.

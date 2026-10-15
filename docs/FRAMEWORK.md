@@ -893,7 +893,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     holds the questions and their options), as the user decided (2026-10-15):
     1. an unnamed schema object's identity is derived from its owner and its name (`crm.Person.age`), given on
        creation, and changes when it is renamed;
-    2. a type no store built (`S.OfScalar.Data(int)`) is "strictly forbidden": every type is built in the store;
+    2. "strictly forbidden", which the user corrected: "A reference object no store built is strictly forbidden. Values
+       can be built anywhere anytime." (an earlier reading here, "every type is built in the store", was wrong);
     3. what the builders rebuild on every read (an int width read as a literal form, an application's arguments,
        shared forms): "I think this is only value objects so (c)": written nested, as values;
     4. the declaration order of a schema object's members: a position property on their entries;

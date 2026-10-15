@@ -42,8 +42,11 @@ What the check would accept and refuse:
   extension).
 - **Existing objects** gain the member, absent until written. In declaration order (mbse-basis P-001) added members
   follow the schema's own, in the order they were added.
-- **Per store.** An extension of a framework schema (`Builders.Meta.Scalar`) belongs to the store that makes it, not to
-  the one object every store shares in the process: a store copies what it extends, or holds its extensions beside it.
+- **Per process.** An extension modifies the extended schema itself, framework schemas included
+  (`Builders.Meta.Scalar`, one object every store in the process shares), so it holds for every store in the process.
+  A package extends once, at import, and extending again with what is already there changes nothing. Tests of the
+  mechanism extend schemas the test builds; a case that extends a framework schema comes last in its suite, since
+  the cases of a notebook share its process.
 - **Snapshots** need no new vocabulary: an extension is `insert` mutations on the extended schema's `HasProperty` and
   `HasAdjacency` entries (docs/SERIALIZATION.md). The writer, which writes no framework schema today, writes the
   extensions of framework schemas and still assumes their own members; a reading store applies them through the same
@@ -55,12 +58,15 @@ Moving `.bits` and `.bytes`:
 
 RELATION Expressions.Framework.HasSchema(term=Expressions.Framework.Term, schema=Schemas.OfY)
 RELATION Expressions.Framework.HasDomain(schema=Schemas.OfY, domain=Expressions.Framework.Domain)
+RELATION Expressions.Framework.HasFormalParam(callable: Expressions.Framework.Callable, name: str, domain: Expressions.Framework.Domain)
 
 Representing scalar values:
 
-PROPERTY [Schemas.OfScalar] Expressions.Dialects.Basic.AsIntValue(int)
-PROPERTY [Schemas.OfScalar] Expressions.Dialects.Basic.AsFloatValue(float)
+PROPERTY [Expressions.Framework.Value] Expressions.Dialects.Basic.AsIntValue(int)
+PROPERTY [Expressions.Framework.Value] Expressions.Dialects.Basic.AsFloatValue(float)
 ...
+
+PROPERTY [Expressions.Framework.Callable] Expressions.Framework.AsIntrinsic(Callable) # should be named reference objs
 
 3. relocating things in mbse-schemas
 
@@ -69,6 +75,34 @@ Definitely:
 - constraining the size of Schemas.OfScalar : move to mbse-expressions via `HasSchema` and `HasDomain`
 - allowing schemas to define parameters on definition and bind them to expressions on instantiation : keep in mbse-schemas except for typing via `HasDomain`
 - allowing Schemas.OfScalar (maybe others) to be bound to an expression
+
+## Decided
+
+As the user decided (2026-10-15), on the questions put to them:
+
+1. The extension check's rules above: "yes your rules are fine".
+2. An extension modifies the original schema objects: "I figured the original schema objects would get modified";
+   per process, as above ("yes to the first": tests extend schemas they build, a framework one last).
+3. Unions: "continue using Unions for kinds for now and posit unification for the future" (of unions with branches
+   and intersections).
+4. Defaults: codegen "would work with or without the additional schema info from mbse-expressions, and if absent
+   should assume the most universal default. in the case of size, that makes a scalar without a domain basically
+   plain data".
+5. `requires` "moves out of mbse-schemas all the way out to `mbse-patterns` using the new extension mechanism".
+6. "all bindings will need to move into mbse-expressions": `OfApply` and its arguments, literal values and terms
+   (`ArgumentTerm`), with mbse-schemas declaring `parameters` only (to confirm).
+7. `Form` "should go" from mbse-schemas.
+8. Scalar values, formal parameters and intrinsics: see section 2.
+9. "printers and parsers go through Visitor just like everything else" (mbse-basis P-018); only intrinsics'
+   implementations are code, each found through its named reference object (`AsIntrinsic`).
+10. "free variables are just free variables": each dialect (Python, Excel, MATLAB, ...) "selectively permit[s] access
+    to global context by free vars".
+11. Signatures: still open. `Same` (arguments of one domain, the result that domain or a given one) and `Overloaded`
+    (several signatures of one arity) need, in `HasFormalParam`, a domain variable or "the same as parameter 1".
+12. "any expression dialect can define scalar domains that make sense. the scalar types defined in mbse-schemas aren't
+    special and could potentially go away".
+13. Terms as value or reference objects: under discussion. Extension favors reference objects, since only a reference
+    object can be linked by the relations other packages add.
 
 ---
 

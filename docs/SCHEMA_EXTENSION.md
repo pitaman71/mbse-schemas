@@ -57,7 +57,7 @@ What the check would accept and refuse:
 Moving `.bits` and `.bytes`:
 
 RELATION Expressions.Framework.HasSchema(term=Expressions.Framework.Term, schema=Schemas.OfY)
-RELATION Expressions.Framework.HasDomain(schema=Schemas.OfY, domain=Expressions.Framework.Domain)
+RELATION Expressions.Framework.HasDomain(schema=Schemas.OfScalar, domain=Expressions.Framework.Domain)
 RELATION Expressions.Framework.HasFormalParam(callable: Expressions.Framework.Callable, name: str, domain: Expressions.Framework.Domain)
 
 Representing scalar values:
@@ -66,8 +66,6 @@ PROPERTY [Expressions.Framework.Value] Expressions.Dialects.Basic.AsIntValue(int
 PROPERTY [Expressions.Framework.Value] Expressions.Dialects.Basic.AsFloatValue(float)
 ...
 
-PROPERTY [Expressions.Framework.Callable] Expressions.Framework.AsIntrinsic(Callable) # should be named reference objs
-
 3. relocating things in mbse-schemas
 
 Definitely:
@@ -75,6 +73,19 @@ Definitely:
 - constraining the size of Schemas.OfScalar : move to mbse-expressions via `HasSchema` and `HasDomain`
 - allowing schemas to define parameters on definition and bind them to expressions on instantiation : keep in mbse-schemas except for typing via `HasDomain`
 - allowing Schemas.OfScalar (maybe others) to be bound to an expression
+
+4. signatures
+
+OBJECT Expressions.Framework.Function
+PROPERTY [Expressions.Framework.Function] Expressions.Framework.HasName('str')
+RELATION Expressions.Framework.HasFormal(function: Expressions.Framework.Function, name: str, schema: Schemas.OfAny)
+RELATION Expressions.Framework.HasResult(function: Expressions.Framework.Function, Schemas.OfAny)
+
+5. intrinsics
+
+mbse-expressions will also introduce the ability to register native functions ("intrinsics") that implement modeled callable formal signatures and to which modeled callable terms bind.
+
+PROPERTY [Expressions.Framework.Intrinsic] Expressions.Framework.HasNative(cb: Callable) # should be named reference objs
 
 ## Decided
 
@@ -90,19 +101,22 @@ As the user decided (2026-10-15), on the questions put to them:
    plain data".
 5. `requires` "moves out of mbse-schemas all the way out to `mbse-patterns` using the new extension mechanism".
 6. "all bindings will need to move into mbse-expressions": `OfApply` and its arguments, literal values and terms
-   (`ArgumentTerm`), with mbse-schemas declaring `parameters` only (to confirm).
+   (`ArgumentTerm`), with mbse-schemas declaring `parameters` only ("it matches well enough").
 7. `Form` "should go" from mbse-schemas.
 8. Scalar values, formal parameters and intrinsics: see section 2.
 9. "printers and parsers go through Visitor just like everything else" (mbse-basis P-018); only intrinsics'
    implementations are code, each found through its named reference object (`AsIntrinsic`).
 10. "free variables are just free variables": each dialect (Python, Excel, MATLAB, ...) "selectively permit[s] access
     to global context by free vars".
-11. Signatures: still open. `Same` (arguments of one domain, the result that domain or a given one) and `Overloaded`
-    (several signatures of one arity) need, in `HasFormalParam`, a domain variable or "the same as parameter 1".
+11. Signatures: `Same` and `Overloaded` are "specific names that resolve function binding". A signature is a
+    `Function`, named, with formals and a result, each typed by a schema; several functions may share a name, and a call
+    binds to one by its name and its arguments' types. Intrinsics, native functions registered against named reference
+    objects, implement them (sections 4 and 5).
 12. "any expression dialect can define scalar domains that make sense. the scalar types defined in mbse-schemas aren't
     special and could potentially go away".
-13. Terms as value or reference objects: under discussion. Extension favors reference objects, since only a reference
-    object can be linked by the relations other packages add.
+13. "expressions only deal in scalars. All object/relation functionality is moving up to mbse-patterns". Whether
+    terms themselves are value or reference objects is still to settle; extension favors reference objects, since only
+    a reference object can be linked by the relations other packages add (`HasSchema`, mbse-patterns' `requires`).
 
 ---
 

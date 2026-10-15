@@ -34,9 +34,9 @@ Expressions, which constraints will be made of, live in the separate
 
 | # | Notebook | The problem | What you learn |
 |---|---|---|---|
-| 1 | [A contact card](01_A_Contact_Card.ipynb) | One record that many programs must agree on | Schemas are values; builders and Specs; `create`/`update`/`clone`; read-only instances; absent is not `None` |
+| 1 | [A contact card](01_A_Contact_Card.ipynb) | One record that many programs must agree on | Schemas are values, built in a store; builders and Specs; one call creates, updates or clones; read-only instances; absent is not `None` |
 | 2 | [An address book](02_An_Address_Book.ipynb) | Contacts share addresses, and labels belong to neither side | Relations instead of lists; untyped links; adjacencies; entries as shared facts; set semantics; reading through visitors |
-| 3 | [Moving house](03_Moving_House.ipynb) | Remove, relabel and copy relationships | Editing entries through builders; `clone()` and relations; what `update()` replaces |
+| 3 | [Moving house](03_Moving_House.ipynb) | Remove, relabel and copy relationships | Editing entries through builders; clones and relations; what an update replaces |
 | 4 | [A family tree](04_A_Family_Tree.ipynb) | People relate to people, in cycles | Self-relations; inverse views that can't disagree; `Reachable.of`; links filled by several kinds |
 | 5 | [A price list](05_A_Price_List.ipynb) | One price per currency; dirty partner feeds | `unique(...)` cardinality; maps as relations; validation on demand with paths |
 | 6 | [Saving and loading](06_Saving_And_Loading.ipynb) | Save shared, cyclic data without duplicates | Snapshots, identities and references; why the schema isn't stored; injected builders; strict loading |
@@ -48,7 +48,7 @@ Expressions, which constraints will be made of, live in the separate
 
 | The usual way | This framework | Why | Case study |
 |---|---|---|---|
-| A class per record | A schema *value*, built with a fluent DSL | Every tool and every language can read it | 1, 8 |
+| A class per record | A schema *value*, built in a store with a fluent DSL | Every tool and every language can read it | 1, 8 |
 | Mutable objects | Read-only instances; changes go through a builder | One place to assemble a change, one moment it applies | 1, 3 |
 | Required fields, `None` for missing | Everything optional; absent is a state of its own | Old data still loads; "unset" and "empty" stay different | 1, 9 |
 | Lists and nested records | Relations whose entries link objects and carry properties | Sharing, inverse lookups, no duplication, no sync code | 2, 3, 4 |

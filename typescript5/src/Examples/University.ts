@@ -4,73 +4,87 @@
 // values, an ambiguous link that refuses inline creation, the builder not validating scalar types, and round trips.
 
 import { ValueError } from "@mbse/schemas/Framework/Errors";
-import { Plain, Proxies, Reachable, Schemas, Validators } from "@mbse/schemas/Framework";
+import { Builders, Plain, Proxies, Reachable, Schemas, Validators } from "@mbse/schemas/Framework";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
 import { assert, entries, raises, same_graph } from "./_support.js";
 
-const store = new Proxies.OfStore();
+const Text = new Schemas.OfScalar.Data(String);
+
+const store: any = new Builders.Store();
 
 function text(name: string) {
-  return (prop: Schemas.OfProperty.Builder) => prop.name(name).of((t) => t.as_scalar(String));
+  return (t: any) => t.name(name).type([Text]);
 }
 
 // --- Schemas ---
 
-let Student = new Schemas.OfObject.Builder().name("Student").ref().properties(text("name"), text("student_id")).create();
-let Staff = new Schemas.OfObject.Builder().name("Staff").ref().properties(text("name"), text("staff_id")).create();
-let Course = new Schemas.OfObject.Builder().name("Course").ref().properties(text("code"), text("title")).create();
-let Term = new Schemas.OfObject.Builder().name("Term").ref()
-  .properties(text("code"), text("starts"), text("ends")) // ISO 8601 dates, e.g. '2026-09-01'
-  .create();
-let Room = new Schemas.OfObject.Builder().name("Room").ref().properties(text("building"), text("number")).create();
+const Student = store.Schemas.Object((o: any) => o.name("Student").ref(true).properties([text("name"), text("student_id")]));
+const Staff = store.Schemas.Object((o: any) => o.name("Staff").ref(true).properties([text("name"), text("staff_id")]));
+const Course = store.Schemas.Object((o: any) => o.name("Course").ref(true).properties([text("code"), text("title")]));
+const Term = store.Schemas.Object((o: any) => (
+  o
+    .name("Term")
+    .ref(true)
+    .properties([text("code"), text("starts"), text("ends")]) // ISO 8601 dates, e.g. '2026-09-01'
+));
+const Room = store.Schemas.Object((o: any) => o.name("Room").ref(true).properties([text("building"), text("number")]));
 
 // Three links: each entry is one student taking one course in one term.
-const Enrollment = new Schemas.OfRelation.Builder().name("Enrollment")
-  .links("student", "course", "term")
-  .properties(
-    (prop) => prop.name("credits").of((t) => t.as_scalar(BigInt)),
-    (prop) => prop.name("score").of((t) => t.as_scalar(Number)),
-    (prop) => prop.name("audit").of((t) => t.as_scalar(Boolean)),
-  )
-  .unique("score", "audit", "credits") // (student, course, term) determine the rest
-  .create();
+const Enrollment = store.Schemas.Relation((r: any) => (
+  r
+    .name("Enrollment")
+    .links([
+      (t: any) => t.name("student"),
+      (t: any) => t.name("course"),
+      (t: any) => t.name("term"),
+    ])
+    .properties([
+      (t: any) => t.name("credits").type([new Schemas.OfScalar.Data(BigInt)]),
+      (t: any) => t.name("score").type([new Schemas.OfScalar.Data(Number)]),
+      (t: any) => t.name("audit").type([new Schemas.OfScalar.Data(Boolean)]),
+    ])
+    .uniques(["score", "audit", "credits"]) // (student, course, term) determine the rest
+));
 
 // Both Student and Staff can book rooms, so the 'booker' link is filled by more than one schema.
-const Booking = new Schemas.OfRelation.Builder().name("Booking")
-  .links("booker", "room")
-  .properties(text("starts")) // ISO 8601 date-time, e.g. '2026-09-14T09:00:00Z'
-  .create();
+const Booking = store.Schemas.Relation((r: any) => (
+  r
+    .name("Booking")
+    .links([
+      (t: any) => t.name("booker"),
+      (t: any) => t.name("room"),
+    ])
+    .properties([text("starts")]) // ISO 8601 date-time, e.g. '2026-09-14T09:00:00Z'
+));
 
-Student = new Schemas.OfObject.Builder(Student)
-  .relations(
-    (adj) => adj.name("enrollments").of(Enrollment).me("student"),
-    (adj) => adj.name("bookings").of(Booking).me("booker"),
-  )
-  .update();
-Staff = new Schemas.OfObject.Builder(Staff).relations((adj) => adj.name("bookings").of(Booking).me("booker")).update();
-Course = new Schemas.OfObject.Builder(Course).relations((adj) => adj.name("enrollments").of(Enrollment).me("course")).update();
-Term = new Schemas.OfObject.Builder(Term).relations((adj) => adj.name("enrollments").of(Enrollment).me("term")).update();
-Room = new Schemas.OfObject.Builder(Room).relations((adj) => adj.name("bookings").of(Booking).me("room")).update();
+store.Schemas.Object(Student, (o: any) => o.adjacencies([
+  (t: any) => t.name("enrollments").relation([Enrollment]).me("student"),
+  (t: any) => t.name("bookings").relation([Booking]).me("booker"),
+]));
+store.Schemas.Object(Staff, (o: any) => o.adjacencies([(t: any) => t.name("bookings").relation([Booking]).me("booker")]));
+store.Schemas.Object(Course, (o: any) => o.adjacencies([(t: any) => t.name("enrollments").relation([Enrollment]).me("course")]));
+store.Schemas.Object(Term, (o: any) => o.adjacencies([(t: any) => t.name("enrollments").relation([Enrollment]).me("term")]));
+store.Schemas.Object(Room, (o: any) => o.adjacencies([(t: any) => t.name("bookings").relation([Booking]).me("room")]));
 
 for (const schema of [Student, Staff, Course, Term, Room, Enrollment, Booking]) {
   assert(schema.validate().length === 0, `${schema.name}: ${schema.validate()}`);
-  store.register(schema);
 }
 const same = (a: unknown[], b: unknown[]): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
 
 // --- A three-link relation ---
 
-const fall = store.Term().code("2026-FA").starts("2026-09-01").ends("2026-12-18").create();
-const cs101 = store.Course().code("CS101").title("Programs and Data").create();
+const fall = store.Term((t: any) => t.code("2026-FA").starts("2026-09-01").ends("2026-12-18"));
+const cs101 = store.Course((c: any) => c.code("CS101").title("Programs and Data"));
 
 // From the student's side, an entry sets the two other links; inline creation works because only Course fills 'course'.
-const mia = store.Student()
-  .name("Mia")
-  .student_id("S-0001")
-  .enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).credits(4n)))
-  .enrollments((a: any) => a.insert((x: any) => x.course((c: any) => c.code("MA201").title("Linear Algebra")).term(fall).credits(3n)))
-  .create();
+const mia = store.Student((s: any) => (
+  s
+    .name("Mia")
+    .student_id("S-0001")
+    .enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).credits(4n)))
+    .enrollments((a: any) => a.insert((x: any) => x.course((c: any) => c.code("MA201").title("Linear Algebra")).term(fall).credits(3n)))
+));
 assert(same(sortedStrings(entries(Student, mia, "enrollments").map((e) => String((e.get("course") as Instance).code))), ["CS101", "MA201"]));
 
 // The same fact is visible from all three ends.
@@ -81,11 +95,11 @@ assert(same(sortedStrings(new Set(entries(Term, fall, "enrollments").map((e) => 
 assert(same(sortedStrings((entries(Term, fall, "enrollments")[0] as Map<string, unknown>).keys()), ["course", "credits", "student"]));
 
 // Every link other than the object's own must be set.
-raises(ValueError, () => store.Student().name("Noah").enrollments((a: any) => a.insert((x: any) => x.course(cs101))).create());
+raises(ValueError, () => store.Student((s: any) => s.name("Noah").enrollments((a: any) => a.insert((x: any) => x.course(cs101)))));
 
 // --- Entry property equality follows schema equality, not host-language == ---
 
-const noah = store.Student().name("Noah").create();
+const noah = store.Student((s: any) => s.name("Noah"));
 
 function enroll(student: Instance, props: Record<string, unknown>): void {
   const spec = (x: any) => {
@@ -93,7 +107,7 @@ function enroll(student: Instance, props: Record<string, unknown>): void {
     for (const [key, value] of Object.entries(props)) x[key](value);
     return x;
   };
-  store.Student(student).enrollments((a: any) => a.insert(spec)).update();
+  store.Student(student, (s: any) => s.enrollments((a: any) => a.insert(spec)));
 }
 
 enroll(noah, { score: 0.0 });
@@ -102,7 +116,7 @@ enroll(noah, { score: NaN });
 enroll(noah, { score: Number("NaN") }); // all NaNs are equal: elided
 assert(entries(Student, noah, "enrollments").length === 3);
 
-const zoe = store.Student().name("Zoe").create();
+const zoe = store.Student((s: any) => s.name("Zoe"));
 enroll(zoe, { credits: 1n });
 enroll(zoe, { credits: true }); // the builder does not validate scalar types, and true is a different value from 1n
 
@@ -117,35 +131,35 @@ raises(TypeError, () => Plain.ToPlain(store).Reachable(Term, fall));
 const validate = Validators.Validate(store);
 assert(same(validate(Student, zoe), [
   "Student#0.enrollments[1].credits: expected int, got bool",
-  // Her two enrollments also share (student, course, term), which Enrollment's unique(...) clause forbids.
+  // Her two enrollments also share (student, course, term), which Enrollment's uniques clause forbids.
   "unique(audit, credits, score) violated: entries agreeing on ['course', 'student', 'term'] differ on " +
     "['audit', 'credits', 'score']",
 ]));
 
-// Noah's three enrollments share (student, course, term), which Enrollment's unique(...) clause says determine the rest.
+// Noah's three enrollments share (student, course, term), which Enrollment's uniques clause says determine the rest.
 assert(validate(Student, noah).some((p) => p.startsWith("unique(audit, credits, score) violated")));
 
 // A linked object must have a schema that fills that link: here a Student is linked as a course.
-store.Student(noah).enrollments((a: any) => a.insert((x: any) => x.course(mia).term(fall))).update();
+store.Student(noah, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(mia).term(fall))));
 assert(validate(Student, noah).some((p) => p.includes("a 'Student' cannot fill link 'course'")));
-store.Student(noah).enrollments((a: any) => a.remove((e: any) => e.course(mia))).update();
+store.Student(noah, (s: any) => s.enrollments((a: any) => a.remove((e: any) => e.course(mia))));
 assert(!validate(Student, noah).some((p) => p.includes("cannot fill")));
 
 // Remove the bad entry so the rest of the example can serialize.
-store.Student(zoe).enrollments((a: any) => a.remove((e: any) => e.credits(true))).update();
+store.Student(zoe, (s: any) => s.enrollments((a: any) => a.remove((e: any) => e.credits(true))));
 assert(same(entries(Student, zoe, "enrollments").map((e) => e.get("credits")), [1n]));
 
 // --- Schema inference through a link must be unambiguous ---
 
-const lab = store.Room().building("Hopper Hall").number("B12").create();
+const lab = store.Room((r: any) => r.building("Hopper Hall").number("B12"));
 
 // Both Student and Staff fill 'booker', so building one inline from the room's side is refused...
-raises(TypeError, () => store.Room(lab).bookings((a: any) => a.insert((x: any) => x.booker((b: any) => b.name("?")).starts("2026-09-14T09:00:00Z"))).update());
+raises(TypeError, () => store.Room(lab, (r: any) => r.bookings((a: any) => a.insert((x: any) => x.booker((b: any) => b.name("?")).starts("2026-09-14T09:00:00Z")))));
 
 // ...but linking an existing object works, whichever schema it has.
-const grace = store.Staff().name("Grace").staff_id("F-0042").create();
-store.Room(lab).bookings((a: any) => a.insert((x: any) => x.booker(grace).starts("2026-09-14T09:00:00Z"))).update();
-store.Room(lab).bookings((a: any) => a.insert((x: any) => x.booker(mia).starts("2026-09-15T13:30:00Z"))).update();
+const grace = store.Staff((s: any) => s.name("Grace").staff_id("F-0042"));
+store.Room(lab, (r: any) => r.bookings((a: any) => a.insert((x: any) => x.booker(grace).starts("2026-09-14T09:00:00Z"))));
+store.Room(lab, (r: any) => r.bookings((a: any) => a.insert((x: any) => x.booker(mia).starts("2026-09-15T13:30:00Z"))));
 assert(same(sortedStrings(entries(Room, lab, "bookings").map((e) => (e.get("booker") as Instance).as_schema().name as string)), ["Staff", "Student"]));
 
 // References carry the schema name, so restoring knows Grace is Staff and Mia is a Student.

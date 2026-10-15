@@ -2,126 +2,143 @@
 //
 // Lines marked PROPOSED use syntax that FRAMEWORK.md does not define yet.
 
-import { JSON, Plain, Proxies, Schemas } from "@mbse/schemas/Framework";
+import { Builders, JSON, Plain, Proxies, Schemas } from "@mbse/schemas/Framework";
 import { assert, equal } from "./_support.js";
 
-const store = new Proxies.OfStore();
+const Text = new Schemas.OfScalar.Data(String);
+
+// Schemas and objects are built in a store, `store.<schema name>(...)`; a named schema registers itself as it is built.
+const store: any = new Builders.Store();
 
 // --- Schemas ---
 
-let IntlAddress = new Schemas.OfObject.Builder().name("IntlAddress").ref()
-  .properties(
-    (prop) => prop.name("street1").of((t) => t.as_scalar(String)),
-    (prop) => prop.name("street2").of((t) => t.as_scalar(String)),
-    (prop) => prop.name("street3").of((t) => t.as_scalar(String)),
-    (prop) => prop.name("dependent_locality").of((t) => t.as_scalar(String)), // neighborhood, district
-    (prop) => prop.name("locality").of((t) => t.as_scalar(String)), // city, town, post town
-    (prop) => prop.name("administrative_area").of((t) => t.as_scalar(String)), // state, province, prefecture
-    (prop) => prop.name("postal_code").of((t) => t.as_scalar(String)),
-    (prop) => prop.name("sorting_code").of((t) => t.as_scalar(String)), // e.g. French CEDEX
-    (prop) => prop.name("country_code").of((t) => t.as_scalar(String)), // ISO 3166-1 alpha-2
-  )
-  .create();
+const IntlAddress = store.Schemas.Object((o: any) => (
+  o
+    .name("IntlAddress")
+    .ref(true)
+    .properties([
+      (t: any) => t.name("street1").type([Text]),
+      (t: any) => t.name("street2").type([Text]),
+      (t: any) => t.name("street3").type([Text]),
+      (t: any) => t.name("dependent_locality").type([Text]), // neighborhood, district
+      (t: any) => t.name("locality").type([Text]), // city, town, post town
+      (t: any) => t.name("administrative_area").type([Text]), // state, province, prefecture
+      (t: any) => t.name("postal_code").type([Text]),
+      (t: any) => t.name("sorting_code").type([Text]), // e.g. French CEDEX
+      (t: any) => t.name("country_code").type([Text]), // ISO 3166-1 alpha-2
+    ])
+));
 
-let Contact = new Schemas.OfObject.Builder().name("Contact").ref()
-  .properties(
-    (prop) => prop.name("given_name").of((t) => t.as_scalar(String)),
-    (prop) => prop.name("family_name").of((t) => t.as_scalar(String)),
-    (prop) => prop.name("birth_date").of((t) => t.as_scalar(String)), // ISO 8601 calendar date, YYYY-MM-DD
-    (prop) => prop.name("preferred_language").of((t) => t.as_scalar(String)), // BCP 47 tag, e.g. 'fr-CA'
-  )
-  .create();
+const Contact = store.Schemas.Object((o: any) => (
+  o
+    .name("Contact")
+    .ref(true)
+    .properties([
+      (t: any) => t.name("given_name").type([Text]),
+      (t: any) => t.name("family_name").type([Text]),
+      (t: any) => t.name("birth_date").type([Text]), // ISO 8601 calendar date, YYYY-MM-DD
+      (t: any) => t.name("preferred_language").type([Text]), // BCP 47 tag, e.g. 'fr-CA'
+    ])
+));
 
-let PhoneNumber = new Schemas.OfObject.Builder().name("PhoneNumber").ref()
-  .properties(
-    (prop) => prop.name("number").of((t) => t.as_scalar(String)), // ITU-T E.164, e.g. '+14155550100'
-  )
-  .create();
+const PhoneNumber = store.Schemas.Object((o: any) => (
+  o
+    .name("PhoneNumber")
+    .ref(true)
+    .properties([
+      (t: any) => t.name("number").type([Text]), // ITU-T E.164, e.g. '+14155550100'
+    ])
+));
 
-let EmailAddress = new Schemas.OfObject.Builder().name("EmailAddress").ref()
-  .properties(
-    (prop) => prop.name("address").of((t) => t.as_scalar(String)), // RFC 5322 addr-spec
-  )
-  .create();
+const EmailAddress = store.Schemas.Object((o: any) => (
+  o
+    .name("EmailAddress")
+    .ref(true)
+    .properties([
+      (t: any) => t.name("address").type([Text]), // RFC 5322 addr-spec
+    ])
+));
 
 // Collections are relations. Links are untyped; each object declares its adjacencies below.
 
-const ContactAddresses = new Schemas.OfRelation.Builder().name("ContactAddresses")
-  .links("contact", "address")
-  .properties(
-    (prop) => prop.name("label").of((t) => t.as_scalar(String)), // e.g. 'home', 'work'
-  )
-  .create();
+const ContactAddresses = store.Schemas.Relation((r: any) => (
+  r
+    .name("ContactAddresses")
+    .links([
+      (t: any) => t.name("contact"),
+      (t: any) => t.name("address"),
+    ])
+    .properties([
+      (t: any) => t.name("label").type([Text]), // e.g. 'home', 'work'
+    ])
+));
 
-const ContactPhones = new Schemas.OfRelation.Builder().name("ContactPhones")
-  .links("contact", "phone")
-  .properties(
-    (prop) => prop.name("label").of((t) => t.as_scalar(String)), // e.g. 'mobile', 'work'
-  )
-  .create();
+const ContactPhones = store.Schemas.Relation((r: any) => (
+  r
+    .name("ContactPhones")
+    .links([
+      (t: any) => t.name("contact"),
+      (t: any) => t.name("phone"),
+    ])
+    .properties([
+      (t: any) => t.name("label").type([Text]), // e.g. 'mobile', 'work'
+    ])
+));
 
-const ContactEmails = new Schemas.OfRelation.Builder().name("ContactEmails")
-  .links("contact", "email")
-  .properties(
-    (prop) => prop.name("label").of((t) => t.as_scalar(String)), // e.g. 'personal', 'work'
-  )
-  .create();
+const ContactEmails = store.Schemas.Relation((r: any) => (
+  r
+    .name("ContactEmails")
+    .links([
+      (t: any) => t.name("contact"),
+      (t: any) => t.name("email"),
+    ])
+    .properties([
+      (t: any) => t.name("label").type([Text]), // e.g. 'personal', 'work'
+    ])
+));
 
-Contact = new Schemas.OfObject.Builder(Contact)
-  .relations(
-    (adj) => adj.name("addresses").of(ContactAddresses).me("contact"),
-    (adj) => adj.name("phones").of(ContactPhones).me("contact"),
-    (adj) => adj.name("emails").of(ContactEmails).me("contact"),
-  )
-  .update();
+// A schema and a callback: the schema, updated in place.
+store.Schemas.Object(Contact, (o: any) => o.adjacencies([
+  (t: any) => t.name("addresses").relation([ContactAddresses]).me("contact"),
+  (t: any) => t.name("phones").relation([ContactPhones]).me("contact"),
+  (t: any) => t.name("emails").relation([ContactEmails]).me("contact"),
+]));
+store.Schemas.Object(IntlAddress, (o: any) => o.adjacencies([
+  (t: any) => t.name("contacts").relation([ContactAddresses]).me("address"),
+]));
+store.Schemas.Object(PhoneNumber, (o: any) => o.adjacencies([
+  (t: any) => t.name("contacts").relation([ContactPhones]).me("phone"),
+]));
+store.Schemas.Object(EmailAddress, (o: any) => o.adjacencies([
+  (t: any) => t.name("contacts").relation([ContactEmails]).me("email"),
+]));
 
-IntlAddress = new Schemas.OfObject.Builder(IntlAddress)
-  .relations((adj) => adj.name("contacts").of(ContactAddresses).me("address"))
-  .update();
+// --- Building forms ---
 
-PhoneNumber = new Schemas.OfObject.Builder(PhoneNumber)
-  .relations((adj) => adj.name("contacts").of(ContactPhones).me("phone"))
-  .update();
+// "create": a callback builds a new object
+const addr1 = store.IntlAddress((a: any) => (
+  a
+    .street1("10 Downing Street")
+    .street2("bar")
+    .street3("Whitehall")
+    .locality("London")
+    .postal_code("SW1A 2AA")
+    .country_code("GB")
+));
 
-EmailAddress = new Schemas.OfObject.Builder(EmailAddress)
-  .relations((adj) => adj.name("contacts").of(ContactEmails).me("email"))
-  .update();
-
-store.register(IntlAddress);
-store.register(Contact);
-store.register(PhoneNumber);
-store.register(EmailAddress);
-store.register(ContactAddresses);
-store.register(ContactPhones);
-store.register(ContactEmails);
-
-// --- Builder forms ---
-
-// fluent "create" form
-const addr1 = store.IntlAddress()
-  .street1("10 Downing Street")
-  .street2("bar")
-  .street3("Whitehall")
-  .locality("London")
-  .postal_code("SW1A 2AA")
-  .country_code("GB")
-  .create();
-
-// fluent "update" form: writes back into the source and returns it
-const updated = store.IntlAddress(addr1)
-  .street2((p: any) => p.as_scalar((v: any) => v.set("baz"))) // equivalent to .street2('baz')
-  .update();
+// "update": the object and a callback write into the object, and return it
+const updated = store.IntlAddress(addr1, (a: any) => a.street2((p: any) => p.as_scalar((v: any) => v.set("baz")))); // .street2('baz')
 assert(updated === addr1);
 assert(String(addr1.street2) === "baz");
 
-// fluent "clone" form: returns a new object and leaves the source untouched
-const cloned = store.IntlAddress(addr1).street2("shoe").clone();
+// "clone": the object alone returns a new object, and leaves the source untouched
+const cloned = store.IntlAddress(store.IntlAddress(addr1), (a: any) => a.street2("shoe"));
 assert(cloned !== addr1);
 assert(String(cloned.street2) === "shoe");
 assert(String(addr1.street2) === "baz");
 
 // clearing a property makes it absent; an absent property's value reads as null
-store.IntlAddress(addr1).street3((p: any) => p.as_value((v: any) => v.clear())).update();
+store.IntlAddress(addr1, (a: any) => a.street3((p: any) => p.as_value((v: any) => v.clear())));
 assert(addr1.street3.get() === null);
 
 // a property that was never set reads as null too
@@ -135,15 +152,16 @@ console.log(`${addr1.street1}, ${addr1.locality} ${addr1.postal_code}, ${addr1.c
 // Entries are inserted through the object builder's adjacencies, `insert` taking a Spec for the entry: the object
 // fills its own link ('contact'); the entry builder sets the other links and the entry properties. A link takes an
 // existing object or a Spec that builds a new one.
-const alice = store.Contact()
-  .given_name("Alice")
-  .family_name("Liddell")
-  .birth_date("1852-05-04")
-  .preferred_language("en-GB")
-  .addresses((a: any) => a.insert((x: any) => x.address(addr1).label("work")))
-  .phones((a: any) => a.insert((x: any) => x.phone((y: any) => y.number("+447700900123")).label("mobile")))
-  .emails((a: any) => a.insert((x: any) => x.email((y: any) => y.address("alice@example.org")).label("personal")))
-  .create();
+const alice = store.Contact((c: any) => (
+  c
+    .given_name("Alice")
+    .family_name("Liddell")
+    .birth_date("1852-05-04")
+    .preferred_language("en-GB")
+    .addresses((a: any) => a.insert((x: any) => x.address(addr1).label("work")))
+    .phones((a: any) => a.insert((x: any) => x.phone((y: any) => y.number("+447700900123")).label("mobile")))
+    .emails((a: any) => a.insert((x: any) => x.email((y: any) => y.address("alice@example.org")).label("personal")))
+));
 void alice;
 export { IntlAddress, addr1 };
 

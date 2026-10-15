@@ -170,8 +170,9 @@ call sites, and the docs; phase 3, the old builders removed, the corpora regener
 
 Phase 1 of the schema builders (Plan), as FRAMEWORK.md, Resolved, "Schema builders align with their meta-schemas"
 decides it, built in Python as `Framework.Builders`
-([the builders' module](../python3/mbse/Schemas/Framework/Builders.py)), beside the old builders, on top of
-`Schemas.OfX.Data`, which is unchanged, and run by [suite BLD](../python3/tests/25_Builders.ipynb). The proposal it
+([the builders' module](../python3/mbse/Schemas/Framework/Builders.py)) and in TypeScript, on top of
+`Schemas.OfX.Data`, which is unchanged, and run by [suite BLD](../python3/tests/25_Builders.ipynb). The old builders
+are removed (phase 3), and `Schemas.OfX.Builder` and `Schemas.OfX.Schema` are these. The proposal it
 came from, the old clause → new table and the work items left are in
 [Schema builders as visitors](proposals/schema-builders/README.md).
 
@@ -260,7 +261,7 @@ every write.
 - **Derivation happens at finalization**, in `_finalize`: a refinement takes the token, `ref`, index and element of what
   it refines unless it is given them. No member's write has a side effect besides it (Resolved: "shortcuts are
   refused"), so `.singleton(...)` no longer sets `ref`.
-- **Finalizing** is `create()`, `clone()` or `update()`, as the old builders' are; none validate. A clone clones the
+- **Finalizing** is `create()`, `clone()` or `update()`; none validate. A clone clones the
   members it owns, each with an identity of its own; an object schema's inherited members stay shared.
 
 ### Building in a store
@@ -272,8 +273,11 @@ object. `store.Schemas.<Kind>(...)` builds a schema object, for `Scalar`, `Objec
 `Container`, `Apply`, `Any`, `Relation`, `Predicate`, `Property`, `Parameter`, `Symbol`, `Member`, `Adjacency` and
 `Form`; any other registered name builds data, through the proxy builder.
 
-- **The meta-schemas are in every store**, registered under their names, but for `Schemas.Module`, which every store of
-  proxies holds in its old form (`Stores.META`) until the wire format moves.
+- **The meta-schemas are in every store**, registered under their names, with the basic scalars (`Schemas.OfBool`,
+  ...) and the mutation schemas.
+- **A store links only what it holds.** A builder in a store refuses a link to a schema object the store does not
+  hold, built outside any store or in another (FRAMEWORK.md, Stores); the basic scalars are linked as
+  `Builders.Meta.OfInt` and so on.
 - **Identities.** Every schema object gets one on creation (Resolved: "all schema objects are reference objects and all
   reference objects get an ID on creation"): the one written, else a named schema's name, else a UUID; members built
   with a schema get theirs too. The store refuses an identity another of its schema objects holds.
@@ -281,9 +285,9 @@ object. `store.Schemas.<Kind>(...)` builds a schema object, for `Scalar`, `Objec
   data right after `store.Schemas.Object(lambda o: o.name("crm.Person") ...)`; a renamed schema is registered again
   under its new name.
 
-Not built yet (the [work items](proposals/schema-builders/README.md#work-items)): modules in the store, defining
-schemas through `Defines`; schemas written and read through these meta-schemas (`Modules`, `Plain`); TypeScript; and
-the landing in `Schemas.py` and `Proxies.py`, with the old builders removed (Plan, phase 3).
+Built since: modules in the store, defining schemas and modules through `Defines`; a store written and read as a log
+of mutations ([Serialization](SERIALIZATION.md), steps 1 and 2); TypeScript; and the old builders, `Modules` and
+`Stores.META` removed (Plan, phase 3). Not built yet: subsequent snapshots (Serialization, step 3).
 
 ## Phase 5 design: the draft's questions
 
@@ -308,15 +312,15 @@ with a question, for review. The schema builders answer most of them; each point
    VAL-15); the meta-schemas declare one at every end referred to. A snapshot writing an entry under its named ends
    only, and `Reachable` following named adjacencies, wait for the wire format (point 7).
 5. **Identities.** Superseded in part: a schema object's identity is the one written, else a named schema's name, else
-   a UUID (Building in a store, above), so a named schema's name is its identity, as the draft did not propose. Only
-   `Schemas.Module` has a naming pattern. Whether module snapshots are made reproducible by naming patterns, as the
-   draft proposed, is still open, with the wire format.
+   a UUID (Building in a store, above), so a named schema's name is its identity, as the draft did not propose.  A module's identity
+   is its dotted path; an unnamed schema object's derives from its owner's (FRAMEWORK.md, Resolved, the initial
+   snapshot), so a store's snapshot is reproducible without naming patterns.
 6. **Modules and names.** The meta-relation is built, `Defines(module, name, schema)` (Resolved: "a module is an object
-   in a store, alongside schemas and data"); modules in the store, nesting (`Defines` defines schemas, not yet
-   modules), `root_module()` and qualified names are not. Still open: Open questions, "Resolving qualified names".
-7. **The wire.** Still open, and the next work item (Schema builders as visitors, Work items, 1): Modules and Plain read
-   and write schemas through these meta-schemas as linked reference objects, and `Schemas.Module`, `Modules.reference`
-   and `resolve`, `Stores.META` and `Schemas.OfAny.Schema` go, as Resolved, "The meta-schemas overhaul" decides.
+   in a store, alongside schemas and data"); modules in the store and their nesting are built too;
+   `root_module()` and qualified names are not. Still open: Open questions, "Resolving qualified names".
+7. **The wire.** Answered by [Serialization](SERIALIZATION.md): a store is written as a log of mutations, schemas
+   included, through the meta-schemas; `Schemas.Module`'s old form, `Modules`, `Stores.META` and
+   `Schemas.OfAny.Schema` are removed.
 8. **Building a link's target inline.** Answered for types by the later decision: a link to a type takes a schema that
    exists, never a callback that builds one (Resolved, "Schema builders align with their meta-schemas", a property's
    type). A link whose target is of one kind (a member, a term, an argument, an adjacency's relation) builds it

@@ -4,7 +4,8 @@ This follows [FRAMEWORK.md, Schema builders align with their meta-schemas](../..
 user's rules: every schema object is a reference object, and every reference is a relation. A property holds a value
 of any kind: a scalar, a container, a value object, or any nesting of them.
 It was proposed in building, for the user's review, and landed in Python (phase 1, docs/META_SCHEMAS.md, Plan) as
-`Framework.Builders`, beside the old builders, on top of `Schemas.OfX.Data`, which is unchanged; suite BLD runs it.
+`Framework.Builders`, on top of `Schemas.OfX.Data`, which is unchanged; suite BLD runs it. The old builders were
+removed in phase 3.
 
 This is the record of the proposal and its work items. The design as built, the meta-schemas (their kinds, members,
 relations and constraints), the builders and building in a store, is in

@@ -413,6 +413,16 @@ function isSchema(value: unknown): boolean {
   return KINDS.some((kind) => value instanceof kind);
 }
 
+/** Refuses a link, from a schema object built in a store, to a schema object that store does not hold: a reference
+ * object no store built is strictly forbidden, and one another store built is that store's (FRAMEWORK.md, Resolved). */
+function checkHeld(builder: any, link: string, referent: unknown): void {
+  const store = builder._store;
+  if (store !== null && store !== undefined && builderFor(referent) !== null && !store.holds(referent)) {
+    throw new TypeError(`link ${repr(link)} cannot link ${repr(referent)}: the store does not hold it; build it in the store, or `
+      + "link one it holds (a basic scalar is Builders.Meta's: OfStr, OfInt, ...)");
+  }
+}
+
 /** Whether a value is of `kind`. */
 function isA(kind: Function): (value: unknown) => boolean {
   return (value) => value instanceof kind;
@@ -577,6 +587,7 @@ class AdjacencyMember extends Shelled {
       } else {
         throw new TypeError(`link ${repr(this._members.link)} cannot link ${repr(item)}`);
       }
+      checkHeld(this._builder, this._members.link, referent);
       if (this._members.keyed && name !== null) this._members.rename(this._builder._working, referent, name);
       const held = this._held();
       if (held.some((other) => other === referent)) continue;
@@ -846,6 +857,7 @@ class Link extends Shelled {
     }
     const referent = innerOf(spec) instanceof Link ? innerOf(spec)._entry._referent : spec;
     if (!members.accepts(referent)) throw new TypeError(`link ${repr(members.link)} cannot link ${repr(referent)}`);
+    checkHeld(entry._adjacency._builder, members.link, referent);
     entry._relink(referent, null);
     return entry._proxy;
   }
@@ -1774,12 +1786,13 @@ export class Store extends Proxies.OfStore {
   /** Gives the schema objects `owner` holds or links that have no name of their own the identities their path from it
    * derives: a member its owner's and its name (`crm.Person.age`); another, the first object's to link it and the
    * adjacency (`crm.Person.tags#type`). */
-  _derive(owner: any, identity: string): void {
+  _derive(owner: any, identity: string, rebuilt = false): void {
     const builderClass = builderFor(owner) as unknown as typeof Builder;
     for (const [name, members] of builderClass._table) {
-      if (!(members instanceof Members)) continue;
+      if (!(members instanceof Members) || (rebuilt && members.build === null)) continue; // through a rebuilt object, only what it builds
       members.items(owner).forEach((referent, index) => {
-        if (!this._derivable(referent)) return;
+        const through = referent instanceof ArgumentData; // rebuilt on every read: what it builds derives through it
+        if (!through && !this._derivable(referent)) return;
         let derived: string;
         if (members.owned) {
           const named = members.name_of(owner, referent); // a member not keyed (an argument) has no name
@@ -1799,8 +1812,8 @@ export class Store extends Proxies.OfStore {
           derived = members.one ? `${identity}#${name}` : `${identity}#${name}.${index}`;
           this._linked.add(referent);
         }
-        this._rehold(referent, derived);
-        this._derive(referent, derived);
+        if (!through) this._rehold(referent, derived);
+        this._derive(referent, derived, through);
       });
     }
   }
@@ -2021,6 +2034,14 @@ export function _linked(visitor: unknown): unknown {
 export function _rehold_form(store: Store, held: unknown, form: unknown): void {
   const identity = identity_of(held) as string;
   store._objects.set(key(_kind(held), identity), identify(form, identity));
+}
+
+/** The term of a dialect a link visitor reads, which this package does not build and no store holds; null for any other
+ * visitor. */
+export function _dialect_term(visitor: unknown): unknown {
+  const inner = innerOf(visitor);
+  const referent = inner instanceof Link ? inner._entry._referent : null;
+  return referent !== null && referent !== undefined && builderFor(referent) === null && S.Form.is_term(referent) ? referent : null;
 }
 
 /** Whether an adjacency member holds one entry at most, as a `unique` clause of its relation makes it. */

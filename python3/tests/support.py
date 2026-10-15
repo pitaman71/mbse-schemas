@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
+from mbse.Schemas.Framework import Builders
 
 
 @contextmanager
@@ -21,9 +22,13 @@ def raises(*errors: type[BaseException], match: str | None = None) -> Iterator[N
     raise AssertionError(f"expected one of {[e.__name__ for e in errors]}")
 
 
-def text(name: str, scalar: type = str):
-    """Property Spec for a scalar-typed property."""
-    return lambda prop: prop.name(name).of(lambda t: t.as_scalar(scalar))
+BASIC = {str: Builders.Meta.OfStr, int: Builders.Meta.OfInt, float: Builders.Meta.OfFloat, bool: Builders.Meta.OfBool,
+         bytes: Builders.Meta.OfBytes}
+
+
+def basic(scalar: type) -> Any:
+    """The basic scalar schema of a host type, which every store holds."""
+    return BASIC[scalar]
 
 
 def entries(schema: Any, obj: Any, adjacency: str) -> list[dict[str, Any]]:

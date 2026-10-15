@@ -5,7 +5,7 @@
 import { Builders, JSON, Plain, Proxies, Schemas } from "@mbse/schemas/Framework";
 import { assert, equal } from "./_support.js";
 
-const Text = new Schemas.OfScalar.Data(String);
+const Text = Builders.Meta.OfStr;
 
 // Schemas and objects are built in a store, `store.<schema name>(...)`; a named schema registers itself as it is built.
 const store: any = new Builders.Store();

@@ -13,7 +13,7 @@ store = Builders.Store()
 # --- Types are schemas that exist ---
 
 # A member's type is linked, not built: a schema that exists, such as a scalar schema.
-Text = Schemas.OfScalar.Data(str)
+Text = Builders.Meta.OfStr
 Named = store.Schemas.Object(lambda o: o.properties([
     lambda t: t.name('first').type([Text]),
     lambda t: t.name('last').type([Text]),
@@ -22,7 +22,7 @@ assert Named.properties['first'].type is Text and Named.properties['last'].type 
 
 # A value of any type has no types; a value of one of several types, those.
 assert store.Schemas.Any(lambda a: a).types == ()
-assert store.Schemas.Any(lambda a: a.types([Text, Schemas.OfScalar.Data(int)])).types == (Text, Schemas.OfScalar.Data(int))
+assert store.Schemas.Any(lambda a: a.types([Text, Builders.Meta.OfInt])).types == (Text, Builders.Meta.OfInt)
 
 # A property takes its value whole, of exactly its type.
 with raises(TypeError):
@@ -60,9 +60,9 @@ assert first is not second and list(first.properties) == ['a'] and list(second.p
 
 # Redefining a property replaces it.
 Retyped = store.Schemas.Object(store.Schemas.Object(first), lambda o: o.properties([
-    lambda t: t.name('a').type([Schemas.OfScalar.Data(int)]),
+    lambda t: t.name('a').type([Builders.Meta.OfInt]),
 ]))
-assert Retyped.properties['a'].type == Schemas.OfScalar.Data(int) and first.properties['a'].type is Text
+assert Retyped.properties['a'].type == Builders.Meta.OfInt and first.properties['a'].type is Text
 
 # --- Relations and cardinality ---
 
@@ -71,7 +71,7 @@ Product = store.Schemas.Object(lambda o: o.ref(True).properties([lambda t: t.nam
 Money = store.Schemas.Object(lambda o: (
     o
     .ref(True)  # an entry links only reference objects
-    .properties([lambda t: t.name('minor_units').type([Schemas.OfScalar.Data(int)])])  # e.g. cents
+    .properties([lambda t: t.name('minor_units').type([Builders.Meta.OfInt])])  # e.g. cents
 ))
 Prices = store.Schemas.Relation(lambda r: (
     r
@@ -159,7 +159,7 @@ assert any('both property and adjacency' in p for p in NameClash.validate())
 for unsupported in (complex, list, bytearray):
     assert Schemas.OfScalar.Data(unsupported).validate()  # type: ignore  # deliberate misuse
     bad = store.Schemas.Object(lambda o: o.properties([
-        lambda t: t.name('x').type([Schemas.OfScalar.Data(unsupported)]),  # type: ignore  # deliberate misuse
+        lambda t: t.name('x').type([store.Schemas.Scalar(lambda s: s.token(unsupported.__name__))]),  # no basic type
     ]))
     assert bad.validate(), unsupported
 
@@ -208,7 +208,7 @@ assert any('at least two' in p for p in SingleBranch.validate())
 # declare the same property, even with different types.
 Timestamped = store.Schemas.Object(lambda o: o.properties([lambda t: t.name('updated').type([Text])]))
 EpochStamped = store.Schemas.Object(lambda o: o.properties([
-    lambda t: t.name('updated').type([Schemas.OfScalar.Data(int)]),
+    lambda t: t.name('updated').type([Builders.Meta.OfInt]),
 ]))
 Stamps = store.Schemas.Intersection(lambda i: i.parts([
     lambda t: t.name('text').type([Timestamped]),

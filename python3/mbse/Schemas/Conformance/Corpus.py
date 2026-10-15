@@ -49,13 +49,14 @@ def _put(pairs):
     return lambda prop: prop.as_value(lambda a: a.as_container(_write(pairs)))
 
 
-def _literal(value):
-    """A width given as a literal term."""
-    return B.Form.Builder().kind("literal").attributes({"value": value}).create()
+def _literal(s, value):
+    """A width given as a literal term, built in the store `s`."""
+    return s.Schemas.Form(lambda f: f.kind("literal").attributes({"value": value}))
 
 
-def _variable(name):
-    return Schemas.Form.Data("variable", {"name": name})
+def _variable(s, name):
+    """A variable's term, built in the store `s`."""
+    return s.Schemas.Form(lambda f: f.kind("variable").attributes({"name": name}))
 
 
 # --- Schemas, each group built in the store given ---
@@ -166,23 +167,23 @@ def _lists(s):
 def _module(s):
     """The corpus's own schemas as data, with scalars of widths and another format's token, parametric schemas:
     parameters, terms where a width stands, and applications with arguments of every scalar, and a predicate."""
-    s.Schemas.Scalar(lambda n: n.name("Int32").token("int").bits([_literal(32)]))
-    s.Schemas.Scalar(lambda n: n.name("Size").format("ccpp").token("size_t").bytes([_literal(8)]))
+    s.Schemas.Scalar(lambda n: n.name("Int32").token("int").bits([_literal(s, 32)]))
+    s.Schemas.Scalar(lambda n: n.name("Size").format("ccpp").token("size_t").bytes([_literal(s, 8)]))
     Contact, Address, _ = _address_book(s)
     _family(s)
     _embedded(s)
     _lists(s)
     Word = s.Schemas.Scalar(lambda w: w.name("Word").token("int").parameters([lambda t: t.name("w").type([Int])])
-                            .bits([_variable("w")]))
-    n = _variable("n")
+                            .bits([_variable(s, "w")]))
     Grid = s.Schemas.Object(lambda o: o.name("Grid").parameters([
         lambda t: t.name("n").type([Int]).description("Its side"), lambda t: t.name("x")]).properties([
         lambda t: t.name("mask").type([s.Schemas.Scalar(lambda w: w.token("int").bits([
-            Schemas.Form.Data("operation", {"name": "mul"}, (n, n), "basic")]))]),
+            s.Schemas.Form(lambda f: f.kind("operation").attributes({"name": "mul"}).operands([_variable(s, "n"), _variable(s, "n")])
+                           .dialect("basic"))]))]),
         _list(s, "cells", s.Schemas.Apply(lambda a: a.of([Word]).arguments([
             lambda t: t.parameter([Word.parameters["w"]]).value(8)])))]))
     s.Schemas.Apply(lambda a: a.name("Square").parameters([lambda t: t.name("m").type([Int])]).of([Grid]).arguments([
-        lambda t: t.parameter([Grid.parameters["n"]]).term([_variable("m")]),
+        lambda t: t.parameter([Grid.parameters["n"]]).term([_variable(s, "m")]),
         lambda t: t.parameter([Grid.parameters["x"]]).value(True)]))
     Tricky = s.Schemas.Object(lambda o: o.name("Tricky").parameters([lambda t, x=x: t.name(x) for x in "abcd"]))
     s.Schemas.Object(lambda o: o.name("Applied").properties([
@@ -202,7 +203,8 @@ def _module(s):
     s.Schemas.Predicate(lambda p: p.name("Lives").description("Who lives where").symbols([
         lambda t: t.name("who").type([Contact]), lambda t: t.name("where").type([Address]).description("A home")])
         .parameters([lambda t: t.name("since").type([Int])])
-        .requires([Schemas.Form.Data("operation", {"name": "and"}, (_variable("who"), _variable("since")), "basic")]))
+        .requires([s.Schemas.Form(lambda f: f.kind("operation").attributes({"name": "and"})
+                                  .operands([_variable(s, "who"), _variable(s, "since")]).dialect("basic"))]))
 
 
 # --- The cases ---

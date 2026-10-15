@@ -9,7 +9,7 @@ import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
 import { assert, entries, raises, same_graph } from "./_support.js";
 
-const Text = new Schemas.OfScalar.Data(String);
+const Text = Builders.Meta.OfStr;
 
 const store: any = new Builders.Store();
 
@@ -40,9 +40,9 @@ const Enrollment = store.Schemas.Relation((r: any) => (
       (t: any) => t.name("term"),
     ])
     .properties([
-      (t: any) => t.name("credits").type([new Schemas.OfScalar.Data(BigInt)]),
-      (t: any) => t.name("score").type([new Schemas.OfScalar.Data(Number)]),
-      (t: any) => t.name("audit").type([new Schemas.OfScalar.Data(Boolean)]),
+      (t: any) => t.name("credits").type([Builders.Meta.OfInt]),
+      (t: any) => t.name("score").type([Builders.Meta.OfFloat]),
+      (t: any) => t.name("audit").type([Builders.Meta.OfBool]),
     ])
     .uniques(["score", "audit", "credits"]) // (student, course, term) determine the rest
 ));

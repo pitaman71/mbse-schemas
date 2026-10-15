@@ -14,7 +14,7 @@ const store: any = new Builders.Store();
 // --- Types are schemas that exist ---
 
 // A member's type is linked, not built: a schema that exists, such as a scalar schema.
-const Text = new Schemas.OfScalar.Data(String);
+const Text = Builders.Meta.OfStr;
 const Named = store.Schemas.Object((o: any) => o.properties([
   (t: any) => t.name("first").type([Text]),
   (t: any) => t.name("last").type([Text]),
@@ -23,8 +23,8 @@ assert(Named.properties.get("first").type === Text && Named.properties.get("last
 
 // A value of any type has no types; a value of one of several types, those.
 assert(store.Schemas.Any((a: any) => a).types.length === 0);
-const types = store.Schemas.Any((a: any) => a.types([Text, new Schemas.OfScalar.Data(BigInt)])).types;
-assert(types.length === 2 && types[0] === Text && types[1].equals(new Schemas.OfScalar.Data(BigInt)));
+const types = store.Schemas.Any((a: any) => a.types([Text, Builders.Meta.OfInt])).types;
+assert(types.length === 2 && types[0] === Text && types[1].equals(Builders.Meta.OfInt));
 
 // A property takes its value whole, of exactly its type.
 raises(TypeError, () => store.Schemas.Object((o: any) => o.ref(1n))); // deliberate misuse
@@ -56,9 +56,9 @@ assert(first !== second && [...first.properties.keys()].join() === "a" && [...se
 
 // Redefining a property replaces it.
 const Retyped = store.Schemas.Object(store.Schemas.Object(first), (o: any) => o.properties([
-  (t: any) => t.name("a").type([new Schemas.OfScalar.Data(BigInt)]),
+  (t: any) => t.name("a").type([Builders.Meta.OfInt]),
 ]));
-assert(Retyped.properties.get("a").type.equals(new Schemas.OfScalar.Data(BigInt)) && first.properties.get("a").type === Text);
+assert(Retyped.properties.get("a").type.equals(Builders.Meta.OfInt) && first.properties.get("a").type === Text);
 
 // --- Relations and cardinality ---
 
@@ -67,7 +67,7 @@ const Product = store.Schemas.Object((o: any) => o.ref(true).properties([(t: any
 const Money = store.Schemas.Object((o: any) => (
   o
     .ref(true) // an entry links only reference objects
-    .properties([(t: any) => t.name("minor_units").type([new Schemas.OfScalar.Data(BigInt)])]) // e.g. cents
+    .properties([(t: any) => t.name("minor_units").type([Builders.Meta.OfInt])]) // e.g. cents
 ));
 const Prices = store.Schemas.Relation((r: any) => (
   r
@@ -153,7 +153,7 @@ assert(NameClash.validate().some((p: string) => p.includes("both property and ad
 for (const unsupported of [Array, Map, Uint16Array]) { // the JavaScript counterparts of complex, list, bytearray
   assert(new Schemas.OfScalar.Data(unsupported).validate().length > 0); // deliberate misuse
   const bad = store.Schemas.Object((o: any) => o.properties([
-    (t: any) => t.name("x").type([new Schemas.OfScalar.Data(unsupported)]), // deliberate misuse
+    (t: any) => t.name("x").type([store.Schemas.Scalar((s: any) => s.token(unsupported.name))]), // no basic type
   ]));
   assert(bad.validate().length > 0, unsupported.name);
 }
@@ -203,7 +203,7 @@ assert(SingleBranch.validate().some((p: string) => p.includes("at least two")));
 // declare the same property, even with different types.
 const Timestamped = store.Schemas.Object((o: any) => o.properties([(t: any) => t.name("updated").type([Text])]));
 const EpochStamped = store.Schemas.Object((o: any) => o.properties([
-  (t: any) => t.name("updated").type([new Schemas.OfScalar.Data(BigInt)]),
+  (t: any) => t.name("updated").type([Builders.Meta.OfInt]),
 ]));
 const Stamps = store.Schemas.Intersection((i: any) => i.parts([
   (t: any) => t.name("text").type([Timestamped]),

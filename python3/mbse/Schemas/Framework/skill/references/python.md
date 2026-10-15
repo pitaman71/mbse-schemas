@@ -9,7 +9,7 @@ Components own ports, wires connect ports and carry a label, and each port descr
 ```python
 from mbse.Schemas.Framework import JSON, Builders, Schemas as S, Validators
 
-Int, Text = S.OfScalar.Data(int), S.OfScalar.Data(str)
+Int, Text = Builders.Meta.OfInt, Builders.Meta.OfStr  # the basic scalars, which every store holds
 store = Builders.Store()  # schemas and data are built in a store
 
 # A value with no identity: a value object.
@@ -97,7 +97,7 @@ assert Validators.Validate(store).Reachable(Component, copy) == []
 # with a callback (a Spec taking the builder), it creates; with an object and a callback, it updates the object; with
 # an object alone, it clones it. It returns the object. A named schema is registered under its name as it is built.
 store = Builders.Store()                                    # holds the meta-schemas; isolated from every other store
-S.OfScalar.Data(int)                                        # scalars: int, float, str, bool, bytes (basic tokens)
+Builders.Meta.OfInt                                         # basic scalars, in every store: OfBool, OfInt, OfFloat, OfStr, OfBytes
 w = store.Schemas.Form(lambda f: f.kind("literal").attributes({"value": 32}))  # a literal width, 32
 store.Schemas.Scalar(lambda s: s.format("ccpp").token("int32_t").bits([w]))   # any format's token; a width, a term
 store.Schemas.Object(lambda o: o.name("crm.Contact").ref(True).properties([...]))   # .ref(True): a reference object schema
@@ -142,7 +142,7 @@ store.Schemas.Predicate(lambda p: p.symbols([lambda t: t.name("p").type([Person]
 .bits([store.Schemas.Form(lambda f: f.kind("variable").attributes({"name": "n"}))])   # a term where a width stands
 Validators.Check(store)(schema, obj).holds                  # True or False: since extents went, nothing it checks is unknown
 S.equivalent(a, b, evaluate)                                # the same after substitution: Square(4) is Matrix(4, 4)
-store.registered("crm.Contact"); store.register(schema)     # a schema by name; one built in another store, here too
+store.registered("crm.Contact")                             # a schema by name
 store.extent("Name"); store.singleton("Global")             # a schema's objects its singletons reach; a singleton
 Stores.PCG32(42).split("key").next_u32()                 # a random source, given to whatever draws from it
 Proxies.store_of(obj)                                       # the store a proxy belongs to
@@ -170,8 +170,9 @@ obj.as_schema(); obj.as_identity()                          # what every visitor
 store.by_identity("Feature", "FEA-001")                     # the live object of that schema with that identity
 Proxies.owner_of(value_object)                              # the object a value object belongs to
 
-# Schemas as data: a module holds schemas by name, as an object of S.Module.Schema.
-Modules.module(store, [Contact]); Modules.schemas(store, module)   # named schemas to a module, and back (by name)
+# Schemas as data: designing, extending, versioning and generating them is schemas.md.
+store.Schemas.Object(Contact, lambda o: o.properties([...]))      # extend a schema in place, as data is updated
+store.module("crm").schemas                                 # a module's schemas by name: every named schema is in one
 store.Schemas.Union(lambda u: u.name("Code").flat(True).branches([...]))   # flat: card.code is the branch's value
 Stores.Combined(one, other)                                 # stores as one, each name its store's
 
@@ -204,9 +205,9 @@ ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromD
 - In its store, a named schema's identity is its name, and the store refuses a second schema object with an identity
   it holds: `store.Schemas.Object(Contact)` cannot clone a named schema. Clone it under a new name with a builder in
   the store: `Builders.OfObject.Builder(Contact, store=store).name("crm.Contact.v2").clone()`.
-- A schema's name is its own (`.name("crm.Contact")`), the same in every store that registers it; one built in
-  another store is registered with `store.register(schema)`, which refuses an unnamed schema or a name held. An
-  object of one store cannot be linked from another.
+- A store links only the schema objects it holds: build schemas, forms and members in the store that links them, and
+  link the basic scalars as `Builders.Meta.OfInt` and so on, never `S.OfScalar.Data(int)`. An object of one store
+  cannot be linked from another.
 - `bool()` of a property is its bool value, not whether it is set: `if obj.flag:` raises when the flag is absent or
   not a bool. Ask `obj.flag.get() is not None` for presence.
 - Names starting with `_` are internal, and so are a builder's own methods (`create`, `clone`, `update`): a property

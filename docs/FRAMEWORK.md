@@ -63,10 +63,9 @@ The schema elements include:
 
 A list, a dict, a map or a tensor of values is a container, held by a property (see Lists).
 
-*Being replaced:* the builder clauses above (`.links('contact', 'address')`, `.relations(...)`), and `OfEntry` as the
-schema between a relation and its links and properties, are the old builders', which the schema builders replace
-(Resolved, "Schema builders align with their meta-schemas"; built so far in Python, beside them: [Meta-schemas
-overhaul, The meta-schemas and their builders, as
+*Replaced:* the builder clauses above (`.links('contact', 'address')`, `.relations(...)`) were the old builders',
+removed in phase 3 of the meta-schemas overhaul; the schema builders build every schema in a store (Resolved, "Schema
+builders align with their meta-schemas"; [Meta-schemas overhaul, The meta-schemas and their builders, as
 built](META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built)).
 
 Every element may be described: each kind of schema, each property, adjacency, union branch and intersection
@@ -139,14 +138,13 @@ confirm.
 
 ## Builder pattern
 
-*Being replaced:* this section, and the builder clauses quoted throughout this document (`.of(...)`, `.relations(...)`,
-`.links(...)`, `.unique(...)`, `.ref()`, `.flat()`, `.dense()`, `.parameters(spec, ...)`, `.bits(32)`), describe the
-old schema builders: fluent clauses taking `Spec`s, beside the meta-schemas, and `Schemas.OfAny.Builder` selecting a
-kind through `as_<kind>`. Schema builders that are visitors of their meta-schemas, built in a store, replace them
-(Resolved, "Schema builders align with their meta-schemas"); they are built so far in Python, beside the old ones:
-[Meta-schemas overhaul, The meta-schemas and their builders, as
-built](META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built). Finalizing by `create()`, `clone()` and
-`update()`, and that none of these validate, hold for both.
+*Replaced:* this section, and the builder clauses quoted in older parts of this document (`.of(...)`,
+`.relations(...)`, `.links(...)`, `.unique(...)`, `.ref()`, `.flat()`, `.dense()`, `.parameters(spec, ...)`,
+`.bits(32)`), describe the old schema builders, removed in phase 3 of the meta-schemas overhaul. Schema builders that
+are visitors of their meta-schemas, built in a store, replaced them (Resolved, "Schema builders align with their
+meta-schemas"; [Meta-schemas overhaul, The meta-schemas and their builders, as
+built](META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built)). Finalizing by `create()`, `clone()` and
+`update()`, and that none of these validate, still hold.
 
 The schema must itself be serializable. For that reason, a model implemented as `Schemas.OfX.Data` will have two additional classes:
 `Schemas.OfX.Builder` and `Schemas.OfX.Schema`. `Schemas.OfX.Schema` is the meta-schema that defines `Schemas.OfX.Data`.
@@ -255,9 +253,13 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   protocol (`Readers.OfX`), or a scalar, and compares it with another: `a.compare(b)` returns -1, 0, 1, or `None` when
   incomparable. See `EQUALITY.md`.
 
-- `Modules` : schemas as data. `Modules.module(store, schemas)` returns an object of the meta-schema
-  `Schemas.Module.Schema`, built in `store`, holding named schemas, and `Modules.schemas(store, module)` the schemas it
-  holds, by name. See Meta-schemas.
+- `Builders` : schemas as data. The meta-schemas (`Builders.Meta`), each kind's builder (`Schemas.OfX.Builder`, a
+  `Visitors.OfObject` over its meta-schema) and the store, `Builders.Store`, in which schemas and data are built. See
+  Meta-schemas.
+
+- `Mutations` : the schemas of a mutation log, the wire format a store is written in
+  ([SERIALIZATION.md](SERIALIZATION.md)): `Plain.ToPlain(store).Snapshot()` writes a store, and
+  `Plain.FromPlain(store).Snapshot(log)` reads one.
 
 - `Adapters` : translate between a language's own type declarations and schemas, so they are specific to each
   language. Python has `Adapters.Dataclasses`: `FromDataclass(cls)` returns the `OfObject` a dataclass describes and
@@ -319,16 +321,19 @@ slices.
   and an object of one store cannot be linked to, or used as the source of a builder in, another ("the object belongs
   to another store"). Tests and programs make the stores they need. Objects move between stores, or implementations,
   as snapshots.
-- **Every store of proxies starts with the meta-schemas registered** (`Stores.META`: `Schemas.Module`, whose schemas
-  are value object schemas and need no names), so it can hold modules of schemas (see Meta-schemas). *Being
-  replaced:* `Stores.META` goes (Resolved, "The meta-schemas overhaul"); a `Builders.Store` registers the new
-  meta-schemas beside it and builds schema objects in the store (Resolved, "Schema builders align with their
-  meta-schemas"; [Meta-schemas overhaul, The meta-schemas and their builders, as
-  built](META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built)).
+- **Every store holds the framework's schemas.** A `Builders.Store` holds the meta-schemas, the basic scalars
+  (`Schemas.OfBool`, `Schemas.OfInt`, ...) and the mutation schemas, and builds schema objects as it builds data
+  (Resolved, "Schema builders align with their meta-schemas"; [Meta-schemas overhaul, The meta-schemas and their
+  builders, as built](META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built)).
+- **A store links only the schema objects it holds.** A builder in a store refuses a link to a schema object the store
+  does not hold, built outside any store or in another: "A reference object no store built is strictly forbidden"
+  (Resolved, "Schema builders align with their meta-schemas": the wire format), and schema objects are reference
+  objects. The basic scalars are linked as `Builders.Meta.OfInt` and so
+  on; another scalar, a form or any other schema object is built in the store that links it.
 - **A proxy knows its store.** `Proxies.store_of(value)` gives the store a proxy belongs to, and a placed value
   object's is its owner's.
 - **Everything that looks schemas up takes a store**: `Plain.ToPlain(store)` and `Plain.FromPlain(store)`, the JSON and
-  YAML forms, `Validators.Validate(store)`, `Modules.module(store, ...)` and `Modules.schemas(store, ...)`, and a
+  YAML forms, `Validators.Validate(store)`, a store's snapshots, and a
   builder inferring the schema of an object it creates through a link (from the store's schemas).
 - **Queries are an extension.** The protocol locates schemas, builders, singletons and extents; selecting objects by a
   condition belongs to [mbse-patterns](https://github.com/pitaman71/mbse-patterns), whose queryable store protocol adds
@@ -569,59 +574,16 @@ Scalar types and their widths are implemented, and written over the wire by thei
 Schemas are data: each schema kind's data has a meta-schema, `Schemas.OfX.Schema`, a value object schema, so schemas
 are written, read, validated and compared like any other objects.
 
-*Being replaced:* this section describes the meta-schemas that `Modules` and the wire format still use. The new
-meta-schemas, in which every schema object is a reference object and every reference a relation, are built in Python
-beside them (Resolved, "Schema builders align with their meta-schemas"; [Meta-schemas overhaul, The meta-schemas and
-their builders, as built](META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built)); modules and the wire format
-move to them next.
+Every schema object is a reference object of its meta-schema, held by its store, and every reference between schema
+objects is a relation: the meta-schemas, their builders and the store are described as built in [Meta-schemas
+overhaul, The meta-schemas and their builders, as
+built](META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built). Every named schema is in a module, a schema
+object too, named by its dotted path (Resolved, "Schema builders align with their meta-schemas": the initial snapshot). A store, its schemas included, is
+written as a log of mutations ([SERIALIZATION.md](SERIALIZATION.md)); the old `Modules` and their inline wire form are
+removed.
 
-- **A module holds named schemas.** `Schemas.Module.Schema` is a reference object schema, registered in every store of
-  proxies as `Schemas.Module`, whose `schemas` property holds a container by name, each element a
-  `Schemas.Module.Definition`: a union of the schema kinds, `scalar`, `object`, `union`, `intersection`, `container`,
-  `apply`, `relation` and `predicate`. A module is written as a mapping by name, in the order its schemas were given;
-  `Modules.module` refuses two schemas of one name. A snapshot of schemas is a snapshot of a module, and modules compare
-  by the schemas they hold ([Equality](EQUALITY.md)).
-- **`Modules` translates.** `Modules.module(store, schemas)` returns a module holding named schemas, each under its
-  name, built in the store, and `Modules.schemas(store, module)` the schemas a module holds, by name, each read back
-  with its name. Both go through the module's plain form.
-- **Within a module, schemas are value objects, nested inline**, and their members are properties holding containers
-  of value objects by position, lists in declared order: an object schema's `properties`
-  (`name`, `type`, `description`) and `adjacencies` (`name`, `relation`, `me`, `description`), with its `singleton`
-  and `ref`; a union's `branches` and an intersection's `parts` (`name`, `type`, `description`); a relation's `links`
-  (`name`), `properties` and `uniques` (a `clause`, whose `names` list the names it holds, sorted); an application's
-  `of` and `arguments` (`name`, and a scalar `value` or a `term`); and a predicate's `requires`, a form, and `symbols`
-  (`name`, `type`, `description`). A scalar is its token's `format` and `name`, its `bits` or
-  `bytes`, and `terms` for a width that is a term. A form's `attributes` (`name`, `value`) and `arguments` (`term`) are
-  lists the same way. Each kind's own properties come first, ending with its `description`, then its lists, starting
-  with its `parameters`. What is absent, false or empty is left out. Reading refuses a list that names a member twice
-  (`property 'p' is listed twice`), since the list itself no longer keeps names distinct.
-- **Each member keeps its own meta-schema**, as every `Schemas.OfX.Schema` does: `Schemas.OfProperty.Schema` (a
-  property's, a union's branch's, an intersection's part's and, as `Schemas.OfParameter.Schema`, a parameter's `name`,
-  `type` and `description`, and as `Schemas.OfSymbol.Schema` a predicate's symbol's), `Schemas.OfAdjacency.Schema` and
-  `Schemas.OfApply.Argument`. A member list's elements hold exactly the properties its member's meta-schema declares, of
-  the same types, so the two cannot drift apart. `Schemas.OfEntry.Schema` is an entry's schema's: its `links`, as
-  symbols, and its `properties`; a module writes them in the relation, whose `Schemas.OfRelation.Data.entry` holds
-  them (Resolved, The visitor pattern).
-- **A type is a schema of any kind, inline, or a name**: `Schemas.OfAny.Schema`, a union of the kinds and `named`, a
-  value object `{"name": ...}` (union branches are of one kind, so a name is a value object too). A property's type is
-  `{"scalar": {"format": "basic", "token": "str"}}` or `{"named": {"name": "Phone"}}`, and an adjacency's relation is
-  `Schemas.OfRelation.Ref`, a relation inline or named the same way.
-- **Names make schemas shared.** A schema refers by name to a schema in the module, or a registered one, and writes any
-  other inline. Reading creates every named schema first, so names resolve to the same schema, recursive references
-  included: a name resolves within the module, then in the store. A schema that refers to itself without a name is
-  refused, and so are a name that resolves nowhere, a relation or a predicate named as a type or something else named
-  as a relation, and a name a module defines twice.
-- **A named schema is written by its name, everywhere.** A schema refers to a named schema by name and writes an
-  unnamed one inline, so writing schemas needs no store; reading resolves names, within a module and then in the store.
-  A module entry is the one place a named schema is defined: its name, beside its definition, so the kinds'
-  meta-schemas hold no name.
-- **One type translates alone too.** `Modules.reference(schema)` gives a type's plain form, by name when it has one and
-  inline otherwise, and `Modules.resolve(store, definition)` the type it describes, so that other data can refer to
-  schemas as a module's members do, as a predicate's symbols do.
-- **Meta-schemas are defined in code**, never read from data. Modules are built by the builders of any implementation,
-  through `Plain.FromPlain`, and read through the protocols, so the DSL builders, whose methods (`properties(*specs)`)
-  would clash with the visitor protocols (`properties(callback)`), are not involved.
-- **A schema may hold itself**, as a node holds a list of nodes. Validating it reports each problem once.
+- **A schema may hold itself**, as a node holds a list of nodes, or a container a container of itself. Validating it
+  reports each problem once, for every kind whose values hold others'.
 
 ## A store's schemas as a module
 
@@ -683,17 +645,16 @@ resolving constraints.
   as properties are. A parameter's scope is its binder, inline schemas nested in it included. `validate()` reports
   reserved names and bad types and descriptions; it cannot see which names a term refers to, so a variable no
   enclosing binder declares is for whoever understands the term's dialect to report (mbse-expressions).
-- **A term stands where a literal does**: a scalar's `bits` and `bytes` each take an int or a term (*being replaced*,
-  in the builders, by a relation to a term, an int written as a literal form: Resolved, "Schema builders align with
-  their meta-schemas"; [Meta-schemas overhaul, The meta-schemas and their builders, as
-  built](META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built)). A term is anything with `form()` and
+- **A term stands where a literal does**: a scalar's `bits` and `bytes` each take an int or a term; the builders
+  link a width as a term, a relation, an int read as a literal form (Resolved, "Schema builders align with their
+  meta-schemas"). A term is anything with `form()` and
   `dialect()`, as mbse-expressions' terms are, or a
   `Schemas.Form`: `Form(kind, attributes, arguments, dialect)`, scalar attributes by name and forms as arguments, the
   dialect given at the root. `Form.of(term)` gives a term's form. `validate()` checks a form's shape and leaves a
   dialect's term to its dialect.
-- **`Schemas.OfApply` refers to a parametric schema with arguments**: a type, built by `.of(schema)` and
-  `.argument(name, value)` or `.arguments(**values)` (TypeScript: `.arguments({ name: value })` or a `Map`), by
-  parameter name only, or `t.as_apply(...)`.
+- **`Schemas.OfApply` refers to a parametric schema with arguments**: a type, built by
+  `store.Schemas.Apply(lambda a: a.of([schema]).arguments([lambda t: t.parameter([p]).value(3)]))`, each argument
+  binding a parameter of the applied schema.
   An argument is a scalar value or a term. Applying with some arguments leaves the others unbound (partial binding); an
   argument may be a term over a parameter of the application's own (`Square[n] = Matrix(rows=n, cols=n)`, dependent
   arguments). `validate()` reports unknown parameters, literal arguments of the wrong scalar type and arguments that
@@ -702,12 +663,10 @@ resolving constraints.
 - **Data of an application is data of its applied schema.** `Schemas.structure(type)` follows applications to the
   schema that gives a type its structure; proxies, snapshots, validation, comparison and bound classes all read and
   write through it, wherever a type stands: a property, a branch, a part, an entry property.
-- **Modules write all of it** (see Meta-schemas): a kind's `parameters`, a width's term in the scalar's `terms`
-  (`{"terms": {"bits": {...}}}`), and an application as `{"apply": {"of": ...,
-  "arguments": [{"name": "rows", "value": {"int": 3}}, {"name": "cols", "term": {...}}]}}`. A form is
-  `{"dialect", "kind", "attributes": [{"name", "value"}], "arguments": [{"term"}]}`, each attribute's and argument's scalar value
-  by its basic type (`{"float": "NaN"}`, `{"bytes": "AA=="}`). Reading gives forms back, or what the caller's `make`
-  makes of each (`Modules.schemas(store, module, make)`), e.g. a dialect's terms.
+- **A store's snapshot writes all of it** ([SERIALIZATION.md](SERIALIZATION.md)): a kind's `parameters`, a width's
+  term and an application's arguments, each a schema object of the store; a form is one too, built in the store. A term
+  of a dialect is no schema object a store holds, so a store that links one has no snapshot ("there are no foreign
+  schemas").
 
 - **A term's value comes from an evaluator the caller gives** (`Schemas.Evaluate`, see Expressions):
   `evaluate(term, scope)`, the scope the values of the parameters in scope by name, gives the term's value, or none
@@ -821,14 +780,6 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Uniqueness is global to a relation, but `Validators.Validate(...).Reachable` checks it only over the entries
   reachable from what was validated. Entries in another component that share only property values can go unchecked.
   Is a relation-wide check needed?
-- Builder syntax proposed by the draft `Schemas.py`, to confirm (*being replaced*, with the old builders: Resolved,
-  "Schema builders align with their meta-schemas"; [Meta-schemas overhaul, The meta-schemas and their builders, as
-  built](META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built)):
-  - `unique` clauses: `.unique('parent', 'key')`, one call per clause.
-  - Singletons: `Schemas.OfObject.Builder().singleton('GlobalName')`.
-  - Unions: `.branches(lambda b: b.name('phone').of(spec), ...)`, in declaration order.
-  - Intersections: `.parts(lambda p: p.name('stamp').of(spec), ...)`.
-  - `validate()` on each `Schemas.OfX.Data` returns a list of problems (empty when valid).
 - `Schemas.OfAny.Data` is currently the union of the schema kinds' data (`OfScalar`, `OfObject`, `OfUnion`,
   `OfIntersection`). There is no separate "any value" kind yet.
 - Reading an object's entries back (e.g. a contact's phones), and removing an entry through a builder.

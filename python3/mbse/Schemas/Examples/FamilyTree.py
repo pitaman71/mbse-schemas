@@ -6,7 +6,7 @@
 from mbse.Schemas.Framework import Builders, Schemas, Proxies, Plain, Reachable, Validators
 from mbse.Schemas.Examples._support import entries, raises, same_graph
 
-Text = Schemas.OfScalar.Data(str)
+Text = Builders.Meta.OfStr
 
 store = Builders.Store()
 

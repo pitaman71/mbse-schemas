@@ -8,7 +8,7 @@ import math
 from mbse.Schemas.Framework import Builders, Schemas, Proxies, Plain, Reachable, Validators
 from mbse.Schemas.Examples._support import entries, raises, same_graph
 
-Text = Schemas.OfScalar.Data(str)
+Text = Builders.Meta.OfStr
 
 store = Builders.Store()
 
@@ -40,9 +40,9 @@ Enrollment = store.Schemas.Relation(lambda r: (
         lambda t: t.name('term'),
     ])
     .properties([
-        lambda t: t.name('credits').type([Schemas.OfScalar.Data(int)]),
-        lambda t: t.name('score').type([Schemas.OfScalar.Data(float)]),
-        lambda t: t.name('audit').type([Schemas.OfScalar.Data(bool)]),
+        lambda t: t.name('credits').type([Builders.Meta.OfInt]),
+        lambda t: t.name('score').type([Builders.Meta.OfFloat]),
+        lambda t: t.name('audit').type([Builders.Meta.OfBool]),
     ])
     .uniques(['score', 'audit', 'credits'])  # (student, course, term) determine the rest
 ))

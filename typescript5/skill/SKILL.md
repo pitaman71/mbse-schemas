@@ -62,6 +62,7 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
 | Task | Read |
 |---|---|
 | Decide how to model something: MBSE, UML, ORM or JSON Schema concepts mapped to schema elements | [references/modeling.md](references/modeling.md) |
+| Design new schemas, or extend, version, refine or generate existing ones: schemas as data, built with the builders' fluent calls | [references/schemas.md](references/schemas.md) |
 | Write Python: a complete example, API cheat sheet, traps | [references/python.md](references/python.md) |
 | Write TypeScript: the same example, the differences from Python, cheat sheet, traps | [references/typescript.md](references/typescript.md) |
 | Save, load or exchange data: the snapshot format and strict decoding | [references/serialization.md](references/serialization.md) |

@@ -12,7 +12,7 @@ from mbse.Schemas.Framework import JSON, YAML, Builders, Plain, Proxies, Schemas
 from mbse.Schemas.Framework.Errors import DecodeError
 from mbse.Schemas.Examples._support import raises, same_graph
 
-Text = Schemas.OfScalar.Data(str)
+Text = Builders.Meta.OfStr
 
 store = Builders.Store()
 
@@ -24,10 +24,10 @@ Reading = store.Schemas.Object(lambda o: (
     .ref(True)
     .properties([
         lambda t: t.name('observed').type([Text]),  # ISO 8601, e.g. '2026-09-28T12:00:00Z'
-        lambda t: t.name('value').type([Schemas.OfScalar.Data(float)]),
-        lambda t: t.name('quality').type([Schemas.OfScalar.Data(int)]),
-        lambda t: t.name('valid').type([Schemas.OfScalar.Data(bool)]),
-        lambda t: t.name('raw').type([Schemas.OfScalar.Data(bytes)]),
+        lambda t: t.name('value').type([Builders.Meta.OfFloat]),
+        lambda t: t.name('quality').type([Builders.Meta.OfInt]),
+        lambda t: t.name('valid').type([Builders.Meta.OfBool]),
+        lambda t: t.name('raw').type([Builders.Meta.OfBytes]),
         lambda t: t.name('note').type([Text]),
     ])
 ))

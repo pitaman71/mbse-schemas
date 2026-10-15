@@ -1004,7 +1004,7 @@ class LogWriter {
 
   /** Refuses a schema object the store does not hold, saying where it is linked: there are no foreign schemas. */
   private held(visitor: any, where: string): void {
-    const held: any = Builders._linked(visitor);
+    const held: any = Builders._linked(visitor) ?? Builders._dialect_term(visitor); // a term of a dialect: no store holds one
     if (held === null || held instanceof Builders._ArgumentData || held instanceof Schemas.Form.Data) return;
     if (!this.store.holds(held)) {
       const shown = held.name || `_${held.constructor.name}`;

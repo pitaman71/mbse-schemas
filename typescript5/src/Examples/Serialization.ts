@@ -9,8 +9,8 @@ import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
 import { assert, entries, equal, map, raises } from "./_support.js";
 
-const Text = new Schemas.OfScalar.Data(String);
-const Int = new Schemas.OfScalar.Data(BigInt);
+const Text = Builders.Meta.OfStr;
+const Int = Builders.Meta.OfInt;
 
 const store: any = new Builders.Store();
 
@@ -22,10 +22,10 @@ const Sample = store.Schemas.Object((o: any) => (
     .ref(true)
     .properties([
       (t: any) => t.name("label").type([Text]),
-      (t: any) => t.name("payload").type([new Schemas.OfScalar.Data(Uint8Array)]),
+      (t: any) => t.name("payload").type([Builders.Meta.OfBytes]),
       (t: any) => t.name("count").type([Int]),
-      (t: any) => t.name("ratio").type([new Schemas.OfScalar.Data(Number)]),
-      (t: any) => t.name("flag").type([new Schemas.OfScalar.Data(Boolean)]),
+      (t: any) => t.name("ratio").type([Builders.Meta.OfFloat]),
+      (t: any) => t.name("flag").type([Builders.Meta.OfBool]),
     ])
 ));
 
@@ -117,9 +117,9 @@ const key = `Sample/${blank.as_identity()}`;
 assert(equal(Plain.ToPlain(store)(Sample, blank), map({ root: key, objects: { [key]: {} } })));
 
 // Per-kind entry points.
-const bytesSchema = new Schemas.OfScalar.Data(Uint8Array);
+const bytesSchema = Builders.Meta.OfBytes;
 assert(Plain.ToPlain(store)(bytesSchema, bytes(1)) === "AQ==" && Plain.ToPlain(store).OfScalar(bytesSchema, bytes(1)) === "AQ==");
-assert(Plain.FromPlain(store).OfScalar(new Schemas.OfScalar.Data(BigInt), 7n) === 7n);
+assert(Plain.FromPlain(store).OfScalar(Builders.Meta.OfInt, 7n) === 7n);
 
 // --- Strict scalar types ---
 
@@ -142,7 +142,7 @@ raises(TypeError, () => Plain.ToPlain(store)(Sample, sloppy));
 const validate = Validators.Validate(store);
 assert(equal(validate(Sample, sloppy), ["Sample#0.count: expected int, got str"]));
 assert(validate(Sample, edge).length === 0 && validate(Sample, blank).length === 0);
-assert(equal(validate(new Schemas.OfScalar.Data(BigInt), true), ["expected int, got bool"]));
+assert(equal(validate(Builders.Meta.OfInt, true), ["expected int, got bool"]));
 
 // --- A map: product -> [currency] -> money ---
 

@@ -57,7 +57,6 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `13_Comparison.ipynb` | CMP | 13 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
 | `14_Embedded.ipynb` | EMB | 11 | as in Python; the runtime's own probes (`then`, symbols) are not members, and `in` on a value object says what its schema declares |
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
-| `18_Modules.ipynb` | MOD | 8 | as in Python; schemas are given as a Map or a record, and read back as a Map |
 | `20_Stores.ipynb` | STO | 7 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), STO-05 builds its unplaced value object through `Proxies._internals`, and STO-07 runs the garbage collector (`gc()`, the suites running with `--expose-gc`), then awaits the store's forgetting |
 | `21_Random.ipynb` | RND | 3 | as in Python; PCG32 computes on `bigint`s, and the UTF-8 bytes of keys are encoded without `TextEncoder` |
 | `22_Parametrics.ipynb` | PAR | 7 | as in Python; an application's arguments, and a form's attributes, may be given as a Map or a record; an evaluator's scope is a `ReadonlyMap`, and an outcome is compared by its fields |
@@ -81,7 +80,6 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | Own token format | `python3` | `typescript5` | SCH-18 |
 | Plain mappings | `dict` | `Map<string, PlainData>` (keeps order for every key, incl. `"2"` and `"__proto__"`) | SCH-11, PLN-02 |
 | Schema equality | `==` on data | `.equals()` (no operator overloading) | SCH-01, SCH-15 |
-| Schemas by name (`Modules`) | `dict` | `Map` or record in, `Map` out | MOD-02, MOD-03 |
 | Subclasses of scalars | `int` subclasses rejected | boxed primitives and `Buffer` rejected | SCH-03 |
 | A name a visitor's schema lacks | reads as empty; a name starting with `_` raises `AttributeError` | reads as empty; a name starting with `_`, or a JavaScript protocol probe the schema does not declare, reads as `undefined` | VIS-05, PRX-02, PRX-18 |
 | Callable visitors | `__call__` | a `Proxy` with a function target, its `name` and `length` hidden | VIS-03 |

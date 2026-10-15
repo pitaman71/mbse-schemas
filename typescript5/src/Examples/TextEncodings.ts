@@ -10,7 +10,7 @@ import { Builders, JSON, Plain, Proxies, Schemas, Validators, YAML } from "@mbse
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { assert, equal, raises, same_graph } from "./_support.js";
 
-const Text = new Schemas.OfScalar.Data(String);
+const Text = Builders.Meta.OfStr;
 
 const store: any = new Builders.Store();
 
@@ -22,10 +22,10 @@ const Reading = store.Schemas.Object((o: any) => (
     .ref(true)
     .properties([
       (t: any) => t.name("observed").type([Text]), // ISO 8601, e.g. '2026-09-28T12:00:00Z'
-      (t: any) => t.name("value").type([new Schemas.OfScalar.Data(Number)]),
-      (t: any) => t.name("quality").type([new Schemas.OfScalar.Data(BigInt)]),
-      (t: any) => t.name("valid").type([new Schemas.OfScalar.Data(Boolean)]),
-      (t: any) => t.name("raw").type([new Schemas.OfScalar.Data(Uint8Array)]),
+      (t: any) => t.name("value").type([Builders.Meta.OfFloat]),
+      (t: any) => t.name("quality").type([Builders.Meta.OfInt]),
+      (t: any) => t.name("valid").type([Builders.Meta.OfBool]),
+      (t: any) => t.name("raw").type([Builders.Meta.OfBytes]),
       (t: any) => t.name("note").type([Text]),
     ])
 ));

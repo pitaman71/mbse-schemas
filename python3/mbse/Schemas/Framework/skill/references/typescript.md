@@ -12,8 +12,7 @@ It writes the same JSON as the Python version, byte for byte.
 ```typescript
 import { Builders, JSON, Proxies, Schemas as S, Validators } from "@mbse/schemas/Framework";
 
-const Int = new S.OfScalar.Data(BigInt);
-const Text = new S.OfScalar.Data(String);
+const [Int, Text] = [Builders.Meta.OfInt, Builders.Meta.OfStr]; // the basic scalars, which every store holds
 // Schemas and data are built in a store. Its members come from the schemas at runtime, so it is typed loosely: declare
 // it `any`, and annotate the callbacks given to it `(x: any)`.
 const store: any = new Builders.Store();
@@ -121,7 +120,7 @@ if (Validators.Validate(store).Reachable(Component, copy).length > 0) throw new 
 // with a callback (a Spec taking the builder), it creates; with an object and a callback, it updates the object; with
 // an object alone, it clones it. It returns the object. A named schema is registered under its name as it is built.
 const store: any = new Builders.Store();                    // holds the meta-schemas; isolated from every other store
-new S.OfScalar.Data(BigInt);                                // scalars: BigInt, Number, String, Boolean, Uint8Array
+Builders.Meta.OfInt;                                        // basic scalars, in every store: OfBool, OfInt, OfFloat, OfStr, OfBytes
 const w = store.Schemas.Form((f: any) => f.kind("literal").attributes({ value: 32n }));  // a literal width, 32
 store.Schemas.Scalar((s: any) => s.format("ccpp").token("int32_t").bits([w]));   // any format's token; a width, a term
 store.Schemas.Object((o: any) => o.name("crm.Contact").ref(true).properties([...]));   // .ref(true): a reference object schema
@@ -166,7 +165,7 @@ store.Schemas.Predicate((p: any) => p.symbols([(t: any) => t.name("p").type([Per
 .bits([store.Schemas.Form((f: any) => f.kind("variable").attributes({ name: "n" }))])   // a term where a width stands
 Validators.Check(store)(schema, obj).holds;                // true or false: since extents went, nothing it checks is unknown
 S.equivalent(a, b, evaluate);                              // the same after substitution: Square(4n) is Matrix(4n, 4n)
-store.registered("crm.Contact"); store.register(schema);   // a schema by name; one built in another store, here too
+store.registered("crm.Contact");                            // a schema by name
 store.extent("Name"); store.singleton("Global");           // a schema's objects its singletons reach; a singleton
 new Stores.PCG32(42n).split("key").next_u32();             // a random source, given to whatever draws from it
 Proxies.store_of(obj);                                     // the store a proxy belongs to
@@ -194,8 +193,9 @@ obj.as_schema(); obj.as_identity();                        // what every visitor
 store.by_identity("Feature", "FEA-001");                   // the live object of that schema with that identity
 Proxies.owner_of(valueObject);                             // the object a value object belongs to
 
-// Schemas as data: a module holds schemas by name, as an object of S.Module.Schema.
-Modules.module(store, [Contact]); Modules.schemas(store, module);   // named schemas to a module, and back (a Map, by name)
+// Schemas as data: designing, extending, versioning and generating them is schemas.md.
+store.Schemas.Object(Contact, (o: any) => o.properties([...]));   // extend a schema in place, as data is updated
+store.module("crm").schemas;                               // a module's schemas by name (a Map): every named schema is in one
 store.Schemas.Union((u: any) => u.name("Code").flat(true).branches([...]));   // flat: card.code is the branch's value
 new Stores.Combined(one, other);                           // stores as one, each name its store's
 
@@ -215,7 +215,8 @@ The traps of [Python](python.md#traps) hold here too, in TypeScript's terms:
 - A schema builder's value properties are typed exactly: `.ref(1n)` throws `TypeError`; write `.ref(true)`. A
   singleton schema is a reference object schema too: `.ref(true).singleton("crm.Directory")`.
 - A reference to another schema object is an array of what it links, even where only one is allowed: `.type([Text])`,
-  never `.type(Text)`.
+  never `.type(Text)`. A store links only what it holds: the basic scalars are `Builders.Meta.OfInt` and so on, never
+  `new S.OfScalar.Data(BigInt)`.
 - In its store, a named schema's identity is its name: `store.Schemas.Object(Contact)` cannot clone it. Clone it under
   a new name with a builder in the store: `new Builders.OfObject.Builder(Contact, true, store).name("crm.Contact.v2").clone()`.
 

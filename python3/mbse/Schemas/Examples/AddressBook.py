@@ -4,7 +4,7 @@
 
 from mbse.Schemas.Framework import Builders, Schemas, Proxies, Plain, JSON
 
-Text = Schemas.OfScalar.Data(str)
+Text = Builders.Meta.OfStr
 
 # Schemas and objects are built in a store, `store.<schema name>(...)`; a named schema registers itself as it is built.
 store = Builders.Store()

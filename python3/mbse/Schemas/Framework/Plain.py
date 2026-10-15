@@ -882,6 +882,8 @@ class _LogWriter:
         target = getattr(visitor, "_target", None)
         if held is None and callable(target):
             held = getattr(target(), "_original", None)
+        if held is None:
+            held = self._B._dialect_term(visitor)  # a term of a dialect: no store holds one
         if held is None or isinstance(held, (self._B._ArgumentData, Schemas.Form.Data)):
             return  # data, or what a builder rebuilds on every read
         if not self._store.holds(held):

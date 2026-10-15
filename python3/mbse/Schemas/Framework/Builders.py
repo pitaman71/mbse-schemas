@@ -343,6 +343,15 @@ def _is_schema(value: Any) -> bool:
     return isinstance(value, S._KINDS)
 
 
+def _check_held(builder: Any, link: str, referent: Any) -> None:
+    """Refuses a link, from a schema object built in a store, to a schema object that store does not hold: a reference
+    object no store built is strictly forbidden, and one another store built is that store's (FRAMEWORK.md, Resolved)."""
+    store = builder._store
+    if store is not None and _builder_for(referent) is not None and not store.holds(referent):
+        raise TypeError(f"link {link!r} cannot link {referent!r}: the store does not hold it; build it in the store, or "
+                        "link one it holds (a basic scalar is Builders.Meta's: OfStr, OfInt, ...)")
+
+
 class _Members:
     """A member for an adjacency of the meta-schema, whose entries link the schema object being built and, at `link`,
     another (the referent). `items` and `store` read and write the referents from and to however the data stores
@@ -464,6 +473,7 @@ class _AdjacencyMember(_Unassignable):
                     referent, name = item, None
                 else:
                     raise TypeError(f"link {self._members.link!r} cannot link {item!r}")
+            _check_held(self._builder, self._members.link, referent)
             if self._members.keyed and name is not None:
                 self._members.rename(self._builder._working, referent, name)
             held = self._held()
@@ -691,6 +701,7 @@ class _Link(_Unassignable):
         referent = spec._entry._referent if isinstance(spec, _Link) else spec
         if not members.accepts(referent):
             raise TypeError(f"link {members.link!r} cannot link {referent!r}")
+        _check_held(entry._adjacency._builder, members.link, referent)
         entry._relink(referent, None)
         return entry
 
@@ -1241,6 +1252,13 @@ def _kind(data: Any) -> str:
     return f"Schemas.{builder._meta}" if builder is not None else type(data).__name__
 
 
+def _dialect_term(visitor: Any) -> Any:
+    """The term of a dialect a link visitor reads, which this package does not build and no store holds; None for any
+    other visitor."""
+    referent = visitor._entry._referent if isinstance(visitor, _Link) else None
+    return referent if referent is not None and _builder_for(referent) is None and S._is_term(referent) else None
+
+
 def _builder_for(referent: Any) -> type | None:
     """The builder of a referent's data; None for a term of a dialect, which this package does not build."""
     return _BUILDERS.get(type(referent))
@@ -1426,7 +1444,7 @@ class Store(Proxies.OfStore):
         self._framework: frozenset[int] = frozenset(id(schema) for schema in self._objects.values())
         self._modules: dict[str, _ModuleData] = {}  # by path; the root module's is ""
         self._placed: dict[int, tuple[_ModuleData, str]] = {}  # each schema's module, and its name there
-        self._linked: set[int] = set()  # the unnamed schema objects given an identity by the first object to link them
+        self._linked: dict[int, Any] = {}  # the unnamed schema objects given an identity by the first object to link them
         self._root = ModuleBuilder(None, True, self).create()
 
     def held(self, kind: str, identity: str) -> Any:
@@ -1467,16 +1485,18 @@ class Store(Proxies.OfStore):
         self._placed[id(data)] = (parent, local)
         ModuleBuilder(parent, True, self).schemas([lambda t: t.name(local).schema(data)]).update()
 
-    def _derive(self, owner: Any, identity: str) -> None:
+    def _derive(self, owner: Any, identity: str, rebuilt: bool = False) -> None:
         """Gives the schema objects `owner` holds or links that have no name of their own the identities their path from
         it derives: a member its owner's and its name (`crm.Person.age`); another, the first object's to link it and the
-        adjacency (`crm.Person.tags#type`)."""
+        adjacency (`crm.Person.tags#type`). Through an object `rebuilt` on every read (an argument), only what it builds
+        derives: what it links that exists has its own owner."""
         builder_class = _builder_for(owner)
         for name, members in (builder_class._members_.items() if builder_class is not None else ()):
-            if not isinstance(members, _Members):
+            if not isinstance(members, _Members) or (rebuilt and members.build is None):
                 continue
             for index, referent in enumerate(members.items(owner)):
-                if not self._derivable(referent):
+                through = isinstance(referent, _ArgumentData)  # rebuilt on every read: what it builds derives through it
+                if not through and not self._derivable(referent):
                     continue
                 if members.owned:
                     local = members.name_of(owner, referent) if members.keyed else None
@@ -1491,13 +1511,14 @@ class Store(Proxies.OfStore):
                         derived = f"{identity}#({referent.relation.name}.{referent.me})"
                     else:
                         derived = f"{identity}#{name}.{index}"
-                elif id(referent) in self._linked:
+                elif self._linked.get(id(referent)) is referent:  # by identity: an id is reused once its object is gone
                     continue
                 else:
                     derived = f"{identity}#{name}" if members.one else f"{identity}#{name}.{index}"
-                    self._linked.add(id(referent))
-                self._rehold(referent, derived)
-                self._derive(referent, derived)
+                    self._linked[id(referent)] = referent
+                if not through:
+                    self._rehold(referent, derived)
+                self._derive(referent, derived, through)
 
     def _derivable(self, referent: Any) -> bool:
         """Whether a referent takes an identity from its path: a schema object this store holds, the framework's aside,

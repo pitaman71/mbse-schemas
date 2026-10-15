@@ -52,13 +52,13 @@ function enumerate(values: unknown[]): [bigint, unknown][] {
   return values.map((value, i) => [BigInt(i), value]);
 }
 
-/** A width given as a literal term. */
-function literal(value: unknown) {
-  return new B.Form.Builder().kind("literal").attributes({ value }).create();
+/** A width given as a literal term, built in the store `s`. */
+function literal(s: any, value: unknown): any {
+  return s.Schemas.Form((f: any) => f.kind("literal").attributes({ value }));
 }
 
-function variable(name: string) {
-  return new Schemas.Form.Data("variable", { name });
+function variable(s: any, name: string): any {
+  return s.Schemas.Form((f: any) => f.kind("variable").attributes({ name }));
 }
 
 // --- Schemas, each group built in the store given ---
@@ -168,23 +168,23 @@ function lists(s: any): any {
 /** The corpus's own schemas as data, with scalars of widths and another format's token, parametric schemas:
  * parameters, terms where a width stands, and applications with arguments of every scalar, and a predicate. */
 function module(s: any): void {
-  s.Schemas.Scalar((n: any) => n.name("Int32").token("int").bits([literal(32n)]));
-  s.Schemas.Scalar((n: any) => n.name("Size").format("ccpp").token("size_t").bytes([literal(8n)]));
+  s.Schemas.Scalar((n: any) => n.name("Int32").token("int").bits([literal(s, 32n)]));
+  s.Schemas.Scalar((n: any) => n.name("Size").format("ccpp").token("size_t").bytes([literal(s, 8n)]));
   const [Contact, Address] = addressBook(s);
   family(s);
   embedded(s);
   lists(s);
   const Word = s.Schemas.Scalar((w: any) => w.name("Word").token("int").parameters([(t: any) => t.name("w").type([Int])])
-    .bits([variable("w")]));
-  const n = variable("n");
+    .bits([variable(s, "w")]));
   const Grid = s.Schemas.Object((o: any) => o.name("Grid").parameters([
     (t: any) => t.name("n").type([Int]).description("Its side"), (t: any) => t.name("x")]).properties([
     (t: any) => t.name("mask").type([s.Schemas.Scalar((w: any) => w.token("int").bits([
-      new Schemas.Form.Data("operation", { name: "mul" }, [n, n], "basic")]))]),
+      s.Schemas.Form((f: any) => f.kind("operation").attributes({ name: "mul" }).operands([variable(s, "n"), variable(s, "n")])
+        .dialect("basic"))]))]),
     list(s, "cells", s.Schemas.Apply((a: any) => a.of([Word]).arguments([
       (t: any) => t.parameter([Word.parameters.get("w")]).value(8n)])))]));
   s.Schemas.Apply((a: any) => a.name("Square").parameters([(t: any) => t.name("m").type([Int])]).of([Grid]).arguments([
-    (t: any) => t.parameter([Grid.parameters.get("n")]).term([variable("m")]),
+    (t: any) => t.parameter([Grid.parameters.get("n")]).term([variable(s, "m")]),
     (t: any) => t.parameter([Grid.parameters.get("x")]).value(true)]));
   const Tricky = s.Schemas.Object((o: any) => o.name("Tricky").parameters([..."abcd"].map((x) => (t: any) => t.name(x))));
   s.Schemas.Object((o: any) => o.name("Applied").properties([
@@ -204,7 +204,8 @@ function module(s: any): void {
   s.Schemas.Predicate((p: any) => p.name("Lives").description("Who lives where").symbols([
     (t: any) => t.name("who").type([Contact]), (t: any) => t.name("where").type([Address]).description("A home")])
     .parameters([(t: any) => t.name("since").type([Int])])
-    .requires([new Schemas.Form.Data("operation", { name: "and" }, [variable("who"), variable("since")], "basic")]));
+    .requires([s.Schemas.Form((f: any) => f.kind("operation").attributes({ name: "and" })
+      .operands([variable(s, "who"), variable(s, "since")]).dialect("basic"))]));
 }
 
 // --- The cases ---

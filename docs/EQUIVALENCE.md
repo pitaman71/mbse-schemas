@@ -9,7 +9,7 @@
 ## What equivalent means
 
 1. **Same API.** The same modules, classes, methods and argument order, with the same names (snake_case included):
-   `Schemas.OfObject.Builder().properties(...).create()`, `store.Name(instance)` of a `Proxies.OfStore`,
+   `store.Schemas.Object(lambda o: o.properties([...]))` and `store.crm.Contact(callback)` of a `Builders.Store`,
    `Plain.ToPlain(store).Reachable(schema, value)`, `JSON.FromJSON(store)(schema, text)`, `Validators.Validate(store)`.
    Only the unavoidable language mechanics differ (see below).
 2. **Same behavior.** The same results, the same error classes, and byte-identical error and validation messages.
@@ -88,8 +88,8 @@ noticed.
 | Plain mappings | `dict` | `Map<string, PlainData>` | object literals reorder integer-like keys and mishandle `__proto__` | SCH-11, PLN-02 |
 | Schema data equality | `==` | `.equals()` | no operator overloading | SCH-01, SCH-15 |
 | Adjacencies in proxies (`Proxies.OfAdjacency.Data`) | a `tuple` subclass; `at(key)` takes a tuple for a key of several values | a callable `Proxy` over a frozen `Array` subclass, so `instanceof Array` but not `Array.isArray`; its `at(key)` replaces the array's `at(index)`, and its `map` and `filter` make plain arrays; `at(key)` takes an array for a key of several values | each language's read-only sequence, and a member is callable | PRX-18, PRX-19 |
-| Schemas by name (`Modules`; a store's modules, `Builders.Store.module(path).schemas`) | a `dict` | a `Map`, or a record, and `schemas()` returns a `Map`; a module's `schemas` is a `Map` | object literals are records by name, but only a `Map` keeps every key's order | MOD-02, MOD-03, SNP-01 |
-| Neutral forms of terms (`Schemas.Form.Data`) | `Form.Data(kind, attributes, arguments, dialect)`: a `dict` and a `tuple` | `new Form.Data(kind, attributes, arguments, dialect)`: a `Map` or a record, and an array | as for `Modules`, a record is the literal by name | PAR-02 |
+| A module's schemas by name (`Builders.Store.module(path).schemas`) | a `dict` | a `Map` | only a `Map` keeps every key's order | SNP-01 |
+| Neutral forms of terms (`Schemas.Form.Data`) | `Form.Data(kind, attributes, arguments, dialect)`: a `dict` and a `tuple` | `new Form.Data(kind, attributes, arguments, dialect)`: a `Map` or a record, and an array | a record is the literal by name, and a `Map` keeps every key's order | PAR-02 |
 | Evaluators and outcomes (`Schemas.Evaluate`, `Validators.Check`) | `evaluate(term, scope)` with a `dict`, None for unknown; an `Outcome` is a dataclass, compared with `==` | the scope a `ReadonlyMap`, null or undefined for unknown; an `Outcome` is a class, compared by its fields | the language's own mapping and absent value; no operator overloading | PAR-06 |
 | Errors | built-in exceptions | built-in `TypeError`; `ValueError`, `AttributeError`, `KeyError`, `LookupError`, `NotImplementedError` from `Errors` | JavaScript lacks the others | throughout |
 | Callable entry points | objects with `__call__` | functions with the per-kind forms attached | no callable instances | PLN-01 |
@@ -102,7 +102,6 @@ noticed.
 | A container's index of several ints | a tuple, `(1, 2)` | an array, `[1n, 2n]` | no tuples in JavaScript; messages show either as a list, `[1, 2]` | CNT-01, CNT-06 |
 | A value of any type's types (`Schemas.OfAny.Value`) | a tuple, `OfAny.Value((Int,), description=...)`; `plain_forms` a `frozenset` | an array, `new OfAny.Value([Int], { description })`; `plain_forms` a `Set` | each language's sequence and set | ANY-01, ANY-05 |
 | A container's size | `len(container)` | `container.length` | each language's own | CNT-01, BLD-06 |
-| Arguments of an application by name | `.arguments(rows=2, cols=3)` | `.arguments({ rows: 2n, cols: 3n })`, or a `Map` | no keyword arguments | PAR-03 |
 | Finalizer arguments | extra arguments raise `TypeError` | checked explicitly | JavaScript ignores extra arguments | SCH-09, PRX-04, BLD-12 |
 | Subclasses of scalars | rejected | boxed primitives and `Buffer` rejected | the nearest analogues | SCH-03 |
 | A name a visitor's schema lacks | reads as empty; a name starting with `_` raises `AttributeError` | reads as empty; a name starting with `_`, or a JavaScript protocol probe (`then`, `toJSON`, ...) the schema does not declare, reads as `undefined` | awaiting or printing a visitor must not throw | VIS-05, PRX-02, PRX-18 |

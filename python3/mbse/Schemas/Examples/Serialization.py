@@ -9,7 +9,7 @@ from mbse.Schemas.Framework import Builders, Schemas, Plain, Validators
 from mbse.Schemas.Framework.Errors import DecodeError
 from mbse.Schemas.Examples._support import entries, raises
 
-Text, Int = Schemas.OfScalar.Data(str), Schemas.OfScalar.Data(int)
+Text, Int = Builders.Meta.OfStr, Builders.Meta.OfInt
 
 store = Builders.Store()
 
@@ -21,10 +21,10 @@ Sample = store.Schemas.Object(lambda o: (
     .ref(True)
     .properties([
         lambda t: t.name('label').type([Text]),
-        lambda t: t.name('payload').type([Schemas.OfScalar.Data(bytes)]),
+        lambda t: t.name('payload').type([Builders.Meta.OfBytes]),
         lambda t: t.name('count').type([Int]),
-        lambda t: t.name('ratio').type([Schemas.OfScalar.Data(float)]),
-        lambda t: t.name('flag').type([Schemas.OfScalar.Data(bool)]),
+        lambda t: t.name('ratio').type([Builders.Meta.OfFloat]),
+        lambda t: t.name('flag').type([Builders.Meta.OfBool]),
     ])
 ))
 
@@ -113,8 +113,8 @@ key = f'Sample/{blank.as_identity()}'
 assert Plain.ToPlain(store)(Sample, blank) == {'root': key, 'objects': {key: {}}}
 
 # Per-kind entry points.
-assert Plain.ToPlain(store)(Schemas.OfScalar.Data(bytes), b'\x01') == Plain.ToPlain(store).OfScalar(Schemas.OfScalar.Data(bytes), b'\x01') == 'AQ=='
-assert Plain.FromPlain(store).OfScalar(Schemas.OfScalar.Data(int), 7) == 7
+assert Plain.ToPlain(store)(Builders.Meta.OfBytes, b'\x01') == Plain.ToPlain(store).OfScalar(Builders.Meta.OfBytes, b'\x01') == 'AQ=='
+assert Plain.FromPlain(store).OfScalar(Builders.Meta.OfInt, 7) == 7
 
 # --- Strict scalar types ---
 
@@ -125,9 +125,9 @@ for scalar, bad in [(int, True), (int, 1.0), (int, '1'), (float, 1), (bool, 0), 
     with raises(DecodeError):
         from_plain(Schemas.OfScalar.Data(scalar), bad)
 with raises(DecodeError):
-    from_plain(Schemas.OfScalar.Data(bytes), b'raw')  # bytes arrive as base64 text
+    from_plain(Builders.Meta.OfBytes, b'raw')  # bytes arrive as base64 text
 with raises(DecodeError):
-    from_plain(Schemas.OfScalar.Data(bytes), 'not base64!')
+    from_plain(Builders.Meta.OfBytes, 'not base64!')
 
 # The builder does not validate; the serializer does.
 sloppy = store.Sample(lambda s: s.count('3'))
@@ -139,7 +139,7 @@ with raises(TypeError):
 validate = Validators.Validate(store)
 assert validate(Sample, sloppy) == ['Sample#0.count: expected int, got str']
 assert validate(Sample, edge) == [] and validate(Sample, blank) == []
-assert validate(Schemas.OfScalar.Data(int), True) == ['expected int, got bool']
+assert validate(Builders.Meta.OfInt, True) == ['expected int, got bool']
 
 # --- A map: product -> [currency] -> money ---
 

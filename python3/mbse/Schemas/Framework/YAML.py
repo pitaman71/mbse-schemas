@@ -229,6 +229,10 @@ class ToYAML:
     def Reachable(self, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> str:
         return dumps(self._plain.Reachable(schema, value))
 
+    def Snapshot(self) -> str:
+        """The store as a log of mutations, its initial snapshot: `Plain.ToPlain.Snapshot`, as YAML text."""
+        return dumps(self._plain.Snapshot())
+
 
 class FromYAML:
     """Decodes YAML, building objects in `store`: `FromYAML(store)(schema, text)`."""
@@ -244,6 +248,10 @@ class FromYAML:
 
     def OfObject(self, schema: Schemas.OfObject.Data, text: str | bytes) -> Any:
         return self._plain.OfObject(schema, loads(text))
+
+    def Snapshot(self, text: str | bytes) -> list[Any]:
+        """Applies a log of mutations, as YAML text, to the store: `Plain.FromPlain.Snapshot`."""
+        return self._plain.Snapshot(loads(text))
 
     def Reachable(self, schema: Schemas.OfObject.Data, text: str | bytes) -> Any:
         return self._plain.Reachable(schema, loads(text))

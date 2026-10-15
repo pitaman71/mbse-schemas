@@ -1,4 +1,4 @@
-"""Writes this implementation's conformance snapshots: `python -m mbse.Schemas.Conformance.write [directory]`.
+"""Writes this implementation's conformance logs, each case's store's initial snapshot: `python -m mbse.Schemas.Conformance.write [directory]`.
 
 The default directory is `conformance/python3` at the repository root.
 """
@@ -18,9 +18,9 @@ def render(corpus: dict | None = None) -> dict[str, str]:
     """File name -> text for every case, as this implementation writes them. Pass an already built corpus to avoid
     registering its schemas twice."""
     files = {}
-    for case, (schema, root, store) in (corpus if corpus is not None else build()).items():
-        files[f"{case}.json"] = JSON.ToJSON(store).Reachable(schema, root, indent=2) + "\n"
-        files[f"{case}.yaml"] = YAML.ToYAML(store).Reachable(schema, root)
+    for case, (store, _) in (corpus if corpus is not None else build()).items():
+        files[f"{case}.json"] = JSON.ToJSON(store).Snapshot(indent=2) + "\n"
+        files[f"{case}.yaml"] = YAML.ToYAML(store).Snapshot()
     return files
 
 

@@ -1,59 +1,1330 @@
-root: Board/board-1
-objects:
-  Board/board-1:
-    name: rack
-    tags:
-    - ''
-    - 日本語 🚀
-    - a
-    blobs:
-    - ''
-    - AP8=
-    grid:
-    - - 1
-      - -1180591620717411303424
-    - []
-    - - 0
-    readings:
-    - value: -0.0
-    - note: 'off'
-    - value: Infinity
-    sockets:
-    - name: in
-      pins:
-      - '1'
-      - '2'
-    - name: out
-    banks:
-    - {}
-    - sockets:
-      - name: spare
-        pins:
-        - '9'
-    matrix:
-    - - null
-      - null
-      - null
-    - - null
-      - 1
-      - 0
-    - - null
-      - 0
-      - 1
-    cells:
-    - at: 0
-      items:
-      - 0
-    - at: 5
-      items:
-      - 6
-      - 7
-    attrs:
-      gain: 1.5
-      ? ''
-      : -0.0
-    weights:
-    - index: 0.5
-      element: half
-    - index: -2.5
-      element: neg
+- exists:
+    definition:
+      key: Schemas.Module/.
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Object/Board
+      properties:
+        name: Board
+        ref: true
+        pattern: board-(\d+)
+- exists:
+    definition:
+      key: Schemas.Property/Board.name
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.name
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- exists:
+    definition:
+      key: Schemas.Property/Board.tags
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Container/Board.tags#type
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Containing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.tags#type
+      - as_link:
+          name: element
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Indexing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.tags#type
+      - as_link:
+          name: index
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfInt
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.tags
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.tags#type
+- exists:
+    definition:
+      key: Schemas.Property/Board.blobs
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Container/Board.blobs#type
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Containing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.blobs#type
+      - as_link:
+          name: element
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfBytes
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Indexing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.blobs#type
+      - as_link:
+          name: index
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfInt
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.blobs
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.blobs#type
+- exists:
+    definition:
+      key: Schemas.Property/Board.grid
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Container/Board.grid#type
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Container/Board.grid#type#element
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Containing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.grid#type#element
+      - as_link:
+          name: element
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfInt
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Indexing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.grid#type#element
+      - as_link:
+          name: index
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfInt
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Containing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.grid#type
+      - as_link:
+          name: element
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.grid#type#element
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Indexing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.grid#type
+      - as_link:
+          name: index
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfInt
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.grid
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.grid#type
+- exists:
+    definition:
+      key: Schemas.Property/Board.readings
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Container/Board.readings#type
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Union/Board.readings#type#element
+      properties:
+        flat: false
+- exists:
+    definition:
+      key: Schemas.Member/Board.readings#type#element.value
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Member/Board.readings#type#element.value
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfFloat
+- exists:
+    definition:
+      key: Schemas.Member/Board.readings#type#element.note
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Member/Board.readings#type#element.note
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasBranch
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Union/Board.readings#type#element
+      - as_link:
+          name: branch
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Member/Board.readings#type#element.value
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: value
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Union/Board.readings#type#element
+      - as_link:
+          name: branch
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Member/Board.readings#type#element.note
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: note
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Containing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.readings#type
+      - as_link:
+          name: element
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Union/Board.readings#type#element
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Indexing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.readings#type
+      - as_link:
+          name: index
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfInt
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.readings
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.readings#type
+- exists:
+    definition:
+      key: Schemas.Property/Board.sockets
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Container/Board.sockets#type
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Object/Board.sockets#type#element
+      properties:
+        ref: false
+- exists:
+    definition:
+      key: Schemas.Property/Board.sockets#type#element.name
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.sockets#type#element.name
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- exists:
+    definition:
+      key: Schemas.Property/Board.sockets#type#element.pins
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Container/Board.sockets#type#element.pins#type
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Containing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.sockets#type#element.pins#type
+      - as_link:
+          name: element
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Indexing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.sockets#type#element.pins#type
+      - as_link:
+          name: index
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfInt
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.sockets#type#element.pins
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.sockets#type#element.pins#type
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasProperty
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board.sockets#type#element
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.sockets#type#element.name
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: name
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board.sockets#type#element
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.sockets#type#element.pins
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: pins
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Containing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.sockets#type
+      - as_link:
+          name: element
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board.sockets#type#element
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Indexing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.sockets#type
+      - as_link:
+          name: index
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfInt
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.sockets
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.sockets#type
+- exists:
+    definition:
+      key: Schemas.Property/Board.banks
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Container/Board.banks#type
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Object/Board.banks#type#element
+      properties:
+        ref: false
+- exists:
+    definition:
+      key: Schemas.Property/Board.banks#type#element.sockets
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Container/Board.banks#type#element.sockets#type
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Containing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.banks#type#element.sockets#type
+      - as_link:
+          name: element
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board.sockets#type#element
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Indexing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.banks#type#element.sockets#type
+      - as_link:
+          name: index
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfInt
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.banks#type#element.sockets
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.banks#type#element.sockets#type
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasProperty
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board.banks#type#element
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.banks#type#element.sockets
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: sockets
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Containing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.banks#type
+      - as_link:
+          name: element
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board.banks#type#element
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Indexing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.banks#type
+      - as_link:
+          name: index
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfInt
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.banks
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.banks#type
+- exists:
+    definition:
+      key: Schemas.Property/Board.matrix
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Container/Board.matrix#type
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Object/Board.matrix#type#index
+      properties:
+        ref: false
+- exists:
+    definition:
+      key: Schemas.Property/Board.matrix#type#index.r
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.matrix#type#index.r
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfInt
+- exists:
+    definition:
+      key: Schemas.Property/Board.matrix#type#index.c
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.matrix#type#index.c
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfInt
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasProperty
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board.matrix#type#index
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.matrix#type#index.r
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: r
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board.matrix#type#index
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.matrix#type#index.c
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: c
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Containing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.matrix#type
+      - as_link:
+          name: element
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfInt
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Indexing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.matrix#type
+      - as_link:
+          name: index
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board.matrix#type#index
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.matrix
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.matrix#type
+- exists:
+    definition:
+      key: Schemas.Property/Board.cells
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Container/Board.cells#type
+      properties:
+        layout: sparse
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Containing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.cells#type
+      - as_link:
+          name: element
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfInt
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Indexing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.cells#type
+      - as_link:
+          name: index
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfInt
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.cells
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.cells#type
+- exists:
+    definition:
+      key: Schemas.Property/Board.attrs
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Container/Board.attrs#type
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Containing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.attrs#type
+      - as_link:
+          name: element
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfFloat
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Indexing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.attrs#type
+      - as_link:
+          name: index
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.attrs
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.attrs#type
+- exists:
+    definition:
+      key: Schemas.Property/Board.weights
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Container/Board.weights#type
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Containing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.weights#type
+      - as_link:
+          name: element
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Indexing
+    entries:
+    - mutations:
+      - as_link:
+          name: container
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.weights#type
+      - as_link:
+          name: index
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfFloat
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.weights
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Container/Board.weights#type
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasProperty
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.name
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: name
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.tags
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: tags
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.blobs
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: blobs
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.grid
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: grid
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.readings
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: readings
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.sockets
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: sockets
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.banks
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: banks
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.matrix
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: matrix
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.cells
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: cells
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.attrs
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: attrs
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Board.weights
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: weights
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Module/.
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Board
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Board
+- exists:
+    definition:
+      key: Board/board-1
+      properties:
+        name: rack
+        tags:
+        - ''
+        - 日本語 🚀
+        - a
+        blobs:
+        - ''
+        - AP8=
+        grid:
+        - - 1
+          - -1180591620717411303424
+        - []
+        - - 0
+        readings:
+        - value: -0.0
+        - note: 'off'
+        - value: Infinity
+        sockets:
+        - name: in
+          pins:
+          - '1'
+          - '2'
+        - name: out
+        banks:
+        - {}
+        - sockets:
+          - name: spare
+            pins:
+            - '9'
+        matrix:
+        - - null
+          - null
+          - null
+        - - null
+          - 1
+          - 0
+        - - null
+          - 0
+          - 1
+        cells:
+        - at: 0
+          items:
+          - 0
+        - at: 5
+          items:
+          - 6
+          - 7
+        attrs:
+          gain: 1.5
+          ? ''
+          : -0.0
+        weights:
+        - index: 0.5
+          element: half
+        - index: -2.5
+          element: neg

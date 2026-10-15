@@ -248,6 +248,10 @@ class ToJSON:
     def Reachable(self, schema: Schemas.OfObject.Data, value: Readers.OfObject, *, indent: int | None = None) -> str:
         return dumps(self._plain.Reachable(schema, value), indent=indent)
 
+    def Snapshot(self, *, indent: int | None = None) -> str:
+        """The store as a log of mutations, its initial snapshot: `Plain.ToPlain.Snapshot`, as JSON text."""
+        return dumps(self._plain.Snapshot(), indent=indent)
+
 
 class FromJSON:
     """Decodes JSON, building objects in `store`: `FromJSON(store)(schema, text)`."""
@@ -263,6 +267,10 @@ class FromJSON:
 
     def OfObject(self, schema: Schemas.OfObject.Data, text: str | bytes) -> Any:
         return self._plain.OfObject(schema, loads(text))
+
+    def Snapshot(self, text: str | bytes) -> list[Any]:
+        """Applies a log of mutations, as JSON text, to the store: `Plain.FromPlain.Snapshot`."""
+        return self._plain.Snapshot(loads(text))
 
     def Reachable(self, schema: Schemas.OfObject.Data, text: str | bytes) -> Any:
         return self._plain.Reachable(schema, loads(text))

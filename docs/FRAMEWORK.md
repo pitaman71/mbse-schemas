@@ -897,6 +897,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
        can be built anywhere anytime." (an earlier reading here, "every type is built in the store", was wrong);
        asked whether a scalar schema (`S.OfScalar.Data(int)`) counts as a value, built anywhere, or as a reference object
        like every other schema object, the user chose the latter: a scalar schema is built in a store;
+       and, asked whether every store should hold the basic scalars (`bool`, `int`, `float`, `str`, `bytes`) as named
+       schemas from the start, as it holds the meta-schemas, so that programs link them and logs refer to them by name,
+       never foreign: "yes";
     3. what the builders rebuild on every read (an int width read as a literal form, an application's arguments,
        shared forms): "I think this is only value objects so (c)": written nested, as values;
     4. the declaration order of a schema object's members: a position property on their entries;

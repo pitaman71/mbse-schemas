@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .Builders import (AnyValueBuilder, ContainerBuilder, Meta, ObjectBuilder, UnionBuilder)
+from .Builders import AnyValueBuilder, ContainerBuilder, Meta, ObjectBuilder, UnionBuilder
 
 __all__ = ["SCHEMAS", "Log", "Reference", "Ref", "Def", "Slice"]
 

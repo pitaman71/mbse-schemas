@@ -184,10 +184,11 @@ class _PropertyMember(_Dunders):
 
 
 class _Value(_Unassignable):
-    """`Visitors.OfAny` over a value held where `held` reads it and `write` writes it: a scalar, or a container."""
+    """`Visitors.OfAny` over a value held where `held` reads it and `write` writes it: a scalar, or a container, or, where
+    `container` is None (an element of a container not written yet), either, as it is written."""
 
     def __init__(self, label: str, held: Callable[[], Any], write: Callable[[Any], None], writable: bool,
-                 container: bool, schema: Callable[[], Any]):
+                 container: bool | None, schema: Callable[[], Any]):
         self._label, self._held, self._write, self._writable = label, held, write, writable
         self._container, self._schema = container, schema
 
@@ -202,7 +203,7 @@ class _Value(_Unassignable):
         return self
 
     def as_scalar(self, cb: Any) -> _Value:
-        if self._container:
+        if self._container is True:
             return self._other(cb)
         if _is_function(cb):
             _visit(cb, _ScalarVisitor(self))
@@ -211,7 +212,7 @@ class _Value(_Unassignable):
         return self
 
     def as_container(self, cb: Any) -> _Value:
-        if not self._container:
+        if self._container is False:
             return self._other(cb)
         if _is_function(cb):
             _visit(cb, _Mapping(self))
@@ -263,7 +264,13 @@ class _Mapping(_Unassignable):
         self._value = value
 
     def _positional(self) -> bool:
-        return isinstance(self._value._held(), (list, tuple))
+        """Whether the container holds its elements by position, as a list: as it holds them, or, empty, as its schema
+        arranges them."""
+        held = self._value._held()
+        if isinstance(held, (list, tuple, dict)):
+            return not isinstance(held, dict)
+        schema = S.structure(self.as_schema())
+        return isinstance(schema, S.OfContainer.Data) and schema.arrangement != "dict"
 
     def _items(self) -> dict[Any, Any]:
         held = self._value._held()
@@ -281,8 +288,9 @@ class _Mapping(_Unassignable):
             self._value._write([items[key] for key in sorted(items)] if positional else items)
 
         held = self._items().get(index)
+        container = None if held is None else isinstance(held, (list, tuple, dict))
         return _Value(f"{self._value._label}[{index!r}]", lambda: self._items().get(index), write,
-                      self._value._writable, isinstance(held, (list, tuple, dict)), lambda: None)
+                      self._value._writable, container, lambda: getattr(S.structure(self.as_schema()), "element", None))
 
     def as_schema(self) -> Any:
         return self._value.as_schema()
@@ -342,15 +350,21 @@ class _Members:
     builder (a class, given lazily), or not at all (None: it links an object that exists). `one`: at most one entry,
     as a `unique` clause of its relation makes it. `keyed`: the relation's entries have one property, `name`, of string
     type, which names the referent within the schema object (the data keeps it as the referent's `name`). `owned`: each
-    referent belongs to the schema object alone (keyed ones do), so that a clone of it has clones of them."""
+    referent belongs to the schema object alone (keyed ones do), so that a clone of it has clones of them. `names`, for
+    a keyed adjacency whose data keeps its entries' names apart from its referents (a module's), reads and writes them:
+    `(name_of(data, referent), rename(data, referent, name))`."""
 
     name: str
 
     def __init__(self, link: str, *, items: Callable[[Any], list[Any]], store: Callable[[Any, list[Any]], None],
                  accepts: Callable[[Any], bool], build: Any = None, one: bool = False, keyed: bool = False,
-                 owned: bool | None = None):
+                 owned: bool | None = None, names: tuple[Callable[..., Any], Callable[..., Any]] | None = None):
         self.link, self.items, self.store, self.accepts, self.build, self.one = link, items, store, accepts, build, one
         self.keyed, self.owned = keyed, keyed if owned is None else owned
+        self.name_of, self.rename = names or (
+            lambda data, referent: getattr(referent, "name", None) or None,
+            lambda data, referent, name: setattr(referent, "name", name),
+        )
 
     def __set_name__(self, owner: type, name: str) -> None:
         self.name = name
@@ -402,7 +416,7 @@ class _AdjacencyMember(_Unassignable):
         if entry._referent is None:
             raise ValueError(f"link {self._members.link!r} is not set")
         if self._members.keyed and entry._name is not None:
-            entry._referent.name = entry._name
+            self._members.rename(self._builder._working, entry._referent, entry._name)
         held = self._held()
         if any(referent is entry._referent for referent in held):
             return self
@@ -451,7 +465,7 @@ class _AdjacencyMember(_Unassignable):
                 else:
                     raise TypeError(f"link {self._members.link!r} cannot link {item!r}")
             if self._members.keyed and name is not None:
-                referent.name = name
+                self._members.rename(self._builder._working, referent, name)
             held = self._held()
             if any(other is referent for other in held):
                 continue
@@ -488,7 +502,8 @@ class _Entry(_Unassignable):
         """The entry's name: the one written, else its referent's."""
         if self._name is not None:
             return self._name
-        return getattr(self._referent, "name", None) or None
+        adjacency = self._adjacency
+        return adjacency._members.name_of(adjacency._builder._working, self._referent)
 
     def _rename(self, name: str | None) -> None:
         if name is not None and (not isinstance(name, str) or not name):
@@ -496,7 +511,7 @@ class _Entry(_Unassignable):
         self._name = name
         if self._index is not None:  # an entry held: its referent is renamed in place
             self._adjacency._builder._check()
-            self._referent.name = name or ""
+            self._adjacency._members.rename(self._adjacency._builder._working, self._referent, name or "")
             self._adjacency._store(self._adjacency._held())
 
     def _relink(self, referent: Any, template: list[Any] | None) -> None:
@@ -862,6 +877,15 @@ class _KindBuilder(_Builder[D]):
         """A named schema's identity is its name, a global one; an unnamed one's, a UUID."""
         return self._working.name or super()._allocate()
 
+    def _identified(self, data: D, identity: str | None) -> D:
+        """A named schema's identity is its name, so it follows a rename, unless one is written."""
+        name = getattr(data, "name", None)
+        renamed = name is not None and name != getattr(self._original, "__dict__", {}).get("_named", name)
+        if self._identity is None and renamed:
+            identity = name
+        data.__dict__["_named"] = name
+        return super()._identified(data, identity)
+
 
 # --- Builders of members ---
 
@@ -1015,11 +1039,19 @@ class ObjectBuilder(_KindBuilder[S.OfObject.Data]):
     pattern = _Prop()
     singleton = _Prop()
     refines = _refines()
+    # A refinement's own members: those it inherits are the refined schema's, through `refines` (Resolved: "Modules
+    # write `refines` and a refinement's own members only"); finalizing settles them in again.
     properties = _Members("property", keyed=True, accepts=lambda v: isinstance(v, S.OfProperty.Data),
-                          build=lambda: PropertyBuilder, **_by_name("properties"))
+                          build=lambda: PropertyBuilder,
+                          items=lambda data: [prop for name, prop in data.properties.items()
+                                              if name not in S.inherited(data)[0]],
+                          store=lambda data, members: setattr(data, "properties", {m.name: m for m in members}))
     adjacencies = _Members(  # named ones by name, then anonymous ones, which have none
         "adjacency", keyed=True, accepts=lambda v: isinstance(v, S.OfAdjacency.Data), build=lambda: AdjacencyBuilder,
-        items=lambda data: [*data.adjacencies.values(), *data.anonymous],
+        items=lambda data: [*(adjacency for name, adjacency in data.adjacencies.items()
+                              if name not in S.inherited(data)[1]),
+                            *(adjacency for adjacency in data.anonymous
+                              if not any(adjacency is held for held in S.inherited(data)[2]))],
         store=lambda data, members: (setattr(data, "adjacencies", {m.name: m for m in members if m.name}),
                                      setattr(data, "anonymous", [m for m in members if not m.name])))
 
@@ -1150,14 +1182,63 @@ class RelationBuilder(_KindBuilder[S.OfRelation.Data]):
         return changed
 
 
+@dataclass(eq=False)
+class _ModuleData:
+    """A module: the schemas and the modules it defines, each under its name within it, the last part of its path
+    (`Person` in `crm`, defining `crm.Person`). Its name is its path; the store's root module has none."""
+
+    name: str | None = None
+    description: str | None = None
+    parameters: dict[str, Any] = field(default_factory=dict)
+    schemas: dict[str, Any] = field(default_factory=dict)
+
+
+def _defined_name(data: _ModuleData, referent: Any) -> str | None:
+    return next((name for name, held in data.schemas.items() if held is referent), None)
+
+
+def _define(data: _ModuleData, referent: Any, name: str) -> None:
+    data.__dict__.setdefault("_names", {})[id(referent)] = name
+
+
+def _store_defined(data: _ModuleData, referents: list[Any]) -> None:
+    names = {id(held): name for name, held in data.schemas.items()}
+    names.update(data.__dict__.pop("_names", {}))
+    data.schemas = {names.get(id(referent)) or _local(referent): referent for referent in referents}
+
+
+def _local(schema: Any) -> str:
+    """A schema's name within its module: the last part of its path."""
+    return str(getattr(schema, "name", "") or "").rsplit(".", 1)[-1]
+
+
+class ModuleBuilder(_KindBuilder[_ModuleData]):
+    """A module, a reference object in the store, whose identity is its path: the root module's is `.`."""
+
+    _data, _meta, _noun = _ModuleData, "Module", "a module"
+
+    schemas = _Members("schema", keyed=True, owned=False, names=(_defined_name, _define),
+                       accepts=lambda v: isinstance(v, (*S._KINDS, S.OfRelation.Data, S.OfPredicate.Data, _ModuleData)),
+                       items=lambda data: list(data.schemas.values()), store=_store_defined)
+
+    def _allocate(self) -> str:
+        return self._working.name or "."
+
+
 _BUILDERS: dict[type, type] = {
     S.OfScalar.Data: ScalarBuilder, S.OfObject.Data: ObjectBuilder, S.OfUnion.Data: UnionBuilder,
     S.OfIntersection.Data: IntersectionBuilder, S.OfContainer.Data: ContainerBuilder, S.OfApply.Data: ApplyBuilder,
     S.OfAny.Value: AnyValueBuilder, S.OfPredicate.Data: PredicateBuilder, S.OfRelation.Data: RelationBuilder,
     S.OfProperty.Data: PropertyBuilder, S.OfParameter.Data: ParameterBuilder, S.OfSymbol.Data: SymbolBuilder,
     S.OfUnion.Branch: MemberBuilder, S.OfAdjacency.Data: AdjacencyBuilder, _ArgumentData: ArgumentBuilder,
-    S.Form.Data: FormBuilder,
+    S.Form.Data: FormBuilder, _ModuleData: ModuleBuilder,
 }
+
+
+def _kind(data: Any) -> str:
+    """The name of a schema object's meta-schema, `Schemas.Object`: the kind its identity is unique within."""
+    builder = _builder_for(data)
+    return f"Schemas.{builder._meta}" if builder is not None else type(data).__name__
 
 
 def _builder_for(referent: Any) -> type | None:
@@ -1211,8 +1292,8 @@ Meta.Intersection = _object("Intersection", {"flat": Bool}, refines=Meta.Type)
 Meta.Container = _object("Container", {"layout": Text}, refines=Meta.Type)
 Meta.Apply = _object("Apply", refines=Meta.Type)
 Meta.Any = _object("Any", refines=Meta.Type)
-Meta.Relation = _object("Relation", {"uniques": S.OfContainer.Data(index=Int, element=S.OfContainer.Data(
-    index=Int, element=Text))}, refines=Meta.Schema)
+Meta.Relation = _object("Relation", {"uniques": ContainerBuilder().index([Int]).element([
+    ContainerBuilder().index([Int]).element([Text]).create()]).create()}, refines=Meta.Schema)
 Meta.Predicate = _object("Predicate", refines=Meta.Schema)
 Meta.Typed = _object("Typed", {"description": Text})
 Meta.Property = _object("Property", refines=Meta.Typed)
@@ -1220,17 +1301,12 @@ Meta.Parameter = _object("Parameter", refines=Meta.Typed)
 Meta.Symbol = _object("Symbol", refines=Meta.Typed)
 Meta.Member = _object("Member", refines=Meta.Typed)
 Meta.Adjacency = _object("Adjacency", {"description": Text, "me": Text})
-Meta.Argument = _object("Argument", {"value": S.Form.Value})
+Scalars = AnyValueBuilder().create()  # a scalar of any type, written tagged with its token (`{"int": 8}`)
+Meta.Argument = _object("Argument", {"value": Scalars})
 Meta.Term = _object("Term")
 Meta.Form = _object("Form", {"dialect": Text, "kind": Text,
-                             "attributes": S.OfContainer.Data(index=Text, element=S.Form.Value)}, refines=Meta.Term)
-Meta.Module = (
-    ObjectBuilder()
-    .name("Schemas.Module")
-    .ref(True)
-    .pattern(r"module-(\d+)")
-    .create()
-)
+                             "attributes": ContainerBuilder().index([Text]).element([Scalars]).create()}, refines=Meta.Term)
+Meta.Module = _object("Module", refines=Meta.Schema)  # its identity is its path; it defines schemas and modules
 
 
 def _relation(name: str, links: tuple[str, str], how: str) -> S.OfRelation.Data:
@@ -1320,6 +1396,7 @@ _META_BUILDERS: dict[str, Callable[[], type]] = {
     "Any": lambda: AnyValueBuilder, "Relation": lambda: RelationBuilder, "Predicate": lambda: PredicateBuilder,
     "Property": lambda: PropertyBuilder, "Parameter": lambda: ParameterBuilder, "Symbol": lambda: SymbolBuilder,
     "Member": lambda: MemberBuilder, "Adjacency": lambda: AdjacencyBuilder, "Form": lambda: FormBuilder,
+    "Module": lambda: ModuleBuilder, "Argument": lambda: ArgumentBuilder,
 }
 """The schema objects a store builds as `store.Schemas.<Name>(...)`, each through its builder."""
 
@@ -1336,16 +1413,108 @@ class Store(Proxies.OfStore):
 
     def __init__(self) -> None:
         super().__init__()
-        self._objects: dict[str, Any] = {}  # the schema objects, by identity
-        for name, schema in vars(Meta).items():  # the meta-schemas, but Schemas.Module, which every store has already
+        self._objects: dict[tuple[str, str], Any] = {}  # the schema objects, by their kind and their identity
+        self._schemas.pop("Schemas.Module", None)  # the old module meta-schema: a module here is `Meta.Module`
+        for name, schema in vars(Meta).items():  # the meta-schemas
             if not name.startswith("_") and schema.name not in self._schemas:
-                self._objects[identity_of(schema)] = schema
+                self._objects[(_kind(schema), identity_of(schema))] = schema
                 self.register(schema)
         from . import Mutations  # the mutation schemas, which every store holds too
 
         for schema in Mutations.SCHEMAS:
-            self._objects[identity_of(schema)] = schema
+            self._objects[(_kind(schema), identity_of(schema))] = schema
             self.register(schema)
+        self._framework: frozenset[int] = frozenset(id(schema) for schema in self._objects.values())
+        self._modules: dict[str, _ModuleData] = {}  # by path; the root module's is ""
+        self._placed: dict[int, tuple[_ModuleData, str]] = {}  # each schema's module, and its name there
+        self._linked: set[int] = set()  # the unnamed schema objects given an identity by the first object to link them
+        self._root = ModuleBuilder(None, True, self).create()
+
+    def held(self, kind: str, identity: str) -> Any:
+        """The schema object of `kind` (its meta-schema's name, `Schemas.Object`) whose identity is `identity`; None where
+        the store holds none. Schema objects of different kinds may share an identity: a module and a schema its path
+        names (`crm.Contact` and `crm.Contact.v2`'s module)."""
+        return self._objects.get((kind, identity))
+
+    def holds(self, data: Any) -> bool:
+        """Whether the store holds the schema object `data`."""
+        identity = identity_of(data)
+        return identity is not None and self._objects.get((_kind(data), identity)) is data
+
+    def module(self, path: str = "") -> _ModuleData:
+        """The module whose path is `path` (`crm.sales`), made with the modules it is in where there is none; the root
+        module for "". Every schema is in one: a named schema in the module its name's prefix names, the root module's
+        where it has none."""
+        found = self._modules.get(path)
+        return found if found is not None else ModuleBuilder(None, True, self).name(path).create()
+
+    def framework(self, schema: Any) -> bool:
+        """Whether `schema` is one of the framework's own, which every store holds: a meta-schema, a basic scalar, a
+        mutation schema. It is never written, only referred to."""
+        return id(schema) in self._framework
+
+    def _place(self, data: Any) -> None:
+        """Defines a named schema, or a module, in the module its path's prefix names, under the last part of its path;
+        a schema renamed moves."""
+        if not S._DOTTED.match(data.name):
+            return  # not a path: validation reports its name, and it is in no module until it has one
+        parent_path, _, local = data.name.rpartition(".")
+        parent = self.module(parent_path)
+        previous = self._placed.get(id(data))
+        if previous is not None:
+            if previous == (parent, local):
+                return
+            ModuleBuilder(previous[0], True, self).schemas(lambda adv: adv.remove(lambda entry: entry.schema(data))).update()
+        self._placed[id(data)] = (parent, local)
+        ModuleBuilder(parent, True, self).schemas([lambda t: t.name(local).schema(data)]).update()
+
+    def _derive(self, owner: Any, identity: str) -> None:
+        """Gives the schema objects `owner` holds or links that have no name of their own the identities their path from
+        it derives: a member its owner's and its name (`crm.Person.age`); another, the first object's to link it and the
+        adjacency (`crm.Person.tags#type`)."""
+        builder_class = _builder_for(owner)
+        for name, members in (builder_class._members_.items() if builder_class is not None else ()):
+            if not isinstance(members, _Members):
+                continue
+            for index, referent in enumerate(members.items(owner)):
+                if not self._derivable(referent):
+                    continue
+                if members.owned:
+                    local = members.name_of(owner, referent) if members.keyed else None
+                    if local:
+                        derived = f"{identity}.{local}"
+                        clash = self._objects.get((_kind(referent), derived))
+                        if clash is not None and clash is not referent:  # another member of that name (invalid)
+                            derived = f"{identity}#{name}.{local}"
+                    elif isinstance(referent, S.OfAdjacency.Data):  # anonymous: named by its relation and link
+                        if referent.relation is None:
+                            continue  # not linked yet (a log being read): it keeps the identity it was given
+                        derived = f"{identity}#({referent.relation.name}.{referent.me})"
+                    else:
+                        derived = f"{identity}#{name}.{index}"
+                elif id(referent) in self._linked:
+                    continue
+                else:
+                    derived = f"{identity}#{name}" if members.one else f"{identity}#{name}.{index}"
+                    self._linked.add(id(referent))
+                self._rehold(referent, derived)
+                self._derive(referent, derived)
+
+    def _derivable(self, referent: Any) -> bool:
+        """Whether a referent takes an identity from its path: a schema object this store holds, the framework's aside,
+        with no name of its own (a named schema's identity is its name)."""
+        named = isinstance(referent, (*S._KINDS, S.OfRelation.Data, S.OfPredicate.Data, _ModuleData)) and referent.name
+        return not named and self.holds(referent) and not self.framework(referent)
+
+    def _rehold(self, referent: Any, identity: str) -> None:
+        kind = _kind(referent)
+        held = self._objects.get((kind, identity))
+        if held is referent:
+            return
+        if held is not None:
+            raise ValueError(f"a schema object with the identity {identity!r} is already in this store")
+        del self._objects[(kind, identity_of(referent))]
+        self._objects[(kind, identity)] = _identify(referent, identity)
 
     def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):
@@ -1354,18 +1523,26 @@ class Store(Proxies.OfStore):
 
     def _hold(self, data: Any, identity: str) -> Any:
         """Gives a schema object built here `identity`, refused where another holds it; registers a named schema."""
-        held = self._objects.get(identity)
+        kind = _kind(data)
+        held = self._objects.get((kind, identity))
         if held is not None and held is not data:
             raise ValueError(f"a schema object with the identity {identity!r} is already in this store")
         previous = identity_of(data)
-        if previous is not None and self._objects.get(previous) is data:
-            del self._objects[previous]
-        self._objects[identity] = _identify(data, identity)
+        if previous is not None and self._objects.get((kind, previous)) is data:
+            del self._objects[(kind, previous)]
+        self._objects[(kind, identity)] = _identify(data, identity)
         if isinstance(data, (*S._KINDS, S.OfRelation.Data, S.OfPredicate.Data)):
             for name in [name for name, schema in self._schemas.items() if schema is data and name != data.name]:
                 del self._schemas[name]  # renamed
             if data.name and self._schemas.get(data.name) is not data:
                 self.register(data)
+        if isinstance(data, _ModuleData):
+            for path in [path for path, module in self._modules.items() if module is data and path != (data.name or "")]:
+                del self._modules[path]  # renamed
+            self._modules[data.name or ""] = data
+        if isinstance(data, (*S._KINDS, S.OfRelation.Data, S.OfPredicate.Data, _ModuleData)) and data.name:
+            self._place(data)
+            self._derive(data, identity)
         return data
 
     def _build(self, name: str, args: tuple[Any, ...]) -> Any:

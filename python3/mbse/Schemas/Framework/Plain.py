@@ -826,6 +826,329 @@ def _fill(visitor: Visitors.OfEntry, row: dict[str, Any], resolve: Callable[[str
     return visitor
 
 
+# --- Logs: a store as a log of mutations (docs/SERIALIZATION.md) ---
+
+
+class _Names:
+    """What `_value` needs to write a value: the names of the schemas of the values it holds. A value holds no
+    reference: references are links, written as entries."""
+
+    def __init__(self, store: Any) -> None:
+        self.name_of = store.name_of
+
+    def __call__(self, target: Any) -> PlainData:  # pragma: no cover - values hold no references
+        raise TypeError("a value holds no reference to an object")
+
+
+class _LogWriter:
+    """Writes a store as a log of mutations, its initial snapshot: modules, then the schemas each defines, then the
+    other named singletons, then the remaining reference objects. Each object is read through its visitor (a schema
+    object through its builder, read-only) and written once, in definition form (`exists`); the objects a schema object
+    holds or links that have no name of their own follow it. An entry is written (`insert`) once every object it links
+    is; a link to one of the framework's schemas, which every store holds, is a reference only."""
+
+    def __init__(self, store: Any) -> None:
+        from . import Builders
+
+        if not isinstance(store, Builders.Store):
+            raise TypeError("a snapshot is of a Builders.Store, which holds its schemas and its modules")
+        self._B, self._store, self._names = Builders, store, _Names(store)
+        self._out: list[PlainData] = []
+        self._written: set[str] = set()
+        self._complete: set[str] = set()  # written, with every object it holds or links that follows it
+        self._pending: dict[Hashable, list[Any]] = {}  # an entry: [relation, links, properties, count, keys, scan]
+        self._scans = 0  # each object's adjacencies are scanned once: an inner object's later than its owner's
+
+    def _reader(self, value: Any) -> Any:
+        """A visitor of a schema object (its builder, read-only) or of data (the proxy itself)."""
+        builder = self._B._builder_for(value)
+        return builder(value, False, self._store) if builder is not None else value
+
+    def _framework(self, visitor: Any) -> bool:
+        held = getattr(visitor, "_original", None)
+        target = getattr(visitor, "_target", None)
+        if held is None and callable(target):  # a link, read: its referent's builder
+            held = getattr(target(), "_original", None)
+        return held is not None and self._store.framework(held)
+
+    def _key(self, visitor: Any, derived: str | None = None) -> str:
+        """`Module.Schema/ID`: the registered name of the object's schema, and its identity, or, for an object rebuilt on
+        every read, which has none, the identity its path derives."""
+        return f"{self._store.name_of(visitor.as_schema())}/{visitor.as_identity() or derived}"
+
+    def _held(self, visitor: Any, where: str) -> None:
+        """Refuses a schema object the store does not hold, saying where it is linked: there are no foreign schemas."""
+        held = getattr(visitor, "_original", None)
+        target = getattr(visitor, "_target", None)
+        if held is None and callable(target):
+            held = getattr(target(), "_original", None)
+        if held is None or isinstance(held, (self._B._ArgumentData, Schemas.Form.Data)):
+            return  # data, or what a builder rebuilds on every read
+        if not self._store.holds(held):
+            shown = getattr(held, "name", None) or type(held).__name__
+            raise ValueError(f"{where} links {shown}, a schema the store does not hold: there are no foreign schemas")
+
+    def define(self, visitor: Any, key: str, singleton: bool = False) -> None:
+        """Writes an object in definition form, then what follows it. A singleton exists in every store that registers
+        its schema, so that `exists` leaves it as it is there: its properties are set after it (`as_property`)."""
+        if key in self._written:
+            return
+        self._written.add(key)
+        properties: dict[str, PlainData] = {}
+        for prop in visitor.as_properties:  # the properties that are set
+            properties[prop.as_schema().name] = _value(prop, prop.as_schema().type, self._names)[1]
+        self._out.append({"exists": {"definition": {"key": key, "properties": {} if singleton else properties}}})
+        if singleton:
+            self._out.extend({"as_property": {"ref": {"key": key}, "name": name, "mutations": [{"set": {"value": value}}]}}
+                             for name, value in properties.items())
+        contained: list[tuple[Any, str]] = []
+        visitor.as_adjacencies(lambda adjacency: self._entries(adjacency, key, contained))
+        for target, target_key in contained:
+            self.define(target, target_key)
+        self._complete.add(key)
+        self._flush()
+
+    def _entries(self, adjacency: Any, key: str, contained: list[tuple[Any, str]]) -> Any:
+        self._scans += 1
+        schema = adjacency.as_schema()
+        relation, me = schema.relation, schema.me
+        counts: dict[Hashable, int] = {}
+        for index, entry in enumerate(adjacency):
+            links: dict[str, str] = {}
+            for link in relation.entry.links:
+                if link == me:
+                    links[link] = key
+                    continue
+                target = getattr(entry, link)
+                self._held(target, f"{key}, {schema.name},")
+                names = {*relation.entry.links, *relation.entry.properties}
+                single = any(names - unique == {me} for unique in relation.uniques)  # one entry, as the store derives
+                derived = f"{key.partition('/')[2]}#{schema.name}" + ("" if single else f".{index}")
+                links[link] = self._key(target, derived)
+                if self._framework(target):
+                    self._written.add(links[link])
+                    self._complete.add(links[link])
+                elif self._contained(target):
+                    contained.append((target, links[link]))
+            properties: dict[str, PlainData] = {}
+            for name, prop in relation.entry.properties.items():
+                present, plain = _value(getattr(entry, name), prop.type, self._names)
+                if present:
+                    properties[name] = plain
+            identity = (id(relation), tuple(sorted(links.items())), repr(sorted(properties.items())))
+            counts[identity] = counts.get(identity, 0) + 1
+            pending = self._pending.setdefault(identity, [relation, links, properties, 0, set(links.values()), self._scans])
+            pending[3] = max(pending[3], counts[identity])
+        return adjacency
+
+    def _contained(self, target: Any) -> bool:
+        """Whether a linked object follows the one that links it: a schema object with no name of its own."""
+        held = getattr(target, "_target", None)
+        builder = held() if callable(held) else None
+        data = getattr(builder, "_original", None)
+        if data is None:
+            return False
+        named = isinstance(data, (*Schemas._KINDS, Schemas.OfRelation.Data, Schemas.OfPredicate.Data,
+                                  self._B._ModuleData)) and data.name
+        return not named
+
+    def _flush(self) -> None:
+        """Writes the entries whose objects are all written: an inner object's (scanned later) before its owner's, so
+        that an object is whole before it is placed; within one object's, in order. Consecutive entries of a relation
+        go in one `insert`."""
+        ready = sorted(((pending[5], number, identity) for number, (identity, pending) in enumerate(self._pending.items())
+                        if pending[4] <= self._complete), key=lambda item: (-item[0], item[1]))
+        for _, _, identity in ready:
+            relation, links, properties, count, _, _ = self._pending.pop(identity)
+            relation_key = self._key(self._reader(relation))
+            entry = {"mutations": [
+                *({"as_link": {"name": name, "mutations": [{"set": {"ref": {"key": target}}}]}}
+                  for name, target in links.items()),
+                *({"as_property": {"name": name, "mutations": [{"set": {"value": value}}]}}
+                  for name, value in properties.items()),
+            ]}
+            last = self._out[-1] if self._out else None
+            if isinstance(last, dict) and last.get("insert", {}).get("relation", {}).get("key") == relation_key:
+                last["insert"]["entries"].extend([entry] * count)
+            else:
+                self._out.append({"insert": {"relation": {"key": relation_key}, "entries": [entry] * count}})
+
+    def run(self) -> list[PlainData]:
+        store = self._store
+        modules, queue = [], [store.module()]
+        while queue:  # the root module first, then the modules it defines, nested
+            module = queue.pop(0)
+            modules.append(module)
+            queue += [held for held in module.schemas.values() if isinstance(held, self._B._ModuleData)]
+        for module in modules:
+            reader = self._reader(module)
+            self.define(reader, self._key(reader))
+        for module in modules:
+            for held in module.schemas.values():
+                if not isinstance(held, self._B._ModuleData):
+                    reader = self._reader(held)
+                    self.define(reader, self._key(reader))
+        for singleton in store._singletons.values():
+            self.define(singleton, self._key(singleton), singleton=True)
+        for directory in list(store._directories.values()):
+            for value in list(directory.live.values()):
+                self.define(value, self._key(value))
+        return self._out  # every entry is written: it links objects of the store, each written
+
+
+class _LogReader:
+    """Applies a log of mutations to a store, each through the store's builders: `exists` creates an object only where
+    its identity is new, its properties read by their schema; `insert` adds entries, through an adjacency of an object
+    each links."""
+
+    def __init__(self, store: Any) -> None:
+        from . import Builders
+
+        if not isinstance(store, Builders.Store):
+            raise TypeError("a snapshot is read into a Builders.Store")
+        self._B, self._store = Builders, store
+        self._meta = {id(schema) for schema in vars(Builders.Meta).values() if hasattr(schema, "validate")}
+        self._made: list[Any] = []  # the objects made, held: a store holds its data objects weakly
+
+    def _schema(self, name: str, where: tuple) -> Any:
+        try:
+            return self._store.registered(name)
+        except LookupError:
+            raise DecodeError(f"no schema registered as {name!r}: there are no foreign schemas", path=path(*where)) from None
+
+    def _split(self, key: Any, where: tuple) -> tuple[str, str]:
+        if not isinstance(key, str) or "/" not in key:
+            raise DecodeError(f"a key is 'Module.Schema/ID', got {key!r}", path=path(*where))
+        name, _, identity = key.partition("/")
+        return name, identity
+
+    def _resolve(self, key: Any, where: tuple) -> Any:
+        name, identity = self._split(key, where)
+        schema = self._schema(name, where)
+        if id(schema) in self._meta:
+            found = self._store.held(name, identity)
+        else:
+            try:
+                found = self._store.by_identity(name, identity)
+            except (LookupError, AttributeError, TypeError):
+                found = None
+        if found is None:
+            raise DecodeError(f"{key!r} is not in the store", path=path(*where))
+        return found
+
+    def _one(self, item: Any, where: tuple) -> tuple[str, Any]:
+        if not isinstance(item, dict) or len(item) != 1:
+            raise DecodeError("a mutation is a mapping of one verb", path=path(*where))
+        return next(iter(item.items()))
+
+    def apply(self, log: PlainData) -> list[Any]:
+        if not isinstance(log, list):
+            raise DecodeError(f"a log is a list, got {type(log).__name__}", path="$")
+        for index, item in enumerate(log):
+            verb, body = self._one(item, (index,))
+            if verb == "exists":
+                self._exists(body.get("definition", {}), (index, verb))
+            elif verb == "insert":
+                self._insert(body, (index, verb))
+            elif verb == "as_property":
+                self._as_property(body, (index, verb))
+            else:
+                raise DecodeError(f"{verb!r} is not read in an initial snapshot", path=path(index))
+        return self._made
+
+    def _exists(self, definition: dict[str, Any], where: tuple) -> None:
+        key = definition.get("key")
+        name, identity = self._split(key, (*where, "key"))
+        schema = self._schema(name, (*where, "key"))
+        if id(schema) in self._meta:
+            if self._store.held(name, identity) is not None:
+                return
+            builder = self._B._META_BUILDERS[name.removeprefix("Schemas.")]()(None, True, self._store)
+            builder.as_identity(identity)
+            properties = builder.as_schema().properties
+        else:
+            try:
+                self._store.by_identity(name, identity)
+                return
+            except LookupError:
+                builder = self._store.restore(name, identity)
+            properties = schema.properties
+        for prop_name, plain in definition.get("properties", {}).items():
+            if prop_name not in properties:
+                raise DecodeError(f"{name} has no property {prop_name!r}", path=path(*where, prop_name))
+            _set(builder, prop_name, _decode(properties[prop_name].type, plain, (*where, prop_name), self._store))
+        self._made.append(builder.create())
+
+    def _as_property(self, body: dict[str, Any], where: tuple) -> None:
+        """Sets or clears a property of an object that exists (a singleton's, in an initial snapshot)."""
+        target = self._resolve(body.get("ref", {}).get("key"), (*where, "ref"))
+        name = body.get("name")
+        schema = target.as_schema()
+        if name not in schema.properties:
+            raise DecodeError(f"{self._store.name_of(schema)} has no property {name!r}", path=path(*where, "name"))
+        builder = self._store.builder(self._store.name_of(schema), target)
+        for change in body.get("mutations", []):
+            verb, payload = self._one(change, where)
+            if verb == "set":
+                _set(builder, name, _decode(schema.properties[name].type, payload.get("value"), where, self._store))
+            else:
+                getattr(builder, name).as_value(lambda value: value.clear())
+        builder.update()
+
+    def _insert(self, body: dict[str, Any], where: tuple) -> None:
+        relation = self._resolve(body.get("relation", {}).get("key"), (*where, "relation"))
+        for number, entry in enumerate(body.get("entries", [])):
+            at = (*where, "entries", number)
+            links: dict[str, Any] = {}
+            values: dict[str, Any] = {}
+            for item in entry.get("mutations", []):
+                kind, member = self._one(item, at)
+                for change in member.get("mutations", []):
+                    _, payload = self._one(change, at)  # an entry's links and properties are set
+                    if kind == "as_link":
+                        links[member["name"]] = self._resolve(payload.get("ref", {}).get("key"), at)
+                    else:
+                        prop = relation.entry.properties.get(member["name"])
+                        if prop is None:
+                            raise DecodeError(f"the relation has no property {member['name']!r}", path=path(*at))
+                        values[member["name"]] = _decode(prop.type, payload.get("value"), at, self._store)
+            self._link(relation, links, values, at)
+
+    def _link(self, relation: Any, links: dict[str, Any], values: dict[str, Any], where: tuple) -> None:
+        for link, target in links.items():
+            builder_class = self._B._builder_for(target)
+            if builder_class is not None:
+                builder, schema = builder_class(target, True, self._store), None
+                schema = builder.as_schema()
+            else:
+                schema = target.as_schema()
+                builder = self._store.builder(self._store.name_of(schema), target)
+            adjacency = next((name for name, held in schema.adjacencies.items()
+                              if held.relation is relation and held.me == link), None)
+            if adjacency is None:
+                continue
+
+            def fill(entry: Any, link: str = link) -> Any:
+                for other, value in links.items():
+                    if other != link:
+                        getattr(entry, other)(value)
+                for name, value in values.items():
+                    _set(entry, name, value)
+                return entry
+
+            member = getattr(builder, adjacency)
+            if getattr(getattr(member, "_members", None), "one", False):  # one entry: the one held is replaced
+                member(lambda adv: adv.remove(lambda entry: entry))
+            member(lambda adv: adv.insert(fill))
+            if isinstance(builder, self._B.FormBuilder):  # a form is immutable: the store holds a new one in its place
+                identity, kind = self._B.identity_of(target), self._B._kind(target)
+                self._store._objects[(kind, identity)] = self._B._identify(builder.clone(), identity)
+            else:
+                builder.update()
+            return
+        raise DecodeError("no object an entry links declares an adjacency through which to add it", path=path(*where))
+
+
 # --- Entry points ---
 
 
@@ -857,6 +1180,11 @@ class ToPlain:
     def Reachable(self, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> PlainData:
         """Snapshot of `value` and every object reachable from it through adjacencies (see `Reachable`)."""
         return _Snapshot(self._store, self._flat).run(schema, value, Reachable.of(value))
+
+    def Snapshot(self) -> list[PlainData]:
+        """The store as a log of mutations, its initial snapshot (docs/SERIALIZATION.md): modules, then schemas, then the
+        other named singletons, then the remaining reference objects."""
+        return _LogWriter(self._store).run()
 
     def Value(self, schema: Schemas.OfAny.Data, value: Any) -> PlainData:
         """A standalone value as plain data, written as a property holding it writes it: a value object, union value,
@@ -898,6 +1226,11 @@ class FromPlain:
 
     def Reachable(self, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
         return _restore(self._store, schema, plain)
+
+    def Snapshot(self, log: PlainData) -> list[Any]:
+        """Applies a log of mutations, an initial snapshot, to the store, through its builders; returns the objects it
+        makes, in order, which the caller holds (a store holds its data objects weakly)."""
+        return _LogReader(self._store).apply(log)
 
     def Value(self, schema: Schemas.OfAny.Data, plain: PlainData) -> Any:
         """A standalone value, read from the plain form `ToPlain(store).Value` writes and built through the store's

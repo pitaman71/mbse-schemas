@@ -6,11 +6,11 @@
  * store's builders is transient: it lives only while the program holds it. `Store` is the protocol every
  * implementation meets; `Proxies.OfStore` (dynamic instances) implements it, and generated code will. Everything that
  * looks a schema up by name takes a store: `Plain.ToPlain(store)`, `Plain.FromPlain(store)`, the JSON and YAML forms,
- * `Validators.Validate(store)` and `Modules`. Stores are isolated from one another; objects move between them as
+ * `Validators.Validate(store)`. Stores are isolated from one another; objects move between them as
  * snapshots. Selecting objects by a condition is an extension, in mbse-expressions.
  *
  * `Catalog` holds schemas by name and the roots, as every store does, with the messages every store gives, and
- * computes extents from the roots; `META` holds the meta-schemas a store of proxies starts with.
+ * computes extents from the roots.
  *
  * A random source is given to whatever draws from it, such as mbse-patterns' generators, not held by a store, which is
  * data access alone: `Generate(store, weights, new PCG32(42n))`. `Random` is the protocol: `next_u32()`, the next 32
@@ -31,9 +31,6 @@ import type * as Readers from "./Readers.js";
 type ObjectSchema = Schemas.OfObject.Data;
 type RelationSchema = Schemas.OfRelation.Data;
 type PredicateSchema = Schemas.OfPredicate.Data;
-
-/** The meta-schemas a store of proxies starts with, each under its name, so that it can hold modules of schemas. */
-export const META: readonly ObjectSchema[] = [Schemas.Module.Schema];
 
 /** A source of random bits, given to whatever draws from it. */
 export interface Random {

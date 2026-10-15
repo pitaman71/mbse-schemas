@@ -2,8 +2,9 @@
  * Proxies: the dynamic implementation of the visitor protocol.
  *
  * Programs using proxies skip code generation. A store, `new OfStore()`, holds schemas and the proxies built with them
- * (see `Stores`): `store.register(schema)` makes a schema available, under its name, and `store.<Name>(optional
- * instance)` (or `store.builder(name, instance)`) returns a builder for it. Data instances (`Proxies.OfObject.Data`)
+ * (see `Stores`): `store.register(schema)` makes a schema available, under its name, and `store.builder(name,
+ * instance)` returns a builder for it; a `Builders.Store` builds through `store.<Name>(callback)`, its canonical form.
+ * Data instances (`Proxies.OfObject.Data`)
  * and builders (`Proxies.OfObject.Builder`) both implement `Visitors.OfObject`: data instances read-only, builders
  * writable. Their properties and adjacencies are members: `card.name` is a `Visitors.OfProperty`, read compactly
  * through `[Symbol.toPrimitive]` (`` `${card.name}` ``), and `card.phones` a `Visitors.OfAdjacency`, which iterates its
@@ -170,32 +171,10 @@ abstract class Shelled implements Shellable {
 
 // --- Stores ---
 
-const STORE_MEMBERS = new Set(["register", "schema", "registered", "name_of", "names", "singleton", "builder", "member",
-  "extent", "by_identity", "restore"]);
-
 /** A store of proxies: schemas by name, and the instance of each singleton schema registered, created with it.
- * `store.<Name>(optional instance)` is `store.builder(name, instance)`; use `builder` for names that are not
- * identifiers, or that a method's name shadows. */
+ * `store.builder(name, instance)` gives a builder of an object of a registered schema. */
 export class OfStore extends Stores.Catalog implements Stores.Store {
-  /** `(instance?: Instance) => DynamicBuilder` for each registered object schema; dynamic by design. */
-  [name: string]: any;
   readonly _directories = new Map<string, Directory>();
-
-  constructor() {
-    super();
-    for (const schema of Stores.META) this.register(schema);
-    return new Proxy(this, {
-      get(t, prop, receiver) {
-        if (typeof prop === "symbol" || prop in t || STORE_MEMBERS.has(prop)) return Reflect.get(t, prop, receiver);
-        if (prop.startsWith("_")) throw new AttributeError(prop);
-        if (!t._schemas.has(prop) && _probes.has(prop)) return Reflect.get(t, prop, receiver);
-        const registered = t._schemas.get(prop);
-        if (isValueSchema(registered)) return (instance?: unknown) => standalone(registered, instance ?? null, receiver as OfStore);
-        const found = t.schema(prop);
-        return (instance?: Instance) => makeObjectBuilder(receiver as OfStore, found, prop, instance);
-      },
-    });
-  }
 
   /** Registers a schema under its name; a singleton schema's instance is created with it. */
   override register(schema: ObjectSchema | RelationSchema | Schemas.OfPredicate.Data): void {

@@ -1690,6 +1690,8 @@ export const _META_BUILDERS = new Map<string, BuilderClass>([
  * name, so that the store builds its objects next. The store is a `Proxy`: a name it lacks starts a schema's name,
  * except JavaScript's protocol probes (`then`, ...), and one starting with `_` throws `AttributeError`. */
 export class Store extends Proxies.OfStore {
+  /** `store.moduleName.[...moduleName].schemaName(...)`, each a path (`_Path`); dynamic by design. */
+  [name: string]: any;
   /** The schema objects, by their kind and their identity (`key`). */
   readonly _objects = new Map<string, unknown>();
   /** The framework's own schemas, which every store holds. */
@@ -1704,7 +1706,6 @@ export class Store extends Proxies.OfStore {
 
   constructor() {
     super();
-    this._schemas.delete("Schemas.Module"); // the old module meta-schema: a module here is `Meta.Module`
     for (const schema of Object.values(Meta) as (ObjectData | RelationData)[]) { // the meta-schemas
       if (!this._schemas.has(schema.name as string)) {
         this._objects.set(key(_kind(schema), identity_of(schema) as string), schema);
@@ -2026,6 +2027,15 @@ export function _rehold_form(store: Store, held: unknown, form: unknown): void {
 export function _holds_one(member: unknown): boolean {
   const inner = innerOf(member);
   return inner instanceof AdjacencyMember && inner._members.one;
+}
+
+// `Schemas.OfX.Builder` and `Schemas.OfX.Schema` are these: a schema builder is a `Visitors.OfObject` over its meta-schema
+// (FRAMEWORK.md, Resolved: "Schemas.OfX.Builder must implement Visitors.OfX").
+for (const [namespace, own] of [[S.OfScalar, OfScalar], [S.OfObject, OfObject], [S.OfProperty, OfProperty],
+  [S.OfAdjacency, OfAdjacency], [S.OfRelation, OfRelation], [S.OfSymbol, OfSymbol], [S.OfParameter, OfParameter],
+  [S.OfUnion, OfUnion], [S.OfIntersection, OfIntersection], [S.OfContainer, OfContainer], [S.OfApply, OfApply],
+  [S.OfPredicate, OfPredicate], [S.OfAny, OfAny], [S.Form, Form]] as const) {
+  Object.assign(namespace, { Builder: own.Builder, Schema: own.Schema });
 }
 
 // The mutation schemas, which every store holds, built with the builders above.

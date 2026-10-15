@@ -1,17 +1,15 @@
 /**
- * Schemas: schema elements and their builders.
+ * Schemas: schema elements.
  *
- * For each schema element `OfX`, `Schemas.OfX.Data` captures a schema and `Schemas.OfX.Builder` builds one. Builders
- * take an optional source instance, keep shallow copies of its data, are fluent, and are finalized by `create()`,
- * `clone()` or `update()`; none validate. Arguments describing a sub-structure are `Spec`s: a direct value, or a
- * callable that takes and returns the corresponding builder.
+ * For each schema element `OfX`, `Schemas.OfX.Data` captures a schema. `Schemas.OfX.Builder`, which builds one, and
+ * `Schemas.OfX.Schema`, its meta-schema, are `Builders`' (each builder a `Visitors.OfObject` over its meta-schema, built
+ * in a store); importing this package installs them here.
  *
  * `validate()` on each `Data` returns a list of problems and runs only when the caller asks. `equals()` stands in for
  * Python's `==`: by value for `OfScalar.Data`, by identity for the other kinds.
  *
  * Every kind of schema may have a `name`, set by its builder's `.name("crm.Contact")`: identifiers separated by dots,
- * the part before the last dot its namespace. A named schema is referred to by its name wherever it is written (a
- * module, a predicate's symbols), and a store registers it under that name; an unnamed one is written inline.
+ * the part before the last dot the module it is in. A store registers a named schema under that name.
  *
  * Every kind of schema may declare `parameters` (`OfParameter`), variables determined where the schema is referred to:
  * `OfApply` applies a parametric schema to arguments. Where a literal width stands, a term may stand instead:
@@ -24,6 +22,7 @@
 
 import { fromBase64, toBase64 } from "./Bytes.js";
 import { DecodeError, ValueError } from "./Errors.js";
+import type * as Builders from "./Builders.js";
 import type { PlainData } from "./Plain.js";
 import { isClassLike, SCALAR_NAMES, repr, sortedStrings, tokenName, Tuple, typeName } from "./Repr.js";
 import type { Scalar, ScalarToken } from "./Visitors.js";
@@ -58,106 +57,6 @@ function nameProblems(name: unknown): string[] {
 function descriptionProblems(description: unknown, where = ""): string[] {
   if (description === null || description === undefined || typeof description === "string") return [];
   return [`${where}a description is text, got ${typeName(description)}`];
-}
-
-/** Shallow-copies the builder's own containers; references to other schemas are kept, never copied. */
-function copyContainer<T>(value: T): T {
-  if (value instanceof Map) return new Map(value) as T;
-  if (Array.isArray(value)) return [...value] as T;
-  return value;
-}
-
-function noArguments(method: string, args: unknown[]): void {
-  if (args.length > 0) throw new TypeError(`${method}() takes no arguments (${args.length} given)`);
-}
-
-/** Schema data classes: their own enumerable properties are their fields, like a Python dataclass's. */
-type HasFields = object;
-
-/** Shared builder mechanics. Subclasses add fluent accessors that edit `this.state`. */
-abstract class Builder<D extends HasFields> {
-  protected readonly source: D | undefined;
-  protected state: Record<string, unknown>;
-
-  constructor(instance?: D) {
-    this.source = instance;
-    this.state = {};
-    if (instance !== undefined) {
-      for (const [name, value] of Object.entries(instance)) this.state[name] = copyContainer(value);
-    }
-  }
-
-  protected abstract make(fields: Record<string, unknown>): D;
-
-  private final(): Record<string, unknown> {
-    return Object.fromEntries(Object.entries(this.state).map(([name, value]) => [name, copyContainer(value)]));
-  }
-
-  /** Returns a new `Data`. Only valid without a source instance. */
-  create(...args: unknown[]): D {
-    noArguments("create", args);
-    if (this.source !== undefined) {
-      throw new ValueError("create() is only valid without a source instance; use clone() or update()");
-    }
-    return this.make(this.final());
-  }
-
-  /** Returns a new `Data`, leaving the source instance untouched. Only valid with a source instance. */
-  clone(...args: unknown[]): D {
-    noArguments("clone", args);
-    if (this.source === undefined) throw new ValueError("clone() is only valid with a source instance");
-    return this.make(this.final());
-  }
-
-  /** Writes the builder state back into the source instance and returns it. Only valid with a source instance. */
-  update(...args: unknown[]): D {
-    noArguments("update", args);
-    if (this.source === undefined) throw new ValueError("update() is only valid with a source instance");
-    Object.assign(this.source, this.final());
-    return this.source;
-  }
-
-  /** What the element is for, in prose: documentation, which no validation or comparison of data reads. */
-  description(text: string): this {
-    this.state["description"] = text;
-    return this;
-  }
-}
-
-/** A builder of a kind of schema, which may be named. */
-abstract class NamedBuilder<D extends HasFields> extends Builder<D> {
-  /** The schema's name: identifiers separated by dots, e.g. `"crm.Contact"`. */
-  name(name: string): this {
-    this.state["name"] = name;
-    return this;
-  }
-
-  /** Parameters the schema declares, in order, e.g. `.parameters((p) => p.name("n").of(...))`. */
-  parameters(...specs: OfParameter.Spec[]): this {
-    const parameters = (this.state["parameters"] ??= new Map()) as Map<string, ParameterData>;
-    for (const spec of specs) {
-      const parameter = resolveSpec(spec, isParameterData, () => new ParameterBuilder());
-      parameters.set(parameter.name, parameter);
-    }
-    return this;
-  }
-}
-
-/** Resolves a `Spec`: data is used as is; a callable is given a new builder and must return it. */
-function resolveSpec<D>(spec: unknown, isData: (value: unknown) => value is D, builder: () => { create(): unknown }): D {
-  if (isData(spec)) return spec;
-  if (isClassLike(spec)) {
-    const name = (spec as { name: string }).name;
-    throw new TypeError(`a class is not a Spec here; for a scalar type use t => t.as_scalar(${name})`);
-  }
-  if (typeof spec === "function") {
-    const built = (spec as (b: unknown) => unknown)(builder());
-    if (built === null || built === undefined || typeof (built as { create?: unknown }).create !== "function") {
-      throw new TypeError(`a Spec callable must return its builder, got ${repr(built)}`);
-    }
-    return (built as { create(): D }).create();
-  }
-  throw new TypeError(`expected a schema or a callable taking its builder, got ${repr(spec)}`);
 }
 
 // --- Terms: expressions where a literal may stand ---
@@ -257,10 +156,6 @@ function termProblems(value: unknown, what: string): string[] {
 
 /** The neutral form of a term. `new Form.Data(kind, attributes, arguments, dialect)`; `Form.of(term)` gives a term's. */
 export namespace Form {
-  /** The meta-schema of a form: its `dialect`, `kind`, `attributes` and `arguments`. */
-  export let Schema: ObjectData;
-  /** A scalar value, by its basic type's name: `{"int": 3}`. */
-  export let Value: UnionData;
   export const Data = FormData;
   export type Data = FormData;
   export function of(term: unknown): FormData {
@@ -269,6 +164,10 @@ export namespace Form {
   export function is_term(value: unknown): boolean {
     return isTerm(value);
   }
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.FormBuilder;
+  export type Builder = Builders.FormBuilder;
+  export declare const Schema: ObjectData;
 }
 
 // --- OfParameter: a variable a schema declares ---
@@ -292,34 +191,13 @@ class ParameterData {
   }
 }
 
-class ParameterBuilder extends Builder<ParameterData> {
-  protected make(fields: Record<string, unknown>): ParameterData {
-    return new ParameterData(fields as ConstructorParameters<typeof ParameterData>[0]);
-  }
-
-  name(name: string): ParameterBuilder {
-    this.state["name"] = name;
-    return this;
-  }
-
-  of(spec: OfAny.Spec): ParameterBuilder {
-    this.state["type"] = OfAny.resolve(spec);
-    return this;
-  }
-}
-
-function isParameterData(value: unknown): value is ParameterData {
-  return value instanceof ParameterData;
-}
-
 export namespace OfParameter {
-  /** The meta-schema of a parameter: a named member's. */
-  export let Schema: ObjectData;
   export const Data = ParameterData;
   export type Data = ParameterData;
-  export const Builder = ParameterBuilder;
-  export type Builder = ParameterBuilder;
-  export type Spec = ParameterData | ((builder: ParameterBuilder) => ParameterBuilder);
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.ParameterBuilder;
+  export type Builder = Builders.ParameterBuilder;
+  export declare const Schema: ObjectData;
 }
 
 function parameterProblems(parameters: ReadonlyMap<string, ParameterData>): string[] {
@@ -497,69 +375,16 @@ class ScalarData {
   }
 }
 
-class ScalarBuilder extends NamedBuilder<ScalarData> {
-  protected make(fields: Record<string, unknown>): ScalarData {
-    return new ScalarData(fields["token"] ?? null, { bits: fields["bits"], bytes: fields["bytes"],
-      name: fields["name"] as string | null, description: fields["description"] as string | null,
-      parameters: fields["parameters"] as Map<string, ParameterData> | undefined, refines: fields["refines"] });
-  }
-
-  /** A host type: shorthand for the `basic` token of the same name. */
-  type(scalar: unknown): ScalarBuilder {
-    this.state["token"] = new ScalarData(scalar).token;
-    return this;
-  }
-
-  /** A token in any format, e.g. `.token("ccpp", "int32_t")`. */
-  token(format: string, name: string): ScalarBuilder {
-    this.state["token"] = new TokenClass(format, name);
-    return this;
-  }
-
-  /** A width in bits: a bigint, or a term. */
-  bits(width: unknown): ScalarBuilder {
-    this.state["bits"] = width;
-    return this;
-  }
-
-  bytes(width: unknown): ScalarBuilder {
-    this.state["bytes"] = width;
-    return this;
-  }
-
-  /** The scalar schema this one refines (a Spec): its values are the refined schema's, of its token, which it takes
-   * unless one is given, narrowed by its own widths. */
-  refines(spec: OfAny.Spec): ScalarBuilder {
-    const base = OfAny.resolve(spec);
-    this.state["refines"] = base;
-    const held = structure(base);
-    if ((this.state["token"] ?? null) === null && held instanceof ScalarData) this.state["token"] = held.token;
-    return this;
-  }
-}
-
-function isScalarData(value: unknown): value is ScalarData {
-  return value instanceof ScalarData;
-}
-
 export namespace OfScalar {
-  /** The meta-schema of scalar schemas: a token's `format` and `name`, and a width in `bits` or `bytes`. */
-  export let Schema: ObjectData;
   /** A scalar value. Conversion to and from the wire format is the responsibility of this element. */
   export const Data = ScalarData;
   export type Data = ScalarData;
-  export const Builder = ScalarBuilder;
-  export type Builder = ScalarBuilder;
   export const Token = TokenClass;
   export type Token = TokenClass;
-  export type Spec = ScalarToken | ScalarData | ((builder: ScalarBuilder) => ScalarBuilder);
-
-  export function resolve(spec: (builder: ScalarBuilder) => ScalarBuilder): ScalarData;
-  export function resolve(spec: Spec | unknown): ScalarData;
-  export function resolve(spec: Spec | unknown): ScalarData {
-    if (isClassLike(spec) || SCALAR_NAMES.has(spec)) return new ScalarData(spec);
-    return resolveSpec(spec, isScalarData, () => new ScalarBuilder());
-  }
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.ScalarBuilder;
+  export type Builder = Builders.ScalarBuilder;
+  export declare const Schema: ObjectData;
 }
 
 // --- OfProperty: a named property of an object or relation ---
@@ -581,42 +406,13 @@ class PropertyData {
   }
 }
 
-class PropertyBuilder extends Builder<PropertyData> {
-  protected make(fields: Record<string, unknown>): PropertyData {
-    return new PropertyData(fields as ConstructorParameters<typeof PropertyData>[0]);
-  }
-
-  name(name: string): PropertyBuilder {
-    this.state["name"] = name;
-    return this;
-  }
-
-  of(spec: OfAny.Spec): PropertyBuilder {
-    this.state["type"] = OfAny.resolve(spec);
-    return this;
-  }
-}
-
-function isPropertyData(value: unknown): value is PropertyData {
-  return value instanceof PropertyData;
-}
-
 export namespace OfProperty {
-  /** The meta-schema of a named member: a property, a union's branch or an intersection's part. */
-  export let Schema: ObjectData;
   export const Data = PropertyData;
   export type Data = PropertyData;
-  export const Builder = PropertyBuilder;
-  export type Builder = PropertyBuilder;
-  export type Spec = (builder: PropertyBuilder) => PropertyBuilder;
-}
-
-function addProperties(state: Record<string, unknown>, specs: readonly unknown[]): void {
-  const properties = (state["properties"] ??= new Map()) as Map<string, PropertyData>;
-  for (const spec of specs) {
-    const prop = resolveSpec(spec, isPropertyData, () => new PropertyBuilder());
-    properties.set(prop.name, prop);
-  }
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.PropertyBuilder;
+  export type Builder = Builders.PropertyBuilder;
+  export declare const Schema: ObjectData;
 }
 
 // --- OfSymbol: a name standing for an object ---
@@ -635,35 +431,13 @@ class SymbolData {
   }
 }
 
-class SymbolBuilder extends Builder<SymbolData> {
-  protected make(fields: Record<string, unknown>): SymbolData {
-    return new SymbolData(fields as ConstructorParameters<typeof SymbolData>[0]);
-  }
-
-  name(name: string): SymbolBuilder {
-    this.state["name"] = name;
-    return this;
-  }
-
-  /** The schema of the objects the symbol stands for: a reference object schema. */
-  of(spec: OfAny.Spec): SymbolBuilder {
-    this.state["type"] = OfAny.resolve(spec);
-    return this;
-  }
-}
-
-function isSymbolData(value: unknown): value is SymbolData {
-  return value instanceof SymbolData;
-}
-
 export namespace OfSymbol {
-  /** The meta-schema of a symbol: a named member's. */
-  export let Schema: ObjectData;
   export const Data = SymbolData;
   export type Data = SymbolData;
-  export const Builder = SymbolBuilder;
-  export type Builder = SymbolBuilder;
-  export type Spec = SymbolData | ((builder: SymbolBuilder) => SymbolBuilder);
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.SymbolBuilder;
+  export type Builder = Builders.SymbolBuilder;
+  export declare const Schema: ObjectData;
 }
 
 /** A symbol's schema, when it has one, is a reference object schema. */
@@ -707,44 +481,10 @@ class EntryData {
   }
 }
 
-class EntryBuilder extends Builder<EntryData> {
-  protected make(fields: Record<string, unknown>): EntryData {
-    return new EntryData(fields as ConstructorParameters<typeof EntryData>[0]);
-  }
-
-  /** The links, in order, e.g. `.links((s) => s.name("owner"))`. */
-  links(...specs: OfSymbol.Spec[]): EntryBuilder {
-    const links = (this.state["links"] ??= new Map()) as Map<string, SymbolData>;
-    for (const spec of specs) {
-      const link = resolveSpec(spec, isSymbolData, () => new SymbolBuilder());
-      links.set(link.name, link);
-    }
-    return this;
-  }
-
-  properties(...specs: OfProperty.Spec[]): EntryBuilder {
-    addProperties(this.state, specs);
-    return this;
-  }
-}
-
-function isEntryData(value: unknown): value is EntryData {
-  return value instanceof EntryData;
-}
-
 export namespace OfEntry {
-  /** The meta-schema of an entry's schema. */
-  export let Schema: ObjectData;
   /** The schema of a relation's entries: their links and properties. */
   export const Data = EntryData;
   export type Data = EntryData;
-  export const Builder = EntryBuilder;
-  export type Builder = EntryBuilder;
-  export type Spec = EntryData | ((builder: EntryBuilder) => EntryBuilder);
-
-  export function resolve(spec: Spec | unknown): EntryData {
-    return resolveSpec(spec, isEntryData, () => new EntryBuilder());
-  }
 }
 
 // --- OfRelation ---
@@ -802,61 +542,17 @@ class RelationData {
   }
 }
 
-class RelationBuilder extends NamedBuilder<RelationData> {
-  protected make(fields: Record<string, unknown>): RelationData {
-    return new RelationData(fields as ConstructorParameters<typeof RelationData>[0]);
-  }
-
-  /** The schema of the relation's entries: their links and properties. */
-  entry(spec: OfEntry.Spec): RelationBuilder {
-    this.state["entry"] = OfEntry.resolve(spec);
-    return this;
-  }
-
-  /** The entry schema's links, by name, in place of any before: symbols without a schema. */
-  links(...names: string[]): RelationBuilder {
-    const entry = this.state["entry"] as EntryData | undefined;
-    this.state["entry"] = new EntryBuilder().links(...names.map((n) => (s: SymbolBuilder) => s.name(n)))
-      .properties(...(entry === undefined ? [] : [...entry.properties.values()]) as never[]).create();
-    return this;
-  }
-
-  /** Adds properties to the entry schema: `OfEntry.Builder.properties`, on a copy, so that the source's stays as it is
-   * until `update()`. */
-  properties(...specs: OfProperty.Spec[]): RelationBuilder {
-    const entry = this.state["entry"] as EntryData | undefined;
-    this.state["entry"] = (entry === undefined ? new EntryBuilder().properties(...specs).create()
-      : new EntryBuilder(entry).properties(...specs).clone());
-    return this;
-  }
-
-  /** Adds a `unique(S)` clause: the links and properties outside `S` determine `S`. */
-  unique(...names: string[]): RelationBuilder {
-    this.state["uniques"] = [...((this.state["uniques"] as ReadonlySet<string>[] | undefined) ?? []), new Set(names)];
-    return this;
-  }
-}
-
-function isRelationData(value: unknown): value is RelationData {
-  return value instanceof RelationData;
-}
-
 export namespace OfRelation {
-  /** The meta-schema of relation schemas. */
-  export let Schema: ObjectData;
   /** A relation, inline or by name. */
   export let Ref: UnionData;
   /** A relationship between objects, with a named link per linked object. Relations have no caller-facing instance
    * builder; entries are added through the adjacencies of the objects they link. */
   export const Data = RelationData;
   export type Data = RelationData;
-  export const Builder = RelationBuilder;
-  export type Builder = RelationBuilder;
-  export type Spec = RelationData | ((builder: RelationBuilder) => RelationBuilder);
-
-  export function resolve(spec: Spec | unknown): RelationData {
-    return resolveSpec(spec, isRelationData, () => new RelationBuilder());
-  }
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.RelationBuilder;
+  export type Builder = Builders.RelationBuilder;
+  export declare const Schema: ObjectData;
 }
 
 // --- OfAdjacency ---
@@ -891,50 +587,32 @@ class AdjacencyData {
   }
 }
 
-/** An adjacency: named, the object's member through which it reads and writes its entries; anonymous (no name), it only
- * declares that the object may fill the link `me`, with no member and nothing held on the object. */
-class AdjacencyBuilder extends Builder<AdjacencyData> {
-  protected make(fields: Record<string, unknown>): AdjacencyData {
-    return new AdjacencyData(fields as ConstructorParameters<typeof AdjacencyData>[0]);
-  }
-
-  /** Name of the accessor on the object, e.g. 'addresses'. */
-  name(name: string): AdjacencyBuilder {
-    this.state["name"] = name;
-    return this;
-  }
-
-  of(spec: OfRelation.Spec): AdjacencyBuilder {
-    this.state["relation"] = OfRelation.resolve(spec);
-    return this;
-  }
-
-  /** The link this object fills. */
-  me(link: string): AdjacencyBuilder {
-    this.state["me"] = link;
-    return this;
-  }
-}
-
-function isAdjacencyData(value: unknown): value is AdjacencyData {
-  return value instanceof AdjacencyData;
-}
-
 export namespace OfAdjacency {
-  /** The meta-schema of adjacencies. */
-  export let Schema: ObjectData;
   /** Declares that an `OfObject` is adjacent to an `OfRelation` via a particular link. */
   export const Data = AdjacencyData;
   export type Data = AdjacencyData;
-  export const Builder = AdjacencyBuilder;
-  export type Builder = AdjacencyBuilder;
-  export type Spec = (builder: AdjacencyBuilder) => AdjacencyBuilder;
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.AdjacencyBuilder;
+  export type Builder = Builders.AdjacencyBuilder;
+  export declare const Schema: ObjectData;
 }
 
 // --- OfObject ---
 
-/** The object schemas being validated, so that one that holds itself is validated once. */
+/** The schemas being validated, so that one that holds itself is validated once. */
 const VALIDATING = new Set<unknown>();
+
+/** A schema's problems, for a kind whose values hold others' (an object, a union, an intersection, a container, a value
+ * of any type): a schema that holds itself has its problems reported once, where it is first reached. */
+function once(schema: unknown, problems: () => string[]): string[] {
+  if (VALIDATING.has(schema)) return [];
+  VALIDATING.add(schema);
+  try {
+    return problems();
+  } finally {
+    VALIDATING.delete(schema);
+  }
+}
 
 const LITERAL = String.raw`(?:[^\\()\[\]{}.*+?^$|]|\\[^A-Za-z0-9])*`;
 /** A naming pattern: literal text around one group of digits, `\d+` then any number of `\d`, the minimum width. */
@@ -1010,13 +688,7 @@ class ObjectData {
   /** The schema's problems. A value object schema may hold itself, through a list: its problems are reported once,
    * where it is first reached. */
   validate(): string[] {
-    if (VALIDATING.has(this)) return [];
-    VALIDATING.add(this);
-    try {
-      return this.problems();
-    } finally {
-      VALIDATING.delete(this);
-    }
+    return once(this, () => this.problems());
   }
 
   private problems(): string[] {
@@ -1054,84 +726,13 @@ class ObjectData {
   }
 }
 
-class ObjectBuilder extends NamedBuilder<ObjectData> {
-  protected make(fields: Record<string, unknown>): ObjectData {
-    return new ObjectData(fields as ConstructorParameters<typeof ObjectData>[0]);
-  }
-
-  properties(...specs: OfProperty.Spec[]): ObjectBuilder {
-    addProperties(this.state, specs);
-    return this;
-  }
-
-  /** The object schema this one refines (a Spec): an object of this schema is an object of that one, so it has that
-   * one's properties and adjacencies, which this one may redeclare narrower, and fills its links. A refinement of a
-   * reference object schema is one too. */
-  refines(spec: OfAny.Spec): ObjectBuilder {
-    this.state["refines"] = OfAny.resolve(spec);
-    const held = structure(this.state["refines"]);
-    if (held instanceof ObjectData && held.ref) this.state["ref"] = true;
-    return this;
-  }
-
-  override create(...args: unknown[]): ObjectData {
-    return settle(super.create(...args));
-  }
-
-  override clone(...args: unknown[]): ObjectData {
-    return settle(super.clone(...args));
-  }
-
-  override update(...args: unknown[]): ObjectData {
-    return settle(super.update(...args));
-  }
-
-  relations(...specs: OfAdjacency.Spec[]): ObjectBuilder {
-    const adjacencies = (this.state["adjacencies"] ??= new Map()) as Map<string, AdjacencyData>;
-    const anonymous = (this.state["anonymous"] ??= []) as AdjacencyData[];
-    for (const spec of specs) {
-      const adjacency = resolveSpec(spec, isAdjacencyData, () => new AdjacencyBuilder());
-      if (adjacency.name) adjacencies.set(adjacency.name, adjacency);
-      else anonymous.push(adjacency); // anonymous: the object may fill the link, and holds no member for it
-    }
-    return this;
-  }
-
-  /** Declares a singleton global name: the one instance exists implicitly and is referenced by this name. A
-   * singleton is a reference object. */
-  singleton(name: string): ObjectBuilder {
-    this.state["singleton"] = name;
-    this.state["ref"] = true;
-    return this;
-  }
-
-  /** Marks a reference object schema: its objects stand on their own, reached through relations, and no property holds
-   * one. Without it, the schema describes value objects, which properties hold. A reference object is named by a UUID
-   * its store gives when it is created, or, with a naming pattern (`FEA-(\d+\d\d)`), by the next name
-   * the pattern gives in its store. */
-  ref(pattern?: string): ObjectBuilder {
-    this.state["ref"] = true;
-    if (pattern !== undefined) this.state["pattern"] = pattern;
-    return this;
-  }
-}
-
-function isObjectData(value: unknown): value is ObjectData {
-  return value instanceof ObjectData;
-}
-
 export namespace OfObject {
-  /** The meta-schema of object schemas. */
-  export let Schema: ObjectData;
   export const Data = ObjectData;
   export type Data = ObjectData;
-  export const Builder = ObjectBuilder;
-  export type Builder = ObjectBuilder;
-  export type Spec = ObjectData | ((builder: ObjectBuilder) => ObjectBuilder);
-
-  export function resolve(spec: Spec | unknown): ObjectData {
-    return resolveSpec(spec, isObjectData, () => new ObjectBuilder());
-  }
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.ObjectBuilder;
+  export type Builder = Builders.ObjectBuilder;
+  export declare const Schema: ObjectData;
 }
 
 // --- OfUnion / OfIntersection ---
@@ -1152,26 +753,6 @@ class MemberData {
   equals(other: unknown): boolean {
     return other === this;
   }
-}
-
-class MemberBuilder extends Builder<MemberData> {
-  protected make(fields: Record<string, unknown>): MemberData {
-    return new MemberData(fields as ConstructorParameters<typeof MemberData>[0]);
-  }
-
-  name(name: string): MemberBuilder {
-    this.state["name"] = name;
-    return this;
-  }
-
-  of(spec: OfAny.Spec): MemberBuilder {
-    this.state["type"] = OfAny.resolve(spec);
-    return this;
-  }
-}
-
-function isMemberData(value: unknown): value is MemberData {
-  return value instanceof MemberData;
 }
 
 /** Problems with a union's branches (`aKind` 'a union', `member` 'branch') or an intersection's parts. */
@@ -1230,10 +811,6 @@ function flatIntersectionProblems(parts: readonly MemberData[]): string[] {
   return problems;
 }
 
-function members(specs: readonly ((builder: MemberBuilder) => MemberBuilder)[]): MemberData[] {
-  return specs.map((spec) => resolveSpec(spec, isMemberData, () => new MemberBuilder()));
-}
-
 function byName(members: readonly MemberData[]): Map<string, MemberData> {
   return new Map(members.map((m) => [m.name, m]));
 }
@@ -1265,47 +842,24 @@ class UnionData {
   }
 
   validate(): string[] {
+    return once(this, () => this.problems());
+  }
+
+  private problems(): string[] {
     return [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters),
       ...memberProblems("a union", "branch", "branches", this.branches), ...(this.flat ? flatUnionProblems(this.branches) : [])];
   }
 }
 
-class UnionBuilder extends NamedBuilder<UnionData> {
-  protected make(fields: Record<string, unknown>): UnionData {
-    return new UnionData(fields as ConstructorParameters<typeof UnionData>[0]);
-  }
-
-  /** Named branches, e.g. `.branches((b) => b.name("phone").of(Phone), ...)`. */
-  branches(...specs: ((builder: MemberBuilder) => MemberBuilder)[]): UnionBuilder {
-    this.state["branches"] = [...((this.state["branches"] as MemberData[] | undefined) ?? []), ...members(specs)];
-    return this;
-  }
-
-  /** A value reads as its branch's value, told apart by type (`Phone | Email`), not as an object of one branch. */
-  flat(flat = true): UnionBuilder {
-    this.state["flat"] = flat;
-    return this;
-  }
-}
-
-function isUnionData(value: unknown): value is UnionData {
-  return value instanceof UnionData;
-}
-
 export namespace OfUnion {
-  /** The meta-schema of union schemas. */
-  export let Schema: ObjectData;
   export const Data = UnionData;
   export type Data = UnionData;
-  export const Builder = UnionBuilder;
-  export type Builder = UnionBuilder;
-  export type Spec = UnionData | ((builder: UnionBuilder) => UnionBuilder);
   export const Branch = MemberData;
   export type Branch = MemberData;
-
-  export function resolve(spec: Spec | unknown): UnionData {
-    return resolveSpec(spec, isUnionData, () => new UnionBuilder());
-  }
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.UnionBuilder;
+  export type Builder = Builders.UnionBuilder;
+  export declare const Schema: ObjectData;
 }
 
 class IntersectionData {
@@ -1335,47 +889,24 @@ class IntersectionData {
   }
 
   validate(): string[] {
+    return once(this, () => this.problems());
+  }
+
+  private problems(): string[] {
     return [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters),
       ...memberProblems("an intersection", "part", "parts", this.parts), ...(this.flat ? flatIntersectionProblems(this.parts) : [])];
   }
 }
 
-class IntersectionBuilder extends NamedBuilder<IntersectionData> {
-  protected make(fields: Record<string, unknown>): IntersectionData {
-    return new IntersectionData(fields as ConstructorParameters<typeof IntersectionData>[0]);
-  }
-
-  /** Named parts, e.g. `.parts((p) => p.name("stamp").of(Stamp), ...)`. */
-  parts(...specs: ((builder: MemberBuilder) => MemberBuilder)[]): IntersectionBuilder {
-    this.state["parts"] = [...((this.state["parts"] as MemberData[] | undefined) ?? []), ...members(specs)];
-    return this;
-  }
-
-  /** A value reads its parts' properties as its own (`x.name`), not as an object of its parts (`x.Named.name`). */
-  flat(flat = true): IntersectionBuilder {
-    this.state["flat"] = flat;
-    return this;
-  }
-}
-
-function isIntersectionData(value: unknown): value is IntersectionData {
-  return value instanceof IntersectionData;
-}
-
 export namespace OfIntersection {
-  /** The meta-schema of intersection schemas. */
-  export let Schema: ObjectData;
   export const Data = IntersectionData;
   export type Data = IntersectionData;
-  export const Builder = IntersectionBuilder;
-  export type Builder = IntersectionBuilder;
-  export type Spec = IntersectionData | ((builder: IntersectionBuilder) => IntersectionBuilder);
   export const Part = MemberData;
   export type Part = MemberData;
-
-  export function resolve(spec: Spec | unknown): IntersectionData {
-    return resolveSpec(spec, isIntersectionData, () => new IntersectionBuilder());
-  }
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.IntersectionBuilder;
+  export type Builder = Builders.IntersectionBuilder;
+  export declare const Schema: ObjectData;
 }
 
 // --- OfContainer: elements by index ---
@@ -1445,6 +976,10 @@ class ContainerData {
   }
 
   validate(): string[] {
+    return once(this, () => this.problems());
+  }
+
+  private problems(): string[] {
     const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
     for (const [role, schema] of [["index", this.index], ["element", this.element]] as const) {
       if (!isAnyData(schema)) problems.push(`a container's ${role} is a schema, got ${repr(schema)}`);
@@ -1460,69 +995,13 @@ class ContainerData {
   }
 }
 
-class ContainerBuilder extends NamedBuilder<ContainerData> {
-  protected make(fields: Record<string, unknown>): ContainerData {
-    return new ContainerData(fields as ConstructorParameters<typeof ContainerData>[0]);
-  }
-
-  /** The index type, a schema of any kind (a Spec): `(t) => t.as_scalar(BigInt)`, or a value object of ints. */
-  index(spec: OfAny.Spec): ContainerBuilder {
-    this.state["index"] = OfAny.resolve(spec);
-    return this;
-  }
-
-  /** The container schema this one refines (a Spec): its values are the refined schema's, its index and element each
-   * the refined one's or narrower, which it takes unless given. */
-  refines(spec: OfAny.Spec): ContainerBuilder {
-    const base = OfAny.resolve(spec);
-    this.state["refines"] = base;
-    const held = structure(base);
-    if (held instanceof ContainerData) {
-      this.state["index"] ??= held.index;
-      this.state["element"] ??= held.element;
-    }
-    return this;
-  }
-
-  /** The element type, a schema of any kind (a Spec). */
-  element(spec: OfAny.Spec): ContainerBuilder {
-    this.state["element"] = OfAny.resolve(spec);
-    return this;
-  }
-
-  /** Elements in a packed array, at every index from the first to the last. */
-  dense(): ContainerBuilder {
-    return this.arranged("dense");
-  }
-
-  /** Elements in an associative store of dense blocks, indices between them absent. */
-  sparse(): ContainerBuilder {
-    return this.arranged("sparse");
-  }
-
-  private arranged(layout: string): ContainerBuilder {
-    if ((this.state["layout"] ?? layout) !== layout) throw new ValueError("a container is .dense() or .sparse(), not both");
-    this.state["layout"] = layout;
-    return this;
-  }
-}
-
-function isContainerData(value: unknown): value is ContainerData {
-  return value instanceof ContainerData;
-}
-
 export namespace OfContainer {
-  /** The meta-schema of container schemas. */
-  export let Schema: ObjectData;
   export const Data = ContainerData;
   export type Data = ContainerData;
-  export const Builder = ContainerBuilder;
-  export type Builder = ContainerBuilder;
-  export type Spec = ContainerData | ((builder: ContainerBuilder) => ContainerBuilder);
-
-  export function resolve(spec: Spec | unknown): ContainerData {
-    return resolveSpec(spec, isContainerData, () => new ContainerBuilder());
-  }
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.ContainerBuilder;
+  export type Builder = Builders.ContainerBuilder;
+  export declare const Schema: ObjectData;
 }
 
 // --- OfApply: a parametric schema applied to arguments ---
@@ -1626,49 +1105,14 @@ export function equivalent(a: unknown, b: unknown, evaluate: Evaluate | null = n
   return pairs.some((pair) => pair.includes(UNKNOWN)) ? null : true;
 }
 
-class ApplyBuilder extends NamedBuilder<ApplyData> {
-  protected make(fields: Record<string, unknown>): ApplyData {
-    return new ApplyData(fields as ConstructorParameters<typeof ApplyData>[0]);
-  }
-
-  /** The parametric schema applied. */
-  of(spec: OfAny.Spec): ApplyBuilder {
-    this.state["of"] = OfAny.resolve(spec);
-    return this;
-  }
-
-  /** The argument for the parameter `name`: a scalar value or a term. */
-  argument(name: string, value: unknown): ApplyBuilder {
-    ((this.state["arguments"] ??= new Map()) as Map<string, unknown>).set(name, value);
-    return this;
-  }
-
-  /** Arguments by the names of the applied schema's parameters: `.arguments({ rows: 2n, cols: 3n })`. */
-  arguments(values: Record<string, unknown> | ReadonlyMap<string, unknown>): ApplyBuilder {
-    for (const [name, value] of values instanceof Map ? values : Object.entries(values)) this.argument(name, value);
-    return this;
-  }
-}
-
-function isApplyData(value: unknown): value is ApplyData {
-  return value instanceof ApplyData;
-}
-
 export namespace OfApply {
-  /** The meta-schema of applications. */
-  export let Schema: ObjectData;
-  /** The meta-schema of an argument: its parameter's `name`, and its scalar `value` or its `term`. */
-  export let Argument: ObjectData;
   /** A parametric schema applied to arguments, where a type is expected. */
   export const Data = ApplyData;
   export type Data = ApplyData;
-  export const Builder = ApplyBuilder;
-  export type Builder = ApplyBuilder;
-  export type Spec = ApplyData | ((builder: ApplyBuilder) => ApplyBuilder);
-
-  export function resolve(spec: Spec | unknown): ApplyData {
-    return resolveSpec(spec, isApplyData, () => new ApplyBuilder());
-  }
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.ApplyBuilder;
+  export type Builder = Builders.ApplyBuilder;
+  export declare const Schema: ObjectData;
 }
 
 // --- OfPredicate ---
@@ -1710,45 +1154,14 @@ class PredicateData {
   }
 }
 
-class PredicateBuilder extends NamedBuilder<PredicateData> {
-  protected make(fields: Record<string, unknown>): PredicateData {
-    return new PredicateData(fields as ConstructorParameters<typeof PredicateData>[0]);
-  }
-
-  /** The symbols, in order, e.g. `.symbols((s) => s.name("person").of(Person))`. */
-  symbols(...specs: OfSymbol.Spec[]): PredicateBuilder {
-    const symbols = (this.state["symbols"] ??= new Map()) as Map<string, SymbolData>;
-    for (const spec of specs) {
-      const symbol = resolveSpec(spec, isSymbolData, () => new SymbolBuilder());
-      symbols.set(symbol.name, symbol);
-    }
-    return this;
-  }
-
-  /** The constraint, a term over the symbols and parameters: a `Form`, or a dialect's term. */
-  requires(term: unknown): PredicateBuilder {
-    this.state["requires"] = term;
-    return this;
-  }
-}
-
-function isPredicateData(value: unknown): value is PredicateData {
-  return value instanceof PredicateData;
-}
-
 export namespace OfPredicate {
-  /** The meta-schema of predicates. */
-  export let Schema: ObjectData;
   /** A named constraint over symbols, matched by the caller. */
   export const Data = PredicateData;
   export type Data = PredicateData;
-  export const Builder = PredicateBuilder;
-  export type Builder = PredicateBuilder;
-  export type Spec = PredicateData | ((builder: PredicateBuilder) => PredicateBuilder);
-
-  export function resolve(spec: Spec | unknown): PredicateData {
-    return resolveSpec(spec, isPredicateData, () => new PredicateBuilder());
-  }
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.PredicateBuilder;
+  export type Builder = Builders.PredicateBuilder;
+  export declare const Schema: ObjectData;
 }
 
 // --- OfAny.Value: a value of any type ---
@@ -1809,6 +1222,10 @@ class AnyValueData {
   }
 
   validate(): string[] {
+    return once(this, () => this.problems());
+  }
+
+  private problems(): string[] {
     const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
     const valid: AnyData[] = [];
     for (const schema of this.types as unknown[]) {
@@ -1994,204 +1411,14 @@ function embeddedProblems(type: unknown, seen: ReadonlySet<unknown> = new Set())
   return sortedStrings(new Set(membersOf(schema).flatMap((member) => embeddedProblems(member, inner))));
 }
 
-/** Selects a type through `as_<kind>(spec)`. Finalizing yields that kind's data, not a wrapper; selecting several types
- * restricts an `OfAny` to them (`OfAny.Value`), and selecting none leaves it unrestricted. */
-class AnyBuilder {
-  private readonly source: AnyData | undefined;
-  private readonly types: AnyData[] = [];
-
-  constructor(instance?: AnyData) {
-    this.source = instance;
-  }
-
-  as_scalar(spec: (builder: ScalarBuilder) => ScalarBuilder): AnyBuilder;
-  as_scalar(spec: OfScalar.Spec): AnyBuilder;
-  as_scalar(spec: OfScalar.Spec): AnyBuilder {
-    this.types.push(OfScalar.resolve(spec));
-    return this;
-  }
-
-  as_object(spec: OfObject.Spec): AnyBuilder {
-    this.types.push(OfObject.resolve(spec));
-    return this;
-  }
-
-  as_union(spec: OfUnion.Spec): AnyBuilder {
-    this.types.push(OfUnion.resolve(spec));
-    return this;
-  }
-
-  as_intersection(spec: OfIntersection.Spec): AnyBuilder {
-    this.types.push(OfIntersection.resolve(spec));
-    return this;
-  }
-
-  as_container(spec: OfContainer.Spec): AnyBuilder {
-    this.types.push(OfContainer.resolve(spec));
-    return this;
-  }
-
-  as_apply(spec: OfApply.Spec): AnyBuilder {
-    this.types.push(OfApply.resolve(spec));
-    return this;
-  }
-
-  /** The type selected: one kind's data, or an `OfAny.Value` of every type selected, of none for any type. */
-  private selected(): AnyData {
-    return this.types.length === 1 ? this.types[0] as AnyData : new AnyValueData(this.types);
-  }
-
-  create(...args: unknown[]): AnyData {
-    noArguments("create", args);
-    if (this.source !== undefined) {
-      throw new ValueError("create() is only valid without a source instance; use clone() or update()");
-    }
-    return this.selected();
-  }
-
-  clone(...args: unknown[]): AnyData {
-    noArguments("clone", args);
-    if (this.source === undefined) throw new ValueError("clone() is only valid with a source instance");
-    if (this.types.length > 0) return this.selected();
-    const copy = Object.create(Object.getPrototypeOf(this.source)) as AnyData;
-    return Object.assign(copy, this.source);
-  }
-
-  update(...args: unknown[]): AnyData {
-    noArguments("update", args);
-    if (this.source === undefined) throw new ValueError("update() is only valid with a source instance");
-    if (this.types.length === 0) return this.source; // nothing selected: the source as it is, as clone() copies it
-    const selected = this.selected();
-    if (selected.constructor !== this.source.constructor) {
-      throw new TypeError("update() cannot change the kind of the source schema");
-    }
-    for (const [name, value] of Object.entries(selected)) {
-      (this.source as unknown as Record<string, unknown>)[name] = copyContainer(value);
-    }
-    return this.source;
-  }
-}
-
 export namespace OfAny {
-  /** A type: a schema of any kind, inline, or a name. */
-  export let Schema: UnionData;
-  /** A name, as a type refers to a schema by it. */
-  export let Named: ObjectData;
   /** Where a schema of any kind is expected. `OfAny.Data` is any schema kind's data; `OfAny.Value`, the kind of a value
    * of any type, or of one of the types it is restricted to. */
   export type Data = AnyData;
   export const Value = AnyValueData;
   export type Value = AnyValueData;
-  export const Builder = AnyBuilder;
-  export type Builder = AnyBuilder;
-  export type Spec = AnyData | ((builder: AnyBuilder) => AnyBuilder);
-
-  export function resolve(spec: Spec | unknown): AnyData {
-    if (isAnyData(spec)) return spec;
-    return resolveSpec(spec, isAnyData, () => new AnyBuilder());
-  }
-}
-
-// --- Meta-schemas: the schemas of schema data, so that schemas are written, read, validated and compared as objects ---
-
-function namedText(name: string) {
-  return (p: PropertyBuilder) => p.name(name).of((t) => t.as_scalar(String));
-}
-
-const Text = (t: AnyBuilder) => t.as_scalar(String);
-const Int = (t: AnyBuilder) => t.as_scalar(BigInt);
-
-/** A property listing elements of a schema: a container of value objects by position, each holding `fields`. A
- * schema's members are a list, in declaration order, which a schema read back keeps. */
-function listing(name: string, fields: [string, OfAny.Spec][]) {
-  const element = new ObjectBuilder().properties(...fields.map(([n, spec]) => (p: PropertyBuilder) => p.name(n).of(spec)))
-    .create();
-  return (p: PropertyBuilder) => p.name(name).of((t) => t.as_container((c) => c.index(Int).element(element)));
-}
-const NamedSchema = new ObjectBuilder().properties(namedText("name")).create();
-const AnySchema = new UnionBuilder().create(); // a type; its branches, which refer back to it, are added below
-const PropertySchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("type").of(AnySchema),
-  namedText("description")).create();
-/** The fields of an object schema's properties, which an entry listing its members holds. */
-const fieldsOf = (schema: ObjectData): [string, OfAny.Spec][] =>
-  [...schema.properties].map(([name, prop]) => [name, prop.type as OfAny.Data]); // the meta-schemas type every property
-const MEMBER = fieldsOf(PropertySchema); // a member's entry holds a property's
-const Parameters = listing("parameters", MEMBER);
-const ScalarValue = new UnionBuilder().branches(
-  ...SCALAR_TYPES.map((host) => (b: MemberBuilder) => b.name(tokenName(host)).of((x) => x.as_scalar(host)))).create();
-const FormSchema = new ObjectBuilder().properties(namedText("dialect"), namedText("kind"),
-  listing("attributes", [["name", Text], ["value", ScalarValue]])).create();
-new ObjectBuilder(FormSchema).properties(listing("arguments", [["term", FormSchema]])).update();
-const WidthTerms = new ObjectBuilder().properties((p) => p.name("bits").of(FormSchema), (p) => p.name("bytes").of(FormSchema))
-  .create();
-const Refines = (p: PropertyBuilder) => p.name("refines").of(AnySchema);
-const ScalarSchema = new ObjectBuilder().name("Schemas.Scalar").properties(
-  namedText("name"), Refines, namedText("format"), namedText("token"), (p) => p.name("bits").of(Int), (p) => p.name("bytes").of(Int),
-  (p) => p.name("terms").of(WidthTerms), namedText("description"), Parameters).create();
-const ClauseSchema = new ObjectBuilder().properties(listing("names", [["name", Text]])).create();
-const RelationSchema = new ObjectBuilder().name("Schemas.Relation").properties(namedText("name"), namedText("description"),
-  Parameters, listing("links", MEMBER), listing("properties", MEMBER), listing("uniques", [["clause", ClauseSchema]]))
-  .create();
-const RelationRef = new UnionBuilder().branches((b) => b.name("relation").of(RelationSchema),
-  (b) => b.name("named").of(NamedSchema)).create();
-const AdjacencySchema = new ObjectBuilder().properties(
-  namedText("name"), (p) => p.name("relation").of(RelationRef), namedText("me"), namedText("description")).create();
-const ObjectSchema = new ObjectBuilder().name("Schemas.Object").properties(
-  namedText("name"), Refines, namedText("singleton"), (p) => p.name("ref").of((t) => t.as_scalar(Boolean)), namedText("pattern"),
-  namedText("description"), Parameters, listing("properties", MEMBER), listing("adjacencies", fieldsOf(AdjacencySchema)))
-  .create();
-const Flat = (p: PropertyBuilder) => p.name("flat").of((t) => t.as_scalar(Boolean));
-const UnionSchema = new ObjectBuilder().name("Schemas.Union").properties(namedText("name"), Flat, namedText("description"),
-  Parameters, listing("branches", MEMBER)).create();
-const IntersectionSchema = new ObjectBuilder().name("Schemas.Intersection").properties(
-  namedText("name"), Flat, namedText("description"), Parameters, listing("parts", MEMBER)).create();
-const ContainerSchema = new ObjectBuilder().name("Schemas.Container").properties(
-  namedText("name"), Refines, (p) => p.name("index").of(AnySchema), (p) => p.name("element").of(AnySchema), namedText("layout"),
-  namedText("description"), Parameters).create();
-const ArgumentSchema = new ObjectBuilder().properties(namedText("name"), (p) => p.name("value").of(ScalarValue),
-  (p) => p.name("term").of(FormSchema)).create();
-const ApplySchema = new ObjectBuilder().name("Schemas.Apply").properties(
-  namedText("name"), (p) => p.name("of").of(AnySchema), namedText("description"),
-  Parameters, listing("arguments", fieldsOf(ArgumentSchema))).create();
-const EntrySchema = new ObjectBuilder().properties(listing("links", MEMBER), listing("properties", MEMBER)).create();
-const PredicateSchema = new ObjectBuilder().name("Schemas.Predicate").properties(
-  namedText("name"), (p) => p.name("requires").of(FormSchema), namedText("description"),
-  Parameters, listing("symbols", MEMBER)).create();
-const AnyValueSchema = new ObjectBuilder().name("Schemas.Any").properties(
-  namedText("name"), (p) => p.name("types").of((t) => t.as_container((c) => c.index(Int).element(AnySchema))),
-  namedText("description"), Parameters).create();
-const KIND_SCHEMAS: [string, ObjectData][] = [["scalar", ScalarSchema], ["object", ObjectSchema], ["union", UnionSchema],
-  ["intersection", IntersectionSchema], ["container", ContainerSchema], ["apply", ApplySchema], ["any", AnyValueSchema]];
-const kindBranches = KIND_SCHEMAS.map(([name, schema]) => (b: MemberBuilder) => b.name(name).of(schema));
-new UnionBuilder(AnySchema).branches(...kindBranches, (b) => b.name("named").of(NamedSchema)).update();
-const DefinitionSchema = new UnionBuilder().branches(...kindBranches, (b) => b.name("relation").of(RelationSchema),
-  (b) => b.name("predicate").of(PredicateSchema)).create();
-
-OfScalar.Schema = ScalarSchema;
-OfProperty.Schema = PropertySchema;
-OfRelation.Schema = RelationSchema;
-OfRelation.Ref = RelationRef;
-OfEntry.Schema = EntrySchema;
-OfSymbol.Schema = PropertySchema;
-OfPredicate.Schema = PredicateSchema;
-OfAdjacency.Schema = AdjacencySchema;
-OfObject.Schema = ObjectSchema;
-OfUnion.Schema = UnionSchema;
-OfIntersection.Schema = IntersectionSchema;
-OfContainer.Schema = ContainerSchema;
-(OfAny.Value as unknown as { Schema: ObjectData }).Schema = AnyValueSchema;
-OfParameter.Schema = PropertySchema;
-OfApply.Schema = ApplySchema;
-OfApply.Argument = ArgumentSchema;
-Form.Schema = FormSchema;
-Form.Value = ScalarValue;
-OfAny.Schema = AnySchema;
-OfAny.Named = NamedSchema;
-
-/** A named set of schemas, as data. `Module.Schema` is the reference object schema of a module: its `schemas` are a
- * container by name, each element a `Module.Definition` (a schema of any kind, relations and predicates included). See `Modules` for the translation between schemas and modules. */
-export namespace Module {
-  export const Schema = new ObjectBuilder().name("Schemas.Module").ref(String.raw`module-(\d+)`)
-    .properties((p) => p.name("schemas").of((t) => t.as_container((c) => c.index(Text).element(DefinitionSchema)))).create();
-  export const Definition = DefinitionSchema;
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.AnyValueBuilder;
+  export type Builder = Builders.AnyValueBuilder;
+  export declare const Schema: ObjectData;
 }

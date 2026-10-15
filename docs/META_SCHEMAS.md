@@ -54,6 +54,12 @@ mbse-expressions work because it cannot be written correctly without it". Aligni
 with their meta-schemas comes next, before the dependents (FRAMEWORK.md, Resolved, "Schema builders align with their
 meta-schemas").
 
+**Wire format parked** (2026-10-15), as the user decided ("park last night's overhaul"): the wire-format work of
+phase 2 (branch `wire-format/python`, 8c035f7, and its proposal docs/proposals/schema-builders/WIRE.md there) is not
+merged. It reversed earlier decisions (terms as reference objects; widths, `requires` and arguments as relations) and
+took choices the user has not made. The user's answers to its questions stay recorded (FRAMEWORK.md, Resolved, "Schema
+builders align with their meta-schemas").
+
 **Invariants relaxed to the branch** (2026-10-14), as the user decided ("that is okay - we can relax to the
 branch/issue level"): while the builders align, a commit on `overhauls/meta-schemas` may change one language only,
 or fall short of 100% coverage, so that work can go in parallel; the branch passes every gate again before it lands.

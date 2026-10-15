@@ -255,25 +255,34 @@ class _ScalarVisitor(_Dunders):
 
 
 class _Mapping(_Unassignable):
-    """`Visitors.OfContainer` over a dict of scalars a `_Value` holds (a form's attributes): arranged as a dict."""
+    """`Visitors.OfContainer` over a container a `_Value` holds: a dict, arranged as one (a form's attributes), or a list,
+    by position (a relation's `uniques`, each a list of names). An element that is itself a dict or a list is visited as
+    a container in turn."""
 
     def __init__(self, value: _Value):
         self._value = value
 
+    def _positional(self) -> bool:
+        return isinstance(self._value._held(), (list, tuple))
+
     def _items(self) -> dict[Any, Any]:
-        return dict(self._value._held() or {})
+        held = self._value._held()
+        return dict(enumerate(held)) if isinstance(held, (list, tuple)) else dict(held or {})
 
     def _element(self, index: Any) -> _Value:
+        positional = self._positional()
+
         def write(element: Any) -> None:
             items = self._items()
             if element is None:
                 items.pop(index, None)
             else:
                 items[index] = element
-            self._value._write(items)
+            self._value._write([items[key] for key in sorted(items)] if positional else items)
 
+        held = self._items().get(index)
         return _Value(f"{self._value._label}[{index!r}]", lambda: self._items().get(index), write,
-                      self._value._writable, False, lambda: None)
+                      self._value._writable, isinstance(held, (list, tuple, dict)), lambda: None)
 
     def as_schema(self) -> Any:
         return self._value.as_schema()
@@ -288,11 +297,12 @@ class _Mapping(_Unassignable):
         self._element(index).clear()
         return self
 
-    def as_ordered(self, cb: Any) -> _Mapping:  # arranged as a dict: cb is not called
+    def as_ordered(self, cb: Any) -> _Mapping:  # positions are read through `as_entries`: cb is not called
         return self
 
-    def as_dict(self, cb: Any) -> _Mapping:
-        _visit(cb, {index: self._element(index) for index in self._items()})
+    def as_dict(self, cb: Any) -> _Mapping:  # by position: cb is not called
+        if not self._positional():
+            _visit(cb, {index: self._element(index) for index in self._items()})
         return self
 
     def as_entries(self, cb: Any) -> _Mapping:
@@ -1125,7 +1135,7 @@ class RelationBuilder(_KindBuilder[S.OfRelation.Data]):
                                       + sorted(unique - {*data.entry.links, *data.entry.properties})
                                       for unique in data.uniques] or None,
                     put=lambda data, value: setattr(data, "uniques", tuple(frozenset(clause) for clause in value or ())),
-                    shorthand=lambda value: _clauses(value))
+                    shorthand=lambda value: _clauses(value), container=True)
 
     def _update(self, target: S.OfRelation.Data, source: S.OfRelation.Data) -> int:
         changed = super()._update(target, source)
@@ -1210,12 +1220,13 @@ Meta.Module = (
 
 def _relation(name: str, links: tuple[str, str], how: str) -> S.OfRelation.Data:
     """A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
-    `_RELATIONS`): a keyed relation's entries have `name`, which, with the owner, determines the member."""
+    `_RELATIONS`): a keyed relation's entries have `name`; the member determines its owner and its name
+    (`unique(owner, name)`), and the owner and the name determine the member (`unique(member)`)."""
     first, second = links
     builder = RelationBuilder().name(f"Schemas.{name}").links([lambda t, n=n: t.name(n) for n in links])
     if how == "keyed":
         builder.properties([lambda t: t.name("name").type([Text])])
-    determined = {"one": [[second]], "owned": [[first]], "keyed": [[first], [second]], "list": None}[how]
+    determined = {"one": [[second]], "owned": [[first]], "keyed": [[first, "name"], [second]], "list": None}[how]
     return builder.uniques(determined).create()
 
 

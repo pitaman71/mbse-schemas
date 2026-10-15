@@ -210,7 +210,7 @@ at least one time to make schema objects references. all of them.").
 | Binding, ArgumentTerm | argument (Argument), parameter (Parameter) / term (Term) | `Argument.parameter`, `Argument.term` | one |
 | Requires | predicate (Predicate), term (Term) | `Predicate.requires` | one |
 | BitWidth, ByteWidth | scalar (Scalar), width (Term) | `Scalar.bits`, `Scalar.bytes` | one; a width is a term |
-| HasParameter | owner (Schema), parameter (Parameter); property `name` | `Schema.parameters` | keyed: `unique(owner)`, `unique(parameter)` |
+| HasParameter | owner (Schema), parameter (Parameter); property `name` | `Schema.parameters` | keyed: `unique(owner, name)`, `unique(parameter)` |
 | HasProperty | owner (Schema), property (Property); `name` | `Object.properties`, `Relation.properties` | keyed |
 | HasAdjacency | owner (Object), adjacency (Adjacency); `name` | `Object.adjacencies` | keyed |
 | HasBranch, HasPart | owner (Union / Intersection), branch / part (Member); `name` | `Union.branches`, `Intersection.parts` | keyed |
@@ -220,8 +220,9 @@ at least one time to make schema objects references. all of them.").
 | Defines | module (Module), schema (Schema); `name` | `Module.schemas` | keyed |
 
 "One" is `unique(second)`: the first end determines the second, so the adjacency holds at most one entry. "Keyed" is
-`unique(owner)` and `unique(member)`, with the entry's `name`: the member and its name determine the owner, and the
-owner and the name the member (Cardinality, in FRAMEWORK.md). A relation's links and properties are its own
+`unique(owner, name)` and `unique(member)`, with the entry's `name`: the member determines its owner and its name, so a
+member has one owner, and the owner and the name determine the member (Cardinality, in FRAMEWORK.md). The builders do
+not yet refuse a member linked into a second owner; validation of the meta-schema relations will. A relation's links and properties are its own
 (`Relation.links`, `Relation.properties`), with no entry schema between: `Schemas.OfEntry` has no meta-schema here.
 
 ### The builders

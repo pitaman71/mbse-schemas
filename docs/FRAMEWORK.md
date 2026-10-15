@@ -63,6 +63,12 @@ The schema elements include:
 
 A list, a dict, a map or a tensor of values is a container, held by a property (see Lists).
 
+*Being replaced:* the builder clauses above (`.links('contact', 'address')`, `.relations(...)`), and `OfEntry` as the
+schema between a relation and its links and properties, are the old builders', which the schema builders replace
+(Resolved, "Schema builders align with their meta-schemas"; built so far in Python, beside them: [Meta-schemas
+overhaul, The meta-schemas and their builders, as
+built](META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built)).
+
 Every element may be described: each kind of schema, each property, adjacency, union branch and intersection
 part takes `.description(text)` on its builder, and its data holds `description`, text or none. A description is
 documentation, for people and for generated code; validation reports one that is not text, and no validation,
@@ -132,6 +138,15 @@ Equality is defined by the schema, never by host-language `==`, and ordering onl
 confirm.
 
 ## Builder pattern
+
+*Being replaced:* this section, and the builder clauses quoted throughout this document (`.of(...)`, `.relations(...)`,
+`.links(...)`, `.unique(...)`, `.ref()`, `.flat()`, `.dense()`, `.parameters(spec, ...)`, `.bits(32)`), describe the
+old schema builders: fluent clauses taking `Spec`s, beside the meta-schemas, and `Schemas.OfAny.Builder` selecting a
+kind through `as_<kind>`. Schema builders that are visitors of their meta-schemas, built in a store, replace them
+(Resolved, "Schema builders align with their meta-schemas"); they are built so far in Python, beside the old ones:
+[Meta-schemas overhaul, The meta-schemas and their builders, as
+built](META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built). Finalizing by `create()`, `clone()` and
+`update()`, and that none of these validate, hold for both.
 
 The schema must itself be serializable. For that reason, a model implemented as `Schemas.OfX.Data` will have two additional classes:
 `Schemas.OfX.Builder` and `Schemas.OfX.Schema`. `Schemas.OfX.Schema` is the meta-schema that defines `Schemas.OfX.Data`.
@@ -305,7 +320,11 @@ slices.
   to another store"). Tests and programs make the stores they need. Objects move between stores, or implementations,
   as snapshots.
 - **Every store of proxies starts with the meta-schemas registered** (`Stores.META`: `Schemas.Module`, whose schemas
-  are value object schemas and need no names), so it can hold modules of schemas (see Meta-schemas).
+  are value object schemas and need no names), so it can hold modules of schemas (see Meta-schemas). *Being
+  replaced:* `Stores.META` goes (Resolved, "The meta-schemas overhaul"); a `Builders.Store` registers the new
+  meta-schemas beside it and builds schema objects in the store (Resolved, "Schema builders align with their
+  meta-schemas"; [Meta-schemas overhaul, The meta-schemas and their builders, as
+  built](META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built)).
 - **A proxy knows its store.** `Proxies.store_of(value)` gives the store a proxy belongs to, and a placed value
   object's is its owner's.
 - **Everything that looks schemas up takes a store**: `Plain.ToPlain(store)` and `Plain.FromPlain(store)`, the JSON and
@@ -550,6 +569,12 @@ Scalar types and their widths are implemented, and written over the wire by thei
 Schemas are data: each schema kind's data has a meta-schema, `Schemas.OfX.Schema`, a value object schema, so schemas
 are written, read, validated and compared like any other objects.
 
+*Being replaced:* this section describes the meta-schemas that `Modules` and the wire format still use. The new
+meta-schemas, in which every schema object is a reference object and every reference a relation, are built in Python
+beside them (Resolved, "Schema builders align with their meta-schemas"; [Meta-schemas overhaul, The meta-schemas and
+their builders, as built](META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built)); modules and the wire format
+move to them next.
+
 - **A module holds named schemas.** `Schemas.Module.Schema` is a reference object schema, registered in every store of
   proxies as `Schemas.Module`, whose `schemas` property holds a container by name, each element a
   `Schemas.Module.Definition`: a union of the schema kinds, `scalar`, `object`, `union`, `intersection`, `container`,
@@ -658,7 +683,11 @@ resolving constraints.
   as properties are. A parameter's scope is its binder, inline schemas nested in it included. `validate()` reports
   reserved names and bad types and descriptions; it cannot see which names a term refers to, so a variable no
   enclosing binder declares is for whoever understands the term's dialect to report (mbse-expressions).
-- **A term stands where a literal does**: a scalar's `bits` and `bytes` each take an int or a term. A term is anything with `form()` and `dialect()`, as mbse-expressions' terms are, or a
+- **A term stands where a literal does**: a scalar's `bits` and `bytes` each take an int or a term (*being replaced*,
+  in the builders, by a relation to a term, an int written as a literal form: Resolved, "Schema builders align with
+  their meta-schemas"; [Meta-schemas overhaul, The meta-schemas and their builders, as
+  built](META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built)). A term is anything with `form()` and
+  `dialect()`, as mbse-expressions' terms are, or a
   `Schemas.Form`: `Form(kind, attributes, arguments, dialect)`, scalar attributes by name and forms as arguments, the
   dialect given at the root. `Form.of(term)` gives a term's form. `validate()` checks a form's shape and leaves a
   dialect's term to its dialect.
@@ -792,7 +821,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Uniqueness is global to a relation, but `Validators.Validate(...).Reachable` checks it only over the entries
   reachable from what was validated. Entries in another component that share only property values can go unchecked.
   Is a relation-wide check needed?
-- Builder syntax proposed by the draft `Schemas.py`, to confirm:
+- Builder syntax proposed by the draft `Schemas.py`, to confirm (*being replaced*, with the old builders: Resolved,
+  "Schema builders align with their meta-schemas"; [Meta-schemas overhaul, The meta-schemas and their builders, as
+  built](META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built)):
   - `unique` clauses: `.unique('parent', 'key')`, one call per clause.
   - Singletons: `Schemas.OfObject.Builder().singleton('GlobalName')`.
   - Unions: `.branches(lambda b: b.name('phone').of(spec), ...)`, in declaration order.

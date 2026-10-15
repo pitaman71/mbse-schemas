@@ -13,6 +13,7 @@ programs, languages or tools must agree on. Two equivalent implementations exist
 | Know why the mbse repositories exist, and this one's part in them | [MBSE.md](MBSE.md) |
 | Use the library, or model something with it | [skills/mbse-schemas/SKILL.md](skills/mbse-schemas/SKILL.md), a skill. It loads its references only as needed |
 | Understand a design decision or an open question | [docs/FRAMEWORK.md](docs/FRAMEWORK.md), by section |
+| Build schemas with the schema builders (`Framework.Builders`: the meta-schemas, their builders and the store), which replace the old builders, or migrate a call site to them | [Meta-schemas overhaul, The meta-schemas and their builders, as built](docs/META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built), then [Schema builders as visitors, Old clause → new](docs/proposals/schema-builders/README.md#old-clause--new) |
 | Change the framework | this file, then [docs/EQUIVALENCE.md, Keeping them equivalent](docs/EQUIVALENCE.md#keeping-them-equivalent) |
 | Find or add a test case | [python3/tests/TestPlan.md](python3/tests/TestPlan.md) (TypeScript's plan lists only its differences) |
 

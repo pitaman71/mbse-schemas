@@ -5,8 +5,11 @@
 
 How mbse-schemas' lists become relations and its meta-schemas become linked objects, so that the schema model is
 built from the same constructs it offers: objects, relations and their entries. This is the plan of the work. What is
-decided is in the [framework design](FRAMEWORK.md), Resolved, "The meta-schemas overhaul", which this does not restate.
-V1 to V3 are built; the rest is not. It changes the module format, so every repository that reads schemas adapts.
+decided is in the [framework design](FRAMEWORK.md), Resolved, "The meta-schemas overhaul" and "Schema builders align
+with their meta-schemas", which this does not restate. V1 to V5 are built, and so is phase 1 of the schema builders
+(Plan): the meta-schemas as reference objects and relations, their builders and the store, in Python, which
+[The meta-schemas and their builders, as built](#the-meta-schemas-and-their-builders-as-built) describes. The rest is
+not. It changes the module format, so every repository that reads schemas adapts.
 
 ## Why
 
@@ -157,53 +160,161 @@ call sites, and the docs; phase 3, the old builders removed, the corpora regener
 7. **The release**: mbse-schemas 0.11.0 and a minor version of each dependent, landed together
    (`polyrepo.py land <dir>`).
 
-## Phase 5 design (draft, for review)
+## The meta-schemas and their builders, as built
 
-What phase 5 builds, as FRAMEWORK.md, Resolved, "The meta-schemas overhaul" decides it, made concrete. Each point gives a
-recommendation and, where Resolved leaves a choice, the question it puts; nothing here is decided until confirmed.
+Phase 1 of the schema builders (Plan), as FRAMEWORK.md, Resolved, "Schema builders align with their meta-schemas"
+decides it, built in Python as `Framework.Builders`
+([the builders' module](../python3/mbse/Schemas/Framework/Builders.py)), beside the old builders, on top of
+`Schemas.OfX.Data`, which is unchanged, and run by [suite BLD](../python3/tests/25_Builders.ipynb). The proposal it
+came from, the old clause → new table and the work items left are in
+[Schema builders as visitors](proposals/schema-builders/README.md).
 
-1. **What a schema is in memory.** `Schemas.OfX.Data` and its builders stay the form programs build and every consumer
-   reads (proxies, `Plain`, `Validators`, `Comparison`, code generators); a schema *as a linked object* is its
-   representation in a store, an object of its kind's meta-schema, which `root_module()` and `Modules` build from the
-   data and read back into it. Making the data themselves proxies would make every schema depend on a store, and the
-   meta-schemas on themselves. *Question:* is the linked form a representation of the data, translated both ways, or
-   does it replace the data?
-2. **Which elements are objects.** Every schema of every kind (`Schemas.Scalar`, `.Object`, `.Relation`, `.Union`,
-   `.Intersection`, `.Container`, `.Apply`, `.Any`, `.Predicate`) and every module (`Schemas.OfModule`) is a reference
-   object. A member that refers to a schema (a property, an adjacency, a union's branch, an intersection's part, a
-   parameter, a symbol, an entry's link) must be one too, since only a reference object can be linked: a value object
-   held in a container cannot hold a link. Members are then linked to their owner by ordered relations, in declaration
-   order (`Properties(owner, property)`, `Parameters`, `Branches`, `Parts`, `Symbols`, `Links`, `Adjacencies`), and
-   their name and description stay their properties. *Question:* members as reference objects, or members as value
-   objects with each type link drawn from the owner, keyed by the member's name (`Typing(owner, type)` with `member`)?
-3. **The type links.** `Typing(typed, type)` links whatever has a type to it: a property, a branch, a part, a
-   parameter, a symbol. A container's index and element, an `OfAny`'s types (in order) and an application's applied
-   schema need their own ends or a `role` on the entry: proposed, `Indexing(container, type)` and `Typing(container,
-   type)` for its element, `Allowing(any, type)` in declaration order, and `Applies(apply, schema)`, its arguments
-   staying values. An adjacency links its relation by `Relating(adjacency, relation)`. *Question:* these names and
-   splits, or one `Typing` with a `role` property?
-4. **Anonymous adjacencies.** The end at which a schema is referred to (`type` in `Typing`, `relation` in `Relating`,
-   `schema` in `Defines`) is declared without a name: `r.of(Typing).me("type")`. It gives the object no member and no
-   storage; it only lets objects of that schema fill the link (`Validators`' filling check counts it). A snapshot
-   writes an entry under its named ends only, and reads it from them; `Reachable` follows named adjacencies, so a
-   module reaches the schemas it uses, not the schemas that use them. Built for any relation, as decided.
-5. **Identities.** Each meta-schema has a naming pattern (`object-(\d+)`, `property-(\d+)`, ...), so that a module's
-   snapshot is reproducible; a schema's name is not its identity, since it lives where the schema is defined.
-6. **Modules and names.** `Defines(module, name, schema)` defines a schema or a module under a name; a schema defined
-   through nested modules has their names qualified with dots. `Schemas.OfStore.root_module()` returns the store's root
-   module, and `store.register(schema)` registers under the schema's qualified name, its modules made as needed.
-   *Question* (Open questions, "Resolving qualified names"): does an unqualified name resolve outward, through the
-   enclosing modules to the root, or only within its own module, anything else written qualified? Recommended:
-   outward, as most languages resolve, the innermost definition winning.
-7. **The wire.** A module is written as an object snapshot (`Plain.ToPlain(store).Reachable(Schemas.OfModule,
-   module)`): the schemas and modules it defines, and the unnamed schemas they reach, each under its identity, with
-   links as references. `Modules.module(store, schemas)` and `Modules.schemas(store, module)` keep translating
-   between data and the linked form; `Schemas.Module`, `Modules.reference` and `resolve`, `Stores.META` and the
-   meta-schema `Schemas.OfAny.Schema` go.
-8. **Building a link's target inline.** A link member builds a new target with its schema given:
-   `x.type.of(Schemas.Object.Schema, lambda o: o.properties(...))`, never by name or inferred, as decided. A Spec alone
-   keeps inferring where exactly one schema fills the link. *Question:* `.of(schema, spec)` on the link member, as
-   written, rather than an argument to the member's call?
+### The meta-schemas
+
+Every meta-schema, `Builders.Meta.X` (`Builders.OfX.Schema`, which becomes `Schemas.OfX.Schema` when they land), is a
+reference object schema named `Schemas.X`, so every schema object is a reference object (Resolved: "we already decided
+at least one time to make schema objects references. all of them.").
+
+- **Kinds.** `Schemas.Schema` has the properties `name` and `description`, and owns `parameters`.
+  - `Schemas.Type` refines it, and `Scalar`, `Object`, `Union`, `Intersection`, `Container`, `Apply` and `Any` refine
+    `Type`: only a type is anything's type, refined, indexed, contained, applied or allowed.
+  - `Relation` and `Predicate` refine `Schema` directly; they are not types.
+- **Members.** `Schemas.Typed` has a `description` and a `type`; `Property`, `Parameter`, `Symbol` and `Member` (a
+  union's branch or an intersection's part) refine it. A member's name is not its own: it is the `name` property of the
+  entry that links it to its owner (`HasProperty`, ...), since a member is named within its owner.
+- **Other schema objects.** `Adjacency` (a `description`, and `me`), `Argument` (a `value`), `Term`, refined by `Form`
+  (`dialect`, `kind`, `attributes`), and `Module`, with the naming pattern `module-(\d+)` and nothing but its
+  `schemas`.
+- **Properties hold values** (Resolved: a property "has as schema which must be OfAny and that can hold scalars,
+  containers, value objects, or any nesting thereof"): a kind's `name` and `description`, a scalar's `format` and
+  `token`, an object schema's `ref`, `pattern` and `singleton`, a union's or intersection's `flat`, a container's
+  `layout`, a relation's `uniques` (a container of containers of names), a member's and an adjacency's `description`,
+  an adjacency's `me`, an argument's `value`, a form's `dialect`, `kind` and `attributes` (a container by name), and
+  the `name` of a keyed relation's entry.
+- **Names, by exception** (Resolved, "I think we need to make an exception ..."): within a schema, its relation's links
+  and properties are named by string, never referred to: an adjacency's `me` and a relation's `uniques` are properties
+  holding names.
+- **Every reference is a relation** of two links, `Schemas.<Relation>`, with an adjacency named at the end that
+  declares it and an anonymous one at the end referred to (Resolved, "Refinement, identities and relations": an
+  anonymous adjacency lets an object fill a link, with no member). A type is referred to by every relation whose
+  second end is `Type`, so `Schemas.Type` declares seven anonymous adjacencies, which each kind inherits.
+
+| Relation | Links: first, second (their schemas) | Named at the first | Constraint, as `unique` clauses state it |
+|---|---|---|---|
+| Typing | typed (Typed), schema (Type) | `Typed.type` | one: `unique(schema)`, the typed determines its schema |
+| Refines | refinement (Type), refined (Type) | `Scalar.refines`, `Object.refines`, `Container.refines` | one |
+| Indexing, Containing | container (Container), index / element (Type) | `Container.index`, `Container.element` | one |
+| Applying | application (Apply), applied (Type) | `Apply.of` | one |
+| AnyOf | any (Any), schema (Type) | `Any.types` | none: open, a list in declaration order |
+| Relating | adjacency (Adjacency), relation (Relation) | `Adjacency.relation` | one |
+| Binding, ArgumentTerm | argument (Argument), parameter (Parameter) / term (Term) | `Argument.parameter`, `Argument.term` | one |
+| Requires | predicate (Predicate), term (Term) | `Predicate.requires` | one |
+| BitWidth, ByteWidth | scalar (Scalar), width (Term) | `Scalar.bits`, `Scalar.bytes` | one; a width is a term |
+| HasParameter | owner (Schema), parameter (Parameter); property `name` | `Schema.parameters` | keyed: `unique(owner)`, `unique(parameter)` |
+| HasProperty | owner (Schema), property (Property); `name` | `Object.properties`, `Relation.properties` | keyed |
+| HasAdjacency | owner (Object), adjacency (Adjacency); `name` | `Object.adjacencies` | keyed |
+| HasBranch, HasPart | owner (Union / Intersection), branch / part (Member); `name` | `Union.branches`, `Intersection.parts` | keyed |
+| HasSymbol, HasLink | owner (Predicate / Relation), symbol / link (Symbol); `name` | `Predicate.symbols`, `Relation.links` | keyed |
+| HasArgument | owner (Apply), argument (Argument) | `Apply.arguments` | owned: `unique(owner)`, the argument determines its owner |
+| Operands | form (Form), operand (Term) | `Form.operands` | none: a list |
+| Defines | module (Module), schema (Schema); `name` | `Module.schemas` | keyed |
+
+"One" is `unique(second)`: the first end determines the second, so the adjacency holds at most one entry. "Keyed" is
+`unique(owner)` and `unique(member)`, with the entry's `name`: the member and its name determine the owner, and the
+owner and the name the member (Cardinality, in FRAMEWORK.md). A relation's links and properties are its own
+(`Relation.links`, `Relation.properties`), with no entry schema between: `Schemas.OfEntry` has no meta-schema here.
+
+### The builders
+
+Each `Builders.OfX.Builder` is a writable `Visitors.OfObject` over `Meta.X`, in [Visitor pattern](VISITOR_PATTERN.md)'s
+form (Resolved: "Schemas.OfX.Builder must implement Visitors.OfX"); read-only, it reads the data it is given and refuses
+every write.
+
+- **Members.** `osv.<propName>`, a `Visitors.OfProperty`, and `osv.<adjName>`, a `Visitors.OfAdjacency` with `insert`,
+  `remove`, `as_iterable` and iteration over its entries; called with a `Specs.Callback`, each writes or visits through
+  it and returns the builder. A container-valued property (a form's `attributes`) hands over a `Visitors.OfContainer`.
+  An entry's link to its referent is a member, `env.<linkName>`: called, it links the referent given, or builds one
+  through the callback, new, or the one the entry links, updated in place; read, it gives the referent, read-only.
+  Members, terms, arguments and an adjacency's relation are built through a link; a type, a refined schema, an index,
+  an element, an applied schema and an argument's parameter are linked as objects that exist (Resolved: "a link to a
+  type takes a schema that exists, not a callback that builds one").
+- **Shorthands** ([Visitor pattern](VISITOR_PATTERN.md)): a property takes its value whole, of exactly its type
+  (`.ref(True)`, `.layout("dense")`); an adjacency takes an iterable, each item an entry, the object to link, or a
+  callback taking `OfThem.Visitor`, which writes the entry's `name`, its link (`t.property(p)`), and the linked object's
+  members (`t.type([T])`). Where a relation allows one entry, the shorthand replaces it, and `insert` raises until it
+  is removed; an entry linking a referent held is elided.
+- **`as_*`.** `as_schema()` is `Meta.X`, and a member's `as_schema()` its property or adjacency in `Meta.X`;
+  `as_properties` and `as_adjacencies` follow the meta-schema's order; `as_identity()` reads the identity and
+  `as_identity(x)` writes it, `update()` keeping the object's own unless one is written, which renames it.
+- **The data stores members its own way** (Resolved: "the Data class can store `Schemas.OfObject.Data.properties` any
+  way it wants"), and the builder adapts each adjacency to it: a dict of members by name, or a tuple in order; a field
+  holding the referent; an application's arguments by their parameter's name; a width the data holds as an int read as
+  the literal form `Form("literal", {"value": 8})`. A keyed member's name is written to the member's data.
+- **Derivation happens at finalization**, in `_finalize`: a refinement takes the token, `ref`, index and element of what
+  it refines unless it is given them. No member's write has a side effect besides it (Resolved: "shortcuts are
+  refused"), so `.singleton(...)` no longer sets `ref`.
+- **Finalizing** is `create()`, `clone()` or `update()`, as the old builders' are; none validate. A clone clones the
+  members it owns, each with an identity of its own; an object schema's inherited members stay shared.
+
+### Building in a store
+
+`Builders.Store` is a `Proxies.OfStore` that also holds schema objects, and the canonical form of building is
+`store.moduleName.[...moduleName].schemaName(cb)` (Resolved: "This is the new canonical form for store-centric
+building"): a callback creates, an object and a callback update, an object alone clones, and the call returns the
+object. `store.Schemas.<Kind>(...)` builds a schema object, for `Scalar`, `Object`, `Union`, `Intersection`,
+`Container`, `Apply`, `Any`, `Relation`, `Predicate`, `Property`, `Parameter`, `Symbol`, `Member`, `Adjacency` and
+`Form`; any other registered name builds data, through the proxy builder.
+
+- **The meta-schemas are in every store**, registered under their names, but for `Schemas.Module`, which every store of
+  proxies holds in its old form (`Stores.META`) until the wire format moves.
+- **Identities.** Every schema object gets one on creation (Resolved: "all schema objects are reference objects and all
+  reference objects get an ID on creation"): the one written, else a named schema's name, else a UUID; members built
+  with a schema get theirs too. The store refuses an identity another of its schema objects holds.
+- **Registration.** A named schema is registered under its name as it is created, so `store.crm.Person(...)` builds
+  data right after `store.Schemas.Object(lambda o: o.name("crm.Person") ...)`; a renamed schema is registered again
+  under its new name.
+
+Not built yet (the [work items](proposals/schema-builders/README.md#work-items)): modules in the store, defining
+schemas through `Defines`; schemas written and read through these meta-schemas (`Modules`, `Plain`); TypeScript; and
+the landing in `Schemas.py` and `Proxies.py`, with the old builders removed (Plan, phase 3).
+
+## Phase 5 design: the draft's questions
+
+The phase 5 draft (Plan; as FRAMEWORK.md, Resolved, "The meta-schemas overhaul" decides it) put eight points, each
+with a question, for review. The schema builders answer most of them; each point says how, or that it is still open.
+
+1. **What a schema is in memory.** Answered: `Schemas.OfX.Data` stays, bespoke, and its builder is the linked view of
+   it, a visitor of its meta-schema that adapts the data's storage (Resolved, "Schema builders align with their
+   meta-schemas": "Schemas.OfX.{Builder, Data, Schema} are necessarily bespoke", "little to no effect on the
+   `Schemas.OfX.Data` and `Schemas.OfX.Schema`"; The builders, above). The data are not proxies and need not implement
+   the visitors ("Dataclasses do not have to implement Visitors or Readers"). How the linked form goes over the wire is
+   point 7.
+2. **Which elements are objects.** Answered: every schema of every kind and every member is a reference object, the
+   members linked to their owner by relations (Resolved, the same entry, which answers this question by name; The
+   meta-schemas, above). As built, the member relations are `Has*`, a member's name is its entry's, and terms and
+   arguments are reference objects too.
+3. **The type links.** Built as separate relations, not one `Typing` with a `role`: `Typing`, `Indexing`,
+   `Containing`, `Applying`, `AnyOf`, `Relating`, and `Refines`, `Binding`, `ArgumentTerm`, `Requires`, `BitWidth` and
+   `ByteWidth` (The meta-schemas, above); the user named the referred end of `Typing` and `AnyOf` `schema` (Resolved:
+   `e2.schema(Contact)`). The other relations' names and splits were proposed in building and await the user's review.
+4. **Anonymous adjacencies.** Answered and built, for any relation (Resolved, "Refinement, identities and relations";
+   VAL-15); the meta-schemas declare one at every end referred to. A snapshot writing an entry under its named ends
+   only, and `Reachable` following named adjacencies, wait for the wire format (point 7).
+5. **Identities.** Superseded in part: a schema object's identity is the one written, else a named schema's name, else
+   a UUID (Building in a store, above), so a named schema's name is its identity, as the draft did not propose. Only
+   `Schemas.Module` has a naming pattern. Whether module snapshots are made reproducible by naming patterns, as the
+   draft proposed, is still open, with the wire format.
+6. **Modules and names.** The meta-relation is built, `Defines(module, name, schema)` (Resolved: "a module is an object
+   in a store, alongside schemas and data"); modules in the store, nesting (`Defines` defines schemas, not yet
+   modules), `root_module()` and qualified names are not. Still open: Open questions, "Resolving qualified names".
+7. **The wire.** Still open, and the next work item (Schema builders as visitors, Work items, 1): Modules and Plain read
+   and write schemas through these meta-schemas as linked reference objects, and `Schemas.Module`, `Modules.reference`
+   and `resolve`, `Stores.META` and `Schemas.OfAny.Schema` go, as Resolved, "The meta-schemas overhaul" decides.
+8. **Building a link's target inline.** Answered for types by the later decision: a link to a type takes a schema that
+   exists, never a callback that builds one (Resolved, "Schema builders align with their meta-schemas", a property's
+   type). A link whose target is of one kind (a member, a term, an argument, an adjacency's relation) builds it
+   through that kind's builder, so no schema is given; `.<link>.of(schema, spec)`, which Resolved, "The meta-schemas
+   overhaul" records, is not built.
 
 ## Open questions
 

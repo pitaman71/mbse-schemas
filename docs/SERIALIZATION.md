@@ -50,8 +50,8 @@ Mutations.OfIntersection.AsPart
 Value verbs cannot appear at the top level of the log, only as nested mutations.
 
 A change can be written in more than one form (`OfProperty.Set`, or `OfProperty.AsAny` then `OfAny.Set`, ...). Which form
-ToPlain writes is a serializer mode: by default, the form whose serialized mutation is smallest; the mode is
-configurable. A reader accepts every form.
+ToPlain writes is a serializer mode: by default, the form whose serialized mutation is smallest, a tie going to the
+shallowest form; the mode is configurable. A reader accepts every form.
 
 `Mutations.OfX.AsY` has a list of `Mutations.OfY.*` 
 

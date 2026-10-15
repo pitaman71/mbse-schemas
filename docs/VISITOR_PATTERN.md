@@ -206,18 +206,17 @@ card.age < 40
 # iterate over adjacency entries (schema aware)
 osv.<adjName> -> Visitors.OfAdjacency: ...  # also an Iterable[Visitors.OfEntry]
 
-# peer shorthand - me/them with exactly two links and no relation properties
+# peer shorthand - me/them with exactly two links
 # treat as an insert unless `unique` forbids in which case it replaces
-osv.<adjName>(value_: Iterable[OfObject.Data]) -> Visitors.OfObject: ...
+osv.<adjName>(value_: Iterable[OfThem.Visitor]) -> Visitors.OfObject: ...
 
-# peer + key shorthand - me/them with exactly two links and one relation 
-# property of string type
-# treat as an insert unless `unique` forbids in which case it replaces
-osv.<adjName>(value_: Map[str, OfObject.Data]) -> Visitors.OfObject: ...
+OfThem.Visitor.<relPropName>(cb: Specs.Callback[OfAny.Visitor]) # set link property
+OfThem.Visitor.<relLinkName>(cb: Specs.Callback[OfObject.Visitor]) # set linked object
+OfThem.Visitor.<objPropName>(cb: Specs.Callback[OfAny.Visitor]) # set object property on "them"
 
-# entry shorthand - me/them with exactly >2 links or >1 relation keys
+# entry shorthand - me/them with exactly >2 links or >1 relation properties
 # treat as an insert unless `unique` forbids in which case it replaces
-osv.<adjName>(value_: Iterable[OfEntry.Data]) -> Visitors.OfObject: ...
+osv.<adjName>(value_: Iterable[OfEntry.Spec]) -> Visitors.OfObject: ...
 
 # callback form - precise but verbose edits to the relation
 osv.<adjName>(vcb: Specs.Callback[Visitors.OfAdjacency]) -> Visitors.OfObject: ...

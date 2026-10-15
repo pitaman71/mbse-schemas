@@ -1,9 +1,9 @@
 """Usage of the proposed schema builders (`Builders.py`), against `Schemas.OfX.Data` as it is; each schema validates,
 and so does each meta-schema.
 
-Shorthands first (VISITOR_PATTERN.md): a property takes its value whole; an adjacency takes a map of names to what it
-links where its entries name it (peer + key: a schema's members), else an iterable of what it links (peer: a type,
-what a schema refines, a relation). The callback forms follow, for what they do that the shorthands do not.
+Shorthands first (VISITOR_PATTERN.md): a property takes its value whole; an adjacency of a relation of two links takes
+an iterable (the peer shorthand), each item the object to link, or a callback setting the entry's properties
+(`t.name`), its link (`t.property`), or the linked object's members (`t.type`). The callback forms follow.
 
 Run from python3/: `uv run python ../docs/proposals/schema-builders/examples.py`.
 """
@@ -32,26 +32,17 @@ assert B.Meta.Typing.uniques == (frozenset({"schema"}),)
 
 # --- A contact who knows other contacts, with the shorthands ---
 
-given_name = (
-    B.OfProperty.Builder()
-    .type([Text])
-    .create()
-)
-age = (
-    B.OfProperty.Builder()
-    .type([Int])
-    .create()
-)
 Contact = (
     B.OfObject.Builder()
     .name("crm.Contact")
     .ref(True)
-    .properties({
-        "given_name": given_name,
-        "age": age,
-    })
+    .properties([
+        lambda t: t.name("given_name").type([Text]),
+        lambda t: t.name("age").type([Int]),
+    ])
     .create()
 )
+age = Contact.properties["age"]
 knower = (
     B.OfSymbol.Builder()
     .type([Contact])
@@ -70,11 +61,11 @@ since = (
 Knows = (
     B.OfRelation.Builder()
     .name("crm.Knows")
-    .links({
-        "knower": knower,
-        "known": known,
-    })
-    .properties({"since": since})
+    .links([
+        lambda t: t.name("knower").link(knower),
+        lambda t: t.name("known").link(known),
+    ])
+    .properties([lambda t: t.name("since").property(since)])
     .uniques([B.OfUnique.Builder().named([since]).create()])
     .create()
 )
@@ -92,8 +83,10 @@ acquainted = (
 )
 (
     B.OfObject.Builder(Contact)
-    .adjacencies({"acquaintances": acquaintances})
-    .adjacencies(lambda adv: adv.insert(lambda env: env.adjacency(acquainted)))  # anonymous: no name
+    .adjacencies([
+        lambda t: t.name("acquaintances").adjacency(acquaintances),
+        acquainted,  # anonymous: no name
+    ])
     .update()
 )
 assert Contact.validate() == [] and Knows.validate() == [], (Contact.validate(), Knows.validate())
@@ -101,7 +94,7 @@ assert list(Contact.properties) == ["given_name", "age"] and Contact.properties[
 assert Knows.uniques == (frozenset({"since"}),) and Contact.adjacencies["acquaintances"].me == "knower"
 assert Contact.anonymous == [acquainted]
 
-# --- The callback forms: a member named by its entry, built where it is linked ---
+# --- The callback form: a member named by its entry, built where it is linked ---
 
 Person = (
     B.OfObject.Builder()
@@ -123,15 +116,28 @@ for wrong in (lambda: B.OfObject.Builder().ref(1), lambda: B.OfObject.Builder().
 call = B.Form.Builder().kind("call").attributes({"name": "knows"}).attributes({"arity": 2}).create()
 assert call.attributes == {"arity": 2}
 
-# --- Adjacency shorthands: a map where entries are named, an iterable where not; one entry replaced ---
+# --- Adjacency shorthands: one entry replaced where the relation allows one ---
 
-for wrong, says in ((lambda: B.OfObject.Builder().properties([age]), "give a map of names"),
-                    (lambda: B.OfAny.Builder().types({"n": Int}), "carry no name")):
-    try:
-        wrong()
-        raise AssertionError(says)
-    except TypeError as error:
-        assert says in str(error), error
+try:
+    B.OfAny.Builder().types({"n": Int})
+    raise AssertionError("a map is not an iterable of items")
+except TypeError as error:
+    assert "takes an iterable" in str(error), error
+spare = B.OfProperty.Builder().type([Int]).create()
+B.OfObject.Builder().name("demo.Spare").properties([lambda t: t.name("spare").property(spare).description("extra")])
+assert spare.description == "extra"  # members written after the link update the object linked
+try:
+    B.OfObject.Builder().properties([lambda t: t.description("extra").property(spare)])
+    raise AssertionError("link first")
+except ValueError as error:
+    assert "link the object before writing its members" in str(error)
+renamed = B.OfObject.Builder().name("demo.Renamed").properties([lambda t: t.name("years").property(age)]).create()
+assert list(renamed.properties) == ["years"] and renamed.properties["years"] is age
+(
+    B.OfObject.Builder(Contact)
+    .properties([lambda t: t.name("age").property(age)])  # the same entry again: elided
+    .update()
+)
 Names = (
     B.OfContainer.Builder()
     .index([Int])
@@ -218,7 +224,7 @@ Integer = (
     B.OfScalar.Builder()
     .name("Expressions.Domains.Integer")
     .refines([Int])
-    .parameters({"width": width})
+    .parameters([lambda t: t.name("width").parameter(width)])
     .bits([B.Form.Builder().kind("variable").attributes({"name": "width"}).create()])
     .create()
 )
@@ -247,11 +253,10 @@ Shape = (
     B.OfUnion.Builder()
     .name("geo.Shape")
     .flat(True)
-    .branches(lambda adv: (
-        adv
-        .insert(lambda env: env.name("count").branch(lambda b: b.type([Int])))
-        .insert(lambda env: env.name("label").branch(lambda b: b.type([Text])))
-    ))
+    .branches([
+        lambda t: t.name("count").type([Int]),
+        lambda t: t.name("label").type([Text]),
+    ])
     .create()
 )
 Either = (
@@ -262,10 +267,10 @@ Either = (
 Mutual = (
     B.OfPredicate.Builder()
     .name("crm.Mutual")
-    .symbols({
-        "a": B.OfSymbol.Builder().type([Contact]).create(),
-        "b": B.OfSymbol.Builder().type([Contact]).create(),
-    })
+    .symbols([
+        lambda t: t.name("a").type([Contact]),
+        lambda t: t.name("b").type([Contact]),
+    ])
     .requires([B.Form.Builder().kind("call").attributes({"name": "knows"}).create()])
     .create()
 )

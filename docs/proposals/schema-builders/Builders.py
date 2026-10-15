@@ -411,38 +411,36 @@ class _AdjacencyMember(_Unassignable):
         return self
 
     def __call__(self, spec: Any) -> Any:
-        """Called with a callback, it visits through it. Called with an iterable, a shorthand: of referents (the peer
-        shorthand, where the relation's entries have two links and no properties), or of entries; each is inserted,
-        unless the relation allows one entry only, where it replaces the one held. A map is the peer + key shorthand,
-        where the entries have one property of string type, `name`: each referent linked under its name."""
+        """Called with a callback, it visits through it. Called with an iterable, a shorthand, each item inserted, or
+        replacing the entry held where the relation allows one only: an entry (the entry shorthand), or, where the
+        relation has two links (the peer shorthand), a `Specs.Callback[OfThem.Visitor]`: the object to link, or a
+        callable handed `_Them`, through which it sets the entry's properties, its link, and the linked object's
+        members."""
         if _is_function(spec):
             _visit(spec, self)
             return self._builder
-        if isinstance(spec, Mapping):
-            if not self._members.keyed:
-                raise TypeError(f"{self._members.name!r}: its entries carry no name to key them by; give an iterable of "
-                                "what it links")
-            pairs = list(spec.items())
-        elif isinstance(spec, (str, bytes)) or not isinstance(spec, Iterable):
+        if isinstance(spec, (str, bytes, Mapping)) or not isinstance(spec, Iterable):
             raise TypeError(f"{self._members.name!r} takes an iterable of what it links, or of entries, or a callback "
                             f"taking the adjacency; got {spec!r}")
-        else:
-            pairs = [(None, item) for item in spec]
         self._builder._check()
-        for key, item in pairs:
-            if isinstance(item, _Entry) and key is None:
-                referent, key = item._referent, item._name
-            elif self._members.accepts(item):
-                if key is None and self._members.keyed:
-                    raise TypeError(f"{self._members.name!r}: its entries name what they link; give a map of names to "
-                                    "what it links")
-                if key is not None and (not isinstance(key, str) or not key):
-                    raise TypeError(f"{self._members.name!r}: a name is non-empty text, got {key!r}")
-                referent = item
+        for item in spec:
+            if isinstance(item, _Entry):
+                referent, name = item._referent, item._name
             else:
-                raise TypeError(f"link {self._members.link!r} cannot link {item!r}")
-            if key is not None:
-                referent.name = key
+                relation = getattr(self.as_schema(), "relation", None)
+                if relation is not None and len(relation.entry.links) != 2:
+                    raise TypeError(f"{self._members.name!r}: entries of {relation.name} have more than two links; give "
+                                    "entries")
+                if _is_function(item):
+                    them = _Them(self)
+                    _visit(item, them)
+                    referent, name = them._result()
+                elif self._members.accepts(item):
+                    referent, name = item, None
+                else:
+                    raise TypeError(f"link {self._members.link!r} cannot link {item!r}")
+            if self._members.keyed and name is not None:
+                referent.name = name
             held = self._held()
             if any(other is referent for other in held):
                 continue
@@ -548,6 +546,67 @@ class _EntryName(_Dunders):
         else:
             self.as_value(spec)
         return self._entry
+
+
+class _Them(_Unassignable):
+    """`OfThem.Visitor`, for one item of the peer shorthand: an entry of a relation of two links, and the object it links
+    (them). Its members are the entry's properties (`t.name`), its link (`t.property`, to link an object that exists),
+    and the members of the object it links (`t.type`), which are written through that object's builder: a new one, or,
+    where the link is set, that one, updated. Each, called, returns the visitor."""
+
+    def __init__(self, adjacency: _AdjacencyMember):
+        self._entry = _Entry(adjacency)
+        self._object: _Builder[Any] | None = None
+
+    def as_schema(self) -> Any:
+        return self._entry.as_schema()
+
+    def _builder(self) -> _Builder[Any]:
+        if self._object is None:
+            members = self._entry._adjacency._members
+            if members.build is None:
+                raise TypeError(f"link {members.link!r} links an object that exists: link it, not its members")
+            builder_class, referent = members.build(), self._entry._referent
+            self._object = builder_class(referent) if referent is not None else builder_class()
+        return self._object
+
+    def __getattr__(self, name: str) -> Any:
+        if name.startswith("_"):
+            raise AttributeError(name)
+        members = self._entry._adjacency._members
+        if name == members.link or (name == "name" and members.keyed):
+            return _Chained(getattr(self._entry, name), self, name == members.link)
+        return _Chained(getattr(self._builder(), name), self, False)
+
+    def _result(self) -> tuple[Any, str | None]:
+        """The object linked: the one given, built, or updated; and the entry's name."""
+        builder, referent = self._object, self._entry._referent
+        if builder is not None and (builder._written or referent is None):
+            referent = builder._edited() if builder._original is not None else builder.create()
+        if referent is None:
+            raise ValueError(f"link {self._entry._adjacency._members.link!r} is not set")
+        return referent, self._entry._name
+
+
+class _Chained(_Unassignable):
+    """A member read through `_Them`: read as the member itself; called, it writes through the member and returns the
+    `_Them` visitor, so that an item's clauses chain."""
+
+    def __init__(self, member: Any, them: _Them, link: bool):
+        self._member, self._them, self._link = member, them, link
+
+    def __getattr__(self, name: str) -> Any:
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return getattr(self._member, name)
+
+    def __call__(self, spec: Any) -> _Them:
+        if self._link:
+            if self._them._object is not None and self._them._object._written:
+                raise ValueError("link the object before writing its members")
+            self._them._object = None  # the members written next are the linked object's
+        self._member(spec)
+        return self._them
 
 
 class _Link(_Unassignable):
@@ -1060,8 +1119,8 @@ def _builder_for(referent: Any) -> type | None:
     return _BUILDERS.get(type(referent))
 
 
-_VALUES = (_PropertyMember, _Value, _ScalarVisitor, _Mapping, _AdjacencyMember, _Entry, _Link, _Builder, _Empty,
-           _Properties)
+_VALUES = (_PropertyMember, _Value, _ScalarVisitor, _Mapping, _AdjacencyMember, _Entry, _EntryName, _Them, _Chained,
+           _Link, _Builder, _Empty, _Properties)
 """The classes whose instances are values, not the callable form of a Spec, though some are callable."""
 
 
@@ -1075,10 +1134,6 @@ class Meta:
 Text, Bool = S.OfScalar.Data(str), S.OfScalar.Data(bool)
 
 
-def _property(schema: Any) -> S.OfProperty.Data:
-    return PropertyBuilder().type([schema]).create()
-
-
 def _object(name: str, properties: dict[str, Any] | None = None, refines: Any = None) -> S.OfObject.Data:
     """A meta-schema: a reference object schema, `Schemas.<name>`, with `properties` of their schemas, by name,
     refining `refines`."""
@@ -1086,7 +1141,7 @@ def _object(name: str, properties: dict[str, Any] | None = None, refines: Any = 
         ObjectBuilder()
         .name(f"Schemas.{name}")
         .ref(True)
-        .properties({name: _property(schema) for name, schema in (properties or {}).items()})
+        .properties([lambda t, n=n, s=s: t.name(n).type([s]) for n, s in (properties or {}).items()])
     )
     if refines is not None:
         builder.refines([refines])
@@ -1132,10 +1187,11 @@ def _relation(name: str, links: dict[str, S.OfSymbol.Data], how: str) -> S.OfRel
     """A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
     `_RELATIONS`): a keyed relation's entries have `name`, which, with the owner, determines the member."""
     first, second = links.values()
-    builder = RelationBuilder().name(f"Schemas.{name}").links(links)
+    builder = RelationBuilder().name(f"Schemas.{name}").links([lambda t, n=n, s=s: t.name(n).link(s)
+                                                                for n, s in links.items()])
     determined = {"one": [second], "owned": [first], "keyed": [first, second], "list": []}[how]
     if how == "keyed":
-        builder.properties({"name": _property(Text)})
+        builder.properties([lambda t: t.name("name").type([Text])])
     builder.uniques([UniqueBuilder().named([named]).create() for named in determined])
     return builder.create()
 
@@ -1205,8 +1261,8 @@ for _refining in (Meta.Scalar, Meta.Object, Meta.Container):  # only these refin
 for _schema, _by_name_, _anonymous in _NAMED.values():
     (
         ObjectBuilder(_schema)
-        .adjacencies(_by_name_)
-        .adjacencies(lambda adv, anonymous=_anonymous: [adv.insert(lambda env, a=a: env.adjacency(a)) for a in anonymous])
+        .adjacencies([lambda t, n=n, a=a: t.name(n).adjacency(a) for n, a in _by_name_.items()])
+        .adjacencies(_anonymous)
         .update()
     )
 

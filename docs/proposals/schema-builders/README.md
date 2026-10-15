@@ -77,18 +77,22 @@ Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over `Meta.X`, in V
 
 With VISITOR_PATTERN.md's shorthands:
 - a property takes its value whole, and its type must match exactly;
-- an adjacency whose entries name what they link takes a map of names to referents (the peer + key shorthand). This
-  covers a schema's members: properties, adjacencies, parameters, branches, parts, symbols and links. The entry
-  carries the member's `name`, so a member object has only its type and description;
-- any other adjacency takes an iterable of referents (the peer shorthand): a type, what a schema refines, a relation,
-  a link, a term. Where the relation allows only one entry, the shorthand replaces it.
+- an adjacency of a relation with two links takes an iterable (the peer shorthand). Each item is either the object to
+  link, or a callback taking `OfThem.Visitor`, which sets three things:
+  - the entry's properties: `t.name(...)`, a member's name, which its entry carries;
+  - its link: `t.property(age)`, linking an object that exists;
+  - the linked object's members: `t.type([T])`, building a new object, or updating the linked one if the link is set
+    first.
+
+  Every relation between schema objects has two links. Where the relation allows only one entry, the shorthand
+  replaces it.
 
 | Old | New |
 |---|---|
-| `.properties(lambda p: p.name("x").of(T))` | `.properties({"x": x})`, `x` built first (`OfProperty.Builder().type([T]).create()`); or `.properties(lambda adv: adv.insert(lambda env: env.name("x").property(lambda p: p.type([T]))))` |
+| `.properties(lambda p: p.name("x").of(T))` | `.properties([lambda t: t.name("x").type([T])])`; one built first, `.properties([lambda t: t.name("x").property(x)])` |
 | `.of(T)` on a property, parameter, symbol, branch, part | `.type([T])`, the evaluation type, a schema that exists (`[S.OfScalar.Data(int)]`) |
-| `.relations(lambda a: a.name("n").of(R).me("l"))` | `.adjacencies({"n": n})`, `n` built as `OfAdjacency.Builder().relation([R]).me([l])`, `l` the symbol; an anonymous one is inserted with no name |
-| `.links("a", "b")` | `.links({"a": a, "b": b})`, `a` and `b` symbols |
+| `.relations(lambda a: a.name("n").of(R).me("l"))` | `.adjacencies([lambda t: t.name("n").relation([R]).me([l])])`, `l` the symbol; an anonymous one has no `name` |
+| `.links("a", "b")` | `.links([lambda t: t.name("a").type([A]), lambda t: t.name("b").type([B])])`; or `t.name("a").link(a)`, to name a symbol built first (as a `unique` clause needs) |
 | `.unique("a")` | `.uniques([OfUnique.Builder().named([a]).create()])`, `a` the link or property |
 | `.refines(T)` | `.refines([T])` |
 | `.bits(8)` / `.bits(term)` | `.bits([term])`; 8 is `Form.Builder().kind("literal").attributes({"value": 8}).create()` |

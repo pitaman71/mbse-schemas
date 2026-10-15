@@ -48,7 +48,6 @@ __all__ = [
     "OfScalar",
     "OfSymbol",
     "OfUnion",
-    "OfUnique",
     "identity_of",
 ]
 
@@ -90,8 +89,10 @@ class _Prop:
     name: str
 
     def __init__(self, field: str | None = None, *, get: Callable[[Any], Any] | None = None,
-                 put: Callable[[Any, Any], None] | None = None, container: bool = False):
+                 put: Callable[[Any, Any], None] | None = None, container: bool = False,
+                 shorthand: Callable[[Any], Any] | None = None):
         self._field, self._get, self._put, self.container = field, get, put, container
+        self.shorthand = shorthand or (lambda value: value)
 
     def __set_name__(self, owner: type, name: str) -> None:
         self.name = name
@@ -134,7 +135,7 @@ class _PropertyMember(_Dunders):
             _visit(cb, _Value(self._label(), self._held, self._write, self._writable, self._prop.container,
                               lambda: getattr(self.as_schema(), "type", None)))
         else:
-            self._write(self._matched(cb))
+            self._write(self._matched(self._prop.shorthand(cb)))
         return self
 
     def _matched(self, value: Any) -> Any:
@@ -850,24 +851,16 @@ class MemberBuilder(_TypedBuilder[S.OfUnion.Branch]):
     _data, _meta, _noun = S.OfUnion.Branch, "Member", "a branch or a part"
 
 
-def _filled(data: S.OfAdjacency.Data) -> list[Any]:
-    """The link an adjacency fills: its relation's link of that name."""
-    if not data.me:
-        return []
-    links = data.relation.entry.links if data.relation is not None else {}
-    return [links.get(data.me) or S.OfSymbol.Data(data.me)]
-
-
 class AdjacencyBuilder(_Builder[S.OfAdjacency.Data]):
-    """An adjacency: named by the entry that links it to its object schema, or anonymous, with no name."""
+    """An adjacency: named by the entry that links it to its object schema, or anonymous, with no name. It fills its
+    relation's link `me`, by name: within a schema, its relation's links and properties are named, not referred to."""
 
     _data, _meta, _noun = S.OfAdjacency.Data, "Adjacency", "an adjacency"
 
     description = _Prop()
+    me = _Prop()  # the name of the link it fills
     relation = _Members("relation", accepts=lambda v: isinstance(v, S.OfRelation.Data), build=lambda: RelationBuilder,
                         **_one("relation"))
-    me = _Members("link", accepts=lambda v: isinstance(v, S.OfSymbol.Data), items=_filled, one=True,
-                  store=lambda data, links: setattr(data, "me", links[-1].name if links else ""))
 
 
 @dataclass(eq=False)
@@ -887,21 +880,6 @@ class ArgumentBuilder(_Builder[_ArgumentData]):
     term = _Members("term", accepts=S._is_term, build=lambda: FormBuilder, one=True,
                     items=lambda data: [data.value] if S._is_term(data.value) else [],
                     store=lambda data, terms: setattr(data, "value", terms[-1] if terms else None))
-
-
-@dataclass(eq=False)
-class _UniqueData:
-    """A relation's `unique` clause, as its builder reads it: `Schemas.OfRelation.Data.uniques` holds the names of
-    the links and properties it names."""
-
-    named: list[Any] = field(default_factory=list)  # OfSymbol.Data and OfProperty.Data
-
-
-class UniqueBuilder(_Builder[_UniqueData]):
-    _data, _meta, _noun = _UniqueData, "Unique", "a unique clause"
-
-    named = _Members("named", accepts=lambda v: isinstance(v, (S.OfSymbol.Data, S.OfProperty.Data)),
-                     **_in_order("named"))
 
 
 @dataclass
@@ -1077,15 +1055,22 @@ class PredicateBuilder(_KindBuilder[S.OfPredicate.Data]):
     requires = _Members("term", accepts=S._is_term, build=lambda: FormBuilder, **_one("requires"))
 
 
-def _uniques(data: S.OfRelation.Data) -> list[_UniqueData]:
-    named = {**data.entry.links, **data.entry.properties}
-    return [_UniqueData([named.get(name) or S.OfSymbol.Data(name) for name in sorted(unique, key=list(named).index
-                                                                                     if unique <= set(named) else str)])
-            for unique in data.uniques]
+def _clauses(value: Any) -> Any:
+    """`unique` clauses, each the names of links and properties: a name, one clause of one name; names, one clause; a
+    list of lists of names, several clauses."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return [[value]]
+    items = list(value)
+    if all(isinstance(item, str) for item in items):
+        return [items]
+    return [[item] if isinstance(item, str) else list(item) for item in items]
 
 
 class RelationBuilder(_KindBuilder[S.OfRelation.Data]):
-    """A relation's links and properties are its entries': the meta-schema has them as the relation's own."""
+    """A relation's links and properties are its entries': the meta-schema has them as the relation's own. Its
+    `unique` clauses name them."""
 
     _data, _meta, _noun = S.OfRelation.Data, "Relation", "a relation"
 
@@ -1095,10 +1080,11 @@ class RelationBuilder(_KindBuilder[S.OfRelation.Data]):
     properties = _Members("property", keyed=True, accepts=lambda v: isinstance(v, S.OfProperty.Data), build=lambda: PropertyBuilder,
                           items=lambda data: list(data.entry.properties.values()),
                           store=lambda data, props: setattr(data.entry, "properties", {m.name: m for m in props}))
-    uniques = _Members("unique", accepts=lambda v: isinstance(v, _UniqueData), build=lambda: UniqueBuilder,
-                       items=_uniques,
-                       store=lambda data, uniques: setattr(data, "uniques", tuple(
-                           frozenset(named.name for named in unique.named) for unique in uniques)))
+    uniques = _Prop(get=lambda data: [[name for name in [*data.entry.links, *data.entry.properties] if name in unique]
+                                      + sorted(unique - {*data.entry.links, *data.entry.properties})
+                                      for unique in data.uniques] or None,
+                    put=lambda data, value: setattr(data, "uniques", tuple(frozenset(clause) for clause in value or ())),
+                    shorthand=lambda value: _clauses(value))
 
     def _update(self, target: S.OfRelation.Data, source: S.OfRelation.Data) -> int:
         changed = super()._update(target, source)
@@ -1112,7 +1098,7 @@ _BUILDERS: dict[type, type] = {
     S.OfAny.Value: AnyValueBuilder, S.OfPredicate.Data: PredicateBuilder, S.OfRelation.Data: RelationBuilder,
     S.OfProperty.Data: PropertyBuilder, S.OfParameter.Data: ParameterBuilder, S.OfSymbol.Data: SymbolBuilder,
     S.OfUnion.Branch: MemberBuilder, S.OfAdjacency.Data: AdjacencyBuilder, _ArgumentData: ArgumentBuilder,
-    _UniqueData: UniqueBuilder, S.Form.Data: FormBuilder,
+    S.Form.Data: FormBuilder,
 }
 
 
@@ -1133,7 +1119,7 @@ class Meta:
     """The meta-schemas, by name: `Meta.Object` is `Schemas.Object`, and so on."""
 
 
-Text, Bool = S.OfScalar.Data(str), S.OfScalar.Data(bool)
+Text, Bool, Int = S.OfScalar.Data(str), S.OfScalar.Data(bool), S.OfScalar.Data(int)
 
 
 def _object(name: str, properties: dict[str, Any] | None = None, refines: Any = None) -> S.OfObject.Data:
@@ -1159,16 +1145,16 @@ Meta.Intersection = _object("Intersection", {"flat": Bool}, refines=Meta.Type)
 Meta.Container = _object("Container", {"layout": Text}, refines=Meta.Type)
 Meta.Apply = _object("Apply", refines=Meta.Type)
 Meta.Any = _object("Any", refines=Meta.Type)
-Meta.Relation = _object("Relation", refines=Meta.Schema)
+Meta.Relation = _object("Relation", {"uniques": S.OfContainer.Data(index=Int, element=S.OfContainer.Data(
+    index=Int, element=Text))}, refines=Meta.Schema)
 Meta.Predicate = _object("Predicate", refines=Meta.Schema)
 Meta.Typed = _object("Typed", {"description": Text})
 Meta.Property = _object("Property", refines=Meta.Typed)
 Meta.Parameter = _object("Parameter", refines=Meta.Typed)
 Meta.Symbol = _object("Symbol", refines=Meta.Typed)
 Meta.Member = _object("Member", refines=Meta.Typed)
-Meta.Adjacency = _object("Adjacency", {"description": Text})
+Meta.Adjacency = _object("Adjacency", {"description": Text, "me": Text})
 Meta.Argument = _object("Argument", {"value": S.Form.Value})
-Meta.Unique = _object("Unique")
 Meta.Term = _object("Term")
 Meta.Form = _object("Form", {"dialect": Text, "kind": Text,
                              "attributes": S.OfContainer.Data(index=Text, element=S.Form.Value)}, refines=Meta.Term)
@@ -1181,27 +1167,20 @@ Meta.Module = (
 )
 
 
-def _symbol() -> S.OfSymbol.Data:
-    """A link: its type follows from the adjacencies that fill it."""
-    return SymbolBuilder().create()
-
-
-def _relation(name: str, links: dict[str, S.OfSymbol.Data], how: str) -> S.OfRelation.Data:
+def _relation(name: str, links: tuple[str, str], how: str) -> S.OfRelation.Data:
     """A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
     `_RELATIONS`): a keyed relation's entries have `name`, which, with the owner, determines the member."""
-    first, second = links.values()
-    builder = RelationBuilder().name(f"Schemas.{name}").links([lambda t, n=n, s=s: t.name(n).link(s)
-                                                                for n, s in links.items()])
-    determined = {"one": [second], "owned": [first], "keyed": [first, second], "list": []}[how]
+    first, second = links
+    builder = RelationBuilder().name(f"Schemas.{name}").links([lambda t, n=n: t.name(n) for n in links])
     if how == "keyed":
         builder.properties([lambda t: t.name("name").type([Text])])
-    builder.uniques([UniqueBuilder().named([named]).create() for named in determined])
-    return builder.create()
+    determined = {"one": [[second]], "owned": [[first]], "keyed": [[first], [second]], "list": None}[how]
+    return builder.uniques(determined).create()
 
 
-def _adjacency(relation: S.OfRelation.Data, link: S.OfSymbol.Data) -> S.OfAdjacency.Data:
-    """An adjacency to `relation` at `link`: named by the entry that links it to its object schema, or anonymous."""
-    return AdjacencyBuilder().relation([relation]).me([link]).create()
+def _adjacency(relation: S.OfRelation.Data, link: str) -> S.OfAdjacency.Data:
+    """An adjacency to `relation` filling `link`: named by the entry that links it to its object schema, or anonymous."""
+    return AdjacencyBuilder().relation([relation]).me(link).create()
 
 
 _RELATIONS: list[tuple[str, tuple[str, Any, str | None], tuple[str, Any], str]] = [
@@ -1216,7 +1195,6 @@ _RELATIONS: list[tuple[str, tuple[str, Any, str | None], tuple[str, Any], str]] 
     ("Applying", ("application", Meta.Apply, "of"), ("applied", Meta.Type), "one"),
     ("AnyOf", ("any", Meta.Any, "types"), ("schema", Meta.Type), "list"),
     ("Relating", ("adjacency", Meta.Adjacency, "relation"), ("relation", Meta.Relation), "one"),
-    ("Filling", ("adjacency", Meta.Adjacency, "me"), ("link", Meta.Symbol), "one"),
     ("Binding", ("argument", Meta.Argument, "parameter"), ("parameter", Meta.Parameter), "one"),
     ("ArgumentTerm", ("argument", Meta.Argument, "term"), ("term", Meta.Term), "one"),
     ("Requires", ("predicate", Meta.Predicate, "requires"), ("term", Meta.Term), "one"),
@@ -1230,17 +1208,14 @@ _RELATIONS: list[tuple[str, tuple[str, Any, str | None], tuple[str, Any], str]] 
     ("HasSymbol", ("owner", Meta.Predicate, "symbols"), ("symbol", Meta.Symbol), "keyed"),
     ("HasLink", ("owner", Meta.Relation, "links"), ("link", Meta.Symbol), "keyed"),
     ("HasArgument", ("owner", Meta.Apply, "arguments"), ("argument", Meta.Argument), "owned"),
-    ("HasUnique", ("owner", Meta.Relation, "uniques"), ("unique", Meta.Unique), "owned"),
-    ("Naming", ("unique", Meta.Unique, "named"), ("named", Meta.Typed), "list"),
     ("Operands", ("form", Meta.Form, "operands"), ("operand", Meta.Term), "list"),
     ("Defines", ("module", Meta.Module, "schemas"), ("schema", Meta.Schema), "keyed"),
 ]
 """Each relation between schema objects. A member belongs to one owner (`Has*`: the member determines its owner); a
-schema object has at most one type, refined schema, index, element, applied schema, relation, link, parameter, term or
-width (the first determines the second); types, named members, operands and definitions are lists."""
+schema object has at most one type, refined schema, index, element, applied schema, relation, parameter, term or width
+(the first determines the second); types and operands are lists."""
 
 _NAMED: dict[int, tuple[S.OfObject.Data, dict[str, S.OfAdjacency.Data], list[S.OfAdjacency.Data]]] = {}
-_ENDS: dict[str, tuple[S.OfSymbol.Data, S.OfSymbol.Data]] = {}
 
 
 def _declare(schema: S.OfObject.Data, adjacency: S.OfAdjacency.Data, name: str | None = None) -> None:
@@ -1252,15 +1227,14 @@ def _declare(schema: S.OfObject.Data, adjacency: S.OfAdjacency.Data, name: str |
 
 
 for _name, (_a, _a_schema, _named), (_b, _b_schema), _how in _RELATIONS:
-    _first, _second = _ENDS[_name] = _symbol(), _symbol()
-    setattr(Meta, _name, _relation(_name, {_a: _first, _b: _second}, _how))
+    setattr(Meta, _name, _relation(_name, (_a, _b), _how))
     if _named != "":
-        _declare(_a_schema, _adjacency(getattr(Meta, _name), _first), _named)
-    _declare(_b_schema, _adjacency(getattr(Meta, _name), _second))
+        _declare(_a_schema, _adjacency(getattr(Meta, _name), _a), _named)
+    _declare(_b_schema, _adjacency(getattr(Meta, _name), _b))
 for _owner in (Meta.Object, Meta.Relation):  # each has its own `properties`; any schema may be the owner
-    _declare(_owner, _adjacency(Meta.HasProperty, _ENDS["HasProperty"][0]), "properties")
+    _declare(_owner, _adjacency(Meta.HasProperty, "owner"), "properties")
 for _refining in (Meta.Scalar, Meta.Object, Meta.Container):  # only these refine
-    _declare(_refining, _adjacency(Meta.Refines, _ENDS["Refines"][0]), "refines")
+    _declare(_refining, _adjacency(Meta.Refines, "refinement"), "refines")
 for _schema, _by_name_, _anonymous in _NAMED.values():
     (
         ObjectBuilder(_schema)
@@ -1323,12 +1297,6 @@ class OfPredicate:
 
 class OfAny:
     Data, Builder, Schema = S.OfAny.Value, AnyValueBuilder, Meta.Any
-
-
-class OfUnique:
-    """A relation's `unique` clause."""
-
-    Builder, Schema = UniqueBuilder, Meta.Unique
 
 
 class Form:

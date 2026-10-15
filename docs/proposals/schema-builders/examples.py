@@ -44,48 +44,38 @@ Contact = (
     .create()
 )
 age = Contact.properties["age"]
-knower = B.OfSymbol.Builder().create()  # a link: its type follows from the adjacencies that fill it
-known = B.OfSymbol.Builder().create()  # a link: its type follows from the adjacencies that fill it
-since = (
-    B.OfProperty.Builder()
-    .type([Int])
-    .create()
-)
 Knows = (
     B.OfRelation.Builder()
     .name("crm.Knows")
     .links([
-        lambda t: t.name("knower").link(knower),
-        lambda t: t.name("known").link(known),
+        lambda t: t.name("knower"),
+        lambda t: t.name("known"),
     ])
-    .properties([lambda t: t.name("since").property(since)])
-    .uniques([B.OfUnique.Builder().named([since]).create()])
-    .create()
-)
-acquaintances = (
-    B.OfAdjacency.Builder()
-    .relation([Knows])
-    .me([knower])
-    .create()
-)
-acquainted = (
-    B.OfAdjacency.Builder()
-    .relation([Knows])
-    .me([known])
+    .properties([lambda t: t.name("since").type([Int])])
+    .uniques("since")
     .create()
 )
 (
     B.OfObject.Builder(Contact)
     .adjacencies([
-        lambda t: t.name("acquaintances").adjacency(acquaintances),
-        acquainted,  # anonymous: no name
+        lambda t: t.name("acquaintances").relation([Knows]).me("knower"),
+        lambda t: t.relation([Knows]).me("known"),  # anonymous: no name
     ])
     .update()
 )
 assert Contact.validate() == [] and Knows.validate() == [], (Contact.validate(), Knows.validate())
 assert list(Contact.properties) == ["given_name", "age"] and Contact.properties["age"].type is Int
 assert Knows.uniques == (frozenset({"since"}),) and Contact.adjacencies["acquaintances"].me == "knower"
-assert Contact.anonymous == [acquainted]
+assert [a.me for a in Contact.anonymous] == ["known"]
+assert B.OfRelation.Builder(Knows).uniques.as_schema().name == "uniques"
+
+# --- `unique` clauses, by name: one name, one clause of several, or several clauses ---
+
+for given, held in (("since", (frozenset({"since"}),)),
+                    (["knower", "since"], (frozenset({"knower", "since"}),)),
+                    ([["since"], ["knower", "known"]], (frozenset({"since"}), frozenset({"knower", "known"})))):
+    assert B.OfRelation.Builder(Knows).uniques(given).clone().uniques == held
+assert B.OfRelation.Builder(Knows).uniques([["since"], ["known", "knower"]]).uniques.get() is None  # not a scalar
 
 Pairs = (
     B.OfRelation.Builder()

@@ -16,9 +16,11 @@ Every meta-schema (`Meta.X`, which becomes `Schemas.OfX.Schema`) is a reference 
   - Relation and Predicate refine `Schema` directly; they are not types.
 - **Members.** `Schemas.Typed` has a `description` and a `type`. Property, Parameter, Symbol and Member (a branch or
   a part) refine it. A member's name is a property of the entry that links it to its owner (`HasProperty.name`, ...).
-- **Other schema objects.** Adjacency, Argument, Unique (a `unique` clause), Term (refined by `Form`) and Module.
+- **Other schema objects.** Adjacency, Argument, Term (refined by `Form`) and Module.
+- **Names, by exception.** Within a schema, its relation's links and properties are named by string, not referred
+  to: an adjacency's `me` and a relation's `uniques` are properties holding names.
 - **Properties hold values:** a kind's `name`, `description`, `ref`, `pattern`, `singleton`, `flat`, `layout`,
-  `format`, `token`, an argument's `value`, a form's `dialect`, `kind` and `attributes` (a container), and the `name`
+  `format`, `token`, an adjacency's `me`, a relation's `uniques`, an argument's `value`, a form's `dialect`, `kind` and `attributes` (a container), and the `name`
   of a member relation's entry.
 - **References are relations,** each with an adjacency named on the side that declares it, and anonymous on the
   other:
@@ -30,13 +32,12 @@ Every meta-schema (`Meta.X`, which becomes `Schemas.OfX.Schema`) is a reference 
 | Indexing, Containing | container, index / element | Container.`index`, `element` | one |
 | Applying | application, applied | Apply.`of` | one |
 | AnyOf | any, schema | Any.`types` | a list |
-| Relating, Filling | adjacency, relation / link | Adjacency.`relation`, `me` | one |
+| Relating | adjacency, relation | Adjacency.`relation` | one |
 | Binding, ArgumentTerm | argument, parameter / term | Argument.`parameter`, `term` | one |
 | Requires | predicate, term | Predicate.`requires` | one |
 | BitWidth, ByteWidth | scalar, width | Scalar.`bits`, `bytes` | one; a width is a term |
 | HasParameter, HasProperty, HasAdjacency, HasBranch, HasPart, HasSymbol, HasLink | owner, member; property `name` | `parameters`, `properties`, `adjacencies`, `branches`, `parts`, `symbols`, `links` | a member has one owner, and is named within it |
-| HasArgument, HasUnique | owner, member | `arguments`, `uniques` | a member has one owner |
-| Naming | unique, named | Unique.`named` | a list |
+| HasArgument | owner, argument | Apply.`arguments` | an argument has one owner |
 | Operands | form, operand | Form.`operands` | a list |
 | Defines | module, schema; property `name` | Module.`schemas` | a schema has one module, and is named within it |
 
@@ -67,7 +68,6 @@ Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over `Meta.X`, in V
 - **Data.** Each member is adapted to however the data stores it:
   - a dict of members by name, or a tuple;
   - a field holding the referent;
-  - `me` and a unique clause's members as names;
   - an argument by its parameter's name;
   - a width given as an int, which reads as a literal form.
 - **Derivation happens at finalization.** A refinement takes its token, `ref`, index and element in `_finalize`; no
@@ -91,9 +91,9 @@ With VISITOR_PATTERN.md's shorthands:
 |---|---|
 | `.properties(lambda p: p.name("x").of(T))` | `.properties([lambda t: t.name("x").type([T])])`; one built first, `.properties([lambda t: t.name("x").property(x)])` |
 | `.of(T)` on a property, parameter, symbol, branch, part | `.type([T])`, the evaluation type, a schema that exists (`[S.OfScalar.Data(int)]`) |
-| `.relations(lambda a: a.name("n").of(R).me("l"))` | `.adjacencies([lambda t: t.name("n").relation([R]).me([l])])`, `l` the symbol; an anonymous one has no `name` |
-| `.links("a", "b")` | `.links([lambda t: t.name("a"), lambda t: t.name("b")])`, a link's type following from the adjacencies that fill it; or `t.name("a").link(a)`, to name a symbol built first, which `.me([a])` and a `unique` clause refer to |
-| `.unique("a")` | `.uniques([OfUnique.Builder().named([a]).create()])`, `a` the link or property |
+| `.relations(lambda a: a.name("n").of(R).me("l"))` | `.adjacencies([lambda t: t.name("n").relation([R]).me("l")])`; an anonymous one has no `name` |
+| `.links("a", "b")` | `.links([lambda t: t.name("a"), lambda t: t.name("b")])`, a link's type following from the adjacencies that fill it |
+| `.unique("a")`, `.unique("a", "b")` | `.uniques("a")`, `.uniques(["a", "b"])`; several clauses, `.uniques([["a"], ["b", "c"]])` |
 | `.refines(T)` | `.refines([T])` |
 | `.bits(8)` / `.bits(term)` | `.bits([term])`; 8 is `Form.Builder().kind("literal").attributes({"value": 8}).create()` |
 | `.index(T)`, `.element(T)`, `.of(T)` on an application | `.index([T])`, `.element([T])`, `.of([T])` |
@@ -116,11 +116,9 @@ Still open:
 1. **Wire format.** Modules and Plain still read and write schemas through bespoke code, in the old container shape.
    Under P-018 they should read and write through these meta-schemas like any other model, as linked reference
    objects. That changes the module format and the conformance corpora.
-2. **Construction order.** A reference must exist before it is linked. So a relation whose `unique` clause names its
-   own links is built from symbols made first (see `Knows` in the examples), and `me` links a symbol of the relation.
-3. **Members are owned.** A member belongs to one owner, as its `Has*` relation's `unique` clause says. Sharing a
+2. **Members are owned.** A member belongs to one owner, as its `Has*` relation's `unique` clause says. Sharing a
    member between two schemas, or renaming one through an entry, changes it for its owner. A clone of a schema still
    shares its members with the original, as the data always has.
-4. **Unique identities.** A store refuses an identity that is already taken. Schemas aren't held in stores yet, so
+3. **Unique identities.** A store refuses an identity that is already taken. Schemas aren't held in stores yet, so
    nothing here refuses one. A named schema cloned without a new identity takes its name, the same identity as the
    original's.

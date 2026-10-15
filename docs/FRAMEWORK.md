@@ -842,6 +842,10 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     a schema that exists, not a callback that builds one.
   - a relation's links: "`type` *never* needs to be provided on the symbol. that relationship is inferred from
     adjacencies": a link is named, and its type follows from the adjacencies that fill it.
+  - an exception to referring by reference: "I think we need to make an exception to the rule that we never refer to a
+    schema by its string name. Creating objects for symbols is making me nuts." An adjacency's `me` names the link
+    it fills, and a relation's `uniques` name its links and properties, as in the user's example (`.me("knower")`,
+    `.uniques("since")`).
   - shortcuts are refused: a member's write has no side effect besides it, and none of the meta-schemas' references
     are left as names or values.
   - proposed in building, for the user's review: docs/proposals/schema-builders/ (the meta-schemas as reference objects

@@ -1414,7 +1414,6 @@ class Store(Proxies.OfStore):
     def __init__(self) -> None:
         super().__init__()
         self._objects: dict[tuple[str, str], Any] = {}  # the schema objects, by their kind and their identity
-        self._schemas.pop("Schemas.Module", None)  # the old module meta-schema: a module here is `Meta.Module`
         for name, schema in vars(Meta).items():  # the meta-schemas
             if not name.startswith("_") and schema.name not in self._schemas:
                 self._objects[(_kind(schema), identity_of(schema))] = schema
@@ -1643,3 +1642,13 @@ class OfAny:
 
 class Form:
     Data, Builder, Schema = S.Form.Data, FormBuilder, Meta.Form
+
+
+# `Schemas.OfX.Builder` and `Schemas.OfX.Schema` are these: a schema builder is a `Visitors.OfObject` over its meta-schema
+# (FRAMEWORK.md, Resolved: "Schemas.OfX.Builder must implement Visitors.OfX").
+for _namespace, _own in ((S.OfScalar, OfScalar), (S.OfObject, OfObject), (S.OfProperty, OfProperty),
+                         (S.OfAdjacency, OfAdjacency), (S.OfRelation, OfRelation), (S.OfSymbol, OfSymbol),
+                         (S.OfParameter, OfParameter), (S.OfUnion, OfUnion), (S.OfIntersection, OfIntersection),
+                         (S.OfContainer, OfContainer), (S.OfApply, OfApply), (S.OfPredicate, OfPredicate), (S.OfAny, OfAny),
+                         (S.Form, Form)):
+    _namespace.Builder, _namespace.Schema = _own.Builder, _own.Schema

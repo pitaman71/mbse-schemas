@@ -1,15 +1,13 @@
-"""Schemas: schema elements and their builders.
+"""Schemas: schema elements.
 
-For each schema element `OfX`, `Schemas.OfX.Data` captures a schema and `Schemas.OfX.Builder` builds one. Builders
-take an optional source instance, keep shallow copies of its data, are fluent, and are finalized by `create()`,
-`clone()` or `update()`; none validate. Arguments describing a sub-structure are `Spec`s: a direct value, or a
-callable that takes and returns the corresponding builder.
+For each schema element `OfX`, `Schemas.OfX.Data` captures a schema. `Schemas.OfX.Builder`, which builds one, and
+`Schemas.OfX.Schema`, its meta-schema, are `Builders`' (each builder a `Visitors.OfObject` over its meta-schema, built
+in a store); importing this package installs them here.
 
 `validate()` on each `Data` returns a list of problems and runs only when the caller asks.
 
 Every kind of schema may have a `name`, set by its builder's `.name('crm.Contact')`: identifiers separated by dots, the
-part before the last dot its namespace. A named schema is referred to by its name wherever it is written (a module, a
-predicate's symbols), and a store registers it under that name; an unnamed one is written inline.
+part before the last dot the module it is in. A store registers a named schema under that name.
 
 Every kind of schema may declare `parameters` (`OfParameter`), variables determined where the schema is referred to:
 `OfApply` applies a parametric schema to arguments. Where a literal width stands, a term may stand instead:
@@ -57,7 +55,6 @@ __all__ = [
     "inherited",
     "plain_forms",
     "equivalent",
-    "Module",
 ]
 
 SCALAR_TYPES: tuple[type[Scalar], ...] = (int, float, str, bool, bytes)
@@ -68,63 +65,6 @@ D = TypeVar("D")
 def _copy(value: Any) -> Any:
     """Shallow-copies the builder's own containers; references to other schemas are kept, never copied."""
     return copy.copy(value) if isinstance(value, (dict, list, set)) else value
-
-
-class _Builder(Generic[D]):
-    """Shared builder mechanics. Subclasses set `_data` and add fluent accessors that edit `self._fields`."""
-
-    _data: ClassVar[type]
-
-    def __init__(self, instance: D | None = None):
-        self._source = instance
-        self._fields: dict[str, Any] = (
-            {} if instance is None else {f.name: _copy(getattr(instance, f.name)) for f in dataclasses.fields(instance)}
-        )
-
-    def _final(self) -> dict[str, Any]:
-        return {name: _copy(value) for name, value in self._fields.items()}
-
-    def create(self) -> D:
-        """Returns a new `Data`. Only valid without a source instance."""
-        if self._source is not None:
-            raise ValueError("create() is only valid without a source instance; use clone() or update()")
-        return self._data(**self._final())
-
-    def clone(self) -> D:
-        """Returns a new `Data`, leaving the source instance untouched. Only valid with a source instance."""
-        if self._source is None:
-            raise ValueError("clone() is only valid with a source instance")
-        return self._data(**self._final())
-
-    def update(self) -> D:
-        """Writes the builder state back into the source instance and returns it. Only valid with a source instance."""
-        if self._source is None:
-            raise ValueError("update() is only valid with a source instance")
-        for name, value in self._final().items():
-            setattr(self._source, name, value)
-        return self._source
-
-    def description(self, text: str) -> Any:
-        """What the element is for, in prose: documentation, which no validation or comparison of data reads."""
-        self._fields["description"] = text
-        return self
-
-
-class _NamedBuilder(_Builder[D]):
-    """A builder of a kind of schema, which may be named."""
-
-    def name(self, name: str) -> Any:
-        """The schema's name: identifiers separated by dots, e.g. `'crm.Contact'`."""
-        self._fields["name"] = name
-        return self
-
-    def parameters(self, *specs: OfParameter.Spec) -> Any:
-        """Parameters the schema declares, in order, e.g. `.parameters(lambda p: p.name('n').of(...))`."""
-        parameters = self._fields.setdefault("parameters", {})
-        for spec in specs:
-            parameter = _resolve(spec, _ParameterData, _ParameterBuilder)
-            parameters[parameter.name] = parameter
-        return self
 
 
 _DOTTED = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*\Z")
@@ -156,20 +96,6 @@ def _visited(names: Any) -> list[str]:
     methods, so that no name a schema defines collides with them in data instances and builders."""
     return [f"name {name!r} is reserved: names starting with 'as_' belong to the visitor protocol"
             for name in names if isinstance(name, str) and name.startswith("as_")]
-
-
-def _resolve(spec: Any, data: type, builder: Callable[[], Any]) -> Any:
-    """Resolves a `Spec`: an instance of `data` is used as is; a callable is given a new builder and must return it."""
-    if isinstance(spec, data):
-        return spec
-    if isinstance(spec, type):
-        raise TypeError(f"a class is not a Spec here; for a scalar type use lambda t: t.as_scalar({spec.__name__})")
-    if callable(spec):
-        built = spec(builder())
-        if built is None or not callable(getattr(built, "create", None)):
-            raise TypeError(f"a Spec callable must return its builder, got {built!r}")
-        return built.create()
-    raise TypeError(f"expected a schema or a callable taking its builder, got {spec!r}")
 
 
 # --- Terms: expressions where a literal may stand ---
@@ -246,22 +172,8 @@ class _ParameterData:
     description: str | None = None
 
 
-class _ParameterBuilder(_Builder[_ParameterData]):
-    _data = _ParameterData
-
-    def name(self, name: str) -> _ParameterBuilder:
-        self._fields["name"] = name
-        return self
-
-    def of(self, spec: OfAny.Spec) -> _ParameterBuilder:
-        self._fields["type"] = OfAny.resolve(spec)
-        return self
-
-
 class OfParameter:
     Data = _ParameterData
-    Builder = _ParameterBuilder
-    Spec = _ParameterData | Callable[[_ParameterBuilder], _ParameterBuilder]
 
 
 def _parameter_problems(parameters: dict[str, _ParameterData]) -> list[str]:
@@ -387,52 +299,11 @@ class _ScalarData:
 _NON_FINITE = {"NaN": math.nan, "Infinity": math.inf, "-Infinity": -math.inf}
 
 
-class _ScalarBuilder(_NamedBuilder[_ScalarData]):
-    _data = _ScalarData
-
-    def type(self, scalar: type[Scalar]) -> _ScalarBuilder:
-        """A host type: shorthand for the `basic` token of the same name."""
-        self._fields["token"] = _ScalarData(scalar).token
-        return self
-
-    def token(self, format: str, name: str) -> _ScalarBuilder:
-        """A token in any format, e.g. `.token('ccpp', 'int32_t')`."""
-        self._fields["token"] = _Token(format, name)
-        return self
-
-    def bits(self, width: Any) -> _ScalarBuilder:
-        """A width in bits: an int, or a term."""
-        self._fields["bits"] = width
-        return self
-
-    def bytes(self, width: Any) -> _ScalarBuilder:
-        self._fields["bytes"] = width
-        return self
-
-    def refines(self, spec: Any) -> _ScalarBuilder:
-        """The scalar schema this one refines (a Spec): its values are the refined schema's, of its token, which it
-        takes unless one is given, narrowed by its own widths."""
-        base = OfAny.resolve(spec)
-        self._fields["refines"] = base
-        held = structure(base)
-        if self._fields.get("token") is None and isinstance(held, _ScalarData):
-            self._fields["token"] = held.token
-        return self
-
-
 class OfScalar:
     """A scalar value. Conversion to and from the wire format is the responsibility of this element."""
 
     Data = _ScalarData
-    Builder = _ScalarBuilder
     Token = _Token
-    Spec = type | Callable[[_ScalarBuilder], _ScalarBuilder]
-
-    @staticmethod
-    def resolve(spec: OfScalar.Spec) -> _ScalarData:
-        if isinstance(spec, type):
-            return _ScalarData(spec)
-        return _resolve(spec, _ScalarData, _ScalarBuilder)
 
 
 # --- OfProperty: a named property of an object or relation ---
@@ -445,29 +316,8 @@ class _PropertyData:
     description: str | None = None
 
 
-class _PropertyBuilder(_Builder[_PropertyData]):
-    _data = _PropertyData
-
-    def name(self, name: str) -> _PropertyBuilder:
-        self._fields["name"] = name
-        return self
-
-    def of(self, spec: OfAny.Spec) -> _PropertyBuilder:
-        self._fields["type"] = OfAny.resolve(spec)
-        return self
-
-
 class OfProperty:
     Data = _PropertyData
-    Builder = _PropertyBuilder
-    Spec = Callable[[_PropertyBuilder], _PropertyBuilder]
-
-
-def _properties(fields: dict[str, Any], specs: tuple[OfProperty.Spec, ...]) -> None:
-    properties = fields.setdefault("properties", {})
-    for spec in specs:
-        prop = _resolve(spec, _PropertyData, _PropertyBuilder)
-        properties[prop.name] = prop
 
 
 # --- OfSymbol: a name standing for an object ---
@@ -483,23 +333,8 @@ class _SymbolData:
     description: str | None = None
 
 
-class _SymbolBuilder(_Builder[_SymbolData]):
-    _data = _SymbolData
-
-    def name(self, name: str) -> _SymbolBuilder:
-        self._fields["name"] = name
-        return self
-
-    def of(self, spec: OfAny.Spec) -> _SymbolBuilder:
-        """The schema of the objects the symbol stands for: a reference object schema."""
-        self._fields["type"] = OfAny.resolve(spec)
-        return self
-
-
 class OfSymbol:
     Data = _SymbolData
-    Builder = _SymbolBuilder
-    Spec = _SymbolData | Callable[[_SymbolBuilder], _SymbolBuilder]
 
 
 def _symbol_problems(symbol: _SymbolData) -> list[str]:
@@ -539,32 +374,10 @@ class _EntryData:
         return problems
 
 
-class _EntryBuilder(_Builder[_EntryData]):
-    _data = _EntryData
-
-    def links(self, *specs: OfSymbol.Spec) -> _EntryBuilder:
-        """The links, in order, e.g. `.links(lambda s: s.name('owner'))`."""
-        links = self._fields.setdefault("links", {})
-        for spec in specs:
-            link = _resolve(spec, _SymbolData, _SymbolBuilder)
-            links[link.name] = link
-        return self
-
-    def properties(self, *specs: OfProperty.Spec) -> _EntryBuilder:
-        _properties(self._fields, specs)
-        return self
-
-
 class OfEntry:
     """The schema of a relation's entries: their links and properties."""
 
     Data = _EntryData
-    Builder = _EntryBuilder
-    Spec = _EntryData | Callable[[_EntryBuilder], _EntryBuilder]
-
-    @staticmethod
-    def resolve(spec: OfEntry.Spec) -> _EntryData:
-        return _resolve(spec, _EntryData, _EntryBuilder)
 
 
 # --- OfRelation ---
@@ -607,48 +420,11 @@ class _RelationData:
         return keys[0] if keys else None
 
 
-class _RelationBuilder(_NamedBuilder[_RelationData]):
-    _data = _RelationData
-
-    def entry(self, spec: OfEntry.Spec) -> _RelationBuilder:
-        """The schema of the relation's entries: their links and properties."""
-        self._fields["entry"] = OfEntry.resolve(spec)
-        return self
-
-    def _edit(self, edit: Callable[[_EntryBuilder], _EntryBuilder]) -> _RelationBuilder:
-        """Edits the entry schema through its builder, on a copy, so that the source's stays as it is until `update()`."""
-        entry = self._fields.get("entry")
-        self._fields["entry"] = edit(_EntryBuilder()).create() if entry is None else edit(_EntryBuilder(entry)).clone()
-        return self
-
-    def links(self, *names: str) -> _RelationBuilder:
-        """The entry schema's links, by name, in place of any before: symbols without a schema."""
-        properties = self._fields["entry"].properties.values() if "entry" in self._fields else ()
-        self._fields["entry"] = _EntryBuilder().links(*[lambda s, n=n: s.name(n) for n in names]).properties(
-            *properties).create()
-        return self
-
-    def properties(self, *specs: OfProperty.Spec) -> _RelationBuilder:
-        """Adds properties to the entry schema: `OfEntry.Builder.properties`."""
-        return self._edit(lambda e: e.properties(*specs))
-
-    def unique(self, *names: str) -> _RelationBuilder:
-        """Adds a `unique(S)` clause: the links and properties outside `S` determine `S`."""
-        self._fields["uniques"] = (*self._fields.get("uniques", ()), frozenset(names))
-        return self
-
-
 class OfRelation:
     """A relationship between objects, with a named link per linked object. Relations have no caller-facing
     instance builder; entries are added through the adjacencies of the objects they link."""
 
     Data = _RelationData
-    Builder = _RelationBuilder
-    Spec = _RelationData | Callable[[_RelationBuilder], _RelationBuilder]
-
-    @staticmethod
-    def resolve(spec: OfRelation.Spec) -> _RelationData:
-        return _resolve(spec, _RelationData, _RelationBuilder)
 
 
 # --- OfAdjacency ---
@@ -673,40 +449,34 @@ class _AdjacencyData:
         return []
 
 
-class _AdjacencyBuilder(_Builder[_AdjacencyData]):
-    """An adjacency: named, the object's member through which it reads and writes its entries; anonymous (no name), it
-    only declares that the object may fill the link `me`, with no member and nothing held on the object."""
-
-    _data = _AdjacencyData
-
-    def name(self, name: str) -> _AdjacencyBuilder:
-        """Name of the accessor on the object, e.g. 'addresses'."""
-        self._fields["name"] = name
-        return self
-
-    def of(self, spec: OfRelation.Spec) -> _AdjacencyBuilder:
-        self._fields["relation"] = OfRelation.resolve(spec)
-        return self
-
-    def me(self, link: str) -> _AdjacencyBuilder:
-        """The link this object fills."""
-        self._fields["me"] = link
-        return self
-
-
 class OfAdjacency:
     """Declares that an `OfObject` is adjacent to an `OfRelation` via a particular link."""
 
     Data = _AdjacencyData
-    Builder = _AdjacencyBuilder
-    Spec = Callable[[_AdjacencyBuilder], _AdjacencyBuilder]
 
 
 # --- OfObject ---
 
 
 _VALIDATING: set[int] = set()
-"""The object schemas being validated, so that one that holds itself is validated once."""
+"""The schemas being validated, so that one that holds itself is validated once."""
+
+
+def _once(validate: Callable[[Any], list[str]]) -> Callable[[Any], list[str]]:
+    """A schema's `validate`, for a kind whose values hold others' (an object, a union, an intersection, a container, a
+    value of any type): a schema that holds itself has its problems reported once, where it is first reached."""
+
+    def guarded(self: Any) -> list[str]:
+        if id(self) in _VALIDATING:
+            return []
+        _VALIDATING.add(id(self))
+        try:
+            return validate(self)
+        finally:
+            _VALIDATING.discard(id(self))
+
+    guarded.__doc__ = validate.__doc__
+    return guarded
 
 _LITERAL = r"(?:[^\\()\[\]{}.*+?^$|]|\\[^A-Za-z0-9])*"
 _NAMING = re.compile(rf"({_LITERAL})\(\\d\+((?:\\d)*)\)({_LITERAL})")
@@ -756,18 +526,9 @@ class _ObjectData:
         fits = name.startswith(prefix) and name.endswith(suffix) and len(name) >= len(prefix) + len(suffix)
         return int(digits) if fits and len(digits) >= width and digits.isascii() and digits.isdigit() else None
 
+    @_once
     def validate(self) -> list[str]:
-        """The schema's problems. A value object schema may hold itself, through a property or an entry: its problems
-        are reported once, where it is first reached."""
-        if id(self) in _VALIDATING:
-            return []
-        _VALIDATING.add(id(self))
-        try:
-            return self._problems()
-        finally:
-            _VALIDATING.discard(id(self))
-
-    def _problems(self) -> list[str]:
+        """The schema's problems. A value object schema may hold itself, through a property or an entry."""
         problems = (_name_problems(self.name) + _description_problems(self.description)
                     + _parameter_problems(self.parameters) + _reserved([*self.properties, *self.adjacencies])
                     + _visited([*self.properties, *self.adjacencies]))
@@ -796,69 +557,8 @@ class _ObjectData:
         return problems + _refinement_problems(self)
 
 
-class _ObjectBuilder(_NamedBuilder[_ObjectData]):
-    _data = _ObjectData
-
-    def properties(self, *specs: OfProperty.Spec) -> _ObjectBuilder:
-        _properties(self._fields, specs)
-        return self
-
-    def refines(self, spec: Any) -> _ObjectBuilder:
-        """The object schema this one refines (a Spec): an object of this schema is an object of that one, so it has
-        that one's properties and adjacencies, which this one may redeclare narrower, and fills its links. A
-        refinement of a reference object schema is one too."""
-        self._fields["refines"] = OfAny.resolve(spec)
-        held = structure(self._fields["refines"])
-        if isinstance(held, _ObjectData) and held.ref:
-            self._fields["ref"] = True
-        return self
-
-    def create(self) -> _ObjectData:
-        return _settle(super().create())
-
-    def clone(self) -> _ObjectData:
-        return _settle(super().clone())
-
-    def update(self) -> _ObjectData:
-        return _settle(super().update())
-
-    def relations(self, *specs: OfAdjacency.Spec) -> _ObjectBuilder:
-        adjacencies = self._fields.setdefault("adjacencies", {})
-        anonymous = self._fields.setdefault("anonymous", [])
-        for spec in specs:
-            adjacency = _resolve(spec, _AdjacencyData, _AdjacencyBuilder)
-            if adjacency.name:
-                adjacencies[adjacency.name] = adjacency
-            else:  # anonymous: the object may fill the link, and holds no member for it
-                anonymous.append(adjacency)
-        return self
-
-    def singleton(self, name: str) -> _ObjectBuilder:
-        """Declares a singleton global name: the one instance exists implicitly and is referenced by this name. A
-        singleton is a reference object."""
-        self._fields["singleton"] = name
-        self._fields["ref"] = True
-        return self
-
-    def ref(self, pattern: str | None = None) -> _ObjectBuilder:
-        """Marks a reference object schema: its objects stand on their own, reached through relations, and no property
-        holds one. Without it, the schema describes value objects, which properties hold. A reference object is named
-        by a UUID its store gives when it is created, or, with a naming pattern (`r"FEA-(\\d+\\d\\d)"`), by the next
-        name the pattern gives in its store."""
-        self._fields["ref"] = True
-        if pattern is not None:
-            self._fields["pattern"] = pattern
-        return self
-
-
 class OfObject:
     Data = _ObjectData
-    Builder = _ObjectBuilder
-    Spec = _ObjectData | Callable[[_ObjectBuilder], _ObjectBuilder]
-
-    @staticmethod
-    def resolve(spec: OfObject.Spec) -> _ObjectData:
-        return _resolve(spec, _ObjectData, _ObjectBuilder)
 
 
 # --- OfUnion / OfIntersection ---
@@ -871,18 +571,6 @@ class _MemberData:
     name: str = ""
     type: Any = None  # OfAny.Data
     description: str | None = None
-
-
-class _MemberBuilder(_Builder[_MemberData]):
-    _data = _MemberData
-
-    def name(self, name: str) -> _MemberBuilder:
-        self._fields["name"] = name
-        return self
-
-    def of(self, spec: OfAny.Spec) -> _MemberBuilder:
-        self._fields["type"] = OfAny.resolve(spec)
-        return self
 
 
 def _member_problems(a_kind: str, member: str, plural: str, members: tuple[_MemberData, ...]) -> list[str]:
@@ -940,10 +628,6 @@ def _flat_intersection_problems(parts: tuple[_MemberData, ...]) -> list[str]:
     return problems
 
 
-def _members(specs: tuple[Callable[[_MemberBuilder], _MemberBuilder], ...]) -> tuple[_MemberData, ...]:
-    return tuple(_resolve(spec, _MemberData, _MemberBuilder) for spec in specs)
-
-
 @dataclass(eq=False)
 class _UnionData:
     branches: tuple[_MemberData, ...] = ()
@@ -958,35 +642,16 @@ class _UnionData:
         """The branches by name: a union value is an object holding exactly one of them."""
         return {branch.name: branch for branch in self.branches}
 
+    @_once
     def validate(self) -> list[str]:
         return (_name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
                 + _member_problems("a union", "branch", "branches", self.branches)
                 + (_flat_union_problems(self.branches) if self.flat else []))
 
 
-class _UnionBuilder(_NamedBuilder[_UnionData]):
-    _data = _UnionData
-
-    def branches(self, *specs: Callable[[_MemberBuilder], _MemberBuilder]) -> _UnionBuilder:
-        """Named branches, e.g. `.branches(lambda b: b.name('phone').of(Phone), ...)`."""
-        self._fields["branches"] = (*self._fields.get("branches", ()), *_members(specs))
-        return self
-
-    def flat(self, flat: bool = True) -> _UnionBuilder:
-        """A value reads as its branch's value, told apart by type (`Phone | Email`), not as an object of one branch."""
-        self._fields["flat"] = flat
-        return self
-
-
 class OfUnion:
     Data = _UnionData
-    Builder = _UnionBuilder
-    Spec = _UnionData | Callable[[_UnionBuilder], _UnionBuilder]
     Branch = _MemberData
-
-    @staticmethod
-    def resolve(spec: OfUnion.Spec) -> _UnionData:
-        return _resolve(spec, _UnionData, _UnionBuilder)
 
 
 @dataclass(eq=False)
@@ -1003,35 +668,16 @@ class _IntersectionData:
         """The parts by name: an intersection value is an object holding every one of them."""
         return {part.name: part for part in self.parts}
 
+    @_once
     def validate(self) -> list[str]:
         return (_name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
                 + _member_problems("an intersection", "part", "parts", self.parts)
                 + (_flat_intersection_problems(self.parts) if self.flat else []))
 
 
-class _IntersectionBuilder(_NamedBuilder[_IntersectionData]):
-    _data = _IntersectionData
-
-    def parts(self, *specs: Callable[[_MemberBuilder], _MemberBuilder]) -> _IntersectionBuilder:
-        """Named parts, e.g. `.parts(lambda p: p.name('stamp').of(Stamp), ...)`."""
-        self._fields["parts"] = (*self._fields.get("parts", ()), *_members(specs))
-        return self
-
-    def flat(self, flat: bool = True) -> _IntersectionBuilder:
-        """A value reads its parts' properties as its own (`x.name`), not as an object of its parts (`x.Named.name`)."""
-        self._fields["flat"] = flat
-        return self
-
-
 class OfIntersection:
     Data = _IntersectionData
-    Builder = _IntersectionBuilder
-    Spec = _IntersectionData | Callable[[_IntersectionBuilder], _IntersectionBuilder]
     Part = _MemberData
-
-    @staticmethod
-    def resolve(spec: OfIntersection.Spec) -> _IntersectionData:
-        return _resolve(spec, _IntersectionData, _IntersectionBuilder)
 
 
 # --- OfContainer: elements by index ---
@@ -1089,6 +735,7 @@ class _ContainerData:
         kind = _index_kind(self.index)
         return "dense" if _integer_like(self.index) else "dict" if kind is not None else "entries"
 
+    @_once
     def validate(self) -> list[str]:
         problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
         for role, schema in (("index", self.index), ("element", self.element)):
@@ -1104,53 +751,8 @@ class _ContainerData:
         return problems + _refinement_problems(self)
 
 
-class _ContainerBuilder(_NamedBuilder[_ContainerData]):
-    _data = _ContainerData
-
-    def index(self, spec: Any) -> _ContainerBuilder:
-        """The index type, a schema of any kind (a Spec): `lambda t: t.as_scalar(int)`, or a value object of ints."""
-        self._fields["index"] = OfAny.resolve(spec)
-        return self
-
-    def refines(self, spec: Any) -> _ContainerBuilder:
-        """The container schema this one refines (a Spec): its values are the refined schema's, its index and element
-        each the refined one's or narrower, which it takes unless given."""
-        base = OfAny.resolve(spec)
-        self._fields["refines"] = base
-        held = structure(base)
-        if isinstance(held, _ContainerData):
-            self._fields.setdefault("index", held.index)
-            self._fields.setdefault("element", held.element)
-        return self
-
-    def element(self, spec: Any) -> _ContainerBuilder:
-        """The element type, a schema of any kind (a Spec)."""
-        self._fields["element"] = OfAny.resolve(spec)
-        return self
-
-    def dense(self) -> _ContainerBuilder:
-        """Elements in a packed array, at every index from the first to the last."""
-        return self._layout("dense")
-
-    def sparse(self) -> _ContainerBuilder:
-        """Elements in an associative store of dense blocks, indices between them absent."""
-        return self._layout("sparse")
-
-    def _layout(self, layout: str) -> _ContainerBuilder:
-        if self._fields.get("layout", layout) != layout:
-            raise ValueError("a container is .dense() or .sparse(), not both")
-        self._fields["layout"] = layout
-        return self
-
-
 class OfContainer:
     Data = _ContainerData
-    Builder = _ContainerBuilder
-    Spec = _ContainerData | Callable[[_ContainerBuilder], _ContainerBuilder]
-
-    @staticmethod
-    def resolve(spec: OfContainer.Spec) -> _ContainerData:
-        return _resolve(spec, _ContainerData, _ContainerBuilder)
 
 
 # --- OfAny.Value: a value of any type ---
@@ -1197,6 +799,7 @@ class _AnyValueData:
     description: str | None = None
     parameters: dict[str, _ParameterData] = field(default_factory=dict)
 
+    @_once
     def validate(self) -> list[str]:
         problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
         valid = []
@@ -1316,36 +919,10 @@ def equivalent(a: Any, b: Any, evaluate: Evaluate | None = None) -> bool | None:
     return None if any(_UNKNOWN in pair for pair in pairs) else True
 
 
-class _ApplyBuilder(_NamedBuilder[_ApplyData]):
-    _data = _ApplyData
-
-    def of(self, spec: OfAny.Spec) -> _ApplyBuilder:
-        """The parametric schema applied."""
-        self._fields["of"] = OfAny.resolve(spec)
-        return self
-
-    def argument(self, name: str, value: Any) -> _ApplyBuilder:
-        """The argument for the parameter `name`: a scalar value or a term."""
-        self._fields.setdefault("arguments", {})[name] = value
-        return self
-
-    def arguments(self, **values: Any) -> _ApplyBuilder:
-        """Arguments by the names of the applied schema's parameters: an application binds by name only."""
-        for name, value in values.items():
-            self.argument(name, value)
-        return self
-
-
 class OfApply:
     """A parametric schema applied to arguments, where a type is expected."""
 
     Data = _ApplyData
-    Builder = _ApplyBuilder
-    Spec = _ApplyData | Callable[[_ApplyBuilder], _ApplyBuilder]
-
-    @staticmethod
-    def resolve(spec: OfApply.Spec) -> _ApplyData:
-        return _resolve(spec, _ApplyData, _ApplyBuilder)
 
 
 # --- OfPredicate ---
@@ -1378,33 +955,10 @@ class _PredicateData:
         return problems + _term_problems(self.requires, "requires")
 
 
-class _PredicateBuilder(_NamedBuilder[_PredicateData]):
-    _data = _PredicateData
-
-    def symbols(self, *specs: OfSymbol.Spec) -> _PredicateBuilder:
-        """The symbols, in order, e.g. `.symbols(lambda s: s.name('person').of(Person))`."""
-        symbols = self._fields.setdefault("symbols", {})
-        for spec in specs:
-            symbol = _resolve(spec, _SymbolData, _SymbolBuilder)
-            symbols[symbol.name] = symbol
-        return self
-
-    def requires(self, term: Any) -> _PredicateBuilder:
-        """The constraint, a term over the symbols and parameters: a `Form`, or a dialect's term."""
-        self._fields["requires"] = term
-        return self
-
-
 class OfPredicate:
     """A named constraint over symbols, matched by the caller."""
 
     Data = _PredicateData
-    Builder = _PredicateBuilder
-    Spec = _PredicateData | Callable[[_PredicateBuilder], _PredicateBuilder]
-
-    @staticmethod
-    def resolve(spec: OfPredicate.Spec) -> _PredicateData:
-        return _resolve(spec, _PredicateData, _PredicateBuilder)
 
 
 # --- OfAny ---
@@ -1548,188 +1102,9 @@ def _embedded_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[
     return sorted({problem for member in _members_of(schema) for problem in _embedded_problems(member, inner)})
 
 
-class _AnyBuilder:
-    """Selects a type through `as_<kind>(spec)`. Finalizing yields that kind's data, not a wrapper; selecting several
-    types restricts an `OfAny` to them (`OfAny.Value`), and selecting none leaves it unrestricted."""
-
-    def __init__(self, instance: OfAny.Data | None = None):
-        self._source = instance
-        self._types: list[OfAny.Data] = []
-
-    def as_scalar(self, spec: OfScalar.Spec) -> _AnyBuilder:
-        self._types.append(OfScalar.resolve(spec))
-        return self
-
-    def as_object(self, spec: OfObject.Spec) -> _AnyBuilder:
-        self._types.append(OfObject.resolve(spec))
-        return self
-
-    def as_union(self, spec: OfUnion.Spec) -> _AnyBuilder:
-        self._types.append(OfUnion.resolve(spec))
-        return self
-
-    def as_intersection(self, spec: OfIntersection.Spec) -> _AnyBuilder:
-        self._types.append(OfIntersection.resolve(spec))
-        return self
-
-    def as_container(self, spec: OfContainer.Spec) -> _AnyBuilder:
-        self._types.append(OfContainer.resolve(spec))
-        return self
-
-    def as_apply(self, spec: OfApply.Spec) -> _AnyBuilder:
-        self._types.append(OfApply.resolve(spec))
-        return self
-
-    def _selected(self) -> OfAny.Data:
-        """The type selected: one kind's data, or an `OfAny.Value` of every type selected, of none for any type."""
-        return self._types[0] if len(self._types) == 1 else _AnyValueData(tuple(self._types))
-
-    def create(self) -> OfAny.Data:
-        if self._source is not None:
-            raise ValueError("create() is only valid without a source instance; use clone() or update()")
-        return self._selected()
-
-    def clone(self) -> OfAny.Data:
-        if self._source is None:
-            raise ValueError("clone() is only valid with a source instance")
-        return self._selected() if self._types else copy.copy(self._source)
-
-    def update(self) -> OfAny.Data:
-        if self._source is None:
-            raise ValueError("update() is only valid with a source instance")
-        if not self._types:  # nothing selected: the source as it is, as clone() copies it
-            return self._source
-        selected = self._selected()
-        if type(selected) is not type(self._source):
-            raise TypeError("update() cannot change the kind of the source schema")
-        for f in dataclasses.fields(selected):
-            setattr(self._source, f.name, _copy(getattr(selected, f.name)))
-        return self._source
-
-
 class OfAny:
     """Where a schema of any kind is expected. `OfAny.Data` is any schema kind's data; `OfAny.Value`, the kind of a value
     of any type, or of one of the types it is restricted to."""
 
     Data = _ScalarData | _ObjectData | _UnionData | _IntersectionData | _ContainerData | _ApplyData | _AnyValueData
     Value = _AnyValueData
-    Builder = _AnyBuilder
-    Spec = Data | Callable[[_AnyBuilder], _AnyBuilder]
-
-    @staticmethod
-    def resolve(spec: OfAny.Spec) -> OfAny.Data:
-        if isinstance(spec, _KINDS):
-            return spec
-        return _resolve(spec, _KINDS, _AnyBuilder)
-
-
-# --- Meta-schemas: the schemas of schema data, so that schemas are written, read, validated and compared as objects ---
-
-
-def _named_text(name: str) -> OfProperty.Spec:
-    return lambda p: p.name(name).of(lambda t: t.as_scalar(str))
-
-
-def _listing(name: str, fields: dict[str, Any]) -> OfProperty.Spec:
-    """A property listing elements of a schema: a container of value objects by position, each holding `fields`. A
-    schema's members are a list, in declaration order, which a schema read back keeps."""
-    element = OfObject.Builder().properties(*[lambda p, n=n, t=t: p.name(n).of(t) for n, t in fields.items()]).create()
-    return lambda p: p.name(name).of(lambda t: t.as_container(lambda c: c.index(_int).element(element)))
-
-
-def _Text(t: _AnyBuilder) -> _AnyBuilder:
-    return t.as_scalar(str)
-
-
-def _int(t: _AnyBuilder) -> _AnyBuilder:
-    return t.as_scalar(int)
-
-
-_Named = OfObject.Builder().properties(_named_text("name")).create()
-_AnySchema = OfUnion.Builder().create()  # a type; its branches, which refer back to it, are added below
-_PropertySchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("type").of(_AnySchema),
-                                                _named_text("description")).create()
-_MEMBER = {name: prop.type for name, prop in _PropertySchema.properties.items()}  # a member's entry holds a property's
-_Parameters = _listing("parameters", _MEMBER)
-_ScalarValue = OfUnion.Builder().branches(
-    *[lambda b, n=n, t=t: b.name(n).of(lambda x: x.as_scalar(t)) for t, n in _BASIC_NAMES.items()]).create()
-_FormSchema = OfObject.Builder().properties(_named_text("dialect"), _named_text("kind"),
-                                            _listing("attributes", {"name": _Text, "value": _ScalarValue})).create()
-OfObject.Builder(_FormSchema).properties(_listing("arguments", {"term": _FormSchema})).update()
-_WidthTerms = OfObject.Builder().properties(lambda p: p.name("bits").of(_FormSchema),
-                                            lambda p: p.name("bytes").of(_FormSchema)).create()
-_Refines: OfProperty.Spec = lambda p: p.name("refines").of(_AnySchema)  # noqa: E731
-_ScalarSchema = OfObject.Builder().name("Schemas.Scalar").properties(
-    _named_text("name"), _Refines, _named_text("format"), _named_text("token"), lambda p: p.name("bits").of(_int),
-    lambda p: p.name("bytes").of(_int), lambda p: p.name("terms").of(_WidthTerms), _named_text("description"), _Parameters).create()
-_Clause = OfObject.Builder().properties(_listing("names", {"name": _Text})).create()
-_RelationSchema = OfObject.Builder().name("Schemas.Relation").properties(
-    _named_text("name"), _named_text("description"), _Parameters, _listing("links", _MEMBER),
-    _listing("properties", _MEMBER), _listing("uniques", {"clause": _Clause})).create()
-_RelationRef = OfUnion.Builder().branches(lambda b: b.name("relation").of(_RelationSchema),
-                                          lambda b: b.name("named").of(_Named)).create()
-_AdjacencySchema = OfObject.Builder().properties(
-    _named_text("name"), lambda p: p.name("relation").of(_RelationRef), _named_text("me"),
-    _named_text("description")).create()
-_ObjectSchema = OfObject.Builder().name("Schemas.Object").properties(
-    _named_text("name"), _Refines, _named_text("singleton"), lambda p: p.name("ref").of(lambda t: t.as_scalar(bool)),
-    _named_text("pattern"), _named_text("description"), _Parameters, _listing("properties", _MEMBER),
-    _listing("adjacencies", {name: prop.type for name, prop in _AdjacencySchema.properties.items()})).create()
-_Flat: OfProperty.Spec = lambda p: p.name("flat").of(lambda t: t.as_scalar(bool))  # noqa: E731
-_UnionSchema = OfObject.Builder().name("Schemas.Union").properties(
-    _named_text("name"), _Flat, _named_text("description"), _Parameters, _listing("branches", _MEMBER)).create()
-_IntersectionSchema = OfObject.Builder().name("Schemas.Intersection").properties(
-    _named_text("name"), _Flat, _named_text("description"), _Parameters, _listing("parts", _MEMBER)).create()
-_ContainerSchema = OfObject.Builder().name("Schemas.Container").properties(
-    _named_text("name"), _Refines, lambda p: p.name("index").of(_AnySchema), lambda p: p.name("element").of(_AnySchema),
-    _named_text("layout"), _named_text("description"), _Parameters).create()
-_ArgumentSchema = OfObject.Builder().properties(_named_text("name"), lambda p: p.name("value").of(_ScalarValue),
-                                                lambda p: p.name("term").of(_FormSchema)).create()
-_ApplySchema = OfObject.Builder().name("Schemas.Apply").properties(
-    _named_text("name"), lambda p: p.name("of").of(_AnySchema), _named_text("description"),
-    _Parameters, _listing("arguments", {name: prop.type for name, prop in _ArgumentSchema.properties.items()})).create()
-_EntrySchema = OfObject.Builder().properties(_listing("links", _MEMBER), _listing("properties", _MEMBER)).create()
-_PredicateSchema = OfObject.Builder().name("Schemas.Predicate").properties(
-    _named_text("name"), lambda p: p.name("requires").of(_FormSchema), _named_text("description"),
-    _Parameters, _listing("symbols", _MEMBER)).create()
-_AnyValueSchema = OfObject.Builder().name("Schemas.Any").properties(
-    _named_text("name"), lambda p: p.name("types").of(lambda t: t.as_container(lambda c: c.index(_int).element(_AnySchema))),
-    _named_text("description"), _Parameters).create()
-_KIND_SCHEMAS = (("scalar", _ScalarSchema), ("object", _ObjectSchema), ("union", _UnionSchema),
-                 ("intersection", _IntersectionSchema), ("container", _ContainerSchema), ("apply", _ApplySchema),
-                 ("any", _AnyValueSchema))
-OfUnion.Builder(_AnySchema).branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
-                                     lambda b: b.name("named").of(_Named)).update()
-_Definition = OfUnion.Builder().branches(*[lambda b, n=n, s=s: b.name(n).of(s) for n, s in _KIND_SCHEMAS],
-                                         lambda b: b.name("relation").of(_RelationSchema),
-                                         lambda b: b.name("predicate").of(_PredicateSchema)).create()
-
-OfScalar.Schema = _ScalarSchema  # type: ignore[attr-defined]
-OfProperty.Schema = _PropertySchema  # type: ignore[attr-defined]
-OfAdjacency.Schema = _AdjacencySchema  # type: ignore[attr-defined]
-OfParameter.Schema = _PropertySchema  # type: ignore[attr-defined]
-OfRelation.Schema = _RelationSchema  # type: ignore[attr-defined]
-OfRelation.Ref = _RelationRef  # type: ignore[attr-defined]
-OfEntry.Schema = _EntrySchema  # type: ignore[attr-defined]
-OfSymbol.Schema = _PropertySchema  # type: ignore[attr-defined]
-OfPredicate.Schema = _PredicateSchema  # type: ignore[attr-defined]
-OfObject.Schema = _ObjectSchema  # type: ignore[attr-defined]
-OfUnion.Schema = _UnionSchema  # type: ignore[attr-defined]
-OfIntersection.Schema = _IntersectionSchema  # type: ignore[attr-defined]
-OfContainer.Schema = _ContainerSchema  # type: ignore[attr-defined]
-OfAny.Value.Schema = _AnyValueSchema  # type: ignore[attr-defined]
-OfApply.Schema = _ApplySchema  # type: ignore[attr-defined]
-OfApply.Argument = _ArgumentSchema  # type: ignore[attr-defined]
-Form.Schema = _FormSchema  # type: ignore[attr-defined]
-Form.Value = _ScalarValue  # type: ignore[attr-defined]
-OfAny.Schema = _AnySchema  # type: ignore[attr-defined]
-OfAny.Named = _Named  # type: ignore[attr-defined]
-
-
-class Module:
-    """A named set of schemas, as data. `Module.Schema` is the reference object schema of a module: its `schemas` are a
-    container by name, each element a `Module.Definition` (a schema of any kind, relations and predicates included). See `Modules` for the translation between schemas and modules."""
-
-    Schema = OfObject.Builder().name("Schemas.Module").ref(r"module-(\d+)").properties(
-        lambda p: p.name("schemas").of(lambda t: t.as_container(lambda c: c.index(_Text).element(_Definition)))).create()
-    Definition = _Definition

@@ -1,8 +1,8 @@
 """Proxies: the dynamic implementation of the visitor protocol.
 
 Programs using proxies skip code generation. A store, `OfStore()`, holds schemas and the proxies built with them (see
-`Stores`): `store.register(schema)` makes a schema available, under its name, and `store.<Name>(optional instance)` (or
-`store.builder(name, instance)`) returns a builder for it. Data instances (`Proxies.OfObject.Data`) and builders
+`Stores`): `store.register(schema)` makes a schema available, under its name, and `store.builder(name, instance)`
+returns a builder for it; a `Builders.Store` builds through `store.<Name>(callback)`, its canonical form. Data instances (`Proxies.OfObject.Data`) and builders
 (`Proxies.OfObject.Builder`) both implement `Visitors.OfObject`: data instances read-only, builders writable. Their
 properties and adjacencies are members: `card.name` is a `Visitors.OfProperty`, read compactly through its dunders
 (`str(card.name)`), and `card.phones` a `Visitors.OfAdjacency`, which iterates its entries; an entry's link is the
@@ -55,14 +55,11 @@ SCALARS = (int, float, str, bool, bytes)
 
 class OfStore(Stores.Catalog):
     """A store of proxies: schemas by name, and the instance of each singleton schema registered, created with it.
-    `store.<Name>(optional instance)` is `store.builder(name, instance)`; use `builder` for names that are not
-    identifiers, or that a method's name shadows."""
+    `store.builder(name, instance)` gives a builder of an object of a registered schema."""
 
     def __init__(self) -> None:
         super().__init__()
         self._directories: dict[str, _Directory] = {}
-        for schema in Stores.META:
-            self.register(schema)
 
     def register(self, schema: ObjectSchema | RelationSchema | Schemas.OfPredicate.Data) -> None:
         """Registers a schema under its name; a singleton schema's instance is created with it."""
@@ -129,15 +126,6 @@ class OfStore(Stores.Catalog):
     def member(self, instance: Any, name: str) -> Any:
         """The value an instance or value object holds in its property `name`."""
         return _read(instance, name)
-
-    def __getattr__(self, name: str) -> Callable[..., Any]:
-        if name.startswith("_"):
-            raise AttributeError(name)
-        registered = self._schemas.get(name)
-        if isinstance(registered, VALUE_KINDS) and not getattr(registered, "ref", False):
-            return lambda instance=None: _standalone(registered, instance, self)
-        schema = self.schema(name)
-        return lambda instance=None: _ObjectBuilder(self, schema, name, instance)
 
     def _filled(self, relation: RelationSchema, link: str) -> str:
         """The name of the one object schema that declares an adjacency to `relation` via `link`."""

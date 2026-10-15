@@ -28,6 +28,7 @@ from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar
 
+from mbse.Schemas.Framework import Proxies
 from mbse.Schemas.Framework import Schemas as S
 from mbse.Schemas.Framework.Errors import ReadOnlyError
 from mbse.Schemas.Framework.Proxies import _Dunders, _Empty, _Properties, _Unassignable  # shared, once moved
@@ -48,6 +49,7 @@ __all__ = [
     "OfScalar",
     "OfSymbol",
     "OfUnion",
+    "Store",
     "identity_of",
 ]
 
@@ -56,7 +58,7 @@ D = TypeVar("D")
 
 def _is_function(spec: Any) -> bool:
     """Whether a `Specs.Callback` is its callable form: not a class (a value, `int`), nor a visitor (a value too)."""
-    return callable(spec) and not isinstance(spec, type) and not isinstance(spec, _VALUES)
+    return callable(spec) and not isinstance(spec, (type, *_VALUES, *Proxies._VALUES))
 
 
 def _visit(cb: Any, visitor: Any) -> None:
@@ -568,7 +570,8 @@ class _Them(_Unassignable):
             if members.build is None:
                 raise TypeError(f"link {members.link!r} links an object that exists: link it, not its members")
             builder_class, referent = members.build(), self._entry._referent
-            self._object = builder_class(referent) if referent is not None else builder_class()
+            store = self._entry._adjacency._builder._store
+            self._object = builder_class(referent, True, store)
         return self._object
 
     def __getattr__(self, name: str) -> Any:
@@ -656,7 +659,7 @@ class _Link(_Unassignable):
         if _is_function(spec):
             if members.build is None:
                 raise TypeError(f"link {members.link!r} links an object that exists: give it, not a callback")
-            result, written = _build(members.build(), entry._referent, spec)
+            result, written = _build(members.build(), entry._referent, spec, entry._adjacency._builder._store)
             if result is not None:
                 entry._relink(result, written)
             return entry
@@ -670,10 +673,10 @@ class _Link(_Unassignable):
         return f"<link {self._members().link!r}>"
 
 
-def _build(builder_class: type, current: Any, cb: Any) -> tuple[Any, list[Any]]:
+def _build(builder_class: type, current: Any, cb: Any, store: Store | None = None) -> tuple[Any, list[Any]]:
     """Builds a link's referent through a builder of `builder_class` handed to `cb`: a new referent, or the one linked,
     updated where `cb` writes; with what `cb` wrote. None where it edits the one linked and writes nothing."""
-    builder = builder_class(current) if current is not None else builder_class()
+    builder = builder_class(current, True, store)
     _visit(cb, builder)
     if current is not None and not builder._written:
         return None, []
@@ -697,10 +700,10 @@ class _Builder(_Unassignable, Generic[D]):
         cls._members_ = {name: member for base in reversed(cls.__mro__) for name, member in vars(base).items()
                          if isinstance(member, (_Prop, _Members))}
 
-    def __init__(self, original: D | None = None, writable: bool = True):
+    def __init__(self, original: D | None = None, writable: bool = True, store: Store | None = None):
         if original is not None and not isinstance(original, self._data):
             raise TypeError(f"a builder of {self._noun} is given {original!r}")
-        self._original, self._writable = original, writable
+        self._original, self._writable, self._store = original, writable, store
         self._written: list[Any] = []  # the members written, in order
         self._identity: str | None = None  # the identity written (`as_identity`)
         self._working = self._make()
@@ -727,21 +730,27 @@ class _Builder(_Unassignable, Generic[D]):
         """Returns new data. Only valid without data given."""
         if self._original is not None:
             raise ValueError("create() is only valid without a source instance; use clone() or update()")
-        return _identify(self._finalize(self._working), self._identity or self._allocate())
+        return self._identified(self._finalize(self._working), self._identity)
 
     def clone(self) -> D:
         """Returns new data, leaving the data given as it is. Only valid with data given."""
         if self._original is None:
             raise ValueError("clone() is only valid with a source instance")
-        return _identify(self._finalize(self._working), self._identity or self._allocate())
+        return self._identified(self._finalize(self._working), self._identity)
 
     def update(self) -> D:
         """Writes the builder's state into the data given, and returns it. Only valid with data given."""
         if self._original is None:
             raise ValueError("update() is only valid with a source instance")
         self._update(self._original, self._working)
-        return _identify(self._finalize(self._original),
-                         self._identity or identity_of(self._original) or self._allocate())
+        return self._identified(self._finalize(self._original), self._identity or identity_of(self._original))
+
+    def _identified(self, data: D, identity: str | None) -> D:
+        """`data`, given `identity`, else one allocated: by its store, which refuses one another of its schema objects
+        has, where it is built in one."""
+        if self._store is not None:
+            return self._store._hold(data, identity or self._allocate())
+        return _identify(data, identity or self._allocate())
 
     def _allocate(self) -> str:
         """The identity a schema object is given on creation, where none is written: a UUID."""
@@ -1242,6 +1251,95 @@ for _schema, _by_name_, _anonymous in _NAMED.values():
         .adjacencies(_anonymous)
         .update()
     )
+
+
+# --- A store: where schema objects and data are built ---
+
+
+_META_BUILDERS: dict[str, Callable[[], type]] = {
+    "Scalar": lambda: ScalarBuilder, "Object": lambda: ObjectBuilder, "Union": lambda: UnionBuilder,
+    "Intersection": lambda: IntersectionBuilder, "Container": lambda: ContainerBuilder, "Apply": lambda: ApplyBuilder,
+    "Any": lambda: AnyValueBuilder, "Relation": lambda: RelationBuilder, "Predicate": lambda: PredicateBuilder,
+    "Property": lambda: PropertyBuilder, "Parameter": lambda: ParameterBuilder, "Symbol": lambda: SymbolBuilder,
+    "Member": lambda: MemberBuilder, "Adjacency": lambda: AdjacencyBuilder, "Form": lambda: FormBuilder,
+}
+"""The schema objects a store builds as `store.Schemas.<Name>(...)`, each through its builder."""
+
+
+class Store(Proxies.OfStore):
+    """A store of schema objects and data. No reference object is built outside a store, a schema object included.
+
+    The canonical form of building is `store.moduleName.[...moduleName].schemaName(...)`, each part of a schema's name
+    an attribute: `store.Schemas.Object(...)` builds an object schema, `store.crm.Contact(...)` a contact. Called with
+    a `Specs.Callback[Visitors.OfX]`, it creates an object; with an object and a callback, it updates the object; with
+    an object alone, it clones it. It returns the object. A schema object built here, and each member built with it, is
+    given its identity by the store, which refuses one it holds another with; a named schema is registered under its
+    name, so that the store builds its objects next."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._objects: dict[str, Any] = {}  # the schema objects, by identity
+
+    def __getattr__(self, name: str) -> Any:
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return _Path(self, name)
+
+    def _hold(self, data: Any, identity: str) -> Any:
+        """Gives a schema object built here `identity`, refused where another holds it; registers a named schema."""
+        held = self._objects.get(identity)
+        if held is not None and held is not data:
+            raise ValueError(f"a schema object with the identity {identity!r} is already in this store")
+        previous = identity_of(data)
+        if previous is not None and self._objects.get(previous) is data:
+            del self._objects[previous]
+        self._objects[identity] = _identify(data, identity)
+        if isinstance(data, (*S._KINDS, S.OfRelation.Data, S.OfPredicate.Data)):
+            for name in [name for name, schema in self._schemas.items() if schema is data and name != data.name]:
+                del self._schemas[name]  # renamed
+            if data.name and self._schemas.get(data.name) is not data:
+                self.register(data)
+        return data
+
+    def _build(self, name: str, args: tuple[Any, ...]) -> Any:
+        if len(args) == 1 and _is_function(args[0]):
+            existing, cb = None, args[0]
+        elif len(args) == 1:
+            existing, cb = args[0], None
+        elif len(args) == 2:
+            existing, cb = args
+        else:
+            raise TypeError(f"{name}(...) takes a callback, an object and a callback, or an object")
+        kind = _META_BUILDERS.get(name[len("Schemas."):]) if name.startswith("Schemas.") else None
+        if kind is not None:
+            builder: Any = kind()(existing, True, self)
+        elif name in self._schemas:
+            builder = self.builder(name, existing)
+        else:
+            raise AttributeError(f"no schema registered as {name!r}")
+        if cb is not None:
+            _visit(cb, builder)
+        if existing is None:
+            return builder.create()
+        return builder.update() if cb is not None else builder.clone()
+
+
+class _Path(_Unassignable):
+    """`store.moduleName.[...moduleName].schemaName`: a schema's name, one part per attribute; called, it builds."""
+
+    def __init__(self, store: Store, name: str):
+        self._store, self._name = store, name
+
+    def __getattr__(self, part: str) -> _Path:
+        if part.startswith("_"):
+            raise AttributeError(part)
+        return _Path(self._store, f"{self._name}.{part}")
+
+    def __call__(self, *args: Any) -> Any:
+        return self._store._build(self._name, args)
+
+    def __repr__(self) -> str:
+        return f"<{self._name}>"
 
 
 # --- The namespaces, as `Schemas` gives them ---

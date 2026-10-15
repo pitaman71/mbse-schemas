@@ -846,6 +846,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     schema by its string name. Creating objects for symbols is making me nuts." An adjacency's `me` names the link
     it fills, and a relation's `uniques` name its links and properties, as in the user's example (`.me("knower")`,
     `.uniques("since")`).
+  - building in a store: "no reference object can ever be built outside of a store!", schema objects included; a
+    module is an object in a store, "alongside schemas and data". "This is the new canonical form for store-centric
+    building: `store.moduleName.[...moduleName].schemaName(cb: Specs.Callback[Visitors.OfX])`".
   - shortcuts are refused: a member's write has no side effect besides it, and none of the meta-schemas' references
     are left as names or values.
   - proposed in building, for the user's review: docs/proposals/schema-builders/ (the meta-schemas as reference objects

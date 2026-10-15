@@ -73,6 +73,34 @@ Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over `Meta.X`, in V
 - **Derivation happens at finalization.** A refinement takes its token, `ref`, index and element in `_finalize`; no
   member write has a side effect.
 
+## Building in a store
+
+No reference object is built outside a store, and that includes schema objects. The canonical form is
+`store.moduleName.[...moduleName].schemaName(cb: Specs.Callback[Visitors.OfX])`. It returns the object.
+
+```python
+store = Store()
+Person = store.Schemas.Object(lambda o: (
+    o
+    .name("crm.Person")
+    .ref(True)
+    .properties([
+        lambda t: t.name("given_name").type([Text]),
+        lambda t: t.name("age").type([Int]),
+    ])
+))
+ada = store.crm.Person(lambda c: c.given_name("Ada").age(36))  # create
+store.crm.Person(ada, lambda c: c.age(37))                     # update: the object first
+twin = store.crm.Person(ada)                                   # clone
+```
+
+- **Identities.** The store gives every schema object built in it an identity, including members built with it. A
+  named schema's identity is its name; anything else gets a UUID. The store refuses an identity that another of its
+  schema objects already has.
+- **Registration.** A named schema is registered under its name, so `store.crm.Person` resolves right after it is
+  created. A rename re-registers it under the new name.
+- **Data.** For data, the call goes to the proxy builder.
+
 ## Old clause → new
 
 With VISITOR_PATTERN.md's shorthands:
@@ -109,16 +137,21 @@ With VISITOR_PATTERN.md's shorthands:
 
 Decided:
 - an int width reads as `Form("literal", {"value": 8})` ("leave it that way. forms may go away but not yet");
-- "all schema objects are reference objects and all reference objects get an ID on creation".
+- "all schema objects are reference objects and all reference objects get an ID on creation";
+- "`type` *never* needs to be provided on the symbol. that relationship is inferred from adjacencies";
+- the exception for names within a schema: `me` and `uniques`;
+- the canonical form of building in a store: a call with a callback creates, an object and a callback update, an
+  object alone clones.
 
-Still open:
+## Work items
 
-1. **Wire format.** Modules and Plain still read and write schemas through bespoke code, in the old container shape.
-   Under P-018 they should read and write through these meta-schemas like any other model, as linked reference
-   objects. That changes the module format and the conformance corpora.
-2. **Members are owned.** A member belongs to one owner, as its `Has*` relation's `unique` clause says. Sharing a
-   member between two schemas, or renaming one through an entry, changes it for its owner. A clone of a schema still
-   shares its members with the original, as the data always has.
-3. **Unique identities.** A store refuses an identity that is already taken. Schemas aren't held in stores yet, so
-   nothing here refuses one. A named schema cloned without a new identity takes its name, the same identity as the
-   original's.
+1. **Wire format.** Modules and Plain read and write schemas through these meta-schemas like any other model, as
+   linked reference objects, and the conformance corpora are regenerated.
+2. **Modules in the store.** A module is an object in the store, alongside schemas and data. The module named by a
+   schema's prefix (`crm`) defines it through `Defines`.
+3. **Cloning owned members.** A member has one owner, so cloning a schema clones its members, with new identities,
+   instead of sharing them.
+4. **Landing.** The meta-schemas, builders and store move into `Schemas.py` and `Proxies.py`, with the shorthands in
+   proxies too, mirrored in TypeScript. The call sites migrate to the canonical form.
+5. **The meta-schemas in the store.** `Meta` is built at import, outside any store. Each store should hold the
+   meta-schemas, as stores register `Schemas.Module` today.

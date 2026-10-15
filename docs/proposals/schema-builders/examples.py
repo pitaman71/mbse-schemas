@@ -31,6 +31,63 @@ assert B.Meta.HasProperty.uniques == (frozenset({"owner"}), frozenset({"property
 assert B.Meta.Typing.uniques == (frozenset({"schema"}),)
 assert all(link.type is None for link in B.Meta.Typing.entry.links.values())
 
+# --- The canonical form: built in a store, `store.moduleName.[...moduleName].schemaName(...)` ---
+
+store = B.Store()
+Person = store.Schemas.Object(lambda o: (
+    o
+    .name("crm.Person")
+    .ref(True)
+    .properties([
+        lambda t: t.name("given_name").type([Text]),
+        lambda t: t.name("age").type([Int]),
+    ])
+))
+Acquainted = store.Schemas.Relation(lambda r: (
+    r
+    .name("crm.Acquainted")
+    .links([
+        lambda t: t.name("knower"),
+        lambda t: t.name("known"),
+    ])
+    .properties([lambda t: t.name("since").type([Int])])
+    .uniques("since")
+))
+store.Schemas.Object(Person, lambda o: o.adjacencies([
+    lambda t: t.name("acquaintances").relation([Acquainted]).me("knower"),
+    lambda t: t.relation([Acquainted]).me("known"),
+]))
+assert store.registered("crm.Person") is Person and store.registered("crm.Acquainted") is Acquainted
+assert Person.validate() == [] and Acquainted.validate() == []
+assert B.identity_of(Person) == "crm.Person" and B.identity_of(Person.properties["age"]) in store._objects
+
+bob = store.crm.Person(lambda c: c.given_name("Bob").age(41))  # create
+ada = store.crm.Person(lambda c: (
+    c
+    .given_name("Ada")
+    .age(36)
+    .acquaintances(lambda adv: adv.insert(lambda env: env.known(bob).since(2020)))
+))
+assert str(ada.given_name) == "Ada" and [str(e.known.given_name) for e in ada.acquaintances] == ["Bob"]
+store.crm.Person(ada, lambda c: c.age(37))  # update: the object first
+assert int(ada.age) == 37
+twin = store.crm.Person(ada)  # clone
+assert twin is not ada and str(twin.given_name) == "Ada" and twin.as_identity() != ada.as_identity()
+
+try:
+    store.Schemas.Object(lambda o: o.name("crm.Person"))
+    raise AssertionError("the identity crm.Person is taken")
+except ValueError as error:
+    assert "already in this store" in str(error)
+store.Schemas.Object(Person, lambda o: o.name("crm.Human"))  # renamed: registered under its new name
+assert store.registered("crm.Human") is Person and "crm.Person" not in store.names()
+assert store.crm.Human(lambda c: c.given_name("Cy")).as_schema() is Person
+try:
+    store.crm.Nobody(lambda c: c)
+    raise AssertionError("no such schema")
+except AttributeError as error:
+    assert "no schema registered as 'crm.Nobody'" in str(error)
+
 # --- A contact who knows other contacts, with the shorthands ---
 
 Contact = (

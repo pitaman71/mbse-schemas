@@ -7,9 +7,8 @@ description: Model structured data and interfaces once, as a neutral, language-i
 
 A schema here is an ordinary value, not a class. It is a semantically normalized formalization of an interface: every
 collection is a relation, nothing is implicit, and one schema means the same thing in every language. Python
-(`mbse.Schemas.Framework`) and TypeScript (`@mbse/schemas/Framework`) implement the same model, and they write
-byte-identical JSON. Python builds schemas in a store, as data is built (`Builders.Store`, below); TypeScript still
-builds them with the older schema builders its reference shows, until it migrates.
+(`mbse.Schemas.Framework`) and TypeScript (`@mbse/schemas/Framework`) implement the same API, and they write
+byte-identical JSON. Both build schemas in a store, as data is built (`Builders.Store`, below).
 
 ## When to use it
 
@@ -54,7 +53,8 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
    under its name, and data, `store.crm.Contact(lambda c: ...)`, an attribute per part of the name; it keeps as data
    what its singletons reach. A schema's members are its entries, each named by its entry
    (`lambda t: t.name("given_name").type([Text])`), and a reference to another schema object is a list of what it
-   links (`.type([Text])`). Serializers and validators take the store
+   links (`.type([Text])`). In TypeScript the store, `new Builders.Store()`, is declared `any`, and callbacks given to
+   it are annotated: `store.Schemas.Object((o: any) => ...)`. Serializers and validators take the store
    (`JSON.ToJSON(store)`, `Validators.Validate(store)`). Stores are isolated; objects move between them as snapshots.
 
 ## Load the reference for your task
@@ -63,7 +63,7 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
 |---|---|
 | Decide how to model something: MBSE, UML, ORM or JSON Schema concepts mapped to schema elements | [references/modeling.md](references/modeling.md) |
 | Write Python: a complete example, API cheat sheet, traps | [references/python.md](references/python.md) |
-| Write TypeScript: the same example, the differences from Python | [references/typescript.md](references/typescript.md) |
+| Write TypeScript: the same example, the differences from Python, cheat sheet, traps | [references/typescript.md](references/typescript.md) |
 | Save, load or exchange data: the snapshot format and strict decoding | [references/serialization.md](references/serialization.md) |
 | Constraints (expressions and evaluators) | the separate [mbse-expressions](https://github.com/pitaman71/mbse-expressions) package |
 

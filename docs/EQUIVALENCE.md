@@ -147,7 +147,7 @@ Two conventions are specific to the TypeScript notebooks, not to the binding:
 
 - The framework's `JSON` module is imported as `Json`. In a notebook, a top-level `JSON` import shadows the global
   `JSON`, which Deno's kernel itself uses.
-- Examples build through a store (`store.Contact()`) and annotate DSL callbacks `(x: any)`, per the table above.
+- Examples build through a store (`store.Contact((c: any) => ...)`, the store declared `any`) and annotate DSL callbacks `(x: any)`, per the table above.
 
 When a case study changes, change both, and rerun both notebooks to refresh their outputs.
 

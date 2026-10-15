@@ -880,6 +880,23 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - [Serialization](SERIALIZATION.md), the user's (2026-10-15), supersedes any conflicting policy here: "the contents of
     this new doc should supersede any conflicting policy", including the two entries below and the section
     Serialization; it is kept apart from this document for now ("Let's not merge it into FRAMEWORK.md just yet").
+  - the initial snapshot ([Serialization](SERIALIZATION.md), step 2), as the user decided (2026-10-15), on defaults
+    the user was offered:
+    1. "approved": a `Schemas.Module` is a reference object whose identity is its dotted path (`crm.sales`); a module
+       defines the modules within it through `Defines`, as it defines schemas (`Schemas.Module` refines
+       `Schemas.Schema`), with no relation of its own for nesting;
+    2. "approved": a `Defines` entry's name is the last part of the path (`Person` in `crm`); the schema keeps its name;
+    3. to 5., on schemas without a prefix, modules made automatically, and the identity of an unnamed schema object no
+       other owns: "create a modular organization such that al schemas are contained in some module". As built: a
+       schema's dotted name places it in the modules its path names, nested, made as schemas are; a schema without a
+       prefix is in the store's root module; an unnamed schema object (an inline type, a term) is in the module of
+       the object that first links it, its identity derived from that link (`crm.Person.tags#type`);
+    6. "agreed": the framework's schemas (the meta-schemas, the basic scalars, the mutation schemas), which every store
+       holds, are never written, only referred to; any other schema the store does not hold is a fatal error;
+    7. "agreed": a log is read back by applying each mutation through the store's builders, `Exists` creating only a new
+       identity, payloads read by their target's schema;
+    8. "agreed": the old module writer and reader stay until this step replaces them; the corpora switch to logs at its
+       end, compared across the languages.
   - serialization policy, revised (2026-10-15), as the user decided, superseding the snapshot form in Serialization
     (`{"root", "objects"}`, every reference object keyed and referred to by `$ref`) and settling how objects the
     builders rebuild on read are written:

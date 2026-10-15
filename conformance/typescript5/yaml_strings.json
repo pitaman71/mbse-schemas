@@ -1,1036 +1,4233 @@
-{
-  "root": "Notebook/notebook-1",
-  "objects": {
-    "Notebook/notebook-1": {
-      "title": "tricky",
-      "notes": [
+[
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Module/.",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Object/Notebook",
+        "properties": {
+          "name": "Notebook",
+          "ref": true,
+          "pattern": "notebook-(\\d+)"
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Adjacency/Notebook.notes",
+        "properties": {
+          "me": "notebook"
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Property/Notebook.title",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
         {
-          "note": {
-            "$ref": "Note/note-1",
-            "$schema": "Note"
-          },
-          "page": 0
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Notebook.title"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Scalar/Schemas.OfStr"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasProperty"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Notebook"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "property",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Notebook.title"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "title"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasAdjacency"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Notebook"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "adjacency",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Adjacency/Notebook.notes"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "notes"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Defines"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "module",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Module/."
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Notebook"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "Notebook"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Object/Note",
+        "properties": {
+          "name": "Note",
+          "ref": true,
+          "pattern": "note-(\\d+)"
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Adjacency/Note.notebooks",
+        "properties": {
+          "me": "note"
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Property/Note.text",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Note.text"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Scalar/Schemas.OfStr"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasProperty"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Note"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "property",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Note.text"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "text"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasAdjacency"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Note"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "adjacency",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Adjacency/Note.notebooks"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "notebooks"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Defines"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "module",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Module/."
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Note"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "Note"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Relation/Pages",
+        "properties": {
+          "name": "Pages"
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Symbol/Pages.notebook",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Symbol/Pages.note",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Property/Pages.page",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Pages.page"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Scalar/Schemas.OfInt"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasProperty"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Relation/Pages"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "property",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Pages.page"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "page"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasLink"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Relation/Pages"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "link",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Symbol/Pages.notebook"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "notebook"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         },
         {
-          "note": {
-            "$ref": "Note/note-2",
-            "$schema": "Note"
-          },
-          "page": 1
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Relation/Pages"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "link",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Symbol/Pages.note"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "note"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Relating"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "adjacency",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Adjacency/Note.notebooks"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "relation",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Relation/Pages"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         },
         {
-          "note": {
-            "$ref": "Note/note-3",
-            "$schema": "Note"
-          },
-          "page": 2
-        },
-        {
-          "note": {
-            "$ref": "Note/note-4",
-            "$schema": "Note"
-          },
-          "page": 3
-        },
-        {
-          "note": {
-            "$ref": "Note/note-5",
-            "$schema": "Note"
-          },
-          "page": 4
-        },
-        {
-          "note": {
-            "$ref": "Note/note-6",
-            "$schema": "Note"
-          },
-          "page": 5
-        },
-        {
-          "note": {
-            "$ref": "Note/note-7",
-            "$schema": "Note"
-          },
-          "page": 6
-        },
-        {
-          "note": {
-            "$ref": "Note/note-8",
-            "$schema": "Note"
-          },
-          "page": 7
-        },
-        {
-          "note": {
-            "$ref": "Note/note-9",
-            "$schema": "Note"
-          },
-          "page": 8
-        },
-        {
-          "note": {
-            "$ref": "Note/note-10",
-            "$schema": "Note"
-          },
-          "page": 9
-        },
-        {
-          "note": {
-            "$ref": "Note/note-11",
-            "$schema": "Note"
-          },
-          "page": 10
-        },
-        {
-          "note": {
-            "$ref": "Note/note-12",
-            "$schema": "Note"
-          },
-          "page": 11
-        },
-        {
-          "note": {
-            "$ref": "Note/note-13",
-            "$schema": "Note"
-          },
-          "page": 12
-        },
-        {
-          "note": {
-            "$ref": "Note/note-14",
-            "$schema": "Note"
-          },
-          "page": 13
-        },
-        {
-          "note": {
-            "$ref": "Note/note-15",
-            "$schema": "Note"
-          },
-          "page": 14
-        },
-        {
-          "note": {
-            "$ref": "Note/note-16",
-            "$schema": "Note"
-          },
-          "page": 15
-        },
-        {
-          "note": {
-            "$ref": "Note/note-17",
-            "$schema": "Note"
-          },
-          "page": 16
-        },
-        {
-          "note": {
-            "$ref": "Note/note-18",
-            "$schema": "Note"
-          },
-          "page": 17
-        },
-        {
-          "note": {
-            "$ref": "Note/note-19",
-            "$schema": "Note"
-          },
-          "page": 18
-        },
-        {
-          "note": {
-            "$ref": "Note/note-20",
-            "$schema": "Note"
-          },
-          "page": 19
-        },
-        {
-          "note": {
-            "$ref": "Note/note-21",
-            "$schema": "Note"
-          },
-          "page": 20
-        },
-        {
-          "note": {
-            "$ref": "Note/note-22",
-            "$schema": "Note"
-          },
-          "page": 21
-        },
-        {
-          "note": {
-            "$ref": "Note/note-23",
-            "$schema": "Note"
-          },
-          "page": 22
-        },
-        {
-          "note": {
-            "$ref": "Note/note-24",
-            "$schema": "Note"
-          },
-          "page": 23
-        },
-        {
-          "note": {
-            "$ref": "Note/note-25",
-            "$schema": "Note"
-          },
-          "page": 24
-        },
-        {
-          "note": {
-            "$ref": "Note/note-26",
-            "$schema": "Note"
-          },
-          "page": 25
-        },
-        {
-          "note": {
-            "$ref": "Note/note-27",
-            "$schema": "Note"
-          },
-          "page": 26
-        },
-        {
-          "note": {
-            "$ref": "Note/note-28",
-            "$schema": "Note"
-          },
-          "page": 27
-        },
-        {
-          "note": {
-            "$ref": "Note/note-29",
-            "$schema": "Note"
-          },
-          "page": 28
-        },
-        {
-          "note": {
-            "$ref": "Note/note-30",
-            "$schema": "Note"
-          },
-          "page": 29
-        },
-        {
-          "note": {
-            "$ref": "Note/note-31",
-            "$schema": "Note"
-          },
-          "page": 30
-        },
-        {
-          "note": {
-            "$ref": "Note/note-32",
-            "$schema": "Note"
-          },
-          "page": 31
-        },
-        {
-          "note": {
-            "$ref": "Note/note-33",
-            "$schema": "Note"
-          },
-          "page": 32
-        },
-        {
-          "note": {
-            "$ref": "Note/note-34",
-            "$schema": "Note"
-          },
-          "page": 33
-        },
-        {
-          "note": {
-            "$ref": "Note/note-35",
-            "$schema": "Note"
-          },
-          "page": 34
-        },
-        {
-          "note": {
-            "$ref": "Note/note-36",
-            "$schema": "Note"
-          },
-          "page": 35
-        },
-        {
-          "note": {
-            "$ref": "Note/note-37",
-            "$schema": "Note"
-          },
-          "page": 36
-        },
-        {
-          "note": {
-            "$ref": "Note/note-38",
-            "$schema": "Note"
-          },
-          "page": 37
-        },
-        {
-          "note": {
-            "$ref": "Note/note-39",
-            "$schema": "Note"
-          },
-          "page": 38
-        },
-        {
-          "note": {
-            "$ref": "Note/note-40",
-            "$schema": "Note"
-          },
-          "page": 39
-        },
-        {
-          "note": {
-            "$ref": "Note/note-41",
-            "$schema": "Note"
-          },
-          "page": 40
-        },
-        {
-          "note": {
-            "$ref": "Note/note-42",
-            "$schema": "Note"
-          },
-          "page": 41
-        },
-        {
-          "note": {
-            "$ref": "Note/note-43",
-            "$schema": "Note"
-          },
-          "page": 42
-        },
-        {
-          "note": {
-            "$ref": "Note/note-44",
-            "$schema": "Note"
-          },
-          "page": 43
-        },
-        {
-          "note": {
-            "$ref": "Note/note-45",
-            "$schema": "Note"
-          },
-          "page": 44
-        },
-        {
-          "note": {
-            "$ref": "Note/note-46",
-            "$schema": "Note"
-          },
-          "page": 45
-        },
-        {
-          "note": {
-            "$ref": "Note/note-47",
-            "$schema": "Note"
-          },
-          "page": 46
-        },
-        {
-          "note": {
-            "$ref": "Note/note-48",
-            "$schema": "Note"
-          },
-          "page": 47
-        },
-        {
-          "note": {
-            "$ref": "Note/note-49",
-            "$schema": "Note"
-          },
-          "page": 48
-        },
-        {
-          "note": {
-            "$ref": "Note/note-50",
-            "$schema": "Note"
-          },
-          "page": 49
-        },
-        {
-          "note": {
-            "$ref": "Note/note-51",
-            "$schema": "Note"
-          },
-          "page": 50
-        },
-        {
-          "note": {
-            "$ref": "Note/note-52",
-            "$schema": "Note"
-          },
-          "page": 51
-        },
-        {
-          "note": {
-            "$ref": "Note/note-53",
-            "$schema": "Note"
-          },
-          "page": 52
-        },
-        {
-          "note": {
-            "$ref": "Note/note-54",
-            "$schema": "Note"
-          },
-          "page": 53
+          "mutations": [
+            {
+              "as_link": {
+                "name": "adjacency",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Adjacency/Notebook.notes"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "relation",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Relation/Pages"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-1": {
-      "text": "yes",
-      "notebooks": [
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Defines"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 0
+          "mutations": [
+            {
+              "as_link": {
+                "name": "module",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Module/."
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Relation/Pages"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "Pages"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-2": {
-      "text": "No",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Notebook/notebook-1",
+        "properties": {
+          "title": "tricky"
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-1",
+        "properties": {
+          "text": "yes"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 1
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 0
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-3": {
-      "text": "on",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-2",
+        "properties": {
+          "text": "No"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 2
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-2"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 1
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-4": {
-      "text": "OFF",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-3",
+        "properties": {
+          "text": "on"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 3
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-3"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 2
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-5": {
-      "text": "y",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-4",
+        "properties": {
+          "text": "OFF"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 4
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-4"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 3
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-6": {
-      "text": "true",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-5",
+        "properties": {
+          "text": "y"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 5
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-5"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 4
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-7": {
-      "text": "null",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-6",
+        "properties": {
+          "text": "true"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 6
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-6"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 5
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-8": {
-      "text": "~",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-7",
+        "properties": {
+          "text": "null"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 7
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-7"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 6
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-9": {
-      "text": "",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-8",
+        "properties": {
+          "text": "~"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 8
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-8"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 7
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-10": {
-      "text": "010",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-9",
+        "properties": {
+          "text": ""
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 9
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-9"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 8
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-11": {
-      "text": "0o17",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-10",
+        "properties": {
+          "text": "010"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 10
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-10"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 9
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-12": {
-      "text": "0x1F",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-11",
+        "properties": {
+          "text": "0o17"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 11
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-11"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 10
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-13": {
-      "text": "1e3",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-12",
+        "properties": {
+          "text": "0x1F"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 12
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-12"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 11
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-14": {
-      "text": "1_000",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-13",
+        "properties": {
+          "text": "1e3"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 13
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-13"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 12
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-15": {
-      "text": "1:30",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-14",
+        "properties": {
+          "text": "1_000"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 14
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-14"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 13
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-16": {
-      "text": "2026-09-01",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-15",
+        "properties": {
+          "text": "1:30"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 15
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-15"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 14
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-17": {
-      "text": ".inf",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-16",
+        "properties": {
+          "text": "2026-09-01"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 16
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-16"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 15
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-18": {
-      "text": ".nan",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-17",
+        "properties": {
+          "text": ".inf"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 17
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-17"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 16
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-19": {
-      "text": "NaN",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-18",
+        "properties": {
+          "text": ".nan"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 18
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-18"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 17
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-20": {
-      "text": "Infinity",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-19",
+        "properties": {
+          "text": "NaN"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 19
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-19"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 18
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-21": {
-      "text": "-0.0",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-20",
+        "properties": {
+          "text": "Infinity"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 20
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-20"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 19
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-22": {
-      "text": "+1",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-21",
+        "properties": {
+          "text": "-0.0"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 21
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-21"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 20
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-23": {
-      "text": " lead",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-22",
+        "properties": {
+          "text": "+1"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 22
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-22"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 21
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-24": {
-      "text": "trail ",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-23",
+        "properties": {
+          "text": " lead"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 23
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-23"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 22
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-25": {
-      "text": "a: b",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-24",
+        "properties": {
+          "text": "trail "
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 24
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-24"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 23
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-26": {
-      "text": "- dash",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-25",
+        "properties": {
+          "text": "a: b"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 25
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-25"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 24
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-27": {
-      "text": "#hash",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-26",
+        "properties": {
+          "text": "- dash"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 26
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-26"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 25
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-28": {
-      "text": "x #y",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-27",
+        "properties": {
+          "text": "#hash"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 27
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-27"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 26
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-29": {
-      "text": "\"dq\"",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-28",
+        "properties": {
+          "text": "x #y"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 28
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-28"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 27
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-30": {
-      "text": "'sq'",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-29",
+        "properties": {
+          "text": "\"dq\""
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 29
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-29"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 28
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-31": {
-      "text": "@at",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-30",
+        "properties": {
+          "text": "'sq'"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 30
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-30"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 29
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-32": {
-      "text": "`tick",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-31",
+        "properties": {
+          "text": "@at"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 31
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-31"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 30
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-33": {
-      "text": "%pct",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-32",
+        "properties": {
+          "text": "`tick"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 32
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-32"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 31
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-34": {
-      "text": "!bang",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-33",
+        "properties": {
+          "text": "%pct"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 33
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-33"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 32
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-35": {
-      "text": "&amp",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-34",
+        "properties": {
+          "text": "!bang"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 34
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-34"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 33
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-36": {
-      "text": "*star",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-35",
+        "properties": {
+          "text": "&amp"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 35
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-35"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 34
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-37": {
-      "text": "|",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-36",
+        "properties": {
+          "text": "*star"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 36
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-36"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 35
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-38": {
-      "text": ">",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-37",
+        "properties": {
+          "text": "|"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 37
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-37"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 36
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-39": {
-      "text": "{}",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-38",
+        "properties": {
+          "text": ">"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 38
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-38"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 37
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-40": {
-      "text": "[]",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-39",
+        "properties": {
+          "text": "{}"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 39
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-39"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 38
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-41": {
-      "text": ",",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-40",
+        "properties": {
+          "text": "[]"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 40
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-40"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 39
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-42": {
-      "text": "?",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-41",
+        "properties": {
+          "text": ","
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 41
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-41"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 40
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-43": {
-      "text": "<<",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-42",
+        "properties": {
+          "text": "?"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 42
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-42"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 41
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-44": {
-      "text": "---",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-43",
+        "properties": {
+          "text": "<<"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 43
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-43"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 42
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-45": {
-      "text": "...",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-44",
+        "properties": {
+          "text": "---"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 44
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-44"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 43
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-46": {
-      "text": "a\nb",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-45",
+        "properties": {
+          "text": "..."
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 45
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-45"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 44
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-47": {
-      "text": "\t",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-46",
+        "properties": {
+          "text": "a\nb"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 46
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-46"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 45
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-48": {
-      "text": "\u0000",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-47",
+        "properties": {
+          "text": "\t"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 47
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-47"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 46
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-49": {
-      "text": "\u0007",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-48",
+        "properties": {
+          "text": "\u0000"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 48
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-48"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 47
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-50": {
-      "text": "﻿bom",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-49",
+        "properties": {
+          "text": "\u0007"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 49
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-49"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 48
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-51": {
-      "text": "ab",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-50",
+        "properties": {
+          "text": "﻿bom"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 50
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-50"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 49
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-52": {
-      "text": "a b",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-51",
+        "properties": {
+          "text": "ab"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 51
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-51"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 50
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-53": {
-      "text": "日本語 🚀",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-52",
+        "properties": {
+          "text": "a b"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 52
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-52"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 51
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Note/note-54": {
-      "text": "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word ",
-      "notebooks": [
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-53",
+        "properties": {
+          "text": "日本語 🚀"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
         {
-          "notebook": {
-            "$ref": "Notebook/notebook-1",
-            "$schema": "Notebook"
-          },
-          "page": 53
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-53"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 52
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Note/note-54",
+        "properties": {
+          "text": "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word "
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Pages"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "notebook",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Notebook/notebook-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "note",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Note/note-54"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "page",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": 53
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
     }
   }
-}
+]

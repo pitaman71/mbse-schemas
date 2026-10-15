@@ -1,90 +1,722 @@
-root: Student/student-1
-objects:
-  Student/student-1:
-    name: Mia
-    enrollments:
-    - course:
-        $ref: Course/course-1
-        $schema: Course
-      term:
-        $ref: Term/term-1
-        $schema: Term
-      credits: 4
-      score: 3.75
-      audit: false
-    - course:
-        $ref: Course/course-2
-        $schema: Course
-      term:
-        $ref: Term/term-1
-        $schema: Term
-      credits: 3
-      score: -0.0
-  Course/course-1:
-    code: CS101
-    enrollments:
-    - student:
-        $ref: Student/student-1
-        $schema: Student
-      term:
-        $ref: Term/term-1
-        $schema: Term
-      credits: 4
-      score: 3.75
-      audit: false
-    - student:
-        $ref: Student/student-2
-        $schema: Student
-      term:
-        $ref: Term/term-1
-        $schema: Term
-      audit: true
-  Term/term-1:
-    code: '2026-FA'
-    starts: '2026-09-01'
-    enrollments:
-    - student:
-        $ref: Student/student-1
-        $schema: Student
-      course:
-        $ref: Course/course-1
-        $schema: Course
-      credits: 4
-      score: 3.75
-      audit: false
-    - student:
-        $ref: Student/student-1
-        $schema: Student
-      course:
-        $ref: Course/course-2
-        $schema: Course
-      credits: 3
-      score: -0.0
-    - student:
-        $ref: Student/student-2
-        $schema: Student
-      course:
-        $ref: Course/course-1
-        $schema: Course
-      audit: true
-  Course/course-2:
-    code: MA201
-    enrollments:
-    - student:
-        $ref: Student/student-1
-        $schema: Student
-      term:
-        $ref: Term/term-1
-        $schema: Term
-      credits: 3
-      score: -0.0
-  Student/student-2:
-    name: Noah
-    enrollments:
-    - course:
-        $ref: Course/course-1
-        $schema: Course
-      term:
-        $ref: Term/term-1
-        $schema: Term
-      audit: true
+- exists:
+    definition:
+      key: Schemas.Module/.
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Object/Student
+      properties:
+        name: Student
+        ref: true
+        pattern: 'student-(\d+)'
+- exists:
+    definition:
+      key: Schemas.Adjacency/Student.enrollments
+      properties:
+        me: student
+- exists:
+    definition:
+      key: Schemas.Property/Student.name
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Student.name
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasProperty
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Student
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Student.name
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: name
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasAdjacency
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Student
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Adjacency/Student.enrollments
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: enrollments
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Module/.
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Student
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Student
+- exists:
+    definition:
+      key: Schemas.Object/Course
+      properties:
+        name: Course
+        ref: true
+        pattern: 'course-(\d+)'
+- exists:
+    definition:
+      key: Schemas.Adjacency/Course.enrollments
+      properties:
+        me: course
+- exists:
+    definition:
+      key: Schemas.Property/Course.code
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Course.code
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasProperty
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Course
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Course.code
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: code
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasAdjacency
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Course
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Adjacency/Course.enrollments
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: enrollments
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Module/.
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Course
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Course
+- exists:
+    definition:
+      key: Schemas.Object/Term
+      properties:
+        name: Term
+        ref: true
+        pattern: 'term-(\d+)'
+- exists:
+    definition:
+      key: Schemas.Adjacency/Term.enrollments
+      properties:
+        me: term
+- exists:
+    definition:
+      key: Schemas.Property/Term.code
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Term.code
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- exists:
+    definition:
+      key: Schemas.Property/Term.starts
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Term.starts
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasProperty
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Term
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Term.code
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: code
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Term
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Term.starts
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: starts
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasAdjacency
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Term
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Adjacency/Term.enrollments
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: enrollments
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Module/.
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Term
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Term
+- exists:
+    definition:
+      key: Schemas.Relation/Enrollment
+      properties:
+        name: Enrollment
+- exists:
+    definition:
+      key: Schemas.Symbol/Enrollment.student
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Symbol/Enrollment.course
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Symbol/Enrollment.term
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Property/Enrollment.credits
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Enrollment.credits
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfInt
+- exists:
+    definition:
+      key: Schemas.Property/Enrollment.score
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Enrollment.score
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfFloat
+- exists:
+    definition:
+      key: Schemas.Property/Enrollment.audit
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Enrollment.audit
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfBool
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasProperty
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/Enrollment
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Enrollment.credits
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: credits
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/Enrollment
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Enrollment.score
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: score
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/Enrollment
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Enrollment.audit
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: audit
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasLink
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/Enrollment
+      - as_link:
+          name: link
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Symbol/Enrollment.student
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: student
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/Enrollment
+      - as_link:
+          name: link
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Symbol/Enrollment.course
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: course
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/Enrollment
+      - as_link:
+          name: link
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Symbol/Enrollment.term
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: term
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Relating
+    entries:
+    - mutations:
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Adjacency/Term.enrollments
+      - as_link:
+          name: relation
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/Enrollment
+    - mutations:
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Adjacency/Course.enrollments
+      - as_link:
+          name: relation
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/Enrollment
+    - mutations:
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Adjacency/Student.enrollments
+      - as_link:
+          name: relation
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/Enrollment
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Module/.
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/Enrollment
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Enrollment
+- exists:
+    definition:
+      key: Term/term-1
+      properties:
+        code: '2026-FA'
+        starts: '2026-09-01'
+- exists:
+    definition:
+      key: Course/course-1
+      properties:
+        code: CS101
+- exists:
+    definition:
+      key: Course/course-2
+      properties:
+        code: MA201
+- exists:
+    definition:
+      key: Student/student-1
+      properties:
+        name: Mia
+- insert:
+    relation:
+      key: Schemas.Relation/Enrollment
+    entries:
+    - mutations:
+      - as_link:
+          name: student
+          mutations:
+          - set:
+              ref:
+                key: Student/student-1
+      - as_link:
+          name: course
+          mutations:
+          - set:
+              ref:
+                key: Course/course-1
+      - as_link:
+          name: term
+          mutations:
+          - set:
+              ref:
+                key: Term/term-1
+      - as_property:
+          name: credits
+          mutations:
+          - set:
+              value: 4
+      - as_property:
+          name: score
+          mutations:
+          - set:
+              value: 3.75
+      - as_property:
+          name: audit
+          mutations:
+          - set:
+              value: false
+    - mutations:
+      - as_link:
+          name: student
+          mutations:
+          - set:
+              ref:
+                key: Student/student-1
+      - as_link:
+          name: course
+          mutations:
+          - set:
+              ref:
+                key: Course/course-2
+      - as_link:
+          name: term
+          mutations:
+          - set:
+              ref:
+                key: Term/term-1
+      - as_property:
+          name: credits
+          mutations:
+          - set:
+              value: 3
+      - as_property:
+          name: score
+          mutations:
+          - set:
+              value: -0.0
+- exists:
+    definition:
+      key: Student/student-2
+      properties:
+        name: Noah
+- insert:
+    relation:
+      key: Schemas.Relation/Enrollment
+    entries:
+    - mutations:
+      - as_link:
+          name: student
+          mutations:
+          - set:
+              ref:
+                key: Student/student-2
+      - as_link:
+          name: course
+          mutations:
+          - set:
+              ref:
+                key: Course/course-1
+      - as_link:
+          name: term
+          mutations:
+          - set:
+              ref:
+                key: Term/term-1
+      - as_property:
+          name: audit
+          mutations:
+          - set:
+              value: true

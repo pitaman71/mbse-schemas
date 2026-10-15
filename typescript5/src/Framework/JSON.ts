@@ -276,6 +276,8 @@ export interface ToJSONCall {
   OfScalar(schema: Schemas.OfScalar.Data, value: Scalar, options?: DumpOptions): string;
   OfObject(schema: Schemas.OfObject.Data, value: Readers.OfObject, options?: DumpOptions): string;
   Reachable(schema: Schemas.OfObject.Data, value: Readers.OfObject, options?: DumpOptions): string;
+  /** The store as a log of mutations, its initial snapshot: `Plain.ToPlain(store).Snapshot()`, as JSON text. */
+  Snapshot(options?: DumpOptions): string;
 }
 
 /** Encodes values, naming the schemas of objects in `store`: `ToJSON(store)(schema, value)` dispatches on the schema's
@@ -287,6 +289,7 @@ export function ToJSON(store: Stores.Store, options: { flat?: boolean } = {}): T
     OfScalar: (schema: Schemas.OfScalar.Data, value: Scalar, options: DumpOptions = {}) => dumps(plain.OfScalar(schema, value), options),
     OfObject: (schema: Schemas.OfObject.Data, value: Readers.OfObject, options: DumpOptions = {}) => dumps(plain.OfObject(schema, value), options),
     Reachable: (schema: Schemas.OfObject.Data, value: Readers.OfObject, options: DumpOptions = {}) => dumps(plain.Reachable(schema, value), options),
+    Snapshot: (options: DumpOptions = {}) => dumps(plain.Snapshot(), options),
   });
 }
 
@@ -295,6 +298,8 @@ export interface FromJSONCall {
   OfScalar(schema: Schemas.OfScalar.Data, text: string | Uint8Array): Scalar;
   OfObject(schema: Schemas.OfObject.Data, text: string | Uint8Array): unknown;
   Reachable(schema: Schemas.OfObject.Data, text: string | Uint8Array): unknown;
+  /** Applies a log of mutations, as JSON text, to the store: `Plain.FromPlain(store).Snapshot(log)`. */
+  Snapshot(text: string | Uint8Array): unknown[];
 }
 
 /** Decodes JSON, building objects in `store`: `FromJSON(store)(schema, text)`. */
@@ -305,5 +310,6 @@ export function FromJSON(store: Stores.Store): FromJSONCall {
     OfScalar: (schema: Schemas.OfScalar.Data, text: string | Uint8Array) => plain.OfScalar(schema, loads(text)),
     OfObject: (schema: Schemas.OfObject.Data, text: string | Uint8Array) => plain.OfObject(schema, loads(text)),
     Reachable: (schema: Schemas.OfObject.Data, text: string | Uint8Array) => plain.Reachable(schema, loads(text)),
+    Snapshot: (text: string | Uint8Array) => plain.Snapshot(loads(text)),
   });
 }

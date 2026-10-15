@@ -65,6 +65,9 @@ function identify<T>(data: T, identity: string): T {
   return data;
 }
 
+/** The name a schema object had when it was last given an identity, so that its identity follows a rename. */
+const NAMED_AS = new WeakMap<object, string | null>();
+
 /** Whether a value agrees with a template's: a reference object by identity, a value by value and type. */
 function same(a: unknown, b: unknown): boolean {
   if (a === b) return true;
@@ -155,7 +158,7 @@ class PropertyMember extends Dunders {
   as_value(cb: unknown): any {
     if (isFunction(cb)) {
       visit(cb, shell(new Value(this._label(), this._held.bind(this), this._write.bind(this), this._writable,
-        this._prop.container, this)));
+        this._prop.container, () => typeOf(this.as_schema()))));
     } else {
       this._write(this._matched(this._prop.shorthand(cb)));
     }
@@ -210,8 +213,9 @@ class PropertyMember extends Dunders {
   }
 }
 
-/** `Visitors.OfAny` over a value held where `held` reads it and `write` writes it: a scalar, or a container. Its
- * schema is the type of what `provider` visits. */
+/** `Visitors.OfAny` over a value held where `held` reads it and `write` writes it: a scalar, or a container, or, where
+ * `container` is null (an element of a container not written yet), either, as it is written. `schema` gives its
+ * schema. */
 class Value extends Shelled {
   readonly [TYPE_NAME] = "_Value";
   declare as_object: (cb: unknown) => any;
@@ -219,12 +223,12 @@ class Value extends Shelled {
   declare as_intersection: (cb: unknown) => any;
 
   constructor(readonly _label: string, readonly _held: () => unknown, readonly _write: (value: unknown) => void,
-    readonly _writable: boolean, readonly _container: boolean, readonly _provider: { as_schema(): unknown }) {
+    readonly _writable: boolean, readonly _container: boolean | null, readonly _schema: () => unknown) {
     super();
   }
 
   as_schema(): unknown {
-    return typeOf(this._provider.as_schema());
+    return this._schema();
   }
 
   _other(cb: unknown): any {
@@ -235,14 +239,14 @@ class Value extends Shelled {
   }
 
   as_scalar(cb: unknown): any {
-    if (this._container) return this._other(cb);
+    if (this._container === true) return this._other(cb);
     if (isFunction(cb)) visit(cb, shell(new ScalarVisitor(this)));
     else this._write(cb);
     return this._proxy;
   }
 
   as_container(cb: unknown): any {
-    if (!this._container) return this._other(cb);
+    if (this._container === false) return this._other(cb);
     if (isFunction(cb)) visit(cb, shell(new Mapping(this)));
     else this._write(new Map((Proxies._mapping(cb) ?? cb) as Iterable<[unknown, unknown]>));
     return this._proxy;
@@ -300,8 +304,13 @@ class Mapping extends Shelled {
     super();
   }
 
+  /** Whether the container holds its elements by position, as a list: as it holds them, or, empty, as its schema
+   * arranges them. */
   _positional(): boolean {
-    return Array.isArray(this._value._held());
+    const held = this._value._held();
+    if (Array.isArray(held) || held instanceof Map) return Array.isArray(held);
+    const schema = S.structure(this.as_schema());
+    return schema instanceof S.OfContainer.Data && schema.arrangement !== "dict";
   }
 
   _items(): Map<unknown, unknown> {
@@ -319,9 +328,9 @@ class Mapping extends Shelled {
         : items);
     };
     const held = this._items().get(index);
-    // an element has no schema of its own: its provider is an empty visitor
+    const container = held === undefined ? null : Array.isArray(held) || held instanceof Map;
     return shell(new Value(`${this._value._label}[${repr(index)}]`, () => this._items().get(index), write,
-      this._value._writable, Array.isArray(held) || held instanceof Map, makeEmpty("")));
+      this._value._writable, container, () => Object(S.structure(this.as_schema())).element));
   }
 
   as_schema(): unknown {
@@ -417,7 +426,9 @@ type BuilderClass = new (original?: unknown, writable?: boolean, store?: Store |
  * class, named), or not at all (null: it links an object that exists). `one`: at most one entry, as a `unique` clause
  * of its relation makes it. `keyed`: the relation's entries have one property, `name`, of string type, which names
  * the referent within the schema object (the data keeps it as the referent's `name`). `owned`: each referent belongs
- * to the schema object alone (keyed ones do), so that a clone of it has clones of them. */
+ * to the schema object alone (keyed ones do), so that a clone of it has clones of them. `names`, for a keyed adjacency
+ * whose data keeps its entries' names apart from its referents (a module's), reads and writes them:
+ * `[name_of(data, referent), rename(data, referent, name)]`. */
 class Members {
   name = "";
   readonly items: (data: any) => any[];
@@ -427,9 +438,12 @@ class Members {
   readonly one: boolean;
   readonly keyed: boolean;
   readonly owned: boolean;
+  readonly name_of: (data: any, referent: any) => string | null;
+  readonly rename: (data: any, referent: any, name: string) => void;
 
   constructor(readonly link: string, options: Storage & { accepts: (value: unknown) => boolean; build?: string;
-    keyed?: boolean; owned?: boolean }) {
+    keyed?: boolean; owned?: boolean;
+    names?: [(data: any, referent: any) => string | null, (data: any, referent: any, name: string) => void] }) {
     this.items = options.items;
     this.store = options.store;
     this.accepts = options.accepts;
@@ -437,6 +451,12 @@ class Members {
     this.one = options.one ?? false;
     this.keyed = options.keyed ?? false;
     this.owned = options.owned ?? this.keyed;
+    [this.name_of, this.rename] = options.names ?? [
+      (_data, referent) => Object(referent).name || null,
+      (_data, referent, name) => {
+        referent.name = name;
+      },
+    ];
   }
 
   _bind(name: string): void {
@@ -501,7 +521,7 @@ class AdjacencyMember extends Shelled {
       throw new TypeError(`an entry, or a callback taking one, is expected; got ${repr(spec)}`);
     }
     if (entry._referent === null) throw new ValueError(`link ${repr(this._members.link)} is not set`);
-    if (this._members.keyed && entry._name !== null) entry._referent.name = entry._name;
+    if (this._members.keyed && entry._name !== null) this._members.rename(this._builder._working, entry._referent, entry._name);
     const held = this._held();
     if (held.some((referent) => referent === entry._referent)) return this._proxy;
     if (this._members.one && held.length > 0) {
@@ -557,7 +577,7 @@ class AdjacencyMember extends Shelled {
       } else {
         throw new TypeError(`link ${repr(this._members.link)} cannot link ${repr(item)}`);
       }
-      if (this._members.keyed && name !== null) referent.name = name;
+      if (this._members.keyed && name !== null) this._members.rename(this._builder._working, referent, name);
       const held = this._held();
       if (held.some((other) => other === referent)) continue;
       this._store(this._members.one ? [referent] : [...held, referent]);
@@ -598,7 +618,8 @@ class Entry extends Shelled {
   /** The entry's name: the one written, else its referent's. */
   _named(): string | null {
     if (this._name !== null) return this._name;
-    return Object(this._referent).name || null;
+    const adjacency = this._adjacency;
+    return adjacency._members.name_of(adjacency._builder._working, this._referent);
   }
 
   _rename(name: unknown): void {
@@ -608,7 +629,7 @@ class Entry extends Shelled {
     this._name = name as string | null;
     if (this._index !== null) { // an entry held: its referent is renamed in place
       this._adjacency._builder._check();
-      this._referent.name = [name].join(""); // null as ""
+      this._adjacency._members.rename(this._adjacency._builder._working, this._referent, [name].join("")); // null as ""
       this._adjacency._store(this._adjacency._held());
     }
   }
@@ -672,7 +693,7 @@ class EntryName extends Dunders {
   as_value(cb: unknown): any {
     if (isFunction(cb)) {
       visit(cb, shell(new Value(this._label(), this._held.bind(this), this._entry._rename.bind(this._entry),
-        this._entry._adjacency._builder._writable, false, this)));
+        this._entry._adjacency._builder._writable, false, () => typeOf(this.as_schema()))));
     } else {
       this._entry._rename(cb);
     }
@@ -934,21 +955,15 @@ abstract class Builder extends Shelled {
   }
 
   /** A member has one owner: a clone has its own members, each cloned, with an identity of its own; those it shares by
-   * other means (an object schema's inherited ones) stay shared. */
+   * other means (an object schema's inherited ones, which its members do not list) stay shared. */
   _cloneMembers(): void {
     for (const members of this._table().values()) {
       if (members instanceof Members && members.owned && members.build !== null) {
-        const shared = this._shared(members);
         const builderClass = members._builderClass();
-        members.store(this._working, members.items(this._working).map((referent) => shared.has(referent) ? referent
-          : new builderClass(referent, true, this._store).clone()));
+        members.store(this._working, members.items(this._working).map((referent) =>
+          new builderClass(referent, true, this._store).clone()));
       }
     }
-  }
-
-  /** The referents of `members` a clone shares with the original rather than owns. */
-  _shared(_members: Members): Set<unknown> {
-    return new Set();
   }
 
   /** Writes the builder's state into the data given, and returns it. Only valid with data given. */
@@ -962,7 +977,7 @@ abstract class Builder extends Shelled {
   /** `data`, given `identity`, else one allocated: by its store, which refuses one another of its schema objects has,
    * where it is built in one. */
   _identified(data: any, identity: string | null): any {
-    const chosen = identity ?? this._allocate();
+    const chosen = identity || this._allocate();
     return this._store === null ? identify(data, chosen) : this._store._hold(data, chosen);
   }
 
@@ -1053,6 +1068,15 @@ abstract class KindBuilder extends Builder {
   /** A named schema's identity is its name, a global one; an unnamed one's, a UUID. */
   override _allocate(): string {
     return this._working.name || super._allocate();
+  }
+
+  /** A named schema's identity is its name, so it follows a rename, unless one is written. */
+  override _identified(data: any, identity: string | null): any {
+    const name = data.name ?? null;
+    const renamed = name !== null && name !== (NAMED_AS.has(this._original) ? NAMED_AS.get(this._original) : name);
+    if (this._identity === null && renamed) identity = name;
+    NAMED_AS.set(data, name);
+    return super._identified(data, identity);
   }
 }
 
@@ -1239,11 +1263,19 @@ export class ObjectBuilder extends KindBuilder {
     pattern: new Prop(),
     singleton: new Prop(),
     refines: refinesMembers(),
+    // A refinement's own members: those it inherits are the refined schema's, through `refines` (Resolved: "Modules
+    // write `refines` and a refinement's own members only"); finalizing settles them in again.
     properties: new Members("property", { keyed: true, accepts: isA(S.OfProperty.Data), build: "PropertyBuilder",
-      ...byName("properties") }),
+      items: (data) => [...data.properties].filter(([name]) => !inheritedOf(data)[0].has(name)).map(([, prop]) => prop),
+      store: (data, members) => {
+        data.properties = new Map(members.map((m) => [m.name, m]));
+      } }),
     adjacencies: new Members("adjacency", { // named ones by name, then anonymous ones, which have none
       keyed: true, accepts: isA(S.OfAdjacency.Data), build: "AdjacencyBuilder",
-      items: (data) => [...data.adjacencies.values(), ...data.anonymous],
+      items: (data) => [
+        ...[...data.adjacencies].filter(([name]) => !inheritedOf(data)[1].has(name)).map(([, adjacency]) => adjacency),
+        ...data.anonymous.filter((adjacency: S.OfAdjacency.Data) => !inheritedOf(data)[2].includes(adjacency)),
+      ],
       store: (data, members) => {
         data.adjacencies = new Map(members.filter((m) => m.name).map((m) => [m.name, m]));
         data.anonymous = members.filter((m) => !m.name);
@@ -1269,17 +1301,6 @@ export class ObjectBuilder extends KindBuilder {
     }
     CARRIED.delete(target); // settling records what it inherits
     return S.settle(target);
-  }
-
-  /** The members the original inherits from the schema it refines: a clone inherits them too. */
-  override _shared(members: Members): Set<unknown> {
-    const [properties, adjacencies, anonymous] = inheritedOf(this._original);
-    const held = this._working;
-    if (members.name === "properties") {
-      return new Set([...properties].filter((name) => held.properties.has(name)).map((name) => held.properties.get(name)));
-    }
-    return new Set([...[...adjacencies].filter((name) => held.adjacencies.has(name)).map((name) => held.adjacencies.get(name)),
-      ...anonymous]);
   }
 }
 
@@ -1418,6 +1439,55 @@ export class RelationBuilder extends KindBuilder {
   }
 }
 
+/** A module: the schemas and the modules it defines, each under its name within it, the last part of its path
+ * (`Person` in `crm`, defining `crm.Person`). Its name is its path; the store's root module has none. */
+class ModuleData {
+  name: string | null = null;
+  description: string | null = null;
+  parameters = new Map<string, unknown>();
+  schemas = new Map<string, unknown>();
+}
+
+/** The names given to a module's entries while it is built, by referent, until they are stored. */
+const DEFINED = new WeakMap<object, Map<unknown, string>>();
+
+function definedName(data: ModuleData, referent: unknown): string | null {
+  return ([...data.schemas, [null, referent]].find(([, held]) => held === referent) as [string | null, unknown])[0];
+}
+
+function define(data: ModuleData, referent: unknown, name: string): void {
+  if (!DEFINED.has(data)) DEFINED.set(data, new Map());
+  (DEFINED.get(data) as Map<unknown, string>).set(referent, name);
+}
+
+function storeDefined(data: ModuleData, referents: unknown[]): void {
+  const names = new Map([...data.schemas].map(([name, held]) => [held, name]));
+  for (const [referent, name] of DEFINED.get(data) ?? []) names.set(referent, name);
+  DEFINED.delete(data);
+  data.schemas = new Map(referents.map((referent) => [names.get(referent) || local(referent), referent]));
+}
+
+/** A schema's name within its module: the last part of its path. */
+function local(schema: unknown): string {
+  return [Object(schema).name].filter(Boolean).join("").split(".").pop() as string;
+}
+
+/** A module, a reference object in the store, whose identity is its path: the root module's is `.`. */
+export class ModuleBuilder extends KindBuilder {
+  static override _data = ModuleData;
+  static override _meta = "Module";
+  static override _noun = "a module";
+  static override _table = extend(KindBuilder._table, {
+    schemas: new Members("schema", { keyed: true, owned: false, names: [definedName, define],
+      accepts: (v) => _namable(v),
+      items: (data) => [...data.schemas.values()], store: storeDefined }),
+  });
+
+  override _allocate(): string {
+    return this._working.name || ".";
+  }
+}
+
 const BUILDER_CLASSES = new Map<string, BuilderClass>([
   ["PropertyBuilder", PropertyBuilder], ["ParameterBuilder", ParameterBuilder], ["SymbolBuilder", SymbolBuilder],
   ["MemberBuilder", MemberBuilder], ["AdjacencyBuilder", AdjacencyBuilder], ["ArgumentBuilder", ArgumentBuilder],
@@ -1430,7 +1500,7 @@ const BUILDERS = new Map<unknown, BuilderClass>([
   [S.OfAny.Value, AnyValueBuilder], [S.OfPredicate.Data, PredicateBuilder], [S.OfRelation.Data, RelationBuilder],
   [S.OfProperty.Data, PropertyBuilder], [S.OfParameter.Data, ParameterBuilder], [S.OfSymbol.Data, SymbolBuilder],
   [S.OfUnion.Branch, MemberBuilder], [S.OfAdjacency.Data, AdjacencyBuilder], [ArgumentData, ArgumentBuilder],
-  [S.Form.Data, FormBuilder],
+  [S.Form.Data, FormBuilder], [ModuleData, ModuleBuilder],
 ]);
 
 for (const builderClass of new Set(BUILDERS.values())) {
@@ -1440,6 +1510,17 @@ for (const builderClass of new Set(BUILDERS.values())) {
 /** The builder of a referent's data; null for a term of a dialect, which this package does not build. */
 function builderFor(referent: unknown): BuilderClass | null {
   return BUILDERS.get(Object(referent).constructor) ?? null;
+}
+
+/** The name of a schema object's meta-schema, `Schemas.Object`: the kind its identity is unique within. */
+export function _kind(data: unknown): string {
+  return `Schemas.${(builderFor(data) as unknown as typeof Builder)._meta}`;
+}
+
+/** Whether a schema object has a name of its own (a kind of schema, a relation, a predicate, a module), rather than
+ * the one its owner's entry gives it. */
+export function _namable(data: unknown): boolean {
+  return isSchema(data) || data instanceof S.OfRelation.Data || data instanceof S.OfPredicate.Data || data instanceof ModuleData;
 }
 
 // --- The meta-schemas: schema objects, each a reference object, and the relations between them ---
@@ -1492,8 +1573,8 @@ Meta.Intersection = metaObject("Intersection", [["flat", Bool]], Meta.Type);
 Meta.Container = metaObject("Container", [["layout", Text]], Meta.Type);
 Meta.Apply = metaObject("Apply", [], Meta.Type);
 Meta.Any = metaObject("Any", [], Meta.Type);
-Meta.Relation = metaObject("Relation", [["uniques", new S.OfContainer.Data({ index: Int,
-  element: new S.OfContainer.Data({ index: Int, element: Text }) })]], Meta.Schema);
+Meta.Relation = metaObject("Relation", [["uniques", new ContainerBuilder().index([Int]).element([
+  new ContainerBuilder().index([Int]).element([Text]).create()]).create()]], Meta.Schema);
 Meta.Predicate = metaObject("Predicate", [], Meta.Schema);
 Meta.Typed = metaObject("Typed", [["description", Text]], null);
 Meta.Property = metaObject("Property", [], Meta.Typed);
@@ -1501,17 +1582,13 @@ Meta.Parameter = metaObject("Parameter", [], Meta.Typed);
 Meta.Symbol = metaObject("Symbol", [], Meta.Typed);
 Meta.Member = metaObject("Member", [], Meta.Typed);
 Meta.Adjacency = metaObject("Adjacency", [["description", Text], ["me", Text]], null);
-Meta.Argument = metaObject("Argument", [["value", S.Form.Value]], null);
+/** A scalar of any type, written tagged with its token (`{"int": 8}`). */
+export const Scalars: S.OfAny.Value = new AnyValueBuilder().create();
+Meta.Argument = metaObject("Argument", [["value", Scalars]], null);
 Meta.Term = metaObject("Term", [], null);
 Meta.Form = metaObject("Form", [["dialect", Text], ["kind", Text],
-  ["attributes", new S.OfContainer.Data({ index: Text, element: S.Form.Value })]], Meta.Term);
-Meta.Module = (
-  new ObjectBuilder()
-    .name("Schemas.Module")
-    .ref(true)
-    .pattern(String.raw`module-(\d+)`)
-    .create()
-);
+  ["attributes", new ContainerBuilder().index([Text]).element([Scalars]).create()]], Meta.Term);
+Meta.Module = metaObject("Module", [], Meta.Schema); // its identity is its path; it defines schemas and modules
 
 /** A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
  * `RELATIONS`): a keyed relation's entries have `name`; the member determines its owner and its name
@@ -1595,11 +1672,12 @@ for (const [schema, [named, anonymous]] of NAMED) {
 // --- A store: where schema objects and data are built ---
 
 /** The schema objects a store builds as `store.Schemas.<Name>(...)`, each through its builder. */
-const META_BUILDERS = new Map<string, BuilderClass>([
+export const _META_BUILDERS = new Map<string, BuilderClass>([
   ["Scalar", ScalarBuilder], ["Object", ObjectBuilder], ["Union", UnionBuilder], ["Intersection", IntersectionBuilder],
   ["Container", ContainerBuilder], ["Apply", ApplyBuilder], ["Any", AnyValueBuilder], ["Relation", RelationBuilder],
   ["Predicate", PredicateBuilder], ["Property", PropertyBuilder], ["Parameter", ParameterBuilder],
   ["Symbol", SymbolBuilder], ["Member", MemberBuilder], ["Adjacency", AdjacencyBuilder], ["Form", FormBuilder],
+  ["Module", ModuleBuilder], ["Argument", ArgumentBuilder],
 ]);
 
 /** A store of schema objects and data. No reference object is built outside a store, a schema object included.
@@ -1612,22 +1690,33 @@ const META_BUILDERS = new Map<string, BuilderClass>([
  * name, so that the store builds its objects next. The store is a `Proxy`: a name it lacks starts a schema's name,
  * except JavaScript's protocol probes (`then`, ...), and one starting with `_` throws `AttributeError`. */
 export class Store extends Proxies.OfStore {
-  /** The schema objects, by identity. */
+  /** The schema objects, by their kind and their identity (`key`). */
   readonly _objects = new Map<string, unknown>();
+  /** The framework's own schemas, which every store holds. */
+  readonly _framework: Set<unknown>;
+  /** The modules, by path; the root module's is "". */
+  readonly _modules = new Map<string, ModuleData>();
+  /** Each schema's module, and its name there. */
+  readonly _placed = new Map<unknown, [ModuleData, string]>();
+  /** The unnamed schema objects given an identity by the first object to link them. */
+  readonly _linked = new Set<unknown>();
+  readonly _root: ModuleData;
 
   constructor() {
     super();
-    for (const schema of Object.values(Meta) as (ObjectData | RelationData)[]) { // the meta-schemas, but Schemas.Module,
-      if (!this._schemas.has(schema.name as string)) { // which every store has already
-        this._objects.set(identity_of(schema) as string, schema);
+    this._schemas.delete("Schemas.Module"); // the old module meta-schema: a module here is `Meta.Module`
+    for (const schema of Object.values(Meta) as (ObjectData | RelationData)[]) { // the meta-schemas
+      if (!this._schemas.has(schema.name as string)) {
+        this._objects.set(key(_kind(schema), identity_of(schema) as string), schema);
         this.register(schema);
       }
     }
     for (const schema of Mutations.SCHEMAS) { // the mutation schemas, which every store holds too
-      this._objects.set(identity_of(schema) as string, schema);
+      this._objects.set(key(_kind(schema), identity_of(schema) as string), schema);
       this.register(schema as ObjectData);
     }
-    return new Proxy(this, {
+    this._framework = new Set(this._objects.values());
+    const proxy = new Proxy(this, {
       get: (target, prop, receiver) => {
         if (typeof prop === "symbol" || prop in target) return Reflect.get(target, prop, receiver);
         if (prop.startsWith("_")) throw new AttributeError(prop);
@@ -1635,22 +1724,127 @@ export class Store extends Proxies.OfStore {
         return makePath(receiver, prop);
       },
     });
+    this._root = new ModuleBuilder(null, true, proxy).create();
+    return proxy;
+  }
+
+  /** The schema object of `kind` (its meta-schema's name, `Schemas.Object`) whose identity is `identity`; null where the
+   * store holds none. Schema objects of different kinds may share an identity: a module and a schema its path names
+   * (`crm.Contact` and `crm.Contact.v2`'s module). */
+  held(kind: string, identity: string): any {
+    return this._objects.get(key(kind, identity)) ?? null;
+  }
+
+  /** Whether the store holds the schema object `data`. */
+  holds(data: unknown): boolean {
+    const identity = identity_of(data);
+    return identity !== null && this._objects.get(key(_kind(data), identity)) === data;
+  }
+
+  /** The module whose path is `path` (`crm.sales`), made with the modules it is in where there is none; the root module
+   * for "". Every schema is in one: a named schema in the module its name's prefix names, the root module's where it
+   * has none. */
+  module(path = ""): any {
+    return this._modules.get(path) ?? new ModuleBuilder(null, true, this).name(path).create();
+  }
+
+  /** Whether `schema` is one of the framework's own, which every store holds: a meta-schema, a basic scalar, a mutation
+   * schema. It is never written, only referred to. */
+  framework(schema: unknown): boolean {
+    return this._framework.has(schema);
+  }
+
+  /** Defines a named schema, or a module, in the module its path's prefix names, under the last part of its path; a
+   * schema renamed moves. */
+  _place(data: any): void {
+    if (!S._DOTTED.test(data.name)) return; // not a path: validation reports its name, and it is in no module until it has one
+    const at = data.name.lastIndexOf(".");
+    const [parentPath, name] = [data.name.slice(0, Math.max(at, 0)), data.name.slice(at + 1)];
+    const parent = this.module(parentPath);
+    const previous = this._placed.get(data);
+    if (previous !== undefined) {
+      if (previous[0] === parent && previous[1] === name) return;
+      new ModuleBuilder(previous[0], true, this).schemas((adv: any) => adv.remove((entry: any) => entry.schema(data))).update();
+    }
+    this._placed.set(data, [parent, name]);
+    new ModuleBuilder(parent, true, this).schemas([(t: any) => t.name(name).schema(data)]).update();
+  }
+
+  /** Gives the schema objects `owner` holds or links that have no name of their own the identities their path from it
+   * derives: a member its owner's and its name (`crm.Person.age`); another, the first object's to link it and the
+   * adjacency (`crm.Person.tags#type`). */
+  _derive(owner: any, identity: string): void {
+    const builderClass = builderFor(owner) as unknown as typeof Builder;
+    for (const [name, members] of builderClass._table) {
+      if (!(members instanceof Members)) continue;
+      members.items(owner).forEach((referent, index) => {
+        if (!this._derivable(referent)) return;
+        let derived: string;
+        if (members.owned) {
+          const named = members.name_of(owner, referent); // a member not keyed (an argument) has no name
+          if (named) {
+            derived = `${identity}.${named}`;
+            const clash = this._objects.get(key(_kind(referent), derived));
+            if (clash !== undefined && clash !== referent) derived = `${identity}#${name}.${named}`; // another member of that name (invalid)
+          } else if (referent instanceof S.OfAdjacency.Data) { // anonymous: named by its relation and link
+            if (referent.relation === null) return; // not linked yet (a log being read): it keeps the identity it was given
+            derived = `${identity}#(${(referent.relation as RelationData).name}.${referent.me})`;
+          } else {
+            derived = `${identity}#${name}.${index}`;
+          }
+        } else if (this._linked.has(referent)) {
+          return;
+        } else {
+          derived = members.one ? `${identity}#${name}` : `${identity}#${name}.${index}`;
+          this._linked.add(referent);
+        }
+        this._rehold(referent, derived);
+        this._derive(referent, derived);
+      });
+    }
+  }
+
+  /** Whether a referent takes an identity from its path: a schema object this store holds, the framework's aside, with
+   * no name of its own (a named schema's identity is its name). */
+  _derivable(referent: any): boolean {
+    const named = _namable(referent) && referent.name;
+    return !named && this.holds(referent) && !this.framework(referent);
+  }
+
+  _rehold(referent: unknown, identity: string): void {
+    const kind = _kind(referent);
+    const held = this._objects.get(key(kind, identity));
+    if (held === referent) return;
+    if (held !== undefined) throw new ValueError(`a schema object with the identity ${repr(identity)} is already in this store`);
+    this._objects.delete(key(kind, identity_of(referent) as string));
+    this._objects.set(key(kind, identity), identify(referent, identity));
   }
 
   /** Gives a schema object built here `identity`, refused where another holds it; registers a named schema. */
   _hold(data: any, identity: string): any {
-    const held = this._objects.get(identity);
+    const kind = _kind(data);
+    const held = this._objects.get(key(kind, identity));
     if (held !== undefined && held !== data) {
       throw new ValueError(`a schema object with the identity ${repr(identity)} is already in this store`);
     }
     const previous = identity_of(data);
-    if (previous !== null && this._objects.get(previous) === data) this._objects.delete(previous);
-    this._objects.set(identity, identify(data, identity));
+    if (previous !== null && this._objects.get(key(kind, previous)) === data) this._objects.delete(key(kind, previous));
+    this._objects.set(key(kind, identity), identify(data, identity));
     if (isSchema(data) || data instanceof S.OfRelation.Data || data instanceof S.OfPredicate.Data) {
       for (const [name, schema] of [...this._schemas]) {
         if (schema === data && name !== data.name) this._schemas.delete(name); // renamed
       }
       if (data.name && this._schemas.get(data.name) !== data) this.register(data);
+    }
+    if (data instanceof ModuleData) {
+      for (const [path, module] of [...this._modules]) {
+        if (module === data && path !== (data.name ?? "")) this._modules.delete(path); // renamed
+      }
+      this._modules.set(data.name ?? "", data);
+    }
+    if (_namable(data) && data.name) {
+      this._place(data);
+      this._derive(data, identity);
     }
     return data;
   }
@@ -1662,7 +1856,7 @@ export class Store extends Proxies.OfStore {
     else if (args.length === 1) existing = args[0];
     else if (args.length === 2) [existing, cb] = args;
     else throw new TypeError(`${name}(...) takes a callback, an object and a callback, or an object`);
-    const kind = name.startsWith("Schemas.") ? META_BUILDERS.get(name.slice("Schemas.".length)) : undefined;
+    const kind = name.startsWith("Schemas.") ? _META_BUILDERS.get(name.slice("Schemas.".length)) : undefined;
     let builder: any;
     if (kind !== undefined) builder = new kind(existing, true, this);
     else if (this._schemas.has(name)) builder = this.builder(name, existing);
@@ -1671,6 +1865,11 @@ export class Store extends Proxies.OfStore {
     if (existing === null) return builder.create();
     return cb !== null ? builder.update() : builder.clone();
   }
+}
+
+/** A schema object's key in a store: its kind and its identity. */
+function key(kind: string, identity: string): string {
+  return `${kind}/${identity}`;
 }
 
 /** `store.moduleName.[...moduleName].schemaName`: a schema's name, one part per member; called, it builds. */
@@ -1803,6 +2002,30 @@ export namespace Form {
   export const Builder = FormBuilder;
   export type Builder = FormBuilder;
   export const Schema = Meta.Form;
+}
+
+// --- For Plain, which writes and reads schema objects through their builders ---
+
+export { builderFor as _builder_for, identify as _identify, ArgumentData as _ArgumentData, ModuleData as _ModuleData };
+
+/** The data a link visitor reads (an entry's referent, where a builder builds it); null for any other visitor. */
+export function _linked(visitor: unknown): unknown {
+  const inner = innerOf(visitor);
+  if (!(inner instanceof Link)) return null;
+  const referent = inner._entry._referent;
+  return [referent, null][Number(builderFor(referent) === null)];
+}
+
+/** Holds `form`, a form's clone, in its place in `store`: a form is immutable. */
+export function _rehold_form(store: Store, held: unknown, form: unknown): void {
+  const identity = identity_of(held) as string;
+  store._objects.set(key(_kind(held), identity), identify(form, identity));
+}
+
+/** Whether an adjacency member holds one entry at most, as a `unique` clause of its relation makes it. */
+export function _holds_one(member: unknown): boolean {
+  const inner = innerOf(member);
+  return inner instanceof AdjacencyMember && inner._members.one;
 }
 
 // The mutation schemas, which every store holds, built with the builders above.

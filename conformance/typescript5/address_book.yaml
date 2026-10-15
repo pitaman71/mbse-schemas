@@ -1,55 +1,933 @@
-root: Contact/contact-1
-objects:
-  Contact/contact-1:
-    given_name: Alice
-    family_name: Liddell
-    birth_date: '1852-05-04'
-    addresses:
-    - address:
-        $ref: Address/address-1
-        $schema: Address
-      label: home
-    phones:
-    - phone:
-        $ref: Phone/phone-1
-        $schema: Phone
-      label: mobile
-    - phone:
-        $ref: Phone/phone-2
-        $schema: Phone
-      label: work
-  Address/address-1:
-    street1: '10 Downing Street'
-    locality: London
-    postal_code: SW1A 2AA
-    country_code: GB
-    contacts:
-    - contact:
-        $ref: Contact/contact-1
-        $schema: Contact
-      label: home
-    - contact:
-        $ref: Contact/contact-2
-        $schema: Contact
-      label: home
-  Phone/phone-1:
-    number: '+447700900123'
-    contacts:
-    - contact:
-        $ref: Contact/contact-1
-        $schema: Contact
-      label: mobile
-  Phone/phone-2:
-    number: '+14155550100'
-    contacts:
-    - contact:
-        $ref: Contact/contact-1
-        $schema: Contact
-      label: work
-  Contact/contact-2:
-    given_name: Bob
-    addresses:
-    - address:
-        $ref: Address/address-1
-        $schema: Address
-      label: home
+- exists:
+    definition:
+      key: Schemas.Module/.
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Object/Contact
+      properties:
+        name: Contact
+        ref: true
+        pattern: 'contact-(\d+)'
+- exists:
+    definition:
+      key: Schemas.Adjacency/Contact.addresses
+      properties:
+        me: contact
+- exists:
+    definition:
+      key: Schemas.Adjacency/Contact.phones
+      properties:
+        me: contact
+- exists:
+    definition:
+      key: Schemas.Property/Contact.given_name
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Contact.given_name
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- exists:
+    definition:
+      key: Schemas.Property/Contact.family_name
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Contact.family_name
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- exists:
+    definition:
+      key: Schemas.Property/Contact.birth_date
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Contact.birth_date
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasProperty
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Contact
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Contact.given_name
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: given_name
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Contact
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Contact.family_name
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: family_name
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Contact
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Contact.birth_date
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: birth_date
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasAdjacency
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Contact
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Adjacency/Contact.addresses
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: addresses
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Contact
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Adjacency/Contact.phones
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: phones
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Module/.
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Contact
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Contact
+- exists:
+    definition:
+      key: Schemas.Object/Address
+      properties:
+        name: Address
+        ref: true
+        pattern: 'address-(\d+)'
+- exists:
+    definition:
+      key: Schemas.Adjacency/Address.contacts
+      properties:
+        me: address
+- exists:
+    definition:
+      key: Schemas.Property/Address.street1
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Address.street1
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- exists:
+    definition:
+      key: Schemas.Property/Address.locality
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Address.locality
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- exists:
+    definition:
+      key: Schemas.Property/Address.postal_code
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Address.postal_code
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- exists:
+    definition:
+      key: Schemas.Property/Address.country_code
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Address.country_code
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasProperty
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Address
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Address.street1
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: street1
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Address
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Address.locality
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: locality
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Address
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Address.postal_code
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: postal_code
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Address
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Address.country_code
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: country_code
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasAdjacency
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Address
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Adjacency/Address.contacts
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: contacts
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Module/.
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Address
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Address
+- exists:
+    definition:
+      key: Schemas.Object/Phone
+      properties:
+        name: Phone
+        ref: true
+        pattern: 'phone-(\d+)'
+- exists:
+    definition:
+      key: Schemas.Adjacency/Phone.contacts
+      properties:
+        me: phone
+- exists:
+    definition:
+      key: Schemas.Property/Phone.number
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Phone.number
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasProperty
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Phone
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/Phone.number
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: number
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasAdjacency
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Phone
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Adjacency/Phone.contacts
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: contacts
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Module/.
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Object/Phone
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Phone
+- exists:
+    definition:
+      key: Schemas.Relation/ContactAddresses
+      properties:
+        name: ContactAddresses
+- exists:
+    definition:
+      key: Schemas.Symbol/ContactAddresses.contact
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Symbol/ContactAddresses.address
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Property/ContactAddresses.label
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/ContactAddresses.label
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasProperty
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/ContactAddresses
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/ContactAddresses.label
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: label
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasLink
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/ContactAddresses
+      - as_link:
+          name: link
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Symbol/ContactAddresses.contact
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: contact
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/ContactAddresses
+      - as_link:
+          name: link
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Symbol/ContactAddresses.address
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: address
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Relating
+    entries:
+    - mutations:
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Adjacency/Address.contacts
+      - as_link:
+          name: relation
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/ContactAddresses
+    - mutations:
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Adjacency/Contact.addresses
+      - as_link:
+          name: relation
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/ContactAddresses
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Module/.
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/ContactAddresses
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: ContactAddresses
+- exists:
+    definition:
+      key: Schemas.Relation/ContactPhones
+      properties:
+        name: ContactPhones
+- exists:
+    definition:
+      key: Schemas.Symbol/ContactPhones.contact
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Symbol/ContactPhones.phone
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.Property/ContactPhones.label
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Typing
+    entries:
+    - mutations:
+      - as_link:
+          name: typed
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/ContactPhones.label
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Scalar/Schemas.OfStr
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasProperty
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/ContactPhones
+      - as_link:
+          name: property
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Property/ContactPhones.label
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: label
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.HasLink
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/ContactPhones
+      - as_link:
+          name: link
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Symbol/ContactPhones.contact
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: contact
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/ContactPhones
+      - as_link:
+          name: link
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Symbol/ContactPhones.phone
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: phone
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Relating
+    entries:
+    - mutations:
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Adjacency/Phone.contacts
+      - as_link:
+          name: relation
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/ContactPhones
+    - mutations:
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Adjacency/Contact.phones
+      - as_link:
+          name: relation
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/ContactPhones
+- insert:
+    relation:
+      key: Schemas.Relation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Module/.
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.Relation/ContactPhones
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: ContactPhones
+- exists:
+    definition:
+      key: Address/address-1
+      properties:
+        street1: '10 Downing Street'
+        locality: London
+        postal_code: SW1A 2AA
+        country_code: GB
+- exists:
+    definition:
+      key: Contact/contact-1
+      properties:
+        given_name: Alice
+        family_name: Liddell
+        birth_date: '1852-05-04'
+- insert:
+    relation:
+      key: Schemas.Relation/ContactAddresses
+    entries:
+    - mutations:
+      - as_link:
+          name: contact
+          mutations:
+          - set:
+              ref:
+                key: Contact/contact-1
+      - as_link:
+          name: address
+          mutations:
+          - set:
+              ref:
+                key: Address/address-1
+      - as_property:
+          name: label
+          mutations:
+          - set:
+              value: home
+- exists:
+    definition:
+      key: Contact/contact-2
+      properties:
+        given_name: Bob
+- insert:
+    relation:
+      key: Schemas.Relation/ContactAddresses
+    entries:
+    - mutations:
+      - as_link:
+          name: contact
+          mutations:
+          - set:
+              ref:
+                key: Contact/contact-2
+      - as_link:
+          name: address
+          mutations:
+          - set:
+              ref:
+                key: Address/address-1
+      - as_property:
+          name: label
+          mutations:
+          - set:
+              value: home
+- exists:
+    definition:
+      key: Phone/phone-1
+      properties:
+        number: '+447700900123'
+- insert:
+    relation:
+      key: Schemas.Relation/ContactPhones
+    entries:
+    - mutations:
+      - as_link:
+          name: contact
+          mutations:
+          - set:
+              ref:
+                key: Contact/contact-1
+      - as_link:
+          name: phone
+          mutations:
+          - set:
+              ref:
+                key: Phone/phone-1
+      - as_property:
+          name: label
+          mutations:
+          - set:
+              value: mobile
+- exists:
+    definition:
+      key: Phone/phone-2
+      properties:
+        number: '+14155550100'
+- insert:
+    relation:
+      key: Schemas.Relation/ContactPhones
+    entries:
+    - mutations:
+      - as_link:
+          name: contact
+          mutations:
+          - set:
+              ref:
+                key: Contact/contact-1
+      - as_link:
+          name: phone
+          mutations:
+          - set:
+              ref:
+                key: Phone/phone-2
+      - as_property:
+          name: label
+          mutations:
+          - set:
+              value: work

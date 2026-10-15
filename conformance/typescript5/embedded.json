@@ -1,93 +1,2727 @@
-{
-  "root": "Deck/deck-1",
-  "objects": {
-    "Deck/deck-1": {
-      "title": "contacts",
-      "cards": [
+[
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Module/.",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Object/Card",
+        "properties": {
+          "name": "Card",
+          "ref": true,
+          "pattern": "card-(\\d+)"
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Adjacency/Card.decks",
+        "properties": {
+          "me": "card"
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Property/Card.name",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
         {
-          "card": {
-            "$ref": "Card/card-1",
-            "$schema": "Card"
-          }
-        },
-        {
-          "card": {
-            "$ref": "Card/card-2",
-            "$schema": "Card"
-          }
-        },
-        {
-          "card": {
-            "$ref": "Card/card-3",
-            "$schema": "Card"
-          }
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.name"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Scalar/Schemas.OfStr"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Card/card-1": {
-      "name": "Ann",
-      "home": {
-        "number": "+1 555 0100",
-        "label": "home",
-        "extensions": [
-          "12"
-        ]
-      },
-      "reach": {
-        "email": {
-          "address": "ann@example.com"
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Property/Card.home",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Object/Card.home#type",
+        "properties": {
+          "ref": false
         }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Property/Card.home#type.number",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
       },
-      "ident": {
-        "number": 7
-      },
-      "decks": [
+      "entries": [
         {
-          "deck": {
-            "$ref": "Deck/deck-1",
-            "$schema": "Deck"
-          }
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.home#type.number"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Scalar/Schemas.OfStr"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Card/card-2": {
-      "name": "Bo",
-      "reach": {
-        "phone": {
-          "number": "+44 20 7946 0000"
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Property/Card.home#type.label",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.home#type.label"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Scalar/Schemas.OfStr"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Property/Card.home#type.extensions",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Container/Card.home#type.extensions#type",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Containing"
       },
-      "ident": {
-        "code": "B-2"
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "container",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Container/Card.home#type.extensions#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "element",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Scalar/Schemas.OfStr"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Indexing"
       },
-      "meta": {
-        "stamp": {
-          "updated": "2026-09-29"
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "container",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Container/Card.home#type.extensions#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "index",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Scalar/Schemas.OfInt"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.home#type.extensions"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Container/Card.home#type.extensions#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasProperty"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card.home#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "property",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.home#type.number"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "number"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         },
-        "audit": {
-          "by": "ann",
-          "updated": "2026-09-29"
-        }
-      },
-      "decks": [
         {
-          "deck": {
-            "$ref": "Deck/deck-1",
-            "$schema": "Deck"
-          }
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card.home#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "property",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.home#type.label"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "label"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card.home#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "property",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.home#type.extensions"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "extensions"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    "Card/card-3": {
-      "name": "Cy",
-      "decks": [
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
         {
-          "deck": {
-            "$ref": "Deck/deck-1",
-            "$schema": "Deck"
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.home"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card.home#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Property/Card.reach",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Union/Card.reach#type",
+        "properties": {
+          "flat": false
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Member/Card.reach#type.phone",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Member/Card.reach#type.phone"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card.home#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Member/Card.reach#type.email",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Object/Card.reach#type.email#type",
+        "properties": {
+          "ref": false
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Property/Card.reach#type.email#type.address",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.reach#type.email#type.address"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Scalar/Schemas.OfStr"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasProperty"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card.reach#type.email#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "property",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.reach#type.email#type.address"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "address"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Member/Card.reach#type.email"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card.reach#type.email#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasBranch"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Union/Card.reach#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "branch",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Member/Card.reach#type.phone"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "phone"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Union/Card.reach#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "branch",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Member/Card.reach#type.email"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "email"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.reach"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Union/Card.reach#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Property/Card.ident",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Union/Card.ident#type",
+        "properties": {
+          "flat": false
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Member/Card.ident#type.number",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Member/Card.ident#type.number"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Scalar/Schemas.OfInt"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Member/Card.ident#type.code",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Member/Card.ident#type.code"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Scalar/Schemas.OfStr"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasBranch"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Union/Card.ident#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "branch",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Member/Card.ident#type.number"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "number"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Union/Card.ident#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "branch",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Member/Card.ident#type.code"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "code"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.ident"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Union/Card.ident#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Property/Card.meta",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Intersection/Card.meta#type",
+        "properties": {
+          "flat": false
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Member/Card.meta#type.stamp",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Object/Card.meta#type.stamp#type",
+        "properties": {
+          "ref": false
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Property/Card.meta#type.stamp#type.updated",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.meta#type.stamp#type.updated"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Scalar/Schemas.OfStr"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasProperty"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card.meta#type.stamp#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "property",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.meta#type.stamp#type.updated"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "updated"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Member/Card.meta#type.stamp"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card.meta#type.stamp#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Member/Card.meta#type.audit",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Object/Card.meta#type.audit#type",
+        "properties": {
+          "ref": false
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Property/Card.meta#type.audit#type.by",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.meta#type.audit#type.by"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Scalar/Schemas.OfStr"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Property/Card.meta#type.audit#type.updated",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.meta#type.audit#type.updated"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Scalar/Schemas.OfStr"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasProperty"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card.meta#type.audit#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "property",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.meta#type.audit#type.by"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "by"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card.meta#type.audit#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "property",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.meta#type.audit#type.updated"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "updated"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Member/Card.meta#type.audit"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card.meta#type.audit#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasPart"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Intersection/Card.meta#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "part",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Member/Card.meta#type.stamp"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "stamp"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Intersection/Card.meta#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "part",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Member/Card.meta#type.audit"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "audit"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.meta"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Intersection/Card.meta#type"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasProperty"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "property",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.name"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "name"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "property",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.home"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "home"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "property",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.reach"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "reach"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "property",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.ident"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "ident"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "property",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Card.meta"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "meta"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasAdjacency"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "adjacency",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Adjacency/Card.decks"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "decks"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Defines"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "module",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Module/."
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Card"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "Card"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Relation/Holding",
+        "properties": {
+          "name": "Holding"
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Symbol/Holding.deck",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Symbol/Holding.card",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasLink"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Relation/Holding"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "link",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Symbol/Holding.deck"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "deck"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Relation/Holding"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "link",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Symbol/Holding.card"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "card"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Relating"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "adjacency",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Adjacency/Card.decks"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "relation",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Relation/Holding"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Defines"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "module",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Module/."
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Relation/Holding"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "Holding"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Object/Deck",
+        "properties": {
+          "name": "Deck",
+          "ref": true,
+          "pattern": "deck-(\\d+)"
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Adjacency/Deck.cards",
+        "properties": {
+          "me": "deck"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Relating"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "adjacency",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Adjacency/Deck.cards"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "relation",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Relation/Holding"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.Property/Deck.title",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Typing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "typed",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Deck.title"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Scalar/Schemas.OfStr"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasProperty"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Deck"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "property",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Property/Deck.title"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "title"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.HasAdjacency"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Deck"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "adjacency",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Adjacency/Deck.cards"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "cards"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Schemas.Defines"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "module",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Module/."
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.Object/Deck"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "Deck"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Deck/deck-1",
+        "properties": {
+          "title": "contacts"
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Card/card-1",
+        "properties": {
+          "name": "Ann",
+          "home": {
+            "number": "+1 555 0100",
+            "label": "home",
+            "extensions": [
+              "12"
+            ]
+          },
+          "reach": {
+            "email": {
+              "address": "ann@example.com"
+            }
+          },
+          "ident": {
+            "number": 7
           }
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Holding"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "deck",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Deck/deck-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "card",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Card/card-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Card/card-2",
+        "properties": {
+          "name": "Bo",
+          "reach": {
+            "phone": {
+              "number": "+44 20 7946 0000"
+            }
+          },
+          "ident": {
+            "code": "B-2"
+          },
+          "meta": {
+            "stamp": {
+              "updated": "2026-09-29"
+            },
+            "audit": {
+              "by": "ann",
+              "updated": "2026-09-29"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Holding"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "deck",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Deck/deck-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "card",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Card/card-2"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Card/card-3",
+        "properties": {
+          "name": "Cy"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.Relation/Holding"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "deck",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Deck/deck-1"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "card",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Card/card-3"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       ]
     }
   }
-}
+]

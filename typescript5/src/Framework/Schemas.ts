@@ -45,6 +45,8 @@ function visited(names: readonly unknown[]): string[] {
 export const SCALAR_TYPES: readonly ScalarToken[] = [BigInt, Number, String, Boolean, Uint8Array];
 
 const DOTTED = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;
+/** A dotted name: a path of identifiers (`crm.sales.Order`). */
+export const _DOTTED = DOTTED;
 
 /** A schema's name, when it has one, is identifiers separated by dots. */
 function nameProblems(name: unknown): string[] {

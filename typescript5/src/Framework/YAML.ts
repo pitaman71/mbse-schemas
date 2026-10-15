@@ -286,6 +286,8 @@ export interface ToYAMLCall {
   OfScalar(schema: Schemas.OfScalar.Data, value: Scalar): string;
   OfObject(schema: Schemas.OfObject.Data, value: Readers.OfObject): string;
   Reachable(schema: Schemas.OfObject.Data, value: Readers.OfObject): string;
+  /** The store as a log of mutations, its initial snapshot: `Plain.ToPlain(store).Snapshot()`, as YAML text. */
+  Snapshot(): string;
 }
 
 /** Encodes values, naming the schemas of objects in `store`: `ToYAML(store)(schema, value)` dispatches on the schema's
@@ -297,6 +299,7 @@ export function ToYAML(store: Stores.Store, options: { flat?: boolean } = {}): T
     OfScalar: (schema: Schemas.OfScalar.Data, value: Scalar) => dumps(plain.OfScalar(schema, value)),
     OfObject: (schema: Schemas.OfObject.Data, value: Readers.OfObject) => dumps(plain.OfObject(schema, value)),
     Reachable: (schema: Schemas.OfObject.Data, value: Readers.OfObject) => dumps(plain.Reachable(schema, value)),
+    Snapshot: () => dumps(plain.Snapshot()),
   });
 }
 
@@ -305,6 +308,8 @@ export interface FromYAMLCall {
   OfScalar(schema: Schemas.OfScalar.Data, text: string | Uint8Array): Scalar;
   OfObject(schema: Schemas.OfObject.Data, text: string | Uint8Array): unknown;
   Reachable(schema: Schemas.OfObject.Data, text: string | Uint8Array): unknown;
+  /** Applies a log of mutations, as YAML text, to the store: `Plain.FromPlain(store).Snapshot(log)`. */
+  Snapshot(text: string | Uint8Array): unknown[];
 }
 
 /** Decodes YAML, building objects in `store`: `FromYAML(store)(schema, text)`. */
@@ -315,5 +320,6 @@ export function FromYAML(store: Stores.Store): FromYAMLCall {
     OfScalar: (schema: Schemas.OfScalar.Data, text: string | Uint8Array) => plain.OfScalar(schema, loads(text)),
     OfObject: (schema: Schemas.OfObject.Data, text: string | Uint8Array) => plain.OfObject(schema, loads(text)),
     Reachable: (schema: Schemas.OfObject.Data, text: string | Uint8Array) => plain.Reachable(schema, loads(text)),
+    Snapshot: (text: string | Uint8Array) => plain.Snapshot(loads(text)),
   });
 }

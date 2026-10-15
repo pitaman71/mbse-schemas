@@ -37,7 +37,9 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { AttributeError, DecodeError, LookupError, NotImplementedError, path } from "./Errors.js";
+import * as Builders from "./Builders.js";
+import { AttributeError, DecodeError, LookupError, NotImplementedError, path, ValueError } from "./Errors.js";
+import * as Json from "./JSON.js";
 import * as Proxies from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
 import type * as Readers from "./Readers.js";
@@ -940,6 +942,387 @@ function fill(visitor: any, row: Map<string, unknown>, resolve: (symbol: string)
   return visitor;
 }
 
+// --- Logs: a store as a log of mutations (docs/SERIALIZATION.md) ---
+
+/** A plain mapping of `entries`, in order. */
+function m(entries: [string, PlainData][]): PlainMap {
+  return new Map(entries);
+}
+
+/** `plain[key]`, or `fallback` where it holds none, as Python's `dict.get(key, fallback)`. */
+function field(plain: any, key: string, fallback: unknown): any {
+  return new Map([[key, fallback], ...plain]).get(key);
+}
+
+/** An entry waiting to be written: once every object it links is. */
+interface Pending {
+  relation: Schemas.OfRelation.Data;
+  links: Map<string, string>;
+  properties: PlainMap;
+  count: number;
+  keys: Set<string>;
+  scan: number;
+}
+
+/** Writes a store as a log of mutations, its initial snapshot: modules, then the schemas each defines, then the other
+ * named singletons, then the remaining reference objects. Each object is read through its visitor (a schema object
+ * through its builder, read-only) and written once, in definition form (`exists`); the objects a schema object holds or
+ * links that have no name of their own follow it. An entry is written (`insert`) once every object it links is; a link
+ * to one of the framework's schemas, which every store holds, is a reference only. */
+class LogWriter {
+  private readonly store: Builders.Store;
+  /** What `value` needs to write a value: a value holds no reference, so it is never called. */
+  private readonly names: Ref;
+  private readonly out: PlainData[] = [];
+  private readonly written = new Set<string>();
+  /** Written, with every object it holds or links that follows it. */
+  private readonly complete = new Set<string>();
+  private readonly pending = new Map<string, Pending>();
+  /** Each object's adjacencies are scanned once: an inner object's later than its owner's. */
+  private scans = 0;
+  private readonly relations = new Map<unknown, number>();
+
+  constructor(store: Stores.Store) {
+    if (!(store instanceof Builders.Store)) {
+      throw new TypeError("a snapshot is of a Builders.Store, which holds its schemas and its modules");
+    }
+    this.store = store;
+    this.names = new Snapshot(store).ref;
+  }
+
+  /** A visitor of a schema object: its builder, read-only. */
+  private reader(value: any): any {
+    const builder = Builders._builder_for(value) as new (...args: unknown[]) => unknown;
+    return new builder(value, false, this.store);
+  }
+
+  /** `Module.Schema/ID`: the registered name of the object's schema, and its identity, or, for an object rebuilt on
+   * every read, which has none, the identity its path derives. */
+  private key(visitor: any, derived: string | null = null): string {
+    return `${this.store.name_of(visitor.as_schema())}/${visitor.as_identity() || derived}`;
+  }
+
+  /** Refuses a schema object the store does not hold, saying where it is linked: there are no foreign schemas. */
+  private held(visitor: any, where: string): void {
+    const held: any = Builders._linked(visitor);
+    if (held === null || held instanceof Builders._ArgumentData || held instanceof Schemas.Form.Data) return;
+    if (!this.store.holds(held)) {
+      const shown = held.name || `_${held.constructor.name}`;
+      throw new ValueError(`${where} links ${shown}, a schema the store does not hold: there are no foreign schemas`);
+    }
+  }
+
+  /** Writes an object in definition form, then what follows it. A singleton exists in every store that registers its
+   * schema, so that `exists` leaves it as it is there: its properties are set after it (`as_property`). */
+  define(visitor: any, key: string, singleton = false): void {
+    if (this.written.has(key)) return;
+    this.written.add(key);
+    const properties: PlainMap = new Map();
+    for (const prop of visitor.as_properties) { // the properties that are set
+      properties.set(prop.as_schema().name, value(prop, prop.as_schema().type, this.names)[1]);
+    }
+    this.out.push(m([["exists", m([["definition", m([["key", key], ["properties", singleton ? new Map() : properties]])]])]]));
+    if (singleton) {
+      for (const [name, plain] of properties) {
+        this.out.push(m([["as_property", m([["ref", m([["key", key]])], ["name", name],
+          ["mutations", [m([["set", m([["value", plain]])]])]]])]]));
+      }
+    }
+    const contained: [any, string][] = [];
+    visitor.as_adjacencies((adjacency: any) => this.entries(adjacency, key, contained));
+    for (const [target, targetKey] of contained) this.define(target, targetKey);
+    this.complete.add(key);
+    this.flush();
+  }
+
+  private entries(adjacency: any, key: string, contained: [any, string][]): any {
+    this.scans += 1;
+    const schema = adjacency.as_schema();
+    const relation: Schemas.OfRelation.Data = schema.relation;
+    const me: string = schema.me;
+    if (!this.relations.has(relation)) this.relations.set(relation, this.relations.size);
+    const counts = new Map<string, number>();
+    [...adjacency].forEach((entry: any, index: number) => {
+      const links = new Map<string, string>();
+      for (const link of relation.entry.links.keys()) {
+        if (link === me) {
+          links.set(link, key);
+          continue;
+        }
+        const target = entry[link];
+        this.held(target, `${key}, ${schema.name},`);
+        const names = [...relation.entry.links.keys(), ...relation.entry.properties.keys()];
+        const single = relation.uniques.some((unique) => { // one entry, as the store derives
+          const rest = names.filter((name) => !unique.has(name));
+          return rest.length === 1 && rest[0] === me;
+        });
+        const derived = `${key.slice(key.indexOf("/") + 1)}#${schema.name}${single ? "" : `.${index}`}`;
+        const targetKey = this.key(target, derived);
+        links.set(link, targetKey);
+        const data: any = Builders._linked(target);
+        if (data !== null && this.store.framework(data)) {
+          this.written.add(targetKey);
+          this.complete.add(targetKey);
+        } else if (data !== null && !(Builders._namable(data) && data.name)) {
+          contained.push([target, targetKey]); // a schema object with no name of its own follows what links it
+        }
+      }
+      const properties: PlainMap = new Map();
+      for (const [name, prop] of relation.entry.properties) {
+        const [found, plain] = value(entry[name], prop.type, this.names);
+        if (found) properties.set(name, plain);
+      }
+      const identity = [this.relations.get(relation), Json.dumps([...links].sort(byName)),
+        Json.dumps([...properties].sort(byName) as PlainData[])].join("\n");
+      counts.set(identity, (counts.get(identity) ?? 0) + 1);
+      if (!this.pending.has(identity)) {
+        this.pending.set(identity, { relation, links, properties, count: 0, keys: new Set(links.values()), scan: this.scans });
+      }
+      const pending = this.pending.get(identity) as Pending;
+      pending.count = Math.max(pending.count, counts.get(identity) as number);
+    });
+    return adjacency;
+  }
+
+  /** Writes the entries whose objects are all written: an inner object's (scanned later) before its owner's, so that an
+   * object is whole before it is placed; within one object's, in order. Consecutive entries of a relation go in one
+   * `insert`. */
+  private flush(): void {
+    const ready = [...this.pending].map(([identity, pending], number) => ({ identity, pending, number }))
+      .filter(({ pending }) => [...pending.keys].every((key) => this.complete.has(key)))
+      .sort((a, b) => b.pending.scan - a.pending.scan || a.number - b.number);
+    for (const { identity, pending } of ready) {
+      this.pending.delete(identity);
+      const relationKey = this.key(this.reader(pending.relation));
+      const entry = m([["mutations", [
+        ...[...pending.links].map(([name, target]) => m([["as_link", m([["name", name],
+          ["mutations", [m([["set", m([["ref", m([["key", target]])]])]])]]])]])),
+        ...[...pending.properties].map(([name, plain]) => m([["as_property", m([["name", name],
+          ["mutations", [m([["set", m([["value", plain]])]])]]])]])),
+      ]]]);
+      const entries = new Array(pending.count).fill(entry);
+      const last: any = this.out[this.out.length - 1];
+      if (last.has("insert") && last.get("insert").get("relation").get("key") === relationKey) {
+        last.get("insert").get("entries").push(...entries);
+      } else {
+        this.out.push(m([["insert", m([["relation", m([["key", relationKey]])], ["entries", entries]])]]));
+      }
+    }
+  }
+
+  run(): PlainData[] {
+    const store = this.store;
+    const modules: any[] = [];
+    const queue: any[] = [store.module()];
+    while (queue.length > 0) { // the root module first, then the modules it defines, nested
+      const module = queue.shift();
+      modules.push(module);
+      queue.push(...[...module.schemas.values()].filter((held) => held instanceof Builders._ModuleData));
+    }
+    for (const module of modules) {
+      const reader = this.reader(module);
+      this.define(reader, this.key(reader));
+    }
+    for (const module of modules) {
+      for (const held of module.schemas.values()) {
+        if (!(held instanceof Builders._ModuleData)) {
+          const reader = this.reader(held);
+          this.define(reader, this.key(reader));
+        }
+      }
+    }
+    for (const singleton of store._singletons.values()) this.define(singleton, this.key(singleton), true);
+    for (const directory of [...store._directories.values()]) {
+      for (const held of [...directory.live.values()]) {
+        const value = held.deref();
+        if (value !== undefined) this.define(value, this.key(value));
+      }
+    }
+    return this.out; // every entry is written: it links objects of the store, each written
+  }
+}
+
+function byName(a: [string, unknown], b: [string, unknown]): number {
+  return compareStrings(a[0], b[0]);
+}
+
+/** Applies a log of mutations to a store, each through the store's builders: `exists` creates an object only where its
+ * identity is new, its properties read by their schema; `insert` adds entries, through an adjacency of an object each
+ * links. */
+class LogReader {
+  private readonly store: Builders.Store;
+  private readonly meta: Set<unknown>;
+  /** The objects made, held: a store holds its data objects weakly. */
+  private readonly made: unknown[] = [];
+
+  constructor(store: Stores.Store) {
+    if (!(store instanceof Builders.Store)) throw new TypeError("a snapshot is read into a Builders.Store");
+    this.store = store;
+    this.meta = new Set(Object.values(Builders.Meta));
+  }
+
+  private schema(name: string, where: Where): any {
+    try {
+      return this.store.registered(name);
+    } catch { // registered throws only LookupError
+      throw new DecodeError(`no schema registered as ${repr(name)}: there are no foreign schemas`, { path: path(...where) });
+    }
+  }
+
+  private split(key: unknown, where: Where): [string, string] {
+    if (typeof key !== "string" || !key.includes("/")) {
+      throw new DecodeError(`a key is 'Module.Schema/ID', got ${repr(key)}`, { path: path(...where) });
+    }
+    const at = key.indexOf("/");
+    return [key.slice(0, at), key.slice(at + 1)];
+  }
+
+  private resolve(key: unknown, where: Where): any {
+    const [name, identity] = this.split(key, where);
+    const schema = this.schema(name, where);
+    let found: unknown = null;
+    if (this.meta.has(schema)) {
+      found = this.store.held(name, identity);
+    } else {
+      try {
+        found = this.store.by_identity(name, identity);
+      } catch { // none of that identity, or no object schema of that name
+        found = null;
+      }
+    }
+    if (found === null) throw new DecodeError(`${repr(key)} is not in the store`, { path: path(...where) });
+    return found;
+  }
+
+  private one(item: unknown, where: Where): [string, any] {
+    if (!(item instanceof Map) || item.size !== 1) {
+      throw new DecodeError("a mutation is a mapping of one verb", { path: path(...where) });
+    }
+    return [...item][0] as [string, any];
+  }
+
+  apply(log: unknown): unknown[] {
+    if (!Array.isArray(log)) throw new DecodeError(`a log is a list, got ${typeName(log)}`, { path: "$" });
+    log.forEach((item, index) => {
+      const [verb, body] = this.one(item, [index]);
+      if (verb === "exists") this.exists(field(body, "definition", new Map()), [index, verb]);
+      else if (verb === "insert") this.insert(body, [index, verb]);
+      else if (verb === "as_property") this.asProperty(body, [index, verb]);
+      else throw new DecodeError(`${repr(verb)} is not read in an initial snapshot`, { path: path(index) });
+    });
+    return this.made;
+  }
+
+  private exists(definition: any, where: Where): void {
+    const key = field(definition, "key", null);
+    const [name, identity] = this.split(key, [...where, "key"]);
+    const schema = this.schema(name, [...where, "key"]);
+    let builder: any;
+    let properties: Map<string, any>;
+    if (this.meta.has(schema)) {
+      if (this.store.held(name, identity) !== null) return;
+      const builderClass = Builders._META_BUILDERS.get(name.slice("Schemas.".length)) as any;
+      builder = new builderClass(null, true, this.store);
+      builder.as_identity(identity);
+      properties = builder.as_schema().properties;
+    } else {
+      try {
+        this.store.by_identity(name, identity);
+        return;
+      } catch { // by_identity throws only LookupError
+        builder = this.store.restore(name, identity);
+      }
+      properties = schema.properties;
+    }
+    for (const [propName, plain] of field(definition, "properties", new Map())) {
+      if (!properties.has(propName)) {
+        throw new DecodeError(`${name} has no property ${repr(propName)}`, { path: path(...where, propName) });
+      }
+      set(builder, propName, decode(properties.get(propName).type, plain, [...where, propName], this.store));
+    }
+    this.made.push(builder.create());
+  }
+
+  /** Sets or clears a property of an object that exists (a singleton's, in an initial snapshot). */
+  private asProperty(body: any, where: Where): void {
+    const target = this.resolve(field(field(body, "ref", new Map()), "key", null), [...where, "ref"]);
+    const name = field(body, "name", null);
+    const schema = target.as_schema();
+    if (!schema.properties.has(name)) {
+      throw new DecodeError(`${this.store.name_of(schema)} has no property ${repr(name)}`, { path: path(...where, "name") });
+    }
+    const builder = this.store.builder(this.store.name_of(schema), target);
+    for (const change of field(body, "mutations", [])) {
+      const [verb, payload] = this.one(change, where);
+      if (verb === "set") {
+        set(builder, name, decode(schema.properties.get(name).type, field(payload, "value", null), where, this.store));
+      } else {
+        builder[name].as_value((held: any) => held.clear());
+      }
+    }
+    builder.update();
+  }
+
+  private insert(body: any, where: Where): void {
+    const relation = this.resolve(field(field(body, "relation", new Map()), "key", null), [...where, "relation"]);
+    field(body, "entries", []).forEach((entry: any, number: number) => {
+      const at = [...where, "entries", number];
+      const links = new Map<string, unknown>();
+      const values = new Map<string, unknown>();
+      for (const item of field(entry, "mutations", [])) {
+        const [kind, member] = this.one(item, at);
+        for (const change of field(member, "mutations", [])) {
+          const [, payload] = this.one(change, at); // an entry's links and properties are set
+          const name = member.get("name");
+          if (kind === "as_link") {
+            links.set(name, this.resolve(field(field(payload, "ref", new Map()), "key", null), at));
+          } else {
+            const prop = relation.entry.properties.get(name);
+            if (prop === undefined) throw new DecodeError(`the relation has no property ${repr(name)}`, { path: path(...at) });
+            values.set(name, decode(prop.type, field(payload, "value", null), at, this.store));
+          }
+        }
+      }
+      this.link(relation, links, values, at);
+    });
+  }
+
+  private link(relation: unknown, links: Map<string, any>, values: Map<string, unknown>, where: Where): void {
+    for (const [link, target] of links) {
+      const builderClass = Builders._builder_for(target);
+      let builder: any;
+      let schema: any;
+      if (builderClass !== null) {
+        builder = new builderClass(target, true, this.store);
+        schema = builder.as_schema();
+      } else {
+        schema = target.as_schema();
+        builder = this.store.builder(this.store.name_of(schema), target);
+      }
+      const adjacency = [...schema.adjacencies as Map<string, Schemas.OfAdjacency.Data>]
+        .find(([, held]) => held.relation === relation && held.me === link);
+      if (adjacency === undefined) continue;
+      const fill = (entry: any): any => {
+        for (const [other, value] of links) {
+          if (other !== link) entry[other](value);
+        }
+        for (const [name, value] of values) set(entry, name, value);
+        return entry;
+      };
+      const member = builder[adjacency[0]];
+      if (Builders._holds_one(member)) member((adv: any) => adv.remove((entry: any) => entry)); // the one held is replaced
+      member((adv: any) => adv.insert(fill));
+      if (builder instanceof Builders.FormBuilder) { // a form is immutable: the store holds a new one in its place
+        Builders._rehold_form(this.store, target, builder.clone());
+      } else {
+        builder.update();
+      }
+      return;
+    }
+    throw new DecodeError("no object an entry links declares an adjacency through which to add it", { path: path(...where) });
+  }
+}
+
 // --- Entry points ---
 
 function toPlainOfScalar(schema: Schemas.OfScalar.Data, value: Scalar): PlainData {
@@ -957,6 +1340,9 @@ export interface ToPlainCall {
    * intersection value or container of `schema`, read through its visitor, or a value of any type (`OfAny`), of a
    * registered schema or a scalar. */
   Value(schema: unknown, value: unknown): PlainData;
+  /** The store as a log of mutations, its initial snapshot (docs/SERIALIZATION.md): modules, then schemas, then the
+   * other named singletons, then the remaining reference objects. */
+  Snapshot(): PlainData[];
 }
 
 /** Serializes values to plain data, naming the schemas of objects in `store`: `ToPlain(store)(schema, value)`
@@ -983,6 +1369,7 @@ export function ToPlain(store: Stores.Store, options: { flat?: boolean } = {}): 
     OfScalar: toPlainOfScalar,
     OfObject,
     Reachable: (schema: Schemas.OfObject.Data, value: Readers.OfObject): PlainMap => new Snapshot(store, flat).run(schema, value, Reachable.of(value)),
+    Snapshot: (): PlainData[] => new LogWriter(store).run(),
     Value,
   });
 }
@@ -995,6 +1382,9 @@ export interface FromPlainCall {
   /** A standalone value, read from the plain form `ToPlain(store).Value` writes and built through the store's builder
    * of its schema, which the store registers; a scalar as itself. */
   Value(schema: unknown, plain: unknown): unknown;
+  /** Applies a log of mutations, an initial snapshot, to the store, through its builders; returns the objects it makes,
+   * in order, which the caller holds (a store holds its data objects weakly). */
+  Snapshot(log: unknown): unknown[];
 }
 
 /** Deserializes plain data, building objects in `store`: `FromPlain(store)(schema, plain)` dispatches on the schema's
@@ -1028,5 +1418,6 @@ export function FromPlain(store: Stores.Store): FromPlainCall {
     if (VALUES.some((kind) => schema instanceof kind)) return Value(schema, plain);
     throw new NotImplementedError(`${schemaTypeName(schema)} is not supported by Plain yet`);
   };
-  return Object.assign(call, { OfScalar, OfObject, Reachable: OfObject, Value });
+  return Object.assign(call, { OfScalar, OfObject, Reachable: OfObject, Value,
+    Snapshot: (log: unknown): unknown[] => new LogReader(store).apply(log) });
 }

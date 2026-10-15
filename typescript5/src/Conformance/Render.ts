@@ -1,5 +1,5 @@
 /**
- * The text of this implementation's conformance snapshots. Platform-neutral: `write.ts` saves it with Node, and the
+ * The text of this implementation's conformance logs, each case's store's initial snapshot. Platform-neutral: `write.ts` saves it with Node, and the
  * portability smoke test (`tests/portability/deno.ts`) compares it without Node.
  */
 
@@ -10,9 +10,9 @@ import { build } from "./Corpus.js";
  * registering its schemas twice. */
 export function render(corpus: ReturnType<typeof build> = build()): Map<string, string> {
   const files = new Map<string, string>();
-  for (const [name, [schema, root, store]] of corpus) {
-    files.set(`${name}.json`, JSON.ToJSON(store).Reachable(schema, root, { indent: 2 }) + "\n");
-    files.set(`${name}.yaml`, YAML.ToYAML(store).Reachable(schema, root));
+  for (const [name, [store]] of corpus) {
+    files.set(`${name}.json`, JSON.ToJSON(store).Snapshot({ indent: 2 }) + "\n");
+    files.set(`${name}.yaml`, YAML.ToYAML(store).Snapshot());
   }
   return files;
 }

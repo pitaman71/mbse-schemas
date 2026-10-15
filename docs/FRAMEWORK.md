@@ -840,6 +840,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - a property's type: `e1.type(lambda adj: adj.insert(lambda e2: e2.schema(Contact)))`; "For Schemas.OfProperty.type
     we can interpret `.schema` as designating its evaluation type. So OfScalar(int) would do": a link to a type takes
     a schema that exists, not a callback that builds one.
+  - a relation's links: "`type` *never* needs to be provided on the symbol. that relationship is inferred from
+    adjacencies": a link is named, and its type follows from the adjacencies that fill it.
   - shortcuts are refused: a member's write has no side effect besides it, and none of the meta-schemas' references
     are left as names or values.
   - proposed in building, for the user's review: docs/proposals/schema-builders/ (the meta-schemas as reference objects

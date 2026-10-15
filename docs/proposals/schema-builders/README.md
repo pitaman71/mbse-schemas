@@ -92,7 +92,7 @@ With VISITOR_PATTERN.md's shorthands:
 | `.properties(lambda p: p.name("x").of(T))` | `.properties([lambda t: t.name("x").type([T])])`; one built first, `.properties([lambda t: t.name("x").property(x)])` |
 | `.of(T)` on a property, parameter, symbol, branch, part | `.type([T])`, the evaluation type, a schema that exists (`[S.OfScalar.Data(int)]`) |
 | `.relations(lambda a: a.name("n").of(R).me("l"))` | `.adjacencies([lambda t: t.name("n").relation([R]).me([l])])`, `l` the symbol; an anonymous one has no `name` |
-| `.links("a", "b")` | `.links([lambda t: t.name("a").type([A]), lambda t: t.name("b").type([B])])`; or `t.name("a").link(a)`, to name a symbol built first (as a `unique` clause needs) |
+| `.links("a", "b")` | `.links([lambda t: t.name("a"), lambda t: t.name("b")])`, a link's type following from the adjacencies that fill it; or `t.name("a").link(a)`, to name a symbol built first, which `.me([a])` and a `unique` clause refer to |
 | `.unique("a")` | `.uniques([OfUnique.Builder().named([a]).create()])`, `a` the link or property |
 | `.refines(T)` | `.refines([T])` |
 | `.bits(8)` / `.bits(term)` | `.bits([term])`; 8 is `Form.Builder().kind("literal").attributes({"value": 8}).create()` |

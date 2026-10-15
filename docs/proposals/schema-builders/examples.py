@@ -29,6 +29,7 @@ assert list(B.Meta.Object.adjacencies) == ["parameters", "adjacencies", "propert
 assert list(B.Meta.HasProperty.entry.properties) == ["name"]
 assert B.Meta.HasProperty.uniques == (frozenset({"owner"}), frozenset({"property"}))
 assert B.Meta.Typing.uniques == (frozenset({"schema"}),)
+assert all(link.type is None for link in B.Meta.Typing.entry.links.values())
 
 # --- A contact who knows other contacts, with the shorthands ---
 
@@ -43,16 +44,8 @@ Contact = (
     .create()
 )
 age = Contact.properties["age"]
-knower = (
-    B.OfSymbol.Builder()
-    .type([Contact])
-    .create()
-)
-known = (
-    B.OfSymbol.Builder()
-    .type([Contact])
-    .create()
-)
+knower = B.OfSymbol.Builder().create()  # a link: its type follows from the adjacencies that fill it
+known = B.OfSymbol.Builder().create()  # a link: its type follows from the adjacencies that fill it
 since = (
     B.OfProperty.Builder()
     .type([Int])
@@ -93,6 +86,17 @@ assert Contact.validate() == [] and Knows.validate() == [], (Contact.validate(),
 assert list(Contact.properties) == ["given_name", "age"] and Contact.properties["age"].type is Int
 assert Knows.uniques == (frozenset({"since"}),) and Contact.adjacencies["acquaintances"].me == "knower"
 assert Contact.anonymous == [acquainted]
+
+Pairs = (
+    B.OfRelation.Builder()
+    .name("crm.Pairs")
+    .links([
+        lambda t: t.name("left"),
+        lambda t: t.name("right"),
+    ])
+    .create()
+)
+assert list(Pairs.entry.links) == ["left", "right"] and Pairs.validate() == []
 
 # --- The callback form: a member named by its entry, built where it is linked ---
 

@@ -581,6 +581,8 @@ class _Them(_Unassignable):
     def _result(self) -> tuple[Any, str | None]:
         """The object linked: the one given, built, or updated; and the entry's name."""
         builder, referent = self._object, self._entry._referent
+        if builder is None and referent is None and self._entry._adjacency._members.build is not None:
+            builder = self._builder()  # nothing linked or written: a new object, with nothing but its entry's name
         if builder is not None and (builder._written or referent is None):
             referent = builder._edited() if builder._original is not None else builder.create()
         if referent is None:
@@ -1179,8 +1181,9 @@ Meta.Module = (
 )
 
 
-def _symbol(schema: Any) -> S.OfSymbol.Data:
-    return SymbolBuilder().type([schema]).create()
+def _symbol() -> S.OfSymbol.Data:
+    """A link: its type follows from the adjacencies that fill it."""
+    return SymbolBuilder().create()
 
 
 def _relation(name: str, links: dict[str, S.OfSymbol.Data], how: str) -> S.OfRelation.Data:
@@ -1249,7 +1252,7 @@ def _declare(schema: S.OfObject.Data, adjacency: S.OfAdjacency.Data, name: str |
 
 
 for _name, (_a, _a_schema, _named), (_b, _b_schema), _how in _RELATIONS:
-    _first, _second = _ENDS[_name] = _symbol(_a_schema), _symbol(_b_schema)
+    _first, _second = _ENDS[_name] = _symbol(), _symbol()
     setattr(Meta, _name, _relation(_name, {_a: _first, _b: _second}, _how))
     if _named != "":
         _declare(_a_schema, _adjacency(getattr(Meta, _name), _first), _named)

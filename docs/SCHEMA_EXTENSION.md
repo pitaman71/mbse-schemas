@@ -74,14 +74,19 @@ Definitely:
 - allowing schemas to define parameters on definition and bind them to expressions on instantiation : keep in mbse-schemas except for typing via `HasDomain`
 - allowing Schemas.OfScalar (maybe others) to be bound to an expression
 
-4. signatures
+4. parameters
+
+In mbse-schemas, a parameter can only denote a schema
+In mbse-expressions, a parameter can denote a schema or a domain
+
+5. signatures
 
 OBJECT Expressions.Framework.Function
 PROPERTY [Expressions.Framework.Function] Expressions.Framework.HasName('str')
 RELATION Expressions.Framework.HasFormal(function: Expressions.Framework.Function, name: str, schema: Schemas.OfAny)
 RELATION Expressions.Framework.HasResult(function: Expressions.Framework.Function, Schemas.OfAny)
 
-5. intrinsics
+6. intrinsics
 
 mbse-expressions will also introduce the ability to register native functions ("intrinsics") that implement modeled callable formal signatures and to which modeled callable terms bind.
 

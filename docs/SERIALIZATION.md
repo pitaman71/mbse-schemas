@@ -19,10 +19,8 @@
 Verbs are the backbone and appear as top-level objects in the log:
 
 ```python
-Mutations.OfAny.{Clear, Set}
-Mutations.OfScalar.{Clear, Set}
 Mutations.OfContainer.{Insert, Remove, Append, Prepend, Clear}
-Mutations.OfObject.{Exists, UpdateProps}
+Mutations.OfObject.{Exists, SetProp, ClearProp}
 Mutations.OfRelation.{Insert, Remove, Clear}
 ```
 

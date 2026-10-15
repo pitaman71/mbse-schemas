@@ -122,6 +122,15 @@ As the user decided (2026-10-15), on the questions put to them:
 13. "expressions only deal in scalars. All object/relation functionality is moving up to mbse-patterns". Whether
     terms themselves are value or reference objects is still to settle; extension favors reference objects, since only
     a reference object can be linked by the relations other packages add (`HasSchema`, mbse-patterns' `requires`).
+14. Parameters (section 4): "parameters that denote domains are moved to mbse-expressions entirely"; mbse-schemas
+    keeps parameters that denote schemas (`List[T]`), so today's value parameters (`Matrix(rows, cols)`, a `Word`'s
+    width `w`) move with their bindings.
+15. Constraining a type parameter: "We can start with level 0 but I do want to plan for level 2. But not today."
+    Level 0: a generic signature (`add[T](a: T, b: T) -> T`) states its shape only, and binding a call to a registered
+    intrinsic is the constraint. Level 2, planned: a parameter's optional bound, the schemas its value must refine
+    (`T refines Integer`), so that inference rejects a call before binding. Relations between parameters (promotion)
+    and results computed from them (SystemVerilog widths) go to intrinsics that compute the result's schema; modeling
+    type-level computation is off the table.
 
 ---
 

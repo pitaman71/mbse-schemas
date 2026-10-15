@@ -20,17 +20,35 @@
 
 ```python
 Mutations.OfObject.{Exists, AsProperty}
-Mutations.OfRelation.{Insert, Remove, Clear, AsProperty}
+Mutations.OfRelation.{Insert, Remove, Clear, AsEntries}
 ```
 
-`Mutations.{OfObject, OfRelation}.AsProperty` carry a list of *Value verbs*:
+`Mutations.OfRelation.AsEntries` carries a list of the following applied in modulo order:
+
+```python
+Mutations.OfEntry.AsProperty
+```
+
+`Mutations.OfObject.AsProperty` and `Mutations.OfEntry.AsProperty` carry a list of *Value verbs*:
 
 ```python
 Mutations.OfProperty.{Set, Clear, AsAny}
 Mutations.OfContainer.{Insert, Remove, Append, Prepend, Clear, AsItems}
-Mutations.OfAny.{Set, Clear, AsScalar, AsContainer}
+Mutations.OfAny.{Set, Clear, AsScalar, AsContainer, AsObject, AsUnion, AsIntersection}
 Mutations.OfScalar.{Set, Clear}
+Mutations.OfUnion.AsBranch
+Mutations.OfIntersection.AsPart
 ```
+
+- `Mutations.OfAny.AsObject` carries a list of `Mutations.OfObject.AsProperty` with no `Ref`: the value object it changes is
+  the one it is nested in.
+- `Mutations.OfUnion.AsBranch` and `Mutations.OfIntersection.AsPart` name a branch or a part and carry a list of
+  `Mutations.OfProperty.*`, as a property does; writing a branch clears the others (`Visitors.OfUnion`).
+- `Mutations.OfContainer.AsItems` carries a list of `Mutations.OfAny.*` applied in modulo order: with three mutations in
+  the list, item 0 gets the first, item 1 the second, item 2 the third, item 3 the first, and so on. The existing list
+  is not required to exhaust it.
+
+Value verbs cannot appear at the top level of the log, only as nested mutations.
 
 `Mutations.OfX.AsY` has a list of `Mutations.OfY.*` 
 

@@ -45,10 +45,13 @@ Mutations.OfIntersection.AsPart
 - `Mutations.OfUnion.AsBranch` and `Mutations.OfIntersection.AsPart` name a branch or a part and carry a list of
   `Mutations.OfProperty.*`, as a property does; writing a branch clears the others (`Visitors.OfUnion`).
 - `Mutations.OfContainer.AsItems` carries a list of `Mutations.OfAny.*` applied in modulo order: with three mutations in
-  the list, item 0 gets the first, item 1 the second, item 2 the third, item 3 the first, and so on. The existing list
-  is not required to exhaust it.
+  the list, item 0 gets the first, item 1 the second, item 2 the third, item 3 the first, and so on. The list of items in the list is not required to utilize the entire list of mutations
 
 Value verbs cannot appear at the top level of the log, only as nested mutations.
+
+A change can be written in more than one form (`OfProperty.Set`, or `OfProperty.AsAny` then `OfAny.Set`, ...). Which form
+ToPlain writes is a serializer mode: by default, the form whose serialized mutation is smallest; the mode is
+configurable. A reader accepts every form.
 
 `Mutations.OfX.AsY` has a list of `Mutations.OfY.*` 
 

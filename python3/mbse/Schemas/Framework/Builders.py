@@ -1174,10 +1174,18 @@ _VALUES = (_PropertyMember, _Value, _ScalarVisitor, _Mapping, _AdjacencyMember, 
 
 
 class Meta:
-    """The meta-schemas, by name: `Meta.Object` is `Schemas.Object`, and so on."""
+    """The meta-schemas, by name: `Meta.Object` is `Schemas.Object`, and so on; and the basic scalars, `Meta.OfInt` being
+    `Schemas.OfInt`."""
 
 
-Text, Bool, Int = S.OfScalar.Data(str), S.OfScalar.Data(bool), S.OfScalar.Data(int)
+# The basic scalars, which every store holds, named after the basic tokens (FRAMEWORK.md, Resolved: "Schemas.OfBool,
+# Schemas.OfInt, ... no need to invent an alternate convention").
+Meta.OfBool = ScalarBuilder().name("Schemas.OfBool").token("bool").create()
+Meta.OfInt = ScalarBuilder().name("Schemas.OfInt").token("int").create()
+Meta.OfFloat = ScalarBuilder().name("Schemas.OfFloat").token("float").create()
+Meta.OfStr = ScalarBuilder().name("Schemas.OfStr").token("str").create()
+Meta.OfBytes = ScalarBuilder().name("Schemas.OfBytes").token("bytes").create()
+Text, Bool, Int = Meta.OfStr, Meta.OfBool, Meta.OfInt
 
 
 def _object(name: str, properties: dict[str, Any] | None = None, refines: Any = None) -> S.OfObject.Data:
@@ -1333,6 +1341,11 @@ class Store(Proxies.OfStore):
             if not name.startswith("_") and schema.name not in self._schemas:
                 self._objects[identity_of(schema)] = schema
                 self.register(schema)
+        from . import Mutations  # the mutation schemas, which every store holds too
+
+        for schema in Mutations.SCHEMAS:
+            self._objects[identity_of(schema)] = schema
+            self.register(schema)
 
     def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):

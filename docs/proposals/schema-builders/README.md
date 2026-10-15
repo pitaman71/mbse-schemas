@@ -3,9 +3,10 @@
 This follows [FRAMEWORK.md, Schema builders align with their meta-schemas](../../FRAMEWORK.md#resolved), and the
 user's rules: every schema object is a reference object, and every reference is a relation. A property holds a value
 of any kind: a scalar, a container, a value object, or any nesting of them.
-[Builders.py](Builders.py) holds the proposed meta-schemas and builders, in Python, on top of `Schemas.OfX.Data`, which
-is unchanged. [examples.py](examples.py) runs them, and every meta-schema and example schema validates
-(`cd python3 && uv run python ../docs/proposals/schema-builders/examples.py`).
+Landed in Python (phase 1, docs/META_SCHEMAS.md, Plan) as
+[python3/mbse/Schemas/Framework/Builders.py](../../../python3/mbse/Schemas/Framework/Builders.py), beside the old
+builders, on top of `Schemas.OfX.Data`, which is unchanged; suite BLD
+([python3/tests/25_Builders.ipynb](../../../python3/tests/25_Builders.ipynb)) runs it.
 
 ## The meta-schemas
 
@@ -149,9 +150,9 @@ Decided:
    linked reference objects, and the conformance corpora are regenerated.
 2. **Modules in the store.** A module is an object in the store, alongside schemas and data. The module named by a
    schema's prefix (`crm`) defines it through `Defines`.
-3. **Cloning owned members.** A member has one owner, so cloning a schema clones its members, with new identities,
-   instead of sharing them.
+3. **Cloning owned members.** Done: a clone clones the members it owns, with identities of their own; inherited ones
+   stay shared.
 4. **Landing.** The meta-schemas, builders and store move into `Schemas.py` and `Proxies.py`, with the shorthands in
    proxies too, mirrored in TypeScript. The call sites migrate to the canonical form.
-5. **The meta-schemas in the store.** `Meta` is built at import, outside any store. Each store should hold the
-   meta-schemas, as stores register `Schemas.Module` today.
+5. **The meta-schemas in the store.** Done: each `Builders.Store` holds them, `Schemas.Module` aside, which every
+   store holds in its old form until the wire format moves.

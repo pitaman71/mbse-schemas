@@ -51,6 +51,14 @@ mbse-expressions work because it cannot be written correctly without it". Aligni
 with their meta-schemas comes next, before the dependents (FRAMEWORK.md, Resolved, "Schema builders align with their
 meta-schemas").
 
+**Invariants relaxed to the branch** (2026-10-14), as the user decided ("that is okay - we can relax to the
+branch/issue level"): while the builders align, a commit on `overhauls/meta-schemas` may change one language only,
+or fall short of 100% coverage, so that work can go in parallel; the branch passes every gate again before it lands.
+The work, from docs/proposals/schema-builders/: phase 1, the Python core (the meta-schemas, builders and store in
+`Framework/Builders.py`, beside the old builders, and the shorthands in proxies), serial; phase 2, in parallel, the
+TypeScript core, the wire format (Modules and Plain through the meta-schemas, modules in the store), the migration of
+call sites, and the docs; phase 3, the old builders removed, the corpora regenerated, every gate passed.
+
 0. **Decisions recorded** (this document; FRAMEWORK.md, Resolved; mbse-expressions' EXPRESSIONS.md, Resolved;
    mbse-basis V-025).
 1. **Adjacencies that project**: `OfRelation.Data.keys(me)` and `key(me)`; an adjacency member stays a tuple (a frozen

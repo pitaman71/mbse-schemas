@@ -29,7 +29,7 @@ empty. The one raise is a write that the visitor's mode, or the value, forbids: 
 
 from __future__ import annotations
 
-from collections.abc import Callable, Hashable, Iterator, Mapping
+from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping
 from typing import Any
 
 import itertools
@@ -645,7 +645,21 @@ class _Any(_Unassignable):
                                  self._label)
 
     def _replace_container(self, value: Any) -> None:
-        """Writes a container given as a value: its elements are copied when it is placed."""
+        """Writes a container given as a value: its elements are copied when it is placed. A map (by index) or an
+        iterable (by position) is a shorthand for one holding its elements, which replaces the one held: nothing
+        merges."""
+        if isinstance(value, Mapping) or (isinstance(value, Iterable) and not isinstance(value, (str, bytes, _Containing))):
+            elements = value.items() if isinstance(value, Mapping) else enumerate(value)
+
+            def attach(builder: _ContainerBuilder) -> None:
+                self._touch()
+                self._values[self._name] = builder
+
+            builder = _ContainerBuilder(self._type, None, self._store, attach, self._label)
+            builder._touch()
+            for index, element in elements:
+                builder.at(index).write(element)
+            return
         if not isinstance(value, _Containing) or value._schema is not self._type:
             raise TypeError(f"{self._label} takes a container of its schema or a Spec, got {type(value).__name__}")
         self._touch()
@@ -1630,12 +1644,106 @@ class _AdjacencyBuilder(_Unassignable):
         return self
 
     def __call__(self, spec: Any) -> Any:
+        """Called with a callback, it visits through it. Called with an iterable, a shorthand, each item inserted, or
+        replacing the entry held where the relation allows one only from this end: an entry (the entry shorthand), or,
+        where the relation has two links (the peer shorthand), the object to link, or a callable handed `_Them`,
+        through which it sets the entry's properties, its link, and the linked object's members."""
         if _is_function(spec):
             _visit(spec, self)
-        else:
-            for entry in spec:  # an iterable of entries, each inserted
-                self.insert(entry)
+            return self._builder
+        if isinstance(spec, (str, bytes, Mapping)) or not isinstance(spec, Iterable):
+            raise TypeError(f"adjacency {self._name!r} takes an iterable of entries or of what it links, or a callback "
+                            f"taking the adjacency; got {spec!r}")
+        relation = self._schema.relation
+        others = [link for link in relation.entry.links if link != self._schema.me]
+        for item in spec:
+            if isinstance(item, (_Entry, _EntryBuilder)):
+                entry = item
+            elif len(others) != 1:
+                raise TypeError(f"adjacency {self._name!r}: entries of {relation.name or 'its relation'} have more than "
+                                "two links; give entries")
+            elif _is_function(item):
+                them = _Them(self, others[0])
+                _visit(item, them)
+                entry = them._entry_builder()
+            else:
+                entry = _EntryBuilder(relation, self._schema.me, self._builder._store)
+                _LinkMember(entry, others[0])(item)
+            if _single(relation, self._schema.me):
+                self._builder._entries[self._name] = []
+            self.insert(entry)
         return self._builder
+
+
+def _single(relation: RelationSchema, me: str) -> bool:
+    """Whether an object holds one entry of `relation` at most from its link `me`: a `unique` clause makes `me`
+    determine every other link and property."""
+    names = {*relation.entry.links, *relation.entry.properties}
+    return any(names - unique == {me} for unique in relation.uniques)
+
+
+class _Them(_Unassignable):
+    """`OfThem.Visitor`, for one item of the peer shorthand: an entry of a relation of two links, and the object it links
+    (them). Its members are the entry's properties, its link (to link an object that exists), and the members of the
+    object it links, written through that object's builder: a new one, or, where the link is set, that one, updated.
+    Each, called, returns the visitor."""
+
+    def __init__(self, adjacency: _AdjacencyBuilder, other: str):
+        self._adjacency, self._other = adjacency, other
+        self._entry = _EntryBuilder(adjacency._schema.relation, adjacency._schema.me, adjacency._builder._store)
+        self._object: _ObjectBuilder | None = None
+
+    def as_schema(self) -> Schemas.OfEntry.Data:
+        return self._entry.as_schema()
+
+    def _builder(self) -> _ObjectBuilder:
+        if self._object is None:
+            store, target = self._entry._store, self._entry._links.get(self._other)
+            if isinstance(target, _ObjectBuilder):
+                self._object = target
+            else:
+                name = store._filled(self._entry._relation, self._other) if target is None else target._schema_name
+                self._object = _ObjectBuilder(store, store.schema(name), name, target)
+        return self._object
+
+    def __getattr__(self, name: str) -> Any:
+        if name.startswith("_"):
+            raise AttributeError(name)
+        if name == self._other or name in self._entry._relation.entry.properties:
+            return _Chained(getattr(self._entry, name), self, name == self._other)
+        return _Chained(getattr(self._builder(), name), self, False)
+
+    def _entry_builder(self) -> _EntryBuilder:
+        """The entry: linking the object given, updated where its members were written, or the one built."""
+        builder, target = self._object, self._entry._links.get(self._other)
+        if builder is not None and builder is not target:
+            if target is None:
+                self._entry._links[self._other] = builder
+            else:
+                builder.update()
+        if self._other not in self._entry._links:
+            raise ValueError(f"link {self._other!r} is not set")
+        return self._entry
+
+
+class _Chained(_Unassignable):
+    """A member read through `_Them`: read as the member itself; called, it writes through the member and returns the
+    `_Them` visitor, so that an item's clauses chain."""
+
+    def __init__(self, member: Any, them: _Them, link: bool):
+        self._member, self._them, self._link = member, them, link
+
+    def __getattr__(self, name: str) -> Any:
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return getattr(self._member, name)
+
+    def __call__(self, spec: Any) -> _Them:
+        if self._link:
+            if self._them._object is not None:
+                raise ValueError("link the object before writing its members")
+        self._member(spec)
+        return self._them
 
 
 class _LinkMember(_Unassignable):
@@ -1888,7 +1996,7 @@ class _ObjectBuilder(_Unassignable):
 
 
 _VALUES = (_ObjectData, _RecordData, _Entry, _Property, _Scalar, _RecordBuilder, _LinkMember, _Adjacency,
-           _AdjacencyBuilder, _Empty, _EntryBuilder, _Containing, _Iterator)
+           _AdjacencyBuilder, _Empty, _EntryBuilder, _Containing, _Iterator, _Them, _Chained)
 """The classes whose instances are values, not the callable form of a Spec, though some are callable."""
 
 

@@ -1,9 +1,9 @@
 """Builders: schema builders as visitors of their meta-schemas, which model schemas as reference objects and
-relations. (Proposed: replaces the builders and meta-schemas in python3/mbse/Schemas/Framework/Schemas.py;
-`Schemas.OfX.Data` is unchanged.)
+relations, and the store they are built in. They replace the builders and meta-schemas in `Schemas`, which stay beside
+them while call sites migrate (docs/META_SCHEMAS.md, Plan); `Schemas.OfX.Data` is unchanged.
 
 Every schema object is a reference object: a kind of schema, and each of its members (a property, an adjacency, a
-parameter, a symbol, a branch or a part, an argument, a unique clause), and a term. A property of a schema object holds
+parameter, a symbol, a branch or a part, an argument), and a term. A property of a schema object holds
 a value (a name, a flag, a term's attributes); every reference from one schema object to another is a relation: a
 schema to its members (`Schemas.HasProperty`, ...), a member to its type (`Schemas.Typing`), a refinement to what it
 refines (`Schemas.Refines`), a scalar to its widths, which are terms (`Schemas.BitWidth`), and so on (`Meta`, below).
@@ -28,10 +28,10 @@ from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar
 
-from mbse.Schemas.Framework import Proxies
-from mbse.Schemas.Framework import Schemas as S
-from mbse.Schemas.Framework.Errors import ReadOnlyError
-from mbse.Schemas.Framework.Proxies import _Dunders, _Empty, _Properties, _Unassignable  # shared, once moved
+from . import Proxies
+from . import Schemas as S
+from .Errors import ReadOnlyError
+from .Proxies import _Dunders, _Empty, _Properties, _Unassignable
 
 __all__ = [
     "Form",
@@ -331,14 +331,16 @@ class _Members:
     them; `accepts` says which objects `link` may link, and `build` how a callback given to it builds one: through a
     builder (a class, given lazily), or not at all (None: it links an object that exists). `one`: at most one entry,
     as a `unique` clause of its relation makes it. `keyed`: the relation's entries have one property, `name`, of string
-    type, which names the referent within the schema object (the data keeps it as the referent's `name`)."""
+    type, which names the referent within the schema object (the data keeps it as the referent's `name`). `owned`: each
+    referent belongs to the schema object alone (keyed ones do), so that a clone of it has clones of them."""
 
     name: str
 
     def __init__(self, link: str, *, items: Callable[[Any], list[Any]], store: Callable[[Any, list[Any]], None],
-                 accepts: Callable[[Any], bool], build: Any = None, one: bool = False, keyed: bool = False):
+                 accepts: Callable[[Any], bool], build: Any = None, one: bool = False, keyed: bool = False,
+                 owned: bool | None = None):
         self.link, self.items, self.store, self.accepts, self.build, self.one = link, items, store, accepts, build, one
-        self.keyed = keyed
+        self.keyed, self.owned = keyed, keyed if owned is None else owned
 
     def __set_name__(self, owner: type, name: str) -> None:
         self.name = name
@@ -429,11 +431,7 @@ class _AdjacencyMember(_Unassignable):
         for item in spec:
             if isinstance(item, _Entry):
                 referent, name = item._referent, item._name
-            else:
-                relation = getattr(self.as_schema(), "relation", None)
-                if relation is not None and len(relation.entry.links) != 2:
-                    raise TypeError(f"{self._members.name!r}: entries of {relation.name} have more than two links; give "
-                                    "entries")
+            else:  # every relation between schema objects has two links: the peer shorthand
                 if _is_function(item):
                     them = _Them(self)
                     _visit(item, them)
@@ -503,8 +501,10 @@ class _Entry(_Unassignable):
             return True
         if self._template is None:
             return referent is self._referent
-        return all(_same(prop.get(referent), prop.get(self._referent)) for prop in self._template
-                   if isinstance(prop, _Prop))
+        return all(_same(member.get(referent), member.get(self._referent)) if isinstance(member, _Prop) else
+                   len(held := member.items(referent)) == len(wanted := member.items(self._referent))
+                   and all(_same(a, b) for a, b in zip(held, wanted))
+                   for member in self._template)
 
     def __repr__(self) -> str:
         return f"<entry of {self._adjacency._members.name!r}>"
@@ -736,7 +736,22 @@ class _Builder(_Unassignable, Generic[D]):
         """Returns new data, leaving the data given as it is. Only valid with data given."""
         if self._original is None:
             raise ValueError("clone() is only valid with a source instance")
+        self._clone_members()
         return self._identified(self._finalize(self._working), self._identity)
+
+    def _clone_members(self) -> None:
+        """A member has one owner: a clone has its own members, each cloned, with an identity of its own; those it
+        shares by other means (an object schema's inherited ones) stay shared."""
+        for members in self._members_.values():
+            if isinstance(members, _Members) and members.owned and members.build is not None:
+                shared, builder_class = self._shared(members), members.build()
+                members.store(self._working, [referent if id(referent) in shared else
+                                              builder_class(referent, True, self._store).clone()
+                                              for referent in members.items(self._working)])
+
+    def _shared(self, members: _Members) -> set[int]:
+        """The referents of `members` a clone shares with the original rather than owns."""
+        return set()
 
     def update(self) -> D:
         """Writes the builder's state into the data given, and returns it. Only valid with data given."""
@@ -991,11 +1006,27 @@ class ObjectBuilder(_KindBuilder[S.OfObject.Data]):
         store=lambda data, members: (setattr(data, "adjacencies", {m.name: m for m in members if m.name}),
                                      setattr(data, "anonymous", [m for m in members if not m.name])))
 
+    def _update(self, target: S.OfObject.Data, source: S.OfObject.Data) -> int:
+        """Also which of its members the source inherits, so that its copy settles as it did."""
+        changed = super()._update(target, source)
+        if "_inherited" in source.__dict__:
+            target.__dict__["_inherited"] = source.__dict__["_inherited"]
+        return changed
+
     def _finalize(self, target: S.OfObject.Data) -> S.OfObject.Data:
         base = S.structure(target.refines)
         if isinstance(base, S.OfObject.Data) and base.ref:
             target.ref = True
         return S._settle(target)
+
+    def _shared(self, members: _Members) -> set[int]:
+        """The members the original inherits from the schema it refines: a clone inherits them too."""
+        properties, adjacencies, anonymous = S.inherited(self._original)
+        held = self._working
+        if members.name == "properties":
+            return {id(held.properties[name]) for name in properties if name in held.properties}
+        return ({id(held.adjacencies[name]) for name in adjacencies if name in held.adjacencies}
+                | {id(adjacency) for adjacency in anonymous})
 
 
 class UnionBuilder(_KindBuilder[S.OfUnion.Data]):
@@ -1042,7 +1073,8 @@ class ApplyBuilder(_KindBuilder[S.OfApply.Data]):
     _data, _meta, _noun = S.OfApply.Data, "Apply", "an application"
 
     of = _Members("applied", accepts=_is_schema, **_one("of"))
-    arguments = _Members("argument", accepts=lambda v: isinstance(v, _ArgumentData), build=lambda: ArgumentBuilder,
+    arguments = _Members("argument", owned=True, accepts=lambda v: isinstance(v, _ArgumentData),
+                         build=lambda: ArgumentBuilder,
                          items=_arguments,
                          store=lambda data, members: setattr(data, "arguments",
                                                              {m.parameter.name: m.value for m in members}))
@@ -1279,6 +1311,10 @@ class Store(Proxies.OfStore):
     def __init__(self) -> None:
         super().__init__()
         self._objects: dict[str, Any] = {}  # the schema objects, by identity
+        for name, schema in vars(Meta).items():  # the meta-schemas, but Schemas.Module, which every store has already
+            if not name.startswith("_") and schema.name not in self._schemas:
+                self._objects[identity_of(schema)] = schema
+                self.register(schema)
 
     def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):

@@ -27,6 +27,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { AttributeError, ReadOnlyError, ValueError } from "./Errors.js";
+import * as Mutations from "./Mutations.js";
 import * as Proxies from "./Proxies.js";
 import { _Dunders as Dunders, _innerOf as innerOf, _makeEmpty as makeEmpty, _makeProperties as makeProperties,
   _Shelled as Shelled, _shell as shell } from "./Proxies.js";
@@ -1446,8 +1447,11 @@ function builderFor(referent: unknown): BuilderClass | null {
 type ObjectData = S.OfObject.Data;
 type RelationData = S.OfRelation.Data;
 
-/** The meta-schemas, by name: `Meta.Object` is `Schemas.Object`, and so on. */
+/** The meta-schemas, by name: `Meta.Object` is `Schemas.Object`, and so on; and the basic scalars, `Meta.OfInt` being
+ * `Schemas.OfInt`. */
 export const Meta = {} as {
+  OfBool: S.OfScalar.Data; OfInt: S.OfScalar.Data; OfFloat: S.OfScalar.Data; OfStr: S.OfScalar.Data;
+  OfBytes: S.OfScalar.Data;
   Schema: ObjectData; Type: ObjectData; Scalar: ObjectData; Object: ObjectData; Union: ObjectData;
   Intersection: ObjectData; Container: ObjectData; Apply: ObjectData; Any: ObjectData; Relation: ObjectData;
   Predicate: ObjectData; Typed: ObjectData; Property: ObjectData; Parameter: ObjectData; Symbol: ObjectData;
@@ -1459,9 +1463,14 @@ export const Meta = {} as {
   HasLink: RelationData; HasArgument: RelationData; Operands: RelationData; Defines: RelationData;
 };
 
-const Text = new S.OfScalar.Data(String);
-const Bool = new S.OfScalar.Data(Boolean);
-const Int = new S.OfScalar.Data(BigInt);
+// The basic scalars, which every store holds, named after the basic tokens (FRAMEWORK.md, Resolved: "Schemas.OfBool,
+// Schemas.OfInt, ... no need to invent an alternate convention").
+Meta.OfBool = new ScalarBuilder().name("Schemas.OfBool").token("bool").create();
+Meta.OfInt = new ScalarBuilder().name("Schemas.OfInt").token("int").create();
+Meta.OfFloat = new ScalarBuilder().name("Schemas.OfFloat").token("float").create();
+Meta.OfStr = new ScalarBuilder().name("Schemas.OfStr").token("str").create();
+Meta.OfBytes = new ScalarBuilder().name("Schemas.OfBytes").token("bytes").create();
+const [Text, Bool, Int] = [Meta.OfStr, Meta.OfBool, Meta.OfInt];
 
 /** A meta-schema: a reference object schema, `Schemas.<name>`, with `properties` of their schemas, by name, refining
  * `refines`. */
@@ -1613,6 +1622,10 @@ export class Store extends Proxies.OfStore {
         this._objects.set(identity_of(schema) as string, schema);
         this.register(schema);
       }
+    }
+    for (const schema of Mutations.SCHEMAS) { // the mutation schemas, which every store holds too
+      this._objects.set(identity_of(schema) as string, schema);
+      this.register(schema as ObjectData);
     }
     return new Proxy(this, {
       get: (target, prop, receiver) => {
@@ -1791,3 +1804,6 @@ export namespace Form {
   export type Builder = FormBuilder;
   export const Schema = Meta.Form;
 }
+
+// The mutation schemas, which every store holds, built with the builders above.
+Mutations._build({ AnyValueBuilder, ContainerBuilder, Meta, ObjectBuilder, UnionBuilder });

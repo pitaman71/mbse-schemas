@@ -121,9 +121,7 @@ function numberOf(schema: object): number {
 // --- Checks ---
 
 function scalarProblem(schema: Schemas.OfScalar.Data, value: unknown): string | null {
-  if (schema.type === null) { // an unsupported type is the schema's own problem, reported by its validate()
-    return schema.token instanceof Schemas.OfScalar.Token ? `${String(schema.token)} has no type in this implementation` : null;
-  }
+  if (schema.type === null) return null; // not a basic scalar: the schema's own problem, reported by its validate()
   if (!Schemas.isScalarOf(schema.type, value)) return `expected ${tokenName(schema.type)}, got ${typeName(value)}`;
   return null;
 }
@@ -154,7 +152,7 @@ function key(schema: unknown, value: any): string {
   if (type instanceof Schemas.OfScalar.Data || type === null) return scalarKey(value);
   if (type instanceof Schemas.OfAny.Value) {
     const of = own(value);
-    return `any:${of instanceof Schemas.OfScalar.Data ? (of.token as Schemas.OfScalar.Token).name : numberOf(of)}:${key(of, value)}`;
+    return `any:${of instanceof Schemas.OfScalar.Data ? of.tag : numberOf(of)}:${key(of, value)}`;
   }
   if (type instanceof Schemas.OfContainer.Data) {
     const keyed = pairs(value).map(([index, e]) => JSON.stringify([
@@ -257,7 +255,7 @@ class Checker {
     let shown: string;
     if (of instanceof Schemas.OfScalar.Data) {
       allowed = types.length === 0 || types.some((t) => t instanceof Schemas.OfScalar.Data && t.type === of.type);
-      shown = (of.token as Schemas.OfScalar.Token).name;
+      shown = String(of.tag);
     } else {
       allowed = types.some((t) => t === of);
       shown = repr(of.name);

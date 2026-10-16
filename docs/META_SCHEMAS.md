@@ -195,8 +195,8 @@ at least one time to make schema objects references. all of them.").
 - **Other schema objects.** `OfAdjacency` (a `description`, and `me`), and `OfModule`, which defines schemas and
   modules (its `schemas`).
 - **Properties hold values** (Resolved: a property "has as schema which must be OfAny and that can hold scalars,
-  containers, value objects, or any nesting thereof"): a kind's `name` and `description`, a scalar's `format` and
-  `token`, an object schema's `ref`, `pattern` and `singleton`, a union's or intersection's `flat`, a container's
+  containers, value objects, or any nesting thereof"): a kind's `name` and `description` (a scalar's `format` and
+  `token` until 0.18.0), an object schema's `ref`, `pattern` and `singleton`, a union's or intersection's `flat`, a container's
   `layout`, a relation's `uniques` (a container of containers of names), a member's and an adjacency's `description`,
   an adjacency's `me`, and the `name` of a keyed relation's entry.
 - **Names, by exception** (Resolved, "I think we need to make an exception ..."): within a schema, its relation's links
@@ -210,7 +210,7 @@ at least one time to make schema objects references. all of them.").
 | Relation | Links: first, second (their kinds) | Named at the first | Constraint, as `unique` clauses state it |
 |---|---|---|---|
 | Typing | typed (Property, Symbol, Member), schema (a type) | `.type` | one: `unique(schema)`, the typed determines its schema |
-| Refines | refinement, refined (a type) | `OfScalar.refines`, `OfObject.refines`, `OfContainer.refines` | one |
+| Refines | refinement, refined (a type) | `OfObject.refines`, `OfContainer.refines` (`OfScalar.refines` until 0.18.0) | one |
 | Indexing, Containing | container (Container), index / element (a type) | `OfContainer.index`, `OfContainer.element` | one |
 | AnyOf | any (Any), schema (a type) | `OfAny.types` | none: open, a list in declaration order |
 | Relating | adjacency (Adjacency), relation (Relation) | `OfAdjacency.relation` | one |
@@ -256,8 +256,8 @@ every write.
 - **The data stores members its own way** (Resolved: "the Data class can store `Schemas.OfObject.Data.properties` any
   way it wants"), and the builder adapts each adjacency to it: a dict of members by name, or a tuple in order; a field
   holding the referent. A keyed member's name is written to the member's data.
-- **Derivation happens at finalization**, in `_finalize`: a refinement takes the token, `ref`, index and element of what
-  it refines unless it is given them. No member's write has a side effect besides it (Resolved: "shortcuts are
+- **Derivation happens at finalization**, in `_finalize`: a refinement takes the `ref`, index and element of what it
+  refines unless it is given them (a scalar's token too, until 0.18.0). No member's write has a side effect besides it (Resolved: "shortcuts are
   refused"), so `.singleton(...)` no longer sets `ref`.
 - **Finalizing** is `create()`, `clone()` or `update()`; none validate. A clone clones the
   members it owns, each with an identity of its own; an object schema's inherited members stay shared.

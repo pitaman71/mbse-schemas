@@ -164,19 +164,16 @@ function lists(s: any): any {
     list(s, "cells", Int, Int, "sparse"), list(s, "attrs", Float, Str), list(s, "weights", Str, Float)]));
 }
 
-/** The corpus's own schemas as data, with a scalar of another format's token, parametric schemas, whose parameters are
- * names, and a predicate. */
+/** The corpus's own schemas as data, with parametric schemas, whose parameters are names, and a predicate. */
 function module(s: any): void {
   const [Bool, Int, Float, Str, Bytes] = basics(s);
-  s.Schemas.OfScalar((n: any) => n.name("Size").format("ccpp").token("size_t"));
   const [Contact, Address] = addressBook(s);
   family(s);
   embedded(s);
   lists(s);
-  const Word = s.Schemas.OfScalar((w: any) => w.name("Word").token("int").parameters([(t: any) => t.name("w")]));
   s.Schemas.OfObject((o: any) => o.name("Grid").parameters([
     (t: any) => t.name("n").description("Its side"), (t: any) => t.name("x")]).properties([
-    (t: any) => t.name("mask").type([s.Schemas.OfScalar((w: any) => w.token("int"))]), list(s, "cells", Word)]));
+    (t: any) => t.name("mask").type([Int]), list(s, "cells", Int)]));
   s.Schemas.OfObject((o: any) => o.name("Tricky").parameters([..."abcd"].map((x) => (t: any) => t.name(x))));
   s.Schemas.OfUnion((u: any) => u.name("Choice").flat(true).branches([
     (t: any) => t.name("n").type([Int]), (t: any) => t.name("s").type([Str])]));

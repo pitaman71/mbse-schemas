@@ -1043,23 +1043,10 @@ def _refines() -> _Members:
 
 
 class ScalarBuilder(_KindBuilder[S.OfScalar.Data]):
-    """A refinement takes the token of what it refines, unless it is given one."""
+    """A basic scalar: a store is made holding the five, and builds no other (docs/proposals/store-overhaul, Decided,
+    8 and 22)."""
 
     _data, _meta, _noun = S.OfScalar.Data, "OfScalar", "a scalar schema"
-
-    format = _Prop(get=lambda data: data.token.format if isinstance(data.token, S.OfScalar.Token) else None,
-                   put=lambda data, value: setattr(data, "token", S.OfScalar.Token(
-                       value, data.token.name if isinstance(data.token, S.OfScalar.Token) else "")))
-    token = _Prop(get=lambda data: data.token.name if isinstance(data.token, S.OfScalar.Token) else None,
-                  put=lambda data, value: setattr(data, "token", S.OfScalar.Token(
-                      data.token.format if isinstance(data.token, S.OfScalar.Token) else S.BASIC, value)))
-    refines = _refines()
-
-    def _finalize(self, target: S.OfScalar.Data) -> S.OfScalar.Data:
-        base = target.refines
-        if target.token is None and isinstance(base, S.OfScalar.Data):
-            target.token = base.token
-        return target
 
 
 class ObjectBuilder(_KindBuilder[S.OfObject.Data]):
@@ -1276,13 +1263,14 @@ class _Plain:
 def _plain() -> _Plain:
     """Builds a store's plain schemas of schemas and its basic scalars, anew."""
     meta = _Plain()
-    # The basic scalars, named after the basic tokens (FRAMEWORK.md, Resolved: "Schemas.OfBool, Schemas.OfInt, ... no
-    # need to invent an alternate convention").
-    meta.OfBool = ScalarBuilder().name("Schemas.OfBool").token("bool").create()
-    meta.OfInt = ScalarBuilder().name("Schemas.OfInt").token("int").create()
-    meta.OfFloat = ScalarBuilder().name("Schemas.OfFloat").token("float").create()
-    meta.OfStr = ScalarBuilder().name("Schemas.OfStr").token("str").create()
-    meta.OfBytes = ScalarBuilder().name("Schemas.OfBytes").token("bytes").create()
+    # The basic scalars, the only scalar schemas, each mapping to its host type by its name (FRAMEWORK.md, Resolved:
+    # "Schemas.OfBool, Schemas.OfInt, ... no need to invent an alternate convention"; docs/proposals/store-overhaul,
+    # Decided, 8 and 22).
+    meta.OfBool = ScalarBuilder().name("Schemas.OfBool").create()
+    meta.OfInt = ScalarBuilder().name("Schemas.OfInt").create()
+    meta.OfFloat = ScalarBuilder().name("Schemas.OfFloat").create()
+    meta.OfStr = ScalarBuilder().name("Schemas.OfStr").create()
+    meta.OfBytes = ScalarBuilder().name("Schemas.OfBytes").create()
     Text, Bool, Int = meta.OfStr, meta.OfBool, meta.OfInt
 
     def _object(name: str, properties: dict[str, Any]) -> S.OfObject.Data:
@@ -1297,7 +1285,7 @@ def _plain() -> _Plain:
         )
 
     named = {"name": Text, "description": Text}  # what every kind of schema has: no base declares it for them
-    meta.OfScalar = _object("OfScalar", {**named, "format": Text, "token": Text})
+    meta.OfScalar = _object("OfScalar", named)
     meta.OfObject = _object("OfObject", {**named, "ref": Bool, "pattern": Text, "singleton": Text})
     meta.OfUnion = _object("OfUnion", {**named, "flat": Bool})
     meta.OfIntersection = _object("OfIntersection", {**named, "flat": Bool})
@@ -1372,7 +1360,7 @@ def _plain() -> _Plain:
             _declare(kind, _adjacency(getattr(meta, name), b))
     for owner in (meta.OfObject, meta.OfRelation):  # each has its own `properties`; any schema may be the owner
         _declare(owner, _adjacency(meta.HasProperty, "owner"), "properties")
-    for refining in (meta.OfScalar, meta.OfObject, meta.OfContainer):  # only these refine
+    for refining in (meta.OfObject, meta.OfContainer):  # only these refine
         _declare(refining, _adjacency(meta.Refines, "refinement"), "refines")
     for schema, by_name, unnamed in declared.values():
         (
@@ -1559,6 +1547,9 @@ class Store(Proxies._Store):
         schema, which every store holds as it is, is left so: a builder of one writes only its store's entries."""
         if self.framework(data):
             return data
+        if isinstance(data, S.OfScalar.Data):
+            raise TypeError("a store builds no scalar schema: its scalars are the basic scalars it was made holding, "
+                            "store.Schemas.OfBool, OfInt, OfFloat, OfStr and OfBytes")
         kind = _kind(data)
         held = self._objects.get((kind, identity))
         if held is not None and held is not data:
@@ -1710,7 +1701,7 @@ class _Path(_Unassignable, Proxies._Named):
 
 
 class OfScalar:
-    Data, Builder, Token = S.OfScalar.Data, ScalarBuilder, S.OfScalar.Token
+    Data, Builder = S.OfScalar.Data, ScalarBuilder
 
 
 class OfObject:

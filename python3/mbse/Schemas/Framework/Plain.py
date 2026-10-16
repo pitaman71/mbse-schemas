@@ -87,7 +87,7 @@ def _any(read: Readers.OfAny, schema: Schemas.OfAny.Data, ref: Ref) -> tuple[boo
 
 def _any_value(read: Readers.OfAny, schema: Schemas.OfAny.Value, ref: Ref) -> tuple[bool, PlainData]:
     """A value of any type as plain data, and whether there is one: restricted, written bare as the type it holds;
-    unrestricted, tagged with its type, a scalar's token name or its schema's registered name."""
+    unrestricted, tagged with its type, a basic scalar's tag or its schema's registered name."""
     found: list[Any] = []
     read.as_scalar(lambda s: found.extend([] if s.get() is None else [s.get()]) or s)
     for select in ("as_object", "as_union", "as_intersection", "as_container"):
@@ -98,7 +98,7 @@ def _any_value(read: Readers.OfAny, schema: Schemas.OfAny.Value, ref: Ref) -> tu
     if type(value) in Schemas.SCALAR_TYPES:
         scalar = Schemas.OfScalar.Data(type(value))
         if not types:
-            return True, {scalar.token.name: scalar.to_plain(value)}
+            return True, {scalar.tag: scalar.to_plain(value)}
         own = next((t for t in types if isinstance(t, Schemas.OfScalar.Data) and t.type is type(value)), None)
         if own is None:  # builders do not check scalars' types; proxies refuse a value of another schema
             raise TypeError(f"a value of any type holds one of its types; {type(value).__name__} is not one")
@@ -426,7 +426,7 @@ _FORMS = {bool: "bool", int: "int", float: "float", str: "text", dict: "mapping"
 
 def _decode_any(schema: Schemas.OfAny.Value, plain: PlainData, where: tuple, store: Any) -> Any:
     """A value of any type: restricted, of the one type whose plain form it takes; unrestricted, a mapping of its type,
-    a scalar's token name or a schema's registered name, to its value."""
+    a basic scalar's tag or a schema's registered name, to its value."""
     if schema.types:
         fits = [t for t in schema.types if _FORMS.get(type(plain)) in Schemas.plain_forms(t)]
         if len(fits) != 1:
@@ -434,10 +434,10 @@ def _decode_any(schema: Schemas.OfAny.Value, plain: PlainData, where: tuple, sto
                               f"{type(plain).__name__}", path=path(*where))
         return _decode(fits[0], plain, where, store)
     if not isinstance(plain, dict) or len(plain) != 1:
-        raise DecodeError("a value of any type is {type: value}, its type a scalar's token name or a registered "
+        raise DecodeError("a value of any type is {type: value}, its type a basic scalar's tag or a registered "
                           "schema's name", path=path(*where))
     ((tag, value),) = plain.items()
-    scalar = next((t for t in Schemas.SCALAR_TYPES if Schemas.OfScalar.Data(t).token.name == tag), None)
+    scalar = next((t for t in Schemas.SCALAR_TYPES if Schemas.OfScalar.Data(t).tag == tag), None)
     if scalar is not None:
         return _decode(Schemas.OfScalar.Data(scalar), value, (*where, tag), store)
     try:
@@ -992,7 +992,26 @@ class _LogWriter:
         for directory in list(store._directories.values()):
             for value in list(directory.live.values()):
                 self.define(value, self._key(value))
+        for held in [held for held in store._objects.values() if store.framework(held)]:
+            self._extended(self._reader(held))
         return self._out  # every entry is written: it links objects of the store, each written
+
+    def _extended(self, visitor: Any) -> None:
+        """Writes the entries of an extension's relations that link a schema the store was made holding, which is never
+        written itself: those its other end does not reach (a scalar's, written from the scalar's end)."""
+        key, contained = self._key(visitor), []
+
+        def scan(adjacency: Any) -> Any:
+            if self._store.framework(adjacency.as_schema().relation):
+                return adjacency  # the store's own: between its own schemas, never written
+            return self._entries(adjacency, key, contained)
+
+        visitor.as_adjacencies(scan)
+        for target, target_key in contained:
+            self.define(target, target_key)
+        self._written.add(key)
+        self._complete.add(key)
+        self._flush()
 
 
 class _LogReader:

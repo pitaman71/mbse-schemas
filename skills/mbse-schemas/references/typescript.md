@@ -122,7 +122,8 @@ if (Validators.Validate(store).Reachable(Component, copy).length > 0) throw new 
 const store: any = new Builders.Store();                    // holds its own plain schemas of schemas; shares nothing
 store.Schemas.OfInt;                                        // its basic scalars, by path: OfBool, OfInt, OfFloat, OfStr, OfBytes
 store.Schemas.OfInt.as_schema();                            // the schema a path names, where an object is wanted
-store.Schemas.OfScalar((s: any) => s.format("ccpp").token("int32_t"));       // any format's token
+// The five are the only scalar schemas: a store builds no other. A finer scalar (a date, an int32) is a domain,
+// mbse-expressions'; until then, type it by its basic scalar and say what it means in the property's description.
 store.Schemas.OfObject((o: any) => o.name("crm.Contact").ref(true).properties([...]));   // .ref(true): a reference object schema
 store.Schemas.OfObject((o: any) => o.name("pm.Feature").ref(true).pattern(String.raw`FEA-(\d+\d\d)`));  // FEA-001, ...; else UUIDs
 store.Schemas.OfObject((o: any) => o.properties([(t: any) => t.name("x").type([Int])]));  // a value object schema, for a type

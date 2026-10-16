@@ -1091,7 +1091,7 @@ function indexKey(schema: Schemas.OfContainer.Data, index: unknown, label: strin
   const kind = schema.index;
   if (kind instanceof Schemas.OfScalar.Data) {
     if (kind.type !== null && !Schemas.isScalarOf(kind.type, index)) {
-      throw new TypeError(`${label}: an index is a ${(kind.token as Schemas.OfScalar.Token).name}, got ${typeName(index)}`);
+      throw new TypeError(`${label}: an index is a ${String(kind.tag)}, got ${typeName(index)}`);
     }
     return scalarKey(index);
   }
@@ -1099,7 +1099,7 @@ function indexKey(schema: Schemas.OfContainer.Data, index: unknown, label: strin
     const hosts = [...(kind as ObjectSchema).properties.values()].map((p) => p.type as Schemas.OfScalar.Data);
     if (!Array.isArray(index) || index.length !== hosts.length
       || hosts.some((host, i) => host.type !== null && !Schemas.isScalarOf(host.type, index[i]))) {
-      const names = hosts.map((host) => (host.token as Schemas.OfScalar.Token).name).join(", ");
+      const names = hosts.map((host) => String(host.tag)).join(", ");
       throw new TypeError(`${label}: an index is a tuple of ${names}, got ${shown(index)}`);
     }
     return JSON.stringify(index.map(scalarKey));

@@ -162,18 +162,15 @@ def _lists(s):
 
 
 def _module(s):
-    """The corpus's own schemas as data, with a scalar of another format's token, parametric schemas, whose parameters
-    are names, and a predicate."""
+    """The corpus's own schemas as data, with parametric schemas, whose parameters are names, and a predicate."""
     Bool, Int, Float, Str, Bytes = _basics(s)
-    s.Schemas.OfScalar(lambda n: n.name("Size").format("ccpp").token("size_t"))
     Contact, Address, _ = _address_book(s)
     _family(s)
     _embedded(s)
     _lists(s)
-    Word = s.Schemas.OfScalar(lambda w: w.name("Word").token("int").parameters([lambda t: t.name("w")]))
     s.Schemas.OfObject(lambda o: o.name("Grid").parameters([
         lambda t: t.name("n").description("Its side"), lambda t: t.name("x")]).properties([
-        lambda t: t.name("mask").type([s.Schemas.OfScalar(lambda w: w.token("int"))]), _list(s, "cells", Word)]))
+        lambda t: t.name("mask").type([Int]), _list(s, "cells", Int)]))
     s.Schemas.OfObject(lambda o: o.name("Tricky").parameters([lambda t, x=x: t.name(x) for x in "abcd"]))
     s.Schemas.OfUnion(lambda u: u.name("Choice").flat(True).branches([
         lambda t: t.name("n").type([Int]), lambda t: t.name("s").type([Str])]))

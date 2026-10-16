@@ -118,7 +118,7 @@ function anyValue(read: any, schema: unknown, ref: Ref): [boolean, PlainData] {
 }
 
 /** A value of any type as plain data, and whether there is one: restricted, written bare as the type it holds;
- * unrestricted, tagged with its type, a scalar's token name or its schema's registered name. */
+ * unrestricted, tagged with its type, a basic scalar's tag or its schema's registered name. */
 function anyOfAny(read: any, schema: Schemas.OfAny.Value, ref: Ref): [boolean, PlainData] {
   const found: any[] = [];
   read.as_scalar((s: any) => {
@@ -137,7 +137,7 @@ function anyOfAny(read: any, schema: Schemas.OfAny.Value, ref: Ref): [boolean, P
   const host = Schemas.hostOf(value);
   if (host !== null) {
     const scalar = new Schemas.OfScalar.Data(host);
-    if (types.length === 0) return [true, new Map([[(scalar.token as Schemas.OfScalar.Token).name, scalar.to_plain(value)]])];
+    if (types.length === 0) return [true, new Map([[scalar.tag as string, scalar.to_plain(value)]])];
     const own = types.find((t) => t instanceof Schemas.OfScalar.Data && t.type === scalar.type);
     if (own === undefined) { // builders do not check scalars' types; proxies refuse a value of another schema
       throw new TypeError(`a value of any type holds one of its types; ${typeName(value)} is not one`);
@@ -486,7 +486,7 @@ function formOf(plain: unknown): string | null {
 }
 
 /** A value of any type: restricted, of the one type whose plain form it takes; unrestricted, a mapping of its type, a
- * scalar's token name or a schema's registered name, to its value. */
+ * basic scalar's tag or a schema's registered name, to its value. */
 function decodeAny(schema: Schemas.OfAny.Value, plain: unknown, where: Where, store: Stores.Store | null): unknown {
   if (schema.types.length > 0) {
     const form = formOf(plain);
@@ -498,12 +498,11 @@ function decodeAny(schema: Schemas.OfAny.Value, plain: unknown, where: Where, st
     return decode(fits[0] as Schemas.OfAny.Data, plain, where, store);
   }
   if (!(plain instanceof Map) || plain.size !== 1) {
-    throw new DecodeError("a value of any type is {type: value}, its type a scalar's token name or a registered schema's name",
+    throw new DecodeError("a value of any type is {type: value}, its type a basic scalar's tag or a registered schema's name",
       { path: path(...where) });
   }
   const [tag, value] = [...plain][0] as [string, unknown];
-  const scalar = Schemas.SCALAR_TYPES.find((t) => new Schemas.OfScalar.Data(t).token instanceof Schemas.OfScalar.Token
-    && (new Schemas.OfScalar.Data(t).token as Schemas.OfScalar.Token).name === tag);
+  const scalar = Schemas.SCALAR_TYPES.find((t) => new Schemas.OfScalar.Data(t).tag === tag);
   if (scalar !== undefined) return decode(new Schemas.OfScalar.Data(scalar), value, [...where, tag as string], store);
   let registered: unknown;
   try {
@@ -1132,7 +1131,24 @@ class LogWriter {
         if (value !== undefined) this.define(value, this.key(value));
       }
     }
+    for (const held of [...store._objects.values()].filter((held) => store.framework(held))) {
+      this.extended(this.reader(held));
+    }
     return this.out; // every entry is written: it links objects of the store, each written
+  }
+
+  /** Writes the entries of an extension's relations that link a schema the store was made holding, which is never
+   * written itself: those its other end does not reach (a scalar's, written from the scalar's end). */
+  private extended(visitor: any): void {
+    const key = this.key(visitor);
+    const contained: [any, string][] = [];
+    visitor.as_adjacencies((adjacency: any) => this.store.framework(adjacency.as_schema().relation)
+      ? adjacency // the store's own: between its own schemas, never written
+      : this.entries(adjacency, key, contained));
+    for (const [target, targetKey] of contained) this.define(target, targetKey);
+    this.written.add(key);
+    this.complete.add(key);
+    this.flush();
   }
 }
 

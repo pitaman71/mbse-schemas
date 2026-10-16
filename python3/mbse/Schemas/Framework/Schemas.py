@@ -118,65 +118,52 @@ def _parameter_problems(parameters: dict[str, _ParameterData]) -> list[str]:
 # --- OfScalar ---
 
 
-BASIC, PYTHON3 = "basic", "python3"
 _BASIC_NAMES = {bool: "bool", int: "int", float: "float", str: "str", bytes: "bytes"}
-
-
-@dataclass(frozen=True)
-class _Token:
-    """A scalar type, named in a format: `basic`, the neutral vocabulary (`bool`, `int`, `float`, `str`, `bytes`), a
-    language's (`python3`, `typescript5`, `ccpp`, ...), or any other."""
-
-    format: str = BASIC
-    name: str = ""
-
-    def __str__(self) -> str:
-        return f"the {self.format} type {self.name!r}"
-
-
-_HOSTS = {_Token(fmt, name): host for host, name in _BASIC_NAMES.items() for fmt in (BASIC, PYTHON3)}
-"""The host types of the tokens this implementation reads: the `basic` ones, and its own format's."""
+"""Each basic scalar's tag, a value of any type's on the wire: mbse-expressions' Basic dialect's names."""
+_HOSTS = {f"Schemas.Of{tag.capitalize()}": host for host, tag in _BASIC_NAMES.items()}
+"""The basic scalars, the only scalar schemas, by name, each mapping to its host type (docs/proposals/store-overhaul,
+Decided, 8 and 22)."""
 
 
 @dataclass(init=False)
 class _ScalarData:
-    """A scalar type: a token. A host type given in place of the token (`OfScalar.Data(int)`) is shorthand for the
-    `basic` token of the same name."""
+    """A scalar type: one of the five basic scalars, `Schemas.OfBool`, `Schemas.OfInt`, `Schemas.OfFloat`,
+    `Schemas.OfStr` and `Schemas.OfBytes`, each mapping to its host type by its name. A host type given in place of the
+    name (`OfScalar.Data(int)`) is shorthand for the basic scalar's. Every finer scalar is a domain, mbse-expressions'."""
 
-    token: Any
     name: str | None
     description: str | None
     parameters: dict[str, _ParameterData]
-    refines: Any  # the scalar schema it refines, or None
 
-    def __init__(self, token: Any = None, name: str | None = None, description: str | None = None,
-                 parameters: dict[str, _ParameterData] | None = None, refines: Any = None):
-        self.token = _Token(BASIC, _BASIC_NAMES[token]) if isinstance(token, type) and token in _BASIC_NAMES else token
+    def __init__(self, host: Any = None, name: str | None = None, description: str | None = None,
+                 parameters: dict[str, _ParameterData] | None = None):
+        if isinstance(host, type) and host in _BASIC_NAMES:
+            name = f"Schemas.Of{_BASIC_NAMES[host].capitalize()}"
         self.name, self.description = name, description
         self.parameters = {} if parameters is None else parameters
-        self.refines = refines
 
     @property
     def type(self) -> type[Scalar] | None:
-        """The host type the token maps to, or None when this implementation cannot read the token."""
-        return _HOSTS.get(self.token) if isinstance(self.token, _Token) else None
+        """The host type the basic scalar maps to, or None when it names none."""
+        return _HOSTS.get(self.name) if isinstance(self.name, str) else None
+
+    @property
+    def tag(self) -> str | None:
+        """The basic scalar's tag (`int`), which a value of any type is tagged with on the wire, or None."""
+        return None if self.type is None else _BASIC_NAMES[self.type]
 
     def host(self) -> type[Scalar]:
-        """The host type the token maps to; raises TypeError when this implementation cannot read the token."""
+        """The host type the basic scalar maps to; raises TypeError when it names none."""
         if self.type is None:
-            raise TypeError(f"{self.token} has no type in this implementation")
+            raise TypeError(f"{_scalar_shown(self)} is not a basic scalar")
         return self.type
 
     def validate(self) -> list[str]:
         problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
-        if not isinstance(self.token, _Token):
-            problems.append(f"unsupported scalar type {self.token!r}")
-        elif not (isinstance(self.token.format, str) and self.token.format and isinstance(self.token.name, str)
-                  and self.token.name):
-            problems.append("a token needs a format and a name")
-        elif self.token.format in (BASIC, PYTHON3) and self.type is None:  # python3: the basic types, by Python's names
-            problems.append(f"{self.token.format} has no type {self.token.name!r}")
-        return problems + _refinement_problems(self)
+        if self.type is None:
+            problems.append(f"{_scalar_shown(self)} is not a basic scalar: a scalar is Schemas.OfBool, Schemas.OfInt, "
+                            "Schemas.OfFloat, Schemas.OfStr or Schemas.OfBytes")
+        return problems
 
     def to_plain(self, value: Scalar) -> int | float | str | bool:
         """Converts a scalar value to plain data that every text encoding can hold: `bytes` become base64 text, and
@@ -191,14 +178,14 @@ class _ScalarData:
         return value
 
     def _host_for_decoding(self) -> type[Scalar]:
-        """The host type, or `Errors.DecodeError` when this implementation cannot read the token."""
+        """The host type, or `Errors.DecodeError` when the scalar is not a basic scalar."""
         if self.type is None:
-            raise DecodeError(f"{self.token} has no type in this implementation")
+            raise DecodeError(f"{_scalar_shown(self)} is not a basic scalar")
         return self.type
 
     def from_plain(self, plain: object) -> Scalar:
         """Converts plain data back to a scalar value. Distinct scalar types are never coerced into each other.
-        Plain data that does not hold such a value, or a token this implementation cannot read, raises
+        Plain data that does not hold such a value, or a scalar that is not a basic scalar, raises
         `Errors.DecodeError`."""
         host = self._host_for_decoding()
         if host is bytes:
@@ -220,11 +207,14 @@ class _ScalarData:
 _NON_FINITE = {"NaN": math.nan, "Infinity": math.inf, "-Infinity": -math.inf}
 
 
+def _scalar_shown(scalar: _ScalarData) -> str:
+    return "an unnamed scalar" if scalar.name is None else f"the scalar {scalar.name!r}"
+
+
 class OfScalar:
     """A scalar value. Conversion to and from the wire format is the responsibility of this element."""
 
     Data = _ScalarData
-    Token = _Token
 
 
 # --- OfProperty: a named property of an object or relation ---
@@ -514,9 +504,10 @@ def _member_problems(a_kind: str, member: str, plural: str, members: tuple[_Memb
 
 
 def _runtime(schema: Any) -> Any:
-    """What tells a value of `schema` apart at run time: a scalar's host type, or any other schema itself."""
+    """What tells a value of `schema` apart at run time: a scalar's host type, or its name where it is not a basic
+    scalar, or any other schema itself."""
     if isinstance(schema, _ScalarData):
-        return ("scalar", schema.type if schema.type is not None else schema.token)
+        return ("scalar", schema.type if schema.type is not None else schema.name)
     return ("schema", id(schema))
 
 
@@ -679,7 +670,7 @@ class OfContainer:
 def plain_forms(schema: Any) -> frozenset[str]:
     """The plain forms a value of `schema` may take: "bool", "int", "float", "text", "mapping" or "list". A float may be
     text (`"NaN"`, `"Infinity"`), bytes are text (base64), a dense tensor a mapping where written flat, and a scalar
-    whose token this implementation cannot read any form."""
+    that is not a basic scalar any form."""
     held = schema
     if isinstance(held, _ScalarData):
         forms = {bool: {"bool"}, int: {"int"}, float: {"float", "text"}, str: {"text"}, bytes: {"text"}}
@@ -696,12 +687,10 @@ def plain_forms(schema: Any) -> frozenset[str]:
 
 
 def _shown_type(schema: Any) -> str:
-    """A type in a message: its name, a scalar's token name, or its kind."""
+    """A type in a message: its name, or its kind."""
     held = schema
     if getattr(schema, "name", None) is not None:
         return schema.name
-    if isinstance(held, _ScalarData) and isinstance(held.token, _Token):
-        return held.token.name
     return {_ObjectData: "a value object", _UnionData: "a union", _IntersectionData: "an intersection",
             _ContainerData: "a container"}.get(type(held), "a schema")
 
@@ -710,7 +699,7 @@ def _shown_type(schema: Any) -> str:
 class _AnyValueData:
     """A value of any type: of one of `types`, where they are given (an `OfAny` restricted to them), else of any type.
     Restricted, a value is written bare, its type the one whose plain form it takes; unrestricted, it is tagged with its
-    type, a scalar's token name or a registered schema's name."""
+    type, a basic scalar's tag or a registered schema's name."""
 
     types: tuple[Any, ...] = ()  # OfAny.Data each
     name: str | None = None
@@ -801,7 +790,7 @@ def _narrows(new: Any, old: Any) -> bool:
     if new is old or is_a(new, old):
         return True
     if isinstance(new, _ScalarData) and isinstance(old, _ScalarData):
-        return new.token == old.token
+        return new.type is not None and new.type is old.type
     if isinstance(new, _ContainerData) and isinstance(old, _ContainerData):
         return _narrows(new.index, old.index) and _narrows(new.element, old.element)
     return False
@@ -813,11 +802,9 @@ def _refinement_problems(schema: Any) -> list[str]:
         return []
     base = schema.refines
     if type(base) is not type(schema):
-        return [f"refines {_kind_noun(base)}: a refinement stays within its kind, scalar, container or object"]
+        return [f"refines {_kind_noun(base)}: a refinement stays within its kind, container or object"]
     if is_a(base, schema):
         return ["refines itself"]
-    if isinstance(schema, _ScalarData):
-        return [f"refines a scalar of {base.token}, with {schema.token}"] if schema.token != base.token else []
     if isinstance(schema, _ContainerData):
         return [f"its {role} cannot be confirmed to narrow the refined container's"
                 for role in ("index", "element") if not _narrows(getattr(schema, role), getattr(base, role))]

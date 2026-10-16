@@ -99,7 +99,8 @@ assert Validators.Validate(store).Reachable(Component, copy) == []
 store = Builders.Store()                                    # holds its own plain schemas of schemas; shares nothing
 store.Schemas.OfInt                                         # its basic scalars, by path: OfBool, OfInt, OfFloat, OfStr, OfBytes
 store.Schemas.OfInt.as_schema()                             # the schema a path names, where an object is wanted
-store.Schemas.OfScalar(lambda s: s.format("ccpp").token("int32_t"))         # any format's token
+# The five are the only scalar schemas: a store builds no other. A finer scalar (a date, an int32) is a domain,
+# mbse-expressions'; until then, type it by its basic scalar and say what it means in the property's description.
 store.Schemas.OfObject(lambda o: o.name("crm.Contact").ref(True).properties([...]))   # .ref(True): a reference object schema
 store.Schemas.OfObject(lambda o: o.name("pm.Feature").ref(True).pattern(r"FEA-(\d+\d\d)"))  # objects FEA-001, ...; else UUIDs
 store.Schemas.OfObject(lambda o: o.properties([lambda t: t.name("x").type([Int])]))  # a value object schema, for a type

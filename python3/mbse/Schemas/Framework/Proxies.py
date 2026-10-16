@@ -805,13 +805,13 @@ def _index_key(schema: Schemas.OfContainer.Data, index: Any, label: str) -> Hash
     kind = schema.index
     if isinstance(kind, Schemas.OfScalar.Data):
         if kind.type is not None and type(index) is not kind.type:
-            raise TypeError(f"{label}: an index is a {kind.token.name}, got {type(index).__name__}")
+            raise TypeError(f"{label}: an index is a {kind.tag}, got {type(index).__name__}")
         return index
     if schema.arrangement != "entries":
         scalars = [prop.type for prop in kind.properties.values()]
         if not isinstance(index, tuple) or len(index) != len(scalars) or any(
                 scalar.type is not None and type(i) is not scalar.type for i, scalar in zip(index, scalars)):
-            names = ", ".join(scalar.token.name for scalar in scalars)
+            names = ", ".join(str(scalar.tag) for scalar in scalars)
             raise TypeError(f"{label}: an index is a tuple of {names}, got {_shown(index)}")
         return index
     if not isinstance(index, _RecordData) or index._schema is not kind:

@@ -129,84 +129,70 @@ export function isScalarOf(token: unknown, value: unknown): boolean {
   return value !== null && value !== undefined && (value as { constructor?: unknown }).constructor === token;
 }
 
-export const BASIC = "basic";
-export const TYPESCRIPT5 = "typescript5";
-export const PYTHON3 = "python3";
-const OWN_TYPES: ReadonlyMap<string, ScalarToken> = new Map<string, ScalarToken>(
-  SCALAR_TYPES.map((host) => [(host as { name: string }).name, host]));
-const BASIC_TYPES: ReadonlyMap<string, ScalarToken> = new Map(SCALAR_TYPES.map((host) => [tokenName(host), host]));
+/** The basic scalars, the only scalar schemas, by name, each mapping to its host type (docs/proposals/store-overhaul,
+ * Decided, 8 and 22). */
+const HOSTS: ReadonlyMap<string, ScalarToken> = new Map(SCALAR_TYPES.map((host) => [basicName(tokenName(host)), host]));
 
-/** A scalar type, named in a format: `basic`, the neutral vocabulary (`bool`, `int`, `float`, `str`, `bytes`), a
- * language's (`python3`, `typescript5`, `ccpp`, ...), or any other. */
-class TokenClass {
-  constructor(readonly format: string = BASIC, readonly name: string = "") {}
-
-  equals(other: unknown): boolean {
-    return other instanceof TokenClass && other.format === this.format && other.name === this.name;
-  }
-
-  toString(): string {
-    return `the ${this.format} type ${repr(this.name)}`;
-  }
+function basicName(tag: string): string {
+  return `Schemas.Of${tag.charAt(0).toUpperCase()}${tag.slice(1)}`;
 }
 
-/** A scalar's name, description, parameters and the scalar it refines. */
+function scalarShown(scalar: ScalarData): string {
+  return scalar.name === null ? "an unnamed scalar" : `the scalar ${repr(scalar.name)}`;
+}
+
+/** A scalar's name, description and parameters. */
 export interface ScalarFields {
   name?: string | null;
   description?: string | null;
   parameters?: Map<string, ParameterData>;
-  /** The scalar schema it refines. */
-  refines?: unknown;
 }
 
-/** A scalar type: a token. A host type given in place of the token (`new OfScalar.Data(BigInt)`) is shorthand for the
- * `basic` token of the same name. */
+/** A scalar type: one of the five basic scalars, `Schemas.OfBool`, `Schemas.OfInt`, `Schemas.OfFloat`,
+ * `Schemas.OfStr` and `Schemas.OfBytes`, each mapping to its host type by its name. A host type given in place of the
+ * name (`new OfScalar.Data(BigInt)`) is shorthand for the basic scalar's. Every finer scalar is a domain,
+ * mbse-expressions'. */
 class ScalarData {
-  token: unknown;
   name: string | null;
   description: string | null;
   parameters: Map<string, ParameterData>;
-  /** The scalar schema it refines, or null. */
-  refines: unknown;
 
-  constructor(token: unknown = null, fields: ScalarFields = {}) {
-    this.token = SCALAR_NAMES.has(token) ? new TokenClass(BASIC, SCALAR_NAMES.get(token) as string) : token;
-    this.name = fields.name ?? null;
+  constructor(host: unknown = null, fields: ScalarFields = {}) {
+    this.name = SCALAR_NAMES.has(host) ? basicName(SCALAR_NAMES.get(host) as string) : fields.name ?? null;
     this.description = fields.description ?? null;
     this.parameters = fields.parameters ?? new Map();
-    this.refines = fields.refines ?? null;
   }
 
-  /** The host type the token maps to, or null when this implementation cannot read the token. */
+  /** The host type the basic scalar maps to, or null when it names none. */
   get type(): ScalarToken | null {
-    if (!(this.token instanceof TokenClass)) return null;
-    const hosts = this.token.format === BASIC ? BASIC_TYPES : this.token.format === TYPESCRIPT5 ? OWN_TYPES : null;
-    return hosts?.get(this.token.name) ?? null;
+    return typeof this.name === "string" ? HOSTS.get(this.name) ?? null : null;
   }
 
-  /** The host type the token maps to; throws TypeError when this implementation cannot read the token. */
+  /** The basic scalar's tag (`int`), which a value of any type is tagged with on the wire, or null. */
+  get tag(): string | null {
+    const host = this.type;
+    return host === null ? null : tokenName(host);
+  }
+
+  /** The host type the basic scalar maps to; throws TypeError when it names none. */
   host(): ScalarToken {
     const host = this.type;
-    if (host === null) throw new TypeError(`${String(this.token)} has no type in this implementation`);
+    if (host === null) throw new TypeError(`${scalarShown(this)} is not a basic scalar`);
     return host;
   }
 
   equals(other: unknown): boolean {
-    return other instanceof ScalarData && other.name === this.name && other.description === this.description && sameParameters(this.parameters, other.parameters)
-      && other.refines === this.refines
-      && sameToken(this.token, other.token);
+    return other instanceof ScalarData && other.name === this.name && other.description === this.description
+      && sameParameters(this.parameters, other.parameters);
   }
 
   validate(): string[] {
     const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
-    const token = this.token;
-    if (!(token instanceof TokenClass)) problems.push(`unsupported scalar type ${repr(token)}`);
-    else if (typeof token.format !== "string" || token.format === "" || typeof token.name !== "string" || token.name === "") {
-      problems.push("a token needs a format and a name");
-    } else if ((token.format === BASIC && this.type === null) || (token.format === PYTHON3 && !BASIC_TYPES.has(token.name))) {
-      problems.push(`${token.format} has no type ${repr(token.name)}`); // python3: the basic types, by Python's names
+    if (this.type === null) {
+      problems.push(`${scalarShown(this)} is not a basic scalar: a scalar is Schemas.OfBool, Schemas.OfInt, `
+        + "Schemas.OfFloat, Schemas.OfStr or Schemas.OfBytes");
     }
-    return [...problems, ...refinementProblems(this)];
+    return problems;
   }
 
   /** Converts a scalar value to plain data that every text encoding can hold: `bytes` become base64 text, and
@@ -221,14 +207,14 @@ class ScalarData {
     return value as PlainData;
   }
 
-  /** The host type, or `DecodeError` when this implementation cannot read the token. */
+  /** The host type, or `DecodeError` when the scalar is not a basic scalar. */
   private hostForDecoding(): ScalarToken {
-    if (this.type === null) throw new DecodeError(`${String(this.token)} has no type in this implementation`);
+    if (this.type === null) throw new DecodeError(`${scalarShown(this)} is not a basic scalar`);
     return this.type;
   }
 
   /** Converts plain data back to a scalar value. Distinct scalar types are never coerced into each other.
-   * Plain data that does not hold such a value, or a token this implementation cannot read, throws
+   * Plain data that does not hold such a value, or a scalar that is not a basic scalar, throws
    * `Errors.DecodeError`. */
   from_plain(plain: unknown): Scalar {
     const host = this.hostForDecoding();
@@ -253,8 +239,6 @@ export namespace OfScalar {
   /** A scalar value. Conversion to and from the wire format is the responsibility of this element. */
   export const Data = ScalarData;
   export type Data = ScalarData;
-  export const Token = TokenClass;
-  export type Token = TokenClass;
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
   export declare const Builder: typeof Builders.ScalarBuilder;
   export type Builder = Builders.ScalarBuilder;
@@ -639,13 +623,11 @@ function memberProblems(aKind: string, member: string, plural: string, members: 
   return problems;
 }
 
-/** What tells a value of `schema` apart at run time: a scalar's host type, or any other schema itself. */
+/** What tells a value of `schema` apart at run time: a scalar's host type, or its name where it is not a basic scalar,
+ * or any other schema itself. */
 export function _runtime(schema: unknown): unknown {
   const found = schema;
-  if (found instanceof ScalarData) {
-    const token = found.token as { format?: unknown; name?: unknown };
-    return found.type ?? `token ${String(token.format)}:${String(token.name)}`;
-  }
+  if (found instanceof ScalarData) return found.type ?? `scalar ${String(found.name)}`;
   return found;
 }
 
@@ -918,8 +900,8 @@ export namespace OfPredicate {
 const ALL_FORMS = ["bool", "int", "float", "text", "mapping", "list"];
 
 /** The plain forms a value of `schema` may take: "bool", "int", "float", "text", "mapping" or "list". A float may be
- * text (`"NaN"`, `"Infinity"`), bytes are text (base64), a dense tensor a mapping where written flat, and a scalar whose
- * token this implementation cannot read any form. */
+ * text (`"NaN"`, `"Infinity"`), bytes are text (base64), a dense tensor a mapping where written flat, and a scalar that
+ * is not a basic scalar any form. */
 export function plain_forms(schema: unknown): Set<string> {
   const held = schema;
   if (held instanceof ScalarData) {
@@ -939,19 +921,18 @@ export function plain_forms(schema: unknown): Set<string> {
   return new Set(["mapping"]);
 }
 
-/** A type in a message: its name, a scalar's token name, or its kind. */
+/** A type in a message: its name, or its kind. */
 function shownType(schema: unknown): string {
   const held = schema;
   const name = (schema as { name?: unknown }).name;
   if (typeof name === "string") return name;
-  if (held instanceof ScalarData && held.token instanceof TokenClass) return held.token.name;
   return held instanceof ObjectData ? "a value object" : held instanceof UnionData ? "a union"
     : held instanceof IntersectionData ? "an intersection" : held instanceof ContainerData ? "a container" : "a schema";
 }
 
 /** A value of any type: of one of `types`, where they are given (an `OfAny` restricted to them), else of any type.
  * Restricted, a value is written bare, its type the one whose plain form it takes; unrestricted, it is tagged with its
- * type, a scalar's token name or a registered schema's name. */
+ * type, a basic scalar's tag or a registered schema's name. */
 class AnyValueData {
   types: AnyData[];
   name: string | null;
@@ -1012,11 +993,6 @@ function kindOf(value: unknown): unknown {
 
 // --- Refinement ---
 
-/** Whether two scalar tokens are the same: by value, or the same object where one is not a token. */
-function sameToken(a: unknown, b: unknown): boolean {
-  return a instanceof TokenClass ? a.equals(b) : a === b;
-}
-
 function kindNoun(schema: unknown): string {
   const nouns: [Function, string][] = [[ScalarData, "a scalar schema"], [ObjectData, "an object schema"],
     [ContainerData, "a container schema"], [UnionData, "a union"], [IntersectionData, "an intersection"],
@@ -1040,7 +1016,7 @@ export function is_a(schema: unknown, base: unknown): boolean {
  * or a scalar or container schema whose parts each narrow `old`'s. */
 function narrows(fresh: unknown, old: unknown): boolean {
   if (fresh === old || is_a(fresh, old)) return true;
-  if (fresh instanceof ScalarData && old instanceof ScalarData) return sameToken(fresh.token, old.token);
+  if (fresh instanceof ScalarData && old instanceof ScalarData) return fresh.type !== null && fresh.type === old.type;
   if (fresh instanceof ContainerData && old instanceof ContainerData) {
     return narrows(fresh.index, old.index) && narrows(fresh.element, old.element);
   }
@@ -1048,17 +1024,13 @@ function narrows(fresh: unknown, old: unknown): boolean {
 }
 
 /** A refinement's problems: it refines a schema of its own kind, not itself, and narrows what it redeclares. */
-function refinementProblems(schema: ScalarData | ObjectData | ContainerData): string[] {
+function refinementProblems(schema: ObjectData | ContainerData): string[] {
   if (schema.refines === null) return [];
   const base = schema.refines;
   if (!(base instanceof (schema.constructor as new () => unknown))) {
-    return [`refines ${kindNoun(base)}: a refinement stays within its kind, scalar, container or object`];
+    return [`refines ${kindNoun(base)}: a refinement stays within its kind, container or object`];
   }
   if (is_a(base, schema)) return ["refines itself"];
-  if (schema instanceof ScalarData) {
-    const held = base as ScalarData;
-    return sameToken(schema.token, held.token) ? [] : [`refines a scalar of ${String(held.token)}, with ${String(schema.token)}`];
-  }
   if (schema instanceof ContainerData) {
     const held = base as ContainerData;
     return (["index", "element"] as const).filter((role) => !narrows(schema[role], held[role]))

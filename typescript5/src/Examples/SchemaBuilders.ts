@@ -150,13 +150,11 @@ const NameClash = store.Schemas.OfObject((o: any) => (
 ));
 assert(NameClash.validate().some((p: string) => p.includes("both property and adjacency")));
 
+// The scalars are the store's five basic scalars; a finer scalar is a domain (mbse-expressions), never a schema.
 for (const unsupported of [Array, Map, Uint16Array]) { // the JavaScript counterparts of complex, list, bytearray
   assert(new Schemas.OfScalar.Data(unsupported).validate().length > 0); // deliberate misuse
-  const bad = store.Schemas.OfObject((o: any) => o.properties([
-    (t: any) => t.name("x").type([store.Schemas.OfScalar((s: any) => s.token(unsupported.name))]), // no basic type
-  ]));
-  assert(bad.validate().length > 0, unsupported.name);
 }
+raises(TypeError, () => store.Schemas.OfScalar((s: any) => s.name("Email")));
 
 // --- Singletons ---
 

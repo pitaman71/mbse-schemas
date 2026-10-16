@@ -4,35 +4,6 @@
       properties: {}
 - exists:
     definition:
-      key: Schemas.OfScalar/Size
-      properties:
-        name: Size
-        format: ccpp
-        token: size_t
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.Defines
-    entries:
-    - mutations:
-      - as_link:
-          name: module
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfModule/.
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Size
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: Size
-- exists:
-    definition:
       key: Schemas.OfObject/Contact
       properties:
         name: Contact
@@ -3641,61 +3612,6 @@
               value: Board
 - exists:
     definition:
-      key: Schemas.OfScalar/Word
-      properties:
-        name: Word
-        format: basic
-        token: int
-- exists:
-    definition:
-      key: Schemas.OfParameter/Word.w
-      properties: {}
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.HasParameter
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Word
-      - as_link:
-          name: parameter
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfParameter/Word.w
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: w
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.Defines
-    entries:
-    - mutations:
-      - as_link:
-          name: module
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfModule/.
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Word
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: Word
-- exists:
-    definition:
       key: Schemas.OfObject/Grid
       properties:
         name: Grid
@@ -3713,12 +3629,6 @@
     definition:
       key: Schemas.OfProperty/Grid.mask
       properties: {}
-- exists:
-    definition:
-      key: 'Schemas.OfScalar/Grid.mask#type'
-      properties:
-        format: basic
-        token: int
 - insert:
     relation:
       key: Schemas.OfRelation/Schemas.Typing
@@ -3735,7 +3645,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfScalar/Grid.mask#type'
+                key: Schemas.OfScalar/Schemas.OfInt
 - exists:
     definition:
       key: Schemas.OfProperty/Grid.cells
@@ -3760,7 +3670,7 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfScalar/Word
+                key: Schemas.OfScalar/Schemas.OfInt
 - insert:
     relation:
       key: Schemas.OfRelation/Schemas.Indexing

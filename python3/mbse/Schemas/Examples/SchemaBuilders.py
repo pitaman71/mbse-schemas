@@ -156,12 +156,11 @@ NameClash = store.Schemas.OfObject(lambda o: (
 ))
 assert any('both property and adjacency' in p for p in NameClash.validate())
 
+# The scalars are the store's five basic scalars; a finer scalar is a domain (mbse-expressions), never a schema.
 for unsupported in (complex, list, bytearray):
     assert Schemas.OfScalar.Data(unsupported).validate()  # type: ignore  # deliberate misuse
-    bad = store.Schemas.OfObject(lambda o: o.properties([
-        lambda t: t.name('x').type([store.Schemas.OfScalar(lambda s: s.token(unsupported.__name__))]),  # no basic type
-    ]))
-    assert bad.validate(), unsupported
+with raises(TypeError):
+    store.Schemas.OfScalar(lambda s: s.name('Email'))
 
 # --- Singletons ---
 

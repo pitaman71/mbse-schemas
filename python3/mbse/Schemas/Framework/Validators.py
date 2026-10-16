@@ -109,9 +109,8 @@ def _identity(target: Any) -> Hashable:
 
 
 def _scalar_problem(schema: Schemas.OfScalar.Data, value: Any) -> str | None:
-    if schema.type is None:  # an unsupported type is the schema's own problem, reported by its validate()
-        token = schema.token
-        return f"{token} has no type in this implementation" if isinstance(token, Schemas.OfScalar.Token) else None
+    if schema.type is None:  # not a basic scalar: the schema's own problem, reported by its validate()
+        return None
     if type(value) is not schema.type:
         return f"expected {schema.type.__name__}, got {type(value).__name__}"
     return None
@@ -146,7 +145,7 @@ def _key(schema: Any, value: Any) -> Hashable:
         return ("float", value.hex()) if isinstance(value, float) else (type(value).__name__, value)
     if isinstance(held, Schemas.OfAny.Value):
         own = _own(value)
-        return ("any", own.token.name if isinstance(own, Schemas.OfScalar.Data) else id(own), _key(own, value))
+        return ("any", own.tag if isinstance(own, Schemas.OfScalar.Data) else id(own), _key(own, value))
     if isinstance(held, Schemas.OfContainer.Data):
         return ("container", frozenset((index if not hasattr(index, "as_schema") else _key(held.index, index),
                                         _key(held.element, _element(e, held.element))) for index, e in _pairs(value)))
@@ -235,7 +234,7 @@ class _Check:
         own, types = _own(item), list(schema.types)
         if isinstance(own, Schemas.OfScalar.Data):
             allowed = not types or any(isinstance(t, Schemas.OfScalar.Data) and t.type is own.type for t in types)
-            shown = own.token.name
+            shown = own.tag
         else:
             allowed, shown = any(t is own for t in types), repr(own.name)
             if not types:

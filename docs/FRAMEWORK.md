@@ -20,8 +20,9 @@ The schema elements include:
 
 - `OfAny` : where a schema of any kind is expected; `Schemas.OfAny.Value`, the kind of a value of any type, unrestricted
             or restricted to the types an `OfAny.Builder` selects (Resolved, "`OfAny` returns")
-- `OfScalar` : a scalar value, whose type is a token `{format, name}` (see Scalar types below). In Python the host
-               types are `int`, `float`, `str`, `bool` and `bytes`.
+- `OfScalar` : a scalar value, of one of the five basic scalars a store holds, `Schemas.OfBool`, `Schemas.OfInt`,
+               `Schemas.OfFloat`, `Schemas.OfStr` and `Schemas.OfBytes` (see Scalar types below). In Python their
+               host types are `bool`, `int`, `float`, `str` and `bytes`.
                Conversion between the scalar format and the over-the-wire format is the responsibility of `Schemas.OfScalar`.
 - `OfObject` : named properties list where each property has type described by `OfAny`. An `OfObject` schema describes
                reference objects when marked `.ref()`, and otherwise value objects; see Value objects and
@@ -170,10 +171,8 @@ a direct value or a callable that takes and returns the corresponding builder. F
 
 - A property's `of(...)` takes a `Schemas.OfAny.Spec`: either a `Schemas.OfAny.Data` or a
   `Callable[[Schemas.OfAny.Builder], Schemas.OfAny.Builder]`.
-- `as_scalar` takes a `Schemas.OfScalar.Spec`: either one of the supported scalar types directly (e.g. `str`, the
-  `basic` token `str`) or a `Callable[[Schemas.OfScalar.Builder], Schemas.OfScalar.Builder]`, whose builder sets a
-  host type (`.type(int)`), a token in any format (`.token('ccpp', 'int32_t')`) and a width (`.bits(32)`,
-  `.bytes(4)`).
+- A scalar type is one of the store's basic scalars, linked by its path (`.type([store.Schemas.OfStr])`): a store
+  builds no other scalar schema (Scalar types).
 
 Anonymous sub-schemas are created inline by passing a lambda that receives a builder, e.g.
 `prop.name('street1').of(lambda t: t.as_scalar(str))`, where `t` is a `Schemas.OfAny.Builder`. The lambda only
@@ -554,23 +553,17 @@ Reference objects are never kept in containers: a collection of them is a relati
 
 Scalar types are implemented, and written over the wire by their meta-schema (see Meta-schemas).
 
-- **Scalar types are tokens, `{format, name}`** (`Schemas.OfScalar.Token`). A format is a language or a neutral vocabulary; `basic` is the
-  neutral one, with the names `bool`, `int`, `float`, `str` and `bytes` (the names of mbse-expressions' Basic
-  dialect). `{format: 'python3', name: 'int'}` and `{format: 'typescript5', name: 'BigInt'}` are the host types of the
-  two implementations (a `python3` token names one of the basic types, by Python's name for it: `bool`, `int`,
-  `float`, `str`, `bytes`; any other is a problem, "python3 has no type 'decimal.Decimal'"), and other formats name other languages' types (`{format: 'ccpp', name: 'int32_t'}`). An
-  implementation reads `basic` tokens and its own format's; a token in any other format fails to decode
-  (`Errors.DecodeError`). Responsible code keeps Basic on one side or both: it holds `basic` tokens in memory, or
-  writes them over the wire. Snapshots written that way are byte-identical across implementations, and the conformance
-  corpora use only `basic`; a token in a language's format is a deliberate choice to be read by that language only.
-- **`OfScalar.Data` holds its token**, in memory as on the wire, so a schema can name a type that no implementation
-  here has. A host type given to the builder (`as_scalar(int)` in Python, `as_scalar(BigInt)` in TypeScript) is
-  shorthand for the `basic` token it corresponds to, `{format: 'basic', name: 'int'}`; a token in another format is
-  given explicitly. Values are converted through the host type the token maps to, so a schema whose token this
-  implementation cannot read describes values it cannot convert. `OfScalar.Data.type` is that host type, or none,
-  and `host()` raises `TypeError` for a token this implementation cannot read ("the ccpp type 'int32_t' has no type in
-  this implementation"); converting a value raises the same, and validating one reports it. The token itself is
-  valid: `validate()` reports only a token without a format or a name, or a `basic` name that Basic lacks.
+- **The scalar schemas are the five basic scalars** (since 0.18.0; [Store overhaul, Decided, 8, 9, 22 and
+  23](proposals/store-overhaul/README.md#decided-here)): `Schemas.OfBool`, `Schemas.OfInt`, `Schemas.OfFloat`,
+  `Schemas.OfStr` and `Schemas.OfBytes`, which every store is made holding, each its own. Each maps to each
+  language's host type by its own name; a value of any type is tagged with its basic scalar's tag (`int`, `str`, ...,
+  the names of mbse-expressions' Basic dialect). A store builds no other scalar schema ("a store builds no scalar
+  schema"), and a scalar has no `token`, `format` or `refines`: every finer scalar, a date or an `int32`, is a domain,
+  mbse-expressions', which may associate several with one basic scalar.
+- **`OfScalar.Data` holds its name**: a host type given to it (`Schemas.OfScalar.Data(int)`, `new
+  Schemas.OfScalar.Data(BigInt)`) is shorthand for the basic scalar's name. Data no store builds may name another
+  (`Schemas.OfScalar.Data(name="Word")`): its `type` is none, `host()` and converting a value raise `TypeError` ("the
+  scalar 'Word' is not a basic scalar"), decoding raises `Errors.DecodeError`, and `validate()` reports it.
 - **A scalar has no width** (since 0.17.0; [Store overhaul](proposals/store-overhaul/README.md), Decided, 20): a width,
   and how the bits are interpreted (signedness, encoding, float format, text encoding), are a domain's, which
   mbse-expressions associates with a scalar schema ([Schema extension](SCHEMA_EXTENSION.md), section 2).
@@ -596,8 +589,8 @@ removed.
 Codegen and other transforms (mbse-patterns) match schemas, not data. `Schemas.OfStore.root_module()` (phase 5 of [the
 meta-schemas overhaul](META_SCHEMAS.md)) will return the hierarchical `Schemas.OfModule` of the schemas a store
 registers, by module-qualified name, as linked objects; it replaces `Reflection`, removed with the old protocol, and
-`Paths` went with it (Resolved, The visitor pattern). A scalar's token is written `format` and `token` in a module
-(`{"scalar": {"format": "basic", "token": "str"}}`), so that `name` is a schema's name in every kind (0.8).
+`Paths` went with it (Resolved, The visitor pattern). A store's basic scalars are its own and never written; a
+snapshot refers to them by key (`Schemas.OfScalar/Schemas.OfInt`).
 
 ## Expressions
 
@@ -689,8 +682,7 @@ it is fixed here:
 | Concept | Python | TypeScript |
 |---|---|---|
 | Importing the framework | `from mbse.Schemas.Framework import ...` (the `mbse` namespace package) | `import ... from "@mbse/schemas/Framework"` (the `@mbse` scope) |
-| Scalar host types (for `basic` tokens) | `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` |
-| Own token format | `python3` | `typescript5` |
+| Scalar host types (of the basic scalars) | `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` |
 | Scalar values | `int`, `float`, `str`, `bool`, `bytes` | `bigint`, `number`, `string`, `boolean`, `Uint8Array` |
 | Plain mappings | `dict` | `Map<string, PlainData>` (order-preserving for every key) |
 | Lists in proxies | `tuple` | a callable `Proxy` over a frozen array |
@@ -761,6 +753,17 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   well-formedness constraint under identity-based serialization?
 
 ### Resolved
+
+- **A scalar is one of the five basic scalars** (0.18.0; [Store overhaul, Decided, 8, 9, 22 and
+  23](proposals/store-overhaul/README.md#decided-here)), as the user decided: `token` and `format` leave
+  `Schemas.OfScalar`, "Drop both (Recommended)", each basic scalar mapping to each language's host type by its own
+  name, a format (dates, UUIDs) becoming a domain in mbse-expressions; a scalar's `refines` goes too, "Yes, remove it
+  (Recommended)", objects and containers keeping it; and a user scalar in tests, tutorials and examples becomes "The
+  basic scalar (Recommended)", its finer meaning moving to the property's description. Built:
+  - a store refuses to build a scalar schema, and `validate()` reports scalar data that names no basic scalar;
+  - an extension may add adjacencies to `Schemas.OfScalar`, whose entries a store's own scalars hold, written in a
+    snapshot from either end (EXT-05); a property an extension adds to it can hold no value, since the store's own
+    scalars change only through `store.extend`, which only adds members.
 
 - **Parameters are names only** (0.17.0; [Store overhaul, Decided, 20 and
   21](proposals/store-overhaul/README.md#decided-here)), as the user decided. A schema's parameters are "Names only
@@ -859,7 +862,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
        and, asked whether every store should hold the basic scalars (`bool`, `int`, `float`, `str`, `bytes`) as named
        schemas from the start, as it holds the meta-schemas, so that programs link them and logs refer to them by name,
        never foreign: "yes", named "Schemas.OfBool, Schemas.OfInt, ... no need to invent an alternate convention"
-       (`Schemas.OfBool`, `Schemas.OfInt`, `Schemas.OfFloat`, `Schemas.OfStr`, `Schemas.OfBytes`, after the basic tokens);
+       (`Schemas.OfBool`, `Schemas.OfInt`, `Schemas.OfFloat`, `Schemas.OfStr`, `Schemas.OfBytes`, after the basic tokens;
+       since 0.18.0 the only scalar schemas, Store overhaul, Decided, 22);
     3. what the builders rebuild on every read (an int width read as a literal form, an application's arguments,
        shared forms): "I think this is only value objects so (c)": written nested, as values;
     4. the declaration order of a schema object's members: a position property on their entries;
@@ -901,7 +905,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
       narrow), an adjacency only with the same relation and link. It is a reference object schema exactly where what
       it refines is one. Its objects fill the refined schema's links, and the refined schema's extent holds them.
     - a scalar refinement has the refined token and widths within the refined ones; a container refinement, an index
-      and an element that each narrow the refined ones.
+      and an element that each narrow the refined ones. (Superseded since 0.18.0 for scalars: only objects and
+      containers refine; Store overhaul, Decided, 22.)
     - validation refuses a refinement of another kind, of itself, and what it cannot confirm narrows ("cannot be
       confirmed"). Modules write `refines` and a refinement's own members only.
     - proposed in building, for the user's review: refinement of unions, intersections, values of any type and
@@ -913,7 +918,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     the one written, else the source's; `create()` and `clone()` give one only where none is written, and `update()`
     renames the object. An identity no other live object of its schema has, which its naming pattern gives where it
     has one; a singleton's is its global name; data instances and value objects refuse a write.
-  - domains: "domains refine scalar schemas" (mbse-expressions' value domains).
+  - domains: "domains refine scalar schemas" (mbse-expressions' value domains). (Superseded: a domain is
+    mbse-expressions' object, associated with a basic scalar, which has none of its own; Store overhaul, Decided, 9.)
   - relations: "mbse-schemas.Schemas.OfRelation is by default a all-directional link. Anonymous adjacencies allow for
     some adjacencies to be omitted." An entry "may be rejected if the linked object is of the wrong type. That's
     exactly why we have anonymous adjacencies at all. They still participate in type checking even though they omit
@@ -1024,7 +1030,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - a value of a type outside the restriction is refused when written and when read ("yes - but for open-world, which
     we are not yet undertaking, this would require different handling");
   - a value object is tagged by its schema's registered name, `{"crm.Phone": {...}}`, as a scalar is by its token's
-    name, but "only when the value object's schema is not clear from the parent schema": where the restriction leaves
+    name (since 0.18.0, its basic scalar's tag), but "only when the value object's schema is not clear from the parent schema": where the restriction leaves
     one object schema the value can be, it is written bare.
   - "The common case is that a schema path through OfAny will already be configured with a subschema before any
     objects are created with that schema": a restricted `OfAny`, whose values are written bare and built through the
@@ -1165,7 +1171,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - anything that has a builder has a `Spec`, "a callable taking and returning that builder", or "an instance of the
     built object" (mbse-basis P-004, amended);
   - `OfScalar` "completely displaces" `OfNative`, in `Schemas` and `Visitors`: a module writes `{"scalar": {"format":
-    ..., "token": ...}}`;
+    ..., "token": ...}}` (superseded since 0.18.0: a scalar has no token; Store overhaul, Decided, 22);
   - a reference object is named by its global name if it has one, otherwise by "a UUID on creation by `.create()` or
     `.clone()` that is saved on the wire" (refined by Reference identity: a naming pattern may take the UUID's place); "value objects are never shared"; "value objects cannot be referenced by
     entries"; a value object may have adjacencies only to one-link relations, of "zero or more" properties (since
@@ -1295,7 +1301,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - **A `python3` token names a basic type** (0.10), as the user decided: a `python3` token that is not a basic type's
   name should not be configurable in `OfScalar`. Validation reports one ("python3 has no type 'decimal.Decimal'"), as
   it does an unknown `basic` name, in both implementations. Code generators then never meet a Python scalar they
-  cannot hold.
+  cannot hold. (Superseded since 0.18.0: a scalar has no token; [Store overhaul, Decided, 22](proposals/store-overhaul/README.md#decided-here).)
 
 - **Adjacencies, as specified:** "adjacencies are always stored in a class under the name of the adjacency and must
   store an Iterable over full relation entries, such as `Proxies.OfEntry.Data` or generated equivalent." So: the one

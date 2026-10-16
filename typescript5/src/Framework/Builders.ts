@@ -1270,32 +1270,12 @@ function refinesMembers(): Members {
   return new Members("refined", { accepts: isSchema, ...one("refines") });
 }
 
-/** A refinement takes the token of what it refines, unless it is given one. */
+/** A basic scalar: a store is made holding the five, and builds no other (docs/proposals/store-overhaul, Decided,
+ * 8 and 22). */
 export class ScalarBuilder extends KindBuilder {
   static override _data = S.OfScalar.Data;
   static override _meta = "OfScalar";
   static override _noun = "a scalar schema";
-  static override _table = extendTable(KindBuilder._table, {
-    format: new Prop({
-      get: (data) => data.token instanceof S.OfScalar.Token ? data.token.format : null,
-      put: (data, value) => {
-        data.token = new S.OfScalar.Token(value as string, data.token instanceof S.OfScalar.Token ? data.token.name : "");
-      },
-    }),
-    token: new Prop({
-      get: (data) => data.token instanceof S.OfScalar.Token ? data.token.name : null,
-      put: (data, value) => {
-        data.token = new S.OfScalar.Token(data.token instanceof S.OfScalar.Token ? data.token.format : S.BASIC, value as string);
-      },
-    }),
-    refines: refinesMembers(),
-  });
-
-  override _finalize(target: any): any {
-    const base = target.refines;
-    if (target.token === null && base instanceof S.OfScalar.Data) target.token = base.token;
-    return target;
-  }
 }
 
 type Inherited = [Set<string>, Set<string>, S.OfAdjacency.Data[]];
@@ -1577,13 +1557,14 @@ export interface Plain {
 /** Builds a store's plain schemas of schemas and its basic scalars, anew. */
 function plainSchemas(): Plain {
   const meta = {} as Plain;
-  // The basic scalars, which every store holds, named after the basic tokens (FRAMEWORK.md, Resolved: "Schemas.OfBool,
-  // Schemas.OfInt, ... no need to invent an alternate convention").
-  meta.OfBool = new ScalarBuilder().name("Schemas.OfBool").token("bool").create();
-  meta.OfInt = new ScalarBuilder().name("Schemas.OfInt").token("int").create();
-  meta.OfFloat = new ScalarBuilder().name("Schemas.OfFloat").token("float").create();
-  meta.OfStr = new ScalarBuilder().name("Schemas.OfStr").token("str").create();
-  meta.OfBytes = new ScalarBuilder().name("Schemas.OfBytes").token("bytes").create();
+  // The basic scalars, the only scalar schemas, each mapping to its host type by its name (FRAMEWORK.md, Resolved:
+  // "Schemas.OfBool, Schemas.OfInt, ... no need to invent an alternate convention"; docs/proposals/store-overhaul,
+  // Decided, 8 and 22).
+  meta.OfBool = new ScalarBuilder().name("Schemas.OfBool").create();
+  meta.OfInt = new ScalarBuilder().name("Schemas.OfInt").create();
+  meta.OfFloat = new ScalarBuilder().name("Schemas.OfFloat").create();
+  meta.OfStr = new ScalarBuilder().name("Schemas.OfStr").create();
+  meta.OfBytes = new ScalarBuilder().name("Schemas.OfBytes").create();
   const [Text, Bool, Int] = [meta.OfStr, meta.OfBool, meta.OfInt];
 
   /** A plain schema of schemas: a reference object schema, `Schemas.<name>`, with `properties` of their schemas, by
@@ -1597,7 +1578,7 @@ function plainSchemas(): Plain {
   }
 
   const named: [string, unknown][] = [["name", Text], ["description", Text]]; // every kind of schema's: no base declares it
-  meta.OfScalar = metaObject("OfScalar", [...named, ["format", Text], ["token", Text]]);
+  meta.OfScalar = metaObject("OfScalar", named);
   meta.OfObject = metaObject("OfObject", [...named, ["ref", Bool], ["pattern", Text], ["singleton", Text]]);
   meta.OfUnion = metaObject("OfUnion", [...named, ["flat", Bool]]);
   meta.OfIntersection = metaObject("OfIntersection", [...named, ["flat", Bool]]);
@@ -1675,7 +1656,7 @@ function plainSchemas(): Plain {
   for (const owner of [meta.OfObject, meta.OfRelation]) { // each has its own `properties`; any schema may be the owner
     declare(owner, metaAdjacency(meta.HasProperty, "owner"), "properties");
   }
-  for (const refining of [meta.OfScalar, meta.OfObject, meta.OfContainer]) { // only these refine
+  for (const refining of [meta.OfObject, meta.OfContainer]) { // only these refine
     declare(refining, metaAdjacency(meta.Refines, "refinement"), "refines");
   }
   for (const [schema, [named, anonymous]] of NAMED) {
@@ -1987,6 +1968,10 @@ export class Store extends Proxies._Store {
    * schema, which every store holds as it is, is left so: a builder of one writes only its store's entries. */
   _hold(data: any, identity: string): any {
     if (this.framework(data)) return data;
+    if (data instanceof S.OfScalar.Data) {
+      throw new TypeError("a store builds no scalar schema: its scalars are the basic scalars it was made holding, "
+        + "store.Schemas.OfBool, OfInt, OfFloat, OfStr and OfBytes");
+    }
     const kind = _kind(data);
     const held = this._objects.get(key(kind, identity));
     if (held !== undefined && held !== data) {
@@ -2062,8 +2047,6 @@ export namespace OfScalar {
   export type Data = S.OfScalar.Data;
   export const Builder = ScalarBuilder;
   export type Builder = ScalarBuilder;
-  export const Token = S.OfScalar.Token;
-  export type Token = S.OfScalar.Token;
 }
 
 export namespace OfObject {

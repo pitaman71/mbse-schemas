@@ -42,7 +42,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 
 | Notebook | Suite | Cases | Focus |
 |---|---|---|---|
-| `01_Schemas.ipynb` | SCH | 23 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array`, and the own token format is `typescript5` |
+| `01_Schemas.ipynb` | SCH | 23 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` |
 | `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length`, the read-only views by the type checker; data instances are callable as a `Proxy` with a function target (`typeof` is `"function"`); the scalar sugar is `[Symbol.toPrimitive]` and `valueOf`; JavaScript's probes and `in` on a builder |
 | `03_Proxies.ipynb` | PRX | 21 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances, adjacencies, entry builders, link members and stores, `util.inspect` of instances, builders and members, the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel), and the reprs of builders of value objects and adjacencies |
 | `04_Reachable.ipynb` | RCH | 8 | as in Python |
@@ -78,7 +78,6 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 |---|---|---|---|
 | int / float | `int` / `float` | `bigint` / `number` (keeps int and float distinct, unbounded ints) | SCH-03, JSN-05, JSN-07 |
 | Scalar host types | `str`, `int`, ... | `String`, `BigInt`, `Number`, `Boolean`, `Uint8Array` | SCH-01..05 |
-| Own token format | `python3` | `typescript5` | SCH-18 |
 | Plain mappings | `dict` | `Map<string, PlainData>` (keeps order for every key, incl. `"2"` and `"__proto__"`) | SCH-11, PLN-02 |
 | Schema equality | `==` on data | `.equals()` (no operator overloading) | SCH-01, SCH-15 |
 | Subclasses of scalars | `int` subclasses rejected | boxed primitives and `Buffer` rejected | SCH-03 |

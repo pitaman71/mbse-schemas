@@ -110,6 +110,14 @@ As the user decided (2026-10-16), on the questions put to them:
     `Parameters.Bind` and `Parameters.Apply` (12) bind parameters later.
 21. **`Schemas.Meta` is deferred**, "Defer it (Recommended)": nothing reads level 3 yet, so 13 is built when something
     needs to name a meta-schema.
+22. **A scalar has no `token`, `format` or `refines`**, as the user chose (2026-10-16): "Drop both (Recommended)",
+    `token` and `format` leave `Schemas.OfScalar`, and each basic scalar maps to each language's host type by its own
+    name; a format (dates, UUIDs) becomes a domain in mbse-expressions (9). With exactly five scalars a scalar has
+    nothing to refine, so `refines` leaves `Schemas.OfScalar` too, "Yes, remove it (Recommended)"; objects and
+    containers keep it.
+23. **A user scalar in tests, tutorials and examples becomes the basic scalar**, "The basic scalar (Recommended)": a
+    property typed by a user scalar (an `Email`, a `Date`) is typed by the basic scalar it refined (`Schemas.OfStr`),
+    the finer meaning moving to the property's description; a case that teaches scalar refinement is rewritten or cut.
 
 ## Order of work
 
@@ -136,7 +144,7 @@ so that main stays current and no branch waits on another.
 2a. **One store (0.15.0).** `register` leaves the public API and `Proxies.OfStore` with it (17); a test's "another
    store of the same schemas" builds its schemas there, or reads them from a snapshot. Steps 2 to 4 follow as 0.17.0 to
    0.19.0, after 0.16.0 (18, 19).
-3. **Scalars and members (0.18.0).** User scalar schemas, `token` and `format` go (8, 9). Branches and parts become `HasBranch` and `HasPart` (4).
+3. **Scalars and members (0.18.0).** User scalar schemas, `token`, `format` and a scalar's `refines` go (8, 9, 22, 23). Branches and parts become `HasBranch` and `HasPart` (4).
    `Schemas.OfScalar` has exactly the five instances (8).
    *Breaks*: every user-defined scalar in tests, examples and tutorials; the module format of unions and
    intersections.
@@ -221,8 +229,7 @@ keeps its parametric schemas, with parameters as names, and loses its widths, ap
    whether `Parameters.Apply` is a record in the store or an operation, and so when a `Parameters.Bind` takes effect,
    is left open. Under object identity (step 4), a path's builder given an identity the store holds visits that object,
    and otherwise makes one; the present code clones on `store.crm.Contact(obj)` until then.
-2. **Scalars without tokens.** Each basic scalar maps to each language's host type by its own name, so `token` is not
-   needed for them; with user scalar schemas gone, `format` (dates, UUIDs) becomes a domain. Agreed?
+2. *Settled by 22.*
 3. **When `Schema@` is inferred.** "omit `Schema@` when it can be inferred from context": I propose where a link's
    other end has one schema that may fill it, and within an object's own entry, which names its schema.
 4. **A path given to a link.** Your `e.domain(Int32)` passed a path. With `as_instance`, a link is given the instance

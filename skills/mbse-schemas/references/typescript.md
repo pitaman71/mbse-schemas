@@ -181,13 +181,15 @@ store.builder("crm.Contact", obj);                         // the builder a call
 obj.prop.get() === "Ada";                                  // compare once read: a member is never `===` a scalar
 obj.prop.as_scalar((s: any) => s.set(v));                  // a property's scalar visitor; .as_value(cb) for any kind
 store.crm.Contact(obj, (c: any) => c.prop((p: any) => p.as_value((v: any) => v.clear())));   // clear a value
-store.crm.Contact((c: any) => c.tags(["a", "b"]));         // a container's value, given whole
+store.crm.Contact((c: any) => c.tags(["a", "b"]));         // a container's value, given whole; an element a value
+store.crm.Deck((d: any) => d.cards([(e: any) => e.title("x")]));  // or a callback writing it through its visitor
 obj.valueProp.as_object((r: any) => r);                    // a value object's visitor, its members as an object's
 [...irq.fanout].map((e: any) => [e.target, `${e.label}`]);  // an adjacency iterates its entries; a link is the object itself
 irq.fanout.project("target"); contact.phones.at("home");   // each entry's link or property; the entry by its key
 store.crm.Contact(obj, (c: any) => c.knows((a: any) => a.remove((e: any) => e.b(bob))));   // remove every entry agreeing
 obj.likes.as_iterable((entries: Iterator<any>) => entries);  // an iterator over an adjacency's entries, in order
-store.crm.Card((c: any) => c.reach((p: any) => p.as_value((v: any) => v.as_union((u: any) => u.phone(spec)))));   // a branch
+store.crm.Card((c: any) => c.reach((p: any) => p.phone(spec)));  // a branch: a property of one kind has its members
+obj.reach.phone.number.get();                                // read through them, as through as_value and as_union
 obj.as_properties; obj.as_adjacencies((a: any) => a);      // schema unaware: the properties set, every adjacency
 obj.as_schema(); obj.as_identity();                        // what every visitor has: its schema; an object's identity, else null
 store.by_identity("Feature", "FEA-001");                   // the live object of that schema with that identity

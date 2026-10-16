@@ -663,8 +663,11 @@ class _Any(_Unassignable):
 
             builder = _ContainerBuilder(self._type, None, self._store, attach, self._label)
             builder._touch()
-            for index, element in elements:
-                builder.at(index).write(element)
+            for index, element in elements:  # each a value, or a callback writing the element through its visitor
+                if _is_function(element):
+                    _visit(element, builder.at(index))
+                else:
+                    builder.at(index).write(element)
             return
         if not isinstance(value, _Containing) or value._schema is not self._type:
             raise TypeError(f"{self._label} takes a container of its schema or a Spec, got {type(value).__name__}")
@@ -722,6 +725,18 @@ class _Any(_Unassignable):
         self._touch()
         self._values[self._name] = value
 
+    def __getattr__(self, name: str) -> Any:
+        """A member of the value's kind, where its type has one: a union's branch, an object's property, an
+        intersection's part, as through `as_union`, `as_object` or `as_intersection` (docs/VISITOR_PATTERN.md); written,
+        it selects the kind. Any other name is not a member."""
+        held = Schemas.structure(self._type) if not name.startswith("_") else None
+        if not isinstance(held, RECORD_KINDS) or name not in _kind_members(held):
+            raise AttributeError(name)
+        if self._writable:  # the builder is attached when a member is written, not when it is read
+            return getattr(self._builder(), name)
+        value = self._values.get(self._name)
+        return getattr(value, name) if isinstance(value, _RecordData) else _Empty(f"{self._label} is not set")
+
     def write(self, value: Any) -> None:
         """Writes a `Specs.Callback`'s value form: a scalar, a value object, union value or intersection value (a flat
         union's, its branch's), or a property's value."""
@@ -745,6 +760,15 @@ class _Any(_Unassignable):
     def clear(self) -> None:
         _write(self._writable, f"{self._label} is read-only; write through a builder")
         self._values.pop(self._name, None)
+
+def _kind_members(schema: Any) -> set[str]:
+    """The names a value of a union, object or intersection schema has as members: its branches, properties or parts."""
+    if isinstance(schema, Schemas.OfUnion.Data):
+        return {branch.name for branch in schema.branches}
+    if isinstance(schema, Schemas.OfIntersection.Data):
+        return {part.name for part in schema.parts}
+    return set(schema.properties)
+
 
 def _shown_type(schema: Any) -> str:
     """A type in a message: its name, or its kind."""
@@ -1094,6 +1118,12 @@ class _Property(_Dunders):
         else:
             self.as_value(spec)
         return self._parent
+
+    def __getattr__(self, name: str) -> Any:
+        """A member of its value's kind, where its type has one (`_Any`'s)."""
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return getattr(self._any(), name)
 
     def __repr__(self) -> str:
         return f"<{self._label()}>"

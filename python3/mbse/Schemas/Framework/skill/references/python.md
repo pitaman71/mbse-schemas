@@ -158,13 +158,15 @@ str(obj.prop); int(obj.count); obj.prop.get()               # a scalar: the dund
 obj.prop == "Ada"; obj.count < 3; {obj.prop}                # a scalar visitor compares, orders and hashes as its value
 obj.prop.as_scalar(lambda s: s.set(v))                      # a property's scalar visitor; .as_value(cb) for any kind
 store.crm.Contact(obj, lambda c: c.prop(lambda p: p.as_value(lambda v: v.clear())))   # clear a value
-store.crm.Contact(lambda c: c.tags(["a", "b"]))             # a container's value, given whole
+store.crm.Contact(lambda c: c.tags(["a", "b"]))             # a container's value, given whole; an element a value
+store.crm.Deck(lambda d: d.cards([lambda e: e.title("x")]))  # or a callback writing it through its visitor
 obj.value_prop.as_object(lambda r: ...)                     # a value object's visitor, its members as an object's
 [(e.target, str(e.label)) for e in irq.fanout]              # an adjacency iterates its entries; a link is the object itself
 irq.fanout.project("target"); contact.phones.at("home")     # each entry's link or property; the entry by its key
 store.crm.Contact(obj, lambda c: c.knows(lambda a: a.remove(lambda e: e.b(bob))))   # remove every entry agreeing
 obj.likes.as_iterable(lambda entries: ...)                  # an iterator over an adjacency's entries, in order
-store.crm.Card(lambda c: c.reach(lambda p: p.as_value(lambda v: v.as_union(lambda u: u.phone(spec)))))   # a branch
+store.crm.Card(lambda c: c.reach(lambda p: p.phone(spec)))  # a branch: a property of one kind has its members
+obj.reach.phone.number.get()                                # read through them, as through as_value and as_union
 obj.as_properties; obj.as_adjacencies(lambda a: a)          # schema unaware: the properties set, every adjacency
 obj.as_schema(); obj.as_identity()                          # what every visitor has: its schema; an object's identity, else None
 store.by_identity("Feature", "FEA-001")                     # the live object of that schema with that identity

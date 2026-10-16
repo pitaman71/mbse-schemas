@@ -55,7 +55,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `11_Conformance.ipynb` | CONF | 4 | as in Python, from this side |
 | `12_Text.ipynb` | TXT | 4 | `Repr` produces Python's text: `repr`, float `repr`, type names (plus one row for a prototype-less object), code-point order |
 | `13_Comparison.ipynb` | CMP | 13 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
-| `14_Embedded.ipynb` | EMB | 11 | as in Python; the runtime's own probes (`then`, symbols) are not members, and `in` on a value object says what its schema declares |
+| `14_Embedded.ipynb` | EMB | 12 | as in Python; the runtime's own probes (`then`, symbols) are not members, and `in` on a value object says what its schema declares, and on a property whose value has one kind its members |
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
 | `20_Stores.ipynb` | STO | 7 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), STO-05 builds its unplaced value object through `Proxies._internals`, and STO-07 runs the garbage collector (`gc()`, the suites running with `--expose-gc`), then awaits the store's forgetting |
 | `21_Random.ipynb` | RND | 3 | as in Python; PCG32 computes on `bigint`s, and the UTF-8 bytes of keys are encoded without `TextEncoder` |

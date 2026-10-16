@@ -51,6 +51,18 @@ type AdjacencySchema = Schemas.OfAdjacency.Data;
 /** The schema of a record: a value object's, or a union's or intersection's, whose properties are its branches or
  * parts. */
 type RecordSchema = ObjectSchema | Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
+
+function isRecordSchema(schema: unknown): schema is RecordSchema {
+  return schema instanceof Schemas.OfObject.Data || schema instanceof Schemas.OfUnion.Data
+    || schema instanceof Schemas.OfIntersection.Data;
+}
+
+/** The names a value of a union, object or intersection schema has as members: its branches, properties or parts. */
+function kindMembers(schema: RecordSchema): Set<string> {
+  if (schema instanceof Schemas.OfUnion.Data) return new Set(schema.branches.map((branch) => branch.name));
+  if (schema instanceof Schemas.OfIntersection.Data) return new Set(schema.parts.map((part) => part.name));
+  return new Set(schema.properties.keys());
+}
 type Values = Map<string, unknown>;
 type Mapping = Map<unknown, unknown>;
 
@@ -788,6 +800,25 @@ class _Any {
       const held = _values.get(_name);
       this._type = isRecordData(held) || isRecordBuilder(held) || isContaining(held) ? innerOf(held)._schema : null;
     }
+    return new Proxy(this, { // a member of the value's kind, where its type has one (`_kindMember`)
+      get: (target, prop, receiver) => prop in target ? Reflect.get(target, prop, receiver) : target._kindMember(prop),
+    });
+  }
+
+  /** Whether `name` is a member of the value's kind (`_kindMember`). */
+  _hasKindMember(name: string | symbol): boolean {
+    const held = Schemas.structure(this._type);
+    return isRecordSchema(held) && kindMembers(held).has(name as string);
+  }
+
+  /** A member of the value's kind, where its type has one: a union's branch, an object's property, an intersection's
+   * part, as through `as_union`, `as_object` or `as_intersection` (docs/VISITOR_PATTERN.md); written, it selects the
+   * kind. Any other name is not a member. */
+  _kindMember(name: string | symbol): unknown {
+    if (!this._hasKindMember(name)) return undefined;
+    if (this._writable) return this._builder()[name]; // the builder is attached when a member is written, not read
+    const value = this._values.get(this._name);
+    return isRecordData(value) ? (value as any)[name] : makeEmpty(`${this._label} is not set`);
   }
 
   /** Where the value is of any type: the one type of `kind` its restriction allows, else null. */
@@ -922,7 +953,10 @@ class _Any {
       };
       const builder = makeContainerBuilder(this._type as Schemas.OfContainer.Data, null, this._store, attach, this._label);
       innerOf(builder)._touch();
-      for (const [index, element] of elements) builder.at(index).write(element);
+      for (const [index, element] of elements) { // each a value, or a callback writing the element through its visitor
+        if (isFunction(element)) visit(element, builder.at(index));
+        else builder.at(index).write(element);
+      }
       return;
     }
     if (!(innerOf(value) instanceof _Containing) || innerOf(value)._schema !== this._type) {
@@ -1454,6 +1488,15 @@ class _Property extends Dunders {
     if (isFunction(spec)) visit(spec, this._proxy);
     else this.as_value(spec);
     return this._parent;
+  }
+
+  /** A member of its value's kind, where its type has one (`_Any`'s). */
+  override _member(name: string): unknown {
+    return this._any()._kindMember(name);
+  }
+
+  override _declares(name: string): boolean {
+    return this._any()._hasKindMember(name);
   }
 
   override _repr(): string {

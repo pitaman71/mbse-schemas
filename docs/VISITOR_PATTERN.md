@@ -160,12 +160,23 @@ osv.<propName> -> Visitors.OfProperty: ...
 
 # singleton and iterable shorthands - type must match exactly
 # all of these set the property value - no merging
-osv.<propName>(value_: ScalarType) -> Visitors.OfObject: ...
-osv.<propName>(value_: Iterable[ScalarType]) -> Visitors.OfObject: ...
-osv.<propName>(value_: Map[str, ScalarType]) -> Visitors.OfObject: ...
+osv.<propName>(value_: T) -> Visitors.OfObject: ...  # a value of the property's type: a scalar, a value object, ...
+osv.<propName>(value_: Iterable[T | Specs.Callback[Visitors.OfAny]]) -> Visitors.OfObject: ...  # a container's elements
+osv.<propName>(value_: Map[str, T | Specs.Callback[Visitors.OfAny]]) -> Visitors.OfObject: ...  # by index
+# each element of a container given as an iterable or a map is a value, or a callback writing it through its visitor:
+#   c.arguments([lambda e: e.variable(lambda v: v.name("x")), one])
 
 # precisely configure the property value
 osv.<propName>(cb: Specs.Callback[Visitors.OfProperty]) -> Visitors.OfObject: ...
+
+# a property, or a container's element, whose value has one kind - an object, a union or an intersection - answers
+# that kind's members: its properties, branches or parts, as through as_value and as_object, as_union or
+# as_intersection. Read, a member reads the value held (empty where none is); written, it writes the value. A name
+# that is not a member is not an attribute (Python: AttributeError; TypeScript: undefined).
+osv.<propName>.<memberName> -> Visitors.OfY: ...
+#   r.term(lambda t: t.call(lambda c: c.function("add")))
+#     for r.term(lambda t: t.as_value(lambda a: a.as_union(lambda u: u.call(lambda c: c.function("add")))))
+#   root.term.call.function.get()  # "add"
 
 # iterate over all properties (schema unaware)
 osv.as_properties -> Iterable[Visitors.OfProperty]

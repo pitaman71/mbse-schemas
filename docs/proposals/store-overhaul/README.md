@@ -47,6 +47,12 @@ As the user decided (2026-10-16), on the questions put to them:
 12. **A type parameter is applied by a transform**, not by `OfApply`: `store.Parameters.Transform`
     ([Parametrics](../../PARAMETRICS.md)) makes a new schema with every occurrence of the parameter replaced, as it makes
     a new function from a generic one.
+13. **`Schemas.Meta` is a module**, holding the meta-schemas as its instances: "Make `Meta` a module, put the meta schema
+    (as instances) underneath it", "Actually `Schemas.Meta`". A meta-schema's identity is `Schemas.Meta/OfObject`, its
+    container the module `Schemas.Meta` (Object identity, Decided, 2 and 3), and `store.Schemas.Meta.OfObject` reads it.
+14. **Building is unchanged** (11), "(b)": `store.Schemas.Object(lambda o: ...)` builds an object schema, as now, and
+    `store.Schemas.Meta.OfObject` is where a program reads the meta-schema to link or extend it: two paths to one
+    meta-schema, one to build through it and one to read it.
 
 ## Order of work
 
@@ -78,13 +84,8 @@ Then mbse-expressions redrafts its framework model on per-store extension (`Expr
 
 ## Open, for the user
 
-1. **Two names for building.** Building stays as it is (11): `store.Schemas.Object(lambda o: ...)` builds an object
-   schema, through the meta-schema named `Schemas.Object`. But the kinds are reached as `store.Schemas.Meta.OfObject`
-   (1). Are these one meta-schema under two names, or is `Schemas.Meta.OfObject` its new name, building included
-   (`store.Schemas.Meta.OfObject(lambda o: ...)`)? I'd keep one name per object: the meta-schema is named
-   `Schemas.Meta.OfObject`, read there to link it, and `store.Schemas.Object(...)` stays the way to build through it, as
-   a path that builds rather than a second name. And does reading `store.Schemas.OfInt` (no call) give the schema
-   object itself, so code links it without `Builders.Meta`?
+1. **Reading a basic scalar.** Does reading `store.Schemas.OfInt` (no call) give the scalar schema itself, so that code
+   links it without `Builders.Meta`, as reading `store.Schemas.Meta.OfObject` gives a meta-schema (14)?
 2. **`Parameters.Transform`, a record or an operation.** `store.Parameters.Transform(...)` is a path, so calling it
    makes an object of a schema named `Parameters.Transform`. If the transform is a record (its target and its
    replacements, kept in the store), something applies it and makes the new schema or function: on creation, or

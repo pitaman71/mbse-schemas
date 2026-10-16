@@ -1005,9 +1005,11 @@ class _LogWriter:
 class _LogReader:
     """Applies a log of mutations to a store, each through the store's builders: `exists` creates an object only where
     its identity is new, its properties read by their schema; `insert` adds entries, through an adjacency of an object
-    each links."""
+    each links. A sub-clause whose meaning needs an extension of a schema the store was made holding, which the store
+    lacks, is ignored, and kept in `ignored` where it is given (docs/proposals/store-overhaul, Decided, 19): a property
+    such a schema lacks, and an entry no linked object can hold where one of them is of such a schema."""
 
-    def __init__(self, store: Any) -> None:
+    def __init__(self, store: Any, ignored: list[dict[str, str]] | None = None) -> None:
         from . import Builders
 
         if not isinstance(store, Builders.Store):
@@ -1015,6 +1017,12 @@ class _LogReader:
         self._B, self._store = Builders, store
         self._meta = {id(schema) for schema in vars(store._meta).values() if hasattr(schema, "validate")}  # its own
         self._made: list[Any] = []  # the objects made, held: a store holds its data objects weakly
+        self._ignored = ignored
+
+    def _ignore(self, where: tuple, reason: str) -> None:
+        """Ignores a sub-clause whose meaning needs an extension the store lacks, keeping where it is and why."""
+        if self._ignored is not None:
+            self._ignored.append({"path": path(*where), "reason": reason})
 
     def _schema(self, name: str, where: tuple) -> Any:
         try:
@@ -1081,6 +1089,10 @@ class _LogReader:
             properties = schema.properties
         for prop_name, plain in definition.get("properties", {}).items():
             if prop_name not in properties:
+                owner = builder.as_schema() if id(schema) in self._meta else schema
+                if self._store.framework(owner):  # an extension of a schema the store was made holding, which it lacks
+                    self._ignore((*where, prop_name), f"{name} has no property {prop_name!r}")
+                    continue
                 raise DecodeError(f"{name} has no property {prop_name!r}", path=path(*where, prop_name))
             _set(builder, prop_name, _decode(properties[prop_name].type, plain, (*where, prop_name), self._store))
         self._made.append(builder.create())
@@ -1115,12 +1127,16 @@ class _LogReader:
                         links[member["name"]] = self._resolve(payload.get("ref", {}).get("key"), at)
                     else:
                         prop = relation.entry.properties.get(member["name"])
+                        if prop is None and self._store.framework(relation):
+                            self._ignore(at, f"the relation has no property {member['name']!r}")
+                            continue
                         if prop is None:
                             raise DecodeError(f"the relation has no property {member['name']!r}", path=path(*at))
                         values[member["name"]] = _decode(prop.type, payload.get("value"), at, self._store)
             self._link(relation, links, values, at)
 
     def _link(self, relation: Any, links: dict[str, Any], values: dict[str, Any], where: tuple) -> None:
+        schemas = []  # the schema of each object linked
         for link, target in links.items():
             builder_class = self._B._builder_for(target)
             if builder_class is not None:
@@ -1129,6 +1145,7 @@ class _LogReader:
             else:
                 schema = target.as_schema()
                 builder = self._store.builder(self._store.name_of(schema), target)
+            schemas.append(schema)
             adjacency = next((name for name, held in schema.adjacencies.items()
                               if held.relation is relation and held.me == link), None)
             if adjacency is None:
@@ -1152,7 +1169,11 @@ class _LogReader:
             else:
                 builder.update()
             return
-        raise DecodeError("no object an entry links declares an adjacency through which to add it", path=path(*where))
+        reason = "no object an entry links declares an adjacency through which to add it"
+        if any(self._store.framework(schema) for schema in schemas):  # one an extension of it would declare, missing
+            self._ignore(where, reason)
+            return
+        raise DecodeError(reason, path=path(*where))
 
 
 # --- Entry points ---
@@ -1242,10 +1263,11 @@ class FromPlain:
         schema = Proxies._deref(schema)  # a path names its schema
         return _restore(self._store, schema, plain)
 
-    def Snapshot(self, log: PlainData) -> list[Any]:
+    def Snapshot(self, log: PlainData, ignored: list[dict[str, str]] | None = None) -> list[Any]:
         """Applies a log of mutations, an initial snapshot, to the store, through its builders; returns the objects it
-        makes, in order, which the caller holds (a store holds its data objects weakly)."""
-        return _LogReader(self._store).apply(log)
+        makes, in order, which the caller holds (a store holds its data objects weakly). A sub-clause whose meaning needs
+        an extension the store lacks is ignored, and added to `ignored`, where given: its path and why."""
+        return _LogReader(self._store, ignored).apply(log)
 
     def Value(self, schema: Schemas.OfAny.Data, plain: PlainData) -> Any:
         """A standalone value, read from the plain form `ToPlain(store).Value` writes and built through the store's

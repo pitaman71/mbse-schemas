@@ -294,7 +294,8 @@ slices.
     none).
   - `extent(name)`: the store's reference objects of the schema `name`: those reachable from its singletons, in
     first-reference order.
-- **Stores combine.** `Stores.Combined(*stores)` is one store of several: each name belongs to the one store that
+- **Stores combine (deprecated: [Store overhaul, Decided, 18](proposals/store-overhaul/README.md#decided-here)).**
+  `Stores.Combined(*stores)` is one store of several: each name belongs to the one store that
   registers it (a name two register for different schemas is refused; one they register for the same schema, as
   every store of proxies registers the meta-schemas, is the first's), which gives its schema, builds its objects and
   reads their members; its singletons are all of theirs, and an extent is the owning store's and what every store's

@@ -249,9 +249,9 @@ class FromYAML:
     def OfObject(self, schema: Schemas.OfObject.Data, text: str | bytes) -> Any:
         return self._plain.OfObject(schema, loads(text))
 
-    def Snapshot(self, text: str | bytes) -> list[Any]:
+    def Snapshot(self, text: str | bytes, ignored: list[dict[str, str]] | None = None) -> list[Any]:
         """Applies a log of mutations, as YAML text, to the store: `Plain.FromPlain.Snapshot`."""
-        return self._plain.Snapshot(loads(text))
+        return self._plain.Snapshot(loads(text), ignored)
 
     def Reachable(self, schema: Schemas.OfObject.Data, text: str | bytes) -> Any:
         return self._plain.Reachable(schema, loads(text))

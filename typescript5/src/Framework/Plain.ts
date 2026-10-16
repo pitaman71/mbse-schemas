@@ -1150,16 +1150,31 @@ function byName(a: [string, unknown], b: [string, unknown]): number {
 /** Applies a log of mutations to a store, each through the store's builders: `exists` creates an object only where its
  * identity is new, its properties read by their schema; `insert` adds entries, through an adjacency of an object each
  * links. */
+/** A sub-clause of a log a store ignored on reading it: where it is, and why (`FromPlain(store).Snapshot`). */
+export interface Ignored {
+  path: string;
+  reason: string;
+}
+
+/** Applies a log of mutations to a store, each through the store's builders. A sub-clause whose meaning needs an
+ * extension of a schema the store was made holding, which the store lacks, is ignored, and kept in `ignored` where it is
+ * given (docs/proposals/store-overhaul, Decided, 19): a property such a schema lacks, and an entry no linked object can
+ * hold where one of them is of such a schema. */
 class LogReader {
   private readonly store: Builders.Store;
   private readonly meta: Set<unknown>;
   /** The objects made, held: a store holds its data objects weakly. */
   private readonly made: unknown[] = [];
 
-  constructor(store: Stores.Store) {
+  constructor(store: Stores.Store, private readonly ignored: Ignored[] | null = null) {
     if (!(store instanceof Builders.Store)) throw new TypeError("a snapshot is read into a Builders.Store");
     this.store = store;
     this.meta = new Set(Object.values(store._meta)); // its own
+  }
+
+  /** Ignores a sub-clause whose meaning needs an extension the store lacks, keeping where it is and why. */
+  private ignore(where: Where, reason: string): void {
+    this.ignored?.push({ path: path(...where), reason });
   }
 
   private schema(name: string, where: Where): any {
@@ -1237,6 +1252,11 @@ class LogReader {
     }
     for (const [propName, plain] of field(definition, "properties", new Map())) {
       if (!properties.has(propName)) {
+        const owner = this.meta.has(schema) ? builder.as_schema() : schema;
+        if (this.store.framework(owner)) { // an extension of a schema the store was made holding, which it lacks
+          this.ignore([...where, propName], `${name} has no property ${repr(propName)}`);
+          continue;
+        }
         throw new DecodeError(`${name} has no property ${repr(propName)}`, { path: path(...where, propName) });
       }
       set(builder, propName, decode(properties.get(propName).type, plain, [...where, propName], this.store));
@@ -1279,6 +1299,10 @@ class LogReader {
             links.set(name, this.resolve(field(field(payload, "ref", new Map()), "key", null), at));
           } else {
             const prop = relation.entry.properties.get(name);
+            if (prop === undefined && this.store.framework(relation)) {
+              this.ignore(at, `the relation has no property ${repr(name)}`);
+              continue;
+            }
             if (prop === undefined) throw new DecodeError(`the relation has no property ${repr(name)}`, { path: path(...at) });
             values.set(name, decode(prop.type, field(payload, "value", null), at, this.store));
           }
@@ -1289,6 +1313,7 @@ class LogReader {
   }
 
   private link(relation: unknown, links: Map<string, any>, values: Map<string, unknown>, where: Where): void {
+    const schemas: unknown[] = []; // the schema of each object linked
     for (const [link, target] of links) {
       const builderClass = Builders._builder_for(target);
       let builder: any;
@@ -1300,6 +1325,7 @@ class LogReader {
         schema = target.as_schema();
         builder = this.store.builder(this.store.name_of(schema), target);
       }
+      schemas.push(schema);
       const adjacency = [...schema.adjacencies as Map<string, Schemas.OfAdjacency.Data>]
         .find(([, held]) => held.relation === relation && held.me === link);
       if (adjacency === undefined) continue;
@@ -1320,7 +1346,12 @@ class LogReader {
       }
       return;
     }
-    throw new DecodeError("no object an entry links declares an adjacency through which to add it", { path: path(...where) });
+    const reason = "no object an entry links declares an adjacency through which to add it";
+    if (schemas.some((schema) => this.store.framework(schema))) { // one an extension of it would declare, missing
+      this.ignore(where, reason);
+      return;
+    }
+    throw new DecodeError(reason, { path: path(...where) });
   }
 }
 
@@ -1387,7 +1418,8 @@ export interface FromPlainCall {
   Value(schema: unknown, plain: unknown): unknown;
   /** Applies a log of mutations, an initial snapshot, to the store, through its builders; returns the objects it makes,
    * in order, which the caller holds (a store holds its data objects weakly). */
-  Snapshot(log: unknown): unknown[];
+  /** A sub-clause whose meaning needs an extension the store lacks is ignored, and added to `ignored`, where given. */
+  Snapshot(log: unknown, ignored?: Ignored[]): unknown[];
 }
 
 /** Deserializes plain data, building objects in `store`: `FromPlain(store)(schema, plain)` dispatches on the schema's
@@ -1423,5 +1455,5 @@ export function FromPlain(store: Stores.Store): FromPlainCall {
   };
   const named = Proxies._derefFirst; // a path names its schema
   return Object.assign(named(call), { OfScalar: named(OfScalar), OfObject: named(OfObject), Reachable: named(OfObject),
-    Value: named(Value), Snapshot: (log: unknown): unknown[] => new LogReader(store).apply(log) });
+    Value: named(Value), Snapshot: (log: unknown, ignored?: Ignored[]): unknown[] => new LogReader(store, ignored ?? null).apply(log) });
 }

@@ -198,7 +198,8 @@ def _built_in(store: Any, name: str) -> bool:
 
 
 class Combined:
-    """Stores combined into one: each name belongs to the one store that registers it, which gives its schema, builds its
+    """Deprecated (docs/proposals/store-overhaul, Decided, 18): no store reaches another's objects. Stores combined into
+    one: each name belongs to the one store that registers it, which gives its schema, builds its
     objects and reads their members; the singletons are all of theirs, and an extent is the owning store's and what
     every store's singletons reach. A name that two of the stores register for different schemas is refused; one
     they register for the same schema, or each for a schema it was made holding (its `Schemas.OfInt`, ...), is the

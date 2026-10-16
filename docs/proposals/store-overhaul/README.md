@@ -96,6 +96,15 @@ As the user decided (2026-10-16), on the questions put to them:
     needed, "I agree Proxies.OfStore might also be redundant so merge into one": a store registers a named schema as a
     side effect of building it, `register` is no public API, and `Builders.Store` is the one store, a store of proxies
     being its implementation. No store registers another's schema (decision 23).
+18. **`Stores.Combined` is deprecated**: "`Stores.Combined` can stay but it is deprecated", since it was made to reach
+    objects of one store from another's roots, which decision 23 rules out.
+19. **Reading a snapshot made with extensions the store lacks**: "Store that has different extensions than the snapshot
+    should ignore any mutation sub-clause whose meaning is ambiguous without the missing extension. Ignored schemas and
+    such should be collected during reading and available to the caller if desired." A store never writes the schemas it
+    was made holding, so an extension's additions to them are what a snapshot cannot carry: a property such a schema
+    lacks, a property of an entry of such a relation, and an entry no linked object can hold where one of them is of
+    such a schema are ignored, each kept, with its path and why, in the list given to `Snapshot(log, ignored)`. What an
+    extension builds is written and read like any schema; a member another schema lacks is still a malformed snapshot.
 
 ## Order of work
 
@@ -115,18 +124,18 @@ so that main stays current and no branch waits on another.
    `Builders.extend`, `Schemas.OfX.Schema`, the module-level mutation schemas (`Mutations.Log`, ...), and every call that
    builds a schema, `store.Schemas.Object(...)` and its kin (1854 in 87 files), which becomes
    `store.Schemas.OfObject(...)`; the wire's schema keys (`Schemas.OfObject/crm.Contact`).
-2. **What leaves (0.15.0).** `Argument`, `Term`, `Form`, `OfApply`, `requires`, `bits` and `bytes`, and the value
+2. **What leaves (0.17.0).** `Argument`, `Term`, `Form`, `OfApply`, `requires`, `bits` and `bytes`, and the value
    parameters (7; Schema extension, Decided, 5 to 7). `Meta.Schema`, `Meta.Type` and `Meta.Typed` go (2, 3), and
    `Schemas.Meta` (13) is built, holding level 3's names.
    *Breaks*: PAR (parametrics) and every test of forms, widths, applications and predicates' `requires`.
 2a. **One store (0.15.0).** `register` leaves the public API and `Proxies.OfStore` with it (17); a test's "another
-   store of the same schemas" builds its schemas there, or reads them from a snapshot. Steps 2 to 4 follow as 0.16.0 to
-   0.18.0.
-3. **Scalars and members (0.16.0).** User scalar schemas, `token` and `format` go (8, 9). Branches and parts become `HasBranch` and `HasPart` (4).
+   store of the same schemas" builds its schemas there, or reads them from a snapshot. Steps 2 to 4 follow as 0.17.0 to
+   0.19.0, after 0.16.0 (18, 19).
+3. **Scalars and members (0.18.0).** User scalar schemas, `token` and `format` go (8, 9). Branches and parts become `HasBranch` and `HasPart` (4).
    `Schemas.OfScalar` has exactly the five instances (8).
    *Breaks*: every user-defined scalar in tests, examples and tutorials; the module format of unions and
    intersections.
-4. **Object identity (0.17.0).** `Schemas.OfIdentity`, containers, modules as namespaces (6), `store.Instances` and
+4. **Object identity (0.19.0).** `Schemas.OfIdentity`, containers, modules as namespaces (6), `store.Instances` and
    `as_instance`, `Schema@Path/Suffix` on the wire.
    *Breaks*: the snapshot format, so every corpus and every hand-written snapshot in the tests.
 
@@ -149,10 +158,9 @@ portability pass.
 Found while building it, for the user:
 
 - **A schema registered in another store.** Settled by 17 (step 2a): no public `register`.
-- **A snapshot read into a store without its extensions.** Reading an extended store's snapshot into a store that lacks
-  the extension succeeds silently, and the objects it makes lack what the extension added (a domain without its
-  `schemas` adjacency): what a round trip between "differing extensions" should do is undecided (refuse, or keep what
-  the reading store cannot hold).
+- **A snapshot read into a store without its extensions.** Settled by 19. (The domain "without its `schemas`
+  adjacency" reported here was a misreading: the object looked at was a schema, not the domain, which kept its entry.
+  What failed was a property an extension added to `Schemas.OfScalar`, refused as a malformed snapshot.)
 
 ## Step 2a, as built (0.15.0)
 
@@ -175,6 +183,14 @@ Found, for the user:
   element by element, and an empty container is not told from an absent one.
 - **A store's snapshot fails on data it cannot write**: a value of any type holding a value object of an unregistered
   (unnamed) schema has no name to be tagged with, so `Plain.ToPlain(store).Snapshot()` raises for the whole store.
+
+## 0.16.0, as built
+
+`Stores.Combined` is documented as deprecated (18), with no runtime warning, which the two languages could not give
+alike. `Plain.FromPlain(store).Snapshot(log, ignored)`, and `JSON.FromJSON` and `YAML.FromYAML`'s, ignore what 19 says
+and add each to `ignored`, where given, as `{"path": ..., "reason": ...}` (TypeScript's `Plain.Ignored`): EXT-05 reads
+an extended store's snapshot into a store without the extension, and SNP-05 a property `Schemas.OfObject` lacks, now
+ignored where it was refused.
 
 ## Open, for the user
 

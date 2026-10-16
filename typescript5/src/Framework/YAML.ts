@@ -309,7 +309,7 @@ export interface FromYAMLCall {
   OfObject(schema: Schemas.OfObject.Data, text: string | Uint8Array): unknown;
   Reachable(schema: Schemas.OfObject.Data, text: string | Uint8Array): unknown;
   /** Applies a log of mutations, as YAML text, to the store: `Plain.FromPlain(store).Snapshot(log)`. */
-  Snapshot(text: string | Uint8Array): unknown[];
+  Snapshot(text: string | Uint8Array, ignored?: Plain.Ignored[]): unknown[];
 }
 
 /** Decodes YAML, building objects in `store`: `FromYAML(store)(schema, text)`. */
@@ -320,6 +320,6 @@ export function FromYAML(store: Stores.Store): FromYAMLCall {
     OfScalar: (schema: Schemas.OfScalar.Data, text: string | Uint8Array) => plain.OfScalar(schema, loads(text)),
     OfObject: (schema: Schemas.OfObject.Data, text: string | Uint8Array) => plain.OfObject(schema, loads(text)),
     Reachable: (schema: Schemas.OfObject.Data, text: string | Uint8Array) => plain.Reachable(schema, loads(text)),
-    Snapshot: (text: string | Uint8Array) => plain.Snapshot(loads(text)),
+    Snapshot: (text: string | Uint8Array, ignored?: Plain.Ignored[]) => plain.Snapshot(loads(text), ignored),
   });
 }

@@ -87,6 +87,19 @@ For an initial snapshot, ToPlain writes in this order:
 - other named singletons
 - any remaining reference objects
 
+## Reading : Extensions the store lacks
+
+A store never writes the schemas it was made holding, so what an extension added to them is not in its snapshot. A
+store reading a snapshot made with an extension it lacks ignores each sub-clause whose meaning needs it, and keeps it,
+with its path and why, in the list given (`Plain.FromPlain(store).Snapshot(log, ignored)`, and the JSON and YAML forms):
+
+- a property a schema the store was made holding lacks (`unit` on `Schemas.OfScalar`): the rest of the object is read;
+- a property of an entry of such a relation;
+- an entry no linked object can hold, where one of them is of such a schema: one any linked object can hold is kept.
+
+What an extension builds is written and read like any schema, so a member another schema lacks is a malformed snapshot
+still (Store overhaul, Decided, 19).
+
 ## Order : Subsequent Snapshots
 
 In anticipation for journal formatting, a stateful instance of ToPlain may be retainable. Subsequent snapshots can be sent as mutation logs without having to re-send modules and schemas.

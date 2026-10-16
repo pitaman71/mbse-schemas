@@ -764,6 +764,12 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - an extension may add adjacencies to `Schemas.OfScalar`, whose entries a store's own scalars hold, written in a
     snapshot from either end (EXT-05); a property an extension adds to it can hold no value, since the store's own
     scalars change only through `store.extend`, which only adds members.
+- **A union's branches and an intersection's parts are relation entries** (0.18.0; [Store overhaul, Decided,
+  4](proposals/store-overhaul/README.md#decided-here)), as the user decided, "`Meta.Member` -> relation meta-schemas":
+  an entry of `Schemas.HasBranch` or `Schemas.HasPart` links the owner and the member's type, and carries its `name`
+  and `description`; `Schemas.Member` and its builder are gone. The owner and the name determine the entry; a type may
+  be linked by several. A branch has no identity of its own, and an unnamed type takes the first to link it's
+  (`crm.Shape#branches.1`, SNP-02). Builders write them as before (`t.name("p").type([A]).description("...")`).
 
 - **Parameters are names only** (0.17.0; [Store overhaul, Decided, 20 and
   21](proposals/store-overhaul/README.md#decided-here)), as the user decided. A schema's parameters are "Names only

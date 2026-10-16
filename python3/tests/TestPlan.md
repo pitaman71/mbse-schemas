@@ -82,7 +82,7 @@ Total: 191 cases, the sum of the rows above. The 184 outside DC have the same ID
 | `unique(S)`: the rest determines `S` | SCH-13, VAL-06, VAL-07, VAL-08, VAL-11 |
 | Entries form a set; equal entries elided; schema equality (types distinct, floats by bit pattern) | PRX-08, PROP-05, VAL-07 |
 | Equality under a schema, and ordering only for ordered scalars | CMP-01..13 |
-| Union branches and intersection parts are named, unique and of one kind | SCH-14, SCH-15 |
+| Union branches and intersection parts are named, unique and of one kind; each an entry linking its type, written in place and removed by what it says | SCH-14, SCH-15 |
 | A scalar is a basic scalar, mapping to its host type by its name | SCH-02, SCH-18 |
 | Reference object schemas are marked `.ref()`; no property holds one; only they are built and rooted on their own | SCH-19, VAL-13 |
 | Value objects are value objects: owned, read-only, written nested; holding containers, without adjacencies or identity | EMB-01, EMB-02, EMB-04, EMB-09 |

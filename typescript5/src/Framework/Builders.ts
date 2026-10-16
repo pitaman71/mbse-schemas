@@ -487,6 +487,35 @@ class Members {
   _builderClass(): BuilderClass {
     return BUILDER_CLASSES.get(this.build as string) as BuilderClass;
   }
+
+  /** The objects its entries link at `link`. */
+  referents(data: any): any[] {
+    return this.items(data);
+  }
+
+  /** Whether an entry's link may link `value`. */
+  links(value: unknown): boolean {
+    return this.accepts(value);
+  }
+}
+
+/** An adjacency whose entries the data holds as records (a union's branches, an intersection's parts): each entry
+ * links, at `link`, a schema that exists, its type, and carries the record's other `fields` as its properties, its
+ * `name` and `description`; no object of its own stands between (docs/proposals/store-overhaul, Decided, 4). A record
+ * is never written in place: an entry written gives its data a new one. */
+class Records extends Members {
+  constructor(link: string, readonly record: new () => any, readonly fields: readonly string[],
+    options: Storage & { extensible?: boolean }) {
+    super(link, { ...options, accepts: isA(record), keyed: true, owned: false });
+  }
+
+  override referents(data: any): any[] {
+    return this.items(data).map((record) => record.type);
+  }
+
+  override links(value: unknown): boolean {
+    return isSchema(value);
+  }
 }
 
 /** `Visitors.OfAdjacency` over one adjacency of the schema object a builder builds: iterated, its entries. */
@@ -539,6 +568,10 @@ class AdjacencyMember extends Shelled {
       entry._name = innerOf(spec)._name;
     } else {
       throw new TypeError(`an entry, or a callback taking one, is expected; got ${repr(spec)}`);
+    }
+    if (this._members instanceof Records) { // a record may lack its type: validation reports it
+      this._store([...this._held(), entry._referent]);
+      return this._proxy;
     }
     if (entry._referent === null) throw new ValueError(`link ${repr(this._members.link)} is not set`);
     if (this._members.keyed && entry._name !== null) this._members.rename(this._builder._working, entry._referent, entry._name);
@@ -598,6 +631,11 @@ class AdjacencyMember extends Shelled {
       } else {
         throw new TypeError(`link ${repr(this._members.link)} cannot link ${repr(item)}`);
       }
+      if (this._members instanceof Records) {
+        checkHeld(this._builder, this._members.link, referent.type);
+        this._store([...this._held(), referent]);
+        continue;
+      }
       checkHeld(this._builder, this._members.link, referent);
       if (this._members.keyed && name !== null) this._members.rename(this._builder._working, referent, name);
       const held = this._held();
@@ -620,9 +658,25 @@ class Entry extends Shelled {
   _template: any[] | null = null;
   /** The name written (`env.name`), where the entries are keyed. */
   _name: string | null = null;
+  /** The fields of a record written, and its link, as `link`. */
+  readonly _fields = new Set<string>();
 
   constructor(readonly _adjacency: AdjacencyMember, readonly _index: number | null, public _referent: any) {
     super();
+    const members = _adjacency._members;
+    if (_referent === null && members instanceof Records) {
+      this._referent = new members.record(); // a record of nothing yet, written in place until it is inserted
+    }
+  }
+
+  _records(): Records | null {
+    const members = this._adjacency._members;
+    return members instanceof Records ? members : null;
+  }
+
+  /** The object its link links: a record's type, or the referent. */
+  _linked(): any {
+    return this._records() !== null ? this._referent.type : this._referent;
   }
 
   as_schema(): any {
@@ -633,8 +687,36 @@ class Entry extends Shelled {
   override _member(name: string): unknown {
     const members = this._adjacency._members;
     if (name === members.link) return callable(new Link(this));
-    if (name === "name" && members.keyed) return callable(new EntryName(this));
+    const records = this._records();
+    if ((name === "name" && members.keyed) || (records !== null && records.fields.includes(name))) {
+      return callable(new EntryField(this, name));
+    }
     return makeEmpty(`${repr(name)} is not a link this entry can set, nor a property of the relation`);
+  }
+
+  /** A property of the entry: its name, or a field of its record. */
+  _field(name: string): unknown {
+    return name === "name" ? this._named() : this._referent[name];
+  }
+
+  _write(name: string, value: unknown): void {
+    if (this._records() === null) {
+      this._rename(value);
+      return;
+    }
+    if (value !== null && (typeof value !== "string" || (name === "name" && value === ""))) {
+      throw new TypeError(name === "name" ? `a name is non-empty text, got ${repr(value)}`
+        : `property ${repr(name)} holds str, got ${typeName(value)}`);
+    }
+    this._fields.add(name);
+    this._replaceRecord({ [name]: name === "name" && value === null ? "" : value });
+  }
+
+  /** Gives a record's entry a new record, with `fields` written: in the adjacency's place, where it is held. */
+  _replaceRecord(fields: Record<string, unknown>): void {
+    if (this._index !== null) this._adjacency._builder._check();
+    this._referent = Object.assign(Object.create(Object.getPrototypeOf(this._referent)), this._referent, fields);
+    if (this._index !== null) this._adjacency._replace(this._index, this._referent);
   }
 
   /** The entry's name: the one written, else its referent's. */
@@ -657,12 +739,22 @@ class Entry extends Shelled {
   }
 
   _relink(referent: unknown, template: any[] | null): void {
+    if (this._records() !== null) { // a record's link is its type
+      this._fields.add(this._adjacency._members.link);
+      this._replaceRecord({ type: referent });
+      return;
+    }
     this._referent = referent;
     this._template = template;
     if (this._index !== null) this._adjacency._replace(this._index, referent); // an entry held: linked in its place
   }
 
   _agrees(referent: any): boolean {
+    if (this._records() !== null) { // each field written, and the type linked, agree
+      const link = this._adjacency._members.link;
+      return [...this._fields].every((name) => name === link ? referent.type === this._referent.type
+        : referent[name] === this._referent[name]);
+    }
     if (this._name !== null && Object(referent).name !== this._name) return false;
     if (this._referent === null) return true;
     if (this._template === null) return referent === this._referent;
@@ -683,16 +775,17 @@ function makeEntry(adjacency: AdjacencyMember, index: number | null, referent: u
   return shell(new Entry(adjacency, index, referent));
 }
 
-/** `Visitors.OfProperty` over an entry's name, the one property of the entries of a keyed adjacency. */
-class EntryName extends Dunders {
-  readonly [TYPE_NAME] = "_EntryName";
+/** `Visitors.OfProperty` over a property of an entry: its name, the one property of a keyed adjacency's entries, or a
+ * field of a record's (its description). */
+class EntryField extends Dunders {
+  readonly [TYPE_NAME] = "_EntryField";
 
-  constructor(readonly _entry: Entry) {
+  constructor(readonly _entry: Entry, readonly _name: string) {
     super();
   }
 
   _held(): unknown {
-    return this._entry._named();
+    return this._entry._field(this._name);
   }
 
   _scalar(): unknown {
@@ -700,12 +793,12 @@ class EntryName extends Dunders {
   }
 
   _label(): string {
-    return "property 'name'";
+    return `property ${repr(this._name)}`;
   }
 
   as_schema(): any {
     const entry = this._entry.as_schema();
-    return entry === null ? null : entry.properties.get("name");
+    return entry === null ? null : entry.properties.get(this._name);
   }
 
   get(): unknown {
@@ -714,10 +807,10 @@ class EntryName extends Dunders {
 
   as_value(cb: unknown): any {
     if (isFunction(cb)) {
-      visit(cb, shell(new Value(this._label(), this._held.bind(this), this._entry._rename.bind(this._entry),
+      visit(cb, shell(new Value(this._label(), this._held.bind(this), (value: unknown) => this._entry._write(this._name, value),
         this._entry._adjacency._builder._writable, false, () => typeOf(this.as_schema()))));
     } else {
-      this._entry._rename(cb);
+      this._entry._write(this._name, cb);
     }
     return this._proxy;
   }
@@ -765,15 +858,17 @@ class Them extends Shelled {
 
   override _member(name: string): unknown {
     const members = this._entry._adjacency._members;
-    if (name === members.link || (name === "name" && members.keyed)) {
+    if (name === members.link || (name === "name" && members.keyed)
+      || (members instanceof Records && members.fields.includes(name))) {
       return callable(new Chained(this._entry._proxy[name], this, name === members.link));
     }
     return callable(new Chained(this._builder()[name], this, false));
   }
 
-  /** The object linked: the one given, built, or updated; and the entry's name. */
+  /** The object linked: the one given, built, or updated; and the entry's name. A record's entry gives its record. */
   _result(): [any, string | null] {
     const members = this._entry._adjacency._members;
+    if (members instanceof Records) return [this._entry._referent, null]; // a record may lack its type: validation reports it
     let builder = this._object;
     let referent = this._entry._referent;
     if (builder === null && referent === null && members.build !== null) {
@@ -827,7 +922,7 @@ class Link extends Shelled {
   }
 
   _target(): any {
-    const referent = this._entry._referent;
+    const referent = this._entry._linked();
     if (referent === null) return makeEmpty(`link ${repr(this._members().link)} is not set`);
     const builder = builderFor(referent);
     if (builder === null) return referent; // data, which an extension's relation links: a proxy, read-only as data instances are
@@ -859,6 +954,10 @@ class Link extends Shelled {
     const entry = this._entry;
     const members = this._members();
     if (entry._index !== null) entry._adjacency._builder._check();
+    if (entry._records() !== null && Array.isArray(spec)) { // a reference: a list of what it links
+      if (spec.length !== 1) throw new TypeError(`link ${repr(members.link)} links one schema, got ${spec.length}`);
+      spec = spec[0];
+    }
     if (isFunction(spec)) {
       if (members.build === null) {
         throw new TypeError(`link ${repr(members.link)} links an object that exists: give it, not a callback`);
@@ -868,8 +967,8 @@ class Link extends Shelled {
       return entry._proxy;
     }
     spec = Proxies._deref(spec);
-    const referent = innerOf(spec) instanceof Link ? innerOf(spec)._entry._referent : spec;
-    if (!members.accepts(referent)) throw new TypeError(`link ${repr(members.link)} cannot link ${repr(referent)}`);
+    const referent = innerOf(spec) instanceof Link ? innerOf(spec)._entry._linked() : spec;
+    if (!members.links(referent)) throw new TypeError(`link ${repr(members.link)} cannot link ${repr(referent)}`);
     checkHeld(entry._adjacency._builder, members.link, referent);
     entry._relink(referent, null);
     return entry._proxy;
@@ -1244,13 +1343,6 @@ export class SymbolBuilder extends TypedBuilder {
   static override _noun = "a symbol";
 }
 
-/** A union's branch or an intersection's part. */
-export class MemberBuilder extends TypedBuilder {
-  static override _data = S.OfUnion.Branch;
-  static override _meta = "Member";
-  static override _noun = "a branch or a part";
-}
-
 /** An adjacency: named by the entry that links it to its object schema, or anonymous, with no name. It fills its
  * relation's link `me`, by name: within a schema, its relation's links and properties are named, not referred to. */
 export class AdjacencyBuilder extends Builder {
@@ -1345,8 +1437,7 @@ export class UnionBuilder extends KindBuilder {
   static override _noun = "a union";
   static override _table = extendTable(KindBuilder._table, {
     flat: new Prop(),
-    branches: new Members("branch", { keyed: true, accepts: isA(S.OfUnion.Branch), build: "MemberBuilder",
-      extensible: true, ...inOrder("branches") }),
+    branches: new Records("type", S.OfUnion.Branch, ["name", "description"], { extensible: true, ...inOrder("branches") }),
   });
 }
 
@@ -1356,8 +1447,7 @@ export class IntersectionBuilder extends KindBuilder {
   static override _noun = "an intersection";
   static override _table = extendTable(KindBuilder._table, {
     flat: new Prop(),
-    parts: new Members("part", { keyed: true, accepts: isA(S.OfIntersection.Part), build: "MemberBuilder",
-      ...inOrder("parts") }),
+    parts: new Records("type", S.OfIntersection.Part, ["name", "description"], inOrder("parts")),
   });
 }
 
@@ -1505,14 +1595,14 @@ export class ModuleBuilder extends KindBuilder {
 
 const BUILDER_CLASSES = new Map<string, BuilderClass>([
   ["PropertyBuilder", PropertyBuilder], ["ParameterBuilder", ParameterBuilder], ["SymbolBuilder", SymbolBuilder],
-  ["MemberBuilder", MemberBuilder], ["AdjacencyBuilder", AdjacencyBuilder], ["RelationBuilder", RelationBuilder],
+  ["AdjacencyBuilder", AdjacencyBuilder], ["RelationBuilder", RelationBuilder],
 ]);
 
 const BUILDERS = new Map<unknown, BuilderClass>([
   [S.OfScalar.Data, ScalarBuilder], [S.OfObject.Data, ObjectBuilder], [S.OfUnion.Data, UnionBuilder],
   [S.OfIntersection.Data, IntersectionBuilder], [S.OfContainer.Data, ContainerBuilder], [S.OfAny.Value, AnyValueBuilder],
   [S.OfPredicate.Data, PredicateBuilder], [S.OfRelation.Data, RelationBuilder], [S.OfProperty.Data, PropertyBuilder],
-  [S.OfParameter.Data, ParameterBuilder], [S.OfSymbol.Data, SymbolBuilder], [S.OfUnion.Branch, MemberBuilder],
+  [S.OfParameter.Data, ParameterBuilder], [S.OfSymbol.Data, SymbolBuilder],
   [S.OfAdjacency.Data, AdjacencyBuilder], [ModuleData, ModuleBuilder],
 ]);
 
@@ -1548,7 +1638,7 @@ export interface Plain {
   OfBytes: S.OfScalar.Data;
   OfScalar: ObjectData; OfObject: ObjectData; OfUnion: ObjectData; OfIntersection: ObjectData; OfContainer: ObjectData;
   OfAny: ObjectData; OfRelation: ObjectData; OfPredicate: ObjectData; OfModule: ObjectData; OfProperty: ObjectData;
-  OfParameter: ObjectData; OfSymbol: ObjectData; Member: ObjectData; OfAdjacency: ObjectData;
+  OfParameter: ObjectData; OfSymbol: ObjectData; OfAdjacency: ObjectData;
   Typing: RelationData; Refines: RelationData; Indexing: RelationData; Containing: RelationData; AnyOf: RelationData;
   Relating: RelationData; HasParameter: RelationData; HasProperty: RelationData; HasAdjacency: RelationData;
   HasBranch: RelationData; HasPart: RelationData; HasSymbol: RelationData; HasLink: RelationData; Defines: RelationData;
@@ -1591,21 +1681,23 @@ function plainSchemas(): Plain {
   meta.OfProperty = metaObject("OfProperty", [["description", Text]]);
   meta.OfParameter = metaObject("OfParameter", [["description", Text]]); // a name, by its entry: a symbol for a schema
   meta.OfSymbol = metaObject("OfSymbol", [["description", Text]]);
-  meta.Member = metaObject("Member", [["description", Text]]);
   meta.OfAdjacency = metaObject("OfAdjacency", [["description", Text], ["me", Text]]);
   const types = [meta.OfScalar, meta.OfObject, meta.OfUnion, meta.OfIntersection, meta.OfContainer, meta.OfAny];
   const schemas = [...types, meta.OfRelation, meta.OfPredicate, meta.OfModule]; // whatever a module defines
-  const typed = [meta.OfProperty, meta.OfSymbol, meta.Member]; // each of a type
+  const typed = [meta.OfProperty, meta.OfSymbol]; // each of a type
 
   /** A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
    * `RELATIONS`): a keyed relation's entries have `name`; the member determines its owner and its name
-   * (`unique(owner, name)`), and the owner and the name determine the member (`unique(member)`). */
+   * (`unique(owner, name)`), and the owner and the name determine the member (`unique(member)`). A named relation's
+   * entries have `name` and `description`, and link a type that may be linked again: the owner and the name determine
+   * the entry. */
   function metaRelation(name: string, links: [string, string], how: string): RelationData {
     const [first, second] = links;
     const builder = new RelationBuilder().name(`Schemas.${name}`).links(links.map((n) => (t: any) => t.name(n)));
-    if (how === "keyed") builder.properties([(t: any) => t.name("name").type([Text])]);
+    if (how === "keyed" || how === "named") builder.properties([(t: any) => t.name("name").type([Text])]);
+    if (how === "named") builder.properties([(t: any) => t.name("description").type([Text])]);
     const determined = new Map<string, string[][] | null>([["one", [[second]]], ["owned", [[first]]],
-      ["keyed", [[first, "name"], [second]]], ["list", null]]).get(how);
+      ["keyed", [[first, "name"], [second]]], ["named", [[first, "name"]]], ["list", null]]).get(how);
     return builder.uniques(determined).create();
   }
 
@@ -1616,7 +1708,8 @@ function plainSchemas(): Plain {
 
   /** Each relation between schema objects: (relation, (link, the kinds at that end, adjacency named there), (link, the
    * kinds at that end), "one": the first determines the second; "owned": the second determines the first; "keyed":
-   * owned, and named within its owner by the entry's `name`; "list": neither). An adjacency named "" is declared below,
+   * owned, and named within its owner by the entry's `name`; "named": the entry's `name` and `description` are a member
+   * of the first, which links its type, the second; "list": neither). An adjacency named "" is declared below,
    * on the kinds that have it. Each kind declares the adjacencies of every relation it is at an end of (Store overhaul,
    * Decided, 10). A member belongs to one owner (`Has*`: the member determines its owner); a schema object has at most
    * one type, refined schema, index, element or relation (the first determines the second); types are lists. */
@@ -1630,8 +1723,8 @@ function plainSchemas(): Plain {
     ["HasParameter", ["owner", schemas, "parameters"], ["parameter", [meta.OfParameter]], "keyed"],
     ["HasProperty", ["owner", [], ""], ["property", [meta.OfProperty]], "keyed"],
     ["HasAdjacency", ["owner", [meta.OfObject], "adjacencies"], ["adjacency", [meta.OfAdjacency]], "keyed"],
-    ["HasBranch", ["owner", [meta.OfUnion], "branches"], ["branch", [meta.Member]], "keyed"],
-    ["HasPart", ["owner", [meta.OfIntersection], "parts"], ["part", [meta.Member]], "keyed"],
+    ["HasBranch", ["owner", [meta.OfUnion], "branches"], ["type", types], "named"],
+    ["HasPart", ["owner", [meta.OfIntersection], "parts"], ["type", types], "named"],
     ["HasSymbol", ["owner", [meta.OfPredicate], "symbols"], ["symbol", [meta.OfSymbol]], "keyed"],
     ["HasLink", ["owner", [meta.OfRelation], "links"], ["link", [meta.OfSymbol]], "keyed"],
     ["Defines", ["module", [meta.OfModule], "schemas"], ["schema", schemas], "keyed"],
@@ -1676,12 +1769,12 @@ TEMPLATE = plainSchemas();
 
 // --- A store: where schema objects and data are built ---
 
-/** The schema objects a store builds as `store.Schemas.OfX(...)` (and `Schemas.Member`), each through its builder. */
+/** The schema objects a store builds as `store.Schemas.OfX(...)`, each through its builder. */
 export const _META_BUILDERS = new Map<string, BuilderClass>([
   ["OfScalar", ScalarBuilder], ["OfObject", ObjectBuilder], ["OfUnion", UnionBuilder], ["OfIntersection", IntersectionBuilder],
   ["OfContainer", ContainerBuilder], ["OfAny", AnyValueBuilder], ["OfRelation", RelationBuilder],
   ["OfPredicate", PredicateBuilder], ["OfProperty", PropertyBuilder], ["OfParameter", ParameterBuilder],
-  ["OfSymbol", SymbolBuilder], ["Member", MemberBuilder], ["OfAdjacency", AdjacencyBuilder], ["OfModule", ModuleBuilder],
+  ["OfSymbol", SymbolBuilder], ["OfAdjacency", AdjacencyBuilder], ["OfModule", ModuleBuilder],
 ]);
 
 /** A schema object in a message: its name, else its identity. */
@@ -1921,7 +2014,7 @@ export class Store extends Proxies._Store {
     const builderClass = builderFor(owner) as unknown as typeof Builder;
     for (const [name, members] of new Map([...builderClass._table, ...(this._added.get(builderClass) ?? [])])) {
       if (!(members instanceof Members)) continue;
-      members.items(owner).forEach((referent, index) => {
+      members.referents(owner).forEach((referent, index) => {
         if (!this._derivable(referent)) return;
         let derived: string;
         if (members.owned) {
@@ -2139,7 +2232,7 @@ export function _linked(visitor: unknown): unknown {
   const inner = innerOf(visitor);
   if (inner instanceof Builder) return inner._original; // a schema object read through its builder: one a proxy's entry links
   if (!(inner instanceof Link)) return null;
-  const referent = inner._entry._referent;
+  const referent = inner._entry._linked();
   return [referent, null][Number(builderFor(referent) === null)];
 }
 

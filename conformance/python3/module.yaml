@@ -1502,37 +1502,12 @@
         flat: false
 - exists:
     definition:
-      key: Schemas.Member/Card.reach#type.phone
-      properties: {}
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.Typing
-    entries:
-    - mutations:
-      - as_link:
-          name: typed
-          mutations:
-          - set:
-              ref:
-                key: Schemas.Member/Card.reach#type.phone
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfObject/Card.home#type
-- exists:
-    definition:
-      key: Schemas.Member/Card.reach#type.email
-      properties: {}
-- exists:
-    definition:
-      key: Schemas.OfObject/Card.reach#type.email#type
+      key: Schemas.OfObject/Card.reach#type#branches.1
       properties:
         ref: false
 - exists:
     definition:
-      key: Schemas.OfProperty/Card.reach#type.email#type.address
+      key: Schemas.OfProperty/Card.reach#type#branches.1.address
       properties: {}
 - insert:
     relation:
@@ -1544,7 +1519,7 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Card.reach#type.email#type.address
+                key: Schemas.OfProperty/Card.reach#type#branches.1.address
       - as_link:
           name: schema
           mutations:
@@ -1561,35 +1536,18 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Card.reach#type.email#type
+                key: Schemas.OfObject/Card.reach#type#branches.1
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Card.reach#type.email#type.address
+                key: Schemas.OfProperty/Card.reach#type#branches.1.address
       - as_property:
           name: name
           mutations:
           - set:
               value: address
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.Typing
-    entries:
-    - mutations:
-      - as_link:
-          name: typed
-          mutations:
-          - set:
-              ref:
-                key: Schemas.Member/Card.reach#type.email
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfObject/Card.reach#type.email#type
 - insert:
     relation:
       key: Schemas.OfRelation/Schemas.HasBranch
@@ -1602,11 +1560,11 @@
               ref:
                 key: Schemas.OfUnion/Card.reach#type
       - as_link:
-          name: branch
+          name: type
           mutations:
           - set:
               ref:
-                key: Schemas.Member/Card.reach#type.phone
+                key: Schemas.OfObject/Card.home#type
       - as_property:
           name: name
           mutations:
@@ -1620,11 +1578,11 @@
               ref:
                 key: Schemas.OfUnion/Card.reach#type
       - as_link:
-          name: branch
+          name: type
           mutations:
           - set:
               ref:
-                key: Schemas.Member/Card.reach#type.email
+                key: Schemas.OfObject/Card.reach#type#branches.1
       - as_property:
           name: name
           mutations:
@@ -1656,48 +1614,6 @@
       key: Schemas.OfUnion/Card.ident#type
       properties:
         flat: false
-- exists:
-    definition:
-      key: Schemas.Member/Card.ident#type.number
-      properties: {}
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.Typing
-    entries:
-    - mutations:
-      - as_link:
-          name: typed
-          mutations:
-          - set:
-              ref:
-                key: Schemas.Member/Card.ident#type.number
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Schemas.OfInt
-- exists:
-    definition:
-      key: Schemas.Member/Card.ident#type.code
-      properties: {}
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.Typing
-    entries:
-    - mutations:
-      - as_link:
-          name: typed
-          mutations:
-          - set:
-              ref:
-                key: Schemas.Member/Card.ident#type.code
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
       key: Schemas.OfRelation/Schemas.HasBranch
@@ -1710,11 +1626,11 @@
               ref:
                 key: Schemas.OfUnion/Card.ident#type
       - as_link:
-          name: branch
+          name: type
           mutations:
           - set:
               ref:
-                key: Schemas.Member/Card.ident#type.number
+                key: Schemas.OfScalar/Schemas.OfInt
       - as_property:
           name: name
           mutations:
@@ -1728,11 +1644,11 @@
               ref:
                 key: Schemas.OfUnion/Card.ident#type
       - as_link:
-          name: branch
+          name: type
           mutations:
           - set:
               ref:
-                key: Schemas.Member/Card.ident#type.code
+                key: Schemas.OfScalar/Schemas.OfStr
       - as_property:
           name: name
           mutations:
@@ -1766,16 +1682,12 @@
         flat: false
 - exists:
     definition:
-      key: Schemas.Member/Card.meta#type.stamp
-      properties: {}
-- exists:
-    definition:
-      key: Schemas.OfObject/Card.meta#type.stamp#type
+      key: Schemas.OfObject/Card.meta#type#parts.0
       properties:
         ref: false
 - exists:
     definition:
-      key: Schemas.OfProperty/Card.meta#type.stamp#type.updated
+      key: Schemas.OfProperty/Card.meta#type#parts.0.updated
       properties: {}
 - insert:
     relation:
@@ -1787,7 +1699,7 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Card.meta#type.stamp#type.updated
+                key: Schemas.OfProperty/Card.meta#type#parts.0.updated
       - as_link:
           name: schema
           mutations:
@@ -1804,47 +1716,26 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Card.meta#type.stamp#type
+                key: Schemas.OfObject/Card.meta#type#parts.0
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Card.meta#type.stamp#type.updated
+                key: Schemas.OfProperty/Card.meta#type#parts.0.updated
       - as_property:
           name: name
           mutations:
           - set:
               value: updated
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.Typing
-    entries:
-    - mutations:
-      - as_link:
-          name: typed
-          mutations:
-          - set:
-              ref:
-                key: Schemas.Member/Card.meta#type.stamp
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfObject/Card.meta#type.stamp#type
 - exists:
     definition:
-      key: Schemas.Member/Card.meta#type.audit
-      properties: {}
-- exists:
-    definition:
-      key: Schemas.OfObject/Card.meta#type.audit#type
+      key: Schemas.OfObject/Card.meta#type#parts.1
       properties:
         ref: false
 - exists:
     definition:
-      key: Schemas.OfProperty/Card.meta#type.audit#type.by
+      key: Schemas.OfProperty/Card.meta#type#parts.1.by
       properties: {}
 - insert:
     relation:
@@ -1856,7 +1747,7 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Card.meta#type.audit#type.by
+                key: Schemas.OfProperty/Card.meta#type#parts.1.by
       - as_link:
           name: schema
           mutations:
@@ -1865,7 +1756,7 @@
                 key: Schemas.OfScalar/Schemas.OfStr
 - exists:
     definition:
-      key: Schemas.OfProperty/Card.meta#type.audit#type.updated
+      key: Schemas.OfProperty/Card.meta#type#parts.1.updated
       properties: {}
 - insert:
     relation:
@@ -1877,7 +1768,7 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Card.meta#type.audit#type.updated
+                key: Schemas.OfProperty/Card.meta#type#parts.1.updated
       - as_link:
           name: schema
           mutations:
@@ -1894,13 +1785,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Card.meta#type.audit#type
+                key: Schemas.OfObject/Card.meta#type#parts.1
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Card.meta#type.audit#type.by
+                key: Schemas.OfProperty/Card.meta#type#parts.1.by
       - as_property:
           name: name
           mutations:
@@ -1912,35 +1803,18 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Card.meta#type.audit#type
+                key: Schemas.OfObject/Card.meta#type#parts.1
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Card.meta#type.audit#type.updated
+                key: Schemas.OfProperty/Card.meta#type#parts.1.updated
       - as_property:
           name: name
           mutations:
           - set:
               value: updated
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.Typing
-    entries:
-    - mutations:
-      - as_link:
-          name: typed
-          mutations:
-          - set:
-              ref:
-                key: Schemas.Member/Card.meta#type.audit
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfObject/Card.meta#type.audit#type
 - insert:
     relation:
       key: Schemas.OfRelation/Schemas.HasPart
@@ -1953,11 +1827,11 @@
               ref:
                 key: Schemas.OfIntersection/Card.meta#type
       - as_link:
-          name: part
+          name: type
           mutations:
           - set:
               ref:
-                key: Schemas.Member/Card.meta#type.stamp
+                key: Schemas.OfObject/Card.meta#type#parts.0
       - as_property:
           name: name
           mutations:
@@ -1971,11 +1845,11 @@
               ref:
                 key: Schemas.OfIntersection/Card.meta#type
       - as_link:
-          name: part
+          name: type
           mutations:
           - set:
               ref:
-                key: Schemas.Member/Card.meta#type.audit
+                key: Schemas.OfObject/Card.meta#type#parts.1
       - as_property:
           name: name
           mutations:
@@ -2600,48 +2474,6 @@
       key: Schemas.OfUnion/Board.readings#type#element
       properties:
         flat: false
-- exists:
-    definition:
-      key: Schemas.Member/Board.readings#type#element.value
-      properties: {}
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.Typing
-    entries:
-    - mutations:
-      - as_link:
-          name: typed
-          mutations:
-          - set:
-              ref:
-                key: Schemas.Member/Board.readings#type#element.value
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Schemas.OfFloat
-- exists:
-    definition:
-      key: Schemas.Member/Board.readings#type#element.note
-      properties: {}
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.Typing
-    entries:
-    - mutations:
-      - as_link:
-          name: typed
-          mutations:
-          - set:
-              ref:
-                key: Schemas.Member/Board.readings#type#element.note
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
       key: Schemas.OfRelation/Schemas.HasBranch
@@ -2654,11 +2486,11 @@
               ref:
                 key: Schemas.OfUnion/Board.readings#type#element
       - as_link:
-          name: branch
+          name: type
           mutations:
           - set:
               ref:
-                key: Schemas.Member/Board.readings#type#element.value
+                key: Schemas.OfScalar/Schemas.OfFloat
       - as_property:
           name: name
           mutations:
@@ -2672,11 +2504,11 @@
               ref:
                 key: Schemas.OfUnion/Board.readings#type#element
       - as_link:
-          name: branch
+          name: type
           mutations:
           - set:
               ref:
-                key: Schemas.Member/Board.readings#type#element.note
+                key: Schemas.OfScalar/Schemas.OfStr
       - as_property:
           name: name
           mutations:
@@ -3933,48 +3765,6 @@
       properties:
         name: Choice
         flat: true
-- exists:
-    definition:
-      key: Schemas.Member/Choice.n
-      properties: {}
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.Typing
-    entries:
-    - mutations:
-      - as_link:
-          name: typed
-          mutations:
-          - set:
-              ref:
-                key: Schemas.Member/Choice.n
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Schemas.OfInt
-- exists:
-    definition:
-      key: Schemas.Member/Choice.s
-      properties: {}
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.Typing
-    entries:
-    - mutations:
-      - as_link:
-          name: typed
-          mutations:
-          - set:
-              ref:
-                key: Schemas.Member/Choice.s
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
       key: Schemas.OfRelation/Schemas.HasBranch
@@ -3987,11 +3777,11 @@
               ref:
                 key: Schemas.OfUnion/Choice
       - as_link:
-          name: branch
+          name: type
           mutations:
           - set:
               ref:
-                key: Schemas.Member/Choice.n
+                key: Schemas.OfScalar/Schemas.OfInt
       - as_property:
           name: name
           mutations:
@@ -4005,11 +3795,11 @@
               ref:
                 key: Schemas.OfUnion/Choice
       - as_link:
-          name: branch
+          name: type
           mutations:
           - set:
               ref:
-                key: Schemas.Member/Choice.s
+                key: Schemas.OfScalar/Schemas.OfStr
       - as_property:
           name: name
           mutations:
@@ -4045,16 +3835,12 @@
         flat: true
 - exists:
     definition:
-      key: Schemas.Member/Marked.when
-      properties: {}
-- exists:
-    definition:
-      key: Schemas.OfObject/Marked.when#type
+      key: Schemas.OfObject/Marked#parts.0
       properties:
         ref: false
 - exists:
     definition:
-      key: Schemas.OfProperty/Marked.when#type.at
+      key: Schemas.OfProperty/Marked#parts.0.at
       properties: {}
 - insert:
     relation:
@@ -4066,7 +3852,7 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Marked.when#type.at
+                key: Schemas.OfProperty/Marked#parts.0.at
       - as_link:
           name: schema
           mutations:
@@ -4083,47 +3869,26 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Marked.when#type
+                key: Schemas.OfObject/Marked#parts.0
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Marked.when#type.at
+                key: Schemas.OfProperty/Marked#parts.0.at
       - as_property:
           name: name
           mutations:
           - set:
               value: at
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.Typing
-    entries:
-    - mutations:
-      - as_link:
-          name: typed
-          mutations:
-          - set:
-              ref:
-                key: Schemas.Member/Marked.when
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfObject/Marked.when#type
 - exists:
     definition:
-      key: Schemas.Member/Marked.who
-      properties: {}
-- exists:
-    definition:
-      key: Schemas.OfObject/Marked.who#type
+      key: Schemas.OfObject/Marked#parts.1
       properties:
         ref: false
 - exists:
     definition:
-      key: Schemas.OfProperty/Marked.who#type.by
+      key: Schemas.OfProperty/Marked#parts.1.by
       properties: {}
 - insert:
     relation:
@@ -4135,7 +3900,7 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Marked.who#type.by
+                key: Schemas.OfProperty/Marked#parts.1.by
       - as_link:
           name: schema
           mutations:
@@ -4152,35 +3917,18 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Marked.who#type
+                key: Schemas.OfObject/Marked#parts.1
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Marked.who#type.by
+                key: Schemas.OfProperty/Marked#parts.1.by
       - as_property:
           name: name
           mutations:
           - set:
               value: by
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.Typing
-    entries:
-    - mutations:
-      - as_link:
-          name: typed
-          mutations:
-          - set:
-              ref:
-                key: Schemas.Member/Marked.who
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfObject/Marked.who#type
 - insert:
     relation:
       key: Schemas.OfRelation/Schemas.HasPart
@@ -4193,11 +3941,11 @@
               ref:
                 key: Schemas.OfIntersection/Marked
       - as_link:
-          name: part
+          name: type
           mutations:
           - set:
               ref:
-                key: Schemas.Member/Marked.when
+                key: Schemas.OfObject/Marked#parts.0
       - as_property:
           name: name
           mutations:
@@ -4211,11 +3959,11 @@
               ref:
                 key: Schemas.OfIntersection/Marked
       - as_link:
-          name: part
+          name: type
           mutations:
           - set:
               ref:
-                key: Schemas.Member/Marked.who
+                key: Schemas.OfObject/Marked#parts.1
       - as_property:
           name: name
           mutations:

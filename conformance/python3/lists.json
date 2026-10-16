@@ -602,104 +602,6 @@
     }
   },
   {
-    "exists": {
-      "definition": {
-        "key": "Schemas.Member/Board.readings#type#element.value",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "typed",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "key": "Schemas.Member/Board.readings#type#element.value"
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfFloat"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "key": "Schemas.Member/Board.readings#type#element.note",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "typed",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "key": "Schemas.Member/Board.readings#type#element.note"
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfStr"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
     "insert": {
       "relation": {
         "key": "Schemas.OfRelation/Schemas.HasBranch"
@@ -723,12 +625,12 @@
             },
             {
               "as_link": {
-                "name": "branch",
+                "name": "type",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Member/Board.readings#type#element.value"
+                        "key": "Schemas.OfScalar/Schemas.OfFloat"
                       }
                     }
                   }
@@ -767,12 +669,12 @@
             },
             {
               "as_link": {
-                "name": "branch",
+                "name": "type",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Member/Board.readings#type#element.note"
+                        "key": "Schemas.OfScalar/Schemas.OfStr"
                       }
                     }
                   }

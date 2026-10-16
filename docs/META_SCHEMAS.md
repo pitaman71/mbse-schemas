@@ -209,7 +209,7 @@ at least one time to make schema objects references. all of them.").
 
 | Relation | Links: first, second (their kinds) | Named at the first | Constraint, as `unique` clauses state it |
 |---|---|---|---|
-| Typing | typed (Property, Symbol, Member), schema (a type) | `.type` | one: `unique(schema)`, the typed determines its schema |
+| Typing | typed (Property, Symbol; a Member until 0.18.0), schema (a type) | `.type` | one: `unique(schema)`, the typed determines its schema |
 | Refines | refinement, refined (a type) | `OfObject.refines`, `OfContainer.refines` (`OfScalar.refines` until 0.18.0) | one |
 | Indexing, Containing | container (Container), index / element (a type) | `OfContainer.index`, `OfContainer.element` | one |
 | AnyOf | any (Any), schema (a type) | `OfAny.types` | none: open, a list in declaration order |
@@ -217,7 +217,7 @@ at least one time to make schema objects references. all of them.").
 | HasParameter | owner (every kind), parameter (Parameter); property `name` | `.parameters` | keyed: `unique(owner, name)`, `unique(parameter)` |
 | HasProperty | owner (Object, Relation), property (Property); `name` | `OfObject.properties`, `OfRelation.properties` | keyed |
 | HasAdjacency | owner (Object), adjacency (Adjacency); `name` | `OfObject.adjacencies` | keyed |
-| HasBranch, HasPart | owner (Union / Intersection), branch / part (Member); `name` | `OfUnion.branches`, `OfIntersection.parts` | keyed |
+| HasBranch, HasPart | owner (Union / Intersection), type (a type); `name`, `description` (since 0.18.0; a Member object until then) | `OfUnion.branches`, `OfIntersection.parts` | named: `unique(owner, name)` |
 | HasSymbol, HasLink | owner (Predicate / Relation), symbol / link (Symbol); `name` | `OfPredicate.symbols`, `OfRelation.links` | keyed |
 | Defines | module (Module), schema (every kind); `name` | `OfModule.schemas` | keyed |
 

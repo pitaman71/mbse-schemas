@@ -223,6 +223,25 @@ relation it is at an end of (10), so a type's six anonymous adjacencies are each
 PAR keeps two cases (declaring and writing parameters); `Check`'s outcome moved to VAL-16. The corpus's `module` group
 keeps its parametric schemas, with parameters as names, and loses its widths, applications and `requires`.
 
+## Step 3, as built (0.18.0)
+
+A scalar schema is one of the five basic scalars (8, 22): a store refuses to build another, `token`, `format` and a
+scalar's `refines` are removed, each basic scalar maps to its host type by its name, and a value of any type is
+tagged with its basic scalar's tag (`int`). User scalars in tests, tutorials and examples became the basic scalar
+(23). A union's branches and an intersection's parts are entries of `Schemas.HasBranch` and `Schemas.HasPart` (4),
+linking the type and carrying `name` and `description`; `Schemas.Member` and its builder are gone, and the corpora
+lose every member object and its `Typing` entry.
+
+Found and fixed while building it: a snapshot did not write an extension's entry that only a store's own schema
+reached (a tag written from a basic scalar's end): such entries are now written, and what they link that has no name
+of its own follows them (EXT-05).
+
+Found, for the user:
+
+- **A property an extension adds to `Schemas.OfScalar` can hold no value.** The store's own scalars change only
+  through `store.extend`, which only adds members, so `HasDomain` and other extensions of scalars are adjacencies,
+  whose entries are written from either end (EXT-04 now adds its `unit` property to `Schemas.OfObject`).
+
 ## Open, for the user
 
 1. **Deferred: when a binding is applied.** "I don't think we need to force the issue of eager or on-demand binding":

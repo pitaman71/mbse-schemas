@@ -536,64 +536,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Member/Card.reach#type.phone",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "typed",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "key": "Schemas.Member/Card.reach#type.phone"
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "key": "Schemas.OfObject/Card.home#type"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "key": "Schemas.Member/Card.reach#type.email",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "key": "Schemas.OfObject/Card.reach#type.email#type",
+        "key": "Schemas.OfObject/Card.reach#type#branches.1",
         "properties": {
           "ref": false
         }
@@ -603,7 +546,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Card.reach#type.email#type.address",
+        "key": "Schemas.OfProperty/Card.reach#type#branches.1.address",
         "properties": {}
       }
     }
@@ -623,7 +566,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.reach#type.email#type.address"
+                        "key": "Schemas.OfProperty/Card.reach#type#branches.1.address"
                       }
                     }
                   }
@@ -664,7 +607,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Card.reach#type.email#type"
+                        "key": "Schemas.OfObject/Card.reach#type#branches.1"
                       }
                     }
                   }
@@ -678,7 +621,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.reach#type.email#type.address"
+                        "key": "Schemas.OfProperty/Card.reach#type#branches.1.address"
                       }
                     }
                   }
@@ -692,47 +635,6 @@
                   {
                     "set": {
                       "value": "address"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "typed",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "key": "Schemas.Member/Card.reach#type.email"
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "key": "Schemas.OfObject/Card.reach#type.email#type"
-                      }
                     }
                   }
                 ]
@@ -767,12 +669,12 @@
             },
             {
               "as_link": {
-                "name": "branch",
+                "name": "type",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Member/Card.reach#type.phone"
+                        "key": "Schemas.OfObject/Card.home#type"
                       }
                     }
                   }
@@ -811,12 +713,12 @@
             },
             {
               "as_link": {
-                "name": "branch",
+                "name": "type",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Member/Card.reach#type.email"
+                        "key": "Schemas.OfObject/Card.reach#type#branches.1"
                       }
                     }
                   }
@@ -900,104 +802,6 @@
     }
   },
   {
-    "exists": {
-      "definition": {
-        "key": "Schemas.Member/Card.ident#type.number",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "typed",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "key": "Schemas.Member/Card.ident#type.number"
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfInt"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "key": "Schemas.Member/Card.ident#type.code",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "typed",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "key": "Schemas.Member/Card.ident#type.code"
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfStr"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
     "insert": {
       "relation": {
         "key": "Schemas.OfRelation/Schemas.HasBranch"
@@ -1021,12 +825,12 @@
             },
             {
               "as_link": {
-                "name": "branch",
+                "name": "type",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Member/Card.ident#type.number"
+                        "key": "Schemas.OfScalar/Schemas.OfInt"
                       }
                     }
                   }
@@ -1065,12 +869,12 @@
             },
             {
               "as_link": {
-                "name": "branch",
+                "name": "type",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Member/Card.ident#type.code"
+                        "key": "Schemas.OfScalar/Schemas.OfStr"
                       }
                     }
                   }
@@ -1156,15 +960,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Member/Card.meta#type.stamp",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "key": "Schemas.OfObject/Card.meta#type.stamp#type",
+        "key": "Schemas.OfObject/Card.meta#type#parts.0",
         "properties": {
           "ref": false
         }
@@ -1174,7 +970,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Card.meta#type.stamp#type.updated",
+        "key": "Schemas.OfProperty/Card.meta#type#parts.0.updated",
         "properties": {}
       }
     }
@@ -1194,7 +990,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.meta#type.stamp#type.updated"
+                        "key": "Schemas.OfProperty/Card.meta#type#parts.0.updated"
                       }
                     }
                   }
@@ -1235,7 +1031,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Card.meta#type.stamp#type"
+                        "key": "Schemas.OfObject/Card.meta#type#parts.0"
                       }
                     }
                   }
@@ -1249,7 +1045,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.meta#type.stamp#type.updated"
+                        "key": "Schemas.OfProperty/Card.meta#type#parts.0.updated"
                       }
                     }
                   }
@@ -1274,58 +1070,9 @@
     }
   },
   {
-    "insert": {
-      "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "typed",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "key": "Schemas.Member/Card.meta#type.stamp"
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "key": "Schemas.OfObject/Card.meta#type.stamp#type"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
     "exists": {
       "definition": {
-        "key": "Schemas.Member/Card.meta#type.audit",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "key": "Schemas.OfObject/Card.meta#type.audit#type",
+        "key": "Schemas.OfObject/Card.meta#type#parts.1",
         "properties": {
           "ref": false
         }
@@ -1335,7 +1082,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Card.meta#type.audit#type.by",
+        "key": "Schemas.OfProperty/Card.meta#type#parts.1.by",
         "properties": {}
       }
     }
@@ -1355,7 +1102,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.meta#type.audit#type.by"
+                        "key": "Schemas.OfProperty/Card.meta#type#parts.1.by"
                       }
                     }
                   }
@@ -1384,7 +1131,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Card.meta#type.audit#type.updated",
+        "key": "Schemas.OfProperty/Card.meta#type#parts.1.updated",
         "properties": {}
       }
     }
@@ -1404,7 +1151,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.meta#type.audit#type.updated"
+                        "key": "Schemas.OfProperty/Card.meta#type#parts.1.updated"
                       }
                     }
                   }
@@ -1445,7 +1192,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Card.meta#type.audit#type"
+                        "key": "Schemas.OfObject/Card.meta#type#parts.1"
                       }
                     }
                   }
@@ -1459,7 +1206,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.meta#type.audit#type.by"
+                        "key": "Schemas.OfProperty/Card.meta#type#parts.1.by"
                       }
                     }
                   }
@@ -1489,7 +1236,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Card.meta#type.audit#type"
+                        "key": "Schemas.OfObject/Card.meta#type#parts.1"
                       }
                     }
                   }
@@ -1503,7 +1250,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.meta#type.audit#type.updated"
+                        "key": "Schemas.OfProperty/Card.meta#type#parts.1.updated"
                       }
                     }
                   }
@@ -1517,47 +1264,6 @@
                   {
                     "set": {
                       "value": "updated"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "typed",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "key": "Schemas.Member/Card.meta#type.audit"
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "key": "Schemas.OfObject/Card.meta#type.audit#type"
-                      }
                     }
                   }
                 ]
@@ -1592,12 +1298,12 @@
             },
             {
               "as_link": {
-                "name": "part",
+                "name": "type",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Member/Card.meta#type.stamp"
+                        "key": "Schemas.OfObject/Card.meta#type#parts.0"
                       }
                     }
                   }
@@ -1636,12 +1342,12 @@
             },
             {
               "as_link": {
-                "name": "part",
+                "name": "type",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Member/Card.meta#type.audit"
+                        "key": "Schemas.OfObject/Card.meta#type#parts.1"
                       }
                     }
                   }

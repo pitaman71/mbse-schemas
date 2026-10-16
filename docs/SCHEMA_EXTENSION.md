@@ -54,11 +54,9 @@ What the check would accept and refuse:
 
 2. Extension
 
-Moving `.bits` and `.bytes`:
+Moving `.bits` and `.bytes` means associating a domain to a scalar schema:
 
-RELATION Expressions.Framework.HasSchema(term=Expressions.Framework.Term, schema=Schemas.OfY)
 RELATION Expressions.Framework.HasDomain(schema=Schemas.OfScalar, domain=Expressions.Framework.Domain)
-RELATION Expressions.Framework.HasFormalParam(callable: Expressions.Framework.Callable, name: str, domain: Expressions.Framework.Domain)
 
 Representing scalar values:
 
@@ -70,7 +68,7 @@ PROPERTY [Expressions.Framework.Value] Expressions.Dialects.Basic.AsFloatValue(f
 
 Definitely:
 
-- constraining the size of Schemas.OfScalar : move to mbse-expressions via `HasSchema` and `HasDomain`
+- constraining the size of Schemas.OfScalar : move to mbse-expressions via `HasDomain` per above
 - allowing schemas to define parameters on definition and bind them to expressions on instantiation : keep in mbse-schemas except for typing via `HasDomain`
 - allowing Schemas.OfScalar (maybe others) to be bound to an expression
 
@@ -84,7 +82,7 @@ In mbse-expressions, a parameter can denote a schema or a domain
 OBJECT Expressions.Framework.Function
 PROPERTY [Expressions.Framework.Function] Expressions.Framework.HasName('str')
 RELATION Expressions.Framework.HasFormal(function: Expressions.Framework.Function, name: str, schema: Schemas.OfAny)
-RELATION Expressions.Framework.HasResult(function: Expressions.Framework.Function, Schemas.OfAny)
+RELATION Expressions.Framework.HasResult(function: Expressions.Framework.Function, schema: Schemas.OfAny)
 
 6. intrinsics
 
@@ -125,7 +123,7 @@ As the user decided (2026-10-15), on the questions put to them:
     framework model's draft, the user undid that ("undoing decision 13 might be the right track"): terms are values,
     an expression one nested value held by a reference object, its root, which is all that is linked. "call terms may
     name their function", bound by its name and its arguments' types; "`HasSchema` annotates the root, never a
-    subterm"; "`requires` is moving out to mbse-patterns anyway"; and the losses, sharing a subterm and linking one from
+    subterm" (superseded by 21: a root has no schema); "`requires` is moving out to mbse-patterns anyway"; and the losses, sharing a subterm and linking one from
     outside, are not a problem ("I don't think the losses are a problem"). Kinds are a union again (decision 3).
 14. Parameters (section 4): "parameters that denote domains are moved to mbse-expressions entirely"; mbse-schemas
     keeps parameters that denote schemas (`List[T]`), so today's value parameters (`Matrix(rows, cols)`, a `Word`'s
@@ -157,11 +155,26 @@ As the user decided (2026-10-15), on the questions put to them:
 20. A dialect's vocabulary (its domains, functions and intrinsics, data installed in a store): "yes to the handshake,
     fallback to adding if fails". A store connection's handshake names the dialects both sides install, and a snapshot
     does not write their vocabulary; where the handshake fails, the vocabulary is written.
-21. Domains: "a two-step association using your new expression-root ref obj": an expression's root has a schema, and a
-    scalar schema a domain, `HasSchema(root=Expressions.Framework.Root, schema=Schemas.OfY)` and
-    `HasDomain(schema=Schemas.OfScalar.Schema, domain=Expressions.Framework.Domain)`; domains stay objects.
+21. Domains: a scalar schema has a domain, `HasDomain(schema=Schemas.OfScalar, domain=Expressions.Framework.Domain)`
+    ("Moving `.bits` and `.bytes` means associating a domain to a scalar schema", section 2); domains stay objects. A
+    term has a domain ("variables are implicitly bound to terms and terms have a domain"). Revised 2026-10-16: an
+    expression's root no longer has a schema, so `HasSchema(root=Expressions.Framework.Root, schema=Schemas.OfY)`, and
+    the domain reached through it in two steps ("a two-step association using your new expression-root ref obj"), are
+    gone.
 22. Formals are objects (`Function` → `HasFormal`, with an index → `Formal` → `FormalType` → schema), since a
     meta-schema's adjacency is to a relation of two links and no properties: "yes that's a compromise".
+23. Extension is per store, and no schema object is shared across stores (2026-10-16; revises the "per process" part
+    of 2, and 16 and 19, which rested on a misunderstood question: "I misunderstood the original question"):
+    - Schemas are not copied: "yes, we do not copy schemas, that remains true". An extension modifies the schema
+      objects of the store it extends.
+    - "A process can theoretically have multiple stores, though for the moment that is only practically useful for
+      testing (and maybe not strictly necessary). If a single program/process has multiple stores it must handle
+      correlation of reference objects externally. MBSE does not currently support cross-store references for any
+      kind or any purpose, for now, period."
+    - Round trips: "this definition of per-store not per-process is ideal. You can test round-trips where both sides
+      have the same schema extensions applied *or* round-trips where the two sides have differing extensions applied."
+    - "no shared schema objects across stores, so no ambiguity": the meta-schemas and the basic scalars too are each
+      store's own, so there is no framework store and no process-wide extension (`Builders.extend` goes).
 
 ---
 

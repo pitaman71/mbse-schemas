@@ -119,9 +119,14 @@ As the user decided (2026-10-15), on the questions put to them:
     objects, implement them (sections 4 and 5).
 12. "any expression dialect can define scalar domains that make sense. the scalar types defined in mbse-schemas aren't
     special and could potentially go away".
-13. "expressions only deal in scalars. All object/relation functionality is moving up to mbse-patterns". "terms are
-    reference objects", which the relations other packages add can link (`HasSchema`, mbse-patterns' `requires`).
-    Containers of scalars stay: "quantifiers over containers - starting with map/reduce - should be included".
+13. "expressions only deal in scalars. All object/relation functionality is moving up to mbse-patterns". Containers of
+    scalars stay: "quantifiers over containers - starting with map/reduce - should be included". Terms were first made
+    reference objects ("terms are reference objects"), so that other packages' relations could link them; reviewing the
+    framework model's draft, the user undid that ("undoing decision 13 might be the right track"): terms are values,
+    an expression one nested value held by a reference object, its root, which is all that is linked. "call terms may
+    name their function", bound by its name and its arguments' types; "`HasSchema` annotates the root, never a
+    subterm"; "`requires` is moving out to mbse-patterns anyway"; and the losses, sharing a subterm and linking one from
+    outside, are not a problem ("I don't think the losses are a problem"). Kinds are a union again (decision 3).
 14. Parameters (section 4): "parameters that denote domains are moved to mbse-expressions entirely"; mbse-schemas
     keeps parameters that denote schemas (`List[T]`), so today's value parameters (`Matrix(rows, cols)`, a `Word`'s
     width `w`) move with their bindings.

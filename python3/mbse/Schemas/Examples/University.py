@@ -8,9 +8,9 @@ import math
 from mbse.Schemas.Framework import Builders, Schemas, Proxies, Plain, Reachable, Validators
 from mbse.Schemas.Examples._support import entries, raises, same_graph
 
-Text = Builders.Meta.OfStr
 
 store = Builders.Store()
+Text = store.Schemas.OfStr.as_schema()  # the store's own basic scalar
 
 
 def text(name):
@@ -19,19 +19,19 @@ def text(name):
 
 # --- Schemas ---
 
-Student = store.Schemas.Object(lambda o: o.name('Student').ref(True).properties([text('name'), text('student_id')]))
-Staff = store.Schemas.Object(lambda o: o.name('Staff').ref(True).properties([text('name'), text('staff_id')]))
-Course = store.Schemas.Object(lambda o: o.name('Course').ref(True).properties([text('code'), text('title')]))
-Term = store.Schemas.Object(lambda o: (
+Student = store.Schemas.OfObject(lambda o: o.name('Student').ref(True).properties([text('name'), text('student_id')]))
+Staff = store.Schemas.OfObject(lambda o: o.name('Staff').ref(True).properties([text('name'), text('staff_id')]))
+Course = store.Schemas.OfObject(lambda o: o.name('Course').ref(True).properties([text('code'), text('title')]))
+Term = store.Schemas.OfObject(lambda o: (
     o
     .name('Term')
     .ref(True)
     .properties([text('code'), text('starts'), text('ends')])  # ISO 8601 dates, e.g. '2026-09-01'
 ))
-Room = store.Schemas.Object(lambda o: o.name('Room').ref(True).properties([text('building'), text('number')]))
+Room = store.Schemas.OfObject(lambda o: o.name('Room').ref(True).properties([text('building'), text('number')]))
 
 # Three links: each entry is one student taking one course in one term.
-Enrollment = store.Schemas.Relation(lambda r: (
+Enrollment = store.Schemas.OfRelation(lambda r: (
     r
     .name('Enrollment')
     .links([
@@ -40,15 +40,15 @@ Enrollment = store.Schemas.Relation(lambda r: (
         lambda t: t.name('term'),
     ])
     .properties([
-        lambda t: t.name('credits').type([Builders.Meta.OfInt]),
-        lambda t: t.name('score').type([Builders.Meta.OfFloat]),
-        lambda t: t.name('audit').type([Builders.Meta.OfBool]),
+        lambda t: t.name('credits').type([store.Schemas.OfInt]),
+        lambda t: t.name('score').type([store.Schemas.OfFloat]),
+        lambda t: t.name('audit').type([store.Schemas.OfBool]),
     ])
     .uniques(['score', 'audit', 'credits'])  # (student, course, term) determine the rest
 ))
 
 # Both Student and Staff can book rooms, so the 'booker' link is filled by more than one schema.
-Booking = store.Schemas.Relation(lambda r: (
+Booking = store.Schemas.OfRelation(lambda r: (
     r
     .name('Booking')
     .links([
@@ -58,14 +58,14 @@ Booking = store.Schemas.Relation(lambda r: (
     .properties([text('starts')])  # ISO 8601 date-time, e.g. '2026-09-14T09:00:00Z'
 ))
 
-store.Schemas.Object(Student, lambda o: o.adjacencies([
+store.Schemas.OfObject(Student, lambda o: o.adjacencies([
     lambda t: t.name('enrollments').relation([Enrollment]).me('student'),
     lambda t: t.name('bookings').relation([Booking]).me('booker'),
 ]))
-store.Schemas.Object(Staff, lambda o: o.adjacencies([lambda t: t.name('bookings').relation([Booking]).me('booker')]))
-store.Schemas.Object(Course, lambda o: o.adjacencies([lambda t: t.name('enrollments').relation([Enrollment]).me('course')]))
-store.Schemas.Object(Term, lambda o: o.adjacencies([lambda t: t.name('enrollments').relation([Enrollment]).me('term')]))
-store.Schemas.Object(Room, lambda o: o.adjacencies([lambda t: t.name('bookings').relation([Booking]).me('room')]))
+store.Schemas.OfObject(Staff, lambda o: o.adjacencies([lambda t: t.name('bookings').relation([Booking]).me('booker')]))
+store.Schemas.OfObject(Course, lambda o: o.adjacencies([lambda t: t.name('enrollments').relation([Enrollment]).me('course')]))
+store.Schemas.OfObject(Term, lambda o: o.adjacencies([lambda t: t.name('enrollments').relation([Enrollment]).me('term')]))
+store.Schemas.OfObject(Room, lambda o: o.adjacencies([lambda t: t.name('bookings').relation([Booking]).me('room')]))
 
 for schema in [Student, Staff, Course, Term, Room, Enrollment, Booking]:
     assert schema.validate() == [], (schema.name, schema.validate())

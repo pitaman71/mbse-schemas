@@ -1,26 +1,26 @@
 - exists:
     definition:
-      key: Schemas.Module/.
+      key: Schemas.OfModule/.
       properties: {}
 - exists:
     definition:
-      key: Schemas.Object/Bag
+      key: Schemas.OfObject/Bag
       properties:
         name: Bag
         ref: true
         pattern: bag-(\d+)
 - exists:
     definition:
-      key: Schemas.Adjacency/Bag.items
+      key: Schemas.OfAdjacency/Bag.items
       properties:
         me: bag
 - exists:
     definition:
-      key: Schemas.Property/Bag.name
+      key: Schemas.OfProperty/Bag.name
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -28,16 +28,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Bag.name
+                key: Schemas.OfProperty/Bag.name
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -45,13 +45,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Bag
+                key: Schemas.OfObject/Bag
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Bag.name
+                key: Schemas.OfProperty/Bag.name
       - as_property:
           name: name
           mutations:
@@ -59,7 +59,7 @@
               value: name
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasAdjacency
+      key: Schemas.OfRelation/Schemas.HasAdjacency
     entries:
     - mutations:
       - as_link:
@@ -67,13 +67,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Bag
+                key: Schemas.OfObject/Bag
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Bag.items
+                key: Schemas.OfAdjacency/Bag.items
       - as_property:
           name: name
           mutations:
@@ -81,7 +81,7 @@
               value: items
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -89,13 +89,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Bag
+                key: Schemas.OfObject/Bag
       - as_property:
           name: name
           mutations:
@@ -103,23 +103,23 @@
               value: Bag
 - exists:
     definition:
-      key: Schemas.Object/Sample
+      key: Schemas.OfObject/Sample
       properties:
         name: Sample
         ref: true
         pattern: sample-(\d+)
 - exists:
     definition:
-      key: Schemas.Adjacency/Sample.bags
+      key: Schemas.OfAdjacency/Sample.bags
       properties:
         me: item
 - exists:
     definition:
-      key: Schemas.Property/Sample.label
+      key: Schemas.OfProperty/Sample.label
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -127,20 +127,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Sample.label
+                key: Schemas.OfProperty/Sample.label
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - exists:
     definition:
-      key: Schemas.Property/Sample.payload
+      key: Schemas.OfProperty/Sample.payload
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -148,20 +148,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Sample.payload
+                key: Schemas.OfProperty/Sample.payload
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfBytes
+                key: Schemas.OfScalar/Schemas.OfBytes
 - exists:
     definition:
-      key: Schemas.Property/Sample.count
+      key: Schemas.OfProperty/Sample.count
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -169,20 +169,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Sample.count
+                key: Schemas.OfProperty/Sample.count
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfInt
+                key: Schemas.OfScalar/Schemas.OfInt
 - exists:
     definition:
-      key: Schemas.Property/Sample.ratio
+      key: Schemas.OfProperty/Sample.ratio
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -190,20 +190,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Sample.ratio
+                key: Schemas.OfProperty/Sample.ratio
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfFloat
+                key: Schemas.OfScalar/Schemas.OfFloat
 - exists:
     definition:
-      key: Schemas.Property/Sample.flag
+      key: Schemas.OfProperty/Sample.flag
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -211,16 +211,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Sample.flag
+                key: Schemas.OfProperty/Sample.flag
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfBool
+                key: Schemas.OfScalar/Schemas.OfBool
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -228,13 +228,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Sample
+                key: Schemas.OfObject/Sample
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Sample.label
+                key: Schemas.OfProperty/Sample.label
       - as_property:
           name: name
           mutations:
@@ -246,13 +246,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Sample
+                key: Schemas.OfObject/Sample
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Sample.payload
+                key: Schemas.OfProperty/Sample.payload
       - as_property:
           name: name
           mutations:
@@ -264,13 +264,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Sample
+                key: Schemas.OfObject/Sample
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Sample.count
+                key: Schemas.OfProperty/Sample.count
       - as_property:
           name: name
           mutations:
@@ -282,13 +282,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Sample
+                key: Schemas.OfObject/Sample
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Sample.ratio
+                key: Schemas.OfProperty/Sample.ratio
       - as_property:
           name: name
           mutations:
@@ -300,13 +300,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Sample
+                key: Schemas.OfObject/Sample
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Sample.flag
+                key: Schemas.OfProperty/Sample.flag
       - as_property:
           name: name
           mutations:
@@ -314,7 +314,7 @@
               value: flag
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasAdjacency
+      key: Schemas.OfRelation/Schemas.HasAdjacency
     entries:
     - mutations:
       - as_link:
@@ -322,13 +322,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Sample
+                key: Schemas.OfObject/Sample
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Sample.bags
+                key: Schemas.OfAdjacency/Sample.bags
       - as_property:
           name: name
           mutations:
@@ -336,7 +336,7 @@
               value: bags
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -344,13 +344,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Sample
+                key: Schemas.OfObject/Sample
       - as_property:
           name: name
           mutations:
@@ -358,7 +358,7 @@
               value: Sample
 - exists:
     definition:
-      key: Schemas.Relation/Holds
+      key: Schemas.OfRelation/Holds
       properties:
         name: Holds
         uniques:
@@ -366,19 +366,19 @@
           - slot
 - exists:
     definition:
-      key: Schemas.Symbol/Holds.bag
+      key: Schemas.OfSymbol/Holds.bag
       properties: {}
 - exists:
     definition:
-      key: Schemas.Symbol/Holds.item
+      key: Schemas.OfSymbol/Holds.item
       properties: {}
 - exists:
     definition:
-      key: Schemas.Property/Holds.slot
+      key: Schemas.OfProperty/Holds.slot
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -386,16 +386,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Holds.slot
+                key: Schemas.OfProperty/Holds.slot
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfInt
+                key: Schemas.OfScalar/Schemas.OfInt
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -403,13 +403,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Holds
+                key: Schemas.OfRelation/Holds
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Holds.slot
+                key: Schemas.OfProperty/Holds.slot
       - as_property:
           name: name
           mutations:
@@ -417,7 +417,7 @@
               value: slot
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasLink
+      key: Schemas.OfRelation/Schemas.HasLink
     entries:
     - mutations:
       - as_link:
@@ -425,13 +425,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Holds
+                key: Schemas.OfRelation/Holds
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/Holds.bag
+                key: Schemas.OfSymbol/Holds.bag
       - as_property:
           name: name
           mutations:
@@ -443,13 +443,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Holds
+                key: Schemas.OfRelation/Holds
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/Holds.item
+                key: Schemas.OfSymbol/Holds.item
       - as_property:
           name: name
           mutations:
@@ -457,7 +457,7 @@
               value: item
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Relating
+      key: Schemas.OfRelation/Schemas.Relating
     entries:
     - mutations:
       - as_link:
@@ -465,29 +465,29 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Sample.bags
+                key: Schemas.OfAdjacency/Sample.bags
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Holds
+                key: Schemas.OfRelation/Holds
     - mutations:
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Bag.items
+                key: Schemas.OfAdjacency/Bag.items
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Holds
+                key: Schemas.OfRelation/Holds
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -495,13 +495,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Holds
+                key: Schemas.OfRelation/Holds
       - as_property:
           name: name
           mutations:
@@ -523,7 +523,7 @@
         flag: false
 - insert:
     relation:
-      key: Schemas.Relation/Holds
+      key: Schemas.OfRelation/Holds
     entries:
     - mutations:
       - as_link:
@@ -554,7 +554,7 @@
         flag: true
 - insert:
     relation:
-      key: Schemas.Relation/Holds
+      key: Schemas.OfRelation/Holds
     entries:
     - mutations:
       - as_link:
@@ -584,7 +584,7 @@
         ratio: 5.0e-324
 - insert:
     relation:
-      key: Schemas.Relation/Holds
+      key: Schemas.OfRelation/Holds
     entries:
     - mutations:
       - as_link:
@@ -612,7 +612,7 @@
         ratio: NaN
 - insert:
     relation:
-      key: Schemas.Relation/Holds
+      key: Schemas.OfRelation/Holds
     entries:
     - mutations:
       - as_link:
@@ -640,7 +640,7 @@
         ratio: Infinity
 - insert:
     relation:
-      key: Schemas.Relation/Holds
+      key: Schemas.OfRelation/Holds
     entries:
     - mutations:
       - as_link:
@@ -668,7 +668,7 @@
         ratio: -Infinity
 - insert:
     relation:
-      key: Schemas.Relation/Holds
+      key: Schemas.OfRelation/Holds
     entries:
     - mutations:
       - as_link:
@@ -697,7 +697,7 @@
         ratio: 1.0e+16
 - insert:
     relation:
-      key: Schemas.Relation/Holds
+      key: Schemas.OfRelation/Holds
     entries:
     - mutations:
       - as_link:
@@ -725,7 +725,7 @@
         ratio: 0.1
 - insert:
     relation:
-      key: Schemas.Relation/Holds
+      key: Schemas.OfRelation/Holds
     entries:
     - mutations:
       - as_link:
@@ -753,7 +753,7 @@
         ratio: 1.0e+308
 - insert:
     relation:
-      key: Schemas.Relation/Holds
+      key: Schemas.OfRelation/Holds
     entries:
     - mutations:
       - as_link:
@@ -781,7 +781,7 @@
         ratio: 2.0
 - insert:
     relation:
-      key: Schemas.Relation/Holds
+      key: Schemas.OfRelation/Holds
     entries:
     - mutations:
       - as_link:

@@ -36,7 +36,7 @@ import math
 from collections.abc import Callable, Hashable
 from typing import Any, NamedTuple, Protocol
 
-from . import Reachable, Readers, Schemas, Stores, Visitors
+from . import Proxies, Reachable, Readers, Schemas, Stores, Visitors
 from .Errors import DecodeError, path
 from .Visitors import Scalar
 
@@ -298,6 +298,7 @@ class _Snapshot:
 
     def name_of(self, schema: Any) -> str:
         """The name a value of any type is tagged with: its schema's registered name."""
+        schema = Proxies._deref(schema)  # a path names its schema
         try:
             return self.store.name_of(schema)
         except LookupError:
@@ -310,6 +311,7 @@ class _Snapshot:
     def run(
         self, schema: Schemas.OfObject.Data, root: Readers.OfObject, include: list[Readers.OfObject]
     ) -> dict[str, PlainData]:
+        schema = Proxies._deref(schema)  # a path names its schema
         if root.as_schema() is not schema:
             raise TypeError(f"value is a {root.as_schema().name!r}, not an instance of the given schema")
         if not schema.ref:
@@ -1011,7 +1013,7 @@ class _LogReader:
         if not isinstance(store, Builders.Store):
             raise TypeError("a snapshot is read into a Builders.Store")
         self._B, self._store = Builders, store
-        self._meta = {id(schema) for schema in vars(Builders.Meta).values() if hasattr(schema, "validate")}
+        self._meta = {id(schema) for schema in vars(store._meta).values() if hasattr(schema, "validate")}  # its own
         self._made: list[Any] = []  # the objects made, held: a store holds its data objects weakly
 
     def _schema(self, name: str, where: tuple) -> Any:
@@ -1165,6 +1167,7 @@ class ToPlain:
         self._store, self._flat = store, flat
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> PlainData:
+        schema = Proxies._deref(schema)  # a path names its schema
         if isinstance(schema, Schemas.OfScalar.Data):
             return self.OfScalar(schema, value)
         if isinstance(schema, Schemas.OfObject.Data) and schema.ref:
@@ -1175,14 +1178,17 @@ class ToPlain:
 
     @staticmethod
     def OfScalar(schema: Schemas.OfScalar.Data, value: Scalar) -> PlainData:
+        schema = Proxies._deref(schema)  # a path names its schema
         return schema.to_plain(value)
 
     def OfObject(self, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> PlainData:
         """Snapshot of `value` alone; its references to other objects are left unresolved."""
+        schema = Proxies._deref(schema)  # a path names its schema
         return _Snapshot(self._store, self._flat).run(schema, value, [value])
 
     def Reachable(self, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> PlainData:
         """Snapshot of `value` and every object reachable from it through adjacencies (see `Reachable`)."""
+        schema = Proxies._deref(schema)  # a path names its schema
         return _Snapshot(self._store, self._flat).run(schema, value, Reachable.of(value))
 
     def Snapshot(self) -> list[PlainData]:
@@ -1194,6 +1200,7 @@ class ToPlain:
         """A standalone value as plain data, written as a property holding it writes it: a value object, union value,
         intersection value or container of `schema`, read through its visitor, or a value of any type (`OfAny`), of a
         registered schema or a scalar."""
+        schema = Proxies._deref(schema)  # a path names its schema
         held = Schemas.structure(schema)
         if not isinstance(held, Schemas.OfAny.Value):
             own = value.as_schema()
@@ -1210,6 +1217,7 @@ class FromPlain:
         self._store = store
 
     def __call__(self, schema: Schemas.OfAny.Data, plain: PlainData) -> Any:
+        schema = Proxies._deref(schema)  # a path names its schema
         if isinstance(schema, Schemas.OfScalar.Data):
             return self.OfScalar(schema, plain)
         if isinstance(schema, Schemas.OfObject.Data) and schema.ref:
@@ -1220,15 +1228,18 @@ class FromPlain:
 
     @staticmethod
     def OfScalar(schema: Schemas.OfScalar.Data, plain: PlainData) -> Scalar:
+        schema = Proxies._deref(schema)  # a path names its schema
         try:
             return schema.from_plain(plain)
         except DecodeError as error:
             raise error.at("$") from None
 
     def OfObject(self, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
+        schema = Proxies._deref(schema)  # a path names its schema
         return _restore(self._store, schema, plain)
 
     def Reachable(self, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
+        schema = Proxies._deref(schema)  # a path names its schema
         return _restore(self._store, schema, plain)
 
     def Snapshot(self, log: PlainData) -> list[Any]:
@@ -1239,6 +1250,7 @@ class FromPlain:
     def Value(self, schema: Schemas.OfAny.Data, plain: PlainData) -> Any:
         """A standalone value, read from the plain form `ToPlain(store).Value` writes and built through the store's
         builder of its schema, which the store registers; a scalar as itself."""
+        schema = Proxies._deref(schema)  # a path names its schema
         decoded = _decode(schema, plain, (), self._store)
         if isinstance(decoded, (_Record, _Elements)):
             try:

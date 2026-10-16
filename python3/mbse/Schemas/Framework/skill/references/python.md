@@ -13,19 +13,19 @@ Int, Text = Builders.Meta.OfInt, Builders.Meta.OfStr  # the basic scalars, which
 store = Builders.Store()  # schemas and data are built in a store
 
 # A value with no identity: a value object.
-Signal = store.Schemas.Object(lambda o: o.properties([
+Signal = store.Schemas.OfObject(lambda o: o.properties([
     lambda t: t.name("width").type([Int]),
     lambda t: t.name("unit").type([Text]),
 ]))
 
 # Things with identity: reference object schemas, each registered under its name as it is built.
-Component = store.Schemas.Object(lambda o: (
+Component = store.Schemas.OfObject(lambda o: (
     o
     .name("Component")
     .ref(True)
     .properties([lambda t: t.name("name").type([Text])])
 ))
-Port = store.Schemas.Object(lambda o: (
+Port = store.Schemas.OfObject(lambda o: (
     o
     .name("Port")
     .ref(True)
@@ -37,7 +37,7 @@ Port = store.Schemas.Object(lambda o: (
 
 # Every collection of reference objects is a relation. uniques("owner"): entries that agree on the port agree on the
 # owner. Within a schema, links and properties are named by string.
-Ownership = store.Schemas.Relation(lambda r: (
+Ownership = store.Schemas.OfRelation(lambda r: (
     r
     .name("Ownership")
     .links([
@@ -46,7 +46,7 @@ Ownership = store.Schemas.Relation(lambda r: (
     ])
     .uniques("owner")
 ))
-Wire = store.Schemas.Relation(lambda r: (
+Wire = store.Schemas.OfRelation(lambda r: (
     r
     .name("Wire")
     .links([
@@ -57,17 +57,17 @@ Wire = store.Schemas.Relation(lambda r: (
 ))
 
 # Each object sees a relation through one of its links (an adjacency); an object and a callback update its schema.
-store.Schemas.Object(Component, lambda o: o.adjacencies([
+store.Schemas.OfObject(Component, lambda o: o.adjacencies([
     lambda t: t.name("ports").relation([Ownership]).me("owner"),
 ]))
-store.Schemas.Object(Port, lambda o: o.adjacencies([
+store.Schemas.OfObject(Port, lambda o: o.adjacencies([
     lambda t: t.name("owner").relation([Ownership]).me("port"),
     lambda t: t.name("fanout").relation([Wire]).me("source"),
     lambda t: t.name("fanin").relation([Wire]).me("target"),
 ]))
 # An object may fill a link its schema declares with no name (an anonymous adjacency): no member, but still checked.
 # A refinement has the members of the schema it refines, and its own; its objects are that schema's objects too.
-Board = store.Schemas.Object(lambda o: (
+Board = store.Schemas.OfObject(lambda o: (
     o
     .name("Board")
     .refines([Component])
@@ -99,15 +99,15 @@ assert Validators.Validate(store).Reachable(Component, copy) == []
 store = Builders.Store()                                    # holds the meta-schemas; isolated from every other store
 Builders.Meta.OfInt                                         # basic scalars, in every store: OfBool, OfInt, OfFloat, OfStr, OfBytes
 w = store.Schemas.Form(lambda f: f.kind("literal").attributes({"value": 32}))  # a literal width, 32
-store.Schemas.Scalar(lambda s: s.format("ccpp").token("int32_t").bits([w]))   # any format's token; a width, a term
-store.Schemas.Object(lambda o: o.name("crm.Contact").ref(True).properties([...]))   # .ref(True): a reference object schema
-store.Schemas.Object(lambda o: o.name("pm.Feature").ref(True).pattern(r"FEA-(\d+\d\d)"))  # objects FEA-001, ...; else UUIDs
-store.Schemas.Object(lambda o: o.properties([lambda t: t.name("x").type([Int])]))  # a value object schema, for a type
+store.Schemas.OfScalar(lambda s: s.format("ccpp").token("int32_t").bits([w]))   # any format's token; a width, a term
+store.Schemas.OfObject(lambda o: o.name("crm.Contact").ref(True).properties([...]))   # .ref(True): a reference object schema
+store.Schemas.OfObject(lambda o: o.name("pm.Feature").ref(True).pattern(r"FEA-(\d+\d\d)"))  # objects FEA-001, ...; else UUIDs
+store.Schemas.OfObject(lambda o: o.properties([lambda t: t.name("x").type([Int])]))  # a value object schema, for a type
 # A schema's members are its entries, each named by its entry: t.name("x"). A reference to another schema object is
 # a list of what it links (.type([T]), .relation([R]), .refines([T])), one item where only one is allowed, which
 # replaces it; a type must exist first. Value properties take their value whole, of exactly their type.
 lambda t: t.name("x").property(existing)                    # link a member that exists, rather than build one
-store.Schemas.Relation(lambda r: (
+store.Schemas.OfRelation(lambda r: (
     r
     .name("crm.Knows")
     .links([
@@ -118,17 +118,17 @@ store.Schemas.Relation(lambda r: (
     .uniques("a")                                           # links and properties named by string, by exception
 ))
 .uniques(["a", "b"]); .uniques([["a"], ["b", "since"]]); .uniques([])   # one clause of two; two clauses; a set
-store.Schemas.Object(Person, lambda o: o.adjacencies([      # update: add adjacencies once the relations exist
+store.Schemas.OfObject(Person, lambda o: o.adjacencies([      # update: add adjacencies once the relations exist
     lambda t: t.name("knows").relation([Knows]).me("a"),    # me: the link this object fills, by name
     lambda t: t.relation([Knows]).me("b"),                  # anonymous: no name, no member, still checked
 ]))
-store.Schemas.Object(lambda o: o.name("Board").refines([Component]))   # a refinement: the members of what it refines
-store.Schemas.Union(lambda u: u.branches([lambda t: t.name("phone").type([Phone]), ...]))
-store.Schemas.Intersection(lambda i: i.parts([lambda t: t.name("stamp").type([Stamp]), ...]))
-store.Schemas.Container(lambda c: c.index([Int]).element([Text]))   # a list: a container by position, a property's type
-store.Schemas.Container(lambda c: c.index([Cell]).element([Float]).layout("sparse"))  # a tensor by a value object of ints
+store.Schemas.OfObject(lambda o: o.name("Board").refines([Component]))   # a refinement: the members of what it refines
+store.Schemas.OfUnion(lambda u: u.branches([lambda t: t.name("phone").type([Phone]), ...]))
+store.Schemas.OfIntersection(lambda i: i.parts([lambda t: t.name("stamp").type([Stamp]), ...]))
+store.Schemas.OfContainer(lambda c: c.index([Int]).element([Text]))   # a list: a container by position, a property's type
+store.Schemas.OfContainer(lambda c: c.index([Cell]).element([Float]).layout("sparse"))  # a tensor by a value object of ints
 obj.tags.as_value(lambda v: v.as_container(lambda c: c.at(0)))  # elements by index, each a Visitors.OfAny
-store.Schemas.Any(lambda a: a.types([Int, Phone]))          # a value of any of these types, written bare; none: any type
+store.Schemas.OfAny(lambda a: a.types([Int, Phone]))          # a value of any of these types, written bare; none: any type
 store.Phone(lambda p: p.number("1"))                        # a standalone value, assigned to an unrestricted OfAny, tagged
 schema.validate()                                           # the schema's own problems, [] when valid
 
@@ -136,9 +136,9 @@ schema.validate()                                           # the schema's own p
 .description("A person we know")                            # documentation, on a schema or a member: property, adjacency,
 schema.properties["home"].type                              # branch or part; a property is an element, its type inside
 .parameters([lambda t: t.name("n").type([Int])])            # parameters, on any kind of schema
-store.Schemas.Apply(lambda a: a.of([Matrix]).arguments(lambda adv: adv.insert(  # a parametric schema applied: each
+store.Schemas.OfApply(lambda a: a.of([Matrix]).arguments(lambda adv: adv.insert(  # a parametric schema applied: each
     lambda e: e.argument(lambda x: x.parameter([Matrix.parameters["rows"]]).value(2)))))  # argument binds a parameter
-store.Schemas.Predicate(lambda p: p.symbols([lambda t: t.name("p").type([Person])]).requires([term]))  # one term
+store.Schemas.OfPredicate(lambda p: p.symbols([lambda t: t.name("p").type([Person])]).requires([term]))  # one term
 .bits([store.Schemas.Form(lambda f: f.kind("variable").attributes({"name": "n"}))])   # a term where a width stands
 Validators.Check(store)(schema, obj).holds                  # True or False: since extents went, nothing it checks is unknown
 S.equivalent(a, b, evaluate)                                # the same after substitution: Square(4) is Matrix(4, 4)
@@ -173,9 +173,9 @@ store.by_identity("Feature", "FEA-001")                     # the live object of
 Proxies.owner_of(value_object)                              # the object a value object belongs to
 
 # Schemas as data: designing, extending, versioning and generating them is schemas.md.
-store.Schemas.Object(Contact, lambda o: o.properties([...]))      # extend a schema in place, as data is updated
+store.Schemas.OfObject(Contact, lambda o: o.properties([...]))      # extend a schema in place, as data is updated
 store.module("crm").schemas                                 # a module's schemas by name: every named schema is in one
-store.Schemas.Union(lambda u: u.name("Code").flat(True).branches([...]))   # flat: card.code is the branch's value
+store.Schemas.OfUnion(lambda u: u.name("Code").flat(True).branches([...]))   # flat: card.code is the branch's value
 Stores.Combined(one, other)                                 # stores as one, each name its store's
 
 # Everything else works for any schema.
@@ -205,7 +205,7 @@ ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromD
   never `.type(Text)`. It links schemas that exist, so build a container or value object schema before the property
   typed by it.
 - In its store, a named schema's identity is its name, and the store refuses a second schema object with an identity
-  it holds: `store.Schemas.Object(Contact)` cannot clone a named schema. Clone it under a new name with a builder in
+  it holds: `store.Schemas.OfObject(Contact)` cannot clone a named schema. Clone it under a new name with a builder in
   the store: `Builders.OfObject.Builder(Contact, store=store).name("crm.Contact.v2").clone()`.
 - A store links only the schema objects it holds: build schemas, forms and members in the store that links them, and
   link the basic scalars as `Builders.Meta.OfInt` and so on, never `S.OfScalar.Data(int)`. An object of one store

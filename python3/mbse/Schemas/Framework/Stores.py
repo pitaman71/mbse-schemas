@@ -189,18 +189,27 @@ class Catalog:
                 and schema.fills(relation, link)]
 
 
+def _built_in(store: Any, name: str) -> bool:
+    """Whether `store` registers `name` for a schema it was made holding (a `Builders.Store`'s own built-ins)."""
+    framework = getattr(store, "framework", None)
+    return framework is not None and framework(store.registered(name))
+
+
 class Combined:
     """Stores combined into one: each name belongs to the one store that registers it, which gives its schema, builds its
     objects and reads their members; the singletons are all of theirs, and an extent is the owning store's and what
     every store's singletons reach. A name that two of the stores register for different schemas is refused; one
-    they register for the same schema (as every store of proxies registers the meta-schemas) is the first's."""
+    they register for the same schema, or each for a schema it was made holding (its `Schemas.OfInt`, ...), is the
+    first's."""
 
     def __init__(self, *stores: Any):
         self.stores = stores
         self._owners: dict[str, Any] = {}
         for store in stores:
             for name in store.names():
-                if name in self._owners and self._owners[name].registered(name) is not store.registered(name):
+                owner = self._owners.get(name)
+                if owner is not None and owner.registered(name) is not store.registered(name) and not (
+                        _built_in(owner, name) and _built_in(store, name)):
                     raise ValueError(f"schema {name!r} is registered by two of the stores")
                 self._owners.setdefault(name, store)
 
@@ -211,6 +220,10 @@ class Combined:
 
     def schema(self, name: str) -> Schemas.OfObject.Data:
         return self._owner(name, AttributeError).schema(name)
+
+    def framework(self, schema: Any) -> bool:
+        """Whether one of the stores was made holding `schema`."""
+        return any(getattr(store, "framework", lambda _: False)(schema) for store in self.stores)
 
     def registered(self, name: str) -> Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data:
         return self._owner(name, LookupError).registered(name)

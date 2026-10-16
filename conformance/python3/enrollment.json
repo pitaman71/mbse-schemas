@@ -2,7 +2,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Module/.",
+        "key": "Schemas.OfModule/.",
         "properties": {}
       }
     }
@@ -10,7 +10,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Object/Student",
+        "key": "Schemas.OfObject/Student",
         "properties": {
           "name": "Student",
           "ref": true,
@@ -22,7 +22,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Adjacency/Student.enrollments",
+        "key": "Schemas.OfAdjacency/Student.enrollments",
         "properties": {
           "me": "student"
         }
@@ -32,7 +32,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Property/Student.name",
+        "key": "Schemas.OfProperty/Student.name",
         "properties": {}
       }
     }
@@ -40,7 +40,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.Typing"
       },
       "entries": [
         {
@@ -52,7 +52,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Student.name"
+                        "key": "Schemas.OfProperty/Student.name"
                       }
                     }
                   }
@@ -66,7 +66,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Scalar/Schemas.OfStr"
+                        "key": "Schemas.OfScalar/Schemas.OfStr"
                       }
                     }
                   }
@@ -81,7 +81,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.HasProperty"
+        "key": "Schemas.OfRelation/Schemas.HasProperty"
       },
       "entries": [
         {
@@ -93,7 +93,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Student"
+                        "key": "Schemas.OfObject/Student"
                       }
                     }
                   }
@@ -107,7 +107,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Student.name"
+                        "key": "Schemas.OfProperty/Student.name"
                       }
                     }
                   }
@@ -134,7 +134,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.HasAdjacency"
+        "key": "Schemas.OfRelation/Schemas.HasAdjacency"
       },
       "entries": [
         {
@@ -146,7 +146,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Student"
+                        "key": "Schemas.OfObject/Student"
                       }
                     }
                   }
@@ -160,7 +160,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Adjacency/Student.enrollments"
+                        "key": "Schemas.OfAdjacency/Student.enrollments"
                       }
                     }
                   }
@@ -187,7 +187,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Defines"
+        "key": "Schemas.OfRelation/Schemas.Defines"
       },
       "entries": [
         {
@@ -199,7 +199,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Module/."
+                        "key": "Schemas.OfModule/."
                       }
                     }
                   }
@@ -213,7 +213,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Student"
+                        "key": "Schemas.OfObject/Student"
                       }
                     }
                   }
@@ -240,7 +240,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Object/Course",
+        "key": "Schemas.OfObject/Course",
         "properties": {
           "name": "Course",
           "ref": true,
@@ -252,7 +252,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Adjacency/Course.enrollments",
+        "key": "Schemas.OfAdjacency/Course.enrollments",
         "properties": {
           "me": "course"
         }
@@ -262,7 +262,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Property/Course.code",
+        "key": "Schemas.OfProperty/Course.code",
         "properties": {}
       }
     }
@@ -270,7 +270,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.Typing"
       },
       "entries": [
         {
@@ -282,7 +282,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Course.code"
+                        "key": "Schemas.OfProperty/Course.code"
                       }
                     }
                   }
@@ -296,7 +296,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Scalar/Schemas.OfStr"
+                        "key": "Schemas.OfScalar/Schemas.OfStr"
                       }
                     }
                   }
@@ -311,7 +311,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.HasProperty"
+        "key": "Schemas.OfRelation/Schemas.HasProperty"
       },
       "entries": [
         {
@@ -323,7 +323,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Course"
+                        "key": "Schemas.OfObject/Course"
                       }
                     }
                   }
@@ -337,7 +337,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Course.code"
+                        "key": "Schemas.OfProperty/Course.code"
                       }
                     }
                   }
@@ -364,7 +364,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.HasAdjacency"
+        "key": "Schemas.OfRelation/Schemas.HasAdjacency"
       },
       "entries": [
         {
@@ -376,7 +376,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Course"
+                        "key": "Schemas.OfObject/Course"
                       }
                     }
                   }
@@ -390,7 +390,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Adjacency/Course.enrollments"
+                        "key": "Schemas.OfAdjacency/Course.enrollments"
                       }
                     }
                   }
@@ -417,7 +417,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Defines"
+        "key": "Schemas.OfRelation/Schemas.Defines"
       },
       "entries": [
         {
@@ -429,7 +429,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Module/."
+                        "key": "Schemas.OfModule/."
                       }
                     }
                   }
@@ -443,7 +443,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Course"
+                        "key": "Schemas.OfObject/Course"
                       }
                     }
                   }
@@ -470,7 +470,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Object/Term",
+        "key": "Schemas.OfObject/Term",
         "properties": {
           "name": "Term",
           "ref": true,
@@ -482,7 +482,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Adjacency/Term.enrollments",
+        "key": "Schemas.OfAdjacency/Term.enrollments",
         "properties": {
           "me": "term"
         }
@@ -492,7 +492,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Property/Term.code",
+        "key": "Schemas.OfProperty/Term.code",
         "properties": {}
       }
     }
@@ -500,7 +500,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.Typing"
       },
       "entries": [
         {
@@ -512,7 +512,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Term.code"
+                        "key": "Schemas.OfProperty/Term.code"
                       }
                     }
                   }
@@ -526,7 +526,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Scalar/Schemas.OfStr"
+                        "key": "Schemas.OfScalar/Schemas.OfStr"
                       }
                     }
                   }
@@ -541,7 +541,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Property/Term.starts",
+        "key": "Schemas.OfProperty/Term.starts",
         "properties": {}
       }
     }
@@ -549,7 +549,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.Typing"
       },
       "entries": [
         {
@@ -561,7 +561,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Term.starts"
+                        "key": "Schemas.OfProperty/Term.starts"
                       }
                     }
                   }
@@ -575,7 +575,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Scalar/Schemas.OfStr"
+                        "key": "Schemas.OfScalar/Schemas.OfStr"
                       }
                     }
                   }
@@ -590,7 +590,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.HasProperty"
+        "key": "Schemas.OfRelation/Schemas.HasProperty"
       },
       "entries": [
         {
@@ -602,7 +602,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Term"
+                        "key": "Schemas.OfObject/Term"
                       }
                     }
                   }
@@ -616,7 +616,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Term.code"
+                        "key": "Schemas.OfProperty/Term.code"
                       }
                     }
                   }
@@ -646,7 +646,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Term"
+                        "key": "Schemas.OfObject/Term"
                       }
                     }
                   }
@@ -660,7 +660,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Term.starts"
+                        "key": "Schemas.OfProperty/Term.starts"
                       }
                     }
                   }
@@ -687,7 +687,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.HasAdjacency"
+        "key": "Schemas.OfRelation/Schemas.HasAdjacency"
       },
       "entries": [
         {
@@ -699,7 +699,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Term"
+                        "key": "Schemas.OfObject/Term"
                       }
                     }
                   }
@@ -713,7 +713,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Adjacency/Term.enrollments"
+                        "key": "Schemas.OfAdjacency/Term.enrollments"
                       }
                     }
                   }
@@ -740,7 +740,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Defines"
+        "key": "Schemas.OfRelation/Schemas.Defines"
       },
       "entries": [
         {
@@ -752,7 +752,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Module/."
+                        "key": "Schemas.OfModule/."
                       }
                     }
                   }
@@ -766,7 +766,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Term"
+                        "key": "Schemas.OfObject/Term"
                       }
                     }
                   }
@@ -793,7 +793,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Relation/Enrollment",
+        "key": "Schemas.OfRelation/Enrollment",
         "properties": {
           "name": "Enrollment"
         }
@@ -803,7 +803,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Symbol/Enrollment.student",
+        "key": "Schemas.OfSymbol/Enrollment.student",
         "properties": {}
       }
     }
@@ -811,7 +811,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Symbol/Enrollment.course",
+        "key": "Schemas.OfSymbol/Enrollment.course",
         "properties": {}
       }
     }
@@ -819,7 +819,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Symbol/Enrollment.term",
+        "key": "Schemas.OfSymbol/Enrollment.term",
         "properties": {}
       }
     }
@@ -827,7 +827,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Property/Enrollment.credits",
+        "key": "Schemas.OfProperty/Enrollment.credits",
         "properties": {}
       }
     }
@@ -835,7 +835,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.Typing"
       },
       "entries": [
         {
@@ -847,7 +847,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Enrollment.credits"
+                        "key": "Schemas.OfProperty/Enrollment.credits"
                       }
                     }
                   }
@@ -861,7 +861,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Scalar/Schemas.OfInt"
+                        "key": "Schemas.OfScalar/Schemas.OfInt"
                       }
                     }
                   }
@@ -876,7 +876,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Property/Enrollment.score",
+        "key": "Schemas.OfProperty/Enrollment.score",
         "properties": {}
       }
     }
@@ -884,7 +884,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.Typing"
       },
       "entries": [
         {
@@ -896,7 +896,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Enrollment.score"
+                        "key": "Schemas.OfProperty/Enrollment.score"
                       }
                     }
                   }
@@ -910,7 +910,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Scalar/Schemas.OfFloat"
+                        "key": "Schemas.OfScalar/Schemas.OfFloat"
                       }
                     }
                   }
@@ -925,7 +925,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Property/Enrollment.audit",
+        "key": "Schemas.OfProperty/Enrollment.audit",
         "properties": {}
       }
     }
@@ -933,7 +933,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.Typing"
       },
       "entries": [
         {
@@ -945,7 +945,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Enrollment.audit"
+                        "key": "Schemas.OfProperty/Enrollment.audit"
                       }
                     }
                   }
@@ -959,7 +959,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Scalar/Schemas.OfBool"
+                        "key": "Schemas.OfScalar/Schemas.OfBool"
                       }
                     }
                   }
@@ -974,7 +974,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.HasProperty"
+        "key": "Schemas.OfRelation/Schemas.HasProperty"
       },
       "entries": [
         {
@@ -986,7 +986,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Relation/Enrollment"
+                        "key": "Schemas.OfRelation/Enrollment"
                       }
                     }
                   }
@@ -1000,7 +1000,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Enrollment.credits"
+                        "key": "Schemas.OfProperty/Enrollment.credits"
                       }
                     }
                   }
@@ -1030,7 +1030,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Relation/Enrollment"
+                        "key": "Schemas.OfRelation/Enrollment"
                       }
                     }
                   }
@@ -1044,7 +1044,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Enrollment.score"
+                        "key": "Schemas.OfProperty/Enrollment.score"
                       }
                     }
                   }
@@ -1074,7 +1074,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Relation/Enrollment"
+                        "key": "Schemas.OfRelation/Enrollment"
                       }
                     }
                   }
@@ -1088,7 +1088,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Enrollment.audit"
+                        "key": "Schemas.OfProperty/Enrollment.audit"
                       }
                     }
                   }
@@ -1115,7 +1115,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.HasLink"
+        "key": "Schemas.OfRelation/Schemas.HasLink"
       },
       "entries": [
         {
@@ -1127,7 +1127,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Relation/Enrollment"
+                        "key": "Schemas.OfRelation/Enrollment"
                       }
                     }
                   }
@@ -1141,7 +1141,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Symbol/Enrollment.student"
+                        "key": "Schemas.OfSymbol/Enrollment.student"
                       }
                     }
                   }
@@ -1171,7 +1171,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Relation/Enrollment"
+                        "key": "Schemas.OfRelation/Enrollment"
                       }
                     }
                   }
@@ -1185,7 +1185,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Symbol/Enrollment.course"
+                        "key": "Schemas.OfSymbol/Enrollment.course"
                       }
                     }
                   }
@@ -1215,7 +1215,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Relation/Enrollment"
+                        "key": "Schemas.OfRelation/Enrollment"
                       }
                     }
                   }
@@ -1229,7 +1229,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Symbol/Enrollment.term"
+                        "key": "Schemas.OfSymbol/Enrollment.term"
                       }
                     }
                   }
@@ -1256,7 +1256,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Relating"
+        "key": "Schemas.OfRelation/Schemas.Relating"
       },
       "entries": [
         {
@@ -1268,7 +1268,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Adjacency/Term.enrollments"
+                        "key": "Schemas.OfAdjacency/Term.enrollments"
                       }
                     }
                   }
@@ -1282,7 +1282,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Relation/Enrollment"
+                        "key": "Schemas.OfRelation/Enrollment"
                       }
                     }
                   }
@@ -1300,7 +1300,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Adjacency/Course.enrollments"
+                        "key": "Schemas.OfAdjacency/Course.enrollments"
                       }
                     }
                   }
@@ -1314,7 +1314,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Relation/Enrollment"
+                        "key": "Schemas.OfRelation/Enrollment"
                       }
                     }
                   }
@@ -1332,7 +1332,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Adjacency/Student.enrollments"
+                        "key": "Schemas.OfAdjacency/Student.enrollments"
                       }
                     }
                   }
@@ -1346,7 +1346,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Relation/Enrollment"
+                        "key": "Schemas.OfRelation/Enrollment"
                       }
                     }
                   }
@@ -1361,7 +1361,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Defines"
+        "key": "Schemas.OfRelation/Schemas.Defines"
       },
       "entries": [
         {
@@ -1373,7 +1373,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Module/."
+                        "key": "Schemas.OfModule/."
                       }
                     }
                   }
@@ -1387,7 +1387,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Relation/Enrollment"
+                        "key": "Schemas.OfRelation/Enrollment"
                       }
                     }
                   }
@@ -1455,7 +1455,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Enrollment"
+        "key": "Schemas.OfRelation/Enrollment"
       },
       "entries": [
         {
@@ -1626,7 +1626,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Enrollment"
+        "key": "Schemas.OfRelation/Enrollment"
       },
       "entries": [
         {

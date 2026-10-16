@@ -1,26 +1,26 @@
 - exists:
     definition:
-      key: Schemas.Module/.
+      key: Schemas.OfModule/.
       properties: {}
 - exists:
     definition:
-      key: Schemas.Object/Card
+      key: Schemas.OfObject/Card
       properties:
         name: Card
         ref: true
         pattern: card-(\d+)
 - exists:
     definition:
-      key: Schemas.Adjacency/Card.decks
+      key: Schemas.OfAdjacency/Card.decks
       properties:
         me: card
 - exists:
     definition:
-      key: Schemas.Property/Card.name
+      key: Schemas.OfProperty/Card.name
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -28,29 +28,29 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.name
+                key: Schemas.OfProperty/Card.name
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - exists:
     definition:
-      key: Schemas.Property/Card.home
+      key: Schemas.OfProperty/Card.home
       properties: {}
 - exists:
     definition:
-      key: Schemas.Object/Card.home#type
+      key: Schemas.OfObject/Card.home#type
       properties:
         ref: false
 - exists:
     definition:
-      key: Schemas.Property/Card.home#type.number
+      key: Schemas.OfProperty/Card.home#type.number
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -58,20 +58,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.home#type.number
+                key: Schemas.OfProperty/Card.home#type.number
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - exists:
     definition:
-      key: Schemas.Property/Card.home#type.label
+      key: Schemas.OfProperty/Card.home#type.label
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -79,24 +79,24 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.home#type.label
+                key: Schemas.OfProperty/Card.home#type.label
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - exists:
     definition:
-      key: Schemas.Property/Card.home#type.extensions
+      key: Schemas.OfProperty/Card.home#type.extensions
       properties: {}
 - exists:
     definition:
-      key: Schemas.Container/Card.home#type.extensions#type
+      key: Schemas.OfContainer/Card.home#type.extensions#type
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Containing
+      key: Schemas.OfRelation/Schemas.Containing
     entries:
     - mutations:
       - as_link:
@@ -104,16 +104,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Container/Card.home#type.extensions#type
+                key: Schemas.OfContainer/Card.home#type.extensions#type
       - as_link:
           name: element
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Indexing
+      key: Schemas.OfRelation/Schemas.Indexing
     entries:
     - mutations:
       - as_link:
@@ -121,16 +121,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Container/Card.home#type.extensions#type
+                key: Schemas.OfContainer/Card.home#type.extensions#type
       - as_link:
           name: index
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfInt
+                key: Schemas.OfScalar/Schemas.OfInt
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -138,16 +138,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.home#type.extensions
+                key: Schemas.OfProperty/Card.home#type.extensions
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Container/Card.home#type.extensions#type
+                key: Schemas.OfContainer/Card.home#type.extensions#type
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -155,13 +155,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card.home#type
+                key: Schemas.OfObject/Card.home#type
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.home#type.number
+                key: Schemas.OfProperty/Card.home#type.number
       - as_property:
           name: name
           mutations:
@@ -173,13 +173,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card.home#type
+                key: Schemas.OfObject/Card.home#type
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.home#type.label
+                key: Schemas.OfProperty/Card.home#type.label
       - as_property:
           name: name
           mutations:
@@ -191,13 +191,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card.home#type
+                key: Schemas.OfObject/Card.home#type
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.home#type.extensions
+                key: Schemas.OfProperty/Card.home#type.extensions
       - as_property:
           name: name
           mutations:
@@ -205,7 +205,7 @@
               value: extensions
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -213,20 +213,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.home
+                key: Schemas.OfProperty/Card.home
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card.home#type
+                key: Schemas.OfObject/Card.home#type
 - exists:
     definition:
-      key: Schemas.Property/Card.reach
+      key: Schemas.OfProperty/Card.reach
       properties: {}
 - exists:
     definition:
-      key: Schemas.Union/Card.reach#type
+      key: Schemas.OfUnion/Card.reach#type
       properties:
         flat: false
 - exists:
@@ -235,7 +235,7 @@
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -249,23 +249,23 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card.home#type
+                key: Schemas.OfObject/Card.home#type
 - exists:
     definition:
       key: Schemas.Member/Card.reach#type.email
       properties: {}
 - exists:
     definition:
-      key: Schemas.Object/Card.reach#type.email#type
+      key: Schemas.OfObject/Card.reach#type.email#type
       properties:
         ref: false
 - exists:
     definition:
-      key: Schemas.Property/Card.reach#type.email#type.address
+      key: Schemas.OfProperty/Card.reach#type.email#type.address
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -273,16 +273,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.reach#type.email#type.address
+                key: Schemas.OfProperty/Card.reach#type.email#type.address
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -290,13 +290,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card.reach#type.email#type
+                key: Schemas.OfObject/Card.reach#type.email#type
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.reach#type.email#type.address
+                key: Schemas.OfProperty/Card.reach#type.email#type.address
       - as_property:
           name: name
           mutations:
@@ -304,7 +304,7 @@
               value: address
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -318,10 +318,10 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card.reach#type.email#type
+                key: Schemas.OfObject/Card.reach#type.email#type
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasBranch
+      key: Schemas.OfRelation/Schemas.HasBranch
     entries:
     - mutations:
       - as_link:
@@ -329,7 +329,7 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Union/Card.reach#type
+                key: Schemas.OfUnion/Card.reach#type
       - as_link:
           name: branch
           mutations:
@@ -347,7 +347,7 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Union/Card.reach#type
+                key: Schemas.OfUnion/Card.reach#type
       - as_link:
           name: branch
           mutations:
@@ -361,7 +361,7 @@
               value: email
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -369,20 +369,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.reach
+                key: Schemas.OfProperty/Card.reach
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Union/Card.reach#type
+                key: Schemas.OfUnion/Card.reach#type
 - exists:
     definition:
-      key: Schemas.Property/Card.ident
+      key: Schemas.OfProperty/Card.ident
       properties: {}
 - exists:
     definition:
-      key: Schemas.Union/Card.ident#type
+      key: Schemas.OfUnion/Card.ident#type
       properties:
         flat: false
 - exists:
@@ -391,7 +391,7 @@
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -405,14 +405,14 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfInt
+                key: Schemas.OfScalar/Schemas.OfInt
 - exists:
     definition:
       key: Schemas.Member/Card.ident#type.code
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -426,10 +426,10 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasBranch
+      key: Schemas.OfRelation/Schemas.HasBranch
     entries:
     - mutations:
       - as_link:
@@ -437,7 +437,7 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Union/Card.ident#type
+                key: Schemas.OfUnion/Card.ident#type
       - as_link:
           name: branch
           mutations:
@@ -455,7 +455,7 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Union/Card.ident#type
+                key: Schemas.OfUnion/Card.ident#type
       - as_link:
           name: branch
           mutations:
@@ -469,7 +469,7 @@
               value: code
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -477,20 +477,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.ident
+                key: Schemas.OfProperty/Card.ident
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Union/Card.ident#type
+                key: Schemas.OfUnion/Card.ident#type
 - exists:
     definition:
-      key: Schemas.Property/Card.meta
+      key: Schemas.OfProperty/Card.meta
       properties: {}
 - exists:
     definition:
-      key: Schemas.Intersection/Card.meta#type
+      key: Schemas.OfIntersection/Card.meta#type
       properties:
         flat: false
 - exists:
@@ -499,16 +499,16 @@
       properties: {}
 - exists:
     definition:
-      key: Schemas.Object/Card.meta#type.stamp#type
+      key: Schemas.OfObject/Card.meta#type.stamp#type
       properties:
         ref: false
 - exists:
     definition:
-      key: Schemas.Property/Card.meta#type.stamp#type.updated
+      key: Schemas.OfProperty/Card.meta#type.stamp#type.updated
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -516,16 +516,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.meta#type.stamp#type.updated
+                key: Schemas.OfProperty/Card.meta#type.stamp#type.updated
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -533,13 +533,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card.meta#type.stamp#type
+                key: Schemas.OfObject/Card.meta#type.stamp#type
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.meta#type.stamp#type.updated
+                key: Schemas.OfProperty/Card.meta#type.stamp#type.updated
       - as_property:
           name: name
           mutations:
@@ -547,7 +547,7 @@
               value: updated
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -561,23 +561,23 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card.meta#type.stamp#type
+                key: Schemas.OfObject/Card.meta#type.stamp#type
 - exists:
     definition:
       key: Schemas.Member/Card.meta#type.audit
       properties: {}
 - exists:
     definition:
-      key: Schemas.Object/Card.meta#type.audit#type
+      key: Schemas.OfObject/Card.meta#type.audit#type
       properties:
         ref: false
 - exists:
     definition:
-      key: Schemas.Property/Card.meta#type.audit#type.by
+      key: Schemas.OfProperty/Card.meta#type.audit#type.by
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -585,20 +585,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.meta#type.audit#type.by
+                key: Schemas.OfProperty/Card.meta#type.audit#type.by
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - exists:
     definition:
-      key: Schemas.Property/Card.meta#type.audit#type.updated
+      key: Schemas.OfProperty/Card.meta#type.audit#type.updated
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -606,16 +606,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.meta#type.audit#type.updated
+                key: Schemas.OfProperty/Card.meta#type.audit#type.updated
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -623,13 +623,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card.meta#type.audit#type
+                key: Schemas.OfObject/Card.meta#type.audit#type
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.meta#type.audit#type.by
+                key: Schemas.OfProperty/Card.meta#type.audit#type.by
       - as_property:
           name: name
           mutations:
@@ -641,13 +641,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card.meta#type.audit#type
+                key: Schemas.OfObject/Card.meta#type.audit#type
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.meta#type.audit#type.updated
+                key: Schemas.OfProperty/Card.meta#type.audit#type.updated
       - as_property:
           name: name
           mutations:
@@ -655,7 +655,7 @@
               value: updated
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -669,10 +669,10 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card.meta#type.audit#type
+                key: Schemas.OfObject/Card.meta#type.audit#type
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasPart
+      key: Schemas.OfRelation/Schemas.HasPart
     entries:
     - mutations:
       - as_link:
@@ -680,7 +680,7 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Intersection/Card.meta#type
+                key: Schemas.OfIntersection/Card.meta#type
       - as_link:
           name: part
           mutations:
@@ -698,7 +698,7 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Intersection/Card.meta#type
+                key: Schemas.OfIntersection/Card.meta#type
       - as_link:
           name: part
           mutations:
@@ -712,7 +712,7 @@
               value: audit
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -720,16 +720,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.meta
+                key: Schemas.OfProperty/Card.meta
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Intersection/Card.meta#type
+                key: Schemas.OfIntersection/Card.meta#type
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -737,13 +737,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card
+                key: Schemas.OfObject/Card
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.name
+                key: Schemas.OfProperty/Card.name
       - as_property:
           name: name
           mutations:
@@ -755,13 +755,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card
+                key: Schemas.OfObject/Card
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.home
+                key: Schemas.OfProperty/Card.home
       - as_property:
           name: name
           mutations:
@@ -773,13 +773,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card
+                key: Schemas.OfObject/Card
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.reach
+                key: Schemas.OfProperty/Card.reach
       - as_property:
           name: name
           mutations:
@@ -791,13 +791,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card
+                key: Schemas.OfObject/Card
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.ident
+                key: Schemas.OfProperty/Card.ident
       - as_property:
           name: name
           mutations:
@@ -809,13 +809,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card
+                key: Schemas.OfObject/Card
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Card.meta
+                key: Schemas.OfProperty/Card.meta
       - as_property:
           name: name
           mutations:
@@ -823,7 +823,7 @@
               value: meta
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasAdjacency
+      key: Schemas.OfRelation/Schemas.HasAdjacency
     entries:
     - mutations:
       - as_link:
@@ -831,13 +831,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card
+                key: Schemas.OfObject/Card
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Card.decks
+                key: Schemas.OfAdjacency/Card.decks
       - as_property:
           name: name
           mutations:
@@ -845,7 +845,7 @@
               value: decks
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -853,13 +853,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Card
+                key: Schemas.OfObject/Card
       - as_property:
           name: name
           mutations:
@@ -867,20 +867,20 @@
               value: Card
 - exists:
     definition:
-      key: Schemas.Relation/Holding
+      key: Schemas.OfRelation/Holding
       properties:
         name: Holding
 - exists:
     definition:
-      key: Schemas.Symbol/Holding.deck
+      key: Schemas.OfSymbol/Holding.deck
       properties: {}
 - exists:
     definition:
-      key: Schemas.Symbol/Holding.card
+      key: Schemas.OfSymbol/Holding.card
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasLink
+      key: Schemas.OfRelation/Schemas.HasLink
     entries:
     - mutations:
       - as_link:
@@ -888,13 +888,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Holding
+                key: Schemas.OfRelation/Holding
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/Holding.deck
+                key: Schemas.OfSymbol/Holding.deck
       - as_property:
           name: name
           mutations:
@@ -906,13 +906,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Holding
+                key: Schemas.OfRelation/Holding
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/Holding.card
+                key: Schemas.OfSymbol/Holding.card
       - as_property:
           name: name
           mutations:
@@ -920,7 +920,7 @@
               value: card
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Relating
+      key: Schemas.OfRelation/Schemas.Relating
     entries:
     - mutations:
       - as_link:
@@ -928,16 +928,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Card.decks
+                key: Schemas.OfAdjacency/Card.decks
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Holding
+                key: Schemas.OfRelation/Holding
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -945,13 +945,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Holding
+                key: Schemas.OfRelation/Holding
       - as_property:
           name: name
           mutations:
@@ -959,19 +959,19 @@
               value: Holding
 - exists:
     definition:
-      key: Schemas.Object/Deck
+      key: Schemas.OfObject/Deck
       properties:
         name: Deck
         ref: true
         pattern: deck-(\d+)
 - exists:
     definition:
-      key: Schemas.Adjacency/Deck.cards
+      key: Schemas.OfAdjacency/Deck.cards
       properties:
         me: deck
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Relating
+      key: Schemas.OfRelation/Schemas.Relating
     entries:
     - mutations:
       - as_link:
@@ -979,20 +979,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Deck.cards
+                key: Schemas.OfAdjacency/Deck.cards
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Holding
+                key: Schemas.OfRelation/Holding
 - exists:
     definition:
-      key: Schemas.Property/Deck.title
+      key: Schemas.OfProperty/Deck.title
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -1000,16 +1000,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Deck.title
+                key: Schemas.OfProperty/Deck.title
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -1017,13 +1017,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Deck
+                key: Schemas.OfObject/Deck
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Deck.title
+                key: Schemas.OfProperty/Deck.title
       - as_property:
           name: name
           mutations:
@@ -1031,7 +1031,7 @@
               value: title
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasAdjacency
+      key: Schemas.OfRelation/Schemas.HasAdjacency
     entries:
     - mutations:
       - as_link:
@@ -1039,13 +1039,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Deck
+                key: Schemas.OfObject/Deck
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Deck.cards
+                key: Schemas.OfAdjacency/Deck.cards
       - as_property:
           name: name
           mutations:
@@ -1053,7 +1053,7 @@
               value: cards
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -1061,13 +1061,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Deck
+                key: Schemas.OfObject/Deck
       - as_property:
           name: name
           mutations:
@@ -1095,7 +1095,7 @@
           number: 7
 - insert:
     relation:
-      key: Schemas.Relation/Holding
+      key: Schemas.OfRelation/Holding
     entries:
     - mutations:
       - as_link:
@@ -1128,7 +1128,7 @@
             updated: '2026-09-29'
 - insert:
     relation:
-      key: Schemas.Relation/Holding
+      key: Schemas.OfRelation/Holding
     entries:
     - mutations:
       - as_link:
@@ -1150,7 +1150,7 @@
         name: Cy
 - insert:
     relation:
-      key: Schemas.Relation/Holding
+      key: Schemas.OfRelation/Holding
     entries:
     - mutations:
       - as_link:

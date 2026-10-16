@@ -1,31 +1,31 @@
 - exists:
     definition:
-      key: Schemas.Module/.
+      key: Schemas.OfModule/.
       properties: {}
 - exists:
     definition:
-      key: Schemas.Object/Contact
+      key: Schemas.OfObject/Contact
       properties:
         name: Contact
         ref: true
         pattern: contact-(\d+)
 - exists:
     definition:
-      key: Schemas.Adjacency/Contact.addresses
+      key: Schemas.OfAdjacency/Contact.addresses
       properties:
         me: contact
 - exists:
     definition:
-      key: Schemas.Adjacency/Contact.phones
+      key: Schemas.OfAdjacency/Contact.phones
       properties:
         me: contact
 - exists:
     definition:
-      key: Schemas.Property/Contact.given_name
+      key: Schemas.OfProperty/Contact.given_name
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -33,20 +33,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Contact.given_name
+                key: Schemas.OfProperty/Contact.given_name
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - exists:
     definition:
-      key: Schemas.Property/Contact.family_name
+      key: Schemas.OfProperty/Contact.family_name
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -54,20 +54,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Contact.family_name
+                key: Schemas.OfProperty/Contact.family_name
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - exists:
     definition:
-      key: Schemas.Property/Contact.birth_date
+      key: Schemas.OfProperty/Contact.birth_date
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -75,16 +75,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Contact.birth_date
+                key: Schemas.OfProperty/Contact.birth_date
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -92,13 +92,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Contact
+                key: Schemas.OfObject/Contact
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Contact.given_name
+                key: Schemas.OfProperty/Contact.given_name
       - as_property:
           name: name
           mutations:
@@ -110,13 +110,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Contact
+                key: Schemas.OfObject/Contact
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Contact.family_name
+                key: Schemas.OfProperty/Contact.family_name
       - as_property:
           name: name
           mutations:
@@ -128,13 +128,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Contact
+                key: Schemas.OfObject/Contact
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Contact.birth_date
+                key: Schemas.OfProperty/Contact.birth_date
       - as_property:
           name: name
           mutations:
@@ -142,7 +142,7 @@
               value: birth_date
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasAdjacency
+      key: Schemas.OfRelation/Schemas.HasAdjacency
     entries:
     - mutations:
       - as_link:
@@ -150,13 +150,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Contact
+                key: Schemas.OfObject/Contact
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Contact.addresses
+                key: Schemas.OfAdjacency/Contact.addresses
       - as_property:
           name: name
           mutations:
@@ -168,13 +168,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Contact
+                key: Schemas.OfObject/Contact
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Contact.phones
+                key: Schemas.OfAdjacency/Contact.phones
       - as_property:
           name: name
           mutations:
@@ -182,7 +182,7 @@
               value: phones
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -190,13 +190,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Contact
+                key: Schemas.OfObject/Contact
       - as_property:
           name: name
           mutations:
@@ -204,23 +204,23 @@
               value: Contact
 - exists:
     definition:
-      key: Schemas.Object/Address
+      key: Schemas.OfObject/Address
       properties:
         name: Address
         ref: true
         pattern: address-(\d+)
 - exists:
     definition:
-      key: Schemas.Adjacency/Address.contacts
+      key: Schemas.OfAdjacency/Address.contacts
       properties:
         me: address
 - exists:
     definition:
-      key: Schemas.Property/Address.street1
+      key: Schemas.OfProperty/Address.street1
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -228,20 +228,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Address.street1
+                key: Schemas.OfProperty/Address.street1
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - exists:
     definition:
-      key: Schemas.Property/Address.locality
+      key: Schemas.OfProperty/Address.locality
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -249,20 +249,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Address.locality
+                key: Schemas.OfProperty/Address.locality
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - exists:
     definition:
-      key: Schemas.Property/Address.postal_code
+      key: Schemas.OfProperty/Address.postal_code
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -270,20 +270,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Address.postal_code
+                key: Schemas.OfProperty/Address.postal_code
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - exists:
     definition:
-      key: Schemas.Property/Address.country_code
+      key: Schemas.OfProperty/Address.country_code
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -291,16 +291,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Address.country_code
+                key: Schemas.OfProperty/Address.country_code
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -308,13 +308,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Address
+                key: Schemas.OfObject/Address
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Address.street1
+                key: Schemas.OfProperty/Address.street1
       - as_property:
           name: name
           mutations:
@@ -326,13 +326,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Address
+                key: Schemas.OfObject/Address
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Address.locality
+                key: Schemas.OfProperty/Address.locality
       - as_property:
           name: name
           mutations:
@@ -344,13 +344,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Address
+                key: Schemas.OfObject/Address
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Address.postal_code
+                key: Schemas.OfProperty/Address.postal_code
       - as_property:
           name: name
           mutations:
@@ -362,13 +362,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Address
+                key: Schemas.OfObject/Address
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Address.country_code
+                key: Schemas.OfProperty/Address.country_code
       - as_property:
           name: name
           mutations:
@@ -376,7 +376,7 @@
               value: country_code
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasAdjacency
+      key: Schemas.OfRelation/Schemas.HasAdjacency
     entries:
     - mutations:
       - as_link:
@@ -384,13 +384,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Address
+                key: Schemas.OfObject/Address
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Address.contacts
+                key: Schemas.OfAdjacency/Address.contacts
       - as_property:
           name: name
           mutations:
@@ -398,7 +398,7 @@
               value: contacts
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -406,13 +406,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Address
+                key: Schemas.OfObject/Address
       - as_property:
           name: name
           mutations:
@@ -420,23 +420,23 @@
               value: Address
 - exists:
     definition:
-      key: Schemas.Object/Phone
+      key: Schemas.OfObject/Phone
       properties:
         name: Phone
         ref: true
         pattern: phone-(\d+)
 - exists:
     definition:
-      key: Schemas.Adjacency/Phone.contacts
+      key: Schemas.OfAdjacency/Phone.contacts
       properties:
         me: phone
 - exists:
     definition:
-      key: Schemas.Property/Phone.number
+      key: Schemas.OfProperty/Phone.number
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -444,16 +444,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Phone.number
+                key: Schemas.OfProperty/Phone.number
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -461,13 +461,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Phone
+                key: Schemas.OfObject/Phone
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Phone.number
+                key: Schemas.OfProperty/Phone.number
       - as_property:
           name: name
           mutations:
@@ -475,7 +475,7 @@
               value: number
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasAdjacency
+      key: Schemas.OfRelation/Schemas.HasAdjacency
     entries:
     - mutations:
       - as_link:
@@ -483,13 +483,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Phone
+                key: Schemas.OfObject/Phone
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Phone.contacts
+                key: Schemas.OfAdjacency/Phone.contacts
       - as_property:
           name: name
           mutations:
@@ -497,7 +497,7 @@
               value: contacts
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -505,13 +505,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Phone
+                key: Schemas.OfObject/Phone
       - as_property:
           name: name
           mutations:
@@ -519,24 +519,24 @@
               value: Phone
 - exists:
     definition:
-      key: Schemas.Relation/ContactAddresses
+      key: Schemas.OfRelation/ContactAddresses
       properties:
         name: ContactAddresses
 - exists:
     definition:
-      key: Schemas.Symbol/ContactAddresses.contact
+      key: Schemas.OfSymbol/ContactAddresses.contact
       properties: {}
 - exists:
     definition:
-      key: Schemas.Symbol/ContactAddresses.address
+      key: Schemas.OfSymbol/ContactAddresses.address
       properties: {}
 - exists:
     definition:
-      key: Schemas.Property/ContactAddresses.label
+      key: Schemas.OfProperty/ContactAddresses.label
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -544,16 +544,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/ContactAddresses.label
+                key: Schemas.OfProperty/ContactAddresses.label
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -561,13 +561,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/ContactAddresses
+                key: Schemas.OfRelation/ContactAddresses
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/ContactAddresses.label
+                key: Schemas.OfProperty/ContactAddresses.label
       - as_property:
           name: name
           mutations:
@@ -575,7 +575,7 @@
               value: label
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasLink
+      key: Schemas.OfRelation/Schemas.HasLink
     entries:
     - mutations:
       - as_link:
@@ -583,13 +583,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/ContactAddresses
+                key: Schemas.OfRelation/ContactAddresses
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/ContactAddresses.contact
+                key: Schemas.OfSymbol/ContactAddresses.contact
       - as_property:
           name: name
           mutations:
@@ -601,13 +601,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/ContactAddresses
+                key: Schemas.OfRelation/ContactAddresses
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/ContactAddresses.address
+                key: Schemas.OfSymbol/ContactAddresses.address
       - as_property:
           name: name
           mutations:
@@ -615,7 +615,7 @@
               value: address
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Relating
+      key: Schemas.OfRelation/Schemas.Relating
     entries:
     - mutations:
       - as_link:
@@ -623,29 +623,29 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Address.contacts
+                key: Schemas.OfAdjacency/Address.contacts
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/ContactAddresses
+                key: Schemas.OfRelation/ContactAddresses
     - mutations:
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Contact.addresses
+                key: Schemas.OfAdjacency/Contact.addresses
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/ContactAddresses
+                key: Schemas.OfRelation/ContactAddresses
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -653,13 +653,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/ContactAddresses
+                key: Schemas.OfRelation/ContactAddresses
       - as_property:
           name: name
           mutations:
@@ -667,24 +667,24 @@
               value: ContactAddresses
 - exists:
     definition:
-      key: Schemas.Relation/ContactPhones
+      key: Schemas.OfRelation/ContactPhones
       properties:
         name: ContactPhones
 - exists:
     definition:
-      key: Schemas.Symbol/ContactPhones.contact
+      key: Schemas.OfSymbol/ContactPhones.contact
       properties: {}
 - exists:
     definition:
-      key: Schemas.Symbol/ContactPhones.phone
+      key: Schemas.OfSymbol/ContactPhones.phone
       properties: {}
 - exists:
     definition:
-      key: Schemas.Property/ContactPhones.label
+      key: Schemas.OfProperty/ContactPhones.label
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -692,16 +692,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/ContactPhones.label
+                key: Schemas.OfProperty/ContactPhones.label
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -709,13 +709,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/ContactPhones
+                key: Schemas.OfRelation/ContactPhones
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/ContactPhones.label
+                key: Schemas.OfProperty/ContactPhones.label
       - as_property:
           name: name
           mutations:
@@ -723,7 +723,7 @@
               value: label
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasLink
+      key: Schemas.OfRelation/Schemas.HasLink
     entries:
     - mutations:
       - as_link:
@@ -731,13 +731,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/ContactPhones
+                key: Schemas.OfRelation/ContactPhones
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/ContactPhones.contact
+                key: Schemas.OfSymbol/ContactPhones.contact
       - as_property:
           name: name
           mutations:
@@ -749,13 +749,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/ContactPhones
+                key: Schemas.OfRelation/ContactPhones
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/ContactPhones.phone
+                key: Schemas.OfSymbol/ContactPhones.phone
       - as_property:
           name: name
           mutations:
@@ -763,7 +763,7 @@
               value: phone
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Relating
+      key: Schemas.OfRelation/Schemas.Relating
     entries:
     - mutations:
       - as_link:
@@ -771,29 +771,29 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Phone.contacts
+                key: Schemas.OfAdjacency/Phone.contacts
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/ContactPhones
+                key: Schemas.OfRelation/ContactPhones
     - mutations:
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Contact.phones
+                key: Schemas.OfAdjacency/Contact.phones
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/ContactPhones
+                key: Schemas.OfRelation/ContactPhones
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -801,13 +801,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/ContactPhones
+                key: Schemas.OfRelation/ContactPhones
       - as_property:
           name: name
           mutations:
@@ -830,7 +830,7 @@
         birth_date: '1852-05-04'
 - insert:
     relation:
-      key: Schemas.Relation/ContactAddresses
+      key: Schemas.OfRelation/ContactAddresses
     entries:
     - mutations:
       - as_link:
@@ -857,7 +857,7 @@
         given_name: Bob
 - insert:
     relation:
-      key: Schemas.Relation/ContactAddresses
+      key: Schemas.OfRelation/ContactAddresses
     entries:
     - mutations:
       - as_link:
@@ -884,7 +884,7 @@
         number: '+447700900123'
 - insert:
     relation:
-      key: Schemas.Relation/ContactPhones
+      key: Schemas.OfRelation/ContactPhones
     entries:
     - mutations:
       - as_link:
@@ -911,7 +911,7 @@
         number: '+14155550100'
 - insert:
     relation:
-      key: Schemas.Relation/ContactPhones
+      key: Schemas.OfRelation/ContactPhones
     entries:
     - mutations:
       - as_link:

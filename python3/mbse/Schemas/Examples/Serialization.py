@@ -9,27 +9,27 @@ from mbse.Schemas.Framework import Builders, Schemas, Plain, Validators
 from mbse.Schemas.Framework.Errors import DecodeError
 from mbse.Schemas.Examples._support import entries, raises
 
-Text, Int = Builders.Meta.OfStr, Builders.Meta.OfInt
 
 store = Builders.Store()
+Text, Int = store.Schemas.OfStr.as_schema(), store.Schemas.OfInt.as_schema()  # the store's own
 
 # --- Schemas ---
 
-Sample = store.Schemas.Object(lambda o: (
+Sample = store.Schemas.OfObject(lambda o: (
     o
     .name('Sample')
     .ref(True)
     .properties([
         lambda t: t.name('label').type([Text]),
-        lambda t: t.name('payload').type([Builders.Meta.OfBytes]),
+        lambda t: t.name('payload').type([store.Schemas.OfBytes]),
         lambda t: t.name('count').type([Int]),
-        lambda t: t.name('ratio').type([Builders.Meta.OfFloat]),
-        lambda t: t.name('flag').type([Builders.Meta.OfBool]),
+        lambda t: t.name('ratio').type([store.Schemas.OfFloat]),
+        lambda t: t.name('flag').type([store.Schemas.OfBool]),
     ])
 ))
 
 # Registered names are strings and need not be identifiers: a dotted name is a path from the store.
-Currency = store.Schemas.Object(lambda o: (
+Currency = store.Schemas.OfObject(lambda o: (
     o
     .name('iso4217.Currency')
     .ref(True)
@@ -39,8 +39,8 @@ Currency = store.Schemas.Object(lambda o: (
         lambda t: t.name('minor_units').type([Int]),  # 0 for JPY, 2 for EUR, 3 for BHD
     ])
 ))
-Product = store.Schemas.Object(lambda o: o.name('Product').ref(True).properties([lambda t: t.name('sku').type([Text])]))
-Money = store.Schemas.Object(lambda o: (
+Product = store.Schemas.OfObject(lambda o: o.name('Product').ref(True).properties([lambda t: t.name('sku').type([Text])]))
+Money = store.Schemas.OfObject(lambda o: (
     o
     .name('Money')
     .ref(True)
@@ -48,7 +48,7 @@ Money = store.Schemas.Object(lambda o: (
 ))
 
 # product -> [currency] -> money
-Prices = store.Schemas.Relation(lambda r: (
+Prices = store.Schemas.OfRelation(lambda r: (
     r
     .name('Prices')
     .links([
@@ -59,7 +59,7 @@ Prices = store.Schemas.Relation(lambda r: (
     .uniques('price')
 ))
 # Which currency a money amount is in.
-Denomination = store.Schemas.Relation(lambda r: (
+Denomination = store.Schemas.OfRelation(lambda r: (
     r
     .name('Denomination')
     .links([
@@ -69,12 +69,12 @@ Denomination = store.Schemas.Relation(lambda r: (
     .uniques('currency')
 ))
 
-store.Schemas.Object(Product, lambda o: o.adjacencies([lambda t: t.name('prices').relation([Prices]).me('product')]))
-store.Schemas.Object(Money, lambda o: o.adjacencies([
+store.Schemas.OfObject(Product, lambda o: o.adjacencies([lambda t: t.name('prices').relation([Prices]).me('product')]))
+store.Schemas.OfObject(Money, lambda o: o.adjacencies([
     lambda t: t.name('products').relation([Prices]).me('price'),
     lambda t: t.name('currency').relation([Denomination]).me('money'),
 ]))
-store.Schemas.Object(Currency, lambda o: o.adjacencies([lambda t: t.name('amounts').relation([Denomination]).me('currency')]))
+store.Schemas.OfObject(Currency, lambda o: o.adjacencies([lambda t: t.name('amounts').relation([Denomination]).me('currency')]))
 
 for schema in [Sample, Currency, Product, Money, Prices, Denomination]:
     assert schema.validate() == [], (schema.name, schema.validate())
@@ -113,8 +113,8 @@ key = f'Sample/{blank.as_identity()}'
 assert Plain.ToPlain(store)(Sample, blank) == {'root': key, 'objects': {key: {}}}
 
 # Per-kind entry points.
-assert Plain.ToPlain(store)(Builders.Meta.OfBytes, b'\x01') == Plain.ToPlain(store).OfScalar(Builders.Meta.OfBytes, b'\x01') == 'AQ=='
-assert Plain.FromPlain(store).OfScalar(Builders.Meta.OfInt, 7) == 7
+assert Plain.ToPlain(store)(store.Schemas.OfBytes.as_schema(), b'\x01') == Plain.ToPlain(store).OfScalar(store.Schemas.OfBytes.as_schema(), b'\x01') == 'AQ=='
+assert Plain.FromPlain(store).OfScalar(store.Schemas.OfInt.as_schema(), 7) == 7
 
 # --- Strict scalar types ---
 
@@ -125,9 +125,9 @@ for scalar, bad in [(int, True), (int, 1.0), (int, '1'), (float, 1), (bool, 0), 
     with raises(DecodeError):
         from_plain(Schemas.OfScalar.Data(scalar), bad)
 with raises(DecodeError):
-    from_plain(Builders.Meta.OfBytes, b'raw')  # bytes arrive as base64 text
+    from_plain(store.Schemas.OfBytes.as_schema(), b'raw')  # bytes arrive as base64 text
 with raises(DecodeError):
-    from_plain(Builders.Meta.OfBytes, 'not base64!')
+    from_plain(store.Schemas.OfBytes.as_schema(), 'not base64!')
 
 # The builder does not validate; the serializer does.
 sloppy = store.Sample(lambda s: s.count('3'))
@@ -139,7 +139,7 @@ with raises(TypeError):
 validate = Validators.Validate(store)
 assert validate(Sample, sloppy) == ['Sample#0.count: expected int, got str']
 assert validate(Sample, edge) == [] and validate(Sample, blank) == []
-assert validate(Builders.Meta.OfInt, True) == ['expected int, got bool']
+assert validate(store.Schemas.OfInt.as_schema(), True) == ['expected int, got bool']
 
 # --- A map: product -> [currency] -> money ---
 
@@ -216,7 +216,7 @@ with raises(TypeError):
 with raises(ValueError):
     store.register(Sample)  # names are registered once: Sample was as it was built
 with raises(ValueError):
-    store.Schemas.Object(lambda o: o.name('Sample'))  # a named schema's identity is its name, which Sample holds
+    store.Schemas.OfObject(lambda o: o.name('Sample'))  # a named schema's identity is its name, which Sample holds
 with raises(AttributeError):
     store.Unregistered(lambda u: u)
 with raises(TypeError):
@@ -231,7 +231,7 @@ with raises(AttributeError):
     widget.sku = 'W-2'  # instances are read-only
 
 # A schema named 'schema' is shadowed by the store's schema() method, but still reachable by name.
-Shadowed = store.Schemas.Object(lambda o: o.name('schema').ref(True).properties([lambda t: t.name('label').type([Text])]))
+Shadowed = store.Schemas.OfObject(lambda o: o.name('schema').ref(True).properties([lambda t: t.name('label').type([Text])]))
 assert store.schema('schema') is Shadowed and store.builder('schema').create().as_schema().name == 'schema'
 
 print('Serialization: all checks passed')

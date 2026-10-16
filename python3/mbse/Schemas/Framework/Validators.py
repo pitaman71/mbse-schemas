@@ -24,7 +24,7 @@ from collections.abc import Hashable
 from dataclasses import dataclass
 from typing import Any
 
-from . import Builders, Reachable, Readers, Schemas, Stores
+from . import Builders, Proxies, Reachable, Readers, Schemas, Stores
 from .Visitors import Scalar
 
 __all__ = ["Validate", "Check", "Outcome"]
@@ -117,11 +117,11 @@ def _scalar_problem(schema: Schemas.OfScalar.Data, value: Any) -> str | None:
     return None
 
 
-def _visited(target: Any) -> Any:
+def _visited(target: Any, store: Any) -> Any:
     """A linked object, as a visitor: a schema object, which an extension's relation links, through its read-only
-    builder, whose schema is its meta-schema."""
+    builder in `store`, whose schema is the store's plain schema of it."""
     builder = Builders._builder_for(target)
-    return target if builder is None else builder(target, False)
+    return target if builder is None else builder(target, False, store)
 
 
 def _filling(relation: Schemas.OfRelation.Data, name: str, schema: Schemas.OfObject.Data) -> str | None:
@@ -259,13 +259,13 @@ class _Check:
         problems = []
         for name in relation.entry.links:
             if name != adjacency.me:
-                problem = _filling(relation, name, _visited(getattr(entry, name)).as_schema())
+                problem = _filling(relation, name, _visited(getattr(entry, name), self._store).as_schema())
                 if problem:
                     problems.append(f"{label}.{name}: {problem}")
         for name, prop in relation.entry.properties.items():
             problems += self._value_problems(f"{label}.{name}", prop.type,
                                              _property_value(getattr(entry, name), prop.type))
-        links = {name: _identity(_visited(getattr(entry, name))) for name in relation.entry.links if name != adjacency.me}
+        links = {name: _identity(_visited(getattr(entry, name), self._store)) for name in relation.entry.links if name != adjacency.me}
         links[adjacency.me] = _identity(owner)
         values = {name: _key(prop.type, _property_value(getattr(entry, name), prop.type))
                   for name, prop in relation.entry.properties.items()
@@ -315,6 +315,7 @@ class Check:
         self._store = store
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> Outcome:
+        schema = Proxies._deref(schema)  # a path names its schema
         if isinstance(schema, Schemas.OfScalar.Data):
             return self.OfScalar(schema, value)
         if isinstance(schema, Schemas.OfObject.Data):
@@ -322,15 +323,18 @@ class Check:
         raise NotImplementedError(f"{type(schema).__name__} cannot be validated yet")
 
     def OfScalar(self, schema: Schemas.OfScalar.Data, value: Scalar) -> Outcome:
+        schema = Proxies._deref(schema)  # a path names its schema
         problem = _scalar_problem(schema, value)
         return Outcome(schema.validate() + ([problem] if problem else []), [])
 
     def OfObject(self, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> Outcome:
         """Checks one object and its entries; uniqueness only over the entries it is part of."""
+        schema = Proxies._deref(schema)  # a path names its schema
         return self._run(schema, [value])
 
     def Reachable(self, schema: Schemas.OfObject.Data, root: Readers.OfObject) -> Outcome:
         """Checks the root and every object reachable from it through adjacencies."""
+        schema = Proxies._deref(schema)  # a path names its schema
         return self._run(schema, Reachable.of(root))
 
     def _run(self, schema: Schemas.OfObject.Data, values: list[Readers.OfObject]) -> Outcome:
@@ -352,15 +356,19 @@ class Validate:
         self._check = Check(store)
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> list[str]:
+        schema = Proxies._deref(schema)  # a path names its schema
         return self._check(schema, value).problems
 
     def OfScalar(self, schema: Schemas.OfScalar.Data, value: Scalar) -> list[str]:
+        schema = Proxies._deref(schema)  # a path names its schema
         return self._check.OfScalar(schema, value).problems
 
     def OfObject(self, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> list[str]:
         """Checks one object and its entries; uniqueness only over the entries it is part of."""
+        schema = Proxies._deref(schema)  # a path names its schema
         return self._check.OfObject(schema, value).problems
 
     def Reachable(self, schema: Schemas.OfObject.Data, root: Readers.OfObject) -> list[str]:
         """Checks the root and every object reachable from it through adjacencies."""
+        schema = Proxies._deref(schema)  # a path names its schema
         return self._check.Reachable(schema, root).problems

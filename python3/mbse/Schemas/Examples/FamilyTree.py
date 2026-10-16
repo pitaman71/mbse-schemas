@@ -6,13 +6,13 @@
 from mbse.Schemas.Framework import Builders, Schemas, Proxies, Plain, Reachable, Validators
 from mbse.Schemas.Examples._support import entries, raises, same_graph
 
-Text = Builders.Meta.OfStr
 
 store = Builders.Store()
+Text = store.Schemas.OfStr.as_schema()  # the store's own basic scalar
 
 # --- Schemas ---
 
-Person = store.Schemas.Object(lambda o: (
+Person = store.Schemas.OfObject(lambda o: (
     o
     .name('Person')
     .ref(True)
@@ -24,7 +24,7 @@ Person = store.Schemas.Object(lambda o: (
 ))
 
 # Both links of these relations are filled by Person objects.
-Parentage = store.Schemas.Relation(lambda r: (
+Parentage = store.Schemas.OfRelation(lambda r: (
     r
     .name('Parentage')
     .links([
@@ -35,7 +35,7 @@ Parentage = store.Schemas.Relation(lambda r: (
     .uniques([[]])  # a set of entries, with no other constraint: an entry equal to one held is that one
 ))
 
-Mentorship = store.Schemas.Relation(lambda r: (
+Mentorship = store.Schemas.OfRelation(lambda r: (
     r
     .name('Mentorship')
     .links([
@@ -44,7 +44,7 @@ Mentorship = store.Schemas.Relation(lambda r: (
     ])
 ))
 
-store.Schemas.Object(Person, lambda o: o.adjacencies([
+store.Schemas.OfObject(Person, lambda o: o.adjacencies([
     lambda t: t.name('children').relation([Parentage]).me('parent'),
     lambda t: t.name('parents').relation([Parentage]).me('child'),
     lambda t: t.name('mentees').relation([Mentorship]).me('mentor'),

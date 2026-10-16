@@ -1,8 +1,8 @@
 """Schemas: schema elements.
 
-For each schema element `OfX`, `Schemas.OfX.Data` captures a schema. `Schemas.OfX.Builder`, which builds one, and
-`Schemas.OfX.Schema`, its meta-schema, are `Builders`' (each builder a `Visitors.OfObject` over its meta-schema, built
-in a store); importing this package installs them here.
+For each schema element `OfX`, `Schemas.OfX.Data` captures a schema. `Schemas.OfX.Builder`, which builds one, is
+`Builders`' (each builder a `Visitors.OfObject` over its plain schema, its store's `Schemas.OfX`); importing this package
+installs it here.
 
 `validate()` on each `Data` returns a list of problems and runs only when the caller asks.
 

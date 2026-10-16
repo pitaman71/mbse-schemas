@@ -6,9 +6,10 @@ Every schema object is a reference object: a kind of schema, and each of its mem
 parameter, a symbol, a branch or a part, an argument), and a term. A property of a schema object holds
 a value (a name, a flag, a term's attributes); every reference from one schema object to another is a relation: a
 schema to its members (`Schemas.HasProperty`, ...), a member to its type (`Schemas.Typing`), a refinement to what it
-refines (`Schemas.Refines`), a scalar to its widths, which are terms (`Schemas.BitWidth`), and so on (`Meta`, below).
+refines (`Schemas.Refines`), a scalar to its widths, which are terms (`Schemas.BitWidth`), and so on (`_plain`, below):
+each store builds its own (docs/proposals/store-overhaul, Levels).
 
-Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over its meta-schema (`Meta.X`), as VISITOR_PATTERN.md
+Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over its plain schema (`Schemas.OfX`), as VISITOR_PATTERN.md
 gives it: a member for each property (`osv.<propName>`, a `Visitors.OfProperty`) and for each adjacency
 (`osv.<adjName>`, a `Visitors.OfAdjacency`, whose entries' links are members, `env.<linkName>`). Called with a
 `Specs.Callback`, a member writes or visits through it and returns the builder. Its other methods are named `as_*`. The
@@ -24,7 +25,6 @@ from __future__ import annotations
 
 import dataclasses
 import uuid
-import weakref
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar
@@ -36,7 +36,6 @@ from .Proxies import _Dunders, _Empty, _Properties, _Unassignable
 
 __all__ = [
     "Form",
-    "Meta",
     "OfAdjacency",
     "OfAny",
     "OfApply",
@@ -352,7 +351,7 @@ def _check_held(builder: Any, link: str, referent: Any) -> None:
     store = builder._store
     if store is not None and _builder_for(referent) is not None and not store.holds(referent):
         raise TypeError(f"link {link!r} cannot link {referent!r}: the store does not hold it; build it in the store, or "
-                        "link one it holds (a basic scalar is Builders.Meta's: OfStr, OfInt, ...)")
+                        "link one it holds (a basic scalar is the store's own: store.Schemas.OfInt, ...)")
 
 
 class _Members:
@@ -468,6 +467,7 @@ class _AdjacencyMember(_Unassignable):
                             f"taking the adjacency; got {spec!r}")
         self._builder._check()
         for item in spec:
+            item = Proxies._deref(item)
             if isinstance(item, _Entry):
                 referent, name = item._referent, item._name
             else:  # every relation between schema objects has two links: the peer shorthand
@@ -674,7 +674,9 @@ class _Link(_Unassignable):
         builder = _builder_for(referent)
         if builder is None and Proxies._store_of(referent) is not None:
             return referent  # data, which an extension's relation links: a proxy, read-only as data instances are
-        return _Empty("a term of a dialect is read through its dialect") if builder is None else builder(referent, False)
+        if builder is None:
+            return _Empty("a term of a dialect is read through its dialect")
+        return builder(referent, False, self._entry._adjacency._builder._store)  # read in the store that links it
 
     def as_schema(self) -> Any:
         return self._target().as_schema()
@@ -706,6 +708,7 @@ class _Link(_Unassignable):
             if result is not None:
                 entry._relink(result, written)
             return entry
+        spec = Proxies._deref(spec)
         referent = spec._entry._referent if isinstance(spec, _Link) else spec
         if not members.accepts(referent):
             raise TypeError(f"link {members.link!r} cannot link {referent!r}")
@@ -731,7 +734,7 @@ def _build(builder_class: type, current: Any, cb: Any, store: Store | None = Non
 
 
 class _Builder(_Unassignable, Generic[D]):
-    """A writable `Visitors.OfObject` over a meta-schema (`_meta`, a name in `Meta`), building its data (`_data`).
+    """A writable `Visitors.OfObject` over a plain schema (`_meta`, its name in `Schemas`), building its data (`_data`).
     Read-only, it reads the data it is given and refuses every write: a referent read through a link is."""
 
     _data: ClassVar[type]
@@ -745,9 +748,13 @@ class _Builder(_Unassignable, Generic[D]):
                          if isinstance(member, (_Prop, _Members))}
 
     def __init__(self, original: D | None = None, writable: bool = True, store: Store | None = None):
+        original = Proxies._deref(original)
         if original is not None and not isinstance(original, self._data):
             raise TypeError(f"a builder of {self._noun} is given {original!r}")
         self._original, self._writable, self._store = original, writable, store
+        added = store._added.get(type(self)) if store is not None else None
+        if added:  # the members its store's extensions added to its plain schema: the store's own
+            self._members_ = {**type(self)._members_, **added}
         self._written: list[Any] = []  # the members written, in order
         self._identity: str | None = None  # the identity written (`as_identity`)
         self._working = self._make()
@@ -844,7 +851,8 @@ class _Builder(_Unassignable, Generic[D]):
         self._written.append(prop)
 
     def as_schema(self) -> Any:
-        return getattr(Meta, self._meta, None)
+        """Its plain schema (`Schemas.OfObject`, ...): its store's, or, outside a store, the template's."""
+        return getattr(self._store._meta if self._store is not None else _TEMPLATE, self._meta, None)
 
     def as_identity(self, identity: str | None = None) -> Any:
         """Read, the identity written, else the one of the data given; None for a schema object not created yet that
@@ -879,6 +887,9 @@ class _Builder(_Unassignable, Generic[D]):
     def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):
             raise AttributeError(name)
+        member = self.__dict__.get("_members_", {}).get(name)  # one its store's extensions added
+        if member is not None:
+            return member.__get__(self, type(self))
         return _Empty(f"{name!r} is not a member of {self._noun}'s builder")
 
     def __repr__(self) -> str:
@@ -928,9 +939,11 @@ def _settle_extended(data: Any, store: Any) -> Any:
     """Makes a schema object's entries in the relations an extension added agree with what its builder wrote, in its
     builder's store."""
     pending = data.__dict__.pop("_pending", None)
-    builder_class = _builder_for(data)
-    for name, referents in (pending or {}).items():
-        relation, me, other = builder_class._members_[name].extension  # type: ignore[union-attr]
+    if not pending:
+        return data
+    added = store._added.get(_builder_for(data), {})
+    for name, referents in pending.items():
+        relation, me, other = added[name].extension
         held = Proxies._linking(relation, me, data, store)
         Proxies._discard(id(relation), [e for e in held if all(e._links[other] is not r for r in referents)], store)
         for referent in referents:
@@ -939,20 +952,20 @@ def _settle_extended(data: Any, store: Any) -> Any:
     return data
 
 
-def _extend_builders(added: dict[int, tuple[set[str], set[str]]]) -> None:
-    """Gives each schema builder the members an extension added to its meta-schema (or one it refines): `added` holds
-    each meta-schema's names before the extension, by its id."""
+def _extend_builders(store: Store, before: dict[int, tuple[set[str], set[str]]]) -> None:
+    """Gives each schema builder in `store` the members an extension added to its plain schema (or one it refines):
+    `before` holds each plain schema's names before the extension, by its id."""
     for builder_class in set(_BUILDERS.values()):
-        meta = getattr(Meta, builder_class._meta)
-        properties, adjacencies = added[id(meta)]
+        meta = getattr(store._meta, builder_class._meta)
+        properties, adjacencies = before[id(meta)]
+        added = store._added.setdefault(builder_class, {})
         members: dict[str, Any] = {name: _extension_property(name) for name in meta.properties
                                    if name not in properties and name not in builder_class._members_}
         members.update({name: _extension_adjacency(adjacency) for name, adjacency in meta.adjacencies.items()
                         if name not in adjacencies and name not in builder_class._members_})
         for name, member in members.items():
-            setattr(builder_class, name, member)
             member.__set_name__(builder_class, name)
-        builder_class._members_ = {**builder_class._members_, **members}
+            added[name] = member
 
 
 class _KindBuilder(_Builder[D]):
@@ -989,15 +1002,15 @@ class _TypedBuilder(_Builder[D]):
 
 
 class PropertyBuilder(_TypedBuilder[S.OfProperty.Data]):
-    _data, _meta, _noun = S.OfProperty.Data, "Property", "a property"
+    _data, _meta, _noun = S.OfProperty.Data, "OfProperty", "a property"
 
 
 class ParameterBuilder(_TypedBuilder[S.OfParameter.Data]):
-    _data, _meta, _noun = S.OfParameter.Data, "Parameter", "a parameter"
+    _data, _meta, _noun = S.OfParameter.Data, "OfParameter", "a parameter"
 
 
 class SymbolBuilder(_TypedBuilder[S.OfSymbol.Data]):
-    _data, _meta, _noun = S.OfSymbol.Data, "Symbol", "a symbol"
+    _data, _meta, _noun = S.OfSymbol.Data, "OfSymbol", "a symbol"
 
 
 class MemberBuilder(_TypedBuilder[S.OfUnion.Branch]):
@@ -1010,7 +1023,7 @@ class AdjacencyBuilder(_Builder[S.OfAdjacency.Data]):
     """An adjacency: named by the entry that links it to its object schema, or anonymous, with no name. It fills its
     relation's link `me`, by name: within a schema, its relation's links and properties are named, not referred to."""
 
-    _data, _meta, _noun = S.OfAdjacency.Data, "Adjacency", "an adjacency"
+    _data, _meta, _noun = S.OfAdjacency.Data, "OfAdjacency", "an adjacency"
 
     description = _Prop()
     me = _Prop()  # the name of the link it fills
@@ -1101,7 +1114,7 @@ def _refines() -> _Members:
 class ScalarBuilder(_KindBuilder[S.OfScalar.Data]):
     """A refinement takes the token of what it refines, unless it is given one."""
 
-    _data, _meta, _noun = S.OfScalar.Data, "Scalar", "a scalar schema"
+    _data, _meta, _noun = S.OfScalar.Data, "OfScalar", "a scalar schema"
 
     format = _Prop(get=lambda data: data.token.format if isinstance(data.token, S.OfScalar.Token) else None,
                    put=lambda data, value: setattr(data, "token", S.OfScalar.Token(
@@ -1123,7 +1136,7 @@ class ScalarBuilder(_KindBuilder[S.OfScalar.Data]):
 class ObjectBuilder(_KindBuilder[S.OfObject.Data]):
     """A refinement of a reference object schema is one too, and has the members of what it refines."""
 
-    _data, _meta, _noun = S.OfObject.Data, "Object", "an object schema"
+    _data, _meta, _noun = S.OfObject.Data, "OfObject", "an object schema"
 
     ref = _Prop()
     pattern = _Prop()
@@ -1169,7 +1182,7 @@ class ObjectBuilder(_KindBuilder[S.OfObject.Data]):
 
 
 class UnionBuilder(_KindBuilder[S.OfUnion.Data]):
-    _data, _meta, _noun = S.OfUnion.Data, "Union", "a union"
+    _data, _meta, _noun = S.OfUnion.Data, "OfUnion", "a union"
 
     flat = _Prop()
     branches = _Members("branch", keyed=True, accepts=lambda v: isinstance(v, S.OfUnion.Branch), build=lambda: MemberBuilder,
@@ -1177,7 +1190,7 @@ class UnionBuilder(_KindBuilder[S.OfUnion.Data]):
 
 
 class IntersectionBuilder(_KindBuilder[S.OfIntersection.Data]):
-    _data, _meta, _noun = S.OfIntersection.Data, "Intersection", "an intersection"
+    _data, _meta, _noun = S.OfIntersection.Data, "OfIntersection", "an intersection"
 
     flat = _Prop()
     parts = _Members("part", keyed=True, accepts=lambda v: isinstance(v, S.OfIntersection.Part), build=lambda: MemberBuilder,
@@ -1187,7 +1200,7 @@ class IntersectionBuilder(_KindBuilder[S.OfIntersection.Data]):
 class ContainerBuilder(_KindBuilder[S.OfContainer.Data]):
     """A refinement takes the index and element of what it refines, unless it is given them."""
 
-    _data, _meta, _noun = S.OfContainer.Data, "Container", "a container schema"
+    _data, _meta, _noun = S.OfContainer.Data, "OfContainer", "a container schema"
 
     layout = _Prop()  # "dense", "sparse", or None
     refines = _refines()
@@ -1209,7 +1222,7 @@ def _arguments(data: S.OfApply.Data) -> list[_ArgumentData]:
 
 
 class ApplyBuilder(_KindBuilder[S.OfApply.Data]):
-    _data, _meta, _noun = S.OfApply.Data, "Apply", "an application"
+    _data, _meta, _noun = S.OfApply.Data, "OfApply", "an application"
 
     of = _Members("applied", accepts=_is_schema, **_one("of"))
     arguments = _Members("argument", owned=True, accepts=lambda v: isinstance(v, _ArgumentData),
@@ -1222,13 +1235,13 @@ class ApplyBuilder(_KindBuilder[S.OfApply.Data]):
 class AnyValueBuilder(_KindBuilder[S.OfAny.Value]):
     """A value of any type, or of one of `types`."""
 
-    _data, _meta, _noun = S.OfAny.Value, "Any", "a value of any type"
+    _data, _meta, _noun = S.OfAny.Value, "OfAny", "a value of any type"
 
     types = _Members("schema", accepts=_is_schema, **_in_order("types"))
 
 
 class PredicateBuilder(_KindBuilder[S.OfPredicate.Data]):
-    _data, _meta, _noun = S.OfPredicate.Data, "Predicate", "a predicate"
+    _data, _meta, _noun = S.OfPredicate.Data, "OfPredicate", "a predicate"
 
     symbols = _Members("symbol", keyed=True, accepts=lambda v: isinstance(v, S.OfSymbol.Data), build=lambda: SymbolBuilder,
                        **_by_name("symbols"))
@@ -1252,7 +1265,7 @@ class RelationBuilder(_KindBuilder[S.OfRelation.Data]):
     """A relation's links and properties are its entries': the meta-schema has them as the relation's own. Its
     `unique` clauses name them."""
 
-    _data, _meta, _noun = S.OfRelation.Data, "Relation", "a relation"
+    _data, _meta, _noun = S.OfRelation.Data, "OfRelation", "a relation"
 
     links = _Members("link", keyed=True, accepts=lambda v: isinstance(v, S.OfSymbol.Data), build=lambda: SymbolBuilder,
                      items=lambda data: list(data.entry.links.values()),
@@ -1305,7 +1318,7 @@ def _local(schema: Any) -> str:
 class ModuleBuilder(_KindBuilder[_ModuleData]):
     """A module, a reference object in the store, whose identity is its path: the root module's is `.`."""
 
-    _data, _meta, _noun = _ModuleData, "Module", "a module"
+    _data, _meta, _noun = _ModuleData, "OfModule", "a module"
 
     schemas = _Members("schema", keyed=True, owned=False, names=(_defined_name, _define), extensible=True,
                        accepts=lambda v: isinstance(v, (*S._KINDS, S.OfRelation.Data, S.OfPredicate.Data, _ModuleData)),
@@ -1326,7 +1339,7 @@ _BUILDERS: dict[type, type] = {
 
 
 def _kind(data: Any) -> str:
-    """The name of a schema object's meta-schema, `Schemas.Object`: the kind its identity is unique within."""
+    """The name of a schema object's meta-schema, `Schemas.OfObject`: the kind its identity is unique within."""
     builder = _builder_for(data)
     return f"Schemas.{builder._meta}" if builder is not None else type(data).__name__
 
@@ -1352,190 +1365,191 @@ _VALUES = (_PropertyMember, _Value, _ScalarVisitor, _Mapping, _AdjacencyMember, 
 # --- The meta-schemas: schema objects, each a reference object, and the relations between them ---
 
 
-class Meta:
-    """The meta-schemas, by name: `Meta.Object` is `Schemas.Object`, and so on; and the basic scalars, `Meta.OfInt` being
-    `Schemas.OfInt`."""
+class _Plain:
+    """A store's plain schemas of schemas (level 2) and its basic scalars, each its own (docs/proposals/store-overhaul,
+    Levels): `OfObject` is `Schemas.OfObject`, `OfInt` is `Schemas.OfInt`, `Typing` the relation `Schemas.Typing`."""
 
 
-# The basic scalars, which every store holds, named after the basic tokens (FRAMEWORK.md, Resolved: "Schemas.OfBool,
-# Schemas.OfInt, ... no need to invent an alternate convention").
-Meta.OfBool = ScalarBuilder().name("Schemas.OfBool").token("bool").create()
-Meta.OfInt = ScalarBuilder().name("Schemas.OfInt").token("int").create()
-Meta.OfFloat = ScalarBuilder().name("Schemas.OfFloat").token("float").create()
-Meta.OfStr = ScalarBuilder().name("Schemas.OfStr").token("str").create()
-Meta.OfBytes = ScalarBuilder().name("Schemas.OfBytes").token("bytes").create()
-Text, Bool, Int = Meta.OfStr, Meta.OfBool, Meta.OfInt
+def _plain() -> _Plain:
+    """Builds a store's plain schemas of schemas and its basic scalars, anew."""
+    meta = _Plain()
+    # The basic scalars, named after the basic tokens (FRAMEWORK.md, Resolved: "Schemas.OfBool, Schemas.OfInt, ... no
+    # need to invent an alternate convention").
+    meta.OfBool = ScalarBuilder().name("Schemas.OfBool").token("bool").create()
+    meta.OfInt = ScalarBuilder().name("Schemas.OfInt").token("int").create()
+    meta.OfFloat = ScalarBuilder().name("Schemas.OfFloat").token("float").create()
+    meta.OfStr = ScalarBuilder().name("Schemas.OfStr").token("str").create()
+    meta.OfBytes = ScalarBuilder().name("Schemas.OfBytes").token("bytes").create()
+    Text, Bool, Int = meta.OfStr, meta.OfBool, meta.OfInt
+
+    def _object(name: str, properties: dict[str, Any] | None = None, refines: Any = None) -> S.OfObject.Data:
+        """A meta-schema: a reference object schema, `Schemas.<name>`, with `properties` of their schemas, by name,
+        refining `refines`."""
+        builder = (
+            ObjectBuilder()
+            .name(f"Schemas.{name}")
+            .ref(True)
+            .properties([lambda t, n=n, s=s: t.name(n).type([s]) for n, s in (properties or {}).items()])
+        )
+        if refines is not None:
+            builder.refines([refines])
+        return builder.create()
+
+    meta.Schema = _object("Schema", {"name": Text, "description": Text})
+    meta.Type = _object("Type", refines=meta.Schema)
+    meta.OfScalar = _object("OfScalar", {"format": Text, "token": Text}, refines=meta.Type)
+    meta.OfObject = _object("OfObject", {"ref": Bool, "pattern": Text, "singleton": Text}, refines=meta.Type)
+    meta.OfUnion = _object("OfUnion", {"flat": Bool}, refines=meta.Type)
+    meta.OfIntersection = _object("OfIntersection", {"flat": Bool}, refines=meta.Type)
+    meta.OfContainer = _object("OfContainer", {"layout": Text}, refines=meta.Type)
+    meta.OfApply = _object("OfApply", refines=meta.Type)
+    meta.OfAny = _object("OfAny", refines=meta.Type)
+    meta.OfRelation = _object("OfRelation", {"uniques": ContainerBuilder().index([Int]).element([
+        ContainerBuilder().index([Int]).element([Text]).create()]).create()}, refines=meta.Schema)
+    meta.OfPredicate = _object("OfPredicate", refines=meta.Schema)
+    meta.Typed = _object("Typed", {"description": Text})
+    meta.OfProperty = _object("OfProperty", refines=meta.Typed)
+    meta.OfParameter = _object("OfParameter", refines=meta.Typed)
+    meta.OfSymbol = _object("OfSymbol", refines=meta.Typed)
+    meta.Member = _object("Member", refines=meta.Typed)
+    meta.OfAdjacency = _object("OfAdjacency", {"description": Text, "me": Text})
+    Scalars = AnyValueBuilder().create()  # a scalar of any type, written tagged with its token (`{"int": 8}`)
+    meta.Argument = _object("Argument", {"value": Scalars})
+    meta.Term = _object("Term")
+    meta.Form = _object("Form", {"dialect": Text, "kind": Text,
+                                 "attributes": ContainerBuilder().index([Text]).element([Scalars]).create()},
+                        refines=meta.Term)
+    meta.OfModule = _object("OfModule", refines=meta.Schema)  # its identity is its path; it defines schemas and modules
+
+    def _relation(name: str, links: tuple[str, str], how: str) -> S.OfRelation.Data:
+        """A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
+        `relations`): a keyed relation's entries have `name`; the member determines its owner and its name
+        (`unique(owner, name)`), and the owner and the name determine the member (`unique(member)`)."""
+        first, second = links
+        builder = RelationBuilder().name(f"Schemas.{name}").links([lambda t, n=n: t.name(n) for n in links])
+        if how == "keyed":
+            builder.properties([lambda t: t.name("name").type([Text])])
+        determined = {"one": [[second]], "owned": [[first]], "keyed": [[first, "name"], [second]], "list": None}[how]
+        return builder.uniques(determined).create()
+
+    def _adjacency(relation: S.OfRelation.Data, link: str) -> S.OfAdjacency.Data:
+        """An adjacency to `relation` filling `link`: named by the entry that links it to its object schema, or anonymous."""
+        return AdjacencyBuilder().relation([relation]).me(link).create()
+
+    relations: list[tuple[str, tuple[str, Any, str | None], tuple[str, Any], str]] = [
+        # (relation, (link, schema, adjacency named there), (link, schema), "one": the first determines the second;
+        # "owned": the second determines the first; "keyed": owned, and named within its owner by the entry's `name`;
+        # "list": neither). An adjacency named "" is declared below, on the kinds that have it, rather than on the link's
+        # schema.
+        ("Typing", ("typed", meta.Typed, "type"), ("schema", meta.Type), "one"),
+        ("Refines", ("refinement", meta.Type, ""), ("refined", meta.Type), "one"),
+        ("Indexing", ("container", meta.OfContainer, "index"), ("index", meta.Type), "one"),
+        ("Containing", ("container", meta.OfContainer, "element"), ("element", meta.Type), "one"),
+        ("Applying", ("application", meta.OfApply, "of"), ("applied", meta.Type), "one"),
+        ("AnyOf", ("any", meta.OfAny, "types"), ("schema", meta.Type), "list"),
+        ("Relating", ("adjacency", meta.OfAdjacency, "relation"), ("relation", meta.OfRelation), "one"),
+        ("Binding", ("argument", meta.Argument, "parameter"), ("parameter", meta.OfParameter), "one"),
+        ("ArgumentTerm", ("argument", meta.Argument, "term"), ("term", meta.Term), "one"),
+        ("Requires", ("predicate", meta.OfPredicate, "requires"), ("term", meta.Term), "one"),
+        ("BitWidth", ("scalar", meta.OfScalar, "bits"), ("width", meta.Term), "one"),
+        ("ByteWidth", ("scalar", meta.OfScalar, "bytes"), ("width", meta.Term), "one"),
+        ("HasParameter", ("owner", meta.Schema, "parameters"), ("parameter", meta.OfParameter), "keyed"),
+        ("HasProperty", ("owner", meta.Schema, ""), ("property", meta.OfProperty), "keyed"),
+        ("HasAdjacency", ("owner", meta.OfObject, "adjacencies"), ("adjacency", meta.OfAdjacency), "keyed"),
+        ("HasBranch", ("owner", meta.OfUnion, "branches"), ("branch", meta.Member), "keyed"),
+        ("HasPart", ("owner", meta.OfIntersection, "parts"), ("part", meta.Member), "keyed"),
+        ("HasSymbol", ("owner", meta.OfPredicate, "symbols"), ("symbol", meta.OfSymbol), "keyed"),
+        ("HasLink", ("owner", meta.OfRelation, "links"), ("link", meta.OfSymbol), "keyed"),
+        ("HasArgument", ("owner", meta.OfApply, "arguments"), ("argument", meta.Argument), "owned"),
+        ("Operands", ("form", meta.Form, "operands"), ("operand", meta.Term), "list"),
+        ("Defines", ("module", meta.OfModule, "schemas"), ("schema", meta.Schema), "keyed"),
+    ]
+    """Each relation between schema objects. A member belongs to one owner (`Has*`: the member determines its owner); a
+    schema object has at most one type, refined schema, index, element, applied schema, relation, parameter, term or width
+    (the first determines the second); types and operands are lists."""
+
+    declared: dict[int, tuple[S.OfObject.Data, dict[str, S.OfAdjacency.Data], list[S.OfAdjacency.Data]]] = {}
+
+    def _declare(schema: S.OfObject.Data, adjacency: S.OfAdjacency.Data, name: str | None = None) -> None:
+        named, anonymous = declared.setdefault(id(schema), (schema, {}, []))[1:]
+        if name is None:
+            anonymous.append(adjacency)
+        else:
+            named[name] = adjacency
+
+    for name, (a, a_schema, named_at), (b, b_schema), how in relations:
+        setattr(meta, name, _relation(name, (a, b), how))
+        if named_at != "":
+            _declare(a_schema, _adjacency(getattr(meta, name), a), named_at)
+        _declare(b_schema, _adjacency(getattr(meta, name), b))
+    for owner in (meta.OfObject, meta.OfRelation):  # each has its own `properties`; any schema may be the owner
+        _declare(owner, _adjacency(meta.HasProperty, "owner"), "properties")
+    for refining in (meta.OfScalar, meta.OfObject, meta.OfContainer):  # only these refine
+        _declare(refining, _adjacency(meta.Refines, "refinement"), "refines")
+    for schema, by_name, unnamed in declared.values():
+        (
+            ObjectBuilder(schema)
+            .adjacencies([lambda t, n=n, a=a: t.name(n).adjacency(a) for n, a in by_name.items()])
+            .adjacencies(unnamed)
+            .update()
+        )
+    return meta
 
 
-def _object(name: str, properties: dict[str, Any] | None = None, refines: Any = None) -> S.OfObject.Data:
-    """A meta-schema: a reference object schema, `Schemas.<name>`, with `properties` of their schemas, by name,
-    refining `refines`."""
-    builder = (
-        ObjectBuilder()
-        .name(f"Schemas.{name}")
-        .ref(True)
-        .properties([lambda t, n=n, s=s: t.name(n).type([s]) for n, s in (properties or {}).items()])
-    )
-    if refines is not None:
-        builder.refines([refines])
-    return builder.create()
-
-
-Meta.Schema = _object("Schema", {"name": Text, "description": Text})
-Meta.Type = _object("Type", refines=Meta.Schema)
-Meta.Scalar = _object("Scalar", {"format": Text, "token": Text}, refines=Meta.Type)
-Meta.Object = _object("Object", {"ref": Bool, "pattern": Text, "singleton": Text}, refines=Meta.Type)
-Meta.Union = _object("Union", {"flat": Bool}, refines=Meta.Type)
-Meta.Intersection = _object("Intersection", {"flat": Bool}, refines=Meta.Type)
-Meta.Container = _object("Container", {"layout": Text}, refines=Meta.Type)
-Meta.Apply = _object("Apply", refines=Meta.Type)
-Meta.Any = _object("Any", refines=Meta.Type)
-Meta.Relation = _object("Relation", {"uniques": ContainerBuilder().index([Int]).element([
-    ContainerBuilder().index([Int]).element([Text]).create()]).create()}, refines=Meta.Schema)
-Meta.Predicate = _object("Predicate", refines=Meta.Schema)
-Meta.Typed = _object("Typed", {"description": Text})
-Meta.Property = _object("Property", refines=Meta.Typed)
-Meta.Parameter = _object("Parameter", refines=Meta.Typed)
-Meta.Symbol = _object("Symbol", refines=Meta.Typed)
-Meta.Member = _object("Member", refines=Meta.Typed)
-Meta.Adjacency = _object("Adjacency", {"description": Text, "me": Text})
-Scalars = AnyValueBuilder().create()  # a scalar of any type, written tagged with its token (`{"int": 8}`)
-Meta.Argument = _object("Argument", {"value": Scalars})
-Meta.Term = _object("Term")
-Meta.Form = _object("Form", {"dialect": Text, "kind": Text,
-                             "attributes": ContainerBuilder().index([Text]).element([Scalars]).create()}, refines=Meta.Term)
-Meta.Module = _object("Module", refines=Meta.Schema)  # its identity is its path; it defines schemas and modules
-
-
-def _relation(name: str, links: tuple[str, str], how: str) -> S.OfRelation.Data:
-    """A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
-    `_RELATIONS`): a keyed relation's entries have `name`; the member determines its owner and its name
-    (`unique(owner, name)`), and the owner and the name determine the member (`unique(member)`)."""
-    first, second = links
-    builder = RelationBuilder().name(f"Schemas.{name}").links([lambda t, n=n: t.name(n) for n in links])
-    if how == "keyed":
-        builder.properties([lambda t: t.name("name").type([Text])])
-    determined = {"one": [[second]], "owned": [[first]], "keyed": [[first, "name"], [second]], "list": None}[how]
-    return builder.uniques(determined).create()
-
-
-def _adjacency(relation: S.OfRelation.Data, link: str) -> S.OfAdjacency.Data:
-    """An adjacency to `relation` filling `link`: named by the entry that links it to its object schema, or anonymous."""
-    return AdjacencyBuilder().relation([relation]).me(link).create()
-
-
-_RELATIONS: list[tuple[str, tuple[str, Any, str | None], tuple[str, Any], str]] = [
-    # (relation, (link, schema, adjacency named there), (link, schema), "one": the first determines the second;
-    # "owned": the second determines the first; "keyed": owned, and named within its owner by the entry's `name`;
-    # "list": neither). An adjacency named "" is declared below, on the kinds that have it, rather than on the link's
-    # schema.
-    ("Typing", ("typed", Meta.Typed, "type"), ("schema", Meta.Type), "one"),
-    ("Refines", ("refinement", Meta.Type, ""), ("refined", Meta.Type), "one"),
-    ("Indexing", ("container", Meta.Container, "index"), ("index", Meta.Type), "one"),
-    ("Containing", ("container", Meta.Container, "element"), ("element", Meta.Type), "one"),
-    ("Applying", ("application", Meta.Apply, "of"), ("applied", Meta.Type), "one"),
-    ("AnyOf", ("any", Meta.Any, "types"), ("schema", Meta.Type), "list"),
-    ("Relating", ("adjacency", Meta.Adjacency, "relation"), ("relation", Meta.Relation), "one"),
-    ("Binding", ("argument", Meta.Argument, "parameter"), ("parameter", Meta.Parameter), "one"),
-    ("ArgumentTerm", ("argument", Meta.Argument, "term"), ("term", Meta.Term), "one"),
-    ("Requires", ("predicate", Meta.Predicate, "requires"), ("term", Meta.Term), "one"),
-    ("BitWidth", ("scalar", Meta.Scalar, "bits"), ("width", Meta.Term), "one"),
-    ("ByteWidth", ("scalar", Meta.Scalar, "bytes"), ("width", Meta.Term), "one"),
-    ("HasParameter", ("owner", Meta.Schema, "parameters"), ("parameter", Meta.Parameter), "keyed"),
-    ("HasProperty", ("owner", Meta.Schema, ""), ("property", Meta.Property), "keyed"),
-    ("HasAdjacency", ("owner", Meta.Object, "adjacencies"), ("adjacency", Meta.Adjacency), "keyed"),
-    ("HasBranch", ("owner", Meta.Union, "branches"), ("branch", Meta.Member), "keyed"),
-    ("HasPart", ("owner", Meta.Intersection, "parts"), ("part", Meta.Member), "keyed"),
-    ("HasSymbol", ("owner", Meta.Predicate, "symbols"), ("symbol", Meta.Symbol), "keyed"),
-    ("HasLink", ("owner", Meta.Relation, "links"), ("link", Meta.Symbol), "keyed"),
-    ("HasArgument", ("owner", Meta.Apply, "arguments"), ("argument", Meta.Argument), "owned"),
-    ("Operands", ("form", Meta.Form, "operands"), ("operand", Meta.Term), "list"),
-    ("Defines", ("module", Meta.Module, "schemas"), ("schema", Meta.Schema), "keyed"),
-]
-"""Each relation between schema objects. A member belongs to one owner (`Has*`: the member determines its owner); a
-schema object has at most one type, refined schema, index, element, applied schema, relation, parameter, term or width
-(the first determines the second); types and operands are lists."""
-
-_NAMED: dict[int, tuple[S.OfObject.Data, dict[str, S.OfAdjacency.Data], list[S.OfAdjacency.Data]]] = {}
-
-
-def _declare(schema: S.OfObject.Data, adjacency: S.OfAdjacency.Data, name: str | None = None) -> None:
-    named, anonymous = _NAMED.setdefault(id(schema), (schema, {}, []))[1:]
-    if name is None:
-        anonymous.append(adjacency)
-    else:
-        named[name] = adjacency
-
-
-for _name, (_a, _a_schema, _named), (_b, _b_schema), _how in _RELATIONS:
-    setattr(Meta, _name, _relation(_name, (_a, _b), _how))
-    if _named != "":
-        _declare(_a_schema, _adjacency(getattr(Meta, _name), _a), _named)
-    _declare(_b_schema, _adjacency(getattr(Meta, _name), _b))
-for _owner in (Meta.Object, Meta.Relation):  # each has its own `properties`; any schema may be the owner
-    _declare(_owner, _adjacency(Meta.HasProperty, "owner"), "properties")
-for _refining in (Meta.Scalar, Meta.Object, Meta.Container):  # only these refine
-    _declare(_refining, _adjacency(Meta.Refines, "refinement"), "refines")
-for _schema, _by_name_, _anonymous in _NAMED.values():
-    (
-        ObjectBuilder(_schema)
-        .adjacencies([lambda t, n=n, a=a: t.name(n).adjacency(a) for n, a in _by_name_.items()])
-        .adjacencies(_anonymous)
-        .update()
-    )
+_TEMPLATE: _Plain | None = None
+"""The plain schemas a builder outside any store reads its own from (`as_schema`), which no store holds."""
+_TEMPLATE = _plain()
 
 
 # --- A store: where schema objects and data are built ---
 
 
 _META_BUILDERS: dict[str, Callable[[], type]] = {
-    "Scalar": lambda: ScalarBuilder, "Object": lambda: ObjectBuilder, "Union": lambda: UnionBuilder,
-    "Intersection": lambda: IntersectionBuilder, "Container": lambda: ContainerBuilder, "Apply": lambda: ApplyBuilder,
-    "Any": lambda: AnyValueBuilder, "Relation": lambda: RelationBuilder, "Predicate": lambda: PredicateBuilder,
-    "Property": lambda: PropertyBuilder, "Parameter": lambda: ParameterBuilder, "Symbol": lambda: SymbolBuilder,
-    "Member": lambda: MemberBuilder, "Adjacency": lambda: AdjacencyBuilder, "Form": lambda: FormBuilder,
-    "Module": lambda: ModuleBuilder, "Argument": lambda: ArgumentBuilder,
+    "OfScalar": lambda: ScalarBuilder, "OfObject": lambda: ObjectBuilder, "OfUnion": lambda: UnionBuilder,
+    "OfIntersection": lambda: IntersectionBuilder, "OfContainer": lambda: ContainerBuilder, "OfApply": lambda: ApplyBuilder,
+    "OfAny": lambda: AnyValueBuilder, "OfRelation": lambda: RelationBuilder, "OfPredicate": lambda: PredicateBuilder,
+    "OfProperty": lambda: PropertyBuilder, "OfParameter": lambda: ParameterBuilder, "OfSymbol": lambda: SymbolBuilder,
+    "Member": lambda: MemberBuilder, "OfAdjacency": lambda: AdjacencyBuilder, "Form": lambda: FormBuilder,
+    "OfModule": lambda: ModuleBuilder, "Argument": lambda: ArgumentBuilder,
 }
-"""The schema objects a store builds as `store.Schemas.<Name>(...)`, each through its builder."""
+"""The schema objects a store builds as `store.Schemas.OfX(...)` (and `Schemas.Member`, `.Form`, `.Argument`),
+each through its builder."""
 
 
 class Store(Proxies.OfStore):
     """A store of schema objects and data. No reference object is built outside a store, a schema object included.
 
     The canonical form of building is `store.moduleName.[...moduleName].schemaName(...)`, each part of a schema's name
-    an attribute: `store.Schemas.Object(...)` builds an object schema, `store.crm.Contact(...)` a contact. Called with
+    an attribute: `store.Schemas.OfObject(...)` builds an object schema, `store.crm.Contact(...)` a contact. Called with
     a `Specs.Callback[Visitors.OfX]`, it creates an object; with an object and a callback, it updates the object; with
     an object alone, it clones it. It returns the object. A schema object built here, and each member built with it, is
     given its identity by the store, which refuses one it holds another with; a named schema is registered under its
     name, so that the store builds its objects next.
 
-    A store changes a schema it holds but does not own through `extend`, which only adds members to it
-    (docs/SCHEMA_EXTENSION.md); a framework schema, which every store holds, only through `Builders.extend`."""
+    A store is made holding its own plain schemas of schemas (`Schemas.OfObject`, ...), basic scalars (`Schemas.OfInt`,
+    ...) and mutation schemas, which no other store shares (docs/SCHEMA_EXTENSION.md, Decided, 23); it changes them, as
+    any schema it holds before an extension begins, only through `extend`, which only adds members."""
 
     def __init__(self) -> None:
         super().__init__()
         self._objects: dict[tuple[str, str], Any] = {}  # the schema objects, by their kind and their identity
-        for name, schema in vars(Meta).items():  # the meta-schemas
-            if not name.startswith("_") and schema.name not in self._schemas:
-                self._objects[(_kind(schema), identity_of(schema))] = schema
-                self.register(schema)
-        from . import Mutations  # the mutation schemas, which every store holds too
+        from . import Mutations
 
-        for schema in Mutations.SCHEMAS:
+        self._meta = _plain()  # its plain schemas of schemas and basic scalars, its own
+        self._mutations = Mutations.schemas(self._meta.OfStr, self._meta.OfInt)
+        for schema in (*vars(self._meta).values(), *vars(self._mutations).values()):
             self._objects[(_kind(schema), identity_of(schema))] = schema
             self.register(schema)
         self._framework: set[int] = {id(schema) for schema in self._objects.values()}
-        self._adopt(_FRAMEWORK)  # what the framework's extensions built
+        self._added: dict[type, dict[str, Any]] = {}  # the members its extensions added to builders, by builder class
         self._extending: set[int] | None = None  # the schema objects held when an extension began, while it runs
-        self._extends_framework = False  # whether this store is the framework's, extending it
-        _STORES.add(self)
         self._modules: dict[str, _ModuleData] = {}  # by path; the root module's is ""
         self._placed: dict[int, tuple[_ModuleData, str]] = {}  # each schema's module, and its name there
         self._linked: dict[int, Any] = {}  # the unnamed schema objects given an identity by the first object to link them
         self._root = ModuleBuilder(None, True, self).create()
 
     def held(self, kind: str, identity: str) -> Any:
-        """The schema object of `kind` (its meta-schema's name, `Schemas.Object`) whose identity is `identity`; None where
+        """The schema object of `kind` (its meta-schema's name, `Schemas.OfObject`) whose identity is `identity`; None where
         the store holds none. Schema objects of different kinds may share an identity: a module and a schema its path
         names (`crm.Contact` and `crm.Contact.v2`'s module)."""
         return self._objects.get((kind, identity))
@@ -1553,9 +1567,8 @@ class Store(Proxies.OfStore):
         return found if found is not None else ModuleBuilder(None, True, self).name(path).create()
 
     def framework(self, schema: Any) -> bool:
-        """Whether `schema` is one of the framework's own, which every store holds: a meta-schema, a basic scalar, a
-        mutation schema, or what an extension of the framework built (`Builders.extend`). It is never written, only
-        referred to."""
+        """Whether `schema` is one the store was made holding: a plain schema of schemas, a basic scalar, a mutation
+        schema. It changes only through `extend`, which adds members to it."""
         return id(schema) in self._framework
 
     def extend(self, cb: Any) -> Store:
@@ -1565,33 +1578,27 @@ class Store(Proxies.OfStore):
         builds is the store's own. Refused, a change to a schema raises before it is written, but what was written before
         it stays: a refused extension is a program error."""
         held = {id(schema) for schema in self._objects.values()}
+        before = {id(meta): (set(meta.properties), set(meta.adjacencies)) for meta in vars(self._meta).values()
+                  if isinstance(meta, S.OfObject.Data)}
         self._extending = held
         try:
             _visit(cb, self)
         finally:
             self._extending = None
+            _extend_builders(self, before)
         return self
 
     def _permit(self, builder: _Builder[Any]) -> None:
-        """Refuses a builder's update of a framework schema outside the framework's extension, and one that is not an
-        extension of a schema the store held when an extension began."""
+        """Refuses a builder's update of a schema the store was made holding outside an extension, and one that is not
+        an extension of a schema the store held when an extension began."""
         original = builder._original
-        if self.framework(original) and not self._extends_framework and _changes(builder):
-            raise TypeError(f"{_shown(original)} is a framework schema, which every store holds: extend it with "
-                            "Builders.extend")
+        if self.framework(original) and self._extending is None and _changes(builder):
+            raise TypeError(f"{_shown(original)} is one of the schemas the store was made holding: extend it with "
+                            "store.extend")
         if self._extending is not None and id(original) in self._extending:
             problems = _extension_problems(builder)
             if problems:
                 raise TypeError(f"an extension only adds members to {_shown(original)}: it {'; '.join(problems)}")
-
-    def _adopt(self, built: dict[tuple[str, str], Any]) -> None:
-        """Holds what the framework's extensions built, as framework schemas."""
-        for key, schema in built.items():
-            self._objects[key] = schema
-            self._framework.add(id(schema))
-            if isinstance(schema, (*S._KINDS, S.OfRelation.Data, S.OfPredicate.Data)) and schema.name:
-                if self._schemas.get(schema.name) is not schema:
-                    self.register(schema)
 
     def _place(self, data: Any) -> None:
         """Defines a named schema, or a module, in the module its path's prefix names, under the last part of its path;
@@ -1614,7 +1621,8 @@ class Store(Proxies.OfStore):
         adjacency (`crm.Person.tags#type`). Through an object `rebuilt` on every read (an argument), only what it builds
         derives: what it links that exists has its own owner."""
         builder_class = _builder_for(owner)
-        for name, members in (builder_class._members_.items() if builder_class is not None else ()):
+        table = {**builder_class._members_, **self._added.get(builder_class, {})} if builder_class is not None else {}
+        for name, members in table.items():
             if not isinstance(members, _Members) or (rebuilt and members.build is None):
                 continue
             for index, referent in enumerate(members.items(owner)):
@@ -1700,6 +1708,7 @@ class Store(Proxies.OfStore):
             existing, cb = args
         else:
             raise TypeError(f"{name}(...) takes a callback, an object and a callback, or an object")
+        existing = Proxies._deref(existing)
         kind = _META_BUILDERS.get(name[len("Schemas."):]) if name.startswith("Schemas.") else None
         if kind is not None:
             builder: Any = kind()(existing, True, self)
@@ -1789,45 +1798,9 @@ def _clashes(schema: S.OfObject.Data, names: list[Any]) -> list[str]:
     return problems
 
 
-_STORES: weakref.WeakSet[Store] = weakref.WeakSet()
-"""Every store in the process, so that what an extension of the framework builds reaches those made before it."""
-
-_FRAMEWORK: dict[tuple[str, str], Any] = {}
-"""What the framework's extensions built, by kind and identity, which every store holds as framework schemas."""
-
-_EXTENSIONS: dict[str, Store] = {}
-"""The framework's extensions applied, by name; the framework's store, under ""."""
-
-
-def extend(name: str, cb: Any) -> None:
-    """Extends the framework, once per process (docs/SCHEMA_EXTENSION.md): `cb`, given the framework's store, builds
-    schemas and adds members to framework schemas, as `Store.extend` does a store's, and every store, made before or
-    after, holds what it built as framework schemas. Extending again under a name already applied does nothing."""
-    if not isinstance(name, str) or not name:
-        raise TypeError(f"an extension is named by non-empty text, got {name!r}")
-    if name in _EXTENSIONS:
-        return
-    store = _EXTENSIONS.get("") or Store()
-    _EXTENSIONS[""] = store
-    before = set(store._objects)
-    metas = {id(meta): (set(meta.properties), set(meta.adjacencies)) for meta in vars(Meta).values()
-             if isinstance(meta, S.OfObject.Data)}
-    store._extends_framework = True
-    try:
-        store.extend(cb)
-    finally:
-        store._extends_framework = False
-    built = {key: schema for key, schema in store._objects.items()
-             if key not in before and not isinstance(schema, _ModuleData)}
-    _FRAMEWORK.update(built)
-    for held in list(_STORES):
-        held._adopt(built)
-    _extend_builders(metas)
-    _EXTENSIONS[name] = store
-
-
-class _Path(_Unassignable):
-    """`store.moduleName.[...moduleName].schemaName`: a schema's name, one part per attribute; called, it builds."""
+class _Path(_Unassignable, Proxies._Named):
+    """`store.moduleName.[...moduleName].schemaName`: a schema's name, one part per attribute; called, it builds, and
+    given where an object is expected, it is the schema it names (`.type([store.Schemas.OfInt])`)."""
 
     def __init__(self, store: Store, name: str):
         self._store, self._name = store, name
@@ -1840,6 +1813,13 @@ class _Path(_Unassignable):
     def __call__(self, *args: Any) -> Any:
         return self._store._build(self._name, args)
 
+    def as_schema(self) -> Any:
+        """The schema it names: `store.Schemas.OfInt.as_schema()` is the store's `Schemas.OfInt`."""
+        return self._store.registered(self._name)
+
+    def _resolve(self) -> Any:
+        return self.as_schema()
+
     def __repr__(self) -> str:
         return f"<{self._name}>"
 
@@ -1848,66 +1828,66 @@ class _Path(_Unassignable):
 
 
 class OfScalar:
-    Data, Builder, Token, Schema = S.OfScalar.Data, ScalarBuilder, S.OfScalar.Token, Meta.Scalar
+    Data, Builder, Token = S.OfScalar.Data, ScalarBuilder, S.OfScalar.Token
 
 
 class OfObject:
-    Data, Builder, Schema = S.OfObject.Data, ObjectBuilder, Meta.Object
+    Data, Builder = S.OfObject.Data, ObjectBuilder
 
 
 class OfProperty:
-    Data, Builder, Schema = S.OfProperty.Data, PropertyBuilder, Meta.Property
+    Data, Builder = S.OfProperty.Data, PropertyBuilder
 
 
 class OfAdjacency:
-    Data, Builder, Schema = S.OfAdjacency.Data, AdjacencyBuilder, Meta.Adjacency
+    Data, Builder = S.OfAdjacency.Data, AdjacencyBuilder
 
 
 class OfRelation:
-    Data, Builder, Schema = S.OfRelation.Data, RelationBuilder, Meta.Relation
+    Data, Builder = S.OfRelation.Data, RelationBuilder
 
 
 class OfSymbol:
-    Data, Builder, Schema = S.OfSymbol.Data, SymbolBuilder, Meta.Symbol
+    Data, Builder = S.OfSymbol.Data, SymbolBuilder
 
 
 class OfParameter:
-    Data, Builder, Schema = S.OfParameter.Data, ParameterBuilder, Meta.Parameter
+    Data, Builder = S.OfParameter.Data, ParameterBuilder
 
 
 class OfUnion:
-    Data, Builder, Branch, Schema = S.OfUnion.Data, UnionBuilder, S.OfUnion.Branch, Meta.Union
+    Data, Builder, Branch = S.OfUnion.Data, UnionBuilder, S.OfUnion.Branch
 
 
 class OfIntersection:
-    Data, Builder, Part, Schema = S.OfIntersection.Data, IntersectionBuilder, S.OfIntersection.Part, Meta.Intersection
+    Data, Builder, Part = S.OfIntersection.Data, IntersectionBuilder, S.OfIntersection.Part
 
 
 class OfContainer:
-    Data, Builder, Schema = S.OfContainer.Data, ContainerBuilder, Meta.Container
+    Data, Builder = S.OfContainer.Data, ContainerBuilder
 
 
 class OfApply:
-    Data, Builder, Schema = S.OfApply.Data, ApplyBuilder, Meta.Apply
+    Data, Builder = S.OfApply.Data, ApplyBuilder
 
 
 class OfPredicate:
-    Data, Builder, Schema = S.OfPredicate.Data, PredicateBuilder, Meta.Predicate
+    Data, Builder = S.OfPredicate.Data, PredicateBuilder
 
 
 class OfAny:
-    Data, Builder, Schema = S.OfAny.Value, AnyValueBuilder, Meta.Any
+    Data, Builder = S.OfAny.Value, AnyValueBuilder
 
 
 class Form:
-    Data, Builder, Schema = S.Form.Data, FormBuilder, Meta.Form
+    Data, Builder = S.Form.Data, FormBuilder
 
 
-# `Schemas.OfX.Builder` and `Schemas.OfX.Schema` are these: a schema builder is a `Visitors.OfObject` over its meta-schema
-# (FRAMEWORK.md, Resolved: "Schemas.OfX.Builder must implement Visitors.OfX").
+# `Schemas.OfX.Builder` is this: a schema builder is a `Visitors.OfObject` over its plain schema, its store's
+# `Schemas.OfX` (FRAMEWORK.md, Resolved: "Schemas.OfX.Builder must implement Visitors.OfX").
 for _namespace, _own in ((S.OfScalar, OfScalar), (S.OfObject, OfObject), (S.OfProperty, OfProperty),
                          (S.OfAdjacency, OfAdjacency), (S.OfRelation, OfRelation), (S.OfSymbol, OfSymbol),
                          (S.OfParameter, OfParameter), (S.OfUnion, OfUnion), (S.OfIntersection, OfIntersection),
                          (S.OfContainer, OfContainer), (S.OfApply, OfApply), (S.OfPredicate, OfPredicate), (S.OfAny, OfAny),
                          (S.Form, Form)):
-    _namespace.Builder, _namespace.Schema = _own.Builder, _own.Schema
+    _namespace.Builder = _own.Builder

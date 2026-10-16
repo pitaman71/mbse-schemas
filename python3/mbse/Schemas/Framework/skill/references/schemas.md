@@ -14,7 +14,7 @@ Int, Text = Builders.Meta.OfInt, Builders.Meta.OfStr  # the basic scalars, which
 store = Builders.Store()
 
 # Design: a schema is built in its store, and a named one is registered, in the module its name's prefix names.
-Contact = store.Schemas.Object(lambda o: (
+Contact = store.Schemas.OfObject(lambda o: (
     o
     .name("crm.Contact")
     .ref(True)
@@ -22,20 +22,20 @@ Contact = store.Schemas.Object(lambda o: (
 ))
 
 # Extend in place: the schema and a callback update it, as an object and a callback update data.
-store.Schemas.Object(Contact, lambda o: o.properties([lambda t: t.name("age").type([Int])]))
+store.Schemas.OfObject(Contact, lambda o: o.properties([lambda t: t.name("age").type([Int])]))
 assert list(Contact.properties) == ["given_name", "age"]
 
 # Remove a member: the adjacency's visitor removes the entries agreeing with a template.
-store.Schemas.Object(Contact, lambda o: o.properties(lambda adv: adv.remove(lambda e: e.name("age"))))
+store.Schemas.OfObject(Contact, lambda o: o.properties(lambda adv: adv.remove(lambda e: e.name("age"))))
 assert list(Contact.properties) == ["given_name"]
 
 # A new version beside the old: a named schema's identity is its name, so clone it under another, in the store.
 V2 = Builders.OfObject.Builder(Contact, store=store).name("crm.Contact.v2").clone()
-store.Schemas.Object(V2, lambda o: o.properties([lambda t: t.name("email").type([Text])]))
+store.Schemas.OfObject(V2, lambda o: o.properties([lambda t: t.name("email").type([Text])]))
 assert list(V2.properties) == ["given_name", "email"] and list(Contact.properties) == ["given_name"]
 
 # A refinement: the members of the schema it refines, and its own; its objects are that schema's objects too.
-Customer = store.Schemas.Object(lambda o: (
+Customer = store.Schemas.OfObject(lambda o: (
     o
     .name("crm.Customer")
     .ref(True)
@@ -46,7 +46,7 @@ assert list(Customer.properties) == ["given_name", "account"]
 
 # Generate: a program builds schemas from whatever describes them.
 fields = {"street": Text, "number": Int}
-Address = store.Schemas.Object(lambda o: o.name("crm.Address").properties([
+Address = store.Schemas.OfObject(lambda o: o.name("crm.Address").properties([
     lambda t, name=name, of=of: t.name(name).type([of]) for name, of in fields.items()
 ]))
 
@@ -68,7 +68,7 @@ const store: any = new Builders.Store();
 const check = (ok: boolean) => { if (!ok) throw new Error("unexpected"); };
 
 // Design: a schema is built in its store, and a named one is registered, in the module its name's prefix names.
-const Contact = store.Schemas.Object((o: any) => (
+const Contact = store.Schemas.OfObject((o: any) => (
   o
     .name("crm.Contact")
     .ref(true)
@@ -76,20 +76,20 @@ const Contact = store.Schemas.Object((o: any) => (
 ));
 
 // Extend in place: the schema and a callback update it, as an object and a callback update data.
-store.Schemas.Object(Contact, (o: any) => o.properties([(t: any) => t.name("age").type([Int])]));
+store.Schemas.OfObject(Contact, (o: any) => o.properties([(t: any) => t.name("age").type([Int])]));
 check([...Contact.properties.keys()].join() === "given_name,age");
 
 // Remove a member: the adjacency's visitor removes the entries agreeing with a template.
-store.Schemas.Object(Contact, (o: any) => o.properties((adv: any) => adv.remove((e: any) => e.name("age"))));
+store.Schemas.OfObject(Contact, (o: any) => o.properties((adv: any) => adv.remove((e: any) => e.name("age"))));
 check([...Contact.properties.keys()].join() === "given_name");
 
 // A new version beside the old: a named schema's identity is its name, so clone it under another, in the store.
 const V2 = new Builders.OfObject.Builder(Contact, true, store).name("crm.Contact.v2").clone();
-store.Schemas.Object(V2, (o: any) => o.properties([(t: any) => t.name("email").type([Text])]));
+store.Schemas.OfObject(V2, (o: any) => o.properties([(t: any) => t.name("email").type([Text])]));
 check([...V2.properties.keys()].join() === "given_name,email" && Contact.properties.size === 1);
 
 // A refinement: the members of the schema it refines, and its own; its objects are that schema's objects too.
-const Customer = store.Schemas.Object((o: any) => (
+const Customer = store.Schemas.OfObject((o: any) => (
   o
     .name("crm.Customer")
     .ref(true)
@@ -100,7 +100,7 @@ check([...Customer.properties.keys()].join() === "given_name,account");
 
 // Generate: a program builds schemas from whatever describes them.
 const fields = new Map([["street", Text], ["number", Int]]);
-const Address = store.Schemas.Object((o: any) => o.name("crm.Address").properties(
+const Address = store.Schemas.OfObject((o: any) => o.name("crm.Address").properties(
   [...fields].map(([name, of]) => (t: any) => t.name(name).type([of])),
 ));
 
@@ -121,11 +121,11 @@ check(Validators.Validate(store)(Customer, ada).length === 0);
 - **Link only what the store holds.** A store refuses a link to a schema object it does not hold: build every schema,
   form and member in the store that links it. The basic scalars are `Builders.Meta`'s (`OfBool`, `OfInt`, `OfFloat`,
   `OfStr`, `OfBytes`), held by every store; a scalar of another token or width is built,
-  `store.Schemas.Scalar(lambda s: s.token("int").bits([w]))`, as is a width or another term,
+  `store.Schemas.OfScalar(lambda s: s.token("int").bits([w]))`, as is a width or another term,
   `store.Schemas.Form(lambda f: f.kind("literal").attributes({"value": 32}))`. Never link `Schemas.OfX.Data(...)`.
 - **A type exists before what it types.** Build a value object or container schema, then the property typed by it.
   Two schemas that refer to each other are built in two steps: the first, then the second, then the first updated.
-- **A named schema's identity is its name.** `store.Schemas.Object(Contact)` cannot clone it into the same store; a
+- **A named schema's identity is its name.** `store.Schemas.OfObject(Contact)` cannot clone it into the same store; a
   version beside it is a builder's clone under a new name. Renaming one (`.name(...)` in an update) moves it to the
   module its new name gives.
 - **Extending changes the schema in place.** Objects of an extended schema gain the member, absent until written. To keep

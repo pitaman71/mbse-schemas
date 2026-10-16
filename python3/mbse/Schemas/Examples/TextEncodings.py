@@ -12,26 +12,26 @@ from mbse.Schemas.Framework import JSON, YAML, Builders, Plain, Proxies, Schemas
 from mbse.Schemas.Framework.Errors import DecodeError
 from mbse.Schemas.Examples._support import raises, same_graph
 
-Text = Builders.Meta.OfStr
 
 store = Builders.Store()
+Text = store.Schemas.OfStr.as_schema()  # the store's own basic scalar
 
 # --- Schemas ---
 
-Reading = store.Schemas.Object(lambda o: (
+Reading = store.Schemas.OfObject(lambda o: (
     o
     .name('Reading')
     .ref(True)
     .properties([
         lambda t: t.name('observed').type([Text]),  # ISO 8601, e.g. '2026-09-28T12:00:00Z'
-        lambda t: t.name('value').type([Builders.Meta.OfFloat]),
-        lambda t: t.name('quality').type([Builders.Meta.OfInt]),
-        lambda t: t.name('valid').type([Builders.Meta.OfBool]),
-        lambda t: t.name('raw').type([Builders.Meta.OfBytes]),
+        lambda t: t.name('value').type([store.Schemas.OfFloat]),
+        lambda t: t.name('quality').type([store.Schemas.OfInt]),
+        lambda t: t.name('valid').type([store.Schemas.OfBool]),
+        lambda t: t.name('raw').type([store.Schemas.OfBytes]),
         lambda t: t.name('note').type([Text]),
     ])
 ))
-Station = store.Schemas.Object(lambda o: (
+Station = store.Schemas.OfObject(lambda o: (
     o
     .name('Station')
     .ref(True)
@@ -40,7 +40,7 @@ Station = store.Schemas.Object(lambda o: (
         lambda t: t.name('name').type([Text]),
     ])
 ))
-Readings = store.Schemas.Relation(lambda r: (
+Readings = store.Schemas.OfRelation(lambda r: (
     r
     .name('Readings')
     .links([
@@ -50,8 +50,8 @@ Readings = store.Schemas.Relation(lambda r: (
     .properties([lambda t: t.name('sensor').type([Text])])
     .uniques(['station', 'sensor'])  # each reading comes from one sensor of one station
 ))
-store.Schemas.Object(Station, lambda o: o.adjacencies([lambda t: t.name('readings').relation([Readings]).me('station')]))
-store.Schemas.Object(Reading, lambda o: o.adjacencies([lambda t: t.name('station').relation([Readings]).me('reading')]))
+store.Schemas.OfObject(Station, lambda o: o.adjacencies([lambda t: t.name('readings').relation([Readings]).me('station')]))
+store.Schemas.OfObject(Reading, lambda o: o.adjacencies([lambda t: t.name('station').relation([Readings]).me('reading')]))
 
 validate = Validators.Validate(store)
 from_json = JSON.FromJSON(store)

@@ -22,13 +22,12 @@ def raises(*errors: type[BaseException], match: str | None = None) -> Iterator[N
     raise AssertionError(f"expected one of {[e.__name__ for e in errors]}")
 
 
-BASIC = {str: Builders.Meta.OfStr, int: Builders.Meta.OfInt, float: Builders.Meta.OfFloat, bool: Builders.Meta.OfBool,
-         bytes: Builders.Meta.OfBytes}
+BASIC = {str: "OfStr", int: "OfInt", float: "OfFloat", bool: "OfBool", bytes: "OfBytes"}
 
 
-def basic(scalar: type) -> Any:
-    """The basic scalar schema of a host type, which every store holds."""
-    return BASIC[scalar]
+def basic(store: Any, scalar: type) -> Any:
+    """The basic scalar schema of a host type in `store`, which holds its own."""
+    return getattr(store.Schemas, BASIC[scalar]).as_schema()
 
 
 def entries(schema: Any, obj: Any, adjacency: str) -> list[dict[str, Any]]:

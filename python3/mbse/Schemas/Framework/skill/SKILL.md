@@ -49,12 +49,12 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
    `store.crm.Contact(obj)` clones. Entries are inserted and removed through an adjacency's visitor
    (`.phones(lambda a: a.insert(...))`).
 8. **Everything is built in a store.** `store = Builders.Store()` builds schemas,
-   `store.Schemas.Object(lambda o: o.name("crm.Contact").ref(True).properties([...]))`, registering each named one
+   `store.Schemas.OfObject(lambda o: o.name("crm.Contact").ref(True).properties([...]))`, registering each named one
    under its name, and data, `store.crm.Contact(lambda c: ...)`, an attribute per part of the name; it keeps as data
    what its singletons reach. A schema's members are its entries, each named by its entry
    (`lambda t: t.name("given_name").type([Text])`), and a reference to another schema object is a list of what it
    links (`.type([Text])`). In TypeScript the store, `new Builders.Store()`, is declared `any`, and callbacks given to
-   it are annotated: `store.Schemas.Object((o: any) => ...)`. Serializers and validators take the store
+   it are annotated: `store.Schemas.OfObject((o: any) => ...)`. Serializers and validators take the store
    (`JSON.ToJSON(store)`, `Validators.Validate(store)`). Stores are isolated; objects move between them as snapshots.
 
 ## Load the reference for your task

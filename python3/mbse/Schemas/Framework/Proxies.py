@@ -313,6 +313,16 @@ def _is_function(spec: Any) -> bool:
     return callable(spec) and not isinstance(spec, _VALUES)
 
 
+class _Named:
+    """A reference by name, a store's path (`store.Schemas.OfInt`): a value, resolved to what it names (`_resolve`)
+    wherever an object is expected (docs/proposals/store-overhaul, Decided, 15)."""
+
+
+def _deref(value: Any) -> Any:
+    """What `value` names, where it is a reference by name; else `value`."""
+    return value._resolve() if isinstance(value, _Named) else value
+
+
 def _visit(spec: Any, visitor: Any) -> None:
     """Hands `visitor` to a callable Spec, which reads or writes through it; its return value is the visitor's own."""
     spec(visitor)
@@ -1824,6 +1834,7 @@ class _LinkMember(_Unassignable):
             _visit(spec, builder)
             entry._links[name] = builder
             return entry
+        spec = _deref(spec)
         if isinstance(spec, _LinkMember):
             spec = spec._target()
         if isinstance(spec, _RecordData):
@@ -2034,7 +2045,7 @@ class _ObjectBuilder(_Unassignable):
 
 
 _VALUES = (_ObjectData, _RecordData, _Entry, _Property, _Scalar, _RecordBuilder, _LinkMember, _Adjacency,
-           _AdjacencyBuilder, _Empty, _EntryBuilder, _Containing, _Iterator, _Them, _Chained)
+           _AdjacencyBuilder, _Empty, _EntryBuilder, _Containing, _Iterator, _Them, _Chained, _Named)
 """The classes whose instances are values, not the callable form of a Spec, though some are callable."""
 
 

@@ -4,14 +4,14 @@
 
 from mbse.Schemas.Framework import Builders, Schemas, Proxies, Plain, JSON
 
-Text = Builders.Meta.OfStr
 
 # Schemas and objects are built in a store, `store.<schema name>(...)`; a named schema registers itself as it is built.
 store = Builders.Store()
+Text = store.Schemas.OfStr.as_schema()  # the store's own basic scalar
 
 # --- Schemas ---
 
-IntlAddress = store.Schemas.Object(lambda o: (
+IntlAddress = store.Schemas.OfObject(lambda o: (
     o
     .name('IntlAddress')
     .ref(True)
@@ -28,7 +28,7 @@ IntlAddress = store.Schemas.Object(lambda o: (
     ])
 ))
 
-Contact = store.Schemas.Object(lambda o: (
+Contact = store.Schemas.OfObject(lambda o: (
     o
     .name('Contact')
     .ref(True)
@@ -40,7 +40,7 @@ Contact = store.Schemas.Object(lambda o: (
     ])
 ))
 
-PhoneNumber = store.Schemas.Object(lambda o: (
+PhoneNumber = store.Schemas.OfObject(lambda o: (
     o
     .name('PhoneNumber')
     .ref(True)
@@ -49,7 +49,7 @@ PhoneNumber = store.Schemas.Object(lambda o: (
     ])
 ))
 
-EmailAddress = store.Schemas.Object(lambda o: (
+EmailAddress = store.Schemas.OfObject(lambda o: (
     o
     .name('EmailAddress')
     .ref(True)
@@ -60,7 +60,7 @@ EmailAddress = store.Schemas.Object(lambda o: (
 
 # Collections are relations. Links are untyped; each object declares its adjacencies below.
 
-ContactAddresses = store.Schemas.Relation(lambda r: (
+ContactAddresses = store.Schemas.OfRelation(lambda r: (
     r
     .name('ContactAddresses')
     .links([
@@ -72,7 +72,7 @@ ContactAddresses = store.Schemas.Relation(lambda r: (
     ])
 ))
 
-ContactPhones = store.Schemas.Relation(lambda r: (
+ContactPhones = store.Schemas.OfRelation(lambda r: (
     r
     .name('ContactPhones')
     .links([
@@ -84,7 +84,7 @@ ContactPhones = store.Schemas.Relation(lambda r: (
     ])
 ))
 
-ContactEmails = store.Schemas.Relation(lambda r: (
+ContactEmails = store.Schemas.OfRelation(lambda r: (
     r
     .name('ContactEmails')
     .links([
@@ -97,18 +97,18 @@ ContactEmails = store.Schemas.Relation(lambda r: (
 ))
 
 # A schema and a callback: the schema, updated in place.
-store.Schemas.Object(Contact, lambda o: o.adjacencies([
+store.Schemas.OfObject(Contact, lambda o: o.adjacencies([
     lambda t: t.name('addresses').relation([ContactAddresses]).me('contact'),
     lambda t: t.name('phones').relation([ContactPhones]).me('contact'),
     lambda t: t.name('emails').relation([ContactEmails]).me('contact'),
 ]))
-store.Schemas.Object(IntlAddress, lambda o: o.adjacencies([
+store.Schemas.OfObject(IntlAddress, lambda o: o.adjacencies([
     lambda t: t.name('contacts').relation([ContactAddresses]).me('address'),
 ]))
-store.Schemas.Object(PhoneNumber, lambda o: o.adjacencies([
+store.Schemas.OfObject(PhoneNumber, lambda o: o.adjacencies([
     lambda t: t.name('contacts').relation([ContactPhones]).me('phone'),
 ]))
-store.Schemas.Object(EmailAddress, lambda o: o.adjacencies([
+store.Schemas.OfObject(EmailAddress, lambda o: o.adjacencies([
     lambda t: t.name('contacts').relation([ContactEmails]).me('email'),
 ]))
 

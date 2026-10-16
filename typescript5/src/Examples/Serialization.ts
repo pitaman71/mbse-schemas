@@ -216,7 +216,6 @@ raises(TypeError, () => Plain.ToPlain(store)(Currency, widget));
 
 // --- Store corner cases ---
 
-raises(ValueError, () => store.register(Sample)); // names are registered once: Sample was as it was built
 raises(ValueError, () => store.Schemas.OfObject((o: any) => o.name("Sample"))); // a named schema's identity is its name, which Sample holds
 raises(AttributeError, () => store.Unregistered((u: any) => u));
 raises(TypeError, () => store.Product()); // a callback, an object and a callback, or an object

@@ -2,7 +2,7 @@
 #
 # Lines marked PROPOSED use syntax that FRAMEWORK.md does not define yet.
 
-from mbse.Schemas.Framework import Builders, Schemas, Proxies, Plain, JSON
+from mbse.Schemas.Framework import Builders, Schemas, Plain, JSON
 
 
 # Schemas and objects are built in a store, `store.<schema name>(...)`; a named schema registers itself as it is built.
@@ -176,18 +176,17 @@ graph = Plain.ToPlain(store).Reachable(IntlAddress, addr1)
 assert graph['root'] == f'IntlAddress/{addr1.as_identity()}'
 
 # Read into another store, the snapshot builds objects of the same identities there.
-backup = Proxies.OfStore()
-for schema in (IntlAddress, Contact, PhoneNumber, EmailAddress, ContactAddresses, ContactPhones, ContactEmails):
-    backup.register(schema)
-roundtrip = Plain.FromPlain(backup).Reachable(IntlAddress, graph)
+backup = Builders.Store()
+Plain.FromPlain(backup).Snapshot(Plain.ToPlain(store).Snapshot())  # the same schemas, its own: a store's snapshot writes them
+roundtrip = Plain.FromPlain(backup).Reachable(backup.IntlAddress, graph)
 assert roundtrip is not addr1 and roundtrip.as_identity() == addr1.as_identity()
-assert Plain.ToPlain(backup).Reachable(IntlAddress, roundtrip) == graph
+assert Plain.ToPlain(backup).Reachable(backup.IntlAddress, roundtrip) == graph
 
 # Read into the store that holds them, it updates them through their builders: what it omits, they keep.
 assert Plain.FromPlain(store).Reachable(IntlAddress, graph) is addr1
 
 # The same snapshot as JSON text, and back.
 text = JSON.ToJSON(store).Reachable(IntlAddress, addr1, indent=2)
-from_json = JSON.FromJSON(backup).Reachable(IntlAddress, text)
+from_json = JSON.FromJSON(backup).Reachable(backup.IntlAddress, text)
 assert from_json is roundtrip and str(from_json.street1) == str(addr1.street1)  # the backup's, updated
 assert JSON.loads(text) == graph

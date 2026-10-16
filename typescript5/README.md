@@ -20,17 +20,17 @@ npm run conformance                     # regenerate ../conformance/typescript5
 The same program in both languages:
 
 ```python
-IntlAddress = Schemas.OfObject.Builder().name('IntlAddress').ref().properties(lambda p: p.name('street1').of(lambda t: t.as_scalar(str))).create()
-store = Proxies.OfStore()
-store.register(IntlAddress)
-addr = store.IntlAddress().street1('10 Downing Street').create()
+store = Builders.Store()
+IntlAddress = store.Schemas.OfObject(lambda o: o.name('IntlAddress').ref(True).properties([
+    lambda t: t.name('street1').type([store.Schemas.OfStr])]))
+addr = store.IntlAddress(lambda a: a.street1('10 Downing Street'))
 ```
 
 ```ts
-const IntlAddress = new Schemas.OfObject.Builder().name("IntlAddress").ref().properties((p) => p.name("street1").of((t) => t.as_scalar(String))).create();
-const store = new Proxies.OfStore();
-store.register(IntlAddress);
-const addr = store.IntlAddress().street1("10 Downing Street").create();
+const store: any = new Builders.Store();
+const IntlAddress = store.Schemas.OfObject((o: any) => o.name("IntlAddress").ref(true).properties([
+  (t: any) => t.name("street1").type([store.Schemas.OfStr])]));
+const addr = store.IntlAddress((a: any) => a.street1("10 Downing Street"));
 ```
 
 ---

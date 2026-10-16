@@ -3,7 +3,7 @@
 A store holds schemas by name, and its data: the instances of its singleton schemas, its roots, and every reference
 object reachable from them through relation entries, with the value objects those own. Anything else built with a
 store's builders is transient: it lives only while the program holds it. `Store` is the protocol every implementation
-meets; `Proxies.OfStore` (dynamic instances) implements it, and generated code will. Everything that
+meets; `Builders.Store` (dynamic instances) implements it, and generated code will. Everything that
 looks a schema up by name takes a store: `Plain.ToPlain(store)`, `Plain.FromPlain(store)`, the JSON and YAML forms,
 `Validators.Validate(store)`. Stores are isolated from one another; objects move between them as
 snapshots. Selecting objects by a condition is an extension, in mbse-expressions.
@@ -139,11 +139,9 @@ class Catalog:
         self._schemas: dict[str, Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data] = {}
         self._singletons: dict[str, Readers.OfObject] = {}
 
-    def register(self, schema: Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data) -> None:
-        """Registers a schema under its name."""
-        name = getattr(schema, "name", None)
-        if name is None:
-            raise ValueError("a schema needs a name to be registered; name it with its builder's .name()")
+    def _register(self, schema: Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data) -> None:
+        """Registers a schema under its name: a store does as it builds a named schema."""
+        name = schema.name
         if name in self._schemas:
             raise ValueError(f"schema {name!r} is already registered")
         self._schemas[name] = schema

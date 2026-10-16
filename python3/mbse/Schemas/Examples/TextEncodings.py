@@ -8,7 +8,7 @@ import math
 
 import yaml
 
-from mbse.Schemas.Framework import JSON, YAML, Builders, Plain, Proxies, Schemas, Validators
+from mbse.Schemas.Framework import JSON, YAML, Builders, Plain, Schemas, Validators
 from mbse.Schemas.Framework.Errors import DecodeError
 from mbse.Schemas.Examples._support import raises, same_graph
 
@@ -162,14 +162,13 @@ lyon = store.Station(lambda s: (
 graph = Plain.ToPlain(store).Reachable(Station, lyon)
 for text, decoder in [(JSON.ToJSON(store).Reachable(Station, lyon), JSON.FromJSON),
                       (YAML.ToYAML(store).Reachable(Station, lyon), YAML.FromYAML)]:
-    elsewhere = Proxies.OfStore()  # read into another store: objects of the same identities
-    for schema in [Reading, Station, Readings]:
-        elsewhere.register(schema)
-    restored = decoder(elsewhere).Reachable(Station, text)
+    elsewhere = Builders.Store()  # read into another store: objects of the same identities
+    Plain.FromPlain(elsewhere).Snapshot(Plain.ToPlain(store).Snapshot())  # the same schemas, its own: a store's snapshot writes them
+    restored = decoder(elsewhere).Reachable(elsewhere.Station, text)
     assert restored is not lyon and restored.as_identity() == lyon.as_identity()
     assert str(restored.name) == 'Lyon-Saint-Exupéry'
-    assert same_graph(Plain.ToPlain(elsewhere).Reachable(Station, restored), graph)
-    assert Validators.Validate(elsewhere).Reachable(Station, restored) == []
+    assert same_graph(Plain.ToPlain(elsewhere).Reachable(elsewhere.Station, restored), graph)
+    assert Validators.Validate(elsewhere).Reachable(elsewhere.Station, restored) == []
 
 # A single-object snapshot leaves references unresolved, in any encoding.
 with raises(DecodeError):

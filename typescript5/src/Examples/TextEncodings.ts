@@ -163,13 +163,13 @@ const lyon = store.Station((s: any) => (
 const graph = Plain.ToPlain(store).Reachable(Station, lyon);
 for (const [encoded, decoder] of [[JSON.ToJSON(store).Reachable(Station, lyon), JSON.FromJSON],
   [YAML.ToYAML(store).Reachable(Station, lyon), YAML.FromYAML]] as const) {
-  const elsewhere = new Proxies.OfStore(); // read into another store: objects of the same identities
-  for (const schema of [Reading, Station, Readings]) elsewhere.register(schema);
-  const restored = decoder(elsewhere).Reachable(Station, encoded) as Instance;
+  const elsewhere: any = new Builders.Store(); // read into another store: objects of the same identities
+  Plain.FromPlain(elsewhere).Snapshot(Plain.ToPlain(store).Snapshot()); // the same schemas, its own: a store's snapshot writes them
+  const restored = decoder(elsewhere).Reachable(elsewhere.Station, encoded) as Instance;
   assert(restored !== lyon && restored.as_identity() === lyon.as_identity());
   assert(String(restored.name) === "Lyon-Saint-Exupéry");
-  assert(same_graph(Plain.ToPlain(elsewhere).Reachable(Station, restored), graph));
-  assert(Validators.Validate(elsewhere).Reachable(Station, restored).length === 0);
+  assert(same_graph(Plain.ToPlain(elsewhere).Reachable(elsewhere.Station, restored), graph));
+  assert(Validators.Validate(elsewhere).Reachable(elsewhere.Station, restored).length === 0);
 }
 
 // A single-object snapshot leaves references unresolved, in any encoding.

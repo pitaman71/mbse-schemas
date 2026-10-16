@@ -92,6 +92,10 @@ As the user decided (2026-10-16), on the questions put to them:
     schemas without `Builders.Meta`, and with no string (P-015).
 16. **Code names a store's schema by the store's path**, "(a)": `.type([store.Schemas.OfInt])`, each use naming its
     store, rather than a path rooted in no store.
+17. **One store, which registers by building**: asked what `register` does now and whether a store of proxies is still
+    needed, "I agree Proxies.OfStore might also be redundant so merge into one": a store registers a named schema as a
+    side effect of building it, `register` is no public API, and `Builders.Store` is the one store, a store of proxies
+    being its implementation. No store registers another's schema (decision 23).
 
 ## Order of work
 
@@ -115,6 +119,9 @@ so that main stays current and no branch waits on another.
    parameters (7; Schema extension, Decided, 5 to 7). `Meta.Schema`, `Meta.Type` and `Meta.Typed` go (2, 3), and
    `Schemas.Meta` (13) is built, holding level 3's names.
    *Breaks*: PAR (parametrics) and every test of forms, widths, applications and predicates' `requires`.
+2a. **One store (0.15.0).** `register` leaves the public API and `Proxies.OfStore` with it (17); a test's "another
+   store of the same schemas" builds its schemas there, or reads them from a snapshot. Steps 2 to 4 follow as 0.16.0 to
+   0.18.0.
 3. **Scalars and members (0.16.0).** User scalar schemas, `token` and `format` go (8, 9). Branches and parts become `HasBranch` and `HasPart` (4).
    `Schemas.OfScalar` has exactly the five instances (8).
    *Breaks*: every user-defined scalar in tests, examples and tutorials; the module format of unions and
@@ -141,14 +148,33 @@ portability pass.
 
 Found while building it, for the user:
 
-- **A schema registered in another store.** `store.register(schema)` still accepts a schema another store built, and
-  about eighteen tests and a tutorial use it to have "another store of the same schemas" (a `Proxies.OfStore`, or a
-  second `Builders.Store`), which shares schema objects across stores against decision 23. Refusing it means those
-  cases build their schemas in each store, or read them from a snapshot.
+- **A schema registered in another store.** Settled by 17 (step 2a): no public `register`.
 - **A snapshot read into a store without its extensions.** Reading an extended store's snapshot into a store that lacks
   the extension succeeds silently, and the objects it makes lack what the extension added (a domain without its
   `schemas` adjacency): what a round trip between "differing extensions" should do is undecided (refuse, or keep what
   the reading store cannot hold).
+
+## Step 2a, as built (0.15.0)
+
+`register` is private (`_register`): a store registers a named schema as it builds it, and nothing else does. The store
+of proxies is `Proxies._Store`, the implementation of `Builders.Store`, which is the one store; `Proxies.OfStore` is
+gone. Tests, examples and a tutorial that registered one store's schemas into another now read them from its snapshot,
+which writes a store's schemas (`Plain.FromPlain(other).Snapshot(Plain.ToPlain(store).Snapshot())`), and name the other
+store's schemas by its paths (`other.Card`). Both READMEs' examples are rewritten in the canonical form.
+
+Found and fixed while building it: a container selected through a schema builder with a callback writing nothing was
+not written, so a set relation's `uniques` (one empty clause) was read back from a snapshot as an open relation. A
+selected container is now written, empty until written further, as a proxy's is (SNP-05, BLD-06).
+
+Found, for the user:
+
+- **The dataclass adapter** builds its schemas outside any store, so its test registers them with the private
+  `_register` until the adapter builds through a store's builders (TODO.md).
+- **An empty inner container read into an object that exists** is treated as omitted and keeps what the object held
+  (`[[], ['b']]` read over `[['a'], []]` gives `[['a'], ['b']]`): reading into a store that holds the object merges
+  element by element, and an empty container is not told from an absent one.
+- **A store's snapshot fails on data it cannot write**: a value of any type holding a value object of an unregistered
+  (unnamed) schema has no name to be tagged with, so `Plain.ToPlain(store).Snapshot()` raises for the whole store.
 
 ## Open, for the user
 

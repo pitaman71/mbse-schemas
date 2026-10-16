@@ -217,7 +217,10 @@ class _Value(_Unassignable):
         if self._container is False:
             return self._other(cb)
         if _is_function(cb):
-            _visit(cb, _Mapping(self))
+            mapping = _Mapping(self)
+            if self._writable and self._held() is None:  # selecting the kind writes it, empty until written further
+                self._write([] if mapping._positional() else {})
+            _visit(cb, mapping)
         else:
             self._write(dict(cb))
         return self
@@ -1516,7 +1519,7 @@ _META_BUILDERS: dict[str, Callable[[], type]] = {
 each through its builder."""
 
 
-class Store(Proxies.OfStore):
+class Store(Proxies._Store):
     """A store of schema objects and data. No reference object is built outside a store, a schema object included.
 
     The canonical form of building is `store.moduleName.[...moduleName].schemaName(...)`, each part of a schema's name
@@ -1539,7 +1542,7 @@ class Store(Proxies.OfStore):
         self._mutations = Mutations.schemas(self._meta.OfStr, self._meta.OfInt)
         for schema in (*vars(self._meta).values(), *vars(self._mutations).values()):
             self._objects[(_kind(schema), identity_of(schema))] = schema
-            self.register(schema)
+            self._register(schema)
         self._framework: set[int] = {id(schema) for schema in self._objects.values()}
         self._added: dict[type, dict[str, Any]] = {}  # the members its extensions added to builders, by builder class
         self._extending: set[int] | None = None  # the schema objects held when an extension began, while it runs
@@ -1689,7 +1692,7 @@ class Store(Proxies.OfStore):
             for name in [name for name, schema in self._schemas.items() if schema is data and name != data.name]:
                 del self._schemas[name]  # renamed
             if data.name and self._schemas.get(data.name) is not data:
-                self.register(data)
+                self._register(data)
         if isinstance(data, _ModuleData):
             for path in [path for path, module in self._modules.items() if module is data and path != (data.name or "")]:
                 del self._modules[path]  # renamed

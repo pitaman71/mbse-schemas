@@ -190,7 +190,7 @@ Comparison.OfObject(schema, a).compare(Comparison.OfObject(schema, b))   # -1, 0
 # Dataclasses: scalar fields are properties, list/dict of scalars containers; set/list/dict of dataclasses are relations.
 # Defaults, mandatoriness and nesting are not translated.
 from mbse.Schemas.Adapters.Dataclasses import FromDataclass, ToDataclass
-FromDataclass.model(Contact)       # {"Contact": ..., "Address": ..., "ContactAddresses": ...}, named, ready to register
+FromDataclass.model(Contact)       # {"Contact": ..., "Address": ..., "ContactAddresses": ...}, named, built outside any store (for now)
 ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromDataclass(cls), ToDataclass(schema, name)
 ```
 

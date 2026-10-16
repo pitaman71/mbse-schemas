@@ -177,13 +177,13 @@ const component = Reachable.of(fall);
 assert(component[0] === fall);
 assert(same(sortedStrings(new Set(component.map((o) => o.as_schema().name as string))), ["Course", "Room", "Staff", "Student", "Term"]));
 
-const archive = new Proxies.OfStore(); // another store: a snapshot read into it builds objects of the same identities
-for (const schema of [Student, Staff, Course, Term, Room, Enrollment, Booking]) archive.register(schema);
-for (const [root, schema] of [[fall, Term], [mia, Student], [noah, Student]] as const) {
+const archive: any = new Builders.Store(); // another store: a snapshot read into it builds objects of the same identities
+Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot()); // the same schemas, its own: a store's snapshot writes them
+for (const [root, schema, its] of [[fall, Term, archive.Term], [mia, Student, archive.Student], [noah, Student, archive.Student]] as const) {
   graph = Plain.ToPlain(store).Reachable(schema, root);
-  restored = Plain.FromPlain(archive).Reachable(schema, graph) as Instance;
+  restored = Plain.FromPlain(archive).Reachable(its, graph) as Instance;
   assert(restored !== root && restored.as_identity() === root.as_identity());
-  assert(same_graph(Plain.ToPlain(archive).Reachable(schema, restored), graph));
+  assert(same_graph(Plain.ToPlain(archive).Reachable(its, restored), graph));
 }
 
 // Apart from Noah's duplicate enrollments, the whole component is valid.

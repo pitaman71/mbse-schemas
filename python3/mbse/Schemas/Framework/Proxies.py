@@ -1,8 +1,9 @@
 """Proxies: the dynamic implementation of the visitor protocol.
 
-Programs using proxies skip code generation. A store, `OfStore()`, holds schemas and the proxies built with them (see
-`Stores`): `store.register(schema)` makes a schema available, under its name, and `store.builder(name, instance)`
-returns a builder for it; a `Builders.Store` builds through `store.<Name>(callback)`, its canonical form. Data instances (`Proxies.OfObject.Data`) and builders
+Programs using proxies skip code generation. The store, `Builders.Store()`, holds schemas and the proxies built with
+them (see `Stores`); `_Store` here is its implementation of proxies. A named schema is registered as it is built, and
+`store.builder(name, instance)` returns a builder for it; a store builds through `store.<Name>(callback)`, its canonical
+form. Data instances (`Proxies.OfObject.Data`) and builders
 (`Proxies.OfObject.Builder`) both implement `Visitors.OfObject`: data instances read-only, builders writable. Their
 properties and adjacencies are members: `card.name` is a `Visitors.OfProperty`, read compactly through its dunders
 (`str(card.name)`), and `card.phones` a `Visitors.OfAdjacency`, which iterates its entries; an entry's link is the
@@ -41,7 +42,7 @@ from . import Schemas, Stores
 from .Errors import ReadOnlyError
 from .Visitors import Scalar
 
-__all__ = ["OfStore", "store_of", "owner_of", "OfObject", "OfEntry", "OfAdjacency"]
+__all__ = ["store_of", "owner_of", "OfObject", "OfEntry", "OfAdjacency"]
 
 ObjectSchema = Schemas.OfObject.Data
 RelationSchema = Schemas.OfRelation.Data
@@ -53,20 +54,21 @@ SCALARS = (int, float, str, bool, bytes)
 # --- Stores ---
 
 
-class OfStore(Stores.Catalog):
-    """A store of proxies: schemas by name, and the instance of each singleton schema registered, created with it.
-    `store.builder(name, instance)` gives a builder of an object of a registered schema."""
+class _Store(Stores.Catalog):
+    """The proxies of a store (`Builders.Store`, the one store, is this with its builders): schemas by name, and the
+    instance of each singleton schema registered, created with it. `store.builder(name, instance)` gives a builder of an
+    object of a registered schema."""
 
     def __init__(self) -> None:
         super().__init__()
         self._directories: dict[str, _Directory] = {}
 
-    def register(self, schema: ObjectSchema | RelationSchema | Schemas.OfPredicate.Data) -> None:
+    def _register(self, schema: ObjectSchema | RelationSchema | Schemas.OfPredicate.Data) -> None:
         """Registers a schema under its name; a singleton schema's instance is created with it."""
         global_name = schema.singleton if isinstance(schema, ObjectSchema) else None
         if global_name is not None and global_name in self._singletons:
             raise ValueError(f"singleton {global_name!r} is already registered")
-        super().register(schema)
+        super()._register(schema)
         if global_name is not None:
             self._singletons[global_name] = self._enter(schema.name, _ObjectData(self, schema, schema.name, global_name))
 
@@ -77,10 +79,6 @@ class OfStore(Stores.Catalog):
         if isinstance(registered, VALUE_KINDS) and not getattr(registered, "ref", False):
             return _standalone(registered, instance, self)
         return _ObjectBuilder(self, self.schema(name), name, instance)
-
-    def framework(self, schema: Any) -> bool:
-        """None: a store of proxies is made holding no schema (a `Builders.Store` is made holding its own)."""
-        return False
 
     def by_identity(self, name: str, identity: str) -> _ObjectData:
         """The live object of the schema `name` whose identity is `identity`; `LookupError` if there is none."""
@@ -148,14 +146,14 @@ class _Directory:
         self.live: weakref.WeakValueDictionary[str, _ObjectData] = weakref.WeakValueDictionary()
 
 
-def _store_of(value: Any) -> OfStore | None:
+def _store_of(value: Any) -> _Store | None:
     """The store a proxy belongs to; a value object's is its owner's, and one not yet placed has none."""
     while isinstance(value, _RecordData):
         value = object.__getattribute__(value, "_owner")
     return object.__getattribute__(value, "_store") if isinstance(value, _ObjectData) else None
 
 
-def store_of(value: Any) -> OfStore:
+def store_of(value: Any) -> _Store:
     """The store a proxy, or a value object placed in one, belongs to."""
     store = _store_of(value)
     if store is None:
@@ -168,7 +166,7 @@ def owner_of(value: Any) -> Any:
     return object.__getattribute__(value, "_owner") if isinstance(value, _RecordData) else None
 
 
-def _same_store(store: OfStore | None, value: Any) -> None:
+def _same_store(store: _Store | None, value: Any) -> None:
     held = _store_of(value)
     if store is not None and held is not None and held is not store:
         raise TypeError("the object belongs to another store")
@@ -550,7 +548,7 @@ class _Any(_Unassignable):
     """`Visitors.OfAny` over one key of a values dict, holding a value of `schema`. Read-only, it hands over the value's
     own visitor, or an empty one; writable, it selects the kind, refusing one the schema does not hold."""
 
-    def __init__(self, values: dict[str, Any], name: str, schema: Any, store: OfStore | None, writable: bool,
+    def __init__(self, values: dict[str, Any], name: str, schema: Any, store: _Store | None, writable: bool,
                  label: str, on_write: Callable[[], None] | None = None):
         self._values, self._name, self._store, self._writable = values, name, store, writable
         self._schema, self._label, self._on_write = schema, label, on_write
@@ -789,7 +787,7 @@ def _shown_type(schema: Any) -> str:
     return schema.name if getattr(schema, "name", None) is not None else _a(_noun(schema))
 
 
-def _standalone(schema: Any, source: Any, store: OfStore) -> Any:
+def _standalone(schema: Any, source: Any, store: _Store) -> Any:
     """A builder of a standalone value of a value object, union, intersection or container schema, starting from
     `source` if given: its `create()` gives a value, held by nothing until assigned."""
     if isinstance(schema, Schemas.OfContainer.Data):
@@ -839,7 +837,7 @@ class _Containing(_Unassignable):
     _writable = False
 
     def _setup(self, schema: Schemas.OfContainer.Data, items: dict[Hashable, Any], indices: dict[Hashable, Any],
-               store: OfStore | None, label: str) -> None:
+               store: _Store | None, label: str) -> None:
         object.__setattr__(self, "_schema", schema)
         object.__setattr__(self, "_items", items)
         object.__setattr__(self, "_indices", indices)
@@ -973,7 +971,7 @@ class _ContainerBuilder(_Containing):
 
     _writable = True
 
-    def __init__(self, schema: Schemas.OfContainer.Data, source: _ContainerData | None, store: OfStore | None,
+    def __init__(self, schema: Schemas.OfContainer.Data, source: _ContainerData | None, store: _Store | None,
                  attach: Callable[[_ContainerBuilder], None], label: str, parent: Any = None):
         items = dict(source._items) if source is not None else {}
         indices = dict(source._indices) if source is not None else {}
@@ -992,7 +990,7 @@ class _ContainerBuilder(_Containing):
         return _ContainerData(self._schema, items, {key: self._indices.get(key, key) for key in items})
 
     def create(self) -> _ContainerData:
-        """A standalone container's value, to assign (see `OfStore.builder`)."""
+        """A standalone container's value, to assign (see `_Store.builder`)."""
         return self.build()
 
 
@@ -1084,7 +1082,7 @@ class _Property(_Dunders):
     """`Visitors.OfProperty` over one key of a values dict. Called, as a member, with a Spec, it writes or visits through
     it and returns the visitor it is a member of."""
 
-    def __init__(self, values: dict[str, Any], name: str, schema: Schemas.OfProperty.Data, store: OfStore | None,
+    def __init__(self, values: dict[str, Any], name: str, schema: Schemas.OfProperty.Data, store: _Store | None,
                  parent: Any, writable: bool, on_write: Callable[[], None] | None = None):
         self._values, self._name, self._schema, self._store = values, name, schema, store
         self._parent, self._writable, self._on_write = parent, writable, on_write
@@ -1158,14 +1156,14 @@ class _Properties(_Unassignable):
         return self._owner
 
 
-def _properties_of(owner: Any, values: dict[str, Any], schema: Any, store: OfStore | None, writable: bool,
+def _properties_of(owner: Any, values: dict[str, Any], schema: Any, store: _Store | None, writable: bool,
                    on_write: Callable[[], None] | None = None) -> _Properties:
     """The properties of an object present in `values`, in the schema's declared order."""
     return _Properties(owner, [_Property(values, name, prop, store, owner, writable, on_write)
                                for name, prop in schema.properties.items() if name in values])
 
 
-def _kind_visitor(values: dict[str, Any], name: str, schema: Any, store: OfStore | None, parent: Any, writable: bool,
+def _kind_visitor(values: dict[str, Any], name: str, schema: Any, store: _Store | None, parent: Any, writable: bool,
                   label: str, on_write: Callable[[], None] | None = None) -> Any:
     """The visitor of a union's branch or an intersection's part: of its own type's kind, the value itself for a value
     object held, or an empty one."""
@@ -1199,7 +1197,7 @@ class _ObjectData:
 
     __slots__ = ("_store", "_schema", "_schema_name", "_identity", "_values", "_adjacent", "__weakref__")
 
-    def __init__(self, store: OfStore, schema: ObjectSchema, schema_name: str, identity: str):
+    def __init__(self, store: _Store, schema: ObjectSchema, schema_name: str, identity: str):
         object.__setattr__(self, "_identity", identity)
         object.__setattr__(self, "_adjacent", {})
         object.__setattr__(self, "_store", store)
@@ -1386,7 +1384,7 @@ def _entry_parts(entry: Any, me: str) -> tuple[dict[str, Any], dict[str, Any]]:
     return dict(entry._links), _finalized(entry._values)
 
 
-def _agrees(entry: Any, spec: Any, adjacency: Schemas.OfAdjacency.Data, store: OfStore | None) -> bool:
+def _agrees(entry: Any, spec: Any, adjacency: Schemas.OfAdjacency.Data, store: _Store | None) -> bool:
     """Whether an entry agrees with a query Spec: equal to its value form (an entry), or agreeing with every link and
     property its callable form, a template, sets."""
     links, values = _entry_parts(entry, adjacency.me)
@@ -1581,7 +1579,7 @@ class _RecordBuilder(_Unassignable):
     type's kind. It attaches itself to what holds it (`attach`) when first written, so that an unwritten builder
     changes nothing. Writing a union's branch clears any other."""
 
-    def __init__(self, schema: Any, source: _RecordData | None = None, store: OfStore | None = None,
+    def __init__(self, schema: Any, source: _RecordData | None = None, store: _Store | None = None,
                  attach: Callable[[_RecordBuilder], None] | None = None, parent: Any = None):
         self._schema, self._source, self._copy_of, self._store = schema, source, None, store
         self._attach, self._parent = attach, parent
@@ -1654,7 +1652,7 @@ class _RecordBuilder(_Unassignable):
         return _RecordData(self._schema, _finalized(self._values), self._source, self._copy_of)
 
     def create(self) -> _RecordData:
-        """A standalone value's value, to assign (see `OfStore.builder`)."""
+        """A standalone value's value, to assign (see `_Store.builder`)."""
         return self.build()
 
 
@@ -1860,7 +1858,7 @@ class _EntryBuilder(_Unassignable):
     read-only, relinked when called) and so are its properties. The object's own link (`me`) is filled when the
     object's builder is finalized."""
 
-    def __init__(self, relation: RelationSchema, me: str, store: OfStore | None = None):
+    def __init__(self, relation: RelationSchema, me: str, store: _Store | None = None):
         self._relation, self._me, self._store = relation, me, store
         self._links: dict[str, _ObjectData | _ObjectBuilder] = {}
         self._values: dict[str, Any] = {}
@@ -1926,7 +1924,7 @@ class _ObjectBuilder(_Unassignable):
     """A writable `Visitors.OfObject` building a proxy instance: its properties and adjacencies are members, reading
     back what has been written. Finalized by `create()`, `clone()` or `update()`; none validate."""
 
-    def __init__(self, store: OfStore, schema: ObjectSchema, schema_name: str, instance: _ObjectData | None = None):
+    def __init__(self, store: _Store, schema: ObjectSchema, schema_name: str, instance: _ObjectData | None = None):
         if not schema.ref:
             raise TypeError(f"{schema_name!r} is a value object schema; build a value through its owner, or standalone "
                             "through the store")

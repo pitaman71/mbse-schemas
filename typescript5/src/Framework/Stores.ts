@@ -4,7 +4,7 @@
  * A store holds schemas by name, and its data: the instances of its singleton schemas, its roots, and every reference
  * object reachable from them through relation entries, with the value objects those own. Anything else built with a
  * store's builders is transient: it lives only while the program holds it. `Store` is the protocol every
- * implementation meets; `Proxies.OfStore` (dynamic instances) implements it, and generated code will. Everything that
+ * implementation meets; `Builders.Store` (dynamic instances) implements it, and generated code will. Everything that
  * looks a schema up by name takes a store: `Plain.ToPlain(store)`, `Plain.FromPlain(store)`, the JSON and YAML forms,
  * `Validators.Validate(store)`. Stores are isolated from one another; objects move between them as
  * snapshots. Selecting objects by a condition is an extension, in mbse-expressions.
@@ -115,9 +115,8 @@ export class Catalog {
   readonly _singletons = new Map<string, Readers.OfObject>();
 
   /** Registers a schema under its name. */
-  register(schema: ObjectSchema | RelationSchema | PredicateSchema): void {
-    const name = schema.name;
-    if (name === null) throw new ValueError("a schema needs a name to be registered; name it with its builder's .name()");
+  _register(schema: ObjectSchema | RelationSchema | PredicateSchema): void {
+    const name = schema.name as string; // a store registers only a named schema, as it builds it
     if (this._schemas.has(name)) throw new ValueError(`schema ${repr(name)} is already registered`);
     this._schemas.set(name, schema);
   }

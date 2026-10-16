@@ -155,14 +155,14 @@ assert(Validators.Validate(store).Reachable(Person, ada).length === 0);
 
 // Read into another store, a snapshot builds objects of the same identities; read into the store that holds them, it
 // updates them through their builders, and reading it again changes nothing.
-const archive = new Proxies.OfStore();
-for (const schema of [Person, Parentage, Mentorship]) archive.register(schema);
+const archive: any = new Builders.Store();
+Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot()); // the same schemas, its own: a store's snapshot writes them
 for (const root of [ada, carol, loner]) {
   const graph = Plain.ToPlain(store).Reachable(Person, root);
-  const restored = Plain.FromPlain(archive).Reachable(Person, graph) as Instance;
+  const restored = Plain.FromPlain(archive).Reachable(archive.Person, graph) as Instance;
   assert(restored !== root && restored.as_identity() === root.as_identity());
   assert(String(restored.given_name) === String(root.given_name));
-  assert(same_graph(Plain.ToPlain(archive).Reachable(Person, restored), graph));
+  assert(same_graph(Plain.ToPlain(archive).Reachable(archive.Person, restored), graph));
   assert(Plain.FromPlain(store).Reachable(Person, graph) === root);
 }
 

@@ -214,8 +214,6 @@ with raises(TypeError):
 # --- Store corner cases ---
 
 with raises(ValueError):
-    store.register(Sample)  # names are registered once: Sample was as it was built
-with raises(ValueError):
     store.Schemas.OfObject(lambda o: o.name('Sample'))  # a named schema's identity is its name, which Sample holds
 with raises(AttributeError):
     store.Unregistered(lambda u: u)

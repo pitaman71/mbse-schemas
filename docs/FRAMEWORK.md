@@ -182,10 +182,11 @@ configures the builder; it is not part of the resulting schema, which stays seri
 
 Instances of a user schema follow the same pattern. With the dynamic (proxy) implementation (see `python3/mbse/Schemas/Examples/AddressBook.py` and `typescript5/src/Examples/AddressBook.ts`):
 
-- A schema is named by its builder: `Schemas.OfObject.Builder().name('crm.Contact')`, on any kind of schema. A name
-  is identifiers separated by dots, the part before the last dot its namespace; `validate()` reports any other.
-- `store = Proxies.OfStore()` makes a store (see Stores), and `store.register(schema)` registers a named schema in it,
-  under its name; an unnamed schema is refused.
+- A schema is named by its builder: `store.Schemas.OfObject(lambda o: o.name('crm.Contact'))`, on any kind of schema.
+  A name is identifiers separated by dots, the part before the last dot its namespace; `validate()` reports any other.
+- `store = Builders.Store()` makes a store (see Stores), the one kind there is, and a named schema built in it is
+  registered under its name as it is built; nothing else registers a schema ([Store overhaul, Decided,
+  17](proposals/store-overhaul/README.md#decided-here)).
 - `store.Name(optional instance)` returns a builder for that schema with one member per property (e.g.
   `.street1('foo')`), finalized by `create()` / `clone()` / `update()` as above.
 - Relation entries are inserted through the object builder's adjacencies, never through a relation builder (none is
@@ -278,7 +279,7 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
 ## Stores
 
 A store is the root object of a body of data: it holds named schemas, and the data reachable from its roots. Code
-locates schemas, builders and objects through a store, never through a global. Implemented in `Proxies.OfStore`;
+locates schemas, builders and objects through a store, never through a global. Implemented in `Builders.Store`;
 envisioned also for generated (language-optimized) data structures, SQL and noSQL databases, and in-memory cache
 slices.
 

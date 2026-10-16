@@ -250,8 +250,11 @@ class Value extends Shelled {
 
   as_container(cb: unknown): any {
     if (this._container === false) return this._other(cb);
-    if (isFunction(cb)) visit(cb, shell(new Mapping(this)));
-    else this._write(new Map((Proxies._mapping(cb) ?? cb) as Iterable<[unknown, unknown]>));
+    if (isFunction(cb)) {
+      const mapping = new Mapping(this);
+      if (this._writable && this._held() == null) this._write(mapping._positional() ? [] : new Map()); // selecting the kind writes it, empty until written further
+      visit(cb, shell(mapping));
+    } else this._write(new Map((Proxies._mapping(cb) ?? cb) as Iterable<[unknown, unknown]>));
     return this._proxy;
   }
 
@@ -1933,7 +1936,7 @@ function clashes(schema: S.OfObject.Data, names: (string | null)[]): string[] {
  * A store is made holding its own plain schemas of schemas (`Schemas.OfObject`, ...), basic scalars (`Schemas.OfInt`,
  * ...) and mutation schemas, which no other store shares (docs/SCHEMA_EXTENSION.md, Decided, 23); it changes them, as
  * any schema it holds before an extension begins, only through `extend`, which only adds members. */
-export class Store extends Proxies.OfStore {
+export class Store extends Proxies._Store {
   /** `store.moduleName.[...moduleName].schemaName(...)`, each a path (`_Path`); dynamic by design. */
   [name: string]: any;
   /** The schema objects, by their kind and their identity (`key`). */
@@ -1961,7 +1964,7 @@ export class Store extends Proxies.OfStore {
       Text: this._meta.OfStr, Int: this._meta.OfInt });
     for (const schema of [...Object.values(this._meta), ...Object.values(mutations)] as (ObjectData | RelationData)[]) {
       this._objects.set(key(_kind(schema), identity_of(schema) as string), schema);
-      this.register(schema);
+      this._register(schema);
     }
     this._framework = new Set(this._objects.values());
     const proxy = new Proxy(this, {
@@ -2119,7 +2122,7 @@ export class Store extends Proxies.OfStore {
       for (const [name, schema] of [...this._schemas]) {
         if (schema === data && name !== data.name) this._schemas.delete(name); // renamed
       }
-      if (data.name && this._schemas.get(data.name) !== data) this.register(data);
+      if (data.name && this._schemas.get(data.name) !== data) this._register(data);
     }
     if (data instanceof ModuleData) {
       for (const [path, module] of [...this._modules]) {

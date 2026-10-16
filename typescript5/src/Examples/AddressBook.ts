@@ -180,19 +180,17 @@ const graph = Plain.ToPlain(store).Reachable(IntlAddress, addr1);
 assert(graph.get("root") === `IntlAddress/${addr1.as_identity()}`);
 
 // Read into another store, the snapshot builds objects of the same identities there.
-const backup = new Proxies.OfStore();
-for (const schema of [IntlAddress, Contact, PhoneNumber, EmailAddress, ContactAddresses, ContactPhones, ContactEmails]) {
-  backup.register(schema);
-}
-const roundtrip = Plain.FromPlain(backup).Reachable(IntlAddress, graph) as Proxies.Instance;
+const backup: any = new Builders.Store();
+Plain.FromPlain(backup).Snapshot(Plain.ToPlain(store).Snapshot()); // the same schemas, its own: a store's snapshot writes them
+const roundtrip = Plain.FromPlain(backup).Reachable(backup.IntlAddress, graph) as Proxies.Instance;
 assert(roundtrip !== addr1 && roundtrip.as_identity() === addr1.as_identity());
-assert(equal(Plain.ToPlain(backup).Reachable(IntlAddress, roundtrip), graph));
+assert(equal(Plain.ToPlain(backup).Reachable(backup.IntlAddress, roundtrip), graph));
 
 // Read into the store that holds them, it updates them through their builders: what it omits, they keep.
 assert(Plain.FromPlain(store).Reachable(IntlAddress, graph) === addr1);
 
 // The same snapshot as JSON text, and back.
 const text = JSON.ToJSON(store).Reachable(IntlAddress, addr1, { indent: 2 });
-const fromJson = JSON.FromJSON(backup).Reachable(IntlAddress, text) as Proxies.Instance;
+const fromJson = JSON.FromJSON(backup).Reachable(backup.IntlAddress, text) as Proxies.Instance;
 assert(fromJson === roundtrip && String(fromJson.street1) === String(addr1.street1)); // the backup's, updated
 assert(equal(JSON.loads(text), graph));

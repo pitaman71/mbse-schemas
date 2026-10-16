@@ -31,37 +31,31 @@ write byte-identical JSON. The TypeScript core runs in Node, in browsers and in 
 from `mbse.Schemas.Framework`, TypeScript from `@mbse/schemas/Framework`.
 
 ```python
-from mbse.Schemas.Framework import JSON, Proxies, Schemas, Validators
+from mbse.Schemas.Framework import JSON, Builders, Plain, Validators
+
+store = Builders.Store()  # schemas and the objects built with them belong to a store
+Text = store.Schemas.OfStr  # its basic scalars are its own
 
 # Reference objects stand on their own, each named in its store: CON-001, CON-002, ...
-Contact = Schemas.OfObject.Builder().name('Contact').ref(r'CON-(\d+\d\d)').properties(lambda p: p.name('name').of(lambda t: t.as_scalar(str))).create()
-Address = Schemas.OfObject.Builder().name('Address').ref(r'ADR-(\d+\d\d)').properties(lambda p: p.name('street').of(lambda t: t.as_scalar(str))).create()
+Contact = store.Schemas.OfObject(lambda o: o.name('Contact').ref(True).pattern(r'CON-(\d+\d\d)').properties([
+    lambda t: t.name('name').type([Text])]))
+Address = store.Schemas.OfObject(lambda o: o.name('Address').ref(True).pattern(r'ADR-(\d+\d\d)').properties([
+    lambda t: t.name('street').type([Text])]))
 
 # Collections are relations: entries link objects and carry their own properties.
-ContactAddresses = (
-    Schemas.OfRelation.Builder()
-    .name('ContactAddresses')
-    .links('contact', 'address')
-    .properties(lambda p: p.name('label').of(lambda t: t.as_scalar(str)))
-    .create()
-)
-Schemas.OfObject.Builder(Contact).relations(lambda adj: adj.name('addresses').of(ContactAddresses).me('contact')).update()
-Schemas.OfObject.Builder(Address).relations(lambda adj: adj.name('residents').of(ContactAddresses).me('address')).update()
-store, other = Proxies.OfStore(), Proxies.OfStore()  # each holds named schemas; the objects built with them belong to it
-for schema in [Contact, Address, ContactAddresses]:
-    store.register(schema)
-    other.register(schema)
+ContactAddresses = store.Schemas.OfRelation(lambda r: r.name('ContactAddresses').links([
+    lambda t: t.name('contact'), lambda t: t.name('address')]).properties([lambda t: t.name('label').type([Text])]))
+store.Schemas.OfObject(Contact, lambda o: o.adjacencies([lambda t: t.name('addresses').relation([ContactAddresses]).me('contact')]))
+store.Schemas.OfObject(Address, lambda o: o.adjacencies([lambda t: t.name('residents').relation([ContactAddresses]).me('address')]))
 
-alice = (
-    store.Contact()
-    .name('Alice')
-    .addresses(lambda a: a.insert(lambda x: x.address(lambda y: y.street('10 Downing Street')).label('home')))
-    .create()
-)
+alice = store.Contact(lambda c: c.name('Alice').addresses(lambda a: a.insert(
+    lambda e: e.address(lambda x: x.street('10 Downing Street')).label('home'))))
 
 text = JSON.ToJSON(store).Reachable(Contact, alice)  # the whole graph, shared objects written once
-copy = JSON.FromJSON(other).Reachable(Contact, text)  # the same objects, with the same identities, in another store
-assert copy.as_identity() == alice.as_identity() == 'CON-001' and Validators.Validate(other).Reachable(Contact, copy) == []
+other = Builders.Store()  # another store, with the same schemas, its own: a store's snapshot writes them
+Plain.FromPlain(other).Snapshot(Plain.ToPlain(store).Snapshot())
+copy = JSON.FromJSON(other).Reachable(other.Contact, text)  # the same objects, with the same identities, in it
+assert copy.as_identity() == alice.as_identity() == 'CON-001' and Validators.Validate(other).Reachable(other.Contact, copy) == []
 ```
 
 ```json
@@ -167,7 +161,7 @@ The core is implemented in both languages:
 - schemas: objects, relations, unions, intersections and lists;
 - schemas as data: meta-schemas, and modules of schemas written, read, validated and compared as objects;
 - value objects, union values and intersection values, keyed by branch and part names;
-- stores: schemas and objects by name, isolated from one another (`Proxies.OfStore`);
+- stores: schemas and objects by name, isolated from one another, each holding its own (`Builders.Store`);
 - the visitor protocol, through which code reads and writes data of any schema, and dynamic proxies implementing it;
 - reachability;
 - plain snapshots, JSON and YAML;

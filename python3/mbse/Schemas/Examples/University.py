@@ -5,7 +5,7 @@
 
 import math
 
-from mbse.Schemas.Framework import Builders, Schemas, Proxies, Plain, Reachable, Validators
+from mbse.Schemas.Framework import Builders, Schemas, Plain, Reachable, Validators
 from mbse.Schemas.Examples._support import entries, raises, same_graph
 
 
@@ -179,14 +179,13 @@ component = Reachable.of(fall)
 assert component[0] is fall
 assert {o.as_schema().name for o in component} == {'Term', 'Student', 'Course', 'Room', 'Staff'}
 
-archive = Proxies.OfStore()  # another store: a snapshot read into it builds objects of the same identities
-for schema in [Student, Staff, Course, Term, Room, Enrollment, Booking]:
-    archive.register(schema)
-for root, schema in [(fall, Term), (mia, Student), (noah, Student)]:
+archive = Builders.Store()  # another store: a snapshot read into it builds objects of the same identities
+Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot())  # the same schemas, its own: a store's snapshot writes them
+for root, schema, its in [(fall, Term, archive.Term), (mia, Student, archive.Student), (noah, Student, archive.Student)]:
     graph = Plain.ToPlain(store).Reachable(schema, root)
-    restored = Plain.FromPlain(archive).Reachable(schema, graph)
+    restored = Plain.FromPlain(archive).Reachable(its, graph)
     assert restored is not root and restored.as_identity() == root.as_identity()
-    assert same_graph(Plain.ToPlain(archive).Reachable(schema, restored), graph)
+    assert same_graph(Plain.ToPlain(archive).Reachable(its, restored), graph)
 
 # Apart from Noah's duplicate enrollments, the whole component is valid.
 problems = validate.Reachable(Term, fall)

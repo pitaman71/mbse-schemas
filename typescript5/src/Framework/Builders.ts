@@ -2126,8 +2126,10 @@ export class Store extends Proxies.OfStore {
     this._objects.set(key(kind, identity), identify(referent, identity));
   }
 
-  /** Gives a schema object built here `identity`, refused where another holds it; registers a named schema. */
+  /** Gives a schema object built here `identity`, refused where another holds it; registers a named schema. A framework
+   * schema, which every store holds as it is, is left so: a builder of one writes only its store's entries. */
   _hold(data: any, identity: string): any {
+    if (this.framework(data)) return data;
     const kind = _kind(data);
     const held = this._objects.get(key(kind, identity));
     if (held !== undefined && held !== data) {

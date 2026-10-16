@@ -1665,7 +1665,10 @@ class Store(Proxies.OfStore):
         return _Path(self, name)
 
     def _hold(self, data: Any, identity: str) -> Any:
-        """Gives a schema object built here `identity`, refused where another holds it; registers a named schema."""
+        """Gives a schema object built here `identity`, refused where another holds it; registers a named schema. A framework
+        schema, which every store holds as it is, is left so: a builder of one writes only its store's entries."""
+        if self.framework(data):
+            return data
         kind = _kind(data)
         held = self._objects.get((kind, identity))
         if held is not None and held is not data:

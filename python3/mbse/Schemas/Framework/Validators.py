@@ -24,7 +24,7 @@ from collections.abc import Hashable
 from dataclasses import dataclass
 from typing import Any
 
-from . import Reachable, Readers, Schemas, Stores
+from . import Builders, Reachable, Readers, Schemas, Stores
 from .Visitors import Scalar
 
 __all__ = ["Validate", "Check", "Outcome"]
@@ -115,6 +115,13 @@ def _scalar_problem(schema: Schemas.OfScalar.Data, value: Any) -> str | None:
     if type(value) is not schema.type:
         return f"expected {schema.type.__name__}, got {type(value).__name__}"
     return None
+
+
+def _visited(target: Any) -> Any:
+    """A linked object, as a visitor: a schema object, which an extension's relation links, through its read-only
+    builder, whose schema is its meta-schema."""
+    builder = Builders._builder_for(target)
+    return target if builder is None else builder(target, False)
 
 
 def _filling(relation: Schemas.OfRelation.Data, name: str, schema: Schemas.OfObject.Data) -> str | None:
@@ -252,13 +259,13 @@ class _Check:
         problems = []
         for name in relation.entry.links:
             if name != adjacency.me:
-                problem = _filling(relation, name, getattr(entry, name).as_schema())
+                problem = _filling(relation, name, _visited(getattr(entry, name)).as_schema())
                 if problem:
                     problems.append(f"{label}.{name}: {problem}")
         for name, prop in relation.entry.properties.items():
             problems += self._value_problems(f"{label}.{name}", prop.type,
                                              _property_value(getattr(entry, name), prop.type))
-        links = {name: _identity(getattr(entry, name)) for name in relation.entry.links if name != adjacency.me}
+        links = {name: _identity(_visited(getattr(entry, name))) for name in relation.entry.links if name != adjacency.me}
         links[adjacency.me] = _identity(owner)
         values = {name: _key(prop.type, _property_value(getattr(entry, name), prop.type))
                   for name, prop in relation.entry.properties.items()

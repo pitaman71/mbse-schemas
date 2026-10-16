@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import dataclasses
 import uuid
+import weakref
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar
@@ -50,6 +51,7 @@ __all__ = [
     "OfSymbol",
     "OfUnion",
     "Store",
+    "extend",
     "identity_of",
 ]
 
@@ -95,6 +97,7 @@ class _Prop:
                  shorthand: Callable[[Any], Any] | None = None):
         self._field, self._get, self._put, self.container = field, get, put, container
         self.shorthand = shorthand or (lambda value: value)
+        self.extension = False  # whether an extension added it: its value is held apart from the data's fields
 
     def __set_name__(self, owner: type, name: str) -> None:
         self.name = name
@@ -361,15 +364,18 @@ class _Members:
     type, which names the referent within the schema object (the data keeps it as the referent's `name`). `owned`: each
     referent belongs to the schema object alone (keyed ones do), so that a clone of it has clones of them. `names`, for
     a keyed adjacency whose data keeps its entries' names apart from its referents (a module's), reads and writes them:
-    `(name_of(data, referent), rename(data, referent, name))`."""
+    `(name_of(data, referent), rename(data, referent, name))`. `extensible`: an extension may add entries to it, after
+    those it holds (docs/SCHEMA_EXTENSION.md)."""
 
     name: str
 
     def __init__(self, link: str, *, items: Callable[[Any], list[Any]], store: Callable[[Any, list[Any]], None],
                  accepts: Callable[[Any], bool], build: Any = None, one: bool = False, keyed: bool = False,
-                 owned: bool | None = None, names: tuple[Callable[..., Any], Callable[..., Any]] | None = None):
+                 owned: bool | None = None, names: tuple[Callable[..., Any], Callable[..., Any]] | None = None,
+                 extensible: bool = False):
         self.link, self.items, self.store, self.accepts, self.build, self.one = link, items, store, accepts, build, one
-        self.keyed, self.owned = keyed, keyed if owned is None else owned
+        self.keyed, self.owned, self.extensible = keyed, keyed if owned is None else owned, extensible
+        self.extension: tuple[Any, str, str] | None = None  # an extension's: its relation, its object's link, the other
         self.name_of, self.rename = names or (
             lambda data, referent: getattr(referent, "name", None) or None,
             lambda data, referent, name: setattr(referent, "name", name),
@@ -666,6 +672,8 @@ class _Link(_Unassignable):
         if referent is None:
             return _Empty(f"link {self._members().link!r} is not set")
         builder = _builder_for(referent)
+        if builder is None and Proxies._store_of(referent) is not None:
+            return referent  # data, which an extension's relation links: a proxy, read-only as data instances are
         return _Empty("a term of a dialect is read through its dialect") if builder is None else builder(referent, False)
 
     def as_schema(self) -> Any:
@@ -757,6 +765,11 @@ class _Builder(_Unassignable, Generic[D]):
             old, new = getattr(target, field_.name), getattr(source, field_.name)
             changed += old is not new
             setattr(target, field_.name, S._copy(new))
+        for member in self._members_.values():  # the members an extension added, which no field holds
+            if isinstance(member, _Prop) and member.extension:
+                member.put(target, S._copy(member.get(source)))
+            elif isinstance(member, _Members) and member.extension is not None:
+                member.store(target, member.items(source))
         return changed
 
     def _finalize(self, target: D) -> D:
@@ -800,15 +813,17 @@ class _Builder(_Unassignable, Generic[D]):
         """Writes the builder's state into the data given, and returns it. Only valid with data given."""
         if self._original is None:
             raise ValueError("update() is only valid with a source instance")
+        if self._store is not None:
+            self._store._permit(self)
         self._update(self._original, self._working)
         return self._identified(self._finalize(self._original), self._identity or identity_of(self._original))
 
     def _identified(self, data: D, identity: str | None) -> D:
         """`data`, given `identity`, else one allocated: by its store, which refuses one another of its schema objects
         has, where it is built in one."""
-        if self._store is not None:
-            return self._store._hold(data, identity or self._allocate())
-        return _identify(data, identity or self._allocate())
+        held = (self._store._hold(data, identity or self._allocate()) if self._store is not None
+                else _identify(data, identity or self._allocate()))
+        return _settle_extended(held)
 
     def _allocate(self) -> str:
         """The identity a schema object is given on creation, where none is written: a UUID."""
@@ -874,6 +889,69 @@ def _type(field: str = "type") -> _Members:
     """The adjacency to the schema something has as its type, its evaluation type, of any kind (`Schemas.Typing`): a
     schema that exists, such as `Schemas.OfScalar.Data(int)`."""
     return _Members("schema", accepts=_is_schema, **_one(field))
+
+
+def _extension_property(name: str) -> _Prop:
+    """A property an extension added to a meta-schema, held on each schema object apart from its fields."""
+    member = _Prop(get=lambda data: data.__dict__.get("_extended", {}).get(name),
+                   put=lambda data, value: data.__dict__.setdefault("_extended", {}).__setitem__(name, value))
+    member.extension = True
+    return member
+
+
+def _extension_adjacency(adjacency: S.OfAdjacency.Data) -> _Members:
+    """An adjacency an extension added to a meta-schema: its entries are shared with the objects they link, as a proxy's
+    are, each held in the index of every object it links (Proxies' `_add_entry`). A builder writes the objects it links
+    to its working copy; finalized, the schema object's entries are made to agree with them."""
+    relation, me, name = adjacency.relation, adjacency.me, adjacency.name
+    links = list(relation.entry.links)
+    if len(links) != 2 or relation.entry.properties:
+        raise TypeError(f"an extension's adjacency {name!r} is to a relation of two links and no properties, got "
+                        f"{relation.name!r}")
+    other = links[1] if links[0] == me else links[0]
+
+    def items(data: Any) -> list[Any]:
+        pending = data.__dict__.get("_pending", {})
+        if name in pending:
+            return list(pending[name])
+        return [entry._links[other] for entry in Proxies._linking(relation, me, data)]
+
+    def store(data: Any, referents: list[Any]) -> None:
+        data.__dict__.setdefault("_pending", {})[name] = list(referents)
+
+    member = _Members(other, items=items, store=store, accepts=lambda value: True, extensible=True)
+    member.extension = (relation, me, other)
+    return member
+
+
+def _settle_extended(data: Any) -> Any:
+    """Makes a schema object's entries in the relations an extension added agree with what its builder wrote."""
+    pending = data.__dict__.pop("_pending", None)
+    builder_class = _builder_for(data)
+    for name, referents in (pending or {}).items():
+        relation, me, other = builder_class._members_[name].extension  # type: ignore[union-attr]
+        held = Proxies._linking(relation, me, data)
+        Proxies._discard(id(relation), [e for e in held if all(e._links[other] is not r for r in referents)])
+        for referent in referents:
+            if all(e._links[other] is not referent for e in held):
+                Proxies._add_entry(relation, Proxies._Entry(relation, {me: data, other: referent}, {}))
+    return data
+
+
+def _extend_builders(added: dict[int, tuple[set[str], set[str]]]) -> None:
+    """Gives each schema builder the members an extension added to its meta-schema (or one it refines): `added` holds
+    each meta-schema's names before the extension, by its id."""
+    for builder_class in set(_BUILDERS.values()):
+        meta = getattr(Meta, builder_class._meta)
+        properties, adjacencies = added[id(meta)]
+        members: dict[str, Any] = {name: _extension_property(name) for name in meta.properties
+                                   if name not in properties and name not in builder_class._members_}
+        members.update({name: _extension_adjacency(adjacency) for name, adjacency in meta.adjacencies.items()
+                        if name not in adjacencies and name not in builder_class._members_})
+        for name, member in members.items():
+            setattr(builder_class, name, member)
+            member.__set_name__(builder_class, name)
+        builder_class._members_ = {**builder_class._members_, **members}
 
 
 class _KindBuilder(_Builder[D]):
@@ -1053,13 +1131,13 @@ class ObjectBuilder(_KindBuilder[S.OfObject.Data]):
     # A refinement's own members: those it inherits are the refined schema's, through `refines` (Resolved: "Modules
     # write `refines` and a refinement's own members only"); finalizing settles them in again.
     properties = _Members("property", keyed=True, accepts=lambda v: isinstance(v, S.OfProperty.Data),
-                          build=lambda: PropertyBuilder,
+                          build=lambda: PropertyBuilder, extensible=True,
                           items=lambda data: [prop for name, prop in data.properties.items()
                                               if name not in S.inherited(data)[0]],
                           store=lambda data, members: setattr(data, "properties", {m.name: m for m in members}))
     adjacencies = _Members(  # named ones by name, then anonymous ones, which have none
         "adjacency", keyed=True, accepts=lambda v: isinstance(v, S.OfAdjacency.Data), build=lambda: AdjacencyBuilder,
-        items=lambda data: [*(adjacency for name, adjacency in data.adjacencies.items()
+        extensible=True, items=lambda data: [*(adjacency for name, adjacency in data.adjacencies.items()
                               if name not in S.inherited(data)[1]),
                             *(adjacency for adjacency in data.anonymous
                               if not any(adjacency is held for held in S.inherited(data)[2]))],
@@ -1094,7 +1172,7 @@ class UnionBuilder(_KindBuilder[S.OfUnion.Data]):
 
     flat = _Prop()
     branches = _Members("branch", keyed=True, accepts=lambda v: isinstance(v, S.OfUnion.Branch), build=lambda: MemberBuilder,
-                        **_in_order("branches"))
+                        extensible=True, **_in_order("branches"))
 
 
 class IntersectionBuilder(_KindBuilder[S.OfIntersection.Data]):
@@ -1179,7 +1257,7 @@ class RelationBuilder(_KindBuilder[S.OfRelation.Data]):
                      items=lambda data: list(data.entry.links.values()),
                      store=lambda data, links: setattr(data.entry, "links", {m.name: m for m in links}))
     properties = _Members("property", keyed=True, accepts=lambda v: isinstance(v, S.OfProperty.Data), build=lambda: PropertyBuilder,
-                          items=lambda data: list(data.entry.properties.values()),
+                          extensible=True, items=lambda data: list(data.entry.properties.values()),
                           store=lambda data, props: setattr(data.entry, "properties", {m.name: m for m in props}))
     uniques = _Prop(get=lambda data: [[name for name in [*data.entry.links, *data.entry.properties] if name in unique]
                                       + sorted(unique - {*data.entry.links, *data.entry.properties})
@@ -1228,7 +1306,7 @@ class ModuleBuilder(_KindBuilder[_ModuleData]):
 
     _data, _meta, _noun = _ModuleData, "Module", "a module"
 
-    schemas = _Members("schema", keyed=True, owned=False, names=(_defined_name, _define),
+    schemas = _Members("schema", keyed=True, owned=False, names=(_defined_name, _define), extensible=True,
                        accepts=lambda v: isinstance(v, (*S._KINDS, S.OfRelation.Data, S.OfPredicate.Data, _ModuleData)),
                        items=lambda data: list(data.schemas.values()), store=_store_defined)
 
@@ -1256,7 +1334,8 @@ def _dialect_term(visitor: Any) -> Any:
     """The term of a dialect a link visitor reads, which this package does not build and no store holds; None for any
     other visitor."""
     referent = visitor._entry._referent if isinstance(visitor, _Link) else None
-    return referent if referent is not None and _builder_for(referent) is None and S._is_term(referent) else None
+    data = referent is not None and Proxies._store_of(referent) is not None  # a proxy, which answers any member name
+    return referent if referent is not None and not data and _builder_for(referent) is None and S._is_term(referent) else None
 
 
 def _builder_for(referent: Any) -> type | None:
@@ -1427,7 +1506,10 @@ class Store(Proxies.OfStore):
     a `Specs.Callback[Visitors.OfX]`, it creates an object; with an object and a callback, it updates the object; with
     an object alone, it clones it. It returns the object. A schema object built here, and each member built with it, is
     given its identity by the store, which refuses one it holds another with; a named schema is registered under its
-    name, so that the store builds its objects next."""
+    name, so that the store builds its objects next.
+
+    A store changes a schema it holds but does not own through `extend`, which only adds members to it
+    (docs/SCHEMA_EXTENSION.md); a framework schema, which every store holds, only through `Builders.extend`."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -1441,7 +1523,11 @@ class Store(Proxies.OfStore):
         for schema in Mutations.SCHEMAS:
             self._objects[(_kind(schema), identity_of(schema))] = schema
             self.register(schema)
-        self._framework: frozenset[int] = frozenset(id(schema) for schema in self._objects.values())
+        self._framework: set[int] = {id(schema) for schema in self._objects.values()}
+        self._adopt(_FRAMEWORK)  # what the framework's extensions built
+        self._extending: set[int] | None = None  # the schema objects held when an extension began, while it runs
+        self._extends_framework = False  # whether this store is the framework's, extending it
+        _STORES.add(self)
         self._modules: dict[str, _ModuleData] = {}  # by path; the root module's is ""
         self._placed: dict[int, tuple[_ModuleData, str]] = {}  # each schema's module, and its name there
         self._linked: dict[int, Any] = {}  # the unnamed schema objects given an identity by the first object to link them
@@ -1467,8 +1553,44 @@ class Store(Proxies.OfStore):
 
     def framework(self, schema: Any) -> bool:
         """Whether `schema` is one of the framework's own, which every store holds: a meta-schema, a basic scalar, a
-        mutation schema. It is never written, only referred to."""
+        mutation schema, or what an extension of the framework built (`Builders.extend`). It is never written, only
+        referred to."""
         return id(schema) in self._framework
+
+    def extend(self, cb: Any) -> Store:
+        """Builds and changes schemas through `cb`, given the store: a schema the store held before may only gain members
+        (an object schema's properties and adjacencies, a relation's properties, a union's branches), each under a name
+        it neither has nor inherits, nor a refinement of it declares; anything else about it stays as it was. What `cb`
+        builds is the store's own. Refused, a change to a schema raises before it is written, but what was written before
+        it stays: a refused extension is a program error."""
+        held = {id(schema) for schema in self._objects.values()}
+        self._extending = held
+        try:
+            _visit(cb, self)
+        finally:
+            self._extending = None
+        return self
+
+    def _permit(self, builder: _Builder[Any]) -> None:
+        """Refuses a builder's update of a framework schema outside the framework's extension, and one that is not an
+        extension of a schema the store held when an extension began."""
+        original = builder._original
+        if self.framework(original) and not self._extends_framework:
+            raise TypeError(f"{_shown(original)} is a framework schema, which every store holds: extend it with "
+                            "Builders.extend")
+        if self._extending is not None and id(original) in self._extending:
+            problems = _extension_problems(builder)
+            if problems:
+                raise TypeError(f"an extension only adds members to {_shown(original)}: it {'; '.join(problems)}")
+
+    def _adopt(self, built: dict[tuple[str, str], Any]) -> None:
+        """Holds what the framework's extensions built, as framework schemas."""
+        for key, schema in built.items():
+            self._objects[key] = schema
+            self._framework.add(id(schema))
+            if isinstance(schema, (*S._KINDS, S.OfRelation.Data, S.OfPredicate.Data)) and schema.name:
+                if self._schemas.get(schema.name) is not schema:
+                    self.register(schema)
 
     def _place(self, data: Any) -> None:
         """Defines a named schema, or a module, in the module its path's prefix names, under the last part of its path;
@@ -1586,6 +1708,90 @@ class Store(Proxies.OfStore):
         if existing is None:
             return builder.create()
         return builder.update() if cb is not None else builder.clone()
+
+
+def _shown(schema: Any) -> str:
+    """A schema object in a message: its name, else its identity."""
+    return repr(getattr(schema, "name", None) or identity_of(schema))
+
+
+def _extension_problems(builder: _Builder[Any]) -> list[str]:
+    """How a builder's update of the schema object it was given would do more than add members to it."""
+    original, working, problems = builder._original, builder._working, []
+    for name, member in builder._members_.items():
+        if isinstance(member, _Prop):
+            if member.get(original) != member.get(working):
+                problems.append(f"changes {name!r}")
+            continue
+        before, after = member.items(original), member.items(working)
+        if len(after) < len(before) or any(a is not b for a, b in zip(before, after)):
+            problems.append(f"removes or replaces what {name!r} holds")
+        elif len(after) > len(before) and not member.extensible:
+            problems.append(f"adds to {name!r}, which an extension cannot")
+        elif len(after) > len(before) and member.keyed and isinstance(original, S.OfObject.Data):
+            problems += _clashes(original, [member.name_of(working, added) for added in after[len(before):]])
+    if isinstance(original, S.OfObject.Data):  # a member it inherits, given again, is its own: a redeclaration
+        properties, adjacencies, _ = S.inherited(original)
+        problems += [f"adds {name!r}, which it inherits" for name in properties
+                     if name in working.properties and working.properties[name] is not original.properties.get(name)]
+        problems += [f"adds {name!r}, which it inherits" for name in adjacencies
+                     if name in working.adjacencies and working.adjacencies[name] is not original.adjacencies.get(name)]
+    return problems
+
+
+def _clashes(schema: S.OfObject.Data, names: list[Any]) -> list[str]:
+    """The names an extension adds to an object schema that it has already, as a property or an adjacency, its own or
+    inherited, or that a schema refining it declares."""
+    problems = []
+    refinements = list(schema.__dict__.get("_refinements", []))
+    for refinement in refinements:
+        refinements += [r for r in refinement.__dict__.get("_refinements", []) if all(r is not h for h in refinements)]
+    inherited = S.inherited(schema)
+    for name in (name for name in names if name):
+        if name in schema.properties or name in schema.adjacencies:
+            problems.append(f"adds {name!r}, which it {'inherits' if name in inherited[0] | inherited[1] else 'has'}")
+        for refinement in refinements:
+            own = S.inherited(refinement)
+            if (name in refinement.properties and name not in own[0]) or (name in refinement.adjacencies and name not in own[1]):
+                problems.append(f"adds {name!r}, which {_shown(refinement)} declares")
+    return problems
+
+
+_STORES: weakref.WeakSet[Store] = weakref.WeakSet()
+"""Every store in the process, so that what an extension of the framework builds reaches those made before it."""
+
+_FRAMEWORK: dict[tuple[str, str], Any] = {}
+"""What the framework's extensions built, by kind and identity, which every store holds as framework schemas."""
+
+_EXTENSIONS: dict[str, Store] = {}
+"""The framework's extensions applied, by name; the framework's store, under ""."""
+
+
+def extend(name: str, cb: Any) -> None:
+    """Extends the framework, once per process (docs/SCHEMA_EXTENSION.md): `cb`, given the framework's store, builds
+    schemas and adds members to framework schemas, as `Store.extend` does a store's, and every store, made before or
+    after, holds what it built as framework schemas. Extending again under a name already applied does nothing."""
+    if not isinstance(name, str) or not name:
+        raise TypeError(f"an extension is named by non-empty text, got {name!r}")
+    if name in _EXTENSIONS:
+        return
+    store = _EXTENSIONS.get("") or Store()
+    _EXTENSIONS[""] = store
+    before = set(store._objects)
+    metas = {id(meta): (set(meta.properties), set(meta.adjacencies)) for meta in vars(Meta).values()
+             if isinstance(meta, S.OfObject.Data)}
+    store._extends_framework = True
+    try:
+        store.extend(cb)
+    finally:
+        store._extends_framework = False
+    built = {key: schema for key, schema in store._objects.items()
+             if key not in before and not isinstance(schema, _ModuleData)}
+    _FRAMEWORK.update(built)
+    for held in list(_STORES):
+        held._adopt(built)
+    _extend_builders(metas)
+    _EXTENSIONS[name] = store
 
 
 class _Path(_Unassignable):

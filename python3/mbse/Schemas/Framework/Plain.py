@@ -922,6 +922,8 @@ class _LogWriter:
                     links[link] = key
                     continue
                 target = getattr(entry, link)
+                if self._B._builder_for(target) is not None:  # a schema object a proxy's entry links (an extension's)
+                    target = self._reader(target)
                 self._held(target, f"{key}, {schema.name},")
                 names = {*relation.entry.links, *relation.entry.properties}
                 single = any(names - unique == {me} for unique in relation.uniques)  # one entry, as the store derives

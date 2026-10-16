@@ -231,8 +231,14 @@ class _Entry:
 
 
 def _table(target: Any, relation_id: int) -> dict[Hashable, _Entry]:
-    """The entries of one relation that link `target`, by key: they live on the objects they link."""
-    return object.__getattribute__(target, "_adjacent").setdefault(relation_id, {})
+    """The entries of one relation that link `target`, by key: they live on the objects they link, a schema object too,
+    which an extension's relation links (docs/SCHEMA_EXTENSION.md) and which is given its index when first linked."""
+    try:
+        tables = object.__getattribute__(target, "_adjacent")
+    except AttributeError:
+        tables = {}
+        object.__setattr__(target, "_adjacent", tables)
+    return tables.setdefault(relation_id, {})
 
 
 def _add_entry(relation: RelationSchema, entry: _Entry) -> None:
@@ -1780,9 +1786,11 @@ class _LinkMember(_Unassignable):
             spec = spec._target()
         if isinstance(spec, _RecordData):
             raise ReadOnlyError("a link targets a reference object, never a value object")
-        if not isinstance(spec, _ObjectData):
-            raise TypeError("proxies can only link proxy instances")
-        _same_store(entry._store, spec)
+        holds = getattr(entry._store, "holds", None)
+        if not isinstance(spec, _ObjectData) and not (holds is not None and holds(spec)):
+            raise TypeError("proxies can only link proxy instances, or schema objects their store holds")
+        if isinstance(spec, _ObjectData):  # else a schema object the store holds, which an extension's relation links
+            _same_store(entry._store, spec)
         entry._links[name] = spec
         return entry
 

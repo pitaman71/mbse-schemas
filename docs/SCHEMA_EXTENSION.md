@@ -145,6 +145,10 @@ As the user decided (2026-10-15), on the questions put to them:
     it links, as a proxy's are, so both ends see one entry. As built: such an adjacency is to a relation of two links and
     no properties; a proxy links a schema object its store holds; validation and reachability do not follow a link into
     a schema object, which is not data.
+19. A framework schema, held by every store, is never written: the entries a store's data makes that link one are kept
+    by that store, keyed by the framework schema, a reference object with a stable identity ("yes"), and read through
+    that store's builders. Each store sees its own; a builder of a framework schema may write those entries, and
+    nothing else about it.
 
 ---
 

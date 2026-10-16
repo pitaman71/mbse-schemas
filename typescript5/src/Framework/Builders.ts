@@ -372,7 +372,7 @@ class Mapping extends Shelled {
 // --- Adjacencies: references ---
 
 interface Storage {
-  items: (data: any) => any[];
+  items: (data: any, store?: unknown) => any[];
   store: (data: any, members: any[]) => void;
   one?: boolean;
 }
@@ -443,7 +443,7 @@ type BuilderClass = new (original?: unknown, writable?: boolean, store?: Store |
  * `[name_of(data, referent), rename(data, referent, name)]`. */
 class Members {
   name = "";
-  readonly items: (data: any) => any[];
+  readonly items: (data: any, store?: unknown) => any[];
   readonly store: (data: any, members: any[]) => void;
   readonly accepts: (value: unknown) => boolean;
   readonly build: string | null;
@@ -939,10 +939,10 @@ function extensionAdjacency(adjacency: S.OfAdjacency.Data): Members {
   const member = new Members(other, {
     accepts: () => true,
     extensible: true,
-    items: (data) => {
+    items: (data, store: unknown = null) => { // a framework schema's entries are its store's
       const pending: Map<string, any[]> | undefined = data._pending;
       if (pending?.has(name)) return [...(pending.get(name) as any[])];
-      return Proxies._linking(relation, me, data).map((entry: any) => innerOf(entry)._links.get(other));
+      return Proxies._linking(relation, me, data, store).map((entry: any) => innerOf(entry)._links.get(other));
     },
     store: (data, referents) => {
       hidden(data, "_pending").set(name, [...referents]);
@@ -952,19 +952,20 @@ function extensionAdjacency(adjacency: S.OfAdjacency.Data): Members {
   return member;
 }
 
-/** Makes a schema object's entries in the relations an extension added agree with what its builder wrote. */
-function settleExtended(data: any): any {
+/** Makes a schema object's entries in the relations an extension added agree with what its builder wrote, in its
+ * builder's store. */
+function settleExtended(data: any, store: unknown): any {
   const pending: Map<string, any[]> | undefined = data._pending;
   if (pending === undefined) return data;
   const table = (builderFor(data) as unknown as typeof Builder)._table;
   for (const [name, referents] of pending) {
     const [relation, me, other] = (table.get(name) as Members).extension as [S.OfRelation.Data, string, string];
-    const held = Proxies._linking(relation, me, data);
+    const held = Proxies._linking(relation, me, data, store);
     const linked = (entry: any) => innerOf(entry)._links.get(other);
-    Proxies._discard(relation, held.filter((entry: any) => referents.every((referent) => linked(entry) !== referent)));
+    Proxies._discard(relation, held.filter((entry: any) => referents.every((referent) => linked(entry) !== referent)), store);
     for (const referent of referents) {
       if (held.every((entry: any) => linked(entry) !== referent)) {
-        Proxies._add_entry(relation, Proxies._make_entry(relation, new Map([[me, data], [other, referent]]), new Map()));
+        Proxies._add_entry(relation, Proxies._make_entry(relation, new Map([[me, data], [other, referent]]), new Map()), store);
       }
     }
   }
@@ -1039,7 +1040,7 @@ abstract class Builder extends Shelled {
     for (const [name, value] of Object.entries(source)) target[name] = copied(value);
     for (const member of this._table().values()) { // the members an extension added, which no field holds
       if (member instanceof Prop && member.extension) member.put(target, copied(member.get(source)));
-      else if (member instanceof Members && member.extension !== null) member.store(target, member.items(source));
+      else if (member instanceof Members && member.extension !== null) member.store(target, member.items(source, this._store));
     }
   }
 
@@ -1095,7 +1096,7 @@ abstract class Builder extends Shelled {
    * where it is built in one. */
   _identified(data: any, identity: string | null): any {
     const chosen = identity || this._allocate();
-    return settleExtended(this._store === null ? identify(data, chosen) : this._store._hold(data, chosen));
+    return settleExtended(this._store === null ? identify(data, chosen) : this._store._hold(data, chosen), this._store);
   }
 
   /** The identity a schema object is given on creation, where none is written: a UUID. */
@@ -1827,7 +1828,8 @@ function extensionProblems(builder: any): string[] {
       if (!alike(member.get(original), member.get(working))) problems.push(`changes ${repr(name)}`);
       continue;
     }
-    const added = addedTo(member.items(original), member.items(working));
+    // an extension's entries, a framework schema's, are its builder's store's (other members' items take no store)
+    const added = addedTo(member.items(original, builder._store), member.items(working));
     if (added === null) {
       problems.push(`removes or replaces what ${repr(name)} holds`);
     } else if (added.length > 0 && !member.extensible) {
@@ -1850,6 +1852,21 @@ function extensionProblems(builder: any): string[] {
     }
   }
   return problems;
+}
+
+/** Whether a builder's update would change the schema object it was given, apart from the entries of the relations an
+ * extension added, which are its store's (a framework schema's are not the shared object's). */
+function changes(builder: any): boolean {
+  const original = builder._original;
+  const working = builder._working;
+  for (const member of (builder._table() as Table).values()) {
+    if (member instanceof Prop) {
+      if (!alike(member.get(original), member.get(working))) return true;
+    } else if (member.extension === null && addedTo(member.items(original), member.items(working))?.length !== 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** What `after` holds besides what `before` does, which it holds in the same order, wherever the additions stand (an
@@ -2020,7 +2037,7 @@ export class Store extends Proxies.OfStore {
    * extension of a schema the store held when an extension began. */
   _permit(builder: any): void {
     const original = builder._original;
-    if (this.framework(original) && !this._extendsFramework) {
+    if (this.framework(original) && !this._extendsFramework && changes(builder)) {
       throw new TypeError(`${shown(original)} is a framework schema, which every store holds: extend it with `
         + "Builders.extend");
     }
@@ -2297,9 +2314,10 @@ export namespace Form {
 
 export { builderFor as _builder_for, identify as _identify, ArgumentData as _ArgumentData, ModuleData as _ModuleData };
 
-/** The data a link visitor reads (an entry's referent, where a builder builds it); null for any other visitor. */
+/** The schema object a visitor reads: a link's referent, where a builder builds it, or a builder's own; null for any other visitor. */
 export function _linked(visitor: unknown): unknown {
   const inner = innerOf(visitor);
+  if (inner instanceof Builder) return inner._original; // a schema object read through its builder: one a proxy's entry links
   if (!(inner instanceof Link)) return null;
   const referent = inner._entry._referent;
   return [referent, null][Number(builderFor(referent) === null)];

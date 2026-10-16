@@ -769,7 +769,7 @@ class _Builder(_Unassignable, Generic[D]):
             if isinstance(member, _Prop) and member.extension:
                 member.put(target, S._copy(member.get(source)))
             elif isinstance(member, _Members) and member.extension is not None:
-                member.store(target, member.items(source))
+                member.store(target, member.items(source, self._store))
         return changed
 
     def _finalize(self, target: D) -> D:
@@ -823,7 +823,7 @@ class _Builder(_Unassignable, Generic[D]):
         has, where it is built in one."""
         held = (self._store._hold(data, identity or self._allocate()) if self._store is not None
                 else _identify(data, identity or self._allocate()))
-        return _settle_extended(held)
+        return _settle_extended(held, self._store)
 
     def _allocate(self) -> str:
         """The identity a schema object is given on creation, where none is written: a UUID."""
@@ -910,11 +910,11 @@ def _extension_adjacency(adjacency: S.OfAdjacency.Data) -> _Members:
                         f"{relation.name!r}")
     other = next(link for link in links if link != me)
 
-    def items(data: Any) -> list[Any]:
+    def items(data: Any, store: Any = None) -> list[Any]:  # a framework schema's entries are its store's
         pending = data.__dict__.get("_pending", {})
         if name in pending:
             return list(pending[name])
-        return [entry._links[other] for entry in Proxies._linking(relation, me, data)]
+        return [entry._links[other] for entry in Proxies._linking(relation, me, data, store)]
 
     def store(data: Any, referents: list[Any]) -> None:
         data.__dict__.setdefault("_pending", {})[name] = list(referents)
@@ -924,17 +924,18 @@ def _extension_adjacency(adjacency: S.OfAdjacency.Data) -> _Members:
     return member
 
 
-def _settle_extended(data: Any) -> Any:
-    """Makes a schema object's entries in the relations an extension added agree with what its builder wrote."""
+def _settle_extended(data: Any, store: Any) -> Any:
+    """Makes a schema object's entries in the relations an extension added agree with what its builder wrote, in its
+    builder's store."""
     pending = data.__dict__.pop("_pending", None)
     builder_class = _builder_for(data)
     for name, referents in (pending or {}).items():
         relation, me, other = builder_class._members_[name].extension  # type: ignore[union-attr]
-        held = Proxies._linking(relation, me, data)
-        Proxies._discard(id(relation), [e for e in held if all(e._links[other] is not r for r in referents)])
+        held = Proxies._linking(relation, me, data, store)
+        Proxies._discard(id(relation), [e for e in held if all(e._links[other] is not r for r in referents)], store)
         for referent in referents:
             if all(e._links[other] is not referent for e in held):
-                Proxies._add_entry(relation, Proxies._Entry(relation, {me: data, other: referent}, {}))
+                Proxies._add_entry(relation, Proxies._Entry(relation, {me: data, other: referent}, {}), store)
     return data
 
 
@@ -1575,7 +1576,7 @@ class Store(Proxies.OfStore):
         """Refuses a builder's update of a framework schema outside the framework's extension, and one that is not an
         extension of a schema the store held when an extension began."""
         original = builder._original
-        if self.framework(original) and not self._extends_framework:
+        if self.framework(original) and not self._extends_framework and _changes(builder):
             raise TypeError(f"{_shown(original)} is a framework schema, which every store holds: extend it with "
                             "Builders.extend")
         if self._extending is not None and id(original) in self._extending:
@@ -1723,8 +1724,9 @@ def _extension_problems(builder: _Builder[Any]) -> list[str]:
             if member.get(original) != member.get(working):
                 problems.append(f"changes {name!r}")
             continue
-        before, after = member.items(original), member.items(working)
-        added = _added(before, after)
+        extension = member.extension is not None  # whose entries, a framework schema's, are its builder's store's
+        before = member.items(original, builder._store) if extension else member.items(original)
+        added = _added(before, member.items(working))
         if added is None:
             problems.append(f"removes or replaces what {name!r} holds")
         elif added and not member.extensible:
@@ -1738,6 +1740,19 @@ def _extension_problems(builder: _Builder[Any]) -> list[str]:
         problems += [f"adds {name!r}, which it inherits" for name in adjacencies
                      if name in working.adjacencies and working.adjacencies[name] is not original.adjacencies.get(name)]
     return problems
+
+
+def _changes(builder: _Builder[Any]) -> bool:
+    """Whether a builder's update would change the schema object it was given, apart from the entries of the relations
+    an extension added, which are its store's (a framework schema's are not the shared object's)."""
+    original, working = builder._original, builder._working
+    for member in builder._members_.values():
+        if isinstance(member, _Prop):
+            if member.get(original) != member.get(working):
+                return True
+        elif member.extension is None and _added(member.items(original), member.items(working)) != []:
+            return True
+    return False
 
 
 def _added(before: list[Any], after: list[Any]) -> list[Any] | None:

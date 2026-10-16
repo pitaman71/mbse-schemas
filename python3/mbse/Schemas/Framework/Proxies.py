@@ -230,9 +230,13 @@ class _Entry:
         )
 
 
-def _table(target: Any, relation_id: int) -> dict[Hashable, _Entry]:
+def _table(target: Any, relation_id: int, store: Any = None) -> dict[Hashable, _Entry]:
     """The entries of one relation that link `target`, by key: they live on the objects they link, a schema object too,
-    which an extension's relation links (docs/SCHEMA_EXTENSION.md) and which is given its index when first linked."""
+    which an extension's relation links (docs/SCHEMA_EXTENSION.md) and which is given its index when first linked. A
+    framework schema, which every store holds, is never written: `store` keeps the entries that link it."""
+    framework = getattr(store, "framework", None)
+    if framework is not None and framework(target):
+        return store.__dict__.setdefault("_framework_entries", {}).setdefault((id(target), relation_id), {})
     try:
         tables = object.__getattribute__(target, "_adjacent")
     except AttributeError:
@@ -241,25 +245,32 @@ def _table(target: Any, relation_id: int) -> dict[Hashable, _Entry]:
     return tables.setdefault(relation_id, {})
 
 
-def _add_entry(relation: RelationSchema, entry: _Entry) -> None:
+def _entry_store(entry: _Entry, store: Any = None) -> Any:
+    """The store an entry belongs to: the one given, else that of a proxy it links."""
+    if store is not None:
+        return store
+    return next((found for found in map(_store_of, entry._links.values()) if found is not None), None)
+
+
+def _add_entry(relation: RelationSchema, entry: _Entry, store: Any = None) -> None:
     """Adds `entry` to every object it links, unless the relation holds a set and an equal entry is there already."""
-    key = entry._key()
-    if key in _table(next(iter(entry._links.values())), id(relation)):
+    key, store = entry._key(), _entry_store(entry, store)
+    if key in _table(next(iter(entry._links.values())), id(relation), store):
         return
     for target in entry._links.values():
-        _table(target, id(relation))[key] = entry
+        _table(target, id(relation), store)[key] = entry
 
 
-def _linking(relation: RelationSchema, link: str, target: Any) -> list[_Entry]:
+def _linking(relation: RelationSchema, link: str, target: Any, store: Any = None) -> list[_Entry]:
     """The entries of `relation` that link `target` via `link`, in the order they were added."""
-    return [entry for entry in _table(target, id(relation)).values() if entry._links.get(link) is target]
+    return [entry for entry in _table(target, id(relation), store).values() if entry._links.get(link) is target]
 
 
-def _discard(relation_id: int, entries: list[_Entry]) -> None:
+def _discard(relation_id: int, entries: list[_Entry], store: Any = None) -> None:
     for entry in entries:
-        key = entry._key()
+        key, held = entry._key(), _entry_store(entry, store)
         for target in entry._links.values():
-            _table(target, relation_id).pop(key, None)
+            _table(target, relation_id, held).pop(key, None)
 
 
 def _discard_linking(relation: RelationSchema, link: str, target: Any) -> None:
@@ -269,10 +280,11 @@ def _discard_linking(relation: RelationSchema, link: str, target: Any) -> None:
 def _orders(schema: ObjectSchema, source: Any) -> list[tuple[dict[Hashable, _Entry], list[_Entry]]]:
     """The tables that hold the entries linking `source`, every object's they link, each with its entries in order."""
     tables: dict[int, tuple[dict[Hashable, _Entry], list[_Entry]]] = {}
+    store = _store_of(source)
     for adjacency in schema.adjacencies.values():
         for entry in _linking(adjacency.relation, adjacency.me, source):
             for target in entry._links.values():
-                table = _table(target, id(adjacency.relation))
+                table = _table(target, id(adjacency.relation), store)
                 tables.setdefault(id(table), (table, list(table.values())))
     return list(tables.values())
 
@@ -1987,7 +1999,7 @@ class _ObjectBuilder(_Unassignable):
                     _add_entry(relation, built)
                     if rewritten is not None and entry._source is not None:  # by id: the entry it rewrites
                         # the entry held: a self-loop's is built from each end, and a set keeps one
-                        rewritten[id(entry._source)] = _table(target, id(relation))[built._key()]
+                        rewritten[id(entry._source)] = _table(target, id(relation), self._store)[built._key()]
         return target
 
 

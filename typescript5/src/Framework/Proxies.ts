@@ -417,9 +417,22 @@ function identityOf(target: unknown): number {
   return found;
 }
 
+/** The entries linking each framework schema, by store (by its schema objects, the same for the store and its proxy). */
+const FRAMEWORK_ENTRIES = new WeakMap<object, Map<unknown, Map<RelationSchema, Map<string, any>>>>();
+
 /** The entries of one relation that link `target`, by key: they live on the objects they link, a schema object too,
- * which an extension's relation links and which is given its index, hidden from its fields, when first linked. */
-function table(target: unknown, relation: RelationSchema): Map<string, any> {
+ * which an extension's relation links and which is given its index, hidden from its fields, when first linked. A
+ * framework schema, which every store holds, is never written: `store` keeps the entries that link it. */
+function table(target: unknown, relation: RelationSchema, store: any = null): Map<string, any> {
+  if (typeof store?.framework === "function" && store.framework(target)) {
+    let byTarget = FRAMEWORK_ENTRIES.get(store._objects);
+    if (byTarget === undefined) FRAMEWORK_ENTRIES.set(store._objects, (byTarget = new Map()));
+    let byRelation = byTarget.get(target);
+    if (byRelation === undefined) byTarget.set(target, (byRelation = new Map()));
+    let found = byRelation.get(relation);
+    if (found === undefined) byRelation.set(relation, (found = new Map()));
+    return found;
+  }
   const state = innerOf(target) ?? target;
   let adjacent: Map<RelationSchema, Map<string, any>> | undefined = state._adjacent;
   if (adjacent === undefined) {
@@ -431,24 +444,31 @@ function table(target: unknown, relation: RelationSchema): Map<string, any> {
   return found;
 }
 
+/** The store an entry belongs to: the one given, else that of a proxy it links. */
+function entryStore(state: _Entry, store: unknown): unknown {
+  return store ?? [...state._links.values()].map(storeOf).find((found) => found !== null);
+}
+
 /** Adds `entry` to every object it links, unless the relation holds a set and an equal entry is there already. */
-function addEntry(relation: RelationSchema, entry: any): void {
+function addEntry(relation: RelationSchema, entry: any, store: unknown = null): void {
   const state: _Entry = innerOf(entry);
   const key = state._key();
-  if (table(state._links.values().next().value, relation).has(key)) return;
-  for (const target of state._links.values()) table(target, relation).set(key, entry);
+  const held = entryStore(state, store);
+  if (table(state._links.values().next().value, relation, held).has(key)) return;
+  for (const target of state._links.values()) table(target, relation, held).set(key, entry);
 }
 
 /** The entries of `relation` that link `target` via `link`, in the order they were added. */
-function linking(relation: RelationSchema, link: string, target: unknown): any[] {
-  return [...table(target, relation).values()].filter((entry) => innerOf(entry)._links.get(link) === target);
+function linking(relation: RelationSchema, link: string, target: unknown, store: unknown = null): any[] {
+  return [...table(target, relation, store).values()].filter((entry) => innerOf(entry)._links.get(link) === target);
 }
 
-function discard(relation: RelationSchema, entries: readonly unknown[]): void {
+function discard(relation: RelationSchema, entries: readonly unknown[], store: unknown = null): void {
   for (const entry of entries) {
     const state: _Entry = innerOf(entry);
     const key = state._key();
-    for (const target of state._links.values()) table(target, relation).delete(key);
+    const held = entryStore(state, store);
+    for (const target of state._links.values()) table(target, relation, held).delete(key);
   }
 }
 
@@ -461,11 +481,12 @@ type Orders = [Map<string, any>, any[]][];
 /** The tables that hold the entries linking `source`, every object's they link, each with its entries in order. */
 function orders(schema: ObjectSchema, source: unknown): Orders {
   const tables = new Map<Map<string, any>, any[]>();
+  const store = storeOf(source);
   for (const adjacency of schema.adjacencies.values()) {
     const relation = adjacency.relation as RelationSchema;
     for (const entry of linking(relation, adjacency.me, source)) {
       for (const target of (innerOf(entry) as _Entry)._links.values()) {
-        const held = table(target, relation);
+        const held = table(target, relation, store);
         if (!tables.has(held)) tables.set(held, [...held.values()]);
       }
     }

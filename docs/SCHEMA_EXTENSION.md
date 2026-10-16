@@ -131,6 +131,20 @@ As the user decided (2026-10-15), on the questions put to them:
     (`T refines Integer`), so that inference rejects a call before binding. Relations between parameters (promotion)
     and results computed from them (SystemVerilog widths) go to intrinsics that compute the result's schema; modeling
     type-level computation is off the table.
+16. Two levels, "Two levels (Recommended)": `Builders.extend(name, cb)`, once per process, extends the framework
+    schemas, and what it builds joins the framework every store holds, made before or after, unwritten in snapshots;
+    `store.extend(cb)` extends the schemas one store holds. A framework schema changes only through `Builders.extend`;
+    ordinary updates of a store's own schemas stay unrestricted. The name makes it idempotent: extending again under it
+    does nothing.
+17. Adjacencies are named "in both directions unless otherwise stated". A schema object fills a link only where its
+    schema, a meta-schema, declares an adjacency to it, so `HasDomain(schema=Schemas.OfScalar.Schema, ...)` extends a
+    meta-schema: "this becomes a problem of extending meta-schemas".
+18. Extending a meta-schema, with no "alternative out of schema mechanism": a member a meta-schema gains becomes a member
+    of its schemas' builder, added at runtime (in Python and TypeScript, which allow it), its value held on the schema
+    object; an added adjacency's entries are shared with the objects they link, each held in the index of every object
+    it links, as a proxy's are, so both ends see one entry. As built: such an adjacency is to a relation of two links and
+    no properties; a proxy links a schema object its store holds; validation and reachability do not follow a link into
+    a schema object, which is not data.
 
 ---
 

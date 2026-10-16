@@ -391,7 +391,7 @@ class _Entry extends Shelled {
    * a list from each end, which keeps equal entries. */
   _key(): string {
     if (this._relation.open) return `entry:${this._id}`;
-    const links = [...this._links].map(([name, target]) => [name, innerOf(target)._id] as const).sort(byName);
+    const links = [...this._links].map(([name, target]) => [name, identityOf(target)] as const).sort(byName);
     const props = [...this._properties].map(([name, value]) => [name, scalarKey(value)] as const).sort(byName);
     return JSON.stringify([links, props]);
   }
@@ -405,9 +405,27 @@ function byName(a: readonly [string, unknown], b: readonly [string, unknown]): n
   return a[0] < b[0] ? -1 : 1; // names within an entry are unique
 }
 
-/** The entries of one relation that link `target`, by key: they live on the objects they link. */
+const IDENTITIES = new WeakMap<object, number>();
+
+/** An object's number, by which entries are keyed: a proxy's own, or one given a schema object, which an extension's
+ * relation links (docs/SCHEMA_EXTENSION.md), when first asked. */
+function identityOf(target: unknown): number {
+  const inner = innerOf(target);
+  if (inner !== undefined) return inner._id;
+  let found = IDENTITIES.get(target as object);
+  if (found === undefined) IDENTITIES.set(target as object, (found = ++nextIdentity));
+  return found;
+}
+
+/** The entries of one relation that link `target`, by key: they live on the objects they link, a schema object too,
+ * which an extension's relation links and which is given its index, hidden from its fields, when first linked. */
 function table(target: unknown, relation: RelationSchema): Map<string, any> {
-  const adjacent: Map<RelationSchema, Map<string, any>> = innerOf(target)._adjacent;
+  const state = innerOf(target) ?? target;
+  let adjacent: Map<RelationSchema, Map<string, any>> | undefined = state._adjacent;
+  if (adjacent === undefined) {
+    adjacent = new Map();
+    Object.defineProperty(state, "_adjacent", { value: adjacent, enumerable: false });
+  }
   let found = adjacent.get(relation);
   if (found === undefined) adjacent.set(relation, (found = new Map()));
   return found;
@@ -2313,8 +2331,11 @@ class _LinkMember extends Shelled {
     }
     if (innerOf(spec) instanceof _LinkMember) spec = innerOf(spec)._target();
     if (isRecordData(spec)) throw new ReadOnlyError("a link targets a reference object, never a value object");
-    if (!isObjectData(spec)) throw new TypeError("proxies can only link proxy instances");
-    sameStore(entry._store, spec);
+    const holds = (entry._store as { holds?: (data: unknown) => boolean } | null)?.holds;
+    if (!isObjectData(spec) && !(holds !== undefined && holds.call(entry._store, spec))) {
+      throw new TypeError("proxies can only link proxy instances, or schema objects their store holds");
+    }
+    if (isObjectData(spec)) sameStore(entry._store, spec); // else a schema object the store holds, an extension's
     entry._links.set(name, spec);
     return entry._proxy;
   }
@@ -2609,7 +2630,8 @@ export function _isVisitor(value: unknown): boolean {
 /** The shells visitors are made with, shared with `Builders`, as Python's `Builders` imports `_Dunders`, `_Empty`,
  * `_Properties` and `_Unassignable`. */
 export { shell as _shell, Shelled as _Shelled, Dunders as _Dunders, makeEmpty as _makeEmpty,
-  makeProperties as _makeProperties, innerOf as _innerOf, uuid4 as _uuid4 };
+  makeProperties as _makeProperties, innerOf as _innerOf, uuid4 as _uuid4, storeOf as _store_of, linking as _linking,
+  addEntry as _add_entry, discard as _discard, makeEntry as _make_entry };
 
 /** Internal classes, exposed for protocol conformance tests. */
 export const _internals = { makeRecordBuilder, _ObjectData, _RecordData, _Entry, _Empty, _Scalar, _Any, _Property, _Properties, _Adjacency,

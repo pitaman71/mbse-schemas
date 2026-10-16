@@ -908,7 +908,7 @@ def _extension_adjacency(adjacency: S.OfAdjacency.Data) -> _Members:
     if len(links) != 2 or relation.entry.properties:
         raise TypeError(f"an extension's adjacency {name!r} is to a relation of two links and no properties, got "
                         f"{relation.name!r}")
-    other = links[1] if links[0] == me else links[0]
+    other = next(link for link in links if link != me)
 
     def items(data: Any) -> list[Any]:
         pending = data.__dict__.get("_pending", {})
@@ -1724,12 +1724,13 @@ def _extension_problems(builder: _Builder[Any]) -> list[str]:
                 problems.append(f"changes {name!r}")
             continue
         before, after = member.items(original), member.items(working)
-        if len(after) < len(before) or any(a is not b for a, b in zip(before, after)):
+        added = _added(before, after)
+        if added is None:
             problems.append(f"removes or replaces what {name!r} holds")
-        elif len(after) > len(before) and not member.extensible:
+        elif added and not member.extensible:
             problems.append(f"adds to {name!r}, which an extension cannot")
-        elif len(after) > len(before) and member.keyed and isinstance(original, S.OfObject.Data):
-            problems += _clashes(original, [member.name_of(working, added) for added in after[len(before):]])
+        elif added and member.keyed and isinstance(original, S.OfObject.Data):
+            problems += _clashes(original, [member.name_of(working, referent) for referent in added])
     if isinstance(original, S.OfObject.Data):  # a member it inherits, given again, is its own: a redeclaration
         properties, adjacencies, _ = S.inherited(original)
         problems += [f"adds {name!r}, which it inherits" for name in properties
@@ -1737,6 +1738,19 @@ def _extension_problems(builder: _Builder[Any]) -> list[str]:
         problems += [f"adds {name!r}, which it inherits" for name in adjacencies
                      if name in working.adjacencies and working.adjacencies[name] is not original.adjacencies.get(name)]
     return problems
+
+
+def _added(before: list[Any], after: list[Any]) -> list[Any] | None:
+    """What `after` holds besides what `before` does, which it holds in the same order, wherever the additions stand
+    (an object schema's anonymous adjacencies follow its named ones); None where it lacks or replaces one."""
+    added, kept = [], iter(before)
+    expected = next(kept, None)
+    for referent in after:
+        if expected is not None and referent is expected:
+            expected = next(kept, None)
+        else:
+            added.append(referent)
+    return None if expected is not None else added
 
 
 def _clashes(schema: S.OfObject.Data, names: list[Any]) -> list[str]:

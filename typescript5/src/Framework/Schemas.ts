@@ -1360,6 +1360,11 @@ export function inherited(schema: ObjectData): [Set<string>, Set<string>, Adjace
   return found === undefined ? [new Set(), new Set(), []] : [found.properties, found.adjacencies, found.anonymous];
 }
 
+/** The object schemas that refine `schema` directly. */
+export function _refinements(schema: ObjectData): ObjectData[] {
+  return REFINEMENTS.get(schema) ?? [];
+}
+
 /** Gives an object schema the members of the schema it refines, which it has not redeclared, and passes the change on
  * to the schemas that refine it. */
 export function settle(schema: ObjectData): ObjectData {

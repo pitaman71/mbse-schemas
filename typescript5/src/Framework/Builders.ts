@@ -104,6 +104,8 @@ class Prop {
   put!: Putter;
   readonly container: boolean;
   readonly shorthand: (value: unknown) => unknown;
+  /** Whether an extension added it: its value is held apart from the data's fields. */
+  extension = false;
 
   constructor(readonly _options: { get?: Getter; put?: Putter; container?: boolean; shorthand?: (value: unknown) => unknown } = {}) {
     this.container = _options.container ?? false;
@@ -450,9 +452,13 @@ class Members {
   readonly owned: boolean;
   readonly name_of: (data: any, referent: any) => string | null;
   readonly rename: (data: any, referent: any, name: string) => void;
+  /** Whether an extension may add entries to it, after those it holds (docs/SCHEMA_EXTENSION.md). */
+  readonly extensible: boolean;
+  /** An extension's: its relation, its object's link, and the other. */
+  extension: [S.OfRelation.Data, string, string] | null = null;
 
   constructor(readonly link: string, options: Storage & { accepts: (value: unknown) => boolean; build?: string;
-    keyed?: boolean; owned?: boolean;
+    keyed?: boolean; owned?: boolean; extensible?: boolean;
     names?: [(data: any, referent: any) => string | null, (data: any, referent: any, name: string) => void] }) {
     this.items = options.items;
     this.store = options.store;
@@ -461,6 +467,7 @@ class Members {
     this.one = options.one ?? false;
     this.keyed = options.keyed ?? false;
     this.owned = options.owned ?? this.keyed;
+    this.extensible = options.extensible ?? false;
     [this.name_of, this.rename] = options.names ?? [
       (_data, referent) => Object(referent).name || null,
       (_data, referent, name) => {
@@ -819,6 +826,7 @@ class Link extends Shelled {
     const referent = this._entry._referent;
     if (referent === null) return makeEmpty(`link ${repr(this._members().link)} is not set`);
     const builder = builderFor(referent);
+    if (builder === null && Proxies._store_of(referent) !== null) return referent; // data, which an extension's relation links
     return builder === null ? makeEmpty("a term of a dialect is read through its dialect") : new builder(referent, false);
   }
 
@@ -881,13 +889,107 @@ function build(builderClass: BuilderClass, current: unknown, cb: unknown, store:
 type Table = Map<string, Prop | Members>;
 
 /** A member table: `base`'s, then `own`'s, each member named by its key; one redeclared keeps its place. */
-function extend(base: Table, own: Record<string, Prop | Members>): Table {
+function extendTable(base: Table, own: Record<string, Prop | Members>): Table {
   const table = new Map(base);
   for (const [name, member] of Object.entries(own)) {
     member._bind(name);
     table.set(name, member);
   }
   return table;
+}
+
+/** A field's value, its container copied, never the objects it references. */
+function copied(value: unknown): unknown {
+  return value instanceof Map ? new Map(value) : Array.isArray(value) ? [...value] : value;
+}
+
+/** A map held on a schema object apart from its fields: an extension's property values, or what a builder wrote to an
+ * extension's adjacency, by name. */
+function hidden(data: any, name: "_extended" | "_pending"): Map<string, any> {
+  let found = data[name];
+  if (found === undefined) Object.defineProperty(data, name, { value: (found = new Map()), enumerable: false });
+  return found;
+}
+
+/** A property an extension added to a meta-schema, held on each schema object apart from its fields. */
+function extensionProperty(name: string): Prop {
+  const member = new Prop({
+    get: (data) => data._extended?.get(name) ?? null,
+    put: (data, value) => {
+      hidden(data, "_extended").set(name, value);
+    },
+  });
+  member.extension = true;
+  return member;
+}
+
+/** An adjacency an extension added to a meta-schema: its entries are shared with the objects they link, as a proxy's
+ * are, each held in the index of every object it links (Proxies' `addEntry`). A builder writes the objects it links to
+ * its working copy; finalized, the schema object's entries are made to agree with them. */
+function extensionAdjacency(adjacency: S.OfAdjacency.Data): Members {
+  const relation = adjacency.relation as S.OfRelation.Data;
+  const me = adjacency.me as string;
+  const name = adjacency.name as string;
+  const links = [...relation.entry.links.keys()];
+  if (links.length !== 2 || relation.entry.properties.size > 0) {
+    throw new TypeError(`an extension's adjacency ${repr(name)} is to a relation of two links and no properties, got `
+      + repr(relation.name));
+  }
+  const other = links.find((link) => link !== me) as string;
+  const member = new Members(other, {
+    accepts: () => true,
+    extensible: true,
+    items: (data) => {
+      const pending: Map<string, any[]> | undefined = data._pending;
+      if (pending?.has(name)) return [...(pending.get(name) as any[])];
+      return Proxies._linking(relation, me, data).map((entry: any) => innerOf(entry)._links.get(other));
+    },
+    store: (data, referents) => {
+      hidden(data, "_pending").set(name, [...referents]);
+    },
+  });
+  member.extension = [relation, me, other];
+  return member;
+}
+
+/** Makes a schema object's entries in the relations an extension added agree with what its builder wrote. */
+function settleExtended(data: any): any {
+  const pending: Map<string, any[]> | undefined = data._pending;
+  if (pending === undefined) return data;
+  const table = (builderFor(data) as unknown as typeof Builder)._table;
+  for (const [name, referents] of pending) {
+    const [relation, me, other] = (table.get(name) as Members).extension as [S.OfRelation.Data, string, string];
+    const held = Proxies._linking(relation, me, data);
+    const linked = (entry: any) => innerOf(entry)._links.get(other);
+    Proxies._discard(relation, held.filter((entry: any) => referents.every((referent) => linked(entry) !== referent)));
+    for (const referent of referents) {
+      if (held.every((entry: any) => linked(entry) !== referent)) {
+        Proxies._add_entry(relation, Proxies._make_entry(relation, new Map([[me, data], [other, referent]]), new Map()));
+      }
+    }
+  }
+  pending.clear();
+  return data;
+}
+
+/** Gives each schema builder the members an extension added to its meta-schema (or one it refines): `added` holds each
+ * meta-schema's names before the extension. */
+function extendBuilders(added: Map<unknown, [Set<string>, Set<string>]>): void {
+  for (const builderClass of new Set(BUILDERS.values()) as unknown as Set<typeof Builder>) {
+    const meta = (Meta as Record<string, any>)[builderClass._meta];
+    const [properties, adjacencies] = added.get(meta) as [Set<string>, Set<string>];
+    const members: [string, Prop | Members][] = [];
+    for (const name of meta.properties.keys()) {
+      if (!properties.has(name) && !builderClass._table.has(name)) members.push([name, extensionProperty(name)]);
+    }
+    for (const [name, adjacency] of meta.adjacencies) {
+      if (!adjacencies.has(name) && !builderClass._table.has(name)) members.push([name, extensionAdjacency(adjacency)]);
+    }
+    for (const [name, member] of members) {
+      member._bind(name);
+      builderClass._table.set(name, member);
+    }
+  }
 }
 
 /** A writable `Visitors.OfObject` over a meta-schema (`_meta`, a name in `Meta`), building its data (`_data`).
@@ -934,8 +1036,10 @@ abstract class Builder extends Shelled {
 
   /** Writes `source`'s fields into `target`, copying the containers it holds, never the objects they reference. */
   _update(target: any, source: any): void {
-    for (const [name, value] of Object.entries(source)) {
-      target[name] = value instanceof Map ? new Map(value) : Array.isArray(value) ? [...value] : value;
+    for (const [name, value] of Object.entries(source)) target[name] = copied(value);
+    for (const member of this._table().values()) { // the members an extension added, which no field holds
+      if (member instanceof Prop && member.extension) member.put(target, copied(member.get(source)));
+      else if (member instanceof Members && member.extension !== null) member.store(target, member.items(source));
     }
   }
 
@@ -982,6 +1086,7 @@ abstract class Builder extends Shelled {
   update(...args: unknown[]): any {
     noArguments("update", args);
     if (this._original === null) throw new ValueError("update() is only valid with a source instance");
+    if (this._store !== null) this._store._permit(this);
     this._update(this._original, this._working);
     return this._identified(this._finalize(this._original), this._identity ?? identity_of(this._original));
   }
@@ -990,7 +1095,7 @@ abstract class Builder extends Shelled {
    * where it is built in one. */
   _identified(data: any, identity: string | null): any {
     const chosen = identity || this._allocate();
-    return this._store === null ? identify(data, chosen) : this._store._hold(data, chosen);
+    return settleExtended(this._store === null ? identify(data, chosen) : this._store._hold(data, chosen));
   }
 
   /** The identity a schema object is given on creation, where none is written: a UUID. */
@@ -1070,7 +1175,7 @@ function typed(field: string): Members {
 
 /** A builder of a kind of schema: named, described, and parametric. */
 abstract class KindBuilder extends Builder {
-  static override _table = extend(Builder._table, {
+  static override _table = extendTable(Builder._table, {
     name: new Prop(),
     description: new Prop(),
     parameters: new Members("parameter", { keyed: true, accepts: isA(S.OfParameter.Data), build: "ParameterBuilder",
@@ -1097,7 +1202,7 @@ abstract class KindBuilder extends Builder {
 /** A builder of a member with a type: a property, a parameter, a symbol, a branch or a part. Its name is the entry's
  * that links it to its owner. */
 abstract class TypedBuilder extends Builder {
-  static override _table = extend(Builder._table, { description: new Prop(), type: typed("type") });
+  static override _table = extendTable(Builder._table, { description: new Prop(), type: typed("type") });
 }
 
 export class PropertyBuilder extends TypedBuilder {
@@ -1131,7 +1236,7 @@ export class AdjacencyBuilder extends Builder {
   static override _data = S.OfAdjacency.Data;
   static override _meta = "Adjacency";
   static override _noun = "an adjacency";
-  static override _table = extend(Builder._table, {
+  static override _table = extendTable(Builder._table, {
     description: new Prop(),
     me: new Prop(), // the name of the link it fills
     relation: new Members("relation", { accepts: isA(S.OfRelation.Data), build: "RelationBuilder", ...one("relation") }),
@@ -1148,7 +1253,7 @@ export class ArgumentBuilder extends Builder {
   static override _data = ArgumentData;
   static override _meta = "Argument";
   static override _noun = "an argument";
-  static override _table = extend(Builder._table, {
+  static override _table = extendTable(Builder._table, {
     value: new Prop({ get: (data) => S.Form.is_term(data.value) ? null : data.value }),
     parameter: new Members("parameter", { accepts: isA(S.OfParameter.Data), ...one("parameter") }),
     term: new Members("term", { accepts: S.Form.is_term, build: "FormBuilder", one: true,
@@ -1172,7 +1277,7 @@ export class FormBuilder extends Builder {
   static override _data = S.Form.Data;
   static override _meta = "Form";
   static override _noun = "a form";
-  static override _table = extend(Builder._table, {
+  static override _table = extendTable(Builder._table, {
     dialect: new Prop(),
     kind: new Prop(),
     attributes: new Prop({ container: true }),
@@ -1230,7 +1335,7 @@ export class ScalarBuilder extends KindBuilder {
   static override _data = S.OfScalar.Data;
   static override _meta = "Scalar";
   static override _noun = "a scalar schema";
-  static override _table = extend(KindBuilder._table, {
+  static override _table = extendTable(KindBuilder._table, {
     format: new Prop({
       get: (data) => data.token instanceof S.OfScalar.Token ? data.token.format : null,
       put: (data, value) => {
@@ -1270,7 +1375,7 @@ export class ObjectBuilder extends KindBuilder {
   static override _data = S.OfObject.Data;
   static override _meta = "Object";
   static override _noun = "an object schema";
-  static override _table = extend(KindBuilder._table, {
+  static override _table = extendTable(KindBuilder._table, {
     ref: new Prop(),
     pattern: new Prop(),
     singleton: new Prop(),
@@ -1278,12 +1383,12 @@ export class ObjectBuilder extends KindBuilder {
     // A refinement's own members: those it inherits are the refined schema's, through `refines` (Resolved: "Modules
     // write `refines` and a refinement's own members only"); finalizing settles them in again.
     properties: new Members("property", { keyed: true, accepts: isA(S.OfProperty.Data), build: "PropertyBuilder",
-      items: (data) => [...data.properties].filter(([name]) => !inheritedOf(data)[0].has(name)).map(([, prop]) => prop),
+      extensible: true, items: (data) => [...data.properties].filter(([name]) => !inheritedOf(data)[0].has(name)).map(([, prop]) => prop),
       store: (data, members) => {
         data.properties = new Map(members.map((m) => [m.name, m]));
       } }),
     adjacencies: new Members("adjacency", { // named ones by name, then anonymous ones, which have none
-      keyed: true, accepts: isA(S.OfAdjacency.Data), build: "AdjacencyBuilder",
+      keyed: true, accepts: isA(S.OfAdjacency.Data), build: "AdjacencyBuilder", extensible: true,
       items: (data) => [
         ...[...data.adjacencies].filter(([name]) => !inheritedOf(data)[1].has(name)).map(([, adjacency]) => adjacency),
         ...data.anonymous.filter((adjacency: S.OfAdjacency.Data) => !inheritedOf(data)[2].includes(adjacency)),
@@ -1320,10 +1425,10 @@ export class UnionBuilder extends KindBuilder {
   static override _data = S.OfUnion.Data;
   static override _meta = "Union";
   static override _noun = "a union";
-  static override _table = extend(KindBuilder._table, {
+  static override _table = extendTable(KindBuilder._table, {
     flat: new Prop(),
     branches: new Members("branch", { keyed: true, accepts: isA(S.OfUnion.Branch), build: "MemberBuilder",
-      ...inOrder("branches") }),
+      extensible: true, ...inOrder("branches") }),
   });
 }
 
@@ -1331,7 +1436,7 @@ export class IntersectionBuilder extends KindBuilder {
   static override _data = S.OfIntersection.Data;
   static override _meta = "Intersection";
   static override _noun = "an intersection";
-  static override _table = extend(KindBuilder._table, {
+  static override _table = extendTable(KindBuilder._table, {
     flat: new Prop(),
     parts: new Members("part", { keyed: true, accepts: isA(S.OfIntersection.Part), build: "MemberBuilder",
       ...inOrder("parts") }),
@@ -1343,7 +1448,7 @@ export class ContainerBuilder extends KindBuilder {
   static override _data = S.OfContainer.Data;
   static override _meta = "Container";
   static override _noun = "a container schema";
-  static override _table = extend(KindBuilder._table, {
+  static override _table = extendTable(KindBuilder._table, {
     layout: new Prop(), // "dense", "sparse", or null
     refines: refinesMembers(),
     index: new Members("index", { accepts: isSchema, ...one("index") }),
@@ -1369,7 +1474,7 @@ export class ApplyBuilder extends KindBuilder {
   static override _data = S.OfApply.Data;
   static override _meta = "Apply";
   static override _noun = "an application";
-  static override _table = extend(KindBuilder._table, {
+  static override _table = extendTable(KindBuilder._table, {
     of: new Members("applied", { accepts: isSchema, ...one("of") }),
     arguments: new Members("argument", { owned: true, accepts: isA(ArgumentData), build: "ArgumentBuilder",
       items: argumentsOf,
@@ -1384,7 +1489,7 @@ export class AnyValueBuilder extends KindBuilder {
   static override _data = S.OfAny.Value;
   static override _meta = "Any";
   static override _noun = "a value of any type";
-  static override _table = extend(KindBuilder._table, {
+  static override _table = extendTable(KindBuilder._table, {
     types: new Members("schema", { accepts: isSchema, ...inOrder("types") }),
   });
 }
@@ -1393,7 +1498,7 @@ export class PredicateBuilder extends KindBuilder {
   static override _data = S.OfPredicate.Data;
   static override _meta = "Predicate";
   static override _noun = "a predicate";
-  static override _table = extend(KindBuilder._table, {
+  static override _table = extendTable(KindBuilder._table, {
     symbols: new Members("symbol", { keyed: true, accepts: isA(S.OfSymbol.Data), build: "SymbolBuilder", ...byName("symbols") }),
     requires: new Members("term", { accepts: S.Form.is_term, build: "FormBuilder", ...one("requires") }),
   });
@@ -1424,14 +1529,14 @@ export class RelationBuilder extends KindBuilder {
   static override _data = S.OfRelation.Data;
   static override _meta = "Relation";
   static override _noun = "a relation";
-  static override _table = extend(KindBuilder._table, {
+  static override _table = extendTable(KindBuilder._table, {
     links: new Members("link", { keyed: true, accepts: isA(S.OfSymbol.Data), build: "SymbolBuilder",
       items: (data) => [...data.entry.links.values()],
       store: (data, links) => {
         data.entry.links = new Map(links.map((m) => [m.name, m]));
       } }),
     properties: new Members("property", { keyed: true, accepts: isA(S.OfProperty.Data), build: "PropertyBuilder",
-      items: (data) => [...data.entry.properties.values()],
+      extensible: true, items: (data) => [...data.entry.properties.values()],
       store: (data, properties) => {
         data.entry.properties = new Map(properties.map((m) => [m.name, m]));
       } }),
@@ -1489,8 +1594,8 @@ export class ModuleBuilder extends KindBuilder {
   static override _data = ModuleData;
   static override _meta = "Module";
   static override _noun = "a module";
-  static override _table = extend(KindBuilder._table, {
-    schemas: new Members("schema", { keyed: true, owned: false, names: [definedName, define],
+  static override _table = extendTable(KindBuilder._table, {
+    schemas: new Members("schema", { keyed: true, owned: false, names: [definedName, define], extensible: true,
       accepts: (v) => _namable(v),
       items: (data) => [...data.schemas.values()], store: storeDefined }),
   });
@@ -1692,6 +1797,126 @@ export const _META_BUILDERS = new Map<string, BuilderClass>([
   ["Module", ModuleBuilder], ["Argument", ArgumentBuilder],
 ]);
 
+/** Every store in the process, so that what an extension of the framework builds reaches those made before it. */
+const STORES = new Set<WeakRef<Store>>();
+
+/** What the framework's extensions built, by kind and identity, which every store holds as framework schemas. */
+const FRAMEWORK = new Map<string, unknown>();
+
+/** The framework's extensions applied, by name; the framework's store, under "". */
+const EXTENSIONS = new Map<string, Store>();
+
+/** A schema object in a message: its name, else its identity. */
+function shown(schema: any): string {
+  return repr(schema.name || identity_of(schema));
+}
+
+/** Python's `==` on a property's value: a scalar, or a list of them, as a relation's `uniques` is. */
+function alike(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((v, i) => alike(v, b[i]));
+  return Object.is(a, b);
+}
+
+/** How a builder's update of the schema object it was given would do more than add members to it. */
+function extensionProblems(builder: any): string[] {
+  const original = builder._original;
+  const working = builder._working;
+  const problems: string[] = [];
+  for (const [name, member] of builder._table() as Table) {
+    if (member instanceof Prop) {
+      if (!alike(member.get(original), member.get(working))) problems.push(`changes ${repr(name)}`);
+      continue;
+    }
+    const added = addedTo(member.items(original), member.items(working));
+    if (added === null) {
+      problems.push(`removes or replaces what ${repr(name)} holds`);
+    } else if (added.length > 0 && !member.extensible) {
+      problems.push(`adds to ${repr(name)}, which an extension cannot`);
+    } else if (added.length > 0 && member.keyed && original instanceof S.OfObject.Data) {
+      problems.push(...clashes(original, added.map((referent) => member.name_of(working, referent))));
+    }
+  }
+  if (original instanceof S.OfObject.Data) { // a member it inherits, given again, is its own: a redeclaration
+    const [properties, adjacencies] = S.inherited(original);
+    for (const name of properties) {
+      if (working.properties.has(name) && working.properties.get(name) !== original.properties.get(name)) {
+        problems.push(`adds ${repr(name)}, which it inherits`);
+      }
+    }
+    for (const name of adjacencies) {
+      if (working.adjacencies.has(name) && working.adjacencies.get(name) !== original.adjacencies.get(name)) {
+        problems.push(`adds ${repr(name)}, which it inherits`);
+      }
+    }
+  }
+  return problems;
+}
+
+/** What `after` holds besides what `before` does, which it holds in the same order, wherever the additions stand (an
+ * object schema's anonymous adjacencies follow its named ones); null where it lacks or replaces one. */
+function addedTo(before: readonly unknown[], after: readonly unknown[]): unknown[] | null {
+  const added: unknown[] = [];
+  let next = 0;
+  for (const referent of after) {
+    if (next < before.length && referent === before[next]) next += 1;
+    else added.push(referent);
+  }
+  return next < before.length ? null : added;
+}
+
+/** The names an extension adds to an object schema that it has already, as a property or an adjacency, its own or
+ * inherited, or that a schema refining it declares. */
+function clashes(schema: S.OfObject.Data, names: (string | null)[]): string[] {
+  const problems: string[] = [];
+  const refinements = [...S._refinements(schema)];
+  for (const refinement of refinements) {
+    for (const found of S._refinements(refinement)) if (!refinements.includes(found)) refinements.push(found);
+  }
+  const [properties, adjacencies] = S.inherited(schema);
+  for (const name of names) {
+    if (!name) continue;
+    if (schema.properties.has(name) || schema.adjacencies.has(name)) {
+      problems.push(`adds ${repr(name)}, which it ${properties.has(name) || adjacencies.has(name) ? "inherits" : "has"}`);
+    }
+    for (const refinement of refinements) {
+      const [own, ownAdjacencies] = S.inherited(refinement);
+      if ((refinement.properties.has(name) && !own.has(name)) || (refinement.adjacencies.has(name) && !ownAdjacencies.has(name))) {
+        problems.push(`adds ${repr(name)}, which ${shown(refinement)} declares`);
+      }
+    }
+  }
+  return problems;
+}
+
+/** Extends the framework, once per process (docs/SCHEMA_EXTENSION.md): `cb`, given the framework's store, builds schemas
+ * and adds members to framework schemas, as `Store.extend` does a store's, and every store, made before or after, holds
+ * what it built as framework schemas. Extending again under a name already applied does nothing. */
+export function extend(name: string, cb: unknown): void {
+  if (typeof name !== "string" || !name) throw new TypeError(`an extension is named by non-empty text, got ${repr(name)}`);
+  if (EXTENSIONS.has(name)) return;
+  const store: any = EXTENSIONS.get("") ?? new Store();
+  EXTENSIONS.set("", store);
+  const before = new Set(store._objects.keys());
+  const metas = new Map<unknown, [Set<string>, Set<string>]>();
+  for (const meta of Object.values(Meta)) {
+    if (meta instanceof S.OfObject.Data) metas.set(meta, [new Set(meta.properties.keys()), new Set(meta.adjacencies.keys())]);
+  }
+  store._extendsFramework = true;
+  try {
+    store.extend(cb);
+  } finally {
+    store._extendsFramework = false;
+  }
+  const built = new Map([...(store._objects as Map<string, unknown>)].filter(([held, schema]) =>
+    !before.has(held) && !(schema instanceof ModuleData)));
+  for (const [held, schema] of built) FRAMEWORK.set(held, schema);
+  for (const held of [...STORES].map((ref) => ref.deref()).filter((live) => live !== undefined)) {
+    (held as Store)._adopt(built);
+  }
+  extendBuilders(metas);
+  EXTENSIONS.set(name, store);
+}
+
 /** A store of schema objects and data. No reference object is built outside a store, a schema object included.
  *
  * The canonical form of building is `store.moduleName.[...moduleName].schemaName(...)`, each part of a schema's name a
@@ -1700,7 +1925,10 @@ export const _META_BUILDERS = new Map<string, BuilderClass>([
  * object alone, it clones it. It returns the object. A schema object built here, and each member built with it, is
  * given its identity by the store, which refuses one it holds another with; a named schema is registered under its
  * name, so that the store builds its objects next. The store is a `Proxy`: a name it lacks starts a schema's name,
- * except JavaScript's protocol probes (`then`, ...), and one starting with `_` throws `AttributeError`. */
+ * except JavaScript's protocol probes (`then`, ...), and one starting with `_` throws `AttributeError`.
+ *
+ * A store changes a schema it holds but does not own through `extend`, which only adds members to it
+ * (docs/SCHEMA_EXTENSION.md); a framework schema, which every store holds, only through `Builders.extend`. */
 export class Store extends Proxies.OfStore {
   /** `store.moduleName.[...moduleName].schemaName(...)`, each a path (`_Path`); dynamic by design. */
   [name: string]: any;
@@ -1708,6 +1936,10 @@ export class Store extends Proxies.OfStore {
   readonly _objects = new Map<string, unknown>();
   /** The framework's own schemas, which every store holds. */
   readonly _framework: Set<unknown>;
+  /** The schema objects held when an extension began, while it runs. */
+  _extending: Set<unknown> | null = null;
+  /** Whether this store is the framework's, extending it. */
+  _extendsFramework = false;
   /** The modules, by path; the root module's is "". */
   readonly _modules = new Map<string, ModuleData>();
   /** Each schema's module, and its name there. */
@@ -1729,6 +1961,8 @@ export class Store extends Proxies.OfStore {
       this.register(schema as ObjectData);
     }
     this._framework = new Set(this._objects.values());
+    this._adopt(FRAMEWORK); // what the framework's extensions built
+    STORES.add(new WeakRef(this));
     const proxy = new Proxy(this, {
       get: (target, prop, receiver) => {
         if (typeof prop === "symbol" || prop in target) return Reflect.get(target, prop, receiver);
@@ -1762,9 +1996,50 @@ export class Store extends Proxies.OfStore {
   }
 
   /** Whether `schema` is one of the framework's own, which every store holds: a meta-schema, a basic scalar, a mutation
-   * schema. It is never written, only referred to. */
+   * schema, or what an extension of the framework built (`Builders.extend`). It is never written, only referred to. */
   framework(schema: unknown): boolean {
     return this._framework.has(schema);
+  }
+
+  /** Builds and changes schemas through `cb`, given the store: a schema the store held before may only gain members (an
+   * object schema's properties and adjacencies, a relation's properties, a union's branches), each under a name it
+   * neither has nor inherits, nor a refinement of it declares; anything else about it stays as it was. What `cb` builds
+   * is the store's own. Refused, a change to a schema throws before it is written, but what was written before it
+   * stays: a refused extension is a program error. */
+  extend(cb: unknown): this {
+    this._extending = new Set(this._objects.values());
+    try {
+      visit(cb, this);
+    } finally {
+      this._extending = null;
+    }
+    return this;
+  }
+
+  /** Refuses a builder's update of a framework schema outside the framework's extension, and one that is not an
+   * extension of a schema the store held when an extension began. */
+  _permit(builder: any): void {
+    const original = builder._original;
+    if (this.framework(original) && !this._extendsFramework) {
+      throw new TypeError(`${shown(original)} is a framework schema, which every store holds: extend it with `
+        + "Builders.extend");
+    }
+    if (this._extending !== null && this._extending.has(original)) {
+      const problems = extensionProblems(builder);
+      if (problems.length > 0) throw new TypeError(`an extension only adds members to ${shown(original)}: it ${problems.join("; ")}`);
+    }
+  }
+
+  /** Holds what the framework's extensions built, as framework schemas. */
+  _adopt(built: ReadonlyMap<string, unknown>): void {
+    for (const [held, schema] of built) {
+      this._objects.set(held, schema);
+      this._framework.add(schema);
+      const name = (schema as { name?: unknown }).name;
+      if (_namable(schema) && typeof name === "string" && name && this._schemas.get(name) !== schema) {
+        this.register(schema as ObjectData);
+      }
+    }
   }
 
   /** Defines a named schema, or a module, in the module its path's prefix names, under the last part of its path; a
@@ -2041,7 +2316,9 @@ export function _rehold_form(store: Store, held: unknown, form: unknown): void {
 export function _dialect_term(visitor: unknown): unknown {
   const inner = innerOf(visitor);
   const referent = inner instanceof Link ? inner._entry._referent : null;
-  return referent !== null && referent !== undefined && builderFor(referent) === null && S.Form.is_term(referent) ? referent : null;
+  const data = referent !== null && referent !== undefined && Proxies._store_of(referent) !== null; // a proxy answers any name
+  return referent !== null && referent !== undefined && !data && builderFor(referent) === null && S.Form.is_term(referent)
+    ? referent : null;
 }
 
 /** Whether an adjacency member holds one entry at most, as a `unique` clause of its relation makes it. */

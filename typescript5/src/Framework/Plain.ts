@@ -1049,7 +1049,8 @@ class LogWriter {
           links.set(link, key);
           continue;
         }
-        const target = entry[link];
+        let target = entry[link];
+        if (Builders._builder_for(target) !== null) target = this.reader(target); // a schema object a proxy's entry links
         this.held(target, `${key}, ${schema.name},`);
         const names = [...relation.entry.links.keys(), ...relation.entry.properties.keys()];
         const single = relation.uniques.some((unique) => { // one entry, as the store derives

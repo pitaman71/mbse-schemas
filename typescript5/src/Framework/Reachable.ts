@@ -26,6 +26,8 @@ export function of(root: Readers.OfObject): Readers.OfObject[] {
   };
 
   const found = (target: Readers.OfObject): void => {
+    // a schema object, which an extension's relation links: not data, so not followed
+    if ((target as { as_adjacencies?: unknown }).as_adjacencies === undefined) return;
     if (!seen.has(target)) {
       seen.add(target);
       queue.push(target);

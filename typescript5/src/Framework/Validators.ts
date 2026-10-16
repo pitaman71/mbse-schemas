@@ -21,6 +21,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import * as Builders from "./Builders.js";
 import { NotImplementedError } from "./Errors.js";
 import { schemaTypeName } from "./Plain.js";
 import { scalarKey } from "./Proxies.js";
@@ -129,6 +130,13 @@ function scalarProblem(schema: Schemas.OfScalar.Data, value: unknown): string | 
 
 /** Whether an object of `schema` may fill link `name` of `relation`: its schema must declare an adjacency via it, named
  * or anonymous. */
+/** A linked object, as a visitor: a schema object, which an extension's relation links, through its read-only builder,
+ * whose schema is its meta-schema. */
+function visited(target: any): any {
+  const builder = Builders._builder_for(target) as (new (...args: unknown[]) => unknown) | null;
+  return builder === null ? target : new builder(target, false);
+}
+
 function filling(relation: Schemas.OfRelation.Data, name: string, schema: Schemas.OfObject.Data): string | null {
   if (schema.fills(relation, name)) return null;
   return `a ${repr(schema.name)} cannot fill link ${repr(name)}; its schema declares no adjacency, named or anonymous, to this relation via ${repr(name)}`;
@@ -270,14 +278,14 @@ class Checker {
     const problems: string[] = [];
     for (const name of relation.entry.links.keys()) {
       if (name === adjacency.me) continue;
-      const problem = filling(relation, name, entry[name].as_schema());
+      const problem = filling(relation, name, visited(entry[name]).as_schema());
       if (problem !== null) problems.push(`${label}.${name}: ${problem}`);
     }
     for (const [name, prop] of relation.entry.properties) {
       problems.push(...this.valueProblems(`${label}.${name}`, prop.type, propertyValue(entry[name], prop.type)));
     }
     const links = new Map<string, string>([...relation.entry.links.keys()].filter((name) => name !== adjacency.me)
-      .map((name) => [name, identity(entry[name])]));
+      .map((name) => [name, identity(visited(entry[name]))]));
     links.set(adjacency.me, identity(owner));
     const values = new Map<string, string>();
     for (const [name, prop] of relation.entry.properties) {

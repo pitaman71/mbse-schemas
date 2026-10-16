@@ -330,6 +330,9 @@ slices.
   (Resolved, "Schema builders align with their meta-schemas": the wire format), and schema objects are reference
   objects. The basic scalars are linked as `Builders.Meta.OfInt` and so
   on; another scalar, a form or any other schema object is built in the store that links it.
+- **Schemas are extended, not redefined.** `store.extend` adds members to the schemas a store holds, and
+  `Builders.extend`, once per process, to the framework's, the meta-schemas included; anything else about an existing
+  schema is refused, and a framework schema changes no other way ([Schema extension](SCHEMA_EXTENSION.md)).
 - **A proxy knows its store.** `Proxies.store_of(value)` gives the store a proxy belongs to, and a placed value
   object's is its owner's.
 - **Everything that looks schemas up takes a store**: `Plain.ToPlain(store)` and `Plain.FromPlain(store)`, the JSON and

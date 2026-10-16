@@ -83,13 +83,13 @@ function held(read: any, schema: unknown): any {
 /** A union's branch's or an intersection's part's value, read through its visitor of its own type's kind: a scalar, a
  * visitor, or null. */
 function member(read: any, schema: unknown): unknown {
-  if (Schemas.structure(schema) instanceof Schemas.OfScalar.Data) return read.get();
+  if (schema instanceof Schemas.OfScalar.Data) return read.get();
   return read.as_schema() !== null ? read : null;
 }
 
 /** A container's element, read through its `Visitors.OfAny`: a scalar or a visitor; an element present holds one. */
 function element(read: any, schema: unknown): any {
-  const type = Schemas.structure(schema);
+  const type = schema;
   const found: unknown[] = [];
   if (type instanceof Schemas.OfScalar.Data || type === null) read.as_scalar((s: any) => found.push(s.get()));
   else if (type instanceof Schemas.OfAny.Value) return anyOf(read);
@@ -149,7 +149,7 @@ const ABSENT = "absent";
 /** Equality key per EQUALITY.md, of a value read as `propertyValue` reads it: distinct scalar types never compare
  * equal; floats compare by bit pattern; a value object by its properties. */
 function key(schema: unknown, value: any): string {
-  const type = Schemas.structure(schema);
+  const type = schema;
   if (value === null || value === undefined) return ABSENT;
   if (type instanceof Schemas.OfScalar.Data || type === null) return scalarKey(value);
   if (type instanceof Schemas.OfAny.Value) {
@@ -173,7 +173,7 @@ function key(schema: unknown, value: any): string {
 }
 
 function propertyValue(read: any, schema: unknown): any {
-  const type = Schemas.structure(schema);
+  const type = schema;
   return type instanceof Schemas.OfScalar.Data || type === null ? scalar(read) : held(read, type);
 }
 
@@ -225,7 +225,7 @@ class Checker {
   /** Problems with a value: its type, recursively, and that an intersection value holds every part. An application's
    * value is its applied schema's; one that applies itself, a problem its schema reports, has none. */
   private valueProblems(label: string, type: unknown, item: any): string[] {
-    const schema = Schemas.structure(type);
+    const schema = type;
     if (schema === null || item === null || item === undefined) return [];
     if (schema instanceof Schemas.OfScalar.Data) {
       const problem = scalarProblem(schema, item);
@@ -252,7 +252,7 @@ class Checker {
    * schema, where it is not a scalar; and its own, under its own type. */
   private anyProblems(label: string, schema: Schemas.OfAny.Value, item: any): string[] {
     const of = own(item);
-    const types = schema.types.map((t) => Schemas.structure(t));
+    const types = [...schema.types];
     let allowed: boolean;
     let shown: string;
     if (of instanceof Schemas.OfScalar.Data) {

@@ -232,7 +232,7 @@ class _Check:
     def _any_problems(self, label: str, schema: Schemas.OfAny.Value, item: Any) -> list[str]:
         """Problems with a value of any type: that it is of one of its types, where it is restricted, or of a
         registered schema, where it is not a scalar; and its own, under its own type."""
-        own, types = _own(item), [t for t in schema.types]
+        own, types = _own(item), list(schema.types)
         if isinstance(own, Schemas.OfScalar.Data):
             allowed = not types or any(isinstance(t, Schemas.OfScalar.Data) and t.type is own.type for t in types)
             shown = own.token.name

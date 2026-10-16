@@ -83,14 +83,12 @@ noticed.
 | Import path | `mbse.Schemas.Framework`, in the `mbse` namespace package that related packages share | `@mbse/schemas/Framework`, in the `@mbse` scope | a module specifier is a path, not a dotted name; a scope is the nearest equivalent | all |
 | Scalar host types | `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` | JavaScript's constructors are its runtime type objects | SCH-01..05 |
 | Own token format | `python3` tokens are read | `typescript5` tokens are read | each implementation reads `basic` tokens and its own language's | SCH-18 |
-| Scalar widths | `int` | `bigint`, as every int in the data model | a width becomes data once schemas serialize | SCH-18 |
 | Integers | `int` | `bigint` | `number` cannot tell `1` from `1.0` and rounds above 2^53 | SCH-03, JSN-05, JSN-07 |
 | Plain mappings | `dict` | `Map<string, PlainData>` | object literals reorder integer-like keys and mishandle `__proto__` | SCH-11, PLN-02 |
 | Schema data equality | `==` | `.equals()` | no operator overloading | SCH-01, SCH-15 |
 | Adjacencies in proxies (`Proxies.OfAdjacency.Data`) | a `tuple` subclass; `at(key)` takes a tuple for a key of several values | a callable `Proxy` over a frozen `Array` subclass, so `instanceof Array` but not `Array.isArray`; its `at(key)` replaces the array's `at(index)`, and its `map` and `filter` make plain arrays; `at(key)` takes an array for a key of several values | each language's read-only sequence, and a member is callable | PRX-18, PRX-19 |
 | A module's schemas by name (`Builders.Store.module(path).schemas`) | a `dict` | a `Map` | only a `Map` keeps every key's order | SNP-01 |
-| Neutral forms of terms (`Schemas.Form.Data`) | `Form.Data(kind, attributes, arguments, dialect)`: a `dict` and a `tuple` | `new Form.Data(kind, attributes, arguments, dialect)`: a `Map` or a record, and an array | a record is the literal by name, and a `Map` keeps every key's order | PAR-02 |
-| Evaluators and outcomes (`Schemas.Evaluate`, `Validators.Check`) | `evaluate(term, scope)` with a `dict`, None for unknown; an `Outcome` is a dataclass, compared with `==` | the scope a `ReadonlyMap`, null or undefined for unknown; an `Outcome` is a class, compared by its fields | the language's own mapping and absent value; no operator overloading | PAR-06 |
+| Outcomes (`Validators.Check`) | an `Outcome` is a dataclass, compared with `==` | an `Outcome` is a class, compared by its fields | no operator overloading | VAL-16 |
 | Errors | built-in exceptions | built-in `TypeError`; `ValueError`, `AttributeError`, `KeyError`, `LookupError`, `NotImplementedError` from `Errors` | JavaScript lacks the others | throughout |
 | Callable entry points | objects with `__call__` | functions with the per-kind forms attached | no callable instances | PLN-01 |
 | Callable visitors (data instances, members) | `__call__` | a `Proxy` with a function target, its `name` and `length` hidden, so that members of those names are the schema's; `typeof` says `"function"`, and `instanceof` names the visitor's class | one member is both getter and setter (VISITOR_PATTERN.md, Seams) | VIS-03, PRX-02 |

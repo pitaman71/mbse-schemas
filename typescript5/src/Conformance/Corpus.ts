@@ -55,15 +55,6 @@ function enumerate(values: unknown[]): [bigint, unknown][] {
   return values.map((value, i) => [BigInt(i), value]);
 }
 
-/** A width given as a literal term, built in the store `s`. */
-function literal(s: any, value: unknown): any {
-  return s.Schemas.Form((f: any) => f.kind("literal").attributes({ value }));
-}
-
-function variable(s: any, name: string): any {
-  return s.Schemas.Form((f: any) => f.kind("variable").attributes({ name }));
-}
-
 // --- Schemas, each group built in the store given ---
 
 function addressBook(s: any): [any, any, any] {
@@ -173,38 +164,20 @@ function lists(s: any): any {
     list(s, "cells", Int, Int, "sparse"), list(s, "attrs", Float, Str), list(s, "weights", Str, Float)]));
 }
 
-/** The corpus's own schemas as data, with scalars of widths and another format's token, parametric schemas:
- * parameters, terms where a width stands, and applications with arguments of every scalar, and a predicate. */
+/** The corpus's own schemas as data, with a scalar of another format's token, parametric schemas, whose parameters are
+ * names, and a predicate. */
 function module(s: any): void {
   const [Bool, Int, Float, Str, Bytes] = basics(s);
-  s.Schemas.OfScalar((n: any) => n.name("Int32").token("int").bits([literal(s, 32n)]));
-  s.Schemas.OfScalar((n: any) => n.name("Size").format("ccpp").token("size_t").bytes([literal(s, 8n)]));
+  s.Schemas.OfScalar((n: any) => n.name("Size").format("ccpp").token("size_t"));
   const [Contact, Address] = addressBook(s);
   family(s);
   embedded(s);
   lists(s);
-  const Word = s.Schemas.OfScalar((w: any) => w.name("Word").token("int").parameters([(t: any) => t.name("w").type([Int])])
-    .bits([variable(s, "w")]));
-  const Grid = s.Schemas.OfObject((o: any) => o.name("Grid").parameters([
-    (t: any) => t.name("n").type([Int]).description("Its side"), (t: any) => t.name("x")]).properties([
-    (t: any) => t.name("mask").type([s.Schemas.OfScalar((w: any) => w.token("int").bits([
-      s.Schemas.Form((f: any) => f.kind("operation").attributes({ name: "mul" }).operands([variable(s, "n"), variable(s, "n")])
-        .dialect("basic"))]))]),
-    list(s, "cells", s.Schemas.OfApply((a: any) => a.of([Word]).arguments([
-      (t: any) => t.parameter([Word.parameters.get("w")]).value(8n)])))]));
-  s.Schemas.OfApply((a: any) => a.name("Square").parameters([(t: any) => t.name("m").type([Int])]).of([Grid]).arguments([
-    (t: any) => t.parameter([Grid.parameters.get("n")]).term([variable(s, "m")]),
-    (t: any) => t.parameter([Grid.parameters.get("x")]).value(true)]));
-  const Tricky = s.Schemas.OfObject((o: any) => o.name("Tricky").parameters([..."abcd"].map((x) => (t: any) => t.name(x))));
-  s.Schemas.OfObject((o: any) => o.name("Applied").properties([
-    (t: any) => t.name("big").type([s.Schemas.OfApply((a: any) => a.of([Grid]).arguments([
-      (t: any) => t.parameter([Grid.parameters.get("n")]).value(2n ** 70n),
-      (t: any) => t.parameter([Grid.parameters.get("x")]).value(NaN)]))]),
-    (t: any) => t.name("odd").type([s.Schemas.OfApply((a: any) => a.of([Tricky]).arguments([
-      (t: any) => t.parameter([Tricky.parameters.get("a")]).value(-0.0),
-      (t: any) => t.parameter([Tricky.parameters.get("b")]).value("日本語 🚀"),
-      (t: any) => t.parameter([Tricky.parameters.get("c")]).value(new Uint8Array([0, 255])),
-      (t: any) => t.parameter([Tricky.parameters.get("d")]).value(false)]))])]));
+  const Word = s.Schemas.OfScalar((w: any) => w.name("Word").token("int").parameters([(t: any) => t.name("w")]));
+  s.Schemas.OfObject((o: any) => o.name("Grid").parameters([
+    (t: any) => t.name("n").description("Its side"), (t: any) => t.name("x")]).properties([
+    (t: any) => t.name("mask").type([s.Schemas.OfScalar((w: any) => w.token("int"))]), list(s, "cells", Word)]));
+  s.Schemas.OfObject((o: any) => o.name("Tricky").parameters([..."abcd"].map((x) => (t: any) => t.name(x))));
   s.Schemas.OfUnion((u: any) => u.name("Choice").flat(true).branches([
     (t: any) => t.name("n").type([Int]), (t: any) => t.name("s").type([Str])]));
   s.Schemas.OfIntersection((i: any) => i.name("Marked").flat(true).parts([
@@ -212,9 +185,7 @@ function module(s: any): void {
     (t: any) => t.name("who").type([s.Schemas.OfObject((o: any) => o.properties([text(s, "by")]))])]));
   s.Schemas.OfPredicate((p: any) => p.name("Lives").description("Who lives where").symbols([
     (t: any) => t.name("who").type([Contact]), (t: any) => t.name("where").type([Address]).description("A home")])
-    .parameters([(t: any) => t.name("since").type([Int])])
-    .requires([s.Schemas.Form((f: any) => f.kind("operation").attributes({ name: "and" })
-      .operands([variable(s, "who"), variable(s, "since")]).dialect("basic"))]));
+    .parameters([(t: any) => t.name("since")]));
 }
 
 // --- The cases ---

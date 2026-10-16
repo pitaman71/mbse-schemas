@@ -115,19 +115,19 @@ function readHeld(read: any, schema: unknown): any {
 
 /** A property's value, read through its visitor: a scalar, a visitor, or null. */
 function readProperty(read: any, schema: unknown): any {
-  const held = Schemas.structure(schema);
+  const held = schema;
   return held instanceof Schemas.OfScalar.Data || held === null ? readScalar(read) : readHeld(read, held);
 }
 
 /** A union's branch's or an intersection's part's value, read through its visitor of its type's kind. */
 function readMember(read: any, schema: unknown): any {
-  if (Schemas.structure(schema) instanceof Schemas.OfScalar.Data) return read.get();
+  if (schema instanceof Schemas.OfScalar.Data) return read.get();
   return read.as_schema() !== null ? read : null;
 }
 
 /** A container's element, read through its `Visitors.OfAny`: a scalar or a visitor; an element present holds one. */
 function readElement(read: any, schema: unknown): any {
-  const type = Schemas.structure(schema);
+  const type = schema;
   const found: unknown[] = [];
   if (type instanceof Schemas.OfScalar.Data || type === null) read.as_scalar((s: any) => found.push(s.get()));
   else if (type instanceof Schemas.OfAny.Value) return anyOf(read);
@@ -139,8 +139,8 @@ function readElement(read: any, schema: unknown): any {
 
 /** Whether two types are one: scalars by value, other schemas by identity, through applications. */
 function sameType(a: unknown, b: unknown): boolean {
-  const x = Schemas.structure(a);
-  const y = Schemas.structure(b);
+  const x = a;
+  const y = b;
   return x instanceof Schemas.OfScalar.Data ? x.equals(y) : x === y;
 }
 
@@ -149,7 +149,7 @@ function compareValues(schema: unknown, a: any, b: any): Result {
   if (a === null || a === undefined || b === null || b === undefined) {
     return (a === null || a === undefined) && (b === null || b === undefined) ? 0 : null;
   }
-  const held = Schemas.structure(schema);
+  const held = schema;
   if (held instanceof Schemas.OfScalar.Data) return typeName(a) !== typeName(b) ? null : compareScalars(a, b);
   if (held instanceof Schemas.OfObject.Data) return objects(held, a, b, true);
   if (held instanceof Schemas.OfContainer.Data) return containers(held, a, b);
@@ -161,7 +161,7 @@ function compareValues(schema: unknown, a: any, b: any): Result {
 /** Whether two indices of one index type are one: scalars, or arrays of them, equal; value objects equal. */
 function sameIndex(schema: unknown, a: any, b: any): boolean {
   if (Array.isArray(a)) return a.every((x, i) => compareScalars(x, b[i]) === 0);
-  if (Schemas.structure(schema) instanceof Schemas.OfScalar.Data) return compareScalars(a, b) === 0;
+  if (schema instanceof Schemas.OfScalar.Data) return compareScalars(a, b) === 0;
   return compareValues(schema, a, b) === 0;
 }
 

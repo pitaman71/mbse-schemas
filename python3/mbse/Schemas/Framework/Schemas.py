@@ -692,7 +692,7 @@ def plain_forms(schema: Any) -> frozenset[str]:
         return frozenset({"list", "mapping"}) if tensor else frozenset({"list"})
     if isinstance(held, _AnyValueData):
         return frozenset().union(*map(plain_forms, held.types)) if held.types else frozenset({"mapping"})
-    return frozenset({"mapping"}) if held is not None else frozenset()
+    return frozenset({"mapping"})
 
 
 def _shown_type(schema: Any) -> str:
@@ -854,7 +854,7 @@ def _settle(schema: _ObjectData) -> _ObjectData:
         if not any(r is schema for r in refinements):
             refinements.append(schema)
     for refinement in list(schema.__dict__.get("_refinements", [])):
-        if refinement.refines is not None and refinement.refines is schema:
+        if refinement.refines is schema:
             _settle(refinement)
     return schema
 

@@ -819,7 +819,7 @@ class _Any {
 
   constructor(readonly _values: Values, readonly _name: string, readonly _schema: unknown, readonly _store: _Store | null,
     readonly _writable: boolean, readonly _label: string, readonly _onWrite: (() => void) | null = null) {
-    this._type = Schemas.structure(_schema);
+    this._type = _schema;
     this._any = this._type instanceof Schemas.OfAny.Value ? this._type : null;
     if (this._any !== null) { // a value of any type: of the type the value held has
       const held = _values.get(_name);
@@ -832,7 +832,7 @@ class _Any {
 
   /** Whether `name` is a member of the value's kind (`_kindMember`). */
   _hasKindMember(name: string | symbol): boolean {
-    const held = Schemas.structure(this._type);
+    const held = this._type;
     return isRecordSchema(held) && kindMembers(held).has(name as string);
   }
 
@@ -848,14 +848,14 @@ class _Any {
 
   /** Where the value is of any type: the one type of `kind` its restriction allows, else null. */
   _only(kind: abstract new (...args: never[]) => unknown): unknown {
-    const found = (this._any as Schemas.OfAny.Value).types.map((t) => Schemas.structure(t)).filter((t) => t instanceof kind);
+    const found = (this._any as Schemas.OfAny.Value).types.filter((t) => t instanceof kind);
     return found.length === 1 ? found[0] : null;
   }
 
   /** Where the value is of any type: whether its restriction allows a value of `schema`; any, unrestricted. */
   _allows(schema: unknown): boolean {
     const types = (this._any as Schemas.OfAny.Value).types;
-    return types.length === 0 || types.some((t) => Schemas.structure(t) === schema);
+    return types.length === 0 || types.some((t) => t === schema);
   }
 
   /** Where the value is of any type, takes the type a write of `kind` gives: the value's own, if it is one the
@@ -909,7 +909,7 @@ class _Any {
       const values: Values = innerOf(value)._values;
       const [branch, held] = values.entries().next().value as [string, unknown];
       if (isScalar(held)) {
-        const type = Schemas.structure((union.properties.get(branch) as Schemas.OfProperty.Data).type);
+        const type = ((union.properties.get(branch) as Schemas.OfProperty.Data).type);
         visit(cb, makeScalar(values, branch, type, false, this._label));
         return this;
       }
@@ -1054,7 +1054,7 @@ class _Any {
     if (this._any !== null && (isRecordData(value) || isRecordBuilder(value) || isContaining(value))) {
       this._ofAny(innerOf(value)._schema.constructor, value);
     }
-    const held = Schemas.structure(this._type);
+    const held = this._type;
     if (held instanceof Schemas.OfUnion.Data && held.flat
       && !((isRecordData(value) || isRecordBuilder(value)) && innerOf(value)._schema === held)) {
       const branch = branchOf(this._name, held, value);
@@ -1088,7 +1088,7 @@ function shown(index: unknown): string {
  * or, for an index of a value object of scalars, an array of the value object's properties in declaration order; any
  * other index, a value object, by its equality key. */
 function indexKey(schema: Schemas.OfContainer.Data, index: unknown, label: string): string {
-  const kind = Schemas.structure(schema.index);
+  const kind = schema.index;
   if (kind instanceof Schemas.OfScalar.Data) {
     if (kind.type !== null && !Schemas.isScalarOf(kind.type, index)) {
       throw new TypeError(`${label}: an index is a ${(kind.token as Schemas.OfScalar.Token).name}, got ${typeName(index)}`);
@@ -1096,7 +1096,7 @@ function indexKey(schema: Schemas.OfContainer.Data, index: unknown, label: strin
     return scalarKey(index);
   }
   if (schema.arrangement !== "entries") {
-    const hosts = [...(kind as ObjectSchema).properties.values()].map((p) => Schemas.structure(p.type) as Schemas.OfScalar.Data);
+    const hosts = [...(kind as ObjectSchema).properties.values()].map((p) => p.type as Schemas.OfScalar.Data);
     if (!Array.isArray(index) || index.length !== hosts.length
       || hosts.some((host, i) => host.type !== null && !Schemas.isScalarOf(host.type, index[i]))) {
       const names = hosts.map((host) => (host.token as Schemas.OfScalar.Token).name).join(", ");
@@ -1112,7 +1112,7 @@ function indexKey(schema: Schemas.OfContainer.Data, index: unknown, label: strin
 
 /** Whether a container's positions are its int indices: dense or sparse, indexed by an int. */
 function positional(schema: Schemas.OfContainer.Data): boolean {
-  const index = Schemas.structure(schema.index);
+  const index = schema.index;
   return ["dense", "sparse"].includes(schema.arrangement) && index instanceof Schemas.OfScalar.Data && index.type === BigInt;
 }
 
@@ -1577,7 +1577,7 @@ function propertiesOf(owner: unknown, values: Values, schema: RecordSchema, stor
  * object held, or an empty one. */
 function kindVisitor(values: Values, name: string, schema: unknown, store: _Store | null, parent: unknown,
   writable: boolean, label: string, onWrite: (() => void) | null = null): any {
-  const held = Schemas.structure(schema);
+  const held = schema;
   const value = values.get(name);
   if (held instanceof Schemas.OfScalar.Data) return makeScalar(values, name, held, writable, label, parent, onWrite);
   if (!writable) return isRecordData(value) || isContainerData(value) ? value : makeEmpty(`${label} is not set`);
@@ -1896,7 +1896,7 @@ function agrees(entry: unknown, spec: unknown, adjacency: AdjacencySchema, store
 
 /** A value as `project` and `at` read it: a flat union's value as its branch's value. */
 function view(value: unknown, type: unknown): unknown {
-  const schema = Schemas.structure(type);
+  const schema = type;
   if (!(schema instanceof Schemas.OfUnion.Data && schema.flat && isRecordData(value) && innerOf(value)._values.size > 0)) {
     return value;
   }
@@ -1907,7 +1907,7 @@ function view(value: unknown, type: unknown): unknown {
 /** The part of a flat intersection whose object schema declares the property `name`, if any. */
 function owningPart(schema: RecordSchema, name: string): string | null {
   if (!(schema instanceof Schemas.OfIntersection.Data && schema.flat)) return null;
-  const found = schema.parts.find((part) => (Schemas.structure(part.type) as ObjectSchema).properties.has(name));
+  const found = schema.parts.find((part) => (part.type as ObjectSchema).properties.has(name));
   return found === undefined ? null : found.name;
 }
 

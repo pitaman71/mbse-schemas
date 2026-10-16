@@ -86,7 +86,7 @@ function value(read: Readers.OfProperty, schema: unknown, ref: Ref): [boolean, P
 
 /** A value of any kind as plain data, read through its `Visitors.OfAny`, and whether it has one. */
 function anyValue(read: any, schema: unknown, ref: Ref): [boolean, PlainData] {
-  const held = Schemas.structure(schema);
+  const held = schema;
   const found: PlainData[] = [];
   if (held instanceof Schemas.OfScalar.Data) {
     read.as_scalar((s: any) => {
@@ -133,7 +133,7 @@ function anyOfAny(read: any, schema: Schemas.OfAny.Value, ref: Ref): [boolean, P
   }
   if (found.length === 0) return [false, null];
   const [value] = found;
-  const types = schema.types.map((t) => Schemas.structure(t));
+  const types = [...schema.types];
   const host = Schemas.hostOf(value);
   if (host !== null) {
     const scalar = new Schemas.OfScalar.Data(host);
@@ -157,10 +157,10 @@ function anyOfAny(read: any, schema: Schemas.OfAny.Value, ref: Ref): [boolean, P
 
 /** The names of a container's int indices, where its index is a value object of ints; null otherwise. */
 function tensor(schema: Schemas.OfContainer.Data): string[] | null {
-  const index = Schemas.structure(schema.index);
+  const index = schema.index;
   if (!(index instanceof Schemas.OfObject.Data)) return null;
   const all = [...index.properties.values()].every((prop) => {
-    const held = Schemas.structure(prop.type);
+    const held = prop.type;
     return held instanceof Schemas.OfScalar.Data && held.type === BigInt;
   });
   return all ? [...index.properties.keys()] : null;
@@ -168,18 +168,18 @@ function tensor(schema: Schemas.OfContainer.Data): string[] | null {
 
 /** Whether a container's index is an int. */
 function ints(schema: Schemas.OfContainer.Data): boolean {
-  const index = Schemas.structure(schema.index);
+  const index = schema.index;
   return index instanceof Schemas.OfScalar.Data && index.type === BigInt;
 }
 
 /** An index as plain data: a scalar's plain form, or a value object index as a mapping of its properties. */
 function plainIndex(schema: Schemas.OfContainer.Data, index: unknown, ref: Ref): PlainData {
-  const held = Schemas.structure(schema.index);
+  const held = schema.index;
   if (held instanceof Schemas.OfScalar.Data) return held.to_plain(index as Scalar);
   const object_ = held as Schemas.OfObject.Data;
   if (Array.isArray(index)) {
     return new Map([...object_.properties].map(([name, prop], i) =>
-      [name, (Schemas.structure(prop.type) as Schemas.OfScalar.Data).to_plain(index[i] as Scalar)] as const));
+      [name, (prop.type as Schemas.OfScalar.Data).to_plain(index[i] as Scalar)] as const));
   }
   return object(index as Readers.OfObject, object_, ref);
 }
@@ -228,7 +228,7 @@ function container(read: any, schema: Schemas.OfContainer.Data, ref: Ref): Plain
     }
     return blocks;
   }
-  const held = Schemas.structure(schema.index);
+  const held = schema.index;
   if (arrangement === "dict" && held instanceof Schemas.OfScalar.Data && held.type === String) {
     return new Map(pairs.map(([index, visitor]) => [index as string, element(visitor)]));
   }
@@ -238,7 +238,7 @@ function container(read: any, schema: Schemas.OfContainer.Data, ref: Ref): Plain
 
 /** A union's branch or an intersection's part as plain data: its visitor is of its type's kind. */
 function memberValue(read: any, schema: unknown, ref: Ref): [boolean, PlainData] {
-  const held = Schemas.structure(schema);
+  const held = schema;
   if (held instanceof Schemas.OfScalar.Data) {
     const got = read.get();
     return got === null ? [false, null] : [true, held.to_plain(got)];
@@ -450,7 +450,7 @@ type Rows = Map<string, Map<string, unknown>[]>;
 /** The value `plain` holds under `schema`, located at the path `where`: a scalar, a `DecodedRecord` or
  * `DecodedElements`. */
 function decode(type: Schemas.OfAny.Data, plain: unknown, where: Where, store: Stores.Store | null = null): unknown {
-  const schema = Schemas.structure(type) as Schemas.OfAny.Data;
+  const schema = type as Schemas.OfAny.Data;
   if (schema instanceof Schemas.OfAny.Value) return decodeAny(schema, plain, where, store);
   if (schema instanceof Schemas.OfScalar.Data) {
     try {
@@ -519,7 +519,7 @@ function decodeAny(schema: Schemas.OfAny.Value, plain: unknown, where: Where, st
 
 /** An index read from its plain form: a scalar, or a value object index as the array of its properties. */
 function decodeIndex(schema: Schemas.OfContainer.Data, plain: unknown, where: Where): unknown {
-  const held = Schemas.structure(schema.index);
+  const held = schema.index;
   if (held instanceof Schemas.OfScalar.Data) return decode(held, plain, where);
   if (schema.arrangement === "entries") {
     throw new DecodeError("a container whose index is neither ordered nor hashable is not read from snapshots yet", { path: path(...where) });
@@ -543,7 +543,7 @@ function decodeContainer(schema: Schemas.OfContainer.Data, plain: unknown, where
   };
   const names = tensor(schema);
   const arrangement = schema.arrangement;
-  const held = Schemas.structure(schema.index);
+  const held = schema.index;
   if (arrangement === "dense" && ints(schema)) {
     if (!Array.isArray(plain)) throw new DecodeError(`a dense container must be a list, got ${typeName(plain)}`, { path: path(...where) });
     plain.forEach((value, i) => element(BigInt(i), value, [...where, i]));
@@ -996,16 +996,15 @@ class LogWriter {
     return new builder(value, false, this.store);
   }
 
-  /** `Module.Schema/ID`: the registered name of the object's schema, and its identity, or, for an object rebuilt on
-   * every read, which has none, the identity its path derives. */
-  private key(visitor: any, derived: string | null = null): string {
-    return `${this.store.name_of(visitor.as_schema())}/${visitor.as_identity() || derived}`;
+  /** `Module.Schema/ID`: the registered name of the object's schema, and its identity. */
+  private key(visitor: any): string {
+    return `${this.store.name_of(visitor.as_schema())}/${visitor.as_identity()}`;
   }
 
   /** Refuses a schema object the store does not hold, saying where it is linked: there are no foreign schemas. */
   private held(visitor: any, where: string): void {
-    const held: any = Builders._linked(visitor) ?? Builders._dialect_term(visitor); // a term of a dialect: no store holds one
-    if (held === null || held instanceof Builders._ArgumentData || held instanceof Schemas.Form.Data) return;
+    const held: any = Builders._linked(visitor);
+    if (held === null) return; // data
     if (!this.store.holds(held)) {
       const shown = held.name || `_${held.constructor.name}`;
       throw new ValueError(`${where} links ${shown}, a schema the store does not hold: there are no foreign schemas`);
@@ -1042,7 +1041,7 @@ class LogWriter {
     const me: string = schema.me;
     if (!this.relations.has(relation)) this.relations.set(relation, this.relations.size);
     const counts = new Map<string, number>();
-    [...adjacency].forEach((entry: any, index: number) => {
+    [...adjacency].forEach((entry: any) => {
       const links = new Map<string, string>();
       for (const link of relation.entry.links.keys()) {
         if (link === me) {
@@ -1052,13 +1051,7 @@ class LogWriter {
         let target = entry[link];
         if (Builders._builder_for(target) !== null) target = this.reader(target); // a schema object a proxy's entry links
         this.held(target, `${key}, ${schema.name},`);
-        const names = [...relation.entry.links.keys(), ...relation.entry.properties.keys()];
-        const single = relation.uniques.some((unique) => { // one entry, as the store derives
-          const rest = names.filter((name) => !unique.has(name));
-          return rest.length === 1 && rest[0] === me;
-        });
-        const derived = `${key.slice(key.indexOf("/") + 1)}#${schema.name}${single ? "" : `.${index}`}`;
-        const targetKey = this.key(target, derived);
+        const targetKey = this.key(target);
         links.set(link, targetKey);
         const data: any = Builders._linked(target);
         if (data !== null && this.store.framework(data)) {
@@ -1339,11 +1332,7 @@ class LogReader {
       const member = builder[adjacency[0]];
       if (Builders._holds_one(member)) member((adv: any) => adv.remove((entry: any) => entry)); // the one held is replaced
       member((adv: any) => adv.insert(fill));
-      if (builder instanceof Builders.FormBuilder) { // a form is immutable: the store holds a new one in its place
-        Builders._rehold_form(this.store, target, builder.clone());
-      } else {
-        builder.update();
-      }
+      builder.update();
       return;
     }
     const reason = "no object an entry links declares an adjacency through which to add it";
@@ -1384,7 +1373,7 @@ export function ToPlain(store: Stores.Store, options: { flat?: boolean } = {}): 
   const flat = options.flat ?? false;
   const OfObject = (schema: Schemas.OfObject.Data, value: Readers.OfObject): PlainMap => new Snapshot(store, flat).run(schema, value, [value]);
   const Value = (schema: unknown, value: any): PlainData => {
-    const held = Schemas.structure(schema);
+    const held = schema;
     if (!(held instanceof Schemas.OfAny.Value)) {
       const own = value.as_schema();
       if (own !== held) throw new TypeError(`value is a ${repr(own.name)}, not an instance of the given schema`);

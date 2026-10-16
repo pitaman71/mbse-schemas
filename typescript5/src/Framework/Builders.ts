@@ -4,18 +4,17 @@
  * while call sites migrate (docs/META_SCHEMAS.md, Plan); `Schemas.OfX.Data` is unchanged.
  *
  * Every schema object is a reference object: a kind of schema, and each of its members (a property, an adjacency, a
- * parameter, a symbol, a branch or a part, an argument), and a term. A property of a schema object holds a value (a
- * name, a flag, a term's attributes); every reference from one schema object to another is a relation: a schema to its
- * members (`Schemas.HasProperty`, ...), a member to its type (`Schemas.Typing`), a refinement to what it refines
- * (`Schemas.Refines`), a scalar to its widths, which are terms (`Schemas.BitWidth`), and so on (`plainSchemas`, below):
- * each store builds its own (docs/proposals/store-overhaul, Levels).
+ * parameter, a symbol, a branch or a part). A property of a schema object holds a value (a name, a flag); every
+ * reference from one schema object to another is a relation: a schema to its members (`Schemas.HasProperty`, ...), a
+ * member to its type (`Schemas.Typing`), a refinement to what it refines (`Schemas.Refines`), and so on
+ * (`plainSchemas`, below): each store builds its own (docs/proposals/store-overhaul, Levels).
  *
  * Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over its plain schema (`Schemas.OfX`), as VISITOR_PATTERN.md
  * gives it: a member for each property (`osv.<propName>`, a `Visitors.OfProperty`) and for each adjacency
  * (`osv.<adjName>`, a `Visitors.OfAdjacency`, whose entries' links are members, `env.<linkName>`). Called with a
  * `Specs.Callback`, a member writes or visits through it and returns the builder. Its other methods are named `as_*`.
- * The builder adapts each member to however `Schemas.OfX.Data` stores it (a map by name, a field holding a schema, a
- * width held as a bigint); the data implements no visitor.
+ * The builder adapts each member to however `Schemas.OfX.Data` stores it (a map by name, a field holding a schema);
+ * the data implements no visitor.
  *
  * A builder works on a copy of the data it is given (`_working`), made by `_make` and filled by `_update`, and is
  * finalized by `create()` (no data given), `clone()` (new data) or `update()` (written back into the data given),
@@ -172,7 +171,7 @@ class PropertyMember extends Dunders {
    * a container, an iterable of its elements, or a map of names to them where it is arranged as a dict. It sets the
    * value, merging nothing; null clears it. */
   _matched(value: unknown): unknown {
-    const held = S.structure(typeOf(this.as_schema()));
+    const held = (typeOf(this.as_schema()));
     if (value === null || held === null) return value;
     let items: unknown[];
     if (held instanceof S.OfScalar.Data) {
@@ -190,7 +189,7 @@ class PropertyMember extends Dunders {
     } else {
       return value;
     }
-    const element = S.structure(held instanceof S.OfScalar.Data ? held : (held as S.OfContainer.Data).element) as any;
+    const element = (held instanceof S.OfScalar.Data ? held : (held as S.OfContainer.Data).element) as any;
     const host = element.type ?? null;
     const wrong = items.filter((item) => host !== null && !S.isScalarOf(host, item));
     if (wrong.length > 0) throw new TypeError(`${this._label()} holds ${tokenName(host)}, got ${typeName(wrong[0])}`);
@@ -315,7 +314,7 @@ class Mapping extends Shelled {
   _positional(): boolean {
     const held = this._value._held();
     if (Array.isArray(held) || held instanceof Map) return Array.isArray(held);
-    const schema = S.structure(this.as_schema());
+    const schema = this.as_schema();
     return schema instanceof S.OfContainer.Data && schema.arrangement !== "dict";
   }
 
@@ -336,7 +335,7 @@ class Mapping extends Shelled {
     const held = this._items().get(index);
     const container = held === undefined ? null : Array.isArray(held) || held instanceof Map;
     return shell(new Value(`${this._value._label}[${repr(index)}]`, () => this._items().get(index), write,
-      this._value._writable, container, () => Object(S.structure(this.as_schema())).element));
+      this._value._writable, container, () => Object(this.as_schema()).element));
   }
 
   as_schema(): unknown {
@@ -413,7 +412,7 @@ function one(field: string): Storage {
 }
 
 const KINDS: Function[] = [S.OfScalar.Data, S.OfObject.Data, S.OfUnion.Data, S.OfIntersection.Data, S.OfContainer.Data,
-  S.OfApply.Data, S.OfAny.Value];
+  S.OfAny.Value];
 
 function isSchema(value: unknown): boolean {
   return KINDS.some((kind) => value instanceof kind);
@@ -831,8 +830,7 @@ class Link extends Shelled {
     const referent = this._entry._referent;
     if (referent === null) return makeEmpty(`link ${repr(this._members().link)} is not set`);
     const builder = builderFor(referent);
-    if (builder === null && Proxies._store_of(referent) !== null) return referent; // data, which an extension's relation links
-    if (builder === null) return makeEmpty("a term of a dialect is read through its dialect");
+    if (builder === null) return referent; // data, which an extension's relation links: a proxy, read-only as data instances are
     return new builder(referent, false, this._entry._adjacency._builder._store); // read in the store that links it
   }
 
@@ -918,13 +916,16 @@ function hidden(data: any, name: "_extended" | "_pending"): Map<string, any> {
   return found;
 }
 
-/** A property an extension added to a meta-schema, held on each schema object apart from its fields. */
-function extensionProperty(name: string): Prop {
+/** A property an extension added to a meta-schema, held on each schema object apart from its fields: a scalar, or a
+ * container where its type is one. */
+function extensionProperty(prop: S.OfProperty.Data): Prop {
+  const name = prop.name;
   const member = new Prop({
     get: (data) => data._extended?.get(name) ?? null,
     put: (data, value) => {
       hidden(data, "_extended").set(name, value);
     },
+    container: prop.type instanceof S.OfContainer.Data,
   });
   member.extension = true;
   return member;
@@ -989,8 +990,8 @@ function extendBuilders(store: Store, before: Map<unknown, [Set<string>, Set<str
     if (!store._added.has(builderClass)) store._added.set(builderClass, new Map());
     const added = store._added.get(builderClass) as Table;
     const members: [string, Prop | Members][] = [];
-    for (const name of meta.properties.keys()) {
-      if (!properties.has(name) && !builderClass._table.has(name)) members.push([name, extensionProperty(name)]);
+    for (const [name, prop] of meta.properties) {
+      if (!properties.has(name) && !builderClass._table.has(name)) members.push([name, extensionProperty(prop)]);
     }
     for (const [name, adjacency] of meta.adjacencies) {
       if (!adjacencies.has(name) && !builderClass._table.has(name)) members.push([name, extensionAdjacency(adjacency)]);
@@ -1229,10 +1230,12 @@ export class PropertyBuilder extends TypedBuilder {
   static override _noun = "a property";
 }
 
-export class ParameterBuilder extends TypedBuilder {
+/** A parameter: a name, by the entry that links it to its schema, a symbol standing for a schema. */
+export class ParameterBuilder extends Builder {
   static override _data = S.OfParameter.Data;
   static override _meta = "OfParameter";
   static override _noun = "a parameter";
+  static override _table = extendTable(Builder._table, { description: new Prop() });
 }
 
 export class SymbolBuilder extends TypedBuilder {
@@ -1261,88 +1264,7 @@ export class AdjacencyBuilder extends Builder {
   });
 }
 
-/** An application's argument, as its builder reads it: `Schemas.OfApply.Data.arguments` holds its value or term under
- * its parameter's name. */
-class ArgumentData {
-  constructor(public parameter: any = null, public value: unknown = null) {}
-}
-
-export class ArgumentBuilder extends Builder {
-  static override _data = ArgumentData;
-  static override _meta = "Argument";
-  static override _noun = "an argument";
-  static override _table = extendTable(Builder._table, {
-    value: new Prop({ get: (data) => S.Form.is_term(data.value) ? null : data.value }),
-    parameter: new Members("parameter", { accepts: isA(S.OfParameter.Data), ...one("parameter") }),
-    term: new Members("term", { accepts: S.Form.is_term, build: "FormBuilder", one: true,
-      items: (data) => S.Form.is_term(data.value) ? [data.value] : [],
-      store: (data, terms) => {
-        data.value = last(terms);
-      } }),
-  });
-}
-
-/** A form being built: `Schemas.Form.Data` is immutable. */
-class FormWorking {
-  kind = "";
-  attributes: Map<string, unknown> | null = new Map();
-  arguments: unknown[] = [];
-  dialect: string | null = null;
-}
-
-/** A term in its neutral form. A form is immutable, so a form edited through a link is a new one. */
-export class FormBuilder extends Builder {
-  static override _data = S.Form.Data;
-  static override _meta = "Form";
-  static override _noun = "a form";
-  static override _table = extendTable(Builder._table, {
-    dialect: new Prop(),
-    kind: new Prop(),
-    attributes: new Prop({ container: true }),
-    operands: new Members("operand", { accepts: S.Form.is_term, build: "FormBuilder", ...inOrder("arguments") }),
-  });
-
-  override _make(): any {
-    return new FormWorking();
-  }
-
-  override _update(target: any, source: any): void {
-    target.kind = source.kind;
-    target.attributes = new Map(source.attributes);
-    target.arguments = [...source.arguments];
-    target.dialect = source.dialect;
-  }
-
-  override _finalize(target: any): any {
-    return new S.Form.Data(target.kind, new Map(target.attributes), [...target.arguments], target.dialect);
-  }
-
-  override update(...args: unknown[]): any {
-    noArguments("update", args);
-    throw new TypeError("a form is immutable; use clone()");
-  }
-
-  override _edited(): any {
-    return this.clone();
-  }
-}
-
 // --- Builders of kinds ---
-
-/** A width, a term (`Schemas.BitWidth`); one the data holds as a bigint reads as a literal form. */
-function width(field: string): Members {
-  return new Members("width", { accepts: S.Form.is_term, build: "FormBuilder", one: true,
-    items: (data) => {
-      const held = data[field];
-      return held === null ? [] : typeof held === "bigint" ? [new S.Form.Data("literal", new Map([["value", held]]))] : [held];
-    },
-    store: (data, terms) => {
-      const term = last(terms) as any;
-      const literal = term instanceof S.Form.Data && term.kind === "literal" && term.arguments.length === 0
-        && term.attributes.size === 1 && typeof term.attributes.get("value") === "bigint";
-      data[field] = literal ? term.attributes.get("value") : term;
-    } });
-}
 
 function refinesMembers(): Members {
   return new Members("refined", { accepts: isSchema, ...one("refines") });
@@ -1367,12 +1289,10 @@ export class ScalarBuilder extends KindBuilder {
       },
     }),
     refines: refinesMembers(),
-    bits: width("bits"),
-    bytes: width("bytes"),
   });
 
   override _finalize(target: any): any {
-    const base = S.structure(target.refines);
+    const base = target.refines;
     if (target.token === null && base instanceof S.OfScalar.Data) target.token = base.token;
     return target;
   }
@@ -1425,7 +1345,7 @@ export class ObjectBuilder extends KindBuilder {
 
   /** A copy settles as its source did: the members its source inherits are the refined schema's again. */
   override _finalize(target: any): any {
-    const base = S.structure(target.refines);
+    const base = target.refines;
     if (base instanceof S.OfObject.Data && base.ref) target.ref = true;
     const carried = CARRIED.get(target);
     if (carried !== undefined && base instanceof S.OfObject.Data) {
@@ -1474,32 +1394,13 @@ export class ContainerBuilder extends KindBuilder {
   });
 
   override _finalize(target: any): any {
-    const base = S.structure(target.refines);
+    const base = target.refines;
     if (base instanceof S.OfContainer.Data) {
       target.index = target.index === null ? base.index : target.index;
       target.element = target.element === null ? base.element : target.element;
     }
     return target;
   }
-}
-
-function argumentsOf(data: S.OfApply.Data): ArgumentData[] {
-  const parameters = new Map(Object(S.structure(data.of)).parameters) as Map<string, unknown>;
-  return [...data.arguments].map(([name, value]) => new ArgumentData(parameters.get(name) ?? new S.OfParameter.Data({ name }), value));
-}
-
-export class ApplyBuilder extends KindBuilder {
-  static override _data = S.OfApply.Data;
-  static override _meta = "OfApply";
-  static override _noun = "an application";
-  static override _table = extendTable(KindBuilder._table, {
-    of: new Members("applied", { accepts: isSchema, ...one("of") }),
-    arguments: new Members("argument", { owned: true, accepts: isA(ArgumentData), build: "ArgumentBuilder",
-      items: argumentsOf,
-      store: (data, members) => {
-        data.arguments = new Map(members.map((m) => [m.parameter.name, m.value]));
-      } }),
-  });
 }
 
 /** A value of any type, or of one of `types`. */
@@ -1518,7 +1419,6 @@ export class PredicateBuilder extends KindBuilder {
   static override _noun = "a predicate";
   static override _table = extendTable(KindBuilder._table, {
     symbols: new Members("symbol", { keyed: true, accepts: isA(S.OfSymbol.Data), build: "SymbolBuilder", ...byName("symbols") }),
-    requires: new Members("term", { accepts: S.Form.is_term, build: "FormBuilder", ...one("requires") }),
   });
 }
 
@@ -1625,24 +1525,22 @@ export class ModuleBuilder extends KindBuilder {
 
 const BUILDER_CLASSES = new Map<string, BuilderClass>([
   ["PropertyBuilder", PropertyBuilder], ["ParameterBuilder", ParameterBuilder], ["SymbolBuilder", SymbolBuilder],
-  ["MemberBuilder", MemberBuilder], ["AdjacencyBuilder", AdjacencyBuilder], ["ArgumentBuilder", ArgumentBuilder],
-  ["FormBuilder", FormBuilder], ["RelationBuilder", RelationBuilder],
+  ["MemberBuilder", MemberBuilder], ["AdjacencyBuilder", AdjacencyBuilder], ["RelationBuilder", RelationBuilder],
 ]);
 
 const BUILDERS = new Map<unknown, BuilderClass>([
   [S.OfScalar.Data, ScalarBuilder], [S.OfObject.Data, ObjectBuilder], [S.OfUnion.Data, UnionBuilder],
-  [S.OfIntersection.Data, IntersectionBuilder], [S.OfContainer.Data, ContainerBuilder], [S.OfApply.Data, ApplyBuilder],
-  [S.OfAny.Value, AnyValueBuilder], [S.OfPredicate.Data, PredicateBuilder], [S.OfRelation.Data, RelationBuilder],
-  [S.OfProperty.Data, PropertyBuilder], [S.OfParameter.Data, ParameterBuilder], [S.OfSymbol.Data, SymbolBuilder],
-  [S.OfUnion.Branch, MemberBuilder], [S.OfAdjacency.Data, AdjacencyBuilder], [ArgumentData, ArgumentBuilder],
-  [S.Form.Data, FormBuilder], [ModuleData, ModuleBuilder],
+  [S.OfIntersection.Data, IntersectionBuilder], [S.OfContainer.Data, ContainerBuilder], [S.OfAny.Value, AnyValueBuilder],
+  [S.OfPredicate.Data, PredicateBuilder], [S.OfRelation.Data, RelationBuilder], [S.OfProperty.Data, PropertyBuilder],
+  [S.OfParameter.Data, ParameterBuilder], [S.OfSymbol.Data, SymbolBuilder], [S.OfUnion.Branch, MemberBuilder],
+  [S.OfAdjacency.Data, AdjacencyBuilder], [ModuleData, ModuleBuilder],
 ]);
 
 for (const builderClass of new Set(BUILDERS.values())) {
   Object.defineProperty(builderClass.prototype, TYPE_NAME, { value: builderClass.name });
 }
 
-/** The builder of a referent's data; null for a term of a dialect, which this package does not build. */
+/** The builder of a schema object's data; null for anything else (data, which proxies are). */
 function builderFor(referent: unknown): BuilderClass | null {
   return BUILDERS.get(Object(referent).constructor) ?? null;
 }
@@ -1668,15 +1566,12 @@ type RelationData = S.OfRelation.Data;
 export interface Plain {
   OfBool: S.OfScalar.Data; OfInt: S.OfScalar.Data; OfFloat: S.OfScalar.Data; OfStr: S.OfScalar.Data;
   OfBytes: S.OfScalar.Data;
-  Schema: ObjectData; Type: ObjectData; OfScalar: ObjectData; OfObject: ObjectData; OfUnion: ObjectData;
-  OfIntersection: ObjectData; OfContainer: ObjectData; OfApply: ObjectData; OfAny: ObjectData; OfRelation: ObjectData;
-  OfPredicate: ObjectData; Typed: ObjectData; OfProperty: ObjectData; OfParameter: ObjectData; OfSymbol: ObjectData;
-  Member: ObjectData; OfAdjacency: ObjectData; Argument: ObjectData; Term: ObjectData; Form: ObjectData; OfModule: ObjectData;
-  Typing: RelationData; Refines: RelationData; Indexing: RelationData; Containing: RelationData; Applying: RelationData;
-  AnyOf: RelationData; Relating: RelationData; Binding: RelationData; ArgumentTerm: RelationData; Requires: RelationData;
-  BitWidth: RelationData; ByteWidth: RelationData; HasParameter: RelationData; HasProperty: RelationData;
-  HasAdjacency: RelationData; HasBranch: RelationData; HasPart: RelationData; HasSymbol: RelationData;
-  HasLink: RelationData; HasArgument: RelationData; Operands: RelationData; Defines: RelationData;
+  OfScalar: ObjectData; OfObject: ObjectData; OfUnion: ObjectData; OfIntersection: ObjectData; OfContainer: ObjectData;
+  OfAny: ObjectData; OfRelation: ObjectData; OfPredicate: ObjectData; OfModule: ObjectData; OfProperty: ObjectData;
+  OfParameter: ObjectData; OfSymbol: ObjectData; Member: ObjectData; OfAdjacency: ObjectData;
+  Typing: RelationData; Refines: RelationData; Indexing: RelationData; Containing: RelationData; AnyOf: RelationData;
+  Relating: RelationData; HasParameter: RelationData; HasProperty: RelationData; HasAdjacency: RelationData;
+  HasBranch: RelationData; HasPart: RelationData; HasSymbol: RelationData; HasLink: RelationData; Defines: RelationData;
 }
 
 /** Builds a store's plain schemas of schemas and its basic scalars, anew. */
@@ -1691,42 +1586,35 @@ function plainSchemas(): Plain {
   meta.OfBytes = new ScalarBuilder().name("Schemas.OfBytes").token("bytes").create();
   const [Text, Bool, Int] = [meta.OfStr, meta.OfBool, meta.OfInt];
 
-  /** A meta-schema: a reference object schema, `Schemas.<name>`, with `properties` of their schemas, by name, refining
-   * `refines`. */
-  function metaObject(name: string, properties: [string, unknown][], refines: unknown): ObjectData {
-    const builder = new ObjectBuilder()
+  /** A plain schema of schemas: a reference object schema, `Schemas.<name>`, with `properties` of their schemas, by
+   * name. */
+  function metaObject(name: string, properties: [string, unknown][]): ObjectData {
+    return new ObjectBuilder()
       .name(`Schemas.${name}`)
       .ref(true)
-      .properties(properties.map(([n, s]) => (t: any) => t.name(n).type([s])));
-    if (refines !== null) builder.refines([refines]);
-    return builder.create();
+      .properties(properties.map(([n, s]) => (t: any) => t.name(n).type([s])))
+      .create();
   }
 
-  meta.Schema = metaObject("Schema", [["name", Text], ["description", Text]], null);
-  meta.Type = metaObject("Type", [], meta.Schema);
-  meta.OfScalar = metaObject("OfScalar", [["format", Text], ["token", Text]], meta.Type);
-  meta.OfObject = metaObject("OfObject", [["ref", Bool], ["pattern", Text], ["singleton", Text]], meta.Type);
-  meta.OfUnion = metaObject("OfUnion", [["flat", Bool]], meta.Type);
-  meta.OfIntersection = metaObject("OfIntersection", [["flat", Bool]], meta.Type);
-  meta.OfContainer = metaObject("OfContainer", [["layout", Text]], meta.Type);
-  meta.OfApply = metaObject("OfApply", [], meta.Type);
-  meta.OfAny = metaObject("OfAny", [], meta.Type);
-  meta.OfRelation = metaObject("OfRelation", [["uniques", new ContainerBuilder().index([Int]).element([
-    new ContainerBuilder().index([Int]).element([Text]).create()]).create()]], meta.Schema);
-  meta.OfPredicate = metaObject("OfPredicate", [], meta.Schema);
-  meta.Typed = metaObject("Typed", [["description", Text]], null);
-  meta.OfProperty = metaObject("OfProperty", [], meta.Typed);
-  meta.OfParameter = metaObject("OfParameter", [], meta.Typed);
-  meta.OfSymbol = metaObject("OfSymbol", [], meta.Typed);
-  meta.Member = metaObject("Member", [], meta.Typed);
-  meta.OfAdjacency = metaObject("OfAdjacency", [["description", Text], ["me", Text]], null);
-  /** A scalar of any type, written tagged with its token (`{"int": 8}`). */
-  const Scalars: S.OfAny.Value = new AnyValueBuilder().create();
-  meta.Argument = metaObject("Argument", [["value", Scalars]], null);
-  meta.Term = metaObject("Term", [], null);
-  meta.Form = metaObject("Form", [["dialect", Text], ["kind", Text],
-    ["attributes", new ContainerBuilder().index([Text]).element([Scalars]).create()]], meta.Term);
-  meta.OfModule = metaObject("OfModule", [], meta.Schema); // its identity is its path; it defines schemas and modules
+  const named: [string, unknown][] = [["name", Text], ["description", Text]]; // every kind of schema's: no base declares it
+  meta.OfScalar = metaObject("OfScalar", [...named, ["format", Text], ["token", Text]]);
+  meta.OfObject = metaObject("OfObject", [...named, ["ref", Bool], ["pattern", Text], ["singleton", Text]]);
+  meta.OfUnion = metaObject("OfUnion", [...named, ["flat", Bool]]);
+  meta.OfIntersection = metaObject("OfIntersection", [...named, ["flat", Bool]]);
+  meta.OfContainer = metaObject("OfContainer", [...named, ["layout", Text]]);
+  meta.OfAny = metaObject("OfAny", named);
+  meta.OfRelation = metaObject("OfRelation", [...named, ["uniques", new ContainerBuilder().index([Int]).element([
+    new ContainerBuilder().index([Int]).element([Text]).create()]).create()]]);
+  meta.OfPredicate = metaObject("OfPredicate", named);
+  meta.OfModule = metaObject("OfModule", named); // its identity is its path; it defines schemas and modules
+  meta.OfProperty = metaObject("OfProperty", [["description", Text]]);
+  meta.OfParameter = metaObject("OfParameter", [["description", Text]]); // a name, by its entry: a symbol for a schema
+  meta.OfSymbol = metaObject("OfSymbol", [["description", Text]]);
+  meta.Member = metaObject("Member", [["description", Text]]);
+  meta.OfAdjacency = metaObject("OfAdjacency", [["description", Text], ["me", Text]]);
+  const types = [meta.OfScalar, meta.OfObject, meta.OfUnion, meta.OfIntersection, meta.OfContainer, meta.OfAny];
+  const schemas = [...types, meta.OfRelation, meta.OfPredicate, meta.OfModule]; // whatever a module defines
+  const typed = [meta.OfProperty, meta.OfSymbol, meta.Member]; // each of a type
 
   /** A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
    * `RELATIONS`): a keyed relation's entries have `name`; the member determines its owner and its name
@@ -1745,35 +1633,27 @@ function plainSchemas(): Plain {
     return new AdjacencyBuilder().relation([relation]).me(link).create();
   }
 
-  /** Each relation between schema objects: (relation, (link, schema, adjacency named there), (link, schema), "one": the
-   * first determines the second; "owned": the second determines the first; "keyed": owned, and named within its owner by
-   * the entry's `name`; "list": neither). An adjacency named "" is declared below, on the kinds that have it, rather than
-   * on the link's schema. A member belongs to one owner (`Has*`: the member determines its owner); a schema object has
-   * at most one type, refined schema, index, element, applied schema, relation, parameter, term or width (the first
-   * determines the second); types and operands are lists. */
-  const RELATIONS: [keyof Plain, [string, ObjectData, string], [string, ObjectData], string][] = [
-    ["Typing", ["typed", meta.Typed, "type"], ["schema", meta.Type], "one"],
-    ["Refines", ["refinement", meta.Type, ""], ["refined", meta.Type], "one"],
-    ["Indexing", ["container", meta.OfContainer, "index"], ["index", meta.Type], "one"],
-    ["Containing", ["container", meta.OfContainer, "element"], ["element", meta.Type], "one"],
-    ["Applying", ["application", meta.OfApply, "of"], ["applied", meta.Type], "one"],
-    ["AnyOf", ["any", meta.OfAny, "types"], ["schema", meta.Type], "list"],
-    ["Relating", ["adjacency", meta.OfAdjacency, "relation"], ["relation", meta.OfRelation], "one"],
-    ["Binding", ["argument", meta.Argument, "parameter"], ["parameter", meta.OfParameter], "one"],
-    ["ArgumentTerm", ["argument", meta.Argument, "term"], ["term", meta.Term], "one"],
-    ["Requires", ["predicate", meta.OfPredicate, "requires"], ["term", meta.Term], "one"],
-    ["BitWidth", ["scalar", meta.OfScalar, "bits"], ["width", meta.Term], "one"],
-    ["ByteWidth", ["scalar", meta.OfScalar, "bytes"], ["width", meta.Term], "one"],
-    ["HasParameter", ["owner", meta.Schema, "parameters"], ["parameter", meta.OfParameter], "keyed"],
-    ["HasProperty", ["owner", meta.Schema, ""], ["property", meta.OfProperty], "keyed"],
-    ["HasAdjacency", ["owner", meta.OfObject, "adjacencies"], ["adjacency", meta.OfAdjacency], "keyed"],
-    ["HasBranch", ["owner", meta.OfUnion, "branches"], ["branch", meta.Member], "keyed"],
-    ["HasPart", ["owner", meta.OfIntersection, "parts"], ["part", meta.Member], "keyed"],
-    ["HasSymbol", ["owner", meta.OfPredicate, "symbols"], ["symbol", meta.OfSymbol], "keyed"],
-    ["HasLink", ["owner", meta.OfRelation, "links"], ["link", meta.OfSymbol], "keyed"],
-    ["HasArgument", ["owner", meta.OfApply, "arguments"], ["argument", meta.Argument], "owned"],
-    ["Operands", ["form", meta.Form, "operands"], ["operand", meta.Term], "list"],
-    ["Defines", ["module", meta.OfModule, "schemas"], ["schema", meta.Schema], "keyed"],
+  /** Each relation between schema objects: (relation, (link, the kinds at that end, adjacency named there), (link, the
+   * kinds at that end), "one": the first determines the second; "owned": the second determines the first; "keyed":
+   * owned, and named within its owner by the entry's `name`; "list": neither). An adjacency named "" is declared below,
+   * on the kinds that have it. Each kind declares the adjacencies of every relation it is at an end of (Store overhaul,
+   * Decided, 10). A member belongs to one owner (`Has*`: the member determines its owner); a schema object has at most
+   * one type, refined schema, index, element or relation (the first determines the second); types are lists. */
+  const RELATIONS: [keyof Plain, [string, ObjectData[], string], [string, ObjectData[]], string][] = [
+    ["Typing", ["typed", typed, "type"], ["schema", types], "one"],
+    ["Refines", ["refinement", [], ""], ["refined", types], "one"],
+    ["Indexing", ["container", [meta.OfContainer], "index"], ["index", types], "one"],
+    ["Containing", ["container", [meta.OfContainer], "element"], ["element", types], "one"],
+    ["AnyOf", ["any", [meta.OfAny], "types"], ["schema", types], "list"],
+    ["Relating", ["adjacency", [meta.OfAdjacency], "relation"], ["relation", [meta.OfRelation]], "one"],
+    ["HasParameter", ["owner", schemas, "parameters"], ["parameter", [meta.OfParameter]], "keyed"],
+    ["HasProperty", ["owner", [], ""], ["property", [meta.OfProperty]], "keyed"],
+    ["HasAdjacency", ["owner", [meta.OfObject], "adjacencies"], ["adjacency", [meta.OfAdjacency]], "keyed"],
+    ["HasBranch", ["owner", [meta.OfUnion], "branches"], ["branch", [meta.Member]], "keyed"],
+    ["HasPart", ["owner", [meta.OfIntersection], "parts"], ["part", [meta.Member]], "keyed"],
+    ["HasSymbol", ["owner", [meta.OfPredicate], "symbols"], ["symbol", [meta.OfSymbol]], "keyed"],
+    ["HasLink", ["owner", [meta.OfRelation], "links"], ["link", [meta.OfSymbol]], "keyed"],
+    ["Defines", ["module", [meta.OfModule], "schemas"], ["schema", schemas], "keyed"],
   ];
 
   /** The adjacencies each meta-schema declares: named ones by name, and anonymous ones. */
@@ -1786,11 +1666,11 @@ function plainSchemas(): Plain {
     else named.set(name, adjacency);
   }
 
-  for (const [name, [a, aSchema, named], [b, bSchema], how] of RELATIONS) {
+  for (const [name, [a, aKinds, namedAt], [b, bKinds], how] of RELATIONS) {
     const relation = metaRelation(name, [a, b], how);
     (meta as unknown as Record<string, unknown>)[name] = relation;
-    if (named !== "") declare(aSchema, metaAdjacency(relation, a), named);
-    declare(bSchema, metaAdjacency(relation, b), null);
+    for (const kind of namedAt !== "" ? aKinds : []) declare(kind, metaAdjacency(relation, a), namedAt);
+    for (const kind of bKinds) declare(kind, metaAdjacency(relation, b), null);
   }
   for (const owner of [meta.OfObject, meta.OfRelation]) { // each has its own `properties`; any schema may be the owner
     declare(owner, metaAdjacency(meta.HasProperty, "owner"), "properties");
@@ -1815,14 +1695,12 @@ TEMPLATE = plainSchemas();
 
 // --- A store: where schema objects and data are built ---
 
-/** The schema objects a store builds as `store.Schemas.OfX(...)` (and `Schemas.Member`, `.Form`, `.Argument`), each
- * through its builder. */
+/** The schema objects a store builds as `store.Schemas.OfX(...)` (and `Schemas.Member`), each through its builder. */
 export const _META_BUILDERS = new Map<string, BuilderClass>([
   ["OfScalar", ScalarBuilder], ["OfObject", ObjectBuilder], ["OfUnion", UnionBuilder], ["OfIntersection", IntersectionBuilder],
-  ["OfContainer", ContainerBuilder], ["OfApply", ApplyBuilder], ["OfAny", AnyValueBuilder], ["OfRelation", RelationBuilder],
+  ["OfContainer", ContainerBuilder], ["OfAny", AnyValueBuilder], ["OfRelation", RelationBuilder],
   ["OfPredicate", PredicateBuilder], ["OfProperty", PropertyBuilder], ["OfParameter", ParameterBuilder],
-  ["OfSymbol", SymbolBuilder], ["Member", MemberBuilder], ["OfAdjacency", AdjacencyBuilder], ["Form", FormBuilder],
-  ["OfModule", ModuleBuilder], ["Argument", ArgumentBuilder],
+  ["OfSymbol", SymbolBuilder], ["Member", MemberBuilder], ["OfAdjacency", AdjacencyBuilder], ["OfModule", ModuleBuilder],
 ]);
 
 /** A schema object in a message: its name, else its identity. */
@@ -2058,16 +1936,15 @@ export class Store extends Proxies._Store {
   /** Gives the schema objects `owner` holds or links that have no name of their own the identities their path from it
    * derives: a member its owner's and its name (`crm.Person.age`); another, the first object's to link it and the
    * adjacency (`crm.Person.tags#type`). */
-  _derive(owner: any, identity: string, rebuilt = false): void {
+  _derive(owner: any, identity: string): void {
     const builderClass = builderFor(owner) as unknown as typeof Builder;
     for (const [name, members] of new Map([...builderClass._table, ...(this._added.get(builderClass) ?? [])])) {
-      if (!(members instanceof Members) || (rebuilt && members.build === null)) continue; // through a rebuilt object, only what it builds
+      if (!(members instanceof Members)) continue;
       members.items(owner).forEach((referent, index) => {
-        const through = referent instanceof ArgumentData; // rebuilt on every read: what it builds derives through it
-        if (!through && !this._derivable(referent)) return;
+        if (!this._derivable(referent)) return;
         let derived: string;
         if (members.owned) {
-          const named = members.name_of(owner, referent); // a member not keyed (an argument) has no name
+          const named = members.name_of(owner, referent);
           if (named) {
             derived = `${identity}.${named}`;
             const clash = this._objects.get(key(_kind(referent), derived));
@@ -2084,8 +1961,8 @@ export class Store extends Proxies._Store {
           derived = members.one ? `${identity}#${name}` : `${identity}#${name}.${index}`;
           this._linked.add(referent);
         }
-        if (!through) this._rehold(referent, derived);
-        this._derive(referent, derived, through);
+        this._rehold(referent, derived);
+        this._derive(referent, derived);
       });
     }
   }
@@ -2256,13 +2133,6 @@ export namespace OfContainer {
   export type Builder = ContainerBuilder;
 }
 
-export namespace OfApply {
-  export const Data = S.OfApply.Data;
-  export type Data = S.OfApply.Data;
-  export const Builder = ApplyBuilder;
-  export type Builder = ApplyBuilder;
-}
-
 export namespace OfPredicate {
   export const Data = S.OfPredicate.Data;
   export type Data = S.OfPredicate.Data;
@@ -2277,16 +2147,9 @@ export namespace OfAny {
   export type Builder = AnyValueBuilder;
 }
 
-export namespace Form {
-  export const Data = S.Form.Data;
-  export type Data = S.Form.Data;
-  export const Builder = FormBuilder;
-  export type Builder = FormBuilder;
-}
-
 // --- For Plain, which writes and reads schema objects through their builders ---
 
-export { builderFor as _builder_for, identify as _identify, ArgumentData as _ArgumentData, ModuleData as _ModuleData };
+export { builderFor as _builder_for, identify as _identify, ModuleData as _ModuleData };
 
 /** The schema object a visitor reads: a link's referent, where a builder builds it, or a builder's own; null for any other visitor. */
 export function _linked(visitor: unknown): unknown {
@@ -2295,22 +2158,6 @@ export function _linked(visitor: unknown): unknown {
   if (!(inner instanceof Link)) return null;
   const referent = inner._entry._referent;
   return [referent, null][Number(builderFor(referent) === null)];
-}
-
-/** Holds `form`, a form's clone, in its place in `store`: a form is immutable. */
-export function _rehold_form(store: Store, held: unknown, form: unknown): void {
-  const identity = identity_of(held) as string;
-  store._objects.set(key(_kind(held), identity), identify(form, identity));
-}
-
-/** The term of a dialect a link visitor reads, which this package does not build and no store holds; null for any other
- * visitor. */
-export function _dialect_term(visitor: unknown): unknown {
-  const inner = innerOf(visitor);
-  const referent = inner instanceof Link ? inner._entry._referent : null;
-  const data = referent !== null && referent !== undefined && Proxies._store_of(referent) !== null; // a proxy answers any name
-  return referent !== null && referent !== undefined && !data && builderFor(referent) === null && S.Form.is_term(referent)
-    ? referent : null;
 }
 
 /** Whether an adjacency member holds one entry at most, as a `unique` clause of its relation makes it. */
@@ -2323,8 +2170,8 @@ export function _holds_one(member: unknown): boolean {
 // `Schemas.OfX` (FRAMEWORK.md, Resolved: "Schemas.OfX.Builder must implement Visitors.OfX").
 for (const [namespace, own] of [[S.OfScalar, OfScalar], [S.OfObject, OfObject], [S.OfProperty, OfProperty],
   [S.OfAdjacency, OfAdjacency], [S.OfRelation, OfRelation], [S.OfSymbol, OfSymbol], [S.OfParameter, OfParameter],
-  [S.OfUnion, OfUnion], [S.OfIntersection, OfIntersection], [S.OfContainer, OfContainer], [S.OfApply, OfApply],
-  [S.OfPredicate, OfPredicate], [S.OfAny, OfAny], [S.Form, Form]] as const) {
+  [S.OfUnion, OfUnion], [S.OfIntersection, OfIntersection], [S.OfContainer, OfContainer], [S.OfPredicate, OfPredicate],
+  [S.OfAny, OfAny]] as const) {
   Object.assign(namespace, { Builder: own.Builder });
 }
 

@@ -197,6 +197,23 @@ and add each to `ignored`, where given, as `{"path": ..., "reason": ...}` (TypeS
 an extended store's snapshot into a store without the extension, and SNP-05 a property `Schemas.OfObject` lacks, now
 ignored where it was refused.
 
+## Step 2, as built (0.17.0)
+
+Parameters are names only (20): `OfParameter` has a `description` and no `type`. `OfApply`, `Argument`, `Form` (and
+its `Term`), a scalar's `bits` and `bytes`, a predicate's `requires`, `Schemas.structure`, `Schemas.Evaluate` and
+`Schemas.equivalent` are removed, with their relations; so are the abstract bases `Schemas.Schema`, `Type` and
+`Typed`: each kind declares its own `name`, `description` and `parameters`, and each declares the adjacencies of every
+relation it is at an end of (10), so a type's six anonymous adjacencies are each its own. `Schemas.Meta` is not built
+(21). Two changes follow from the removal:
+
+- A property an extension adds holds a container where its type is one, as a term's `attributes` did; BLD-06 now
+  builds its map-valued property, and a template matching one by value, through `store.extend`.
+- A refinement's scalar narrows by token alone, and `refines` of something not a type is reported as "refines
+  something not a type" (it was "refines nothing", an application of nothing).
+
+PAR keeps two cases (declaring and writing parameters); `Check`'s outcome moved to VAL-16. The corpus's `module` group
+keeps its parametric schemas, with parameters as names, and loses its widths, applications and `requires`.
+
 ## Open, for the user
 
 1. **Deferred: when a binding is applied.** "I don't think we need to force the issue of eager or on-demand binding":

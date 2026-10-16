@@ -106,6 +106,8 @@ As the user decided (2026-10-15), on the questions put to them:
 6. "all bindings will need to move into mbse-expressions": `OfApply` and its arguments, literal values and terms
    (`ArgumentTerm`), with mbse-schemas declaring `parameters` only ("it matches well enough").
 7. `Form` "should go" from mbse-schemas.
+   As built, for 5 to 7: since 0.17.0 mbse-schemas has no `requires`, `OfApply`, arguments, terms or `Form`, nor
+   widths (Store overhaul, Step 2, as built); their homes in mbse-expressions and mbse-patterns are still to be built.
 8. Scalar values, formal parameters and intrinsics: see section 2.
 9. "printers and parsers go through Visitor just like everything else" (mbse-basis P-018); only intrinsics'
    implementations are code, each found through its named reference object (`AsIntrinsic`).

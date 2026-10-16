@@ -183,49 +183,47 @@ store's own, reached by its path (`store.Schemas.OfObject`; [Store overhaul](pro
 every schema object is a reference object (Resolved: "we already decided
 at least one time to make schema objects references. all of them.").
 
-- **Kinds.** `Schemas.Schema` has the properties `name` and `description`, and owns `parameters`.
-  - `Schemas.Type` refines it, and `Scalar`, `Object`, `Union`, `Intersection`, `Container`, `Apply` and `Any` refine
-    `Type`: only a type is anything's type, refined, indexed, contained, applied or allowed.
-  - `Relation` and `Predicate` refine `Schema` directly; they are not types.
-- **Members.** `Schemas.Typed` has a `description` and a `type`; `Property`, `Parameter`, `Symbol` and `Member` (a
-  union's branch or an intersection's part) refine it. A member's name is not its own: it is the `name` property of the
-  entry that links it to its owner (`HasProperty`, ...), since a member is named within its owner.
-- **Other schema objects.** `Adjacency` (a `description`, and `me`), `Argument` (a `value`), `Term`, refined by `Form`
-  (`dialect`, `kind`, `attributes`), and `Module`, with the naming pattern `module-(\d+)` and nothing but its
-  `schemas`.
+- **Kinds.** `Schemas.OfScalar`, `OfObject`, `OfUnion`, `OfIntersection`, `OfContainer` and `OfAny` are the types:
+  only a type is anything's type, refined, indexed, contained or allowed. `OfRelation`, `OfPredicate` and `OfModule`
+  are not types. Every kind has the properties `name` and `description`, and owns `parameters`, each kind declaring
+  them itself: there are no abstract bases (`Schemas.Schema`, `Type` and `Typed` are gone since 0.17.0;
+  [Store overhaul](proposals/store-overhaul/README.md), Decided, 20 and 21).
+- **Members.** `Schemas.OfProperty`, `OfSymbol` and `Member` (a union's branch or an intersection's part) have a
+  `description` and a `type`; `OfParameter` has a `description` only: a parameter is a name, a symbol standing for
+  what a use of the schema binds (Store overhaul, Decided, 20). A member's name is not its own: it is the `name`
+  property of the entry that links it to its owner (`HasProperty`, ...), since a member is named within its owner.
+- **Other schema objects.** `OfAdjacency` (a `description`, and `me`), and `OfModule`, which defines schemas and
+  modules (its `schemas`).
 - **Properties hold values** (Resolved: a property "has as schema which must be OfAny and that can hold scalars,
   containers, value objects, or any nesting thereof"): a kind's `name` and `description`, a scalar's `format` and
   `token`, an object schema's `ref`, `pattern` and `singleton`, a union's or intersection's `flat`, a container's
   `layout`, a relation's `uniques` (a container of containers of names), a member's and an adjacency's `description`,
-  an adjacency's `me`, an argument's `value`, a form's `dialect`, `kind` and `attributes` (a container by name), and
-  the `name` of a keyed relation's entry.
+  an adjacency's `me`, and the `name` of a keyed relation's entry.
 - **Names, by exception** (Resolved, "I think we need to make an exception ..."): within a schema, its relation's links
   and properties are named by string, never referred to: an adjacency's `me` and a relation's `uniques` are properties
   holding names.
 - **Every reference is a relation** of two links, `Schemas.<Relation>`, with an adjacency named at the end that
   declares it and an anonymous one at the end referred to (Resolved, "Refinement, identities and relations": an
-  anonymous adjacency lets an object fill a link, with no member). A type is referred to by every relation whose
-  second end is `Type`, so `Schemas.Type` declares seven anonymous adjacencies, which each kind inherits.
+  anonymous adjacency lets an object fill a link, with no member). Each kind declares the adjacencies of every relation
+  it is at an end of (Store overhaul, Decided, 10), so each type declares the six anonymous adjacencies to it.
 
-| Relation | Links: first, second (their schemas) | Named at the first | Constraint, as `unique` clauses state it |
+| Relation | Links: first, second (their kinds) | Named at the first | Constraint, as `unique` clauses state it |
 |---|---|---|---|
-| Typing | typed (Typed), schema (Type) | `Typed.type` | one: `unique(schema)`, the typed determines its schema |
-| Refines | refinement (Type), refined (Type) | `Scalar.refines`, `Object.refines`, `Container.refines` | one |
-| Indexing, Containing | container (Container), index / element (Type) | `Container.index`, `Container.element` | one |
-| Applying | application (Apply), applied (Type) | `Apply.of` | one |
-| AnyOf | any (Any), schema (Type) | `Any.types` | none: open, a list in declaration order |
-| Relating | adjacency (Adjacency), relation (Relation) | `Adjacency.relation` | one |
-| Binding, ArgumentTerm | argument (Argument), parameter (Parameter) / term (Term) | `Argument.parameter`, `Argument.term` | one |
-| Requires | predicate (Predicate), term (Term) | `Predicate.requires` | one |
-| BitWidth, ByteWidth | scalar (Scalar), width (Term) | `Scalar.bits`, `Scalar.bytes` | one; a width is a term |
-| HasParameter | owner (Schema), parameter (Parameter); property `name` | `Schema.parameters` | keyed: `unique(owner, name)`, `unique(parameter)` |
-| HasProperty | owner (Schema), property (Property); `name` | `Object.properties`, `Relation.properties` | keyed |
-| HasAdjacency | owner (Object), adjacency (Adjacency); `name` | `Object.adjacencies` | keyed |
-| HasBranch, HasPart | owner (Union / Intersection), branch / part (Member); `name` | `Union.branches`, `Intersection.parts` | keyed |
-| HasSymbol, HasLink | owner (Predicate / Relation), symbol / link (Symbol); `name` | `Predicate.symbols`, `Relation.links` | keyed |
-| HasArgument | owner (Apply), argument (Argument) | `Apply.arguments` | owned: `unique(owner)`, the argument determines its owner |
-| Operands | form (Form), operand (Term) | `Form.operands` | none: a list |
-| Defines | module (Module), schema (Schema); `name` | `Module.schemas` | keyed |
+| Typing | typed (Property, Symbol, Member), schema (a type) | `.type` | one: `unique(schema)`, the typed determines its schema |
+| Refines | refinement, refined (a type) | `OfScalar.refines`, `OfObject.refines`, `OfContainer.refines` | one |
+| Indexing, Containing | container (Container), index / element (a type) | `OfContainer.index`, `OfContainer.element` | one |
+| AnyOf | any (Any), schema (a type) | `OfAny.types` | none: open, a list in declaration order |
+| Relating | adjacency (Adjacency), relation (Relation) | `OfAdjacency.relation` | one |
+| HasParameter | owner (every kind), parameter (Parameter); property `name` | `.parameters` | keyed: `unique(owner, name)`, `unique(parameter)` |
+| HasProperty | owner (Object, Relation), property (Property); `name` | `OfObject.properties`, `OfRelation.properties` | keyed |
+| HasAdjacency | owner (Object), adjacency (Adjacency); `name` | `OfObject.adjacencies` | keyed |
+| HasBranch, HasPart | owner (Union / Intersection), branch / part (Member); `name` | `OfUnion.branches`, `OfIntersection.parts` | keyed |
+| HasSymbol, HasLink | owner (Predicate / Relation), symbol / link (Symbol); `name` | `OfPredicate.symbols`, `OfRelation.links` | keyed |
+| Defines | module (Module), schema (every kind); `name` | `OfModule.schemas` | keyed |
+
+Applications (`OfApply`, `Applying`, `HasArgument`, `Binding`, `ArgumentTerm`), terms (`Term`, `Form`, `Operands`),
+widths (`BitWidth`, `ByteWidth`) and a predicate's `requires` (`Requires`) are gone since 0.17.0: they are
+mbse-expressions' and mbse-patterns' ([Schema extension](SCHEMA_EXTENSION.md), Decided, 5 to 7).
 
 "One" is `unique(second)`: the first end determines the second, so the adjacency holds at most one entry. "Keyed" is
 `unique(owner, name)` and `unique(member)`, with the entry's `name`: the member determines its owner and its name, so a
@@ -241,11 +239,11 @@ every write.
 
 - **Members.** `osv.<propName>`, a `Visitors.OfProperty`, and `osv.<adjName>`, a `Visitors.OfAdjacency` with `insert`,
   `remove`, `as_iterable` and iteration over its entries; called with a `Specs.Callback`, each writes or visits through
-  it and returns the builder. A container-valued property (a form's `attributes`) hands over a `Visitors.OfContainer`.
+  it and returns the builder. A container-valued property (a relation's `uniques`, or one an extension adds) hands over a `Visitors.OfContainer`.
   An entry's link to its referent is a member, `env.<linkName>`: called, it links the referent given, or builds one
   through the callback, new, or the one the entry links, updated in place; read, it gives the referent, read-only.
-  Members, terms, arguments and an adjacency's relation are built through a link; a type, a refined schema, an index,
-  an element, an applied schema and an argument's parameter are linked as objects that exist (Resolved: "a link to a
+  Members and an adjacency's relation are built through a link; a type, a refined schema, an index and an element are
+  linked as objects that exist (Resolved: "a link to a
   type takes a schema that exists, not a callback that builds one").
 - **Shorthands** ([Visitor pattern](VISITOR_PATTERN.md)): a property takes its value whole, of exactly its type
   (`.ref(True)`, `.layout("dense")`); an adjacency takes an iterable, each item an entry, the object to link, or a
@@ -257,8 +255,7 @@ every write.
   `as_identity(x)` writes it, `update()` keeping the object's own unless one is written, which renames it.
 - **The data stores members its own way** (Resolved: "the Data class can store `Schemas.OfObject.Data.properties` any
   way it wants"), and the builder adapts each adjacency to it: a dict of members by name, or a tuple in order; a field
-  holding the referent; an application's arguments by their parameter's name; a width the data holds as an int read as
-  the literal form `Form("literal", {"value": 8})`. A keyed member's name is written to the member's data.
+  holding the referent. A keyed member's name is written to the member's data.
 - **Derivation happens at finalization**, in `_finalize`: a refinement takes the token, `ref`, index and element of what
   it refines unless it is given them. No member's write has a side effect besides it (Resolved: "shortcuts are
   refused"), so `.singleton(...)` no longer sets `ref`.
@@ -272,8 +269,8 @@ form of building is
 `store.moduleName.[...moduleName].schemaName(cb)` (Resolved: "This is the new canonical form for store-centric
 building"): a callback creates, an object and a callback update, an object alone clones, and the call returns the
 object. `store.Schemas.<Kind>(...)` builds a schema object, for `Scalar`, `Object`, `Union`, `Intersection`,
-`Container`, `Apply`, `Any`, `Relation`, `Predicate`, `Property`, `Parameter`, `Symbol`, `Member`, `Adjacency` and
-`Form`; any other registered name builds data, through the proxy builder.
+`Container`, `Any`, `Relation`, `Predicate`, `Property`, `Parameter`, `Symbol`, `Member`, `Adjacency` and `Module`;
+any other registered name builds data, through the proxy builder.
 
 - **The meta-schemas are in every store**, registered under their names, with the basic scalars (`Schemas.OfBool`,
   ...) and the mutation schemas.
@@ -305,11 +302,13 @@ with a question, for review. The schema builders answer most of them; each point
 2. **Which elements are objects.** Answered: every schema of every kind and every member is a reference object, the
    members linked to their owner by relations (Resolved, the same entry, which answers this question by name; The
    meta-schemas, above). As built, the member relations are `Has*`, a member's name is its entry's, and terms and
-   arguments are reference objects too.
+   arguments were reference objects too, until 0.17.0 removed them.
 3. **The type links.** Built as separate relations, not one `Typing` with a `role`: `Typing`, `Indexing`,
    `Containing`, `Applying`, `AnyOf`, `Relating`, and `Refines`, `Binding`, `ArgumentTerm`, `Requires`, `BitWidth` and
    `ByteWidth` (The meta-schemas, above); the user named the referred end of `Typing` and `AnyOf` `schema` (Resolved:
    `e2.schema(Contact)`). The other relations' names and splits were proposed in building and await the user's review.
+   Since 0.17.0, `Applying`, `Binding`, `ArgumentTerm`, `Requires`, `BitWidth` and `ByteWidth` are gone (The
+   meta-schemas, above).
 4. **Anonymous adjacencies.** Answered and built, for any relation (Resolved, "Refinement, identities and relations";
    VAL-15); the meta-schemas declare one at every end referred to. A snapshot writing an entry under its named ends
    only, and `Reachable` following named adjacencies, wait for the wire format (point 7).

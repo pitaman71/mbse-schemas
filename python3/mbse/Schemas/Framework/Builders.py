@@ -1506,15 +1506,14 @@ class Store(Proxies._Store):
         it derives: a member its owner's and its name (`crm.Person.age`); another, the first object's to link it and the
         adjacency (`crm.Person.tags#type`)."""
         builder_class = _builder_for(owner)
-        table = {**builder_class._members_, **self._added.get(builder_class, {})} if builder_class is not None else {}
-        for name, members in table.items():
+        for name, members in {**builder_class._members_, **self._added.get(builder_class, {})}.items():
             if not isinstance(members, _Members):
                 continue
             for index, referent in enumerate(members.items(owner)):
                 if not self._derivable(referent):
                     continue
                 if members.owned:
-                    local = members.name_of(owner, referent) if members.keyed else None
+                    local = members.name_of(owner, referent)
                     if local:
                         derived = f"{identity}.{local}"
                         clash = self._objects.get((_kind(referent), derived))

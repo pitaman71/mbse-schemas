@@ -94,7 +94,7 @@ def _any_value(read: Readers.OfAny, schema: Schemas.OfAny.Value, ref: Ref) -> tu
         getattr(read, select)(lambda v: found.extend([v] if _present(v) else []) or v)
     if not found:
         return False, None
-    value, types = found[0], [t for t in schema.types]
+    value, types = found[0], list(schema.types)
     if type(value) in Schemas.SCALAR_TYPES:
         scalar = Schemas.OfScalar.Data(type(value))
         if not types:
@@ -872,10 +872,9 @@ class _LogWriter:
             held = getattr(target(), "_original", None)
         return held is not None and self._store.framework(held)
 
-    def _key(self, visitor: Any, derived: str | None = None) -> str:
-        """`Module.Schema/ID`: the registered name of the object's schema, and its identity, or, for an object rebuilt on
-        every read, which has none, the identity its path derives."""
-        return f"{self._store.name_of(visitor.as_schema())}/{visitor.as_identity() or derived}"
+    def _key(self, visitor: Any) -> str:
+        """`Module.Schema/ID`: the registered name of the object's schema, and its identity."""
+        return f"{self._store.name_of(visitor.as_schema())}/{visitor.as_identity()}"
 
     def _held(self, visitor: Any, where: str) -> None:
         """Refuses a schema object the store does not hold, saying where it is linked: there are no foreign schemas."""
@@ -914,7 +913,7 @@ class _LogWriter:
         schema = adjacency.as_schema()
         relation, me = schema.relation, schema.me
         counts: dict[Hashable, int] = {}
-        for index, entry in enumerate(adjacency):
+        for entry in adjacency:
             links: dict[str, str] = {}
             for link in relation.entry.links:
                 if link == me:
@@ -924,10 +923,7 @@ class _LogWriter:
                 if self._B._builder_for(target) is not None:  # a schema object a proxy's entry links (an extension's)
                     target = self._reader(target)
                 self._held(target, f"{key}, {schema.name},")
-                names = {*relation.entry.links, *relation.entry.properties}
-                single = any(names - unique == {me} for unique in relation.uniques)  # one entry, as the store derives
-                derived = f"{key.partition('/')[2]}#{schema.name}" + ("" if single else f".{index}")
-                links[link] = self._key(target, derived)
+                links[link] = self._key(target)
                 if self._framework(target):
                     self._written.add(links[link])
                     self._complete.add(links[link])

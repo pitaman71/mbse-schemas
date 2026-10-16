@@ -11,12 +11,11 @@
  * Every kind of schema may have a `name`, set by its builder's `.name("crm.Contact")`: identifiers separated by dots,
  * the part before the last dot the module it is in. A store registers a named schema under that name.
  *
- * Every kind of schema may declare `parameters` (`OfParameter`), variables determined where the schema is referred to:
- * `OfApply` applies a parametric schema to arguments. Where a literal width stands, a term may stand instead:
- * an expression term, such as mbse-expressions', or its neutral `Form`, which may refer to parameters.
+ * Every kind of schema may declare `parameters` (`OfParameter`): names, each a symbol standing for a schema, bound
+ * where the schema is referred to (docs/proposals/store-overhaul, Decided, 12 and 20). Terms, applications, widths and a
+ * predicate's `requires` are mbse-expressions' and mbse-patterns' (docs/SCHEMA_EXTENSION.md, Decided, 5 to 7).
  *
- * A predicate (`OfPredicate`) names its symbols (`OfSymbol`), each of a reference object schema, and requires a
- * constraint over them, a term; mbse-schemas knows no dialect, so a term is checked as a `Form` only. A relation holds the
+ * A predicate (`OfPredicate`) names its symbols (`OfSymbol`), each of a reference object schema. A relation holds the
  * schema of its entries (`OfEntry`): their links, each a symbol, and their properties.
  */
 
@@ -59,134 +58,26 @@ function descriptionProblems(description: unknown, where = ""): string[] {
   return [`${where}a description is text, got ${typeName(description)}`];
 }
 
-// --- Terms: expressions where a literal may stand ---
-
-/** A term's structure, in the neutral form mbse-expressions' terms give (`term.form()`): its `kind`, its scalar
- * `attributes` by name, its ordered `arguments`, each a form, and the `dialect` it is read in, given at its root. A form
- * is itself a term, which a module writes and reads back without knowing its dialect. */
-class FormData {
-  readonly kind: string;
-  readonly attributes: ReadonlyMap<string, Scalar>;
-  readonly arguments: readonly unknown[];
-  readonly dialect: string | null;
-
-  constructor(kind = "", attributes: ReadonlyMap<string, Scalar> | Record<string, Scalar> = new Map(),
-    args: readonly unknown[] = [], dialect: string | null = null) {
-    this.kind = kind;
-    this.attributes = attributes instanceof Map ? attributes : new Map(Object.entries(attributes));
-    this.arguments = args;
-    this.dialect = dialect;
-  }
-
-  /** The form of a term: a form as it is, or the form of a term of a dialect (`term.form()`, whose arguments are
-   * terms, and `term.dialect().name()`), its arguments' forms within it. */
-  static of(term: unknown): FormData {
-    if (term instanceof FormData) return term;
-    if (!isTerm(term)) throw new TypeError(`not a term: ${repr(term)}`);
-    const form = (term as ForeignTerm).form();
-    return new FormData(form.kind, new Map(form.attributes), form.arguments.map((a) => FormData.ofArgument(a)),
-      (term as ForeignTerm).dialect().name());
-  }
-
-  private static ofArgument(term: unknown): FormData {
-    const form = FormData.of(term);
-    return term instanceof FormData ? form : new FormData(form.kind, form.attributes, form.arguments, null);
-  }
-
-  equals(other: unknown): boolean {
-    return other instanceof FormData && other.kind === this.kind && other.dialect === this.dialect
-      && other.attributes.size === this.attributes.size
-      && [...this.attributes].every(([name, value]) => other.attributes.has(name) && sameScalar(value, other.attributes.get(name)))
-      && other.arguments.length === this.arguments.length
-      && this.arguments.every((argument, i) => sameValue(argument, other.arguments[i]));
-  }
-
-  validate(): string[] {
-    const problems = typeof this.kind === "string" && this.kind !== "" ? [] : [`a term needs a kind, got ${repr(this.kind)}`];
-    if (this.dialect !== null && typeof this.dialect !== "string") problems.push(`a term's dialect is a name, got ${repr(this.dialect)}`);
-    for (const [name, value] of this.attributes) {
-      if (!isScalar(value)) problems.push(`attribute ${repr(name)} is not a scalar value: ${repr(value)}`);
-    }
-    this.arguments.forEach((argument, i) => {
-      if (argument instanceof FormData) problems.push(...argument.validate().map((p) => `argument ${i}: ${p}`));
-      else problems.push(`argument ${i} is not a term: ${repr(argument)}`);
-    });
-    return problems;
-  }
-}
-
-/** A term of a dialect, as mbse-expressions' terms are: its form, whose arguments are terms, and its dialect. */
-interface ForeignTerm {
-  form(): { kind: string; attributes: ReadonlyMap<string, Scalar>; arguments: readonly unknown[] };
-  dialect(): { name(): string };
-}
-
-/** Whether `value` is a term: a form, or anything with a `form()` and a `dialect()`, as mbse-expressions' terms. */
-function isTerm(value: unknown): boolean {
-  if (value instanceof FormData) return true;
-  const term = value as { form?: unknown; dialect?: unknown } | null | undefined;
-  return term !== null && term !== undefined && typeof term === "object" && typeof term.form === "function"
-    && typeof term.dialect === "function";
-}
-
-function isScalar(value: unknown): value is Scalar {
-  return SCALAR_TYPES.some((token) => isScalarOf(token, value));
-}
-
 /** The host type of a scalar value, or null for a value that is not one. */
 export function hostOf(value: unknown): ScalarToken | null {
   return SCALAR_TYPES.find((token) => isScalarOf(token, value)) ?? null;
 }
 
-/** Scalar values equal as Python's `==` finds them: the same type and value, bytes by content. */
-function sameScalar(a: unknown, b: unknown): boolean {
-  if (a instanceof Uint8Array && b instanceof Uint8Array) return a.length === b.length && a.every((byte, i) => byte === b[i]);
-  return typeof a === typeof b && a === b;
-}
+// --- OfParameter: a name a schema declares ---
 
-/** A width, a bound or an argument equal to another: a form by structure, anything else as itself. */
-function sameValue(a: unknown, b: unknown): boolean {
-  return a instanceof FormData ? a.equals(b) : a === b;
-}
-
-/** Problems with a form standing for `what`; a term of a dialect is that dialect's to check. */
-function termProblems(value: unknown, what: string): string[] {
-  return value instanceof FormData ? value.validate().map((p) => `${what}: ${p}`) : [];
-}
-
-/** The neutral form of a term. `new Form.Data(kind, attributes, arguments, dialect)`; `Form.of(term)` gives a term's. */
-export namespace Form {
-  export const Data = FormData;
-  export type Data = FormData;
-  export function of(term: unknown): FormData {
-    return FormData.of(term);
-  }
-  export function is_term(value: unknown): boolean {
-    return isTerm(value);
-  }
-  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
-  export declare const Builder: typeof Builders.FormBuilder;
-  export type Builder = Builders.FormBuilder;
-}
-
-// --- OfParameter: a variable a schema declares ---
-
-/** A parameter of the schema that declares it: a variable, named, of a type (null for any), determined where the
- * schema is referred to (`OfApply`) and referred to within it by name, as a variable is. */
+/** A parameter of the schema that declares it: a name, a symbol standing for a schema, bound where the schema is
+ * referred to and referred to within it by name, as a variable is. */
 class ParameterData {
   name: string;
-  type: AnyData | null;
   description: string | null;
 
-  constructor(fields: { name?: string; type?: AnyData | null; description?: string | null } = {}) {
+  constructor(fields: { name?: string; description?: string | null } = {}) {
     this.name = fields.name ?? "";
-    this.type = fields.type ?? null;
     this.description = fields.description ?? null;
   }
 
   equals(other: unknown): boolean {
-    return other instanceof ParameterData && other.name === this.name && other.description === this.description
-      && (this.type instanceof ScalarData ? this.type.equals(other.type) : other.type === this.type);
+    return other instanceof ParameterData && other.name === this.name && other.description === this.description;
   }
 }
 
@@ -201,8 +92,7 @@ export namespace OfParameter {
 function parameterProblems(parameters: ReadonlyMap<string, ParameterData>): string[] {
   const problems = reserved([...parameters.keys()]);
   for (const [name, parameter] of parameters) {
-    const typed = parameter.type === null ? [] : validateSchema(parameter.type);
-    problems.push(...[...typed, ...descriptionProblems(parameter.description)].map((p) => `parameter ${repr(name)}: ${p}`));
+    problems.push(...descriptionProblems(parameter.description).map((p) => `parameter ${repr(name)}: ${p}`));
   }
   return problems;
 }
@@ -260,10 +150,8 @@ class TokenClass {
   }
 }
 
-/** The widths a scalar may have, in bits or in bytes (each a bigint or a term), its name, description and parameters. */
-export interface Widths {
-  bits?: unknown;
-  bytes?: unknown;
+/** A scalar's name, description, parameters and the scalar it refines. */
+export interface ScalarFields {
   name?: string | null;
   description?: string | null;
   parameters?: Map<string, ParameterData>;
@@ -271,26 +159,22 @@ export interface Widths {
   refines?: unknown;
 }
 
-/** A scalar type: a token, and optionally a width in bits or in bytes, an int or a term. A host type given in place of
- * the token (`new OfScalar.Data(BigInt)`) is shorthand for the `basic` token of the same name. */
+/** A scalar type: a token. A host type given in place of the token (`new OfScalar.Data(BigInt)`) is shorthand for the
+ * `basic` token of the same name. */
 class ScalarData {
   token: unknown;
-  bits: unknown;
-  bytes: unknown;
   name: string | null;
   description: string | null;
   parameters: Map<string, ParameterData>;
   /** The scalar schema it refines, or null. */
   refines: unknown;
 
-  constructor(token: unknown = null, widths: Widths = {}) {
+  constructor(token: unknown = null, fields: ScalarFields = {}) {
     this.token = SCALAR_NAMES.has(token) ? new TokenClass(BASIC, SCALAR_NAMES.get(token) as string) : token;
-    this.bits = widths.bits ?? null;
-    this.bytes = widths.bytes ?? null;
-    this.name = widths.name ?? null;
-    this.description = widths.description ?? null;
-    this.parameters = widths.parameters ?? new Map();
-    this.refines = widths.refines ?? null;
+    this.name = fields.name ?? null;
+    this.description = fields.description ?? null;
+    this.parameters = fields.parameters ?? new Map();
+    this.refines = fields.refines ?? null;
   }
 
   /** The host type the token maps to, or null when this implementation cannot read the token. */
@@ -308,8 +192,7 @@ class ScalarData {
   }
 
   equals(other: unknown): boolean {
-    return other instanceof ScalarData && sameValue(this.bits, other.bits) && sameValue(this.bytes, other.bytes)
-      && other.name === this.name && other.description === this.description && sameParameters(this.parameters, other.parameters)
+    return other instanceof ScalarData && other.name === this.name && other.description === this.description && sameParameters(this.parameters, other.parameters)
       && other.refines === this.refines
       && sameToken(this.token, other.token);
   }
@@ -323,13 +206,6 @@ class ScalarData {
     } else if ((token.format === BASIC && this.type === null) || (token.format === PYTHON3 && !BASIC_TYPES.has(token.name))) {
       problems.push(`${token.format} has no type ${repr(token.name)}`); // python3: the basic types, by Python's names
     }
-    for (const [unit, width] of [["bits", this.bits], ["bytes", this.bytes]] as const) {
-      if (isTerm(width)) problems.push(...termProblems(width, `a width in ${unit}`));
-      else if (width !== null && (typeof width !== "bigint" || width < 1n)) {
-        problems.push(`a width in ${unit} must be a positive int or a term, got ${repr(width)}`);
-      }
-    }
-    if (this.bits !== null && this.bytes !== null) problems.push("a width is in bits or in bytes, not both");
     return [...problems, ...refinementProblems(this)];
   }
 
@@ -439,7 +315,7 @@ export namespace OfSymbol {
 function symbolProblems(symbol: SymbolData): string[] {
   if (symbol.type === null) return descriptionProblems(symbol.description);
   const problems = validateSchema(symbol.type);
-  const target = structure(symbol.type);
+  const target = symbol.type;
   if (!(target instanceof ObjectData && target.ref)) {
     problems.push("a symbol stands for a reference object, so its schema is a reference object schema");
   }
@@ -752,7 +628,7 @@ function memberProblems(aKind: string, member: string, plural: string, members: 
   const kind = aKind.split(" ")[1];
   const problems = reserved(members.map((m) => m.name));
   if (members.length < 2) problems.push(`${aKind} needs at least two ${plural}`);
-  if (new Set(members.map((m) => kindOf(structure(m.type)))).size > 1) problems.push(`${kind} ${plural} must all be the same kind`);
+  if (new Set(members.map((m) => kindOf(m.type))).size > 1) problems.push(`${kind} ${plural} must all be the same kind`);
   const seen = new Set<string>();
   members.forEach((m, i) => {
     if (typeof m.name !== "string" || m.name === "") problems.push(`${member} ${i} has no name`);
@@ -765,7 +641,7 @@ function memberProblems(aKind: string, member: string, plural: string, members: 
 
 /** What tells a value of `schema` apart at run time: a scalar's host type, or any other schema itself. */
 export function _runtime(schema: unknown): unknown {
-  const found = structure(schema);
+  const found = schema;
   if (found instanceof ScalarData) {
     const token = found.token as { format?: unknown; name?: unknown };
     return found.type ?? `token ${String(token.format)}:${String(token.name)}`;
@@ -790,7 +666,7 @@ function flatIntersectionProblems(parts: readonly MemberData[]): string[] {
   const problems: string[] = [];
   const seen = new Map<string, string>();
   for (const part of parts) {
-    const schema = structure(part.type);
+    const schema = part.type;
     if (!(schema instanceof ObjectData)) {
       problems.push(`flat intersection: part ${repr(part.name)} is not an object schema`);
       continue;
@@ -910,11 +786,11 @@ const LAYOUTS = ["dense", "sparse"];
  * scalars (several indices, as a tensor's, ordered by its properties in declaration order); "hashable" for any other
  * scalar, or a value object of scalars; null otherwise. */
 function indexKind(type: unknown): "ordered" | "hashable" | null {
-  const index = structure(type);
+  const index = type;
   if (index instanceof ScalarData) return ORDERED_TYPES.has(index.type) ? "ordered" : "hashable";
   if (index instanceof ObjectData && !index.ref && index.properties.size > 0) {
     const kinds = new Set([...index.properties.values()].map((prop) =>
-      structure(prop.type) instanceof ScalarData ? indexKind(prop.type) : null));
+      prop.type instanceof ScalarData ? indexKind(prop.type) : null));
     return kinds.has(null) ? null : kinds.has("hashable") ? "hashable" : "ordered";
   }
   return null;
@@ -922,10 +798,10 @@ function indexKind(type: unknown): "ordered" | "hashable" | null {
 
 /** Whether an index is an int, or a value object of ints: a dense container's positions, by default. */
 function integerLike(type: unknown): boolean {
-  const index = structure(type);
+  const index = type;
   if (index instanceof ScalarData) return index.type === BigInt;
   return indexKind(index) === "ordered" && [...(index as ObjectData).properties.values()].every((p) =>
-    (structure(p.type) as ScalarData).type === BigInt);
+    (p.type as ScalarData).type === BigInt);
 }
 
 /** A container: elements, each of the element type, held by index, each of the index type. Dense, its elements are a
@@ -993,132 +869,19 @@ export namespace OfContainer {
   export type Builder = Builders.ContainerBuilder;
 }
 
-// --- OfApply: a parametric schema applied to arguments ---
-
-/** A parametric schema applied to arguments: a type whose values are the applied schema's (`of`), with arguments for
- * its parameters by name, each a scalar value or a term. Parameters given no argument stay unbound. */
-class ApplyData {
-  of: AnyData | null;
-  arguments: Map<string, unknown>;
-  name: string | null;
-  description: string | null;
-  parameters: Map<string, ParameterData>;
-
-  constructor(fields: { of?: AnyData | null; arguments?: Map<string, unknown>; name?: string | null; description?: string | null;
-    parameters?: Map<string, ParameterData> } = {}) {
-    this.of = fields.of ?? null;
-    this.arguments = fields.arguments ?? new Map();
-    this.name = fields.name ?? null;
-    this.description = fields.description ?? null;
-    this.parameters = fields.parameters ?? new Map();
-  }
-
-  equals(other: unknown): boolean {
-    return other === this;
-  }
-
-  validate(): string[] {
-    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
-    if (!isAnyData(this.of)) return [...problems, `an application applies a schema, got ${repr(this.of)}`];
-    if (structure(this) === null) return [...problems, "an application cannot apply itself"];
-    for (const [name, value] of this.arguments) {
-      const parameter = this.of.parameters.get(name);
-      if (parameter === undefined) problems.push(`the applied schema has no parameter ${repr(name)}`);
-      else problems.push(...argumentProblems(parameter, value).map((p) => `argument ${repr(name)}: ${p}`));
-    }
-    return [...problems, ...validateSchema(this.of).map((problem) => `of: ${problem}`)];
-  }
-}
-
-/** An argument is a term, or a scalar value, of the parameter's type where that is a scalar type. */
-function argumentProblems(parameter: ParameterData, value: unknown): string[] {
-  if (isTerm(value)) return termProblems(value, "a term");
-  if (!isScalar(value)) return [`an argument is a scalar value or a term, got ${repr(value)}`];
-  const host = parameter.type instanceof ScalarData ? parameter.type.type : null;
-  return host !== null && !isScalarOf(host, value) ? [`expected ${tokenName(host)}, got ${typeName(value)}`] : [];
-}
-
-/** The schema that gives a type its structure: an application's applied schema (followed through applications), else
- * the schema itself; null for an application that applies itself. Data of an application is data of its applied
- * schema. */
-export function structure<T>(schema: T): T | AnyData | null {
-  const seen = new Set<unknown>();
-  let current: unknown = schema;
-  while (current instanceof ApplyData) {
-    if (seen.has(current)) return null;
-    seen.add(current);
-    current = current.of;
-  }
-  return current as T | AnyData | null;
-}
-
-/** An evaluator the caller gives: the value of a term with parameters' values by name (`evaluate(term, scope)`), or
- * null (or undefined) where it is unknown, e.g. a parameter it refers to has no value. This package evaluates nothing
- * itself. */
-export type Evaluate = (term: unknown, scope: ReadonlyMap<string, unknown>) => unknown;
-
-const UNKNOWN = Symbol("unknown");
-
-/** The schema a type applies, followed through applications, and the values its parameters take: each application's
- * arguments, evaluated with the values the application around it gives its own parameters (an unknown one as
- * `UNKNOWN`). A parameter given no argument is left out. */
-function applied(schema: unknown, evaluate: Evaluate | null): [unknown, Map<string, unknown>] {
-  let values = new Map<string, unknown>();
-  const seen = new Set<unknown>();
-  let current = schema;
-  while (current instanceof ApplyData && !seen.has(current)) {
-    seen.add(current);
-    const scope = new Map([...values].filter(([, value]) => value !== UNKNOWN));
-    values = new Map([...current.arguments].map(([name, value]) => [name, evaluated(value, scope, evaluate)]));
-    current = current.of;
-  }
-  return [current, values];
-}
-
-/** An argument's value: a scalar as it is, a term's as `evaluate` gives it, or `UNKNOWN`. */
-function evaluated(value: unknown, scope: ReadonlyMap<string, unknown>, evaluate: Evaluate | null): unknown {
-  if (!isTerm(value)) return value;
-  return (evaluate === null ? null : evaluate(value, scope)) ?? UNKNOWN;
-}
-
-/** Whether two types are the same after substitution: they apply the same schema (scalars by value, other schemas by
- * identity), and give its parameters the same values, a parameter unbound in both alike. `Square(4)` and
- * `Matrix(4, 4)` are, where `Square[n]` applies `Matrix(n, n)`. null when that depends on a value that is unknown: a
- * term with no evaluator, or one `evaluate` cannot evaluate. */
-export function equivalent(a: unknown, b: unknown, evaluate: Evaluate | null = null): boolean | null {
-  const [[base, values], [other, others]] = [applied(a, evaluate), applied(b, evaluate)];
-  const same = base instanceof ScalarData ? base.equals(other) : base === other;
-  if (!same || values.size !== others.size || [...values.keys()].some((name) => !others.has(name))) return false;
-  const pairs = [...values].map(([name, value]) => [value, others.get(name)]);
-  if (pairs.some(([x, y]) => x !== UNKNOWN && y !== UNKNOWN && !sameScalar(x, y))) return false;
-  return pairs.some((pair) => pair.includes(UNKNOWN)) ? null : true;
-}
-
-export namespace OfApply {
-  /** A parametric schema applied to arguments, where a type is expected. */
-  export const Data = ApplyData;
-  export type Data = ApplyData;
-  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
-  export declare const Builder: typeof Builders.ApplyBuilder;
-  export type Builder = Builders.ApplyBuilder;
-}
-
 // --- OfPredicate ---
 
-/** A constraint over symbols, each standing for an object of a reference object schema, and parameters: it holds of a
- * match, a binding of every symbol to an object of its schema, where its term `requires` holds. Matching, and the
- * dialects `requires` may be written in, are the caller's (mbse-patterns'); here it is data, checked as a form. */
+/** Symbols, each standing for an object of a reference object schema, and parameters: a match binds every symbol to
+ * an object of its schema. What it requires of a match, and matching, are mbse-patterns'. */
 class PredicateData {
   symbols: Map<string, SymbolData>;
-  requires: unknown;
   name: string | null;
   description: string | null;
   parameters: Map<string, ParameterData>;
 
-  constructor(fields: { symbols?: Map<string, SymbolData>; requires?: unknown; name?: string | null;
-    description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
+  constructor(fields: { symbols?: Map<string, SymbolData>; name?: string | null; description?: string | null;
+    parameters?: Map<string, ParameterData> } = {}) {
     this.symbols = fields.symbols ?? new Map();
-    this.requires = fields.requires ?? null;
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
     this.parameters = fields.parameters ?? new Map();
@@ -1137,8 +900,7 @@ class PredicateData {
       if (symbol.type === null) problems.push(`symbol ${repr(name)} needs a schema`);
       problems.push(...symbolProblems(symbol).map((p) => `symbol ${repr(name)}: ${p}`));
     }
-    if (this.requires !== null && !isTerm(this.requires)) problems.push(`requires is not a term: ${repr(this.requires)}`);
-    return [...problems, ...termProblems(this.requires, "requires")];
+    return problems;
   }
 }
 
@@ -1159,14 +921,14 @@ const ALL_FORMS = ["bool", "int", "float", "text", "mapping", "list"];
  * text (`"NaN"`, `"Infinity"`), bytes are text (base64), a dense tensor a mapping where written flat, and a scalar whose
  * token this implementation cannot read any form. */
 export function plain_forms(schema: unknown): Set<string> {
-  const held = structure(schema);
+  const held = schema;
   if (held instanceof ScalarData) {
     const forms = new Map<unknown, string[]>([[Boolean, ["bool"]], [BigInt, ["int"]], [Number, ["float", "text"]],
       [String, ["text"]], [Uint8Array, ["text"]]]);
     return new Set(forms.get(held.type) ?? ALL_FORMS);
   }
   if (held instanceof ContainerData) {
-    const index = structure(held.index);
+    const index = held.index;
     if (held.arrangement === "dict" && index instanceof ScalarData && index.type === String) return new Set(["mapping"]);
     const tensor = held.arrangement === "dense" && index instanceof ObjectData;
     return new Set(tensor ? ["list", "mapping"] : ["list"]);
@@ -1174,12 +936,12 @@ export function plain_forms(schema: unknown): Set<string> {
   if (held instanceof AnyValueData) {
     return held.types.length > 0 ? new Set(held.types.flatMap((t) => [...plain_forms(t)])) : new Set(["mapping"]);
   }
-  return new Set(held !== null ? ["mapping"] : []);
+  return new Set(["mapping"]);
 }
 
 /** A type in a message: its name, a scalar's token name, or its kind. */
 function shownType(schema: unknown): string {
-  const held = structure(schema);
+  const held = schema;
   const name = (schema as { name?: unknown }).name;
   if (typeof name === "string") return name;
   if (held instanceof ScalarData && held.token instanceof TokenClass) return held.token.name;
@@ -1217,7 +979,7 @@ class AnyValueData {
     const valid: AnyData[] = [];
     for (const schema of this.types as unknown[]) {
       if (!isAnyData(schema)) problems.push(`an OfAny's types are schemas, got ${repr(schema)}`);
-      else if (structure(schema) instanceof AnyValueData) problems.push("an OfAny's types are schemas of other kinds, not an OfAny");
+      else if (schema instanceof AnyValueData) problems.push("an OfAny's types are schemas of other kinds, not an OfAny");
       else {
         valid.push(schema);
         problems.push(...validateSchema(schema).map((p) => `${shownType(schema)}: ${p}`));
@@ -1237,12 +999,11 @@ class AnyValueData {
 
 // --- OfAny ---
 
-type AnyData = ScalarData | ObjectData | UnionData | IntersectionData | ContainerData | ApplyData | AnyValueData;
+type AnyData = ScalarData | ObjectData | UnionData | IntersectionData | ContainerData | AnyValueData;
 
 function isAnyData(value: unknown): value is AnyData {
   return value instanceof ScalarData || value instanceof ObjectData || value instanceof UnionData ||
-    value instanceof IntersectionData || value instanceof ContainerData || value instanceof ApplyData
-    || value instanceof AnyValueData;
+    value instanceof IntersectionData || value instanceof ContainerData || value instanceof AnyValueData;
 }
 
 function kindOf(value: unknown): unknown {
@@ -1259,8 +1020,8 @@ function sameToken(a: unknown, b: unknown): boolean {
 function kindNoun(schema: unknown): string {
   const nouns: [Function, string][] = [[ScalarData, "a scalar schema"], [ObjectData, "an object schema"],
     [ContainerData, "a container schema"], [UnionData, "a union"], [IntersectionData, "an intersection"],
-    [AnyValueData, "a value of any type"], [ApplyData, "an application"]];
-  return nouns.find(([kind]) => schema instanceof kind)?.[1] ?? "nothing"; // an application of nothing
+    [AnyValueData, "a value of any type"]];
+  return nouns.find(([kind]) => schema instanceof kind)?.[1] ?? "something not a type";
 }
 
 /** Whether `schema` is `base` or refines it, directly or not: a value of it is then a value of `base`. */
@@ -1270,7 +1031,7 @@ export function is_a(schema: unknown, base: unknown): boolean {
   while (current !== null && current !== undefined && !seen.has(current)) {
     if (current === base) return true;
     seen.add(current);
-    current = (structure(current) as { refines?: unknown }).refines ?? null;
+    current = (current as { refines?: unknown }).refines ?? null;
   }
   return false;
 }
@@ -1279,39 +1040,24 @@ export function is_a(schema: unknown, base: unknown): boolean {
  * or a scalar or container schema whose parts each narrow `old`'s. */
 function narrows(fresh: unknown, old: unknown): boolean {
   if (fresh === old || is_a(fresh, old)) return true;
-  const [a, b] = [structure(fresh), structure(old)];
-  if (a instanceof ScalarData && b instanceof ScalarData) {
-    return sameToken(a.token, b.token) && widening(a, b).length === 0;
+  if (fresh instanceof ScalarData && old instanceof ScalarData) return sameToken(fresh.token, old.token);
+  if (fresh instanceof ContainerData && old instanceof ContainerData) {
+    return narrows(fresh.index, old.index) && narrows(fresh.element, old.element);
   }
-  if (a instanceof ContainerData && b instanceof ContainerData) return narrows(a.index, b.index) && narrows(a.element, b.element);
   return false;
-}
-
-/** What keeps validation from confirming `fresh`'s widths are within `old`'s: a width `old` limits that `fresh` lifts,
- * widens, or gives as a term. */
-function widening(fresh: ScalarData, old: ScalarData): string[] {
-  const found: string[] = [];
-  for (const unit of ["bits", "bytes"] as const) {
-    const [limit, width] = [old[unit], fresh[unit]];
-    if (typeof limit === "bigint" && !(typeof width === "bigint" && width <= limit)) {
-      found.push(`its width in ${unit} cannot be confirmed within ${limit}`);
-    }
-  }
-  return found;
 }
 
 /** A refinement's problems: it refines a schema of its own kind, not itself, and narrows what it redeclares. */
 function refinementProblems(schema: ScalarData | ObjectData | ContainerData): string[] {
   if (schema.refines === null) return [];
-  const base = structure(schema.refines);
+  const base = schema.refines;
   if (!(base instanceof (schema.constructor as new () => unknown))) {
     return [`refines ${kindNoun(base)}: a refinement stays within its kind, scalar, container or object`];
   }
   if (is_a(base, schema)) return ["refines itself"];
   if (schema instanceof ScalarData) {
     const held = base as ScalarData;
-    if (!sameToken(schema.token, held.token)) return [`refines a scalar of ${String(held.token)}, with ${String(schema.token)}`];
-    return widening(schema, held);
+    return sameToken(schema.token, held.token) ? [] : [`refines a scalar of ${String(held.token)}, with ${String(schema.token)}`];
   }
   if (schema instanceof ContainerData) {
     const held = base as ContainerData;
@@ -1355,7 +1101,7 @@ export function _refinements(schema: ObjectData): ObjectData[] {
 /** Gives an object schema the members of the schema it refines, which it has not redeclared, and passes the change on
  * to the schemas that refine it. */
 export function settle(schema: ObjectData): ObjectData {
-  const base = schema.refines === null ? null : structure(schema.refines);
+  const base = schema.refines;
   if (base instanceof ObjectData && !is_a(base, schema)) {
     const [properties, adjacencies, anonymous] = inherited(schema);
     const ownProperties = new Map([...schema.properties].filter(([n]) => !properties.has(n)));
@@ -1372,7 +1118,7 @@ export function settle(schema: ObjectData): ObjectData {
     if (!refinements.includes(schema)) REFINEMENTS.set(base, [...refinements, schema]);
   }
   for (const refinement of REFINEMENTS.get(schema) ?? []) {
-    if (refinement.refines !== null && structure(refinement.refines) === schema) settle(refinement);
+    if (refinement.refines === schema) settle(refinement);
   }
   return schema;
 }
@@ -1383,9 +1129,9 @@ function validateSchema(schema: unknown): string[] {
 }
 
 /** The schemas of the values a value of `schema` holds: a value object's properties, a union's branches, an
- * intersection's parts, through applications. */
+ * intersection's parts. */
 function membersOf(type: unknown): unknown[] {
-  const schema = structure(type);
+  const schema = type;
   if (schema instanceof ContainerData) return [schema.index, schema.element];
   if (schema instanceof AnyValueData) return [...schema.types];
   return schema instanceof ObjectData || schema instanceof UnionData || schema instanceof IntersectionData
@@ -1396,7 +1142,7 @@ function membersOf(type: unknown): unknown[] {
  * not a reference object schema; nor are the schemas of the objects a union or an intersection holds. `seen` holds the
  * schemas on the way, so that one that holds itself is checked once. */
 function embeddedProblems(type: unknown, seen: ReadonlySet<unknown> = new Set()): string[] {
-  const schema = structure(type);
+  const schema = type;
   if (schema instanceof ObjectData) return schema.ref ? ["a reference object schema cannot be a property's type"] : [];
   if (seen.has(schema)) return [];
   const inner = new Set([...seen, schema]);

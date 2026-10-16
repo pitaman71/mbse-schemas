@@ -42,7 +42,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 
 | Notebook | Suite | Cases | Focus |
 |---|---|---|---|
-| `01_Schemas.ipynb` | SCH | 23 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array`, the own token format is `typescript5`, and widths are `bigint`s |
+| `01_Schemas.ipynb` | SCH | 23 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array`, and the own token format is `typescript5` |
 | `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length`, the read-only views by the type checker; data instances are callable as a `Proxy` with a function target (`typeof` is `"function"`); the scalar sugar is `[Symbol.toPrimitive]` and `valueOf`; JavaScript's probes and `in` on a builder |
 | `03_Proxies.ipynb` | PRX | 21 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances, adjacencies, entry builders, link members and stores, `util.inspect` of instances, builders and members, the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel), and the reprs of builders of value objects and adjacencies |
 | `04_Reachable.ipynb` | RCH | 8 | as in Python |

@@ -20,8 +20,8 @@ The schema elements include:
 
 - `OfAny` : where a schema of any kind is expected; `Schemas.OfAny.Value`, the kind of a value of any type, unrestricted
             or restricted to the types an `OfAny.Builder` selects (Resolved, "`OfAny` returns")
-- `OfScalar` : a scalar value, whose type is a token `{format, name}` (see Scalar types below), with an optional width in
-               bits or bytes. In Python the host types are `int`, `float`, `str`, `bool` and `bytes`.
+- `OfScalar` : a scalar value, whose type is a token `{format, name}` (see Scalar types below). In Python the host
+               types are `int`, `float`, `str`, `bool` and `bytes`.
                Conversion between the scalar format and the over-the-wire format is the responsibility of `Schemas.OfScalar`.
 - `OfObject` : named properties list where each property has type described by `OfAny`. An `OfObject` schema describes
                reference objects when marked `.ref()`, and otherwise value objects; see Value objects and
@@ -39,9 +39,8 @@ The schema elements include:
 - `OfProperty` : a property of an object or a relation's entries: its `name` and `type`, an `OfAny`. An object's or
                  relation's `properties` map each name to its `OfProperty`, in declared order, so a property's type is
                  `schema.properties['home'].type`.
-- `OfParameter` : a parameter a schema of any kind declares: its `name`, `type` and `description`, a variable determined
-                  where the schema is referred to (see Parametrics).
-- `OfApply` : a parametric schema applied to arguments, a type whose values are the applied schema's (see Parametrics).
+- `OfParameter` : a parameter a schema of any kind declares: its `name` and `description`, a symbol standing for what
+                  is bound where the schema is referred to (see Parametrics).
 - `OfAdjacency` : declares that a particular `OfObject` is adjacent to an `OfRelation` via
                   a particular link name. Relations name their links without types
                   (`.links('contact', 'address')`); each object declares its adjacencies:
@@ -553,7 +552,7 @@ Reference objects are never kept in containers: a collection of them is a relati
 
 ## Scalar types
 
-Scalar types and their widths are implemented, and written over the wire by their meta-schema (see Meta-schemas).
+Scalar types are implemented, and written over the wire by their meta-schema (see Meta-schemas).
 
 - **Scalar types are tokens, `{format, name}`** (`Schemas.OfScalar.Token`). A format is a language or a neutral vocabulary; `basic` is the
   neutral one, with the names `bool`, `int`, `float`, `str` and `bytes` (the names of mbse-expressions' Basic
@@ -572,9 +571,9 @@ Scalar types and their widths are implemented, and written over the wire by thei
   and `host()` raises `TypeError` for a token this implementation cannot read ("the ccpp type 'int32_t' has no type in
   this implementation"); converting a value raises the same, and validating one reports it. The token itself is
   valid: `validate()` reports only a token without a format or a name, or a `basic` name that Basic lacks.
-- **A scalar may have a width**, in bits (`bits`) or in bytes (`bytes`), at most one of them, a positive int. The width
-  is size only: how the bits are interpreted (signedness, encoding, float format, text encoding), and so whether a
-  value fits, is not the schema's, and values are not checked against it. mbse-expressions' value domains interpret it.
+- **A scalar has no width** (since 0.17.0; [Store overhaul](proposals/store-overhaul/README.md), Decided, 20): a width,
+  and how the bits are interpreted (signedness, encoding, float format, text encoding), are a domain's, which
+  mbse-expressions associates with a scalar schema ([Schema extension](SCHEMA_EXTENSION.md), section 2).
 
 ## Meta-schemas
 
@@ -615,9 +614,10 @@ import one, so the dependency keeps pointing one way.
 
 ## Parametrics
 
-Status: declaring, applying and writing parameters is built (0.7), and so is evaluating them for equivalence, through
-an evaluator the caller gives (0.7.1). Validation no longer evaluates terms: the extents it evaluated went with
-`OfIndexed` (Resolved, The meta-schemas overhaul). What is not built yet is listed below.
+Status: declaring parameters, and writing them, is built. Since 0.17.0 a parameter is a name only, and applying a
+schema to arguments, terms, widths, evaluators and equivalence after substitution are gone from mbse-schemas: they are
+mbse-expressions' ([Store overhaul](proposals/store-overhaul/README.md), Decided, 20; [Schema
+extension](SCHEMA_EXTENSION.md), Decided, 5 to 7). The decisions below stand for wherever binding is built.
 
 A parameter is a variable of a schema, or of anything else that declares it, that is determined where that element is
 referred to, not by data. mbse-patterns' symbols are the other kind of variable: a predicate's symbol ranges over a
@@ -642,66 +642,34 @@ resolving constraints.
 - **Unknown is an outcome of validation.** Data checked against a schema whose unbound parameters it depends on is
   neither valid nor invalid there.
 - **A term in a schema is written as a nested form**, `Schemas.Form`: mbse-expressions' `Terms.Form` is this class.
+  (Superseded: since 0.17.0 mbse-schemas holds no term; Store overhaul, Decided, 20.)
 
 ### Built
 
-- **`Schemas.OfParameter` is an element**, like a property: a `name`, a `type` (a schema, or none for a parameter of
-  any type) and a `description`. It is not a kind of schema, since no property's value is a parameter. A scalar's
-  parameters are part of it, as its name is; a parameter compares by what it holds.
-- **Every kind of schema binds parameters**: `.parameters(spec, ...)`, held in declared order as `parameters`, by name,
-  as properties are. A parameter's scope is its binder, inline schemas nested in it included. `validate()` reports
-  reserved names and bad types and descriptions; it cannot see which names a term refers to, so a variable no
-  enclosing binder declares is for whoever understands the term's dialect to report (mbse-expressions).
-- **A term stands where a literal does**: a scalar's `bits` and `bytes` each take an int or a term; the builders
-  link a width as a term, a relation, an int read as a literal form (Resolved, "Schema builders align with their
-  meta-schemas"). A term is anything with `form()` and
-  `dialect()`, as mbse-expressions' terms are, or a
-  `Schemas.Form`: `Form(kind, attributes, arguments, dialect)`, scalar attributes by name and forms as arguments, the
-  dialect given at the root. `Form.of(term)` gives a term's form. `validate()` checks a form's shape and leaves a
-  dialect's term to its dialect.
-- **`Schemas.OfApply` refers to a parametric schema with arguments**: a type, built by
-  `store.Schemas.Apply(lambda a: a.of([schema]).arguments([lambda t: t.parameter([p]).value(3)]))`, each argument
-  binding a parameter of the applied schema.
-  An argument is a scalar value or a term. Applying with some arguments leaves the others unbound (partial binding); an
-  argument may be a term over a parameter of the application's own (`Square[n] = Matrix(rows=n, cols=n)`, dependent
-  arguments). `validate()` reports unknown parameters, literal arguments of the wrong scalar type and arguments that
-  are neither, an application of itself, and the applied schema's own problems. An application is equal to itself
-  alone, as other schemas are. mbse-patterns' `OfApply` applies a predicate the same way, so the two share a name.
-- **Data of an application is data of its applied schema.** `Schemas.structure(type)` follows applications to the
-  schema that gives a type its structure; proxies, snapshots, validation, comparison and bound classes all read and
-  write through it, wherever a type stands: a property, a branch, a part, an entry property.
-- **A store's snapshot writes all of it** ([SERIALIZATION.md](SERIALIZATION.md)): a kind's `parameters`, a width's
-  term and an application's arguments, each a schema object of the store; a form is one too, built in the store. A term
-  of a dialect is no schema object a store holds, so a store that links one has no snapshot ("there are no foreign
-  schemas").
+- **`Schemas.OfParameter` is an element**, like a property: a `name` and a `description`, a symbol (mbse-basis P-015)
+  standing for what is bound where the schema is referred to (Store overhaul, Decided, 20: "Names only"). It is not a
+  kind of schema, since no property's value is a parameter. A scalar's parameters are part of it, as its name is; a
+  parameter compares by what it holds.
+- **Every kind of schema declares parameters**: `.parameters(spec, ...)`, held in declared order as `parameters`, by
+  name, as properties are. A parameter's scope is its binder, inline schemas nested in it included. `validate()`
+  reports reserved names and bad descriptions, and a predicate's names used as both symbol and parameter.
+- **A store's snapshot writes them** ([SERIALIZATION.md](SERIALIZATION.md)): a kind's `parameters`, each a schema
+  object of the store, linked to its owner by `Schemas.HasParameter` and named by the entry.
+- **Validation evaluates nothing.** `Validators.Check(store)(schema, value)` reports problems and `unknowns`; its
+  `Outcome` is three-valued, though nothing it checks is unknown yet (Validators).
 
-- **A term's value comes from an evaluator the caller gives** (`Schemas.Evaluate`, see Expressions):
-  `evaluate(term, scope)`, the scope the values of the parameters in scope by name, gives the term's value, or none
-  where it is unknown. This package evaluates nothing itself.
-- **Scopes are lexical.** Within a schema, its parameters are in scope, and so, for an unnamed schema, are those of the
-  schema it stands in; a named schema is a scope of its own. Its own parameters shadow those further out. An
-  application's arguments are evaluated in the scope the application stands in and become the values of the applied
-  schema's parameters; one with no value leaves its parameter unbound.
-- **Validation evaluates no term.** `Validators.Check(store)(schema, value)` checks an application's data as its
-  applied schema's; a width is size only, and a bound on a list's index is a constraint on its type (Lists), so
-  nothing in a schema is checked against a term's value. Its `Outcome` still holds `unknowns` (Validators).
-- **Equality after substitution**: `Schemas.equivalent(a, b, evaluate)` follows applications to the schema they apply
-  and the values they give its parameters, each application's arguments evaluated with the values given its own
-  parameters, so `Square(4)` and `Matrix(4, 4)` are equivalent where `Square[n]` applies `Matrix(n, n)`. Two types are
-  equivalent when they apply the same schema (scalars by value) with the same parameters bound to the same values; the
-  answer is None where it depends on a value that is unknown.
+### Moved out (0.17.0)
 
-### Not yet built
-
-- **Substitution as an operation**: applying literal arguments to give the schema they determine, for code that
-  needs a concrete schema. Nothing needs it yet: equivalence compares values, and generated code keeps the parameters.
-- **Symbolic equality**: two applications whose arguments are the same unevaluated terms (`Matrix(n, n)` within two
-  schemas) are not known to be equivalent.
+`OfApply` and its arguments (`Argument`), terms (`Schemas.Form`), a scalar's widths (`bits`, `bytes`), a predicate's
+`requires`, typed and value parameters, `Schemas.structure`, `Schemas.Evaluate` and `Schemas.equivalent` are removed
+(Store overhaul, Decided, 20; Schema extension, Decided, 5 to 7). Binding a schema's parameters is
+`store.Parameters.Bind` and `store.Parameters.Apply` ([Parametrics](PARAMETRICS.md); Store overhaul, Decided, 12),
+built in mbse-expressions with value parameters, terms and domains; a predicate's constraint is mbse-patterns'.
 
 ### Later, elsewhere
 
-- mbse-expressions: schemas as binders, so that `free` and validation's "bound" see their parameters; the free names of
-  the terms a schema holds; an evaluator for those terms; a `make` for modules.
+- mbse-expressions: binding (`Parameters.Bind`, `Parameters.Apply`), value parameters, terms and domains (widths);
+  schemas as binders, so that `free` sees their parameters; an evaluator for terms.
 - mbse-patterns: a predicate's parameters become `OfParameter`s, and applying one binds its symbols and its parameters
   apart (today both are one positional list). Both are variables the predicate binds; they differ in what
   determines them, data or the application.
@@ -723,7 +691,6 @@ it is fixed here:
 | Importing the framework | `from mbse.Schemas.Framework import ...` (the `mbse` namespace package) | `import ... from "@mbse/schemas/Framework"` (the `@mbse` scope) |
 | Scalar host types (for `basic` tokens) | `int`, `float`, `str`, `bool`, `bytes` | `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` |
 | Own token format | `python3` | `typescript5` |
-| Scalar widths | `int` | `bigint` |
 | Scalar values | `int`, `float`, `str`, `bool`, `bytes` | `bigint`, `number`, `string`, `boolean`, `Uint8Array` |
 | Plain mappings | `dict` | `Map<string, PlainData>` (order-preserving for every key) |
 | Lists in proxies | `tuple` | a callable `Proxy` over a frozen array |
@@ -795,6 +762,21 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 ### Resolved
 
+- **Parameters are names only** (0.17.0; [Store overhaul, Decided, 20 and
+  21](proposals/store-overhaul/README.md#decided-here)), as the user decided. A schema's parameters are "Names only
+  (Recommended)": a parameter is a declared name, a symbol (mbse-basis P-015) standing for a schema; its `type` goes
+  with the value parameters, which move to mbse-expressions, and `Parameters.Bind` and `Parameters.Apply` (Store
+  overhaul, Decided, 12) bind parameters later. `Schemas.Meta` is "Defer it (Recommended)": nothing reads level 3
+  yet. Carried out with [Schema extension](SCHEMA_EXTENSION.md), Decided, 5 to 7 (`requires` "moves out of
+  mbse-schemas all the way out to `mbse-patterns`"; "all bindings will need to move into mbse-expressions"; `Form`
+  "should go"):
+  - `OfApply`, `Argument`, `Form` and its `Term`, a scalar's `bits` and `bytes`, a predicate's `requires`, a
+    parameter's `type`, `Schemas.structure`, `Schemas.Evaluate` and `Schemas.equivalent` are removed, with their
+    relations (`Applying`, `HasArgument`, `Binding`, `ArgumentTerm`, `Operands`, `Requires`, `BitWidth`,
+    `ByteWidth`);
+  - the abstract bases `Schemas.Schema`, `Type` and `Typed` go: each kind declares its own `name`, `description`,
+    `parameters` and the adjacencies of every relation it is at an end of (Store overhaul, Decided, 10);
+  - a property an extension adds holds a container where its type is one (BLD-06), as a term's `attributes` did.
 - **Schema builders align with their meta-schemas** (2026-10-14), as the user decided. FRAMEWORK.md requires "To make
   schemas fully serializable, `Schemas.OfX.Builder` must implement `Visitors.OfX`", which the schema builders do not:
   their fluent clauses are a second API beside the meta-schemas, and 15 of them collide with the members the
@@ -823,7 +805,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - references: "we should use references and desist fudging them, at least at the builder/visitor/meta-schema
     surface"; "we already decided at least one time to make schema objects references. all of them."; "refines is
     100% a relation, at least on the builder/visitor/meta-schema surface"; a width is not an int but a relation to a
-    term ("why are 'bits' and 'bytes' taking ints instead of being relations to a term?"). A property is not limited to
+    term ("why are 'bits' and 'bytes' taking ints instead of being relations to a term?"; Superseded by Parameters are names only (0.17.0): a scalar
+    has no width). A property is not limited to
     scalars: it "has as schema which must be OfAny and that can hold scalars, containers, value objects, or any nesting
     thereof"; what refers to another schema object is a relation.
   - a property's type: `e1.type(lambda adj: adj.insert(lambda e2: e2.schema(Contact)))`; "For Schemas.OfProperty.type
@@ -1204,7 +1187,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     `HasSymbols(Schemas.OfPredicate, Schemas.OfSymbol)` and `HasLinks(Schemas.OfEntry, Schemas.OfSymbol)`" (phase 5's
     meta-relations; until then, lists): a symbol is a name with an optional reference object schema, which a
     predicate's symbols require and an entry's links may leave unset;
-  - a predicate's `requires` is one `Schemas.Form` ("one form").
+  - a predicate's `requires` is one `Schemas.Form` ("one form"; Superseded by Parameters are names only (0.17.0): `requires` is mbse-patterns').
   - a member is written by calling it, never by assignment: "refuse all direct writes to properties and adjacencies"
     on a builder, as on a data instance, so that assigning to any visitor's member raises `AttributeError` in both
     languages rather than being silently lost (mbse-basis P-002);
@@ -1276,7 +1259,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     relations, in declaration order, so that a schema read back equals the one built; only a module's schemas are
     keyed by name and sorted by it; reading refuses a member name listed twice;
   - `OfApply` binds by name only ("OfApply - bind by name only"), kept in this overhaul ("yes"): positional arguments
-    go, `.arguments` takes them by name;
+    go, `.arguments` takes them by name (Superseded by Parameters are names only (0.17.0): `OfApply` is mbse-expressions');
   - every schema is a reference object of its kind's meta-schema, and every reference to a schema is a link, through
     meta-relations (`Properties`, `Adjacencies`, `Applies`, `Parameters`, `Typing`, `Defines`, and a union's branches
     and an intersection's parts while those kinds remain); `Schemas.Module.Entry`, `Schemas.Module.Definition`,
@@ -1342,7 +1325,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   and a term (a `Schemas.Form`, or a dialect's term) may stand where a width does (and where an extent's bound did,
   until extents went with `OfIndexed`). A parameter is a
   variable whose binder is the schema; data of an application is data of its applied schema (`Schemas.structure`). See
-  Parametrics, which also lists what is not built yet.
+  Parametrics, which also lists what is not built yet. (Superseded by Parameters are names only (0.17.0): a parameter is a name, and applications,
+  terms and widths are mbse-expressions'.)
 - Stores of different implementations combine, by name (0.7.3): `Stores.Combined(*stores)`, each name its one store's,
   the singletons all of theirs and the extents what they all reach. A store itself still has one implementation.
 - Reflection (0.8): a schema is a reference object of its kind's meta-schema, the module form's, and writes its module

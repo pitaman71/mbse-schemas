@@ -154,6 +154,14 @@ As the user decided (2026-10-15), on the questions put to them:
     by that store, keyed by the framework schema, a reference object with a stable identity ("yes"), and read through
     that store's builders. Each store sees its own; a builder of a framework schema may write those entries, and
     nothing else about it.
+20. A dialect's vocabulary (its domains, functions and intrinsics, data installed in a store): "yes to the handshake,
+    fallback to adding if fails". A store connection's handshake names the dialects both sides install, and a snapshot
+    does not write their vocabulary; where the handshake fails, the vocabulary is written.
+21. Domains: "a two-step association using your new expression-root ref obj": an expression's root has a schema, and a
+    scalar schema a domain, `HasSchema(root=Expressions.Framework.Root, schema=Schemas.OfY)` and
+    `HasDomain(schema=Schemas.OfScalar.Schema, domain=Expressions.Framework.Domain)`; domains stay objects.
+22. Formals are objects (`Function` → `HasFormal`, with an index → `Formal` → `FormalType` → schema), since a
+    meta-schema's adjacency is to a relation of two links and no properties: "yes that's a compromise".
 
 ---
 

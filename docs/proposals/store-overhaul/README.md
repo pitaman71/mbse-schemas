@@ -68,9 +68,11 @@ As the user decided (2026-10-16), on the questions put to them:
 13. **`Schemas.Meta` is a module**, holding the meta-schemas as its instances: "Make `Meta` a module, put the meta schema
     (as instances) underneath it", "Actually `Schemas.Meta`". A meta-schema's identity is `Schemas.Meta/OfObject`, its
     container the module `Schemas.Meta` (Object identity, Decided, 2 and 3), and `store.Schemas.Meta.OfObject` reads it.
-14. **Building is unchanged** (11), "(b)": `store.Schemas.Object(lambda o: ...)` builds an object schema (level 1), as
-    now, an instance of `Schemas.OfObject` (level 2). A program reads a schema of level 2 or 3 to link or extend it:
-    level 2 to extend (`Schemas.OfScalar`), never level 3.
+14. **Building is through the plain schema's own name**: "`store.Schemas.Object(...)` should be
+    `store.Schemas.OfObject(...)`". Calling `store.Schemas.OfObject(lambda o: ...)` builds an object schema (level 1),
+    an instance of `Schemas.OfObject` (level 2); the level-2 schemas are named `Schemas.OfObject`, `Schemas.OfScalar`,
+    and so on, not `Schemas.Object`. A program reads a schema of level 2 or 3 to link or extend it: level 2 to extend
+    (`Schemas.OfScalar`), never level 3. (This revises "(b)", chosen when level 2 and 3 were not yet told apart.)
 
 ## Order of work
 
@@ -83,8 +85,10 @@ so that main stays current and no branch waits on another.
    members an extension adds (Schema extension, Decided, 18) are each store's own, not added to a shared class. `Builders.extend`, the framework store, and the framework entries of 0.12.1 and
    0.12.2 go; `store.extend` is the only extension. EXT is rewritten: round trips between stores with the same
    extensions and with differing ones (Schema extension, Decided, 23).
-   *Breaks*: every `Builders.Meta.X` (386 uses in 86 files: library, tests, tutorials, the skill, docs) and every
-   `Builders.extend`.
+   The level-2 schemas are renamed `Schemas.OfX` (14).
+   *Breaks*: every `Builders.Meta.X` (386 uses in 86 files: library, tests, tutorials, the skill, docs), every
+   `Builders.extend`, and every call that builds a schema, `store.Schemas.Object(...)` and its kin (1854 in 87 files),
+   which becomes `store.Schemas.OfObject(...)`.
 2. **What leaves (0.15.0).** `Argument`, `Term`, `Form`, `OfApply`, `requires`, `bits` and `bytes`, and the value
    parameters (7; Schema extension, Decided, 5 to 7). `Meta.Type` and `Meta.Typed` go (3).
    *Breaks*: PAR (parametrics) and every test of forms, widths, applications and predicates' `requires`.

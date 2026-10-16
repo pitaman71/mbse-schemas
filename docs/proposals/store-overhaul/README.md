@@ -69,9 +69,10 @@ As the user decided (2026-10-16), on the questions put to them:
     kind, not once on a base of every kind (which would need a union to declare adjacencies).
 11. **Building and serialization stay as they are**: "building / serialization should be almost untouched other than
     identity itself".
-12. **A type parameter is applied by a transform**, not by `OfApply`: `store.Parameters.Transform`
-    ([Parametrics](../../PARAMETRICS.md)) makes a new schema with every occurrence of the parameter replaced, as it makes
-    a new function from a generic one.
+12. **A type parameter is applied by binding it**, not by `OfApply`: `store.Parameters.Bind`
+    ([Parametrics](../../PARAMETRICS.md)), "an object representing the action of replacing a single parameter and
+    returning the same kind as the 'target' thing": a schema bound gives a schema (`List[T]` with `T` bound, a list of
+    ints), a function a function.
 13. **`Schemas.Meta` is a module**, holding the meta-schemas as its instances: "Make `Meta` a module, put the meta schema
     (as instances) underneath it", "Actually `Schemas.Meta`". A meta-schema's identity is `Schemas.Meta/OfObject`, its
     container the module `Schemas.Meta` (Object identity, Decided, 2 and 3), and `store.Schemas.Meta.OfObject` reads it.
@@ -115,12 +116,14 @@ Then mbse-expressions redrafts its framework model on per-store extension (`Expr
 
 ## Open, for the user
 
-1. **`Parameters.Transform`, a record or an operation.** `store.Parameters.Transform(...)` is a path, so calling it
-   makes an object of a schema named `Parameters.Transform`. If the transform is a record (its target and its
-   replacements, kept in the store), something applies it and makes the new schema or function: on creation, or
-   later? If it is an operation, it is a function of a package, as `Expressions.FromFunction(store, ...)` is. And
-   `.with(...)` is a keyword in Python: `.by(...)`? Its replacement in the draft is `T` itself; for `List[Int]` it is
-   `store.Schemas.OfInt`.
+1. **`Parameters.Bind`: what a call returns, and when it applies.** `store.Parameters.Bind(...)` is a path called,
+   which makes and returns an object of the schema `Parameters.Bind`. Your draft assigns its result to
+   `positive_int32`, a function. Either the bind is a record whose `result` links the object it made, applied when it
+   is made (`store.Parameters.Bind(...).result`), keeping where the bound object came from; or calling this path returns
+   the result, an exception to how a path builds. Which? And how does a bind find the occurrences of the parameter in a
+   target it does not know the kind of (a schema of mbse-schemas, a function of mbse-expressions): by the symbol, as
+   `as_param` writes it, wherever the target's own (not linked) structure holds it? `.with(...)` is a keyword in Python
+   (`.by(...)`?), and in the draft it still gives `T` itself where `Int32`'s domain is meant.
 2. **Scalars without tokens.** Each basic scalar maps to each language's host type by its own name, so `token` is not
    needed for them; with user scalar schemas gone, `format` (dates, UUIDs) becomes a domain. Agreed?
 3. **When `Schema@` is inferred.** "omit `Schema@` when it can be inferred from context": I propose where a link's

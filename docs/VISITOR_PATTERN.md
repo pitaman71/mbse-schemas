@@ -291,11 +291,9 @@ env.<propName>(spec: Specs.Callback[Visitors.OfProperty]) -> Visitors.OfEntry: .
 ## Predicates
 
 - `Schemas.OfPredicate` takes mbse-patterns' predicate as its model, moved down to mbse-schemas: it names its symbols,
-  each with a referenceable object schema, binds its parameters as any schema does (`Schemas.OfParameter`), and holds
-  its constraint (`requires`) as a `Schemas.Form`.
-- mbse-schemas has no knowledge of expression dialects: a `Form` is a term's neutral shape (kind, attributes,
-  arguments, dialect name), which `validate()` checks as a shape only. Which dialects are legal in a constraint, and
-  what a term means, is for the caller's evaluator (`Schemas.Evaluate`), as for `Schemas.equivalent`.
+  each with a referenceable object schema, and declares its parameters as any schema does (`Schemas.OfParameter`).
+- mbse-schemas has no knowledge of expression dialects: what a predicate requires of a match, its constraint, is
+  mbse-patterns' and mbse-expressions' (docs/proposals/store-overhaul, Decided, 20).
 - `Visitors.OfPredicate` visits a match: each symbol bound to an object, handed over as a `Visitors.OfObject`, in the
   match's mode.
 - Finding matches in a store, and `Patterns.Stores.update(spec, cb)`, are mbse-patterns' extension of the store (queries are an

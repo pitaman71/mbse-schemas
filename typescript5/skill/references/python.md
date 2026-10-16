@@ -99,8 +99,7 @@ assert Validators.Validate(store).Reachable(Component, copy) == []
 store = Builders.Store()                                    # holds its own plain schemas of schemas; shares nothing
 store.Schemas.OfInt                                         # its basic scalars, by path: OfBool, OfInt, OfFloat, OfStr, OfBytes
 store.Schemas.OfInt.as_schema()                             # the schema a path names, where an object is wanted
-w = store.Schemas.Form(lambda f: f.kind("literal").attributes({"value": 32}))  # a literal width, 32
-store.Schemas.OfScalar(lambda s: s.format("ccpp").token("int32_t").bits([w]))   # any format's token; a width, a term
+store.Schemas.OfScalar(lambda s: s.format("ccpp").token("int32_t"))         # any format's token
 store.Schemas.OfObject(lambda o: o.name("crm.Contact").ref(True).properties([...]))   # .ref(True): a reference object schema
 store.Schemas.OfObject(lambda o: o.name("pm.Feature").ref(True).pattern(r"FEA-(\d+\d\d)"))  # objects FEA-001, ...; else UUIDs
 store.Schemas.OfObject(lambda o: o.properties([lambda t: t.name("x").type([Int])]))  # a value object schema, for a type
@@ -136,13 +135,10 @@ schema.validate()                                           # the schema's own p
 .name("crm.Contact")                                        # a name, identifiers separated by dots, on any kind of schema
 .description("A person we know")                            # documentation, on a schema or a member: property, adjacency,
 schema.properties["home"].type                              # branch or part; a property is an element, its type inside
-.parameters([lambda t: t.name("n").type([Int])])            # parameters, on any kind of schema
-store.Schemas.OfApply(lambda a: a.of([Matrix]).arguments(lambda adv: adv.insert(  # a parametric schema applied: each
-    lambda e: e.argument(lambda x: x.parameter([Matrix.parameters["rows"]]).value(2)))))  # argument binds a parameter
-store.Schemas.OfPredicate(lambda p: p.symbols([lambda t: t.name("p").type([Person])]).requires([term]))  # one term
-.bits([store.Schemas.Form(lambda f: f.kind("variable").attributes({"name": "n"}))])   # a term where a width stands
+.parameters([lambda t: t.name("n")])                        # parameters, names only, on any kind of schema; binding is
+                                                            # mbse-expressions'
+store.Schemas.OfPredicate(lambda p: p.symbols([lambda t: t.name("p").type([Person])]))  # symbols, each of a ref schema
 Validators.Check(store)(schema, obj).holds                  # True or False: since extents went, nothing it checks is unknown
-S.equivalent(a, b, evaluate)                                # the same after substitution: Square(4) is Matrix(4, 4)
 store.registered("crm.Contact")                             # a schema by name
 store.extent("Name"); store.singleton("Global")             # a schema's objects its singletons reach; a singleton
 Stores.PCG32(42).split("key").next_u32()                 # a random source, given to whatever draws from it

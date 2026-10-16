@@ -105,6 +105,11 @@ As the user decided (2026-10-16), on the questions put to them:
     lacks, a property of an entry of such a relation, and an entry no linked object can hold where one of them is of
     such a schema are ignored, each kept, with its path and why, in the list given to `Snapshot(log, ignored)`. What an
     extension builds is written and read like any schema; a member another schema lacks is still a malformed snapshot.
+20. **A schema's parameters are names only**, "Names only (Recommended)": a parameter is a declared name (`T`), a
+    symbol (P-015) standing for a schema; its `type` goes with the value parameters, which move to mbse-expressions, and
+    `Parameters.Bind` and `Parameters.Apply` (12) bind parameters later.
+21. **`Schemas.Meta` is deferred**, "Defer it (Recommended)": nothing reads level 3 yet, so 13 is built when something
+    needs to name a meta-schema.
 
 ## Order of work
 

@@ -343,11 +343,10 @@ FromDataclass = _FromDataclass()
 
 def _type_annotation(prop: str, schema: Any) -> ast.expr:
     """An expression tree for the type of a property's values."""
-    schema = Schemas.structure(schema)
     if isinstance(schema, Schemas.OfScalar.Data):
         return _load(schema.host().__name__)
     if isinstance(schema, Schemas.OfContainer.Data):
-        index, element = Schemas.structure(schema.index), _type_annotation(prop, schema.element)
+        index, element = schema.index, _type_annotation(prop, schema.element)
         if not isinstance(index, Schemas.OfScalar.Data):
             raise TypeError(f"property {prop!r} holds a container by a value object index; it has no field type")
         if index.host() is int and schema.arrangement == "dense":

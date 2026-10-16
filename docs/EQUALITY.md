@@ -57,9 +57,9 @@ These edge cases are proposals; see Open questions in `FRAMEWORK.md`.
 
 - Floats compare by canonical bit pattern: all NaNs are canonicalized and equal each other, and `-0.0` differs from `0.0`.
   This makes `eq` on floats differ from IEEE `==`.
-- An `OfScalar` may give a width in bits or bytes, but not its interpretation (signedness, encoding): a scalar without
-  a width is unbounded, as Python's `int` is, and whether a value fits a width is decided by the domain that interprets
-  it (mbse-expressions' value domains), not by the schema. See Scalar types in `FRAMEWORK.md`.
+- An `OfScalar` gives neither a width nor an interpretation (signedness, encoding): a scalar is unbounded, as
+  Python's `int` is, and a width, and whether a value fits it, is the domain's that interprets it (mbse-expressions'
+  value domains), not the schema's. See Scalar types in `FRAMEWORK.md`.
 - Strings compare by code point with no Unicode normalization.
 - Object identity holds only within one loaded graph. Objects from two separately loaded graphs can be matched through
   their key in a singleton's directory; objects without one cannot be matched.

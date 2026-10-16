@@ -51,16 +51,6 @@ def _put(pairs):
     return lambda prop: prop.as_value(lambda a: a.as_container(_write(pairs)))
 
 
-def _literal(s, value):
-    """A width given as a literal term, built in the store `s`."""
-    return s.Schemas.Form(lambda f: f.kind("literal").attributes({"value": value}))
-
-
-def _variable(s, name):
-    """A variable's term, built in the store `s`."""
-    return s.Schemas.Form(lambda f: f.kind("variable").attributes({"name": name}))
-
-
 # --- Schemas, each group built in the store given ---
 
 
@@ -172,37 +162,19 @@ def _lists(s):
 
 
 def _module(s):
+    """The corpus's own schemas as data, with a scalar of another format's token, parametric schemas, whose parameters
+    are names, and a predicate."""
     Bool, Int, Float, Str, Bytes = _basics(s)
-    """The corpus's own schemas as data, with scalars of widths and another format's token, parametric schemas:
-    parameters, terms where a width stands, and applications with arguments of every scalar, and a predicate."""
-    s.Schemas.OfScalar(lambda n: n.name("Int32").token("int").bits([_literal(s, 32)]))
-    s.Schemas.OfScalar(lambda n: n.name("Size").format("ccpp").token("size_t").bytes([_literal(s, 8)]))
+    s.Schemas.OfScalar(lambda n: n.name("Size").format("ccpp").token("size_t"))
     Contact, Address, _ = _address_book(s)
     _family(s)
     _embedded(s)
     _lists(s)
-    Word = s.Schemas.OfScalar(lambda w: w.name("Word").token("int").parameters([lambda t: t.name("w").type([Int])])
-                            .bits([_variable(s, "w")]))
-    Grid = s.Schemas.OfObject(lambda o: o.name("Grid").parameters([
-        lambda t: t.name("n").type([Int]).description("Its side"), lambda t: t.name("x")]).properties([
-        lambda t: t.name("mask").type([s.Schemas.OfScalar(lambda w: w.token("int").bits([
-            s.Schemas.Form(lambda f: f.kind("operation").attributes({"name": "mul"}).operands([_variable(s, "n"), _variable(s, "n")])
-                           .dialect("basic"))]))]),
-        _list(s, "cells", s.Schemas.OfApply(lambda a: a.of([Word]).arguments([
-            lambda t: t.parameter([Word.parameters["w"]]).value(8)])))]))
-    s.Schemas.OfApply(lambda a: a.name("Square").parameters([lambda t: t.name("m").type([Int])]).of([Grid]).arguments([
-        lambda t: t.parameter([Grid.parameters["n"]]).term([_variable(s, "m")]),
-        lambda t: t.parameter([Grid.parameters["x"]]).value(True)]))
-    Tricky = s.Schemas.OfObject(lambda o: o.name("Tricky").parameters([lambda t, x=x: t.name(x) for x in "abcd"]))
-    s.Schemas.OfObject(lambda o: o.name("Applied").properties([
-        lambda t: t.name("big").type([s.Schemas.OfApply(lambda a: a.of([Grid]).arguments([
-            lambda t: t.parameter([Grid.parameters["n"]]).value(2**70),
-            lambda t: t.parameter([Grid.parameters["x"]]).value(math.nan)]))]),
-        lambda t: t.name("odd").type([s.Schemas.OfApply(lambda a: a.of([Tricky]).arguments([
-            lambda t: t.parameter([Tricky.parameters["a"]]).value(-0.0),
-            lambda t: t.parameter([Tricky.parameters["b"]]).value("日本語 🚀"),
-            lambda t: t.parameter([Tricky.parameters["c"]]).value(b"\x00\xff"),
-            lambda t: t.parameter([Tricky.parameters["d"]]).value(False)]))])]))
+    Word = s.Schemas.OfScalar(lambda w: w.name("Word").token("int").parameters([lambda t: t.name("w")]))
+    s.Schemas.OfObject(lambda o: o.name("Grid").parameters([
+        lambda t: t.name("n").description("Its side"), lambda t: t.name("x")]).properties([
+        lambda t: t.name("mask").type([s.Schemas.OfScalar(lambda w: w.token("int"))]), _list(s, "cells", Word)]))
+    s.Schemas.OfObject(lambda o: o.name("Tricky").parameters([lambda t, x=x: t.name(x) for x in "abcd"]))
     s.Schemas.OfUnion(lambda u: u.name("Choice").flat(True).branches([
         lambda t: t.name("n").type([Int]), lambda t: t.name("s").type([Str])]))
     s.Schemas.OfIntersection(lambda i: i.name("Marked").flat(True).parts([
@@ -210,9 +182,7 @@ def _module(s):
         lambda t: t.name("who").type([s.Schemas.OfObject(lambda o: o.properties([_text(s, "by")]))])]))
     s.Schemas.OfPredicate(lambda p: p.name("Lives").description("Who lives where").symbols([
         lambda t: t.name("who").type([Contact]), lambda t: t.name("where").type([Address]).description("A home")])
-        .parameters([lambda t: t.name("since").type([Int])])
-        .requires([s.Schemas.Form(lambda f: f.kind("operation").attributes({"name": "and"})
-                                  .operands([_variable(s, "who"), _variable(s, "since")]).dialect("basic"))]))
+        .parameters([lambda t: t.name("since")]))
 
 
 # --- The cases ---

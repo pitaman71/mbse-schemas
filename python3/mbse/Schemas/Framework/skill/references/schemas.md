@@ -120,10 +120,9 @@ check(Validators.Validate(store)(Customer, ada).length === 0);
 ## Rules
 
 - **Link only what the store holds.** A store refuses a link to a schema object it does not hold: build every schema,
-  form and member in the store that links it. A store's basic scalars are its own, reached by its paths
-  (`store.Schemas.OfBool`, `.OfInt`, `.OfFloat`, `.OfStr`, `.OfBytes`); a scalar of another token or width is built,
-  `store.Schemas.OfScalar(lambda s: s.token("int").bits([w]))`, as is a width or another term,
-  `store.Schemas.Form(lambda f: f.kind("literal").attributes({"value": 32}))`. Never link `Schemas.OfX.Data(...)`.
+  and member in the store that links it. A store's basic scalars are its own, reached by its paths
+  (`store.Schemas.OfBool`, `.OfInt`, `.OfFloat`, `.OfStr`, `.OfBytes`); a scalar of another token is built,
+  `store.Schemas.OfScalar(lambda s: s.format("ccpp").token("int32_t"))`. Never link `Schemas.OfX.Data(...)`.
 - **A type exists before what it types.** Build a value object or container schema, then the property typed by it.
   Two schemas that refer to each other are built in two steps: the first, then the second, then the first updated.
 - **A named schema's identity is its name.** `store.Schemas.OfObject(Contact)` cannot clone it into the same store; a

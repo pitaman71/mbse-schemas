@@ -103,20 +103,20 @@ def _read_held(read: Any, schema: Any) -> Any:
 
 def _read_property(read: Any, schema: Any) -> Any:
     """A property's value, read through its visitor: a scalar, a visitor, or None."""
-    held = Schemas.structure(schema)
+    held = schema
     return _read_scalar(read) if isinstance(held, Schemas.OfScalar.Data) or held is None else _read_held(read, held)
 
 
 def _read_member(read: Any, schema: Any) -> Any:
     """A union's branch's or an intersection's part's value, read through its visitor of its type's kind."""
-    if isinstance(Schemas.structure(schema), Schemas.OfScalar.Data):
+    if isinstance(schema, Schemas.OfScalar.Data):
         return read.get()
     return read if read.as_schema() is not None else None
 
 
 def _read_element(read: Any, schema: Any) -> Any:
     """A container's element, read through its `Visitors.OfAny`: a scalar or a visitor; an element present holds one."""
-    held = Schemas.structure(schema)
+    held = schema
     found: list[Any] = []
     if isinstance(held, Schemas.OfScalar.Data) or held is None:
         read.as_scalar(lambda s: found.append(s.get()) or s)
@@ -131,8 +131,7 @@ def _read_element(read: Any, schema: Any) -> Any:
 
 
 def _same_type(a: Any, b: Any) -> bool:
-    """Whether two types are one: scalars by value, other schemas by identity, through applications."""
-    a, b = Schemas.structure(a), Schemas.structure(b)
+    """Whether two types are one: scalars by value, other schemas by identity."""
     return a == b if isinstance(a, Schemas.OfScalar.Data) else a is b
 
 
@@ -140,7 +139,7 @@ def _compare(schema: Any, a: Any, b: Any) -> Result:
     """Compares two values of `schema`, each a scalar, a visitor, or None for absent."""
     if a is None or b is None:
         return 0 if a is None and b is None else None
-    held = Schemas.structure(schema)
+    held = schema
     if isinstance(held, Schemas.OfScalar.Data):
         if type(a) is not type(b):
             return None
@@ -159,7 +158,7 @@ def _same_index(schema: Any, a: Any, b: Any) -> bool:
     """Whether two indices of one index type are one: scalars, or tuples of them, equal; value objects equal."""
     if isinstance(a, tuple):
         return all(_scalars(x, y) == 0 for x, y in zip(a, b))
-    if isinstance(Schemas.structure(schema), Schemas.OfScalar.Data):
+    if isinstance(schema, Schemas.OfScalar.Data):
         return _scalars(a, b) == 0
     return _compare(schema, a, b) == 0
 

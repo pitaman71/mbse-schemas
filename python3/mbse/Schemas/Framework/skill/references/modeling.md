@@ -25,8 +25,7 @@ How to express an interface or data model with the schema elements. The same mod
 | Mixin, aspect, `allOf` | `OfIntersection`: named, same-kind parts; a value holds every one. Supported for property values. Objects with identity composed from aspects are not yet |
 | Singleton, global registry | `.ref(True).singleton("Name")` on the object schema, usually with a directory relation |
 | Port and connector | ports as reference objects, owned by their component through a relation; connectors as a relation between ports, carrying the connection's properties. Ports nothing connects may be value objects in a list of their component |
-| Template, generic, parameterized block or type (UML/SysML template parameters, C++ templates, SystemVerilog `parameter`s) | `.parameters(...)` on the schema; a use of it with arguments is an `OfApply` (`store.Schemas.OfApply(lambda a: a.of([Matrix]).arguments(...))`, each argument binding one of the schema's parameters) |
-| Bit width given by a parameter | a term where the scalar's width stands: `.bits([w])`. An array's size or a tensor's shape is a constraint on its index properties' types, which is planned |
+| Template, generic, parameterized block or type (UML/SysML template parameters, C++ templates, SystemVerilog `parameter`s) | `.parameters([lambda t: t.name("n")])` on the schema: names, each standing for what a use of the schema binds. Binding them, and terms over them (a bit width, an array's size), are mbse-expressions' |
 | Documentation, comment, `description` | `.description(text)` on the element's builder: a schema, property, adjacency, branch or part |
 | Enumeration of literals | a scalar (e.g. `str`); restricting its values needs constraints, which are planned |
 

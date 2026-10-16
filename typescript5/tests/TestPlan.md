@@ -49,7 +49,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `05_Plain.ipynb` | PLN | 17 | as in Python; the same 26 malformed snapshots with byte-identical `DecodeError` paths and reasons |
 | `06_JSON.ipynb` | JSN | 11 | as in Python, including Python's exact output format; the 62-row JSN-09 table of `DecodeError`s is shared verbatim and matches exactly |
 | `07_YAML.ipynb` | YML | 14 | as in Python; the `yaml` package in YAML 1.1 mode is the "stock 1.1 reader"; the shared YML-06 table matches exactly, syntax errors (YML-06b) carry the `yaml` package's reasons |
-| `08_Validators.ipynb` | VAL | 14 | as in Python, with byte-identical problem messages |
+| `08_Validators.ipynb` | VAL | 16 | as in Python, with byte-identical problem messages |
 | `09_Properties.ipynb` | PROP | 5 | as in Python, with fast-check |
 | `10_Examples.ipynb` | EX | 1 | every example exits cleanly in its own process |
 | `11_Conformance.ipynb` | CONF | 4 | as in Python, from this side |
@@ -59,7 +59,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
 | `20_Stores.ipynb` | STO | 7 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), STO-05 builds its unplaced value object through `Proxies._internals`, and STO-07 runs the garbage collector (`gc()`, the suites running with `--expose-gc`), then awaits the store's forgetting |
 | `21_Random.ipynb` | RND | 3 | as in Python; PCG32 computes on `bigint`s, and the UTF-8 bytes of keys are encoded without `TextEncoder` |
-| `22_Parametrics.ipynb` | PAR | 7 | as in Python; an application's arguments, and a form's attributes, may be given as a Map or a record; an evaluator's scope is a `ReadonlyMap`, and an outcome is compared by its fields |
+| `22_Parametrics.ipynb` | PAR | 2 | as in Python |
 | `23_Containers.ipynb` | CNT | 7 | as in Python; an index of several ints is an array, `[1n, 2n]`, not a tuple; a container's size is `length`, not `len()`; the writer's option is `ToPlain(store, { flat: true })` |
 | `24_Any.ipynb` | ANY | 5 | as in Python; `OfAny.Value` is constructed with an array of types, `new S.OfAny.Value([Int], { description })` |
 | `25_Builders.ipynb` | BLD | 13 | as in Python; builders, their members and the store's paths are `Proxy` objects typed loosely, so callbacks are annotated `(t: any)`; a name starting with `_` reads as `undefined` on a visitor, and throws `AttributeError` on the store and its paths, whose protocol probes read as `undefined`; a path's `as_schema()` gives the schema it names; a map is given as a `Map` or a record; a schema object in a message is `<ScalarData object>`; a few assertions cover TypeScript's branches (a clause of one name beside a clause of several, removing by a template of container properties, a meta-schema missing, a link given a link, a term of a dialect, a refinement's own index, an argument for an undeclared parameter, an unnamed relation of three links, a visitor's default `repr`) |

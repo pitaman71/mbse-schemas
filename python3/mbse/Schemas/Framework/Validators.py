@@ -75,14 +75,14 @@ def _held(read: Any, schema: Any) -> Any:
 def _member(read: Any, schema: Any) -> Any:
     """A union's branch's or an intersection's part's value, read through its visitor of its own type's kind: a scalar,
     a visitor, or None."""
-    if isinstance(Schemas.structure(schema), Schemas.OfScalar.Data):
+    if isinstance(schema, Schemas.OfScalar.Data):
         return read.get()
     return read if read.as_schema() is not None else None
 
 
 def _element(read: Any, schema: Any) -> Any:
     """A container's element, read through its `Visitors.OfAny`: a scalar or a visitor; an element present holds one."""
-    held = Schemas.structure(schema)
+    held = schema
     found: list[Any] = []
     if isinstance(held, Schemas.OfScalar.Data) or held is None:
         read.as_scalar(lambda s: found.append(s.get()) or s)
@@ -139,7 +139,7 @@ _ABSENT = ("absent",)
 def _key(schema: Any, value: Any) -> Hashable:
     """Equality key per EQUALITY.md, of a value read as `_property_value` reads it: distinct scalar types never compare
     equal; floats compare by bit pattern; a value object by its properties."""
-    held = Schemas.structure(schema)
+    held = schema
     if value is None:
         return _ABSENT
     if isinstance(held, Schemas.OfScalar.Data) or held is None:
@@ -159,7 +159,7 @@ def _key(schema: Any, value: Any) -> Hashable:
 
 
 def _property_value(read: Any, schema: Any) -> Any:
-    held = Schemas.structure(schema)
+    held = schema
     return _scalar(read) if isinstance(held, Schemas.OfScalar.Data) or held is None else _held(read, held)
 
 
@@ -204,10 +204,7 @@ class _Check:
         return problems
 
     def _value_problems(self, label: str, schema: Schemas.OfAny.Data, item: Any) -> list[str]:
-        """Problems with a value: its type, recursively, and that an intersection value holds every part. An
-        application's value is its applied schema's; one that applies itself, a problem its schema reports, has
-        none."""
-        schema = Schemas.structure(schema)
+        """Problems with a value: its type, recursively, and that an intersection value holds every part."""
         if schema is None or item is None:
             return []
         if isinstance(schema, Schemas.OfScalar.Data):
@@ -235,7 +232,7 @@ class _Check:
     def _any_problems(self, label: str, schema: Schemas.OfAny.Value, item: Any) -> list[str]:
         """Problems with a value of any type: that it is of one of its types, where it is restricted, or of a
         registered schema, where it is not a scalar; and its own, under its own type."""
-        own, types = _own(item), [Schemas.structure(t) for t in schema.types]
+        own, types = _own(item), [t for t in schema.types]
         if isinstance(own, Schemas.OfScalar.Data):
             allowed = not types or any(isinstance(t, Schemas.OfScalar.Data) and t.type is own.type for t in types)
             shown = own.token.name

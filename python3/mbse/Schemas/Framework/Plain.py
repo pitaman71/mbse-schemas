@@ -69,7 +69,7 @@ def _value(read: Readers.OfProperty, schema: Schemas.OfAny.Data, ref: Ref) -> tu
 
 def _any(read: Readers.OfAny, schema: Schemas.OfAny.Data, ref: Ref) -> tuple[bool, PlainData]:
     """A value of any kind as plain data, read through its `Visitors.OfAny`, and whether it has one."""
-    held = Schemas.structure(schema)
+    held = schema
     found: list[PlainData] = []
     if isinstance(held, Schemas.OfScalar.Data):
         read.as_scalar(lambda s: found.extend([] if s.get() is None else [held.to_plain(s.get())]) or s)
@@ -94,7 +94,7 @@ def _any_value(read: Readers.OfAny, schema: Schemas.OfAny.Value, ref: Ref) -> tu
         getattr(read, select)(lambda v: found.extend([v] if _present(v) else []) or v)
     if not found:
         return False, None
-    value, types = found[0], [Schemas.structure(t) for t in schema.types]
+    value, types = found[0], [t for t in schema.types]
     if type(value) in Schemas.SCALAR_TYPES:
         scalar = Schemas.OfScalar.Data(type(value))
         if not types:
@@ -109,26 +109,26 @@ def _any_value(read: Readers.OfAny, schema: Schemas.OfAny.Value, ref: Ref) -> tu
 
 def _tensor(schema: Schemas.OfContainer.Data) -> list[str] | None:
     """The names of a container's int indices, where its index is a value object of ints; None otherwise."""
-    index = Schemas.structure(schema.index)
+    index = schema.index
     if not isinstance(index, Schemas.OfObject.Data):
         return None
-    hosts = [Schemas.structure(prop.type) for prop in index.properties.values()]
+    hosts = [prop.type for prop in index.properties.values()]
     return list(index.properties) if all(isinstance(h, Schemas.OfScalar.Data) and h.type is int for h in hosts) else None
 
 
 def _ints(schema: Schemas.OfContainer.Data) -> bool:
     """Whether a container's index is an int."""
-    index = Schemas.structure(schema.index)
+    index = schema.index
     return isinstance(index, Schemas.OfScalar.Data) and index.type is int
 
 
 def _plain_index(schema: Schemas.OfContainer.Data, index: Any, ref: Ref) -> PlainData:
     """An index as plain data: a scalar's plain form, or a value object index as a mapping of its properties."""
-    held = Schemas.structure(schema.index)
+    held = schema.index
     if isinstance(held, Schemas.OfScalar.Data):
         return held.to_plain(index)
     if isinstance(index, tuple):
-        return {name: Schemas.structure(prop.type).to_plain(value)
+        return {name: prop.type.to_plain(value)
                 for (name, prop), value in zip(held.properties.items(), index)}
     return _object(index, held, ref)
 
@@ -172,7 +172,7 @@ def _container(read: Readers.OfContainer, schema: Schemas.OfContainer.Data, ref:
                 blocks.append({"at": _plain_index(schema, index, ref), "items": [element(visitor)]})
             last = index
         return blocks
-    held = Schemas.structure(schema.index)
+    held = schema.index
     if arrangement == "dict" and isinstance(held, Schemas.OfScalar.Data) and held.type is str:
         return {index: element(visitor) for index, visitor in pairs}
     return [{"index": _plain_index(schema, index, ref), "element": element(visitor)} for index, visitor in pairs]
@@ -180,7 +180,7 @@ def _container(read: Readers.OfContainer, schema: Schemas.OfContainer.Data, ref:
 
 def _member(read: Any, schema: Any, ref: Ref) -> tuple[bool, PlainData]:
     """A union's branch or an intersection's part as plain data: its visitor is of its type's kind."""
-    held = Schemas.structure(schema)
+    held = schema
     if isinstance(held, Schemas.OfScalar.Data):
         value = read.get()
         return (False, None) if value is None else (True, held.to_plain(value))
@@ -399,7 +399,6 @@ Rows = dict[str, list[dict[str, Any]]]
 def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, store: Any = None) -> Any:
     """The value `plain` holds under `schema`, located at the path `where`: a scalar, a `_Record`, `_Elements`, or an
     `_Assigned` value of a schema `store` registers."""
-    schema = Schemas.structure(schema)
     if isinstance(schema, Schemas.OfAny.Value):
         return _decode_any(schema, plain, where, store)
     if isinstance(schema, Schemas.OfScalar.Data):
@@ -452,7 +451,7 @@ def _decode_any(schema: Schemas.OfAny.Value, plain: PlainData, where: tuple, sto
 
 def _decode_index(schema: Schemas.OfContainer.Data, plain: PlainData, where: tuple) -> Any:
     """An index read from its plain form: a scalar, or a value object index as the tuple of its properties."""
-    held = Schemas.structure(schema.index)
+    held = schema.index
     if isinstance(held, Schemas.OfScalar.Data):
         return _decode(held, plain, where)
     if schema.arrangement == "entries":
@@ -482,7 +481,7 @@ def _decode_container(schema: Schemas.OfContainer.Data, plain: PlainData, where:
                 raise DecodeError("an entry of a container is {'index': index, 'element': element}", path=path(*where, i))
             element(_decode_index(schema, entry["index"], (*where, i, "index")), entry.get("element"), (*where, i, "element"))
 
-    names, arrangement, held = _tensor(schema), schema.arrangement, Schemas.structure(schema.index)
+    names, arrangement, held = _tensor(schema), schema.arrangement, schema.index
     if arrangement == "dense" and _ints(schema):
         if not isinstance(plain, list):
             raise DecodeError(f"a dense container must be a list, got {type(plain).__name__}", path=path(*where))
@@ -885,9 +884,7 @@ class _LogWriter:
         if held is None and callable(target):
             held = getattr(target(), "_original", None)
         if held is None:
-            held = self._B._dialect_term(visitor)  # a term of a dialect: no store holds one
-        if held is None or isinstance(held, (self._B._ArgumentData, Schemas.Form.Data)):
-            return  # data, or what a builder rebuilds on every read
+            return  # data
         if not self._store.holds(held):
             shown = getattr(held, "name", None) or type(held).__name__
             raise ValueError(f"{where} links {shown}, a schema the store does not hold: there are no foreign schemas")
@@ -1163,11 +1160,7 @@ class _LogReader:
             if getattr(getattr(member, "_members", None), "one", False):  # one entry: the one held is replaced
                 member(lambda adv: adv.remove(lambda entry: entry))
             member(lambda adv: adv.insert(fill))
-            if isinstance(builder, self._B.FormBuilder):  # a form is immutable: the store holds a new one in its place
-                identity, kind = self._B.identity_of(target), self._B._kind(target)
-                self._store._objects[(kind, identity)] = self._B._identify(builder.clone(), identity)
-            else:
-                builder.update()
+            builder.update()
             return
         reason = "no object an entry links declares an adjacency through which to add it"
         if any(self._store.framework(schema) for schema in schemas):  # one an extension of it would declare, missing
@@ -1222,7 +1215,7 @@ class ToPlain:
         intersection value or container of `schema`, read through its visitor, or a value of any type (`OfAny`), of a
         registered schema or a scalar."""
         schema = Proxies._deref(schema)  # a path names its schema
-        held = Schemas.structure(schema)
+        held = schema
         if not isinstance(held, Schemas.OfAny.Value):
             own = value.as_schema()
             if own is not held:

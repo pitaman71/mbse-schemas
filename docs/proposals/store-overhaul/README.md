@@ -74,8 +74,9 @@ As the user decided (2026-10-16), on the questions put to them:
     - `store.Parameters.Bind(lambda b: b.target(positive).formal(Symbols.T).actual(...))` "constructs an object and
       returns it. The object represents the substitution without actually applying it": one parameter, its `formal`,
       and the value bound to it, its `actual`.
-    - "`store.Transforms.Apply(bound: store.Parameters.Bind)` does the actual substitution work", giving a new object
-      of the target's kind: a schema bound gives a schema (`List[T]`, a list of ints), a function a function.
+    - "`store.Transforms.Apply(bound: store.Parameters.Bind)` does the actual substitution work", named
+      `Parameters.Apply` ("make it `Parameters.Apply` instead of `Transforms.Apply`"), giving a new object of the
+      target's kind: a schema bound gives a schema (`List[T]`, a list of ints), a function a function.
     - It finds the parameter "using schema-unaware traversal, of course": the visitor protocol's `as_properties` and
       `as_adjacencies`, through the target's own structure.
 13. **`Schemas.Meta` is a module**, holding the meta-schemas as its instances: "Make `Meta` a module, put the meta schema
@@ -121,11 +122,10 @@ Then mbse-expressions redrafts its framework model on per-store extension (`Expr
 
 ## Open, for the user
 
-1. **`Transforms.Apply`'s call.** A path called with an object alone clones it today (`store.crm.Contact(obj)`), so
-   `store.Transforms.Apply(bind)` would clone the bind as an `Apply`. Is `Apply` a record too, a step kept in the store
-   (`store.Transforms.Apply(lambda a: a.bound(bind))`, its `result` linking what it made: P-014's trace, P-017's
-   steps), or an operation, a function of a package (`Transforms.Apply(store, bind)`)? And where does `Transforms`
-   live: mbse-schemas, or mbse-patterns, whose `Transforms` P-017 names?
+1. **`Parameters.Apply`'s call.** A path called with an object alone clones it today (`store.crm.Contact(obj)`), so
+   `store.Parameters.Apply(bind)` would clone the bind as an `Apply`. Is `Apply` a record too, kept in the store
+   (`store.Parameters.Apply(lambda a: a.bound(bind))`, its `result` linking what it made: P-014's trace), or an
+   operation, a function of a package (`Parameters.Apply(store, bind)`)?
 2. **Scalars without tokens.** Each basic scalar maps to each language's host type by its own name, so `token` is not
    needed for them; with user scalar schemas gone, `format` (dates, UUIDs) becomes a domain. Agreed?
 3. **When `Schema@` is inferred.** "omit `Schema@` when it can be inferred from context": I propose where a link's

@@ -18,13 +18,31 @@ elsewhere (below, "Decided here"), and cites those that are.
 - **P-015** (mbse-basis): a concrete reference is programmatic; `as_instance` "is the one and only one api location
   where the identity of an object can be used to reference the object".
 
+## Levels
+
+As the user confirmed ("that is correct and worth recording as you explained"), the terms of this plan:
+
+| Level | Example | What it is |
+|---|---|---|
+| 0 | a contact, the int `3` | data |
+| 1 | `Contact`, `OfInt`, a predicate `AtLeastOnePhone` | schemas, instances of level 2 |
+| 2 | `Schemas.OfObject`, `Schemas.OfScalar`, `Schemas.OfPredicate` | the plain schemas of schemas, whose instances are schemas |
+| 3 | `Schemas.Meta.OfObject`, ... | the meta-schemas, describing level 2 |
+
+What mbse-schemas has called the meta-schemas until now (`Builders.Meta.Object`, named `Schemas.Object`, and so on) is
+level 2. **Every extension adds to level 2, never to level 3**: `HasDomain` adds `domains` to `Schemas.OfScalar`,
+mbse-patterns' `requires` an adjacency to `Schemas.OfPredicate`, each a plain schema; no meta-schema is extended. An
+extension of level 2 still changes the members a level-1 object has (`OfInt.domains`), through its builder (Schema
+extension, Decided, 18), per store.
+
 ## Decided here
 
 As the user decided (2026-10-16), on the questions put to them:
 
-1. **The meta-schemas are the kinds**, one for each kind of schema: "the only meta-schemas we should have are:
+1. **The meta-schemas (level 3) are one for each kind of schema**: "the only meta-schemas we should have are:
    stores.Meta.OfX for every OfX in stores.Schemas.OfX", reached as "`store.Schemas.Meta.OfX`" ("is correct"):
-   `store.Schemas.Meta.OfObject`, `.OfScalar`, `.OfRelation`, and so on, each a store's own.
+   `store.Schemas.Meta.OfObject`, `.OfScalar`, `.OfRelation`, and so on, each a store's own, each describing the plain
+   schema (level 2) of the same name, `Schemas.OfObject` and so on.
 2. **No base of every kind**: "`Meta.Schema` becomes `store.Schemas.Meta.Schema`", then, asked what it would be for:
    "`Schemas.Meta.Schema` - unnecessary, I hope". `Meta.Schema` goes.
 3. **`Meta.Type` and `Meta.Typed` leave mbse-schemas**: "these can be defined using builder DSL as normal (not meta)
@@ -50,20 +68,19 @@ As the user decided (2026-10-16), on the questions put to them:
 13. **`Schemas.Meta` is a module**, holding the meta-schemas as its instances: "Make `Meta` a module, put the meta schema
     (as instances) underneath it", "Actually `Schemas.Meta`". A meta-schema's identity is `Schemas.Meta/OfObject`, its
     container the module `Schemas.Meta` (Object identity, Decided, 2 and 3), and `store.Schemas.Meta.OfObject` reads it.
-14. **Building is unchanged** (11), "(b)": `store.Schemas.Object(lambda o: ...)` builds an object schema, as now, and
-    `store.Schemas.Meta.OfObject` is where a program reads the meta-schema to link or extend it: two paths to one
-    meta-schema, one to build through it and one to read it.
+14. **Building is unchanged** (11), "(b)": `store.Schemas.Object(lambda o: ...)` builds an object schema (level 1), as
+    now, an instance of `Schemas.OfObject` (level 2). A program reads a schema of level 2 or 3 to link or extend it:
+    level 2 to extend (`Schemas.OfScalar`), never level 3.
 
 ## Order of work
 
 Each step lands on main as its own release, with both gates at 100%, the corpora regenerated and conformance passing,
 so that main stays current and no branch waits on another.
 
-1. **Per-store meta-schemas (0.14.0).** A store builds its own meta-schemas and basic scalars when it is made, and the
-   module-level `Builders.Meta` goes. The kinds are reached as `store.Schemas.Meta.OfX` (1), and `Meta.Schema` goes
-   (2). A builder finds its members
-   through its store's meta-schema, so the members an extension adds (Schema extension, Decided, 18) are each store's
-   own, not added to a shared class. `Builders.extend`, the framework store, and the framework entries of 0.12.1 and
+1. **Per-store schemas of schemas (0.14.0).** A store builds its own levels 2 and 3 and its basic scalars when it is
+   made, and the module-level `Builders.Meta` goes. The meta-schemas are `store.Schemas.Meta.OfX` (1), and
+   `Meta.Schema` goes (2). A builder of a level-1 schema finds its members through its store's level-2 schema, so the
+   members an extension adds (Schema extension, Decided, 18) are each store's own, not added to a shared class. `Builders.extend`, the framework store, and the framework entries of 0.12.1 and
    0.12.2 go; `store.extend` is the only extension. EXT is rewritten: round trips between stores with the same
    extensions and with differing ones (Schema extension, Decided, 23).
    *Breaks*: every `Builders.Meta.X` (386 uses in 86 files: library, tests, tutorials, the skill, docs) and every
@@ -84,8 +101,10 @@ Then mbse-expressions redrafts its framework model on per-store extension (`Expr
 
 ## Open, for the user
 
-1. **Reading a basic scalar.** Does reading `store.Schemas.OfInt` (no call) give the scalar schema itself, so that code
-   links it without `Builders.Meta`, as reading `store.Schemas.Meta.OfObject` gives a meta-schema (14)?
+1. **Reading a schema.** Does reading a path (no call) give the schema it names, at any level: `store.Schemas.OfInt`
+   (level 1), `store.Schemas.OfScalar` (level 2), `store.Schemas.Meta.OfScalar` (level 3), so that code links or
+   extends it without `Builders.Meta`? And are the basic scalars (8) the five instances (level 1) of
+   `Schemas.OfScalar` (level 2), as the levels make them, rather than the branches of a union?
 2. **`Parameters.Transform`, a record or an operation.** `store.Parameters.Transform(...)` is a path, so calling it
    makes an object of a schema named `Parameters.Transform`. If the transform is a record (its target and its
    replacements, kept in the store), something applies it and makes the new schema or function: on creation, or

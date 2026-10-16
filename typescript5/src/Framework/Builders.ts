@@ -916,8 +916,8 @@ function hidden(data: any, name: "_extended" | "_pending"): Map<string, any> {
   return found;
 }
 
-/** A property an extension added to a meta-schema, held on each schema object apart from its fields: a scalar, or a
- * container where its type is one. */
+/** A property `store.extend` declares on a plain schema, held on each schema object apart from its fields: a scalar,
+ * or a container where its type is one. */
 function extensionProperty(prop: S.OfProperty.Data): Prop {
   const name = prop.name;
   const member = new Prop({

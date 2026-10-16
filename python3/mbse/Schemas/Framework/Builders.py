@@ -900,8 +900,8 @@ def _type(field: str = "type") -> _Members:
 
 
 def _extension_property(prop: S.OfProperty.Data) -> _Prop:
-    """A property an extension added to a meta-schema, held on each schema object apart from its fields: a scalar, or a
-    container where its type is one."""
+    """A property `store.extend` declares on a plain schema, held on each schema object apart from its fields: a
+    scalar, or a container where its type is one."""
     name = prop.name
     member = _Prop(get=lambda data: data.__dict__.get("_extended", {}).get(name),
                    put=lambda data, value: data.__dict__.setdefault("_extended", {}).__setitem__(name, value),

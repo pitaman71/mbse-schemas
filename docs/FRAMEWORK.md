@@ -776,7 +776,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     `ByteWidth`);
   - the abstract bases `Schemas.Schema`, `Type` and `Typed` go: each kind declares its own `name`, `description`,
     `parameters` and the adjacencies of every relation it is at an end of (Store overhaul, Decided, 10);
-  - a property an extension adds holds a container where its type is one (BLD-06), as a term's `attributes` did.
+  - a property of an extended schema (`store.extend`) holds a container where its type is one (BLD-06), as a term's
+    `attributes` did.
 - **Schema builders align with their meta-schemas** (2026-10-14), as the user decided. FRAMEWORK.md requires "To make
   schemas fully serializable, `Schemas.OfX.Builder` must implement `Visitors.OfX`", which the schema builders do not:
   their fluent clauses are a second API beside the meta-schemas, and 15 of them collide with the members the

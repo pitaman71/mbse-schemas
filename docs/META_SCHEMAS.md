@@ -239,7 +239,7 @@ every write.
 
 - **Members.** `osv.<propName>`, a `Visitors.OfProperty`, and `osv.<adjName>`, a `Visitors.OfAdjacency` with `insert`,
   `remove`, `as_iterable` and iteration over its entries; called with a `Specs.Callback`, each writes or visits through
-  it and returns the builder. A container-valued property (a relation's `uniques`, or one an extension adds) hands over a `Visitors.OfContainer`.
+  it and returns the builder. A container-valued property (a relation's `uniques`, or one of an extended schema) hands over a `Visitors.OfContainer`.
   An entry's link to its referent is a member, `env.<linkName>`: called, it links the referent given, or builds one
   through the callback, new, or the one the entry links, updated in place; read, it gives the referent, read-only.
   Members and an adjacency's relation are built through a link; a type, a refined schema, an index and an element are

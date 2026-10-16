@@ -206,10 +206,11 @@ its `Term`), a scalar's `bits` and `bytes`, a predicate's `requires`, `Schemas.s
 relation it is at an end of (10), so a type's six anonymous adjacencies are each its own. `Schemas.Meta` is not built
 (21). Two changes follow from the removal:
 
-- A property an extension adds holds a container where its type is one, as a term's `attributes` did; BLD-06 now
-  builds its map-valued property, and a template matching one by value, through `store.extend`.
-- A refinement's scalar narrows by token alone, and `refines` of something not a type is reported as "refines
-  something not a type" (it was "refines nothing", an application of nothing).
+- A property of an extended schema (`store.extend`) holds a container where its type is one, as a term's
+  `attributes` did; BLD-06 now builds its map-valued property, and a template matching one by value, through
+  `store.extend`.
+- A scalar refines another of the same token, whatever else, and `refines` of something not a type is reported as
+  "refines something not a type" (it was "refines nothing", an application of nothing).
 
 PAR keeps two cases (declaring and writing parameters); `Check`'s outcome moved to VAL-16. The corpus's `module` group
 keeps its parametric schemas, with parameters as names, and loses its widths, applications and `requires`.

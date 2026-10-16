@@ -25,7 +25,8 @@ As the user decided (2026-10-16), on the questions put to them:
 1. **The meta-schemas are the kinds**, one for each kind of schema: "the only meta-schemas we should have are:
    stores.Meta.OfX for every OfX in stores.Schemas.OfX", reached as "`store.Schemas.Meta.OfX`" ("is correct"):
    `store.Schemas.Meta.OfObject`, `.OfScalar`, `.OfRelation`, and so on, each a store's own.
-2. **The base of every kind**: "`Meta.Schema` becomes `store.Schemas.Meta.Schema`".
+2. **No base of every kind**: "`Meta.Schema` becomes `store.Schemas.Meta.Schema`", then, asked what it would be for:
+   "`Schemas.Meta.Schema` - unnecessary, I hope". `Meta.Schema` goes.
 3. **`Meta.Type` and `Meta.Typed` leave mbse-schemas**: "these can be defined using builder DSL as normal (not meta)
    union schemas in Expressions.Framework".
 4. **A union's branches and an intersection's parts are relations**: "`Meta.Member` -> relation meta-schemas" `HasBranch`
@@ -40,7 +41,12 @@ As the user decided (2026-10-16), on the questions put to them:
    dialects containing domains"; "a scalar schema can have > 1 domain"; "width is a property of the domain, not the
    schema". A user defines no scalar schema of their own.
 10. **Each kind declares an adjacency a module links**: "2 = (i)": a module's `schemas` adjacency is declared on each
-    kind, not once on `Schemas.Meta.Schema` (which would need a union to declare adjacencies).
+    kind, not once on a base of every kind (which would need a union to declare adjacencies).
+11. **Building and serialization stay as they are**: "building / serialization should be almost untouched other than
+    identity itself".
+12. **A type parameter is applied by a transform**, not by `OfApply`: `store.Parameters.Transform`
+    ([Parametrics](../../PARAMETRICS.md)) makes a new schema with every occurrence of the parameter replaced, as it makes
+    a new function from a generic one.
 
 ## Order of work
 
@@ -48,7 +54,8 @@ Each step lands on main as its own release, with both gates at 100%, the corpora
 so that main stays current and no branch waits on another.
 
 1. **Per-store meta-schemas (0.14.0).** A store builds its own meta-schemas and basic scalars when it is made, and the
-   module-level `Builders.Meta` goes. The kinds are renamed `Schemas.Meta.OfX` (1, 2). A builder finds its members
+   module-level `Builders.Meta` goes. The kinds are reached as `store.Schemas.Meta.OfX` (1), and `Meta.Schema` goes
+   (2). A builder finds its members
    through its store's meta-schema, so the members an extension adds (Schema extension, Decided, 18) are each store's
    own, not added to a shared class. `Builders.extend`, the framework store, and the framework entries of 0.12.1 and
    0.12.2 go; `store.extend` is the only extension. EXT is rewritten: round trips between stores with the same
@@ -71,18 +78,24 @@ Then mbse-expressions redrafts its framework model on per-store extension (`Expr
 
 ## Open, for the user
 
-1. **What `Schemas.Meta.Schema` is.** A union of the kinds can be a type, but with 10 it declares no adjacency, and the
-   kinds no longer refine it. What does it hold or type: the name and description every kind has?
-2. **Building through the new names.** Does `store.Schemas.Meta.OfObject(lambda o: ...)` build an object schema, as
-   `store.Schemas.Object(...)` does today? And does reading `store.Schemas.OfInt` (no call) give the schema object
-   itself, so code links it without `Builders.Meta`?
-3. **Applying a type parameter.** mbse-schemas keeps the parameters that denote schemas (`List[T]`, Schema extension,
-   Decided, 14), but `OfApply`, which applied them, goes. How is `List[Int]` written?
-4. **Scalars without tokens.** Each basic scalar maps to each language's host type by its own name, so `token` is not
+1. **Two names for building.** Building stays as it is (11): `store.Schemas.Object(lambda o: ...)` builds an object
+   schema, through the meta-schema named `Schemas.Object`. But the kinds are reached as `store.Schemas.Meta.OfObject`
+   (1). Are these one meta-schema under two names, or is `Schemas.Meta.OfObject` its new name, building included
+   (`store.Schemas.Meta.OfObject(lambda o: ...)`)? I'd keep one name per object: the meta-schema is named
+   `Schemas.Meta.OfObject`, read there to link it, and `store.Schemas.Object(...)` stays the way to build through it, as
+   a path that builds rather than a second name. And does reading `store.Schemas.OfInt` (no call) give the schema
+   object itself, so code links it without `Builders.Meta`?
+2. **`Parameters.Transform`, a record or an operation.** `store.Parameters.Transform(...)` is a path, so calling it
+   makes an object of a schema named `Parameters.Transform`. If the transform is a record (its target and its
+   replacements, kept in the store), something applies it and makes the new schema or function: on creation, or
+   later? If it is an operation, it is a function of a package, as `Expressions.FromFunction(store, ...)` is. And
+   `.with(...)` is a keyword in Python: `.by(...)`? Its replacement in the draft is `T` itself; for `List[Int]` it is
+   `store.Schemas.OfInt`.
+3. **Scalars without tokens.** Each basic scalar maps to each language's host type by its own name, so `token` is not
    needed for them; with user scalar schemas gone, `format` (dates, UUIDs) becomes a domain. Agreed?
-5. **When `Schema@` is inferred.** "omit `Schema@` when it can be inferred from context": I propose where a link's
+4. **When `Schema@` is inferred.** "omit `Schema@` when it can be inferred from context": I propose where a link's
    other end has one schema that may fill it, and within an object's own entry, which names its schema.
-6. **A path given to a link.** Your `e.domain(Int32)` passed a path. With `as_instance`, a link is given the instance
+5. **A path given to a link.** Your `e.domain(Int32)` passed a path. With `as_instance`, a link is given the instance
    (`e.domain(store.Instances.Expressions.Dialects.Basic.as_instance('Int32'))`); should a link also accept a path to
    an instance?
-7. **The order.** Four releases, as above, or fewer, larger ones?
+6. **The order.** Four releases, as above, or fewer, larger ones?

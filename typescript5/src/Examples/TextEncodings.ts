@@ -10,26 +10,26 @@ import { Builders, JSON, Plain, Proxies, Schemas, Validators, YAML } from "@mbse
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { assert, equal, raises, same_graph } from "./_support.js";
 
-const Text = Builders.Meta.OfStr;
 
 const store: any = new Builders.Store();
+const Text = store.Schemas.OfStr.as_schema(); // the store's own basic scalar
 
 // --- Schemas ---
 
-const Reading = store.Schemas.Object((o: any) => (
+const Reading = store.Schemas.OfObject((o: any) => (
   o
     .name("Reading")
     .ref(true)
     .properties([
       (t: any) => t.name("observed").type([Text]), // ISO 8601, e.g. '2026-09-28T12:00:00Z'
-      (t: any) => t.name("value").type([Builders.Meta.OfFloat]),
-      (t: any) => t.name("quality").type([Builders.Meta.OfInt]),
-      (t: any) => t.name("valid").type([Builders.Meta.OfBool]),
-      (t: any) => t.name("raw").type([Builders.Meta.OfBytes]),
+      (t: any) => t.name("value").type([store.Schemas.OfFloat]),
+      (t: any) => t.name("quality").type([store.Schemas.OfInt]),
+      (t: any) => t.name("valid").type([store.Schemas.OfBool]),
+      (t: any) => t.name("raw").type([store.Schemas.OfBytes]),
       (t: any) => t.name("note").type([Text]),
     ])
 ));
-const Station = store.Schemas.Object((o: any) => (
+const Station = store.Schemas.OfObject((o: any) => (
   o
     .name("Station")
     .ref(true)
@@ -38,7 +38,7 @@ const Station = store.Schemas.Object((o: any) => (
       (t: any) => t.name("name").type([Text]),
     ])
 ));
-const Readings = store.Schemas.Relation((r: any) => (
+const Readings = store.Schemas.OfRelation((r: any) => (
   r
     .name("Readings")
     .links([
@@ -48,8 +48,8 @@ const Readings = store.Schemas.Relation((r: any) => (
     .properties([(t: any) => t.name("sensor").type([Text])])
     .uniques(["station", "sensor"]) // each reading comes from one sensor of one station
 ));
-store.Schemas.Object(Station, (o: any) => o.adjacencies([(t: any) => t.name("readings").relation([Readings]).me("station")]));
-store.Schemas.Object(Reading, (o: any) => o.adjacencies([(t: any) => t.name("station").relation([Readings]).me("reading")]));
+store.Schemas.OfObject(Station, (o: any) => o.adjacencies([(t: any) => t.name("readings").relation([Readings]).me("station")]));
+store.Schemas.OfObject(Reading, (o: any) => o.adjacencies([(t: any) => t.name("station").relation([Readings]).me("reading")]));
 
 const validate = Validators.Validate(store);
 const from_json = JSON.FromJSON(store);

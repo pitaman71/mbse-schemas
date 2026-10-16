@@ -7,9 +7,10 @@
  * parameter, a symbol, a branch or a part, an argument), and a term. A property of a schema object holds a value (a
  * name, a flag, a term's attributes); every reference from one schema object to another is a relation: a schema to its
  * members (`Schemas.HasProperty`, ...), a member to its type (`Schemas.Typing`), a refinement to what it refines
- * (`Schemas.Refines`), a scalar to its widths, which are terms (`Schemas.BitWidth`), and so on (`Meta`, below).
+ * (`Schemas.Refines`), a scalar to its widths, which are terms (`Schemas.BitWidth`), and so on (`plainSchemas`, below):
+ * each store builds its own (docs/proposals/store-overhaul, Levels).
  *
- * Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over its meta-schema (`Meta.X`), as VISITOR_PATTERN.md
+ * Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over its plain schema (`Schemas.OfX`), as VISITOR_PATTERN.md
  * gives it: a member for each property (`osv.<propName>`, a `Visitors.OfProperty`) and for each adjacency
  * (`osv.<adjName>`, a `Visitors.OfAdjacency`, whose entries' links are members, `env.<linkName>`). Called with a
  * `Specs.Callback`, a member writes or visits through it and returns the builder. Its other methods are named `as_*`.
@@ -421,7 +422,7 @@ function checkHeld(builder: any, link: string, referent: unknown): void {
   const store = builder._store;
   if (store !== null && store !== undefined && builderFor(referent) !== null && !store.holds(referent)) {
     throw new TypeError(`link ${repr(link)} cannot link ${repr(referent)}: the store does not hold it; build it in the store, or `
-      + "link one it holds (a basic scalar is Builders.Meta's: OfStr, OfInt, ...)");
+      + "link one it holds (a basic scalar is the store's own: store.Schemas.OfInt, ...)");
   }
 }
 
@@ -580,7 +581,8 @@ class AdjacencyMember extends Shelled {
         + `taking the adjacency; got ${repr(spec)}`);
     }
     this._builder._check();
-    for (const item of spec) {
+    for (let item of spec) {
+      item = Proxies._deref(item);
       let referent: any;
       let name: string | null;
       if (innerOf(item) instanceof Entry) {
@@ -827,7 +829,8 @@ class Link extends Shelled {
     if (referent === null) return makeEmpty(`link ${repr(this._members().link)} is not set`);
     const builder = builderFor(referent);
     if (builder === null && Proxies._store_of(referent) !== null) return referent; // data, which an extension's relation links
-    return builder === null ? makeEmpty("a term of a dialect is read through its dialect") : new builder(referent, false);
+    if (builder === null) return makeEmpty("a term of a dialect is read through its dialect");
+    return new builder(referent, false, this._entry._adjacency._builder._store); // read in the store that links it
   }
 
   as_schema(): unknown {
@@ -863,6 +866,7 @@ class Link extends Shelled {
       if (result !== null) entry._relink(result, written);
       return entry._proxy;
     }
+    spec = Proxies._deref(spec);
     const referent = innerOf(spec) instanceof Link ? innerOf(spec)._entry._referent : spec;
     if (!members.accepts(referent)) throw new TypeError(`link ${repr(members.link)} cannot link ${repr(referent)}`);
     checkHeld(entry._adjacency._builder, members.link, referent);
@@ -957,9 +961,9 @@ function extensionAdjacency(adjacency: S.OfAdjacency.Data): Members {
 function settleExtended(data: any, store: unknown): any {
   const pending: Map<string, any[]> | undefined = data._pending;
   if (pending === undefined) return data;
-  const table = (builderFor(data) as unknown as typeof Builder)._table;
+  const added = (store as Store)._added.get(builderFor(data) as unknown as typeof Builder) as Table;
   for (const [name, referents] of pending) {
-    const [relation, me, other] = (table.get(name) as Members).extension as [S.OfRelation.Data, string, string];
+    const [relation, me, other] = (added.get(name) as Members).extension as [S.OfRelation.Data, string, string];
     const held = Proxies._linking(relation, me, data, store);
     const linked = (entry: any) => innerOf(entry)._links.get(other);
     Proxies._discard(relation, held.filter((entry: any) => referents.every((referent) => linked(entry) !== referent)), store);
@@ -973,12 +977,14 @@ function settleExtended(data: any, store: unknown): any {
   return data;
 }
 
-/** Gives each schema builder the members an extension added to its meta-schema (or one it refines): `added` holds each
- * meta-schema's names before the extension. */
-function extendBuilders(added: Map<unknown, [Set<string>, Set<string>]>): void {
+/** Gives each schema builder in `store` the members an extension added to its plain schema (or one it refines):
+ * `before` holds each plain schema's names before the extension. */
+function extendBuilders(store: Store, before: Map<unknown, [Set<string>, Set<string>]>): void {
   for (const builderClass of new Set(BUILDERS.values()) as unknown as Set<typeof Builder>) {
-    const meta = (Meta as Record<string, any>)[builderClass._meta];
-    const [properties, adjacencies] = added.get(meta) as [Set<string>, Set<string>];
+    const meta = (store._meta as unknown as Record<string, any>)[builderClass._meta];
+    const [properties, adjacencies] = before.get(meta) as [Set<string>, Set<string>];
+    if (!store._added.has(builderClass)) store._added.set(builderClass, new Map());
+    const added = store._added.get(builderClass) as Table;
     const members: [string, Prop | Members][] = [];
     for (const name of meta.properties.keys()) {
       if (!properties.has(name) && !builderClass._table.has(name)) members.push([name, extensionProperty(name)]);
@@ -988,12 +994,12 @@ function extendBuilders(added: Map<unknown, [Set<string>, Set<string>]>): void {
     }
     for (const [name, member] of members) {
       member._bind(name);
-      builderClass._table.set(name, member);
+      added.set(name, member);
     }
   }
 }
 
-/** A writable `Visitors.OfObject` over a meta-schema (`_meta`, a name in `Meta`), building its data (`_data`).
+/** A writable `Visitors.OfObject` over a plain schema (`_meta`, its name in `Schemas`), building its data (`_data`).
  * Read-only, it reads the data it is given and refuses every write: a referent read through a link is. */
 abstract class Builder extends Shelled {
   static _data: Function;
@@ -1012,9 +1018,11 @@ abstract class Builder extends Shelled {
   /** The identity written (`as_identity`). */
   _identity: string | null = null;
   _working: any;
+  _members!: Table;
 
   constructor(original: unknown = null, writable = true, store: Store | null = null) {
     super();
+    original = Proxies._deref(original);
     const kind = this.constructor as typeof Builder;
     if (original !== null && !(original instanceof kind._data)) {
       throw new TypeError(`a builder of ${kind._noun} is given ${repr(original)}`);
@@ -1022,13 +1030,17 @@ abstract class Builder extends Shelled {
     this._original = original;
     this._writable = writable;
     this._store = store;
+    const added = store?._added.get(kind);
+    // the members its store's extensions added to its plain schema: the store's own
+    this._members = added === undefined || added.size === 0 ? kind._table : new Map([...kind._table, ...added]);
     this._working = this._make();
     if (original !== null) this._update(this._working, original);
     return shell(this);
   }
 
+  /** Its members: its class's, and those its store's extensions added. */
   _table(): Table {
-    return (this.constructor as typeof Builder)._table;
+    return this._members;
   }
 
   _make(): any {
@@ -1122,8 +1134,10 @@ abstract class Builder extends Shelled {
     this._written.push(prop);
   }
 
+  /** Its plain schema (`Schemas.OfObject`, ...): its store's, or, outside a store, the template's. */
   as_schema(): any {
-    return (Meta as any)[(this.constructor as typeof Builder)._meta] ?? null;
+    const meta = this._store !== null ? this._store._meta : TEMPLATE;
+    return (meta as unknown as Record<string, unknown>)?.[(this.constructor as typeof Builder)._meta] ?? null;
   }
 
   /** Read, the identity written, else the one of the data given; null for a schema object not created yet that none is
@@ -1208,19 +1222,19 @@ abstract class TypedBuilder extends Builder {
 
 export class PropertyBuilder extends TypedBuilder {
   static override _data = S.OfProperty.Data;
-  static override _meta = "Property";
+  static override _meta = "OfProperty";
   static override _noun = "a property";
 }
 
 export class ParameterBuilder extends TypedBuilder {
   static override _data = S.OfParameter.Data;
-  static override _meta = "Parameter";
+  static override _meta = "OfParameter";
   static override _noun = "a parameter";
 }
 
 export class SymbolBuilder extends TypedBuilder {
   static override _data = S.OfSymbol.Data;
-  static override _meta = "Symbol";
+  static override _meta = "OfSymbol";
   static override _noun = "a symbol";
 }
 
@@ -1235,7 +1249,7 @@ export class MemberBuilder extends TypedBuilder {
  * relation's link `me`, by name: within a schema, its relation's links and properties are named, not referred to. */
 export class AdjacencyBuilder extends Builder {
   static override _data = S.OfAdjacency.Data;
-  static override _meta = "Adjacency";
+  static override _meta = "OfAdjacency";
   static override _noun = "an adjacency";
   static override _table = extendTable(Builder._table, {
     description: new Prop(),
@@ -1334,7 +1348,7 @@ function refinesMembers(): Members {
 /** A refinement takes the token of what it refines, unless it is given one. */
 export class ScalarBuilder extends KindBuilder {
   static override _data = S.OfScalar.Data;
-  static override _meta = "Scalar";
+  static override _meta = "OfScalar";
   static override _noun = "a scalar schema";
   static override _table = extendTable(KindBuilder._table, {
     format: new Prop({
@@ -1374,7 +1388,7 @@ function inheritedOf(schema: S.OfObject.Data): Inherited {
 /** A refinement of a reference object schema is one too, and has the members of what it refines. */
 export class ObjectBuilder extends KindBuilder {
   static override _data = S.OfObject.Data;
-  static override _meta = "Object";
+  static override _meta = "OfObject";
   static override _noun = "an object schema";
   static override _table = extendTable(KindBuilder._table, {
     ref: new Prop(),
@@ -1424,7 +1438,7 @@ export class ObjectBuilder extends KindBuilder {
 
 export class UnionBuilder extends KindBuilder {
   static override _data = S.OfUnion.Data;
-  static override _meta = "Union";
+  static override _meta = "OfUnion";
   static override _noun = "a union";
   static override _table = extendTable(KindBuilder._table, {
     flat: new Prop(),
@@ -1435,7 +1449,7 @@ export class UnionBuilder extends KindBuilder {
 
 export class IntersectionBuilder extends KindBuilder {
   static override _data = S.OfIntersection.Data;
-  static override _meta = "Intersection";
+  static override _meta = "OfIntersection";
   static override _noun = "an intersection";
   static override _table = extendTable(KindBuilder._table, {
     flat: new Prop(),
@@ -1447,7 +1461,7 @@ export class IntersectionBuilder extends KindBuilder {
 /** A refinement takes the index and element of what it refines, unless it is given them. */
 export class ContainerBuilder extends KindBuilder {
   static override _data = S.OfContainer.Data;
-  static override _meta = "Container";
+  static override _meta = "OfContainer";
   static override _noun = "a container schema";
   static override _table = extendTable(KindBuilder._table, {
     layout: new Prop(), // "dense", "sparse", or null
@@ -1473,7 +1487,7 @@ function argumentsOf(data: S.OfApply.Data): ArgumentData[] {
 
 export class ApplyBuilder extends KindBuilder {
   static override _data = S.OfApply.Data;
-  static override _meta = "Apply";
+  static override _meta = "OfApply";
   static override _noun = "an application";
   static override _table = extendTable(KindBuilder._table, {
     of: new Members("applied", { accepts: isSchema, ...one("of") }),
@@ -1488,7 +1502,7 @@ export class ApplyBuilder extends KindBuilder {
 /** A value of any type, or of one of `types`. */
 export class AnyValueBuilder extends KindBuilder {
   static override _data = S.OfAny.Value;
-  static override _meta = "Any";
+  static override _meta = "OfAny";
   static override _noun = "a value of any type";
   static override _table = extendTable(KindBuilder._table, {
     types: new Members("schema", { accepts: isSchema, ...inOrder("types") }),
@@ -1497,7 +1511,7 @@ export class AnyValueBuilder extends KindBuilder {
 
 export class PredicateBuilder extends KindBuilder {
   static override _data = S.OfPredicate.Data;
-  static override _meta = "Predicate";
+  static override _meta = "OfPredicate";
   static override _noun = "a predicate";
   static override _table = extendTable(KindBuilder._table, {
     symbols: new Members("symbol", { keyed: true, accepts: isA(S.OfSymbol.Data), build: "SymbolBuilder", ...byName("symbols") }),
@@ -1528,7 +1542,7 @@ function uniquesOf(data: S.OfRelation.Data): string[][] | null {
  * clauses name them. */
 export class RelationBuilder extends KindBuilder {
   static override _data = S.OfRelation.Data;
-  static override _meta = "Relation";
+  static override _meta = "OfRelation";
   static override _noun = "a relation";
   static override _table = extendTable(KindBuilder._table, {
     links: new Members("link", { keyed: true, accepts: isA(S.OfSymbol.Data), build: "SymbolBuilder",
@@ -1593,7 +1607,7 @@ function local(schema: unknown): string {
 /** A module, a reference object in the store, whose identity is its path: the root module's is `.`. */
 export class ModuleBuilder extends KindBuilder {
   static override _data = ModuleData;
-  static override _meta = "Module";
+  static override _meta = "OfModule";
   static override _noun = "a module";
   static override _table = extendTable(KindBuilder._table, {
     schemas: new Members("schema", { keyed: true, owned: false, names: [definedName, define], extensible: true,
@@ -1630,7 +1644,7 @@ function builderFor(referent: unknown): BuilderClass | null {
   return BUILDERS.get(Object(referent).constructor) ?? null;
 }
 
-/** The name of a schema object's meta-schema, `Schemas.Object`: the kind its identity is unique within. */
+/** The name of a schema object's meta-schema, `Schemas.OfObject`: the kind its identity is unique within. */
 export function _kind(data: unknown): string {
   return `Schemas.${(builderFor(data) as unknown as typeof Builder)._meta}`;
 }
@@ -1646,166 +1660,167 @@ export function _namable(data: unknown): boolean {
 type ObjectData = S.OfObject.Data;
 type RelationData = S.OfRelation.Data;
 
-/** The meta-schemas, by name: `Meta.Object` is `Schemas.Object`, and so on; and the basic scalars, `Meta.OfInt` being
- * `Schemas.OfInt`. */
-export const Meta = {} as {
+/** A store's plain schemas of schemas (level 2) and its basic scalars, each its own (docs/proposals/store-overhaul,
+ * Levels): `OfObject` is `Schemas.OfObject`, `OfInt` is `Schemas.OfInt`, `Typing` the relation `Schemas.Typing`. */
+export interface Plain {
   OfBool: S.OfScalar.Data; OfInt: S.OfScalar.Data; OfFloat: S.OfScalar.Data; OfStr: S.OfScalar.Data;
   OfBytes: S.OfScalar.Data;
-  Schema: ObjectData; Type: ObjectData; Scalar: ObjectData; Object: ObjectData; Union: ObjectData;
-  Intersection: ObjectData; Container: ObjectData; Apply: ObjectData; Any: ObjectData; Relation: ObjectData;
-  Predicate: ObjectData; Typed: ObjectData; Property: ObjectData; Parameter: ObjectData; Symbol: ObjectData;
-  Member: ObjectData; Adjacency: ObjectData; Argument: ObjectData; Term: ObjectData; Form: ObjectData; Module: ObjectData;
+  Schema: ObjectData; Type: ObjectData; OfScalar: ObjectData; OfObject: ObjectData; OfUnion: ObjectData;
+  OfIntersection: ObjectData; OfContainer: ObjectData; OfApply: ObjectData; OfAny: ObjectData; OfRelation: ObjectData;
+  OfPredicate: ObjectData; Typed: ObjectData; OfProperty: ObjectData; OfParameter: ObjectData; OfSymbol: ObjectData;
+  Member: ObjectData; OfAdjacency: ObjectData; Argument: ObjectData; Term: ObjectData; Form: ObjectData; OfModule: ObjectData;
   Typing: RelationData; Refines: RelationData; Indexing: RelationData; Containing: RelationData; Applying: RelationData;
   AnyOf: RelationData; Relating: RelationData; Binding: RelationData; ArgumentTerm: RelationData; Requires: RelationData;
   BitWidth: RelationData; ByteWidth: RelationData; HasParameter: RelationData; HasProperty: RelationData;
   HasAdjacency: RelationData; HasBranch: RelationData; HasPart: RelationData; HasSymbol: RelationData;
   HasLink: RelationData; HasArgument: RelationData; Operands: RelationData; Defines: RelationData;
-};
-
-// The basic scalars, which every store holds, named after the basic tokens (FRAMEWORK.md, Resolved: "Schemas.OfBool,
-// Schemas.OfInt, ... no need to invent an alternate convention").
-Meta.OfBool = new ScalarBuilder().name("Schemas.OfBool").token("bool").create();
-Meta.OfInt = new ScalarBuilder().name("Schemas.OfInt").token("int").create();
-Meta.OfFloat = new ScalarBuilder().name("Schemas.OfFloat").token("float").create();
-Meta.OfStr = new ScalarBuilder().name("Schemas.OfStr").token("str").create();
-Meta.OfBytes = new ScalarBuilder().name("Schemas.OfBytes").token("bytes").create();
-const [Text, Bool, Int] = [Meta.OfStr, Meta.OfBool, Meta.OfInt];
-
-/** A meta-schema: a reference object schema, `Schemas.<name>`, with `properties` of their schemas, by name, refining
- * `refines`. */
-function metaObject(name: string, properties: [string, unknown][], refines: unknown): ObjectData {
-  const builder = new ObjectBuilder()
-    .name(`Schemas.${name}`)
-    .ref(true)
-    .properties(properties.map(([n, s]) => (t: any) => t.name(n).type([s])));
-  if (refines !== null) builder.refines([refines]);
-  return builder.create();
 }
 
-Meta.Schema = metaObject("Schema", [["name", Text], ["description", Text]], null);
-Meta.Type = metaObject("Type", [], Meta.Schema);
-Meta.Scalar = metaObject("Scalar", [["format", Text], ["token", Text]], Meta.Type);
-Meta.Object = metaObject("Object", [["ref", Bool], ["pattern", Text], ["singleton", Text]], Meta.Type);
-Meta.Union = metaObject("Union", [["flat", Bool]], Meta.Type);
-Meta.Intersection = metaObject("Intersection", [["flat", Bool]], Meta.Type);
-Meta.Container = metaObject("Container", [["layout", Text]], Meta.Type);
-Meta.Apply = metaObject("Apply", [], Meta.Type);
-Meta.Any = metaObject("Any", [], Meta.Type);
-Meta.Relation = metaObject("Relation", [["uniques", new ContainerBuilder().index([Int]).element([
-  new ContainerBuilder().index([Int]).element([Text]).create()]).create()]], Meta.Schema);
-Meta.Predicate = metaObject("Predicate", [], Meta.Schema);
-Meta.Typed = metaObject("Typed", [["description", Text]], null);
-Meta.Property = metaObject("Property", [], Meta.Typed);
-Meta.Parameter = metaObject("Parameter", [], Meta.Typed);
-Meta.Symbol = metaObject("Symbol", [], Meta.Typed);
-Meta.Member = metaObject("Member", [], Meta.Typed);
-Meta.Adjacency = metaObject("Adjacency", [["description", Text], ["me", Text]], null);
-/** A scalar of any type, written tagged with its token (`{"int": 8}`). */
-export const Scalars: S.OfAny.Value = new AnyValueBuilder().create();
-Meta.Argument = metaObject("Argument", [["value", Scalars]], null);
-Meta.Term = metaObject("Term", [], null);
-Meta.Form = metaObject("Form", [["dialect", Text], ["kind", Text],
-  ["attributes", new ContainerBuilder().index([Text]).element([Scalars]).create()]], Meta.Term);
-Meta.Module = metaObject("Module", [], Meta.Schema); // its identity is its path; it defines schemas and modules
+/** Builds a store's plain schemas of schemas and its basic scalars, anew. */
+function plainSchemas(): Plain {
+  const meta = {} as Plain;
+  // The basic scalars, which every store holds, named after the basic tokens (FRAMEWORK.md, Resolved: "Schemas.OfBool,
+  // Schemas.OfInt, ... no need to invent an alternate convention").
+  meta.OfBool = new ScalarBuilder().name("Schemas.OfBool").token("bool").create();
+  meta.OfInt = new ScalarBuilder().name("Schemas.OfInt").token("int").create();
+  meta.OfFloat = new ScalarBuilder().name("Schemas.OfFloat").token("float").create();
+  meta.OfStr = new ScalarBuilder().name("Schemas.OfStr").token("str").create();
+  meta.OfBytes = new ScalarBuilder().name("Schemas.OfBytes").token("bytes").create();
+  const [Text, Bool, Int] = [meta.OfStr, meta.OfBool, meta.OfInt];
 
-/** A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
- * `RELATIONS`): a keyed relation's entries have `name`; the member determines its owner and its name
- * (`unique(owner, name)`), and the owner and the name determine the member (`unique(member)`). */
-function metaRelation(name: string, links: [string, string], how: string): RelationData {
-  const [first, second] = links;
-  const builder = new RelationBuilder().name(`Schemas.${name}`).links(links.map((n) => (t: any) => t.name(n)));
-  if (how === "keyed") builder.properties([(t: any) => t.name("name").type([Text])]);
-  const determined = new Map<string, string[][] | null>([["one", [[second]]], ["owned", [[first]]],
-    ["keyed", [[first, "name"], [second]]], ["list", null]]).get(how);
-  return builder.uniques(determined).create();
+  /** A meta-schema: a reference object schema, `Schemas.<name>`, with `properties` of their schemas, by name, refining
+   * `refines`. */
+  function metaObject(name: string, properties: [string, unknown][], refines: unknown): ObjectData {
+    const builder = new ObjectBuilder()
+      .name(`Schemas.${name}`)
+      .ref(true)
+      .properties(properties.map(([n, s]) => (t: any) => t.name(n).type([s])));
+    if (refines !== null) builder.refines([refines]);
+    return builder.create();
+  }
+
+  meta.Schema = metaObject("Schema", [["name", Text], ["description", Text]], null);
+  meta.Type = metaObject("Type", [], meta.Schema);
+  meta.OfScalar = metaObject("OfScalar", [["format", Text], ["token", Text]], meta.Type);
+  meta.OfObject = metaObject("OfObject", [["ref", Bool], ["pattern", Text], ["singleton", Text]], meta.Type);
+  meta.OfUnion = metaObject("OfUnion", [["flat", Bool]], meta.Type);
+  meta.OfIntersection = metaObject("OfIntersection", [["flat", Bool]], meta.Type);
+  meta.OfContainer = metaObject("OfContainer", [["layout", Text]], meta.Type);
+  meta.OfApply = metaObject("OfApply", [], meta.Type);
+  meta.OfAny = metaObject("OfAny", [], meta.Type);
+  meta.OfRelation = metaObject("OfRelation", [["uniques", new ContainerBuilder().index([Int]).element([
+    new ContainerBuilder().index([Int]).element([Text]).create()]).create()]], meta.Schema);
+  meta.OfPredicate = metaObject("OfPredicate", [], meta.Schema);
+  meta.Typed = metaObject("Typed", [["description", Text]], null);
+  meta.OfProperty = metaObject("OfProperty", [], meta.Typed);
+  meta.OfParameter = metaObject("OfParameter", [], meta.Typed);
+  meta.OfSymbol = metaObject("OfSymbol", [], meta.Typed);
+  meta.Member = metaObject("Member", [], meta.Typed);
+  meta.OfAdjacency = metaObject("OfAdjacency", [["description", Text], ["me", Text]], null);
+  /** A scalar of any type, written tagged with its token (`{"int": 8}`). */
+  const Scalars: S.OfAny.Value = new AnyValueBuilder().create();
+  meta.Argument = metaObject("Argument", [["value", Scalars]], null);
+  meta.Term = metaObject("Term", [], null);
+  meta.Form = metaObject("Form", [["dialect", Text], ["kind", Text],
+    ["attributes", new ContainerBuilder().index([Text]).element([Scalars]).create()]], meta.Term);
+  meta.OfModule = metaObject("OfModule", [], meta.Schema); // its identity is its path; it defines schemas and modules
+
+  /** A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
+   * `RELATIONS`): a keyed relation's entries have `name`; the member determines its owner and its name
+   * (`unique(owner, name)`), and the owner and the name determine the member (`unique(member)`). */
+  function metaRelation(name: string, links: [string, string], how: string): RelationData {
+    const [first, second] = links;
+    const builder = new RelationBuilder().name(`Schemas.${name}`).links(links.map((n) => (t: any) => t.name(n)));
+    if (how === "keyed") builder.properties([(t: any) => t.name("name").type([Text])]);
+    const determined = new Map<string, string[][] | null>([["one", [[second]]], ["owned", [[first]]],
+      ["keyed", [[first, "name"], [second]]], ["list", null]]).get(how);
+    return builder.uniques(determined).create();
+  }
+
+  /** An adjacency to `relation` filling `link`: named by the entry that links it to its object schema, or anonymous. */
+  function metaAdjacency(relation: RelationData, link: string): S.OfAdjacency.Data {
+    return new AdjacencyBuilder().relation([relation]).me(link).create();
+  }
+
+  /** Each relation between schema objects: (relation, (link, schema, adjacency named there), (link, schema), "one": the
+   * first determines the second; "owned": the second determines the first; "keyed": owned, and named within its owner by
+   * the entry's `name`; "list": neither). An adjacency named "" is declared below, on the kinds that have it, rather than
+   * on the link's schema. A member belongs to one owner (`Has*`: the member determines its owner); a schema object has
+   * at most one type, refined schema, index, element, applied schema, relation, parameter, term or width (the first
+   * determines the second); types and operands are lists. */
+  const RELATIONS: [keyof Plain, [string, ObjectData, string], [string, ObjectData], string][] = [
+    ["Typing", ["typed", meta.Typed, "type"], ["schema", meta.Type], "one"],
+    ["Refines", ["refinement", meta.Type, ""], ["refined", meta.Type], "one"],
+    ["Indexing", ["container", meta.OfContainer, "index"], ["index", meta.Type], "one"],
+    ["Containing", ["container", meta.OfContainer, "element"], ["element", meta.Type], "one"],
+    ["Applying", ["application", meta.OfApply, "of"], ["applied", meta.Type], "one"],
+    ["AnyOf", ["any", meta.OfAny, "types"], ["schema", meta.Type], "list"],
+    ["Relating", ["adjacency", meta.OfAdjacency, "relation"], ["relation", meta.OfRelation], "one"],
+    ["Binding", ["argument", meta.Argument, "parameter"], ["parameter", meta.OfParameter], "one"],
+    ["ArgumentTerm", ["argument", meta.Argument, "term"], ["term", meta.Term], "one"],
+    ["Requires", ["predicate", meta.OfPredicate, "requires"], ["term", meta.Term], "one"],
+    ["BitWidth", ["scalar", meta.OfScalar, "bits"], ["width", meta.Term], "one"],
+    ["ByteWidth", ["scalar", meta.OfScalar, "bytes"], ["width", meta.Term], "one"],
+    ["HasParameter", ["owner", meta.Schema, "parameters"], ["parameter", meta.OfParameter], "keyed"],
+    ["HasProperty", ["owner", meta.Schema, ""], ["property", meta.OfProperty], "keyed"],
+    ["HasAdjacency", ["owner", meta.OfObject, "adjacencies"], ["adjacency", meta.OfAdjacency], "keyed"],
+    ["HasBranch", ["owner", meta.OfUnion, "branches"], ["branch", meta.Member], "keyed"],
+    ["HasPart", ["owner", meta.OfIntersection, "parts"], ["part", meta.Member], "keyed"],
+    ["HasSymbol", ["owner", meta.OfPredicate, "symbols"], ["symbol", meta.OfSymbol], "keyed"],
+    ["HasLink", ["owner", meta.OfRelation, "links"], ["link", meta.OfSymbol], "keyed"],
+    ["HasArgument", ["owner", meta.OfApply, "arguments"], ["argument", meta.Argument], "owned"],
+    ["Operands", ["form", meta.Form, "operands"], ["operand", meta.Term], "list"],
+    ["Defines", ["module", meta.OfModule, "schemas"], ["schema", meta.Schema], "keyed"],
+  ];
+
+  /** The adjacencies each meta-schema declares: named ones by name, and anonymous ones. */
+  const NAMED = new Map<ObjectData, [Map<string, S.OfAdjacency.Data>, S.OfAdjacency.Data[]]>();
+
+  function declare(schema: ObjectData, adjacency: S.OfAdjacency.Data, name: string | null): void {
+    if (!NAMED.has(schema)) NAMED.set(schema, [new Map(), []]);
+    const [named, anonymous] = NAMED.get(schema) as [Map<string, S.OfAdjacency.Data>, S.OfAdjacency.Data[]];
+    if (name === null) anonymous.push(adjacency);
+    else named.set(name, adjacency);
+  }
+
+  for (const [name, [a, aSchema, named], [b, bSchema], how] of RELATIONS) {
+    const relation = metaRelation(name, [a, b], how);
+    (meta as unknown as Record<string, unknown>)[name] = relation;
+    if (named !== "") declare(aSchema, metaAdjacency(relation, a), named);
+    declare(bSchema, metaAdjacency(relation, b), null);
+  }
+  for (const owner of [meta.OfObject, meta.OfRelation]) { // each has its own `properties`; any schema may be the owner
+    declare(owner, metaAdjacency(meta.HasProperty, "owner"), "properties");
+  }
+  for (const refining of [meta.OfScalar, meta.OfObject, meta.OfContainer]) { // only these refine
+    declare(refining, metaAdjacency(meta.Refines, "refinement"), "refines");
+  }
+  for (const [schema, [named, anonymous]] of NAMED) {
+    (
+      new ObjectBuilder(schema)
+        .adjacencies([...named].map(([n, a]) => (t: any) => t.name(n).adjacency(a)))
+        .adjacencies(anonymous)
+        .update()
+    );
+  }
+  return meta;
 }
 
-/** An adjacency to `relation` filling `link`: named by the entry that links it to its object schema, or anonymous. */
-function metaAdjacency(relation: RelationData, link: string): S.OfAdjacency.Data {
-  return new AdjacencyBuilder().relation([relation]).me(link).create();
-}
-
-/** Each relation between schema objects: (relation, (link, schema, adjacency named there), (link, schema), "one": the
- * first determines the second; "owned": the second determines the first; "keyed": owned, and named within its owner by
- * the entry's `name`; "list": neither). An adjacency named "" is declared below, on the kinds that have it, rather than
- * on the link's schema. A member belongs to one owner (`Has*`: the member determines its owner); a schema object has
- * at most one type, refined schema, index, element, applied schema, relation, parameter, term or width (the first
- * determines the second); types and operands are lists. */
-const RELATIONS: [keyof typeof Meta, [string, ObjectData, string], [string, ObjectData], string][] = [
-  ["Typing", ["typed", Meta.Typed, "type"], ["schema", Meta.Type], "one"],
-  ["Refines", ["refinement", Meta.Type, ""], ["refined", Meta.Type], "one"],
-  ["Indexing", ["container", Meta.Container, "index"], ["index", Meta.Type], "one"],
-  ["Containing", ["container", Meta.Container, "element"], ["element", Meta.Type], "one"],
-  ["Applying", ["application", Meta.Apply, "of"], ["applied", Meta.Type], "one"],
-  ["AnyOf", ["any", Meta.Any, "types"], ["schema", Meta.Type], "list"],
-  ["Relating", ["adjacency", Meta.Adjacency, "relation"], ["relation", Meta.Relation], "one"],
-  ["Binding", ["argument", Meta.Argument, "parameter"], ["parameter", Meta.Parameter], "one"],
-  ["ArgumentTerm", ["argument", Meta.Argument, "term"], ["term", Meta.Term], "one"],
-  ["Requires", ["predicate", Meta.Predicate, "requires"], ["term", Meta.Term], "one"],
-  ["BitWidth", ["scalar", Meta.Scalar, "bits"], ["width", Meta.Term], "one"],
-  ["ByteWidth", ["scalar", Meta.Scalar, "bytes"], ["width", Meta.Term], "one"],
-  ["HasParameter", ["owner", Meta.Schema, "parameters"], ["parameter", Meta.Parameter], "keyed"],
-  ["HasProperty", ["owner", Meta.Schema, ""], ["property", Meta.Property], "keyed"],
-  ["HasAdjacency", ["owner", Meta.Object, "adjacencies"], ["adjacency", Meta.Adjacency], "keyed"],
-  ["HasBranch", ["owner", Meta.Union, "branches"], ["branch", Meta.Member], "keyed"],
-  ["HasPart", ["owner", Meta.Intersection, "parts"], ["part", Meta.Member], "keyed"],
-  ["HasSymbol", ["owner", Meta.Predicate, "symbols"], ["symbol", Meta.Symbol], "keyed"],
-  ["HasLink", ["owner", Meta.Relation, "links"], ["link", Meta.Symbol], "keyed"],
-  ["HasArgument", ["owner", Meta.Apply, "arguments"], ["argument", Meta.Argument], "owned"],
-  ["Operands", ["form", Meta.Form, "operands"], ["operand", Meta.Term], "list"],
-  ["Defines", ["module", Meta.Module, "schemas"], ["schema", Meta.Schema], "keyed"],
-];
-
-/** The adjacencies each meta-schema declares: named ones by name, and anonymous ones. */
-const NAMED = new Map<ObjectData, [Map<string, S.OfAdjacency.Data>, S.OfAdjacency.Data[]]>();
-
-function declare(schema: ObjectData, adjacency: S.OfAdjacency.Data, name: string | null): void {
-  if (!NAMED.has(schema)) NAMED.set(schema, [new Map(), []]);
-  const [named, anonymous] = NAMED.get(schema) as [Map<string, S.OfAdjacency.Data>, S.OfAdjacency.Data[]];
-  if (name === null) anonymous.push(adjacency);
-  else named.set(name, adjacency);
-}
-
-for (const [name, [a, aSchema, named], [b, bSchema], how] of RELATIONS) {
-  const relation = metaRelation(name, [a, b], how);
-  (Meta as Record<string, unknown>)[name] = relation;
-  if (named !== "") declare(aSchema, metaAdjacency(relation, a), named);
-  declare(bSchema, metaAdjacency(relation, b), null);
-}
-for (const owner of [Meta.Object, Meta.Relation]) { // each has its own `properties`; any schema may be the owner
-  declare(owner, metaAdjacency(Meta.HasProperty, "owner"), "properties");
-}
-for (const refining of [Meta.Scalar, Meta.Object, Meta.Container]) { // only these refine
-  declare(refining, metaAdjacency(Meta.Refines, "refinement"), "refines");
-}
-for (const [schema, [named, anonymous]] of NAMED) {
-  (
-    new ObjectBuilder(schema)
-      .adjacencies([...named].map(([n, a]) => (t: any) => t.name(n).adjacency(a)))
-      .adjacencies(anonymous)
-      .update()
-  );
-}
+/** The plain schemas a builder outside any store reads its own from (`as_schema`), which no store holds. */
+let TEMPLATE: Plain | null = null;
+TEMPLATE = plainSchemas();
 
 // --- A store: where schema objects and data are built ---
 
-/** The schema objects a store builds as `store.Schemas.<Name>(...)`, each through its builder. */
+/** The schema objects a store builds as `store.Schemas.OfX(...)` (and `Schemas.Member`, `.Form`, `.Argument`), each
+ * through its builder. */
 export const _META_BUILDERS = new Map<string, BuilderClass>([
-  ["Scalar", ScalarBuilder], ["Object", ObjectBuilder], ["Union", UnionBuilder], ["Intersection", IntersectionBuilder],
-  ["Container", ContainerBuilder], ["Apply", ApplyBuilder], ["Any", AnyValueBuilder], ["Relation", RelationBuilder],
-  ["Predicate", PredicateBuilder], ["Property", PropertyBuilder], ["Parameter", ParameterBuilder],
-  ["Symbol", SymbolBuilder], ["Member", MemberBuilder], ["Adjacency", AdjacencyBuilder], ["Form", FormBuilder],
-  ["Module", ModuleBuilder], ["Argument", ArgumentBuilder],
+  ["OfScalar", ScalarBuilder], ["OfObject", ObjectBuilder], ["OfUnion", UnionBuilder], ["OfIntersection", IntersectionBuilder],
+  ["OfContainer", ContainerBuilder], ["OfApply", ApplyBuilder], ["OfAny", AnyValueBuilder], ["OfRelation", RelationBuilder],
+  ["OfPredicate", PredicateBuilder], ["OfProperty", PropertyBuilder], ["OfParameter", ParameterBuilder],
+  ["OfSymbol", SymbolBuilder], ["Member", MemberBuilder], ["OfAdjacency", AdjacencyBuilder], ["Form", FormBuilder],
+  ["OfModule", ModuleBuilder], ["Argument", ArgumentBuilder],
 ]);
-
-/** Every store in the process, so that what an extension of the framework builds reaches those made before it. */
-const STORES = new Set<WeakRef<Store>>();
-
-/** What the framework's extensions built, by kind and identity, which every store holds as framework schemas. */
-const FRAMEWORK = new Map<string, unknown>();
-
-/** The framework's extensions applied, by name; the framework's store, under "". */
-const EXTENSIONS = new Map<string, Store>();
 
 /** A schema object in a message: its name, else its identity. */
 function shown(schema: any): string {
@@ -1905,58 +1920,32 @@ function clashes(schema: S.OfObject.Data, names: (string | null)[]): string[] {
   return problems;
 }
 
-/** Extends the framework, once per process (docs/SCHEMA_EXTENSION.md): `cb`, given the framework's store, builds schemas
- * and adds members to framework schemas, as `Store.extend` does a store's, and every store, made before or after, holds
- * what it built as framework schemas. Extending again under a name already applied does nothing. */
-export function extend(name: string, cb: unknown): void {
-  if (typeof name !== "string" || !name) throw new TypeError(`an extension is named by non-empty text, got ${repr(name)}`);
-  if (EXTENSIONS.has(name)) return;
-  const store: any = EXTENSIONS.get("") ?? new Store();
-  EXTENSIONS.set("", store);
-  const before = new Set(store._objects.keys());
-  const metas = new Map<unknown, [Set<string>, Set<string>]>();
-  for (const meta of Object.values(Meta)) {
-    if (meta instanceof S.OfObject.Data) metas.set(meta, [new Set(meta.properties.keys()), new Set(meta.adjacencies.keys())]);
-  }
-  store._extendsFramework = true;
-  try {
-    store.extend(cb);
-  } finally {
-    store._extendsFramework = false;
-  }
-  const built = new Map([...(store._objects as Map<string, unknown>)].filter(([held, schema]) =>
-    !before.has(held) && !(schema instanceof ModuleData)));
-  for (const [held, schema] of built) FRAMEWORK.set(held, schema);
-  for (const held of [...STORES].map((ref) => ref.deref()).filter((live) => live !== undefined)) {
-    (held as Store)._adopt(built);
-  }
-  extendBuilders(metas);
-  EXTENSIONS.set(name, store);
-}
-
 /** A store of schema objects and data. No reference object is built outside a store, a schema object included.
  *
  * The canonical form of building is `store.moduleName.[...moduleName].schemaName(...)`, each part of a schema's name a
- * member: `store.Schemas.Object(...)` builds an object schema, `store.crm.Contact(...)` a contact. Called with a
+ * member: `store.Schemas.OfObject(...)` builds an object schema, `store.crm.Contact(...)` a contact. Called with a
  * `Specs.Callback[Visitors.OfX]`, it creates an object; with an object and a callback, it updates the object; with an
  * object alone, it clones it. It returns the object. A schema object built here, and each member built with it, is
  * given its identity by the store, which refuses one it holds another with; a named schema is registered under its
  * name, so that the store builds its objects next. The store is a `Proxy`: a name it lacks starts a schema's name,
  * except JavaScript's protocol probes (`then`, ...), and one starting with `_` throws `AttributeError`.
  *
- * A store changes a schema it holds but does not own through `extend`, which only adds members to it
- * (docs/SCHEMA_EXTENSION.md); a framework schema, which every store holds, only through `Builders.extend`. */
+ * A store is made holding its own plain schemas of schemas (`Schemas.OfObject`, ...), basic scalars (`Schemas.OfInt`,
+ * ...) and mutation schemas, which no other store shares (docs/SCHEMA_EXTENSION.md, Decided, 23); it changes them, as
+ * any schema it holds before an extension begins, only through `extend`, which only adds members. */
 export class Store extends Proxies.OfStore {
   /** `store.moduleName.[...moduleName].schemaName(...)`, each a path (`_Path`); dynamic by design. */
   [name: string]: any;
   /** The schema objects, by their kind and their identity (`key`). */
   readonly _objects = new Map<string, unknown>();
-  /** The framework's own schemas, which every store holds. */
+  /** Its plain schemas of schemas and basic scalars, its own. */
+  readonly _meta: Plain;
+  /** The schemas it was made holding. */
   readonly _framework: Set<unknown>;
+  /** The members its extensions added to builders, by builder class. */
+  readonly _added = new Map<unknown, Table>();
   /** The schema objects held when an extension began, while it runs. */
   _extending: Set<unknown> | null = null;
-  /** Whether this store is the framework's, extending it. */
-  _extendsFramework = false;
   /** The modules, by path; the root module's is "". */
   readonly _modules = new Map<string, ModuleData>();
   /** Each schema's module, and its name there. */
@@ -1967,19 +1956,14 @@ export class Store extends Proxies.OfStore {
 
   constructor() {
     super();
-    for (const schema of Object.values(Meta) as (ObjectData | RelationData)[]) { // the meta-schemas
-      if (!this._schemas.has(schema.name as string)) {
-        this._objects.set(key(_kind(schema), identity_of(schema) as string), schema);
-        this.register(schema);
-      }
-    }
-    for (const schema of Mutations.SCHEMAS) { // the mutation schemas, which every store holds too
+    this._meta = plainSchemas(); // its plain schemas of schemas and basic scalars, its own
+    const mutations = Mutations.schemas({ AnyValueBuilder, ContainerBuilder, ObjectBuilder, UnionBuilder,
+      Text: this._meta.OfStr, Int: this._meta.OfInt });
+    for (const schema of [...Object.values(this._meta), ...Object.values(mutations)] as (ObjectData | RelationData)[]) {
       this._objects.set(key(_kind(schema), identity_of(schema) as string), schema);
-      this.register(schema as ObjectData);
+      this.register(schema);
     }
     this._framework = new Set(this._objects.values());
-    this._adopt(FRAMEWORK); // what the framework's extensions built
-    STORES.add(new WeakRef(this));
     const proxy = new Proxy(this, {
       get: (target, prop, receiver) => {
         if (typeof prop === "symbol" || prop in target) return Reflect.get(target, prop, receiver);
@@ -1992,7 +1976,7 @@ export class Store extends Proxies.OfStore {
     return proxy;
   }
 
-  /** The schema object of `kind` (its meta-schema's name, `Schemas.Object`) whose identity is `identity`; null where the
+  /** The schema object of `kind` (its meta-schema's name, `Schemas.OfObject`) whose identity is `identity`; null where the
    * store holds none. Schema objects of different kinds may share an identity: a module and a schema its path names
    * (`crm.Contact` and `crm.Contact.v2`'s module). */
   held(kind: string, identity: string): any {
@@ -2012,9 +1996,9 @@ export class Store extends Proxies.OfStore {
     return this._modules.get(path) ?? new ModuleBuilder(null, true, this).name(path).create();
   }
 
-  /** Whether `schema` is one of the framework's own, which every store holds: a meta-schema, a basic scalar, a mutation
-   * schema, or what an extension of the framework built (`Builders.extend`). It is never written, only referred to. */
-  framework(schema: unknown): boolean {
+  /** Whether `schema` is one the store was made holding: a plain schema of schemas, a basic scalar, a mutation schema.
+   * It changes only through `extend`, which adds members to it. */
+  override framework(schema: unknown): boolean {
     return this._framework.has(schema);
   }
 
@@ -2025,37 +2009,30 @@ export class Store extends Proxies.OfStore {
    * stays: a refused extension is a program error. */
   extend(cb: unknown): this {
     this._extending = new Set(this._objects.values());
+    const before = new Map<unknown, [Set<string>, Set<string>]>();
+    for (const meta of Object.values(this._meta)) {
+      if (meta instanceof S.OfObject.Data) before.set(meta, [new Set(meta.properties.keys()), new Set(meta.adjacencies.keys())]);
+    }
     try {
       visit(cb, this);
     } finally {
       this._extending = null;
+      extendBuilders(this, before);
     }
     return this;
   }
 
-  /** Refuses a builder's update of a framework schema outside the framework's extension, and one that is not an
+  /** Refuses a builder's update of a schema the store was made holding outside an extension, and one that is not an
    * extension of a schema the store held when an extension began. */
   _permit(builder: any): void {
     const original = builder._original;
-    if (this.framework(original) && !this._extendsFramework && changes(builder)) {
-      throw new TypeError(`${shown(original)} is a framework schema, which every store holds: extend it with `
-        + "Builders.extend");
+    if (this.framework(original) && this._extending === null && changes(builder)) {
+      throw new TypeError(`${shown(original)} is one of the schemas the store was made holding: extend it with `
+        + "store.extend");
     }
     if (this._extending !== null && this._extending.has(original)) {
       const problems = extensionProblems(builder);
       if (problems.length > 0) throw new TypeError(`an extension only adds members to ${shown(original)}: it ${problems.join("; ")}`);
-    }
-  }
-
-  /** Holds what the framework's extensions built, as framework schemas. */
-  _adopt(built: ReadonlyMap<string, unknown>): void {
-    for (const [held, schema] of built) {
-      this._objects.set(held, schema);
-      this._framework.add(schema);
-      const name = (schema as { name?: unknown }).name;
-      if (_namable(schema) && typeof name === "string" && name && this._schemas.get(name) !== schema) {
-        this.register(schema as ObjectData);
-      }
     }
   }
 
@@ -2080,7 +2057,7 @@ export class Store extends Proxies.OfStore {
    * adjacency (`crm.Person.tags#type`). */
   _derive(owner: any, identity: string, rebuilt = false): void {
     const builderClass = builderFor(owner) as unknown as typeof Builder;
-    for (const [name, members] of builderClass._table) {
+    for (const [name, members] of new Map([...builderClass._table, ...(this._added.get(builderClass) ?? [])])) {
       if (!(members instanceof Members) || (rebuilt && members.build === null)) continue; // through a rebuilt object, only what it builds
       members.items(owner).forEach((referent, index) => {
         const through = referent instanceof ArgumentData; // rebuilt on every read: what it builds derives through it
@@ -2164,6 +2141,7 @@ export class Store extends Proxies.OfStore {
     else if (args.length === 1) existing = args[0];
     else if (args.length === 2) [existing, cb] = args;
     else throw new TypeError(`${name}(...) takes a callback, an object and a callback, or an object`);
+    existing = Proxies._deref(existing);
     const kind = name.startsWith("Schemas.") ? _META_BUILDERS.get(name.slice("Schemas.".length)) : undefined;
     let builder: any;
     if (kind !== undefined) builder = new kind(existing, true, this);
@@ -2180,16 +2158,21 @@ function key(kind: string, identity: string): string {
   return `${kind}/${identity}`;
 }
 
-/** `store.moduleName.[...moduleName].schemaName`: a schema's name, one part per member; called, it builds. */
+/** `store.moduleName.[...moduleName].schemaName`: a schema's name, one part per member; called, it builds, and given
+ * where an object is expected, it is the schema it names (`.type([store.Schemas.OfInt])`); `as_schema()` gives it. */
 function makePath(store: Store, name: string): any {
-  return new Proxy((...args: unknown[]) => store._build(name, args), {
+  const asSchema = (): unknown => store.registered(name);
+  const path = new Proxy((...args: unknown[]) => store._build(name, args), {
     get: (_target, part) => {
       if (part === REPR) return () => `<${name}>`;
+      if (part === "as_schema") return asSchema;
       if (typeof part === "symbol" || Proxies._probes.has(part)) return undefined;
       if (part.startsWith("_")) throw new AttributeError(part);
       return makePath(store, `${name}.${part}`);
     },
   });
+  Proxies._named(path, asSchema);
+  return path;
 }
 
 // --- The namespaces, as `Schemas` gives them ---
@@ -2201,7 +2184,6 @@ export namespace OfScalar {
   export type Builder = ScalarBuilder;
   export const Token = S.OfScalar.Token;
   export type Token = S.OfScalar.Token;
-  export const Schema = Meta.Scalar;
 }
 
 export namespace OfObject {
@@ -2209,7 +2191,6 @@ export namespace OfObject {
   export type Data = S.OfObject.Data;
   export const Builder = ObjectBuilder;
   export type Builder = ObjectBuilder;
-  export const Schema = Meta.Object;
 }
 
 export namespace OfProperty {
@@ -2217,7 +2198,6 @@ export namespace OfProperty {
   export type Data = S.OfProperty.Data;
   export const Builder = PropertyBuilder;
   export type Builder = PropertyBuilder;
-  export const Schema = Meta.Property;
 }
 
 export namespace OfAdjacency {
@@ -2225,7 +2205,6 @@ export namespace OfAdjacency {
   export type Data = S.OfAdjacency.Data;
   export const Builder = AdjacencyBuilder;
   export type Builder = AdjacencyBuilder;
-  export const Schema = Meta.Adjacency;
 }
 
 export namespace OfRelation {
@@ -2233,7 +2212,6 @@ export namespace OfRelation {
   export type Data = S.OfRelation.Data;
   export const Builder = RelationBuilder;
   export type Builder = RelationBuilder;
-  export const Schema = Meta.Relation;
 }
 
 export namespace OfSymbol {
@@ -2241,7 +2219,6 @@ export namespace OfSymbol {
   export type Data = S.OfSymbol.Data;
   export const Builder = SymbolBuilder;
   export type Builder = SymbolBuilder;
-  export const Schema = Meta.Symbol;
 }
 
 export namespace OfParameter {
@@ -2249,7 +2226,6 @@ export namespace OfParameter {
   export type Data = S.OfParameter.Data;
   export const Builder = ParameterBuilder;
   export type Builder = ParameterBuilder;
-  export const Schema = Meta.Parameter;
 }
 
 export namespace OfUnion {
@@ -2259,7 +2235,6 @@ export namespace OfUnion {
   export type Builder = UnionBuilder;
   export const Branch = S.OfUnion.Branch;
   export type Branch = S.OfUnion.Branch;
-  export const Schema = Meta.Union;
 }
 
 export namespace OfIntersection {
@@ -2269,7 +2244,6 @@ export namespace OfIntersection {
   export type Builder = IntersectionBuilder;
   export const Part = S.OfIntersection.Part;
   export type Part = S.OfIntersection.Part;
-  export const Schema = Meta.Intersection;
 }
 
 export namespace OfContainer {
@@ -2277,7 +2251,6 @@ export namespace OfContainer {
   export type Data = S.OfContainer.Data;
   export const Builder = ContainerBuilder;
   export type Builder = ContainerBuilder;
-  export const Schema = Meta.Container;
 }
 
 export namespace OfApply {
@@ -2285,7 +2258,6 @@ export namespace OfApply {
   export type Data = S.OfApply.Data;
   export const Builder = ApplyBuilder;
   export type Builder = ApplyBuilder;
-  export const Schema = Meta.Apply;
 }
 
 export namespace OfPredicate {
@@ -2293,7 +2265,6 @@ export namespace OfPredicate {
   export type Data = S.OfPredicate.Data;
   export const Builder = PredicateBuilder;
   export type Builder = PredicateBuilder;
-  export const Schema = Meta.Predicate;
 }
 
 export namespace OfAny {
@@ -2301,7 +2272,6 @@ export namespace OfAny {
   export type Data = S.OfAny.Value;
   export const Builder = AnyValueBuilder;
   export type Builder = AnyValueBuilder;
-  export const Schema = Meta.Any;
 }
 
 export namespace Form {
@@ -2309,7 +2279,6 @@ export namespace Form {
   export type Data = S.Form.Data;
   export const Builder = FormBuilder;
   export type Builder = FormBuilder;
-  export const Schema = Meta.Form;
 }
 
 // --- For Plain, which writes and reads schema objects through their builders ---
@@ -2347,14 +2316,12 @@ export function _holds_one(member: unknown): boolean {
   return inner instanceof AdjacencyMember && inner._members.one;
 }
 
-// `Schemas.OfX.Builder` and `Schemas.OfX.Schema` are these: a schema builder is a `Visitors.OfObject` over its meta-schema
-// (FRAMEWORK.md, Resolved: "Schemas.OfX.Builder must implement Visitors.OfX").
+// `Schemas.OfX.Builder` is this: a schema builder is a `Visitors.OfObject` over its plain schema, its store's
+// `Schemas.OfX` (FRAMEWORK.md, Resolved: "Schemas.OfX.Builder must implement Visitors.OfX").
 for (const [namespace, own] of [[S.OfScalar, OfScalar], [S.OfObject, OfObject], [S.OfProperty, OfProperty],
   [S.OfAdjacency, OfAdjacency], [S.OfRelation, OfRelation], [S.OfSymbol, OfSymbol], [S.OfParameter, OfParameter],
   [S.OfUnion, OfUnion], [S.OfIntersection, OfIntersection], [S.OfContainer, OfContainer], [S.OfApply, OfApply],
   [S.OfPredicate, OfPredicate], [S.OfAny, OfAny], [S.Form, Form]] as const) {
-  Object.assign(namespace, { Builder: own.Builder, Schema: own.Schema });
+  Object.assign(namespace, { Builder: own.Builder });
 }
 
-// The mutation schemas, which every store holds, built with the builders above.
-Mutations._build({ AnyValueBuilder, ContainerBuilder, Meta, ObjectBuilder, UnionBuilder });

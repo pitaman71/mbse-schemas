@@ -1,6 +1,7 @@
 # Designing and extending schemas
 
-Schemas are data. Every schema is an object in its store, of a meta-schema (`Builders.Meta.Object`, ...), built and
+Schemas are data. Every schema is an object in its store, of a plain schema of schemas (`store.Schemas.OfObject`, ...),
+the store's own, built and
 changed through its builder as data is: `store.Schemas.<Kind>(callback)` creates one, `store.Schemas.<Kind>(schema,
 callback)` updates it. So the same fluent calls design a schema, extend one that exists, make a new version beside it,
 or generate schemas from anything a program holds.
@@ -10,8 +11,8 @@ or generate schemas from anything a program holds.
 ```python
 from mbse.Schemas.Framework import Builders, Validators
 
-Int, Text = Builders.Meta.OfInt, Builders.Meta.OfStr  # the basic scalars, which every store holds
 store = Builders.Store()
+Int, Text = store.Schemas.OfInt, store.Schemas.OfStr  # its basic scalars, its own, named by its paths
 
 # Design: a schema is built in its store, and a named one is registered, in the module its name's prefix names.
 Contact = store.Schemas.OfObject(lambda o: (
@@ -50,7 +51,7 @@ Address = store.Schemas.OfObject(lambda o: o.name("crm.Address").properties([
     lambda t, name=name, of=of: t.name(name).type([of]) for name, of in fields.items()
 ]))
 
-# Read a schema through its builder, read-only: its members are its meta-schema's.
+# Read a schema through its builder, read-only: its members are its plain schema's, the store's Schemas.OfX.
 reader = Builders.OfObject.Builder(Contact, False)
 assert (reader.name.get(), reader.ref.get(), [e.name.get() for e in reader.properties]) == ("crm.Contact", True, ["given_name"])
 assert store.registered("crm.Customer") is Customer and list(store.module("crm").schemas) == ["Contact", "Customer", "Address"]
@@ -63,8 +64,8 @@ assert Validators.Validate(store)(Customer, ada) == []
 ```typescript
 import { Builders, Validators } from "@mbse/schemas/Framework";
 
-const [Int, Text] = [Builders.Meta.OfInt, Builders.Meta.OfStr]; // the basic scalars, which every store holds
 const store: any = new Builders.Store();
+const [Int, Text] = [store.Schemas.OfInt, store.Schemas.OfStr]; // its basic scalars, its own, named by its paths
 const check = (ok: boolean) => { if (!ok) throw new Error("unexpected"); };
 
 // Design: a schema is built in its store, and a named one is registered, in the module its name's prefix names.
@@ -104,7 +105,7 @@ const Address = store.Schemas.OfObject((o: any) => o.name("crm.Address").propert
   [...fields].map(([name, of]) => (t: any) => t.name(name).type([of])),
 ));
 
-// Read a schema through its builder, read-only: its members are its meta-schema's.
+// Read a schema through its builder, read-only: its members are its plain schema's, the store's Schemas.OfX.
 const reader: any = new Builders.OfObject.Builder(Contact, false);
 check(reader.name.get() === "crm.Contact" && reader.ref.get() === true
   && [...reader.properties].map((e: any) => e.name.get()).join() === "given_name");
@@ -119,8 +120,8 @@ check(Validators.Validate(store)(Customer, ada).length === 0);
 ## Rules
 
 - **Link only what the store holds.** A store refuses a link to a schema object it does not hold: build every schema,
-  form and member in the store that links it. The basic scalars are `Builders.Meta`'s (`OfBool`, `OfInt`, `OfFloat`,
-  `OfStr`, `OfBytes`), held by every store; a scalar of another token or width is built,
+  form and member in the store that links it. A store's basic scalars are its own, reached by its paths
+  (`store.Schemas.OfBool`, `.OfInt`, `.OfFloat`, `.OfStr`, `.OfBytes`); a scalar of another token or width is built,
   `store.Schemas.OfScalar(lambda s: s.token("int").bits([w]))`, as is a width or another term,
   `store.Schemas.Form(lambda f: f.kind("literal").attributes({"value": 32}))`. Never link `Schemas.OfX.Data(...)`.
 - **A type exists before what it types.** Build a value object or container schema, then the property typed by it.

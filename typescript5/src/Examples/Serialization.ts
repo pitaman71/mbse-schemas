@@ -9,28 +9,28 @@ import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
 import { assert, entries, equal, map, raises } from "./_support.js";
 
-const Text = Builders.Meta.OfStr;
-const Int = Builders.Meta.OfInt;
 
 const store: any = new Builders.Store();
+const Text = store.Schemas.OfStr.as_schema(); // the store's own basic scalar
+const Int = store.Schemas.OfInt.as_schema(); // the store's own basic scalar
 
 // --- Schemas ---
 
-const Sample = store.Schemas.Object((o: any) => (
+const Sample = store.Schemas.OfObject((o: any) => (
   o
     .name("Sample")
     .ref(true)
     .properties([
       (t: any) => t.name("label").type([Text]),
-      (t: any) => t.name("payload").type([Builders.Meta.OfBytes]),
+      (t: any) => t.name("payload").type([store.Schemas.OfBytes]),
       (t: any) => t.name("count").type([Int]),
-      (t: any) => t.name("ratio").type([Builders.Meta.OfFloat]),
-      (t: any) => t.name("flag").type([Builders.Meta.OfBool]),
+      (t: any) => t.name("ratio").type([store.Schemas.OfFloat]),
+      (t: any) => t.name("flag").type([store.Schemas.OfBool]),
     ])
 ));
 
 // Registered names are strings and need not be identifiers: a dotted name is a path from the store.
-const Currency = store.Schemas.Object((o: any) => (
+const Currency = store.Schemas.OfObject((o: any) => (
   o
     .name("iso4217.Currency")
     .ref(true)
@@ -40,8 +40,8 @@ const Currency = store.Schemas.Object((o: any) => (
       (t: any) => t.name("minor_units").type([Int]), // 0 for JPY, 2 for EUR, 3 for BHD
     ])
 ));
-const Product = store.Schemas.Object((o: any) => o.name("Product").ref(true).properties([(t: any) => t.name("sku").type([Text])]));
-const Money = store.Schemas.Object((o: any) => (
+const Product = store.Schemas.OfObject((o: any) => o.name("Product").ref(true).properties([(t: any) => t.name("sku").type([Text])]));
+const Money = store.Schemas.OfObject((o: any) => (
   o
     .name("Money")
     .ref(true)
@@ -49,7 +49,7 @@ const Money = store.Schemas.Object((o: any) => (
 ));
 
 // product -> [currency] -> money
-const Prices = store.Schemas.Relation((r: any) => (
+const Prices = store.Schemas.OfRelation((r: any) => (
   r
     .name("Prices")
     .links([
@@ -60,7 +60,7 @@ const Prices = store.Schemas.Relation((r: any) => (
     .uniques("price")
 ));
 // Which currency a money amount is in.
-const Denomination = store.Schemas.Relation((r: any) => (
+const Denomination = store.Schemas.OfRelation((r: any) => (
   r
     .name("Denomination")
     .links([
@@ -70,12 +70,12 @@ const Denomination = store.Schemas.Relation((r: any) => (
     .uniques("currency")
 ));
 
-store.Schemas.Object(Product, (o: any) => o.adjacencies([(t: any) => t.name("prices").relation([Prices]).me("product")]));
-store.Schemas.Object(Money, (o: any) => o.adjacencies([
+store.Schemas.OfObject(Product, (o: any) => o.adjacencies([(t: any) => t.name("prices").relation([Prices]).me("product")]));
+store.Schemas.OfObject(Money, (o: any) => o.adjacencies([
   (t: any) => t.name("products").relation([Prices]).me("price"),
   (t: any) => t.name("currency").relation([Denomination]).me("money"),
 ]));
-store.Schemas.Object(Currency, (o: any) => o.adjacencies([(t: any) => t.name("amounts").relation([Denomination]).me("currency")]));
+store.Schemas.OfObject(Currency, (o: any) => o.adjacencies([(t: any) => t.name("amounts").relation([Denomination]).me("currency")]));
 
 for (const schema of [Sample, Currency, Product, Money, Prices, Denomination]) {
   assert(schema.validate().length === 0, `${schema.name}: ${schema.validate()}`);
@@ -117,9 +117,9 @@ const key = `Sample/${blank.as_identity()}`;
 assert(equal(Plain.ToPlain(store)(Sample, blank), map({ root: key, objects: { [key]: {} } })));
 
 // Per-kind entry points.
-const bytesSchema = Builders.Meta.OfBytes;
+const bytesSchema = store.Schemas.OfBytes.as_schema();
 assert(Plain.ToPlain(store)(bytesSchema, bytes(1)) === "AQ==" && Plain.ToPlain(store).OfScalar(bytesSchema, bytes(1)) === "AQ==");
-assert(Plain.FromPlain(store).OfScalar(Builders.Meta.OfInt, 7n) === 7n);
+assert(Plain.FromPlain(store).OfScalar(store.Schemas.OfInt.as_schema(), 7n) === 7n);
 
 // --- Strict scalar types ---
 
@@ -142,7 +142,7 @@ raises(TypeError, () => Plain.ToPlain(store)(Sample, sloppy));
 const validate = Validators.Validate(store);
 assert(equal(validate(Sample, sloppy), ["Sample#0.count: expected int, got str"]));
 assert(validate(Sample, edge).length === 0 && validate(Sample, blank).length === 0);
-assert(equal(validate(Builders.Meta.OfInt, true), ["expected int, got bool"]));
+assert(equal(validate(store.Schemas.OfInt.as_schema(), true), ["expected int, got bool"]));
 
 // --- A map: product -> [currency] -> money ---
 
@@ -217,7 +217,7 @@ raises(TypeError, () => Plain.ToPlain(store)(Currency, widget));
 // --- Store corner cases ---
 
 raises(ValueError, () => store.register(Sample)); // names are registered once: Sample was as it was built
-raises(ValueError, () => store.Schemas.Object((o: any) => o.name("Sample"))); // a named schema's identity is its name, which Sample holds
+raises(ValueError, () => store.Schemas.OfObject((o: any) => o.name("Sample"))); // a named schema's identity is its name, which Sample holds
 raises(AttributeError, () => store.Unregistered((u: any) => u));
 raises(TypeError, () => store.Product()); // a callback, an object and a callback, or an object
 raises(TypeError, () => store.Prices((p: any) => p)); // no relation builder is exposed
@@ -228,7 +228,7 @@ raises(AttributeError, () => {
 });
 
 // A schema named 'schema' is shadowed by the store's schema() method, but still reachable by name.
-const Shadowed = store.Schemas.Object((o: any) => o.name("schema").ref(true).properties([(t: any) => t.name("label").type([Text])]));
+const Shadowed = store.Schemas.OfObject((o: any) => o.name("schema").ref(true).properties([(t: any) => t.name("label").type([Text])]));
 assert(store.schema("schema") === Shadowed && store.builder("schema").create().as_schema().name === "schema");
 
 console.log("Serialization: all checks passed");

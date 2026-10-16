@@ -210,6 +210,11 @@ export class OfStore extends Stores.Catalog implements Stores.Store {
     return makeObjectBuilder(this, this.schema(name), name, instance as Instance | undefined);
   }
 
+  /** None: a store of proxies is made holding no schema (a `Builders.Store` is made holding its own). */
+  framework(_schema: unknown): boolean {
+    return false;
+  }
+
   /** The live object of the schema `name` whose identity is `identity`; `LookupError` if there is none. */
   by_identity(name: string, identity: string): Instance {
     this.schema(name);
@@ -524,9 +529,30 @@ function reorder(tables: Orders, rewritten: Map<unknown, unknown>): void {
 
 // --- Visitors over values ---
 
-/** Whether a `Specs.Callback` is its function form; data instances and visitors are callable too, but are values. */
+/** Whether a `Specs.Callback` is its function form; data instances, visitors and paths are callable too, but are
+ * values. */
 function isFunction(spec: unknown): spec is (visitor: unknown) => unknown {
-  return typeof spec === "function" && !INNER.has(spec);
+  return typeof spec === "function" && !INNER.has(spec) && !NAMED.has(spec);
+}
+
+/** References by name, a store's paths (`store.Schemas.OfInt`): each a value, resolved by its function to what it names
+ * wherever an object is expected (docs/proposals/store-overhaul, Decided, 15). */
+const NAMED = new WeakMap<object, () => unknown>();
+
+/** Marks `value` a reference by name, which `resolve` resolves. */
+export function _named(value: object, resolve: () => unknown): void {
+  NAMED.set(value, resolve);
+}
+
+/** What `value` names, where it is a reference by name; else `value`. */
+export function _deref(value: unknown): unknown {
+  const resolve = NAMED.get(value as object);
+  return resolve === undefined ? value : resolve();
+}
+
+/** `fn`, given the schema a path names where it is given a path as its schema, its first argument. */
+export function _derefFirst<R, A extends unknown[]>(fn: (schema: any, ...rest: A) => R): (schema: unknown, ...rest: A) => R {
+  return (schema, ...rest) => fn(_deref(schema), ...rest);
 }
 
 /** Hands `visitor` to a function Spec, which reads or writes through it; its return value is the visitor's own. */
@@ -2393,6 +2419,7 @@ class _LinkMember extends Shelled {
       entry._links.set(name, builder);
       return entry._proxy;
     }
+    spec = _deref(spec);
     if (innerOf(spec) instanceof _LinkMember) spec = innerOf(spec)._target();
     if (isRecordData(spec)) throw new ReadOnlyError("a link targets a reference object, never a value object");
     const holds = (entry._store as { holds?: (data: unknown) => boolean } | null)?.holds;
@@ -2688,7 +2715,7 @@ export namespace OfEntry {
 /** Whether a value is a visitor this module or `Builders` made (a shell), which is a value, though callable, never the
  * function form of a `Specs.Callback`. */
 export function _isVisitor(value: unknown): boolean {
-  return INNER.has(value as object);
+  return INNER.has(value as object) || NAMED.has(value as object);
 }
 
 /** The shells visitors are made with, shared with `Builders`, as Python's `Builders` imports `_Dunders`, `_Empty`,

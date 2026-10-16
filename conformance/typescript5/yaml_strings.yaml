@@ -1,26 +1,26 @@
 - exists:
     definition:
-      key: Schemas.Module/.
+      key: Schemas.OfModule/.
       properties: {}
 - exists:
     definition:
-      key: Schemas.Object/Notebook
+      key: Schemas.OfObject/Notebook
       properties:
         name: Notebook
         ref: true
         pattern: 'notebook-(\d+)'
 - exists:
     definition:
-      key: Schemas.Adjacency/Notebook.notes
+      key: Schemas.OfAdjacency/Notebook.notes
       properties:
         me: notebook
 - exists:
     definition:
-      key: Schemas.Property/Notebook.title
+      key: Schemas.OfProperty/Notebook.title
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -28,16 +28,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Notebook.title
+                key: Schemas.OfProperty/Notebook.title
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -45,13 +45,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Notebook
+                key: Schemas.OfObject/Notebook
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Notebook.title
+                key: Schemas.OfProperty/Notebook.title
       - as_property:
           name: name
           mutations:
@@ -59,7 +59,7 @@
               value: title
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasAdjacency
+      key: Schemas.OfRelation/Schemas.HasAdjacency
     entries:
     - mutations:
       - as_link:
@@ -67,13 +67,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Notebook
+                key: Schemas.OfObject/Notebook
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Notebook.notes
+                key: Schemas.OfAdjacency/Notebook.notes
       - as_property:
           name: name
           mutations:
@@ -81,7 +81,7 @@
               value: notes
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -89,13 +89,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Notebook
+                key: Schemas.OfObject/Notebook
       - as_property:
           name: name
           mutations:
@@ -103,23 +103,23 @@
               value: Notebook
 - exists:
     definition:
-      key: Schemas.Object/Note
+      key: Schemas.OfObject/Note
       properties:
         name: Note
         ref: true
         pattern: 'note-(\d+)'
 - exists:
     definition:
-      key: Schemas.Adjacency/Note.notebooks
+      key: Schemas.OfAdjacency/Note.notebooks
       properties:
         me: note
 - exists:
     definition:
-      key: Schemas.Property/Note.text
+      key: Schemas.OfProperty/Note.text
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -127,16 +127,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Note.text
+                key: Schemas.OfProperty/Note.text
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -144,13 +144,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Note
+                key: Schemas.OfObject/Note
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Note.text
+                key: Schemas.OfProperty/Note.text
       - as_property:
           name: name
           mutations:
@@ -158,7 +158,7 @@
               value: text
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasAdjacency
+      key: Schemas.OfRelation/Schemas.HasAdjacency
     entries:
     - mutations:
       - as_link:
@@ -166,13 +166,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Note
+                key: Schemas.OfObject/Note
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Note.notebooks
+                key: Schemas.OfAdjacency/Note.notebooks
       - as_property:
           name: name
           mutations:
@@ -180,7 +180,7 @@
               value: notebooks
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -188,13 +188,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Note
+                key: Schemas.OfObject/Note
       - as_property:
           name: name
           mutations:
@@ -202,24 +202,24 @@
               value: Note
 - exists:
     definition:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
       properties:
         name: Pages
 - exists:
     definition:
-      key: Schemas.Symbol/Pages.notebook
+      key: Schemas.OfSymbol/Pages.notebook
       properties: {}
 - exists:
     definition:
-      key: Schemas.Symbol/Pages.note
+      key: Schemas.OfSymbol/Pages.note
       properties: {}
 - exists:
     definition:
-      key: Schemas.Property/Pages.page
+      key: Schemas.OfProperty/Pages.page
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -227,16 +227,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Pages.page
+                key: Schemas.OfProperty/Pages.page
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfInt
+                key: Schemas.OfScalar/Schemas.OfInt
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -244,13 +244,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Pages
+                key: Schemas.OfRelation/Pages
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Pages.page
+                key: Schemas.OfProperty/Pages.page
       - as_property:
           name: name
           mutations:
@@ -258,7 +258,7 @@
               value: page
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasLink
+      key: Schemas.OfRelation/Schemas.HasLink
     entries:
     - mutations:
       - as_link:
@@ -266,13 +266,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Pages
+                key: Schemas.OfRelation/Pages
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/Pages.notebook
+                key: Schemas.OfSymbol/Pages.notebook
       - as_property:
           name: name
           mutations:
@@ -284,13 +284,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Pages
+                key: Schemas.OfRelation/Pages
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/Pages.note
+                key: Schemas.OfSymbol/Pages.note
       - as_property:
           name: name
           mutations:
@@ -298,7 +298,7 @@
               value: note
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Relating
+      key: Schemas.OfRelation/Schemas.Relating
     entries:
     - mutations:
       - as_link:
@@ -306,29 +306,29 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Note.notebooks
+                key: Schemas.OfAdjacency/Note.notebooks
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Pages
+                key: Schemas.OfRelation/Pages
     - mutations:
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Notebook.notes
+                key: Schemas.OfAdjacency/Notebook.notes
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Pages
+                key: Schemas.OfRelation/Pages
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -336,13 +336,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Pages
+                key: Schemas.OfRelation/Pages
       - as_property:
           name: name
           mutations:
@@ -360,7 +360,7 @@
         text: 'yes'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -387,7 +387,7 @@
         text: 'No'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -414,7 +414,7 @@
         text: 'on'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -441,7 +441,7 @@
         text: 'OFF'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -468,7 +468,7 @@
         text: 'y'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -495,7 +495,7 @@
         text: 'true'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -522,7 +522,7 @@
         text: 'null'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -549,7 +549,7 @@
         text: '~'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -576,7 +576,7 @@
         text: ''
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -603,7 +603,7 @@
         text: '010'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -630,7 +630,7 @@
         text: '0o17'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -657,7 +657,7 @@
         text: '0x1F'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -684,7 +684,7 @@
         text: '1e3'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -711,7 +711,7 @@
         text: '1_000'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -738,7 +738,7 @@
         text: '1:30'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -765,7 +765,7 @@
         text: '2026-09-01'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -792,7 +792,7 @@
         text: '.inf'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -819,7 +819,7 @@
         text: '.nan'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -846,7 +846,7 @@
         text: NaN
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -873,7 +873,7 @@
         text: Infinity
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -900,7 +900,7 @@
         text: '-0.0'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -927,7 +927,7 @@
         text: '+1'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -954,7 +954,7 @@
         text: ' lead'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -981,7 +981,7 @@
         text: 'trail '
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1008,7 +1008,7 @@
         text: 'a: b'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1035,7 +1035,7 @@
         text: '- dash'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1062,7 +1062,7 @@
         text: '#hash'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1089,7 +1089,7 @@
         text: 'x #y'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1116,7 +1116,7 @@
         text: '"dq"'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1143,7 +1143,7 @@
         text: '''sq'''
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1170,7 +1170,7 @@
         text: '@at'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1197,7 +1197,7 @@
         text: '`tick'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1224,7 +1224,7 @@
         text: '%pct'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1251,7 +1251,7 @@
         text: '!bang'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1278,7 +1278,7 @@
         text: '&amp'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1305,7 +1305,7 @@
         text: '*star'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1332,7 +1332,7 @@
         text: '|'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1359,7 +1359,7 @@
         text: '>'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1386,7 +1386,7 @@
         text: '{}'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1413,7 +1413,7 @@
         text: '[]'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1440,7 +1440,7 @@
         text: ','
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1467,7 +1467,7 @@
         text: '?'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1494,7 +1494,7 @@
         text: '<<'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1521,7 +1521,7 @@
         text: '---'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1548,7 +1548,7 @@
         text: '...'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1575,7 +1575,7 @@
         text: "a\nb"
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1602,7 +1602,7 @@
         text: '	'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1629,7 +1629,7 @@
         text: "\0"
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1656,7 +1656,7 @@
         text: "\a\x7F\x9B"
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1683,7 +1683,7 @@
         text: "\uFEFFbom"
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1710,7 +1710,7 @@
         text: "a\Nb"
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1737,7 +1737,7 @@
         text: a b
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1764,7 +1764,7 @@
         text: '日本語 🚀'
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:
@@ -1791,7 +1791,7 @@
         text: 'word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word '
 - insert:
     relation:
-      key: Schemas.Relation/Pages
+      key: Schemas.OfRelation/Pages
     entries:
     - mutations:
       - as_link:

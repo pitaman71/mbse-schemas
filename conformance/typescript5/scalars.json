@@ -2,7 +2,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Module/.",
+        "key": "Schemas.OfModule/.",
         "properties": {}
       }
     }
@@ -10,7 +10,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Object/Bag",
+        "key": "Schemas.OfObject/Bag",
         "properties": {
           "name": "Bag",
           "ref": true,
@@ -22,7 +22,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Adjacency/Bag.items",
+        "key": "Schemas.OfAdjacency/Bag.items",
         "properties": {
           "me": "bag"
         }
@@ -32,7 +32,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Property/Bag.name",
+        "key": "Schemas.OfProperty/Bag.name",
         "properties": {}
       }
     }
@@ -40,7 +40,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.Typing"
       },
       "entries": [
         {
@@ -52,7 +52,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Bag.name"
+                        "key": "Schemas.OfProperty/Bag.name"
                       }
                     }
                   }
@@ -66,7 +66,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Scalar/Schemas.OfStr"
+                        "key": "Schemas.OfScalar/Schemas.OfStr"
                       }
                     }
                   }
@@ -81,7 +81,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.HasProperty"
+        "key": "Schemas.OfRelation/Schemas.HasProperty"
       },
       "entries": [
         {
@@ -93,7 +93,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Bag"
+                        "key": "Schemas.OfObject/Bag"
                       }
                     }
                   }
@@ -107,7 +107,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Bag.name"
+                        "key": "Schemas.OfProperty/Bag.name"
                       }
                     }
                   }
@@ -134,7 +134,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.HasAdjacency"
+        "key": "Schemas.OfRelation/Schemas.HasAdjacency"
       },
       "entries": [
         {
@@ -146,7 +146,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Bag"
+                        "key": "Schemas.OfObject/Bag"
                       }
                     }
                   }
@@ -160,7 +160,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Adjacency/Bag.items"
+                        "key": "Schemas.OfAdjacency/Bag.items"
                       }
                     }
                   }
@@ -187,7 +187,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Defines"
+        "key": "Schemas.OfRelation/Schemas.Defines"
       },
       "entries": [
         {
@@ -199,7 +199,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Module/."
+                        "key": "Schemas.OfModule/."
                       }
                     }
                   }
@@ -213,7 +213,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Bag"
+                        "key": "Schemas.OfObject/Bag"
                       }
                     }
                   }
@@ -240,7 +240,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Object/Sample",
+        "key": "Schemas.OfObject/Sample",
         "properties": {
           "name": "Sample",
           "ref": true,
@@ -252,7 +252,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Adjacency/Sample.bags",
+        "key": "Schemas.OfAdjacency/Sample.bags",
         "properties": {
           "me": "item"
         }
@@ -262,7 +262,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Property/Sample.label",
+        "key": "Schemas.OfProperty/Sample.label",
         "properties": {}
       }
     }
@@ -270,7 +270,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.Typing"
       },
       "entries": [
         {
@@ -282,7 +282,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Sample.label"
+                        "key": "Schemas.OfProperty/Sample.label"
                       }
                     }
                   }
@@ -296,7 +296,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Scalar/Schemas.OfStr"
+                        "key": "Schemas.OfScalar/Schemas.OfStr"
                       }
                     }
                   }
@@ -311,7 +311,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Property/Sample.payload",
+        "key": "Schemas.OfProperty/Sample.payload",
         "properties": {}
       }
     }
@@ -319,7 +319,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.Typing"
       },
       "entries": [
         {
@@ -331,7 +331,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Sample.payload"
+                        "key": "Schemas.OfProperty/Sample.payload"
                       }
                     }
                   }
@@ -345,7 +345,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Scalar/Schemas.OfBytes"
+                        "key": "Schemas.OfScalar/Schemas.OfBytes"
                       }
                     }
                   }
@@ -360,7 +360,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Property/Sample.count",
+        "key": "Schemas.OfProperty/Sample.count",
         "properties": {}
       }
     }
@@ -368,7 +368,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.Typing"
       },
       "entries": [
         {
@@ -380,7 +380,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Sample.count"
+                        "key": "Schemas.OfProperty/Sample.count"
                       }
                     }
                   }
@@ -394,7 +394,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Scalar/Schemas.OfInt"
+                        "key": "Schemas.OfScalar/Schemas.OfInt"
                       }
                     }
                   }
@@ -409,7 +409,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Property/Sample.ratio",
+        "key": "Schemas.OfProperty/Sample.ratio",
         "properties": {}
       }
     }
@@ -417,7 +417,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.Typing"
       },
       "entries": [
         {
@@ -429,7 +429,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Sample.ratio"
+                        "key": "Schemas.OfProperty/Sample.ratio"
                       }
                     }
                   }
@@ -443,7 +443,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Scalar/Schemas.OfFloat"
+                        "key": "Schemas.OfScalar/Schemas.OfFloat"
                       }
                     }
                   }
@@ -458,7 +458,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Property/Sample.flag",
+        "key": "Schemas.OfProperty/Sample.flag",
         "properties": {}
       }
     }
@@ -466,7 +466,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.Typing"
       },
       "entries": [
         {
@@ -478,7 +478,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Sample.flag"
+                        "key": "Schemas.OfProperty/Sample.flag"
                       }
                     }
                   }
@@ -492,7 +492,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Scalar/Schemas.OfBool"
+                        "key": "Schemas.OfScalar/Schemas.OfBool"
                       }
                     }
                   }
@@ -507,7 +507,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.HasProperty"
+        "key": "Schemas.OfRelation/Schemas.HasProperty"
       },
       "entries": [
         {
@@ -519,7 +519,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Sample"
+                        "key": "Schemas.OfObject/Sample"
                       }
                     }
                   }
@@ -533,7 +533,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Sample.label"
+                        "key": "Schemas.OfProperty/Sample.label"
                       }
                     }
                   }
@@ -563,7 +563,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Sample"
+                        "key": "Schemas.OfObject/Sample"
                       }
                     }
                   }
@@ -577,7 +577,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Sample.payload"
+                        "key": "Schemas.OfProperty/Sample.payload"
                       }
                     }
                   }
@@ -607,7 +607,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Sample"
+                        "key": "Schemas.OfObject/Sample"
                       }
                     }
                   }
@@ -621,7 +621,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Sample.count"
+                        "key": "Schemas.OfProperty/Sample.count"
                       }
                     }
                   }
@@ -651,7 +651,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Sample"
+                        "key": "Schemas.OfObject/Sample"
                       }
                     }
                   }
@@ -665,7 +665,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Sample.ratio"
+                        "key": "Schemas.OfProperty/Sample.ratio"
                       }
                     }
                   }
@@ -695,7 +695,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Sample"
+                        "key": "Schemas.OfObject/Sample"
                       }
                     }
                   }
@@ -709,7 +709,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Sample.flag"
+                        "key": "Schemas.OfProperty/Sample.flag"
                       }
                     }
                   }
@@ -736,7 +736,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.HasAdjacency"
+        "key": "Schemas.OfRelation/Schemas.HasAdjacency"
       },
       "entries": [
         {
@@ -748,7 +748,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Sample"
+                        "key": "Schemas.OfObject/Sample"
                       }
                     }
                   }
@@ -762,7 +762,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Adjacency/Sample.bags"
+                        "key": "Schemas.OfAdjacency/Sample.bags"
                       }
                     }
                   }
@@ -789,7 +789,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Defines"
+        "key": "Schemas.OfRelation/Schemas.Defines"
       },
       "entries": [
         {
@@ -801,7 +801,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Module/."
+                        "key": "Schemas.OfModule/."
                       }
                     }
                   }
@@ -815,7 +815,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Object/Sample"
+                        "key": "Schemas.OfObject/Sample"
                       }
                     }
                   }
@@ -842,7 +842,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Relation/Holds",
+        "key": "Schemas.OfRelation/Holds",
         "properties": {
           "name": "Holds",
           "uniques": [
@@ -858,7 +858,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Symbol/Holds.bag",
+        "key": "Schemas.OfSymbol/Holds.bag",
         "properties": {}
       }
     }
@@ -866,7 +866,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Symbol/Holds.item",
+        "key": "Schemas.OfSymbol/Holds.item",
         "properties": {}
       }
     }
@@ -874,7 +874,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.Property/Holds.slot",
+        "key": "Schemas.OfProperty/Holds.slot",
         "properties": {}
       }
     }
@@ -882,7 +882,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.Typing"
       },
       "entries": [
         {
@@ -894,7 +894,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Holds.slot"
+                        "key": "Schemas.OfProperty/Holds.slot"
                       }
                     }
                   }
@@ -908,7 +908,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Scalar/Schemas.OfInt"
+                        "key": "Schemas.OfScalar/Schemas.OfInt"
                       }
                     }
                   }
@@ -923,7 +923,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.HasProperty"
+        "key": "Schemas.OfRelation/Schemas.HasProperty"
       },
       "entries": [
         {
@@ -935,7 +935,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Relation/Holds"
+                        "key": "Schemas.OfRelation/Holds"
                       }
                     }
                   }
@@ -949,7 +949,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Property/Holds.slot"
+                        "key": "Schemas.OfProperty/Holds.slot"
                       }
                     }
                   }
@@ -976,7 +976,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.HasLink"
+        "key": "Schemas.OfRelation/Schemas.HasLink"
       },
       "entries": [
         {
@@ -988,7 +988,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Relation/Holds"
+                        "key": "Schemas.OfRelation/Holds"
                       }
                     }
                   }
@@ -1002,7 +1002,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Symbol/Holds.bag"
+                        "key": "Schemas.OfSymbol/Holds.bag"
                       }
                     }
                   }
@@ -1032,7 +1032,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Relation/Holds"
+                        "key": "Schemas.OfRelation/Holds"
                       }
                     }
                   }
@@ -1046,7 +1046,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Symbol/Holds.item"
+                        "key": "Schemas.OfSymbol/Holds.item"
                       }
                     }
                   }
@@ -1073,7 +1073,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Relating"
+        "key": "Schemas.OfRelation/Schemas.Relating"
       },
       "entries": [
         {
@@ -1085,7 +1085,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Adjacency/Sample.bags"
+                        "key": "Schemas.OfAdjacency/Sample.bags"
                       }
                     }
                   }
@@ -1099,7 +1099,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Relation/Holds"
+                        "key": "Schemas.OfRelation/Holds"
                       }
                     }
                   }
@@ -1117,7 +1117,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Adjacency/Bag.items"
+                        "key": "Schemas.OfAdjacency/Bag.items"
                       }
                     }
                   }
@@ -1131,7 +1131,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Relation/Holds"
+                        "key": "Schemas.OfRelation/Holds"
                       }
                     }
                   }
@@ -1146,7 +1146,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Schemas.Defines"
+        "key": "Schemas.OfRelation/Schemas.Defines"
       },
       "entries": [
         {
@@ -1158,7 +1158,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Module/."
+                        "key": "Schemas.OfModule/."
                       }
                     }
                   }
@@ -1172,7 +1172,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.Relation/Holds"
+                        "key": "Schemas.OfRelation/Holds"
                       }
                     }
                   }
@@ -1223,7 +1223,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Holds"
+        "key": "Schemas.OfRelation/Holds"
       },
       "entries": [
         {
@@ -1290,7 +1290,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Holds"
+        "key": "Schemas.OfRelation/Holds"
       },
       "entries": [
         {
@@ -1356,7 +1356,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Holds"
+        "key": "Schemas.OfRelation/Holds"
       },
       "entries": [
         {
@@ -1420,7 +1420,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Holds"
+        "key": "Schemas.OfRelation/Holds"
       },
       "entries": [
         {
@@ -1484,7 +1484,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Holds"
+        "key": "Schemas.OfRelation/Holds"
       },
       "entries": [
         {
@@ -1548,7 +1548,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Holds"
+        "key": "Schemas.OfRelation/Holds"
       },
       "entries": [
         {
@@ -1613,7 +1613,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Holds"
+        "key": "Schemas.OfRelation/Holds"
       },
       "entries": [
         {
@@ -1677,7 +1677,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Holds"
+        "key": "Schemas.OfRelation/Holds"
       },
       "entries": [
         {
@@ -1741,7 +1741,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Holds"
+        "key": "Schemas.OfRelation/Holds"
       },
       "entries": [
         {
@@ -1805,7 +1805,7 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.Relation/Holds"
+        "key": "Schemas.OfRelation/Holds"
       },
       "entries": [
         {

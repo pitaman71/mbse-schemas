@@ -1,6 +1,5 @@
 /** Shared helpers for the test notebooks. Each notebook runs in its own process and makes its own stores. */
 
-import { Builders } from "@mbse/schemas/Framework";
 import type { PlainData, PlainMap } from "@mbse/schemas/Framework/Plain";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import type { Callback } from "@mbse/schemas/Framework/Specs";
@@ -25,12 +24,12 @@ export function raises(errors: Function | Function[], block: () => unknown, matc
   throw new Error(`AssertionError: expected one of ${expected.map((e) => e.name).join(", ")}`);
 }
 
-const BASIC = new Map<unknown, unknown>([[String, Builders.Meta.OfStr], [BigInt, Builders.Meta.OfInt], [Number, Builders.Meta.OfFloat],
-  [Boolean, Builders.Meta.OfBool], [Uint8Array, Builders.Meta.OfBytes]]);
+const BASIC = new Map<unknown, string>([[String, "OfStr"], [BigInt, "OfInt"], [Number, "OfFloat"], [Boolean, "OfBool"],
+  [Uint8Array, "OfBytes"]]);
 
-/** The basic scalar schema of a host type, which every store holds. */
-export function basic(scalar: unknown): any {
-  return BASIC.get(scalar);
+/** The basic scalar schema of a host type in `store`, which holds its own. */
+export function basic(store: any, scalar: unknown): any {
+  return store.Schemas[BASIC.get(scalar) as string].as_schema();
 }
 
 /** Python's `==` on plain data: maps compare regardless of order, ints equal floats of the same value, NaN != NaN. */

@@ -5,14 +5,14 @@
 import { Builders, JSON, Plain, Proxies, Schemas } from "@mbse/schemas/Framework";
 import { assert, equal } from "./_support.js";
 
-const Text = Builders.Meta.OfStr;
 
 // Schemas and objects are built in a store, `store.<schema name>(...)`; a named schema registers itself as it is built.
 const store: any = new Builders.Store();
+const Text = store.Schemas.OfStr.as_schema(); // the store's own basic scalar
 
 // --- Schemas ---
 
-const IntlAddress = store.Schemas.Object((o: any) => (
+const IntlAddress = store.Schemas.OfObject((o: any) => (
   o
     .name("IntlAddress")
     .ref(true)
@@ -29,7 +29,7 @@ const IntlAddress = store.Schemas.Object((o: any) => (
     ])
 ));
 
-const Contact = store.Schemas.Object((o: any) => (
+const Contact = store.Schemas.OfObject((o: any) => (
   o
     .name("Contact")
     .ref(true)
@@ -41,7 +41,7 @@ const Contact = store.Schemas.Object((o: any) => (
     ])
 ));
 
-const PhoneNumber = store.Schemas.Object((o: any) => (
+const PhoneNumber = store.Schemas.OfObject((o: any) => (
   o
     .name("PhoneNumber")
     .ref(true)
@@ -50,7 +50,7 @@ const PhoneNumber = store.Schemas.Object((o: any) => (
     ])
 ));
 
-const EmailAddress = store.Schemas.Object((o: any) => (
+const EmailAddress = store.Schemas.OfObject((o: any) => (
   o
     .name("EmailAddress")
     .ref(true)
@@ -61,7 +61,7 @@ const EmailAddress = store.Schemas.Object((o: any) => (
 
 // Collections are relations. Links are untyped; each object declares its adjacencies below.
 
-const ContactAddresses = store.Schemas.Relation((r: any) => (
+const ContactAddresses = store.Schemas.OfRelation((r: any) => (
   r
     .name("ContactAddresses")
     .links([
@@ -73,7 +73,7 @@ const ContactAddresses = store.Schemas.Relation((r: any) => (
     ])
 ));
 
-const ContactPhones = store.Schemas.Relation((r: any) => (
+const ContactPhones = store.Schemas.OfRelation((r: any) => (
   r
     .name("ContactPhones")
     .links([
@@ -85,7 +85,7 @@ const ContactPhones = store.Schemas.Relation((r: any) => (
     ])
 ));
 
-const ContactEmails = store.Schemas.Relation((r: any) => (
+const ContactEmails = store.Schemas.OfRelation((r: any) => (
   r
     .name("ContactEmails")
     .links([
@@ -98,18 +98,18 @@ const ContactEmails = store.Schemas.Relation((r: any) => (
 ));
 
 // A schema and a callback: the schema, updated in place.
-store.Schemas.Object(Contact, (o: any) => o.adjacencies([
+store.Schemas.OfObject(Contact, (o: any) => o.adjacencies([
   (t: any) => t.name("addresses").relation([ContactAddresses]).me("contact"),
   (t: any) => t.name("phones").relation([ContactPhones]).me("contact"),
   (t: any) => t.name("emails").relation([ContactEmails]).me("contact"),
 ]));
-store.Schemas.Object(IntlAddress, (o: any) => o.adjacencies([
+store.Schemas.OfObject(IntlAddress, (o: any) => o.adjacencies([
   (t: any) => t.name("contacts").relation([ContactAddresses]).me("address"),
 ]));
-store.Schemas.Object(PhoneNumber, (o: any) => o.adjacencies([
+store.Schemas.OfObject(PhoneNumber, (o: any) => o.adjacencies([
   (t: any) => t.name("contacts").relation([ContactPhones]).me("phone"),
 ]));
-store.Schemas.Object(EmailAddress, (o: any) => o.adjacencies([
+store.Schemas.OfObject(EmailAddress, (o: any) => o.adjacencies([
   (t: any) => t.name("contacts").relation([ContactEmails]).me("email"),
 ]));
 

@@ -92,6 +92,9 @@ export interface Store {
   /** The live object of the schema `name` whose identity (unqualified, as `as_identity()` gives it) is `identity`;
    * `LookupError` if there is none. */
   by_identity(name: string, identity: string): Readers.OfObject;
+  /** Whether the store was made holding `schema` (a `Builders.Store`'s plain schemas, basic scalars and mutation
+   * schemas): a name each store holds its own schema under. */
+  framework(schema: unknown): boolean;
   /** For decoders: a builder for the object schema `name` whose `create()` gives the object the identity a snapshot
    * names. A program writes one through the builder's `as_identity`. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -173,10 +176,15 @@ export class Catalog {
   }
 }
 
+/** Whether `store` registers `name` for a schema it was made holding (a `Builders.Store`'s own built-ins). */
+function builtIn(store: Store, name: string): boolean {
+  return store.framework(store.registered(name));
+}
+
 /** Stores combined into one: each name belongs to the one store that registers it, which gives its schema, builds its
  * objects and reads their members; the singletons are all of theirs, and an extent is the owning store's and what
  * every store's singletons reach. A name that two of the stores register for different schemas is refused; one they
- * register for the same schema (as every store of proxies registers the meta-schemas) is the first's. */
+ * register for the same schema, or each for a schema it was made holding (its `Schemas.OfInt`, ...), is the first's. */
 export class Combined implements Store {
   readonly stores: readonly Store[];
   readonly #owners = new Map<string, Store>();
@@ -186,12 +194,18 @@ export class Combined implements Store {
     for (const store of stores) {
       for (const name of store.names()) {
         const owner = this.#owners.get(name);
-        if (owner !== undefined && owner.registered(name) !== store.registered(name)) {
+        if (owner !== undefined && owner.registered(name) !== store.registered(name)
+          && !(builtIn(owner, name) && builtIn(store, name))) {
           throw new ValueError(`schema ${repr(name)} is registered by two of the stores`);
         }
         if (owner === undefined) this.#owners.set(name, store);
       }
     }
+  }
+
+  /** Whether one of the stores was made holding `schema`. */
+  framework(schema: unknown): boolean {
+    return this.stores.some((store) => store.framework(schema));
   }
 
   private owner(name: string, error: new (message: string) => Error): Store {

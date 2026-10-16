@@ -90,24 +90,30 @@ As the user decided (2026-10-16), on the questions put to them:
 15. **Reading a path gives the schema it names** ("yes"): `store.Schemas.OfInt` (level 1), `store.Schemas.OfScalar`
     (level 2); called, a path builds through it, as `store.Schemas.OfScalar(...)` does. So code links and extends
     schemas without `Builders.Meta`, and with no string (P-015).
+16. **Code names a store's schema by the store's path**, "(a)": `.type([store.Schemas.OfInt])`, each use naming its
+    store, rather than a path rooted in no store.
 
 ## Order of work
 
 Each step lands on main as its own release, with both gates at 100%, the corpora regenerated and conformance passing,
 so that main stays current and no branch waits on another.
 
-1. **Per-store schemas of schemas (0.14.0).** A store builds its own level 2 and its basic scalars when it is made
-   (level 3 is static code), and the module-level `Builders.Meta` goes. The meta-schemas are `store.Schemas.Meta.OfX` (1), and
-   `Meta.Schema` goes (2). A builder of a level-1 schema finds its members through its store's level-2 schema, so the
-   members an extension adds (Schema extension, Decided, 18) are each store's own, not added to a shared class. `Builders.extend`, the framework store, and the framework entries of 0.12.1 and
-   0.12.2 go; `store.extend` is the only extension. EXT is rewritten: round trips between stores with the same
-   extensions and with differing ones (Schema extension, Decided, 23).
-   The level-2 schemas are renamed `Schemas.OfX` (14).
+1. **Per-store schemas of schemas (0.14.0).** A store builds its own level 2, its basic scalars and its mutation
+   schemas when it is made (level 3 is static code), and the module-level `Builders.Meta` goes. The level-2 schemas are
+   named `Schemas.OfX` and built through them (14); a path given where an object is expected is the schema it names,
+   and `as_schema()` gives it (15, 16). A builder of a level-1 schema finds its members through its store's level-2
+   schema, so the members an extension adds (Schema extension, Decided, 18) are each store's own, not added to a shared
+   class. `Builders.extend` and the framework store go; `store.extend` is the only extension, and the schemas a store
+   was made holding change only through it (their entries are the store's own, as 0.12.1 kept them). EXT is
+   rewritten: an extension extends one store, and round trips between stores with the same extensions.
+   `Meta.Schema` goes with `Meta.Type` and `Meta.Typed` in step 2, the abstract bases together.
    *Breaks*: every `Builders.Meta.X` (386 uses in 86 files: library, tests, tutorials, the skill, docs), every
-   `Builders.extend`, and every call that builds a schema, `store.Schemas.Object(...)` and its kin (1854 in 87 files),
-   which becomes `store.Schemas.OfObject(...)`.
+   `Builders.extend`, `Schemas.OfX.Schema`, the module-level mutation schemas (`Mutations.Log`, ...), and every call that
+   builds a schema, `store.Schemas.Object(...)` and its kin (1854 in 87 files), which becomes
+   `store.Schemas.OfObject(...)`; the wire's schema keys (`Schemas.OfObject/crm.Contact`).
 2. **What leaves (0.15.0).** `Argument`, `Term`, `Form`, `OfApply`, `requires`, `bits` and `bytes`, and the value
-   parameters (7; Schema extension, Decided, 5 to 7). `Meta.Type` and `Meta.Typed` go (3).
+   parameters (7; Schema extension, Decided, 5 to 7). `Meta.Schema`, `Meta.Type` and `Meta.Typed` go (2, 3), and
+   `Schemas.Meta` (13) is built, holding level 3's names.
    *Breaks*: PAR (parametrics) and every test of forms, widths, applications and predicates' `requires`.
 3. **Scalars and members (0.16.0).** User scalar schemas, `token` and `format` go (8, 9). Branches and parts become `HasBranch` and `HasPart` (4).
    `Schemas.OfScalar` has exactly the five instances (8).
@@ -119,6 +125,30 @@ so that main stays current and no branch waits on another.
 
 Then mbse-expressions redrafts its framework model on per-store extension (`Expressions.install(store)`, through
 `store.extend`), with domains, dialects and `DefinesDomains` as the user described.
+
+## Step 1, as built (0.14.0)
+
+Each store is made holding its own plain schemas of schemas, basic scalars and mutation schemas (`Builders._plain`,
+`Mutations.schemas`); `Builders.extend`, the framework store and the shared `Builders.Meta` are gone. A builder's
+members are its class's and its store's extensions' (`_members_`, `_table()`), so an extension of one store is seen in
+no other. A store refuses a change to a schema it was made holding outside `store.extend`. Paths are references by name
+(`Proxies._Named` and `_deref`; TypeScript's `_named`), resolved where an object is expected: links,
+`store.Schemas.OfX(existing, ...)`, a builder's original, and Plain's and Validators' entry points; `as_schema()` gives
+the schema. Every store says which schemas it was made holding (`framework`), a store of proxies none, and
+`Stores.Combined` takes a name each store holds for its own built-in as the first's. Tests, tutorials, examples, the
+skill and the corpora are migrated; both gates are at 100%, the corpora byte-identical, and Node 22 to 26 and
+portability pass.
+
+Found while building it, for the user:
+
+- **A schema registered in another store.** `store.register(schema)` still accepts a schema another store built, and
+  about eighteen tests and a tutorial use it to have "another store of the same schemas" (a `Proxies.OfStore`, or a
+  second `Builders.Store`), which shares schema objects across stores against decision 23. Refusing it means those
+  cases build their schemas in each store, or read them from a snapshot.
+- **A snapshot read into a store without its extensions.** Reading an extended store's snapshot into a store that lacks
+  the extension succeeds silently, and the objects it makes lack what the extension added (a domain without its
+  `schemas` adjacency): what a round trip between "differing extensions" should do is undecided (refuse, or keep what
+  the reading store cannot hold).
 
 ## Open, for the user
 

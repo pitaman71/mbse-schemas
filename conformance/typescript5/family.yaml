@@ -1,41 +1,41 @@
 - exists:
     definition:
-      key: Schemas.Module/.
+      key: Schemas.OfModule/.
       properties: {}
 - exists:
     definition:
-      key: Schemas.Object/Person
+      key: Schemas.OfObject/Person
       properties:
         name: Person
         ref: true
         pattern: 'person-(\d+)'
 - exists:
     definition:
-      key: Schemas.Adjacency/Person.children
+      key: Schemas.OfAdjacency/Person.children
       properties:
         me: parent
 - exists:
     definition:
-      key: Schemas.Adjacency/Person.parents
+      key: Schemas.OfAdjacency/Person.parents
       properties:
         me: child
 - exists:
     definition:
-      key: Schemas.Adjacency/Person.mentees
+      key: Schemas.OfAdjacency/Person.mentees
       properties:
         me: mentor
 - exists:
     definition:
-      key: Schemas.Adjacency/Person.mentors
+      key: Schemas.OfAdjacency/Person.mentors
       properties:
         me: mentee
 - exists:
     definition:
-      key: Schemas.Property/Person.given_name
+      key: Schemas.OfProperty/Person.given_name
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -43,20 +43,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Person.given_name
+                key: Schemas.OfProperty/Person.given_name
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - exists:
     definition:
-      key: Schemas.Property/Person.birth_date
+      key: Schemas.OfProperty/Person.birth_date
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -64,16 +64,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Person.birth_date
+                key: Schemas.OfProperty/Person.birth_date
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -81,13 +81,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Person
+                key: Schemas.OfObject/Person
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Person.given_name
+                key: Schemas.OfProperty/Person.given_name
       - as_property:
           name: name
           mutations:
@@ -99,13 +99,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Person
+                key: Schemas.OfObject/Person
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Person.birth_date
+                key: Schemas.OfProperty/Person.birth_date
       - as_property:
           name: name
           mutations:
@@ -113,7 +113,7 @@
               value: birth_date
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasAdjacency
+      key: Schemas.OfRelation/Schemas.HasAdjacency
     entries:
     - mutations:
       - as_link:
@@ -121,13 +121,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Person
+                key: Schemas.OfObject/Person
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Person.children
+                key: Schemas.OfAdjacency/Person.children
       - as_property:
           name: name
           mutations:
@@ -139,13 +139,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Person
+                key: Schemas.OfObject/Person
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Person.parents
+                key: Schemas.OfAdjacency/Person.parents
       - as_property:
           name: name
           mutations:
@@ -157,13 +157,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Person
+                key: Schemas.OfObject/Person
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Person.mentees
+                key: Schemas.OfAdjacency/Person.mentees
       - as_property:
           name: name
           mutations:
@@ -175,13 +175,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Person
+                key: Schemas.OfObject/Person
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Person.mentors
+                key: Schemas.OfAdjacency/Person.mentors
       - as_property:
           name: name
           mutations:
@@ -189,7 +189,7 @@
               value: mentors
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -197,13 +197,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Person
+                key: Schemas.OfObject/Person
       - as_property:
           name: name
           mutations:
@@ -211,24 +211,24 @@
               value: Person
 - exists:
     definition:
-      key: Schemas.Relation/Parentage
+      key: Schemas.OfRelation/Parentage
       properties:
         name: Parentage
 - exists:
     definition:
-      key: Schemas.Symbol/Parentage.parent
+      key: Schemas.OfSymbol/Parentage.parent
       properties: {}
 - exists:
     definition:
-      key: Schemas.Symbol/Parentage.child
+      key: Schemas.OfSymbol/Parentage.child
       properties: {}
 - exists:
     definition:
-      key: Schemas.Property/Parentage.kind
+      key: Schemas.OfProperty/Parentage.kind
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -236,16 +236,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Parentage.kind
+                key: Schemas.OfProperty/Parentage.kind
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -253,13 +253,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Parentage
+                key: Schemas.OfRelation/Parentage
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Parentage.kind
+                key: Schemas.OfProperty/Parentage.kind
       - as_property:
           name: name
           mutations:
@@ -267,7 +267,7 @@
               value: kind
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasLink
+      key: Schemas.OfRelation/Schemas.HasLink
     entries:
     - mutations:
       - as_link:
@@ -275,13 +275,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Parentage
+                key: Schemas.OfRelation/Parentage
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/Parentage.parent
+                key: Schemas.OfSymbol/Parentage.parent
       - as_property:
           name: name
           mutations:
@@ -293,13 +293,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Parentage
+                key: Schemas.OfRelation/Parentage
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/Parentage.child
+                key: Schemas.OfSymbol/Parentage.child
       - as_property:
           name: name
           mutations:
@@ -307,7 +307,7 @@
               value: child
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Relating
+      key: Schemas.OfRelation/Schemas.Relating
     entries:
     - mutations:
       - as_link:
@@ -315,29 +315,29 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Person.parents
+                key: Schemas.OfAdjacency/Person.parents
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Parentage
+                key: Schemas.OfRelation/Parentage
     - mutations:
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Person.children
+                key: Schemas.OfAdjacency/Person.children
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Parentage
+                key: Schemas.OfRelation/Parentage
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -345,13 +345,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Parentage
+                key: Schemas.OfRelation/Parentage
       - as_property:
           name: name
           mutations:
@@ -359,20 +359,20 @@
               value: Parentage
 - exists:
     definition:
-      key: Schemas.Relation/Mentorship
+      key: Schemas.OfRelation/Mentorship
       properties:
         name: Mentorship
 - exists:
     definition:
-      key: Schemas.Symbol/Mentorship.mentor
+      key: Schemas.OfSymbol/Mentorship.mentor
       properties: {}
 - exists:
     definition:
-      key: Schemas.Symbol/Mentorship.mentee
+      key: Schemas.OfSymbol/Mentorship.mentee
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasLink
+      key: Schemas.OfRelation/Schemas.HasLink
     entries:
     - mutations:
       - as_link:
@@ -380,13 +380,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Mentorship
+                key: Schemas.OfRelation/Mentorship
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/Mentorship.mentor
+                key: Schemas.OfSymbol/Mentorship.mentor
       - as_property:
           name: name
           mutations:
@@ -398,13 +398,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Mentorship
+                key: Schemas.OfRelation/Mentorship
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/Mentorship.mentee
+                key: Schemas.OfSymbol/Mentorship.mentee
       - as_property:
           name: name
           mutations:
@@ -412,7 +412,7 @@
               value: mentee
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Relating
+      key: Schemas.OfRelation/Schemas.Relating
     entries:
     - mutations:
       - as_link:
@@ -420,29 +420,29 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Person.mentors
+                key: Schemas.OfAdjacency/Person.mentors
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Mentorship
+                key: Schemas.OfRelation/Mentorship
     - mutations:
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Person.mentees
+                key: Schemas.OfAdjacency/Person.mentees
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Mentorship
+                key: Schemas.OfRelation/Mentorship
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -450,13 +450,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Mentorship
+                key: Schemas.OfRelation/Mentorship
       - as_property:
           name: name
           mutations:
@@ -475,7 +475,7 @@
         given_name: Bob
 - insert:
     relation:
-      key: Schemas.Relation/Mentorship
+      key: Schemas.OfRelation/Mentorship
     entries:
     - mutations:
       - as_link:
@@ -505,7 +505,7 @@
                 key: Person/person-2
 - insert:
     relation:
-      key: Schemas.Relation/Parentage
+      key: Schemas.OfRelation/Parentage
     entries:
     - mutations:
       - as_link:
@@ -532,7 +532,7 @@
         given_name: Carol
 - insert:
     relation:
-      key: Schemas.Relation/Mentorship
+      key: Schemas.OfRelation/Mentorship
     entries:
     - mutations:
       - as_link:
@@ -555,7 +555,7 @@
         birth_date: '2001-02-03'
 - insert:
     relation:
-      key: Schemas.Relation/Parentage
+      key: Schemas.OfRelation/Parentage
     entries:
     - mutations:
       - as_link:

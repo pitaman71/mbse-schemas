@@ -178,8 +178,9 @@ came from, the old clause → new table and the work items left are in
 
 ### The meta-schemas
 
-Every meta-schema, `Builders.Meta.X` (`Builders.OfX.Schema`, which becomes `Schemas.OfX.Schema` when they land), is a
-reference object schema named `Schemas.X`, so every schema object is a reference object (Resolved: "we already decided
+Every meta-schema is a reference object schema named `Schemas.OfX` (`Schemas.X` until the store overhaul), each
+store's own, reached by its path (`store.Schemas.OfObject`; [Store overhaul](proposals/store-overhaul/README.md)), so
+every schema object is a reference object (Resolved: "we already decided
 at least one time to make schema objects references. all of them.").
 
 - **Kinds.** `Schemas.Schema` has the properties `name` and `description`, and owns `parameters`.
@@ -276,13 +277,13 @@ object. `store.Schemas.<Kind>(...)` builds a schema object, for `Scalar`, `Objec
 - **The meta-schemas are in every store**, registered under their names, with the basic scalars (`Schemas.OfBool`,
   ...) and the mutation schemas.
 - **A store links only what it holds.** A builder in a store refuses a link to a schema object the store does not
-  hold, built outside any store or in another (FRAMEWORK.md, Stores); the basic scalars are linked as
-  `Builders.Meta.OfInt` and so on.
+  hold, built outside any store or in another (FRAMEWORK.md, Stores); a store's basic scalars are its own, linked by its
+  paths, `store.Schemas.OfInt` and so on.
 - **Identities.** Every schema object gets one on creation (Resolved: "all schema objects are reference objects and all
   reference objects get an ID on creation"): the one written, else a named schema's name, else a UUID; members built
   with a schema get theirs too. The store refuses an identity another of its schema objects holds.
 - **Registration.** A named schema is registered under its name as it is created, so `store.crm.Person(...)` builds
-  data right after `store.Schemas.Object(lambda o: o.name("crm.Person") ...)`; a renamed schema is registered again
+  data right after `store.Schemas.OfObject(lambda o: o.name("crm.Person") ...)`; a renamed schema is registered again
   under its new name.
 
 Built since: modules in the store, defining schemas and modules through `Defines`; a store written and read as a log

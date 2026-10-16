@@ -78,6 +78,10 @@ class OfStore(Stores.Catalog):
             return _standalone(registered, instance, self)
         return _ObjectBuilder(self, self.schema(name), name, instance)
 
+    def framework(self, schema: Any) -> bool:
+        """None: a store of proxies is made holding no schema (a `Builders.Store` is made holding its own)."""
+        return False
+
     def by_identity(self, name: str, identity: str) -> _ObjectData:
         """The live object of the schema `name` whose identity is `identity`; `LookupError` if there is none."""
         self.schema(name)

@@ -24,7 +24,7 @@
 import * as Builders from "./Builders.js";
 import { NotImplementedError } from "./Errors.js";
 import { schemaTypeName } from "./Plain.js";
-import { scalarKey } from "./Proxies.js";
+import { _derefFirst, scalarKey } from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
 import type * as Readers from "./Readers.js";
 import { repr, sortedStrings, tokenName, typeName } from "./Repr.js";
@@ -132,9 +132,11 @@ function scalarProblem(schema: Schemas.OfScalar.Data, value: unknown): string | 
  * or anonymous. */
 /** A linked object, as a visitor: a schema object, which an extension's relation links, through its read-only builder,
  * whose schema is its meta-schema. */
-function visited(target: any): any {
+/** A linked object, as a visitor: a schema object, which an extension's relation links, through its read-only builder in
+ * `store`, whose schema is the store's plain schema of it. */
+function visited(target: any, store: unknown): any {
   const builder = Builders._builder_for(target) as (new (...args: unknown[]) => unknown) | null;
-  return builder === null ? target : new builder(target, false);
+  return builder === null ? target : new builder(target, false, store);
 }
 
 function filling(relation: Schemas.OfRelation.Data, name: string, schema: Schemas.OfObject.Data): string | null {
@@ -278,14 +280,14 @@ class Checker {
     const problems: string[] = [];
     for (const name of relation.entry.links.keys()) {
       if (name === adjacency.me) continue;
-      const problem = filling(relation, name, visited(entry[name]).as_schema());
+      const problem = filling(relation, name, visited(entry[name], this.store).as_schema());
       if (problem !== null) problems.push(`${label}.${name}: ${problem}`);
     }
     for (const [name, prop] of relation.entry.properties) {
       problems.push(...this.valueProblems(`${label}.${name}`, prop.type, propertyValue(entry[name], prop.type)));
     }
     const links = new Map<string, string>([...relation.entry.links.keys()].filter((name) => name !== adjacency.me)
-      .map((name) => [name, identity(visited(entry[name]))]));
+      .map((name) => [name, identity(visited(entry[name], this.store))]));
     links.set(adjacency.me, identity(owner));
     const values = new Map<string, string>();
     for (const [name, prop] of relation.entry.properties) {
@@ -368,7 +370,8 @@ export function Check(store: Stores.Store): CheckCall {
     if (schema instanceof Schemas.OfObject.Data) return OfObject(schema, value as Readers.OfObject);
     throw new NotImplementedError(`${schemaTypeName(schema)} cannot be validated yet`);
   };
-  return Object.assign(call, { OfScalar, OfObject, Reachable: ReachableCheck });
+  const named = _derefFirst; // a path names its schema
+  return Object.assign(named(call), { OfScalar: named(OfScalar), OfObject: named(OfObject), Reachable: named(ReachableCheck) });
 }
 
 export interface ValidateCall {

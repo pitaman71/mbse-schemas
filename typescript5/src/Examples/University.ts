@@ -9,9 +9,9 @@ import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
 import { assert, entries, raises, same_graph } from "./_support.js";
 
-const Text = Builders.Meta.OfStr;
 
 const store: any = new Builders.Store();
+const Text = store.Schemas.OfStr.as_schema(); // the store's own basic scalar
 
 function text(name: string) {
   return (t: any) => t.name(name).type([Text]);
@@ -19,19 +19,19 @@ function text(name: string) {
 
 // --- Schemas ---
 
-const Student = store.Schemas.Object((o: any) => o.name("Student").ref(true).properties([text("name"), text("student_id")]));
-const Staff = store.Schemas.Object((o: any) => o.name("Staff").ref(true).properties([text("name"), text("staff_id")]));
-const Course = store.Schemas.Object((o: any) => o.name("Course").ref(true).properties([text("code"), text("title")]));
-const Term = store.Schemas.Object((o: any) => (
+const Student = store.Schemas.OfObject((o: any) => o.name("Student").ref(true).properties([text("name"), text("student_id")]));
+const Staff = store.Schemas.OfObject((o: any) => o.name("Staff").ref(true).properties([text("name"), text("staff_id")]));
+const Course = store.Schemas.OfObject((o: any) => o.name("Course").ref(true).properties([text("code"), text("title")]));
+const Term = store.Schemas.OfObject((o: any) => (
   o
     .name("Term")
     .ref(true)
     .properties([text("code"), text("starts"), text("ends")]) // ISO 8601 dates, e.g. '2026-09-01'
 ));
-const Room = store.Schemas.Object((o: any) => o.name("Room").ref(true).properties([text("building"), text("number")]));
+const Room = store.Schemas.OfObject((o: any) => o.name("Room").ref(true).properties([text("building"), text("number")]));
 
 // Three links: each entry is one student taking one course in one term.
-const Enrollment = store.Schemas.Relation((r: any) => (
+const Enrollment = store.Schemas.OfRelation((r: any) => (
   r
     .name("Enrollment")
     .links([
@@ -40,15 +40,15 @@ const Enrollment = store.Schemas.Relation((r: any) => (
       (t: any) => t.name("term"),
     ])
     .properties([
-      (t: any) => t.name("credits").type([Builders.Meta.OfInt]),
-      (t: any) => t.name("score").type([Builders.Meta.OfFloat]),
-      (t: any) => t.name("audit").type([Builders.Meta.OfBool]),
+      (t: any) => t.name("credits").type([store.Schemas.OfInt]),
+      (t: any) => t.name("score").type([store.Schemas.OfFloat]),
+      (t: any) => t.name("audit").type([store.Schemas.OfBool]),
     ])
     .uniques(["score", "audit", "credits"]) // (student, course, term) determine the rest
 ));
 
 // Both Student and Staff can book rooms, so the 'booker' link is filled by more than one schema.
-const Booking = store.Schemas.Relation((r: any) => (
+const Booking = store.Schemas.OfRelation((r: any) => (
   r
     .name("Booking")
     .links([
@@ -58,14 +58,14 @@ const Booking = store.Schemas.Relation((r: any) => (
     .properties([text("starts")]) // ISO 8601 date-time, e.g. '2026-09-14T09:00:00Z'
 ));
 
-store.Schemas.Object(Student, (o: any) => o.adjacencies([
+store.Schemas.OfObject(Student, (o: any) => o.adjacencies([
   (t: any) => t.name("enrollments").relation([Enrollment]).me("student"),
   (t: any) => t.name("bookings").relation([Booking]).me("booker"),
 ]));
-store.Schemas.Object(Staff, (o: any) => o.adjacencies([(t: any) => t.name("bookings").relation([Booking]).me("booker")]));
-store.Schemas.Object(Course, (o: any) => o.adjacencies([(t: any) => t.name("enrollments").relation([Enrollment]).me("course")]));
-store.Schemas.Object(Term, (o: any) => o.adjacencies([(t: any) => t.name("enrollments").relation([Enrollment]).me("term")]));
-store.Schemas.Object(Room, (o: any) => o.adjacencies([(t: any) => t.name("bookings").relation([Booking]).me("room")]));
+store.Schemas.OfObject(Staff, (o: any) => o.adjacencies([(t: any) => t.name("bookings").relation([Booking]).me("booker")]));
+store.Schemas.OfObject(Course, (o: any) => o.adjacencies([(t: any) => t.name("enrollments").relation([Enrollment]).me("course")]));
+store.Schemas.OfObject(Term, (o: any) => o.adjacencies([(t: any) => t.name("enrollments").relation([Enrollment]).me("term")]));
+store.Schemas.OfObject(Room, (o: any) => o.adjacencies([(t: any) => t.name("bookings").relation([Booking]).me("room")]));
 
 for (const schema of [Student, Staff, Course, Term, Room, Enrollment, Booking]) {
   assert(schema.validate().length === 0, `${schema.name}: ${schema.validate()}`);

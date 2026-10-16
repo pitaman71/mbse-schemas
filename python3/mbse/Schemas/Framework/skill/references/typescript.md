@@ -12,10 +12,10 @@ It writes the same JSON as the Python version, byte for byte.
 ```typescript
 import { Builders, JSON, Proxies, Schemas as S, Validators } from "@mbse/schemas/Framework";
 
-const [Int, Text] = [Builders.Meta.OfInt, Builders.Meta.OfStr]; // the basic scalars, which every store holds
 // Schemas and data are built in a store. Its members come from the schemas at runtime, so it is typed loosely: declare
 // it `any`, and annotate the callbacks given to it `(x: any)`.
 const store: any = new Builders.Store();
+const [Int, Text] = [store.Schemas.OfInt, store.Schemas.OfStr]; // its basic scalars, its own, named by its paths
 
 // A value with no identity: a value object.
 const Signal = store.Schemas.OfObject((o: any) => o.properties([
@@ -119,8 +119,9 @@ if (Validators.Validate(store).Reachable(Component, copy).length > 0) throw new 
 // Everything is built in a store: schemas with store.Schemas.<Kind>(...), data with store.<dotted name>(...). Called
 // with a callback (a Spec taking the builder), it creates; with an object and a callback, it updates the object; with
 // an object alone, it clones it. It returns the object. A named schema is registered under its name as it is built.
-const store: any = new Builders.Store();                    // holds the meta-schemas; isolated from every other store
-Builders.Meta.OfInt;                                        // basic scalars, in every store: OfBool, OfInt, OfFloat, OfStr, OfBytes
+const store: any = new Builders.Store();                    // holds its own plain schemas of schemas; shares nothing
+store.Schemas.OfInt;                                        // its basic scalars, by path: OfBool, OfInt, OfFloat, OfStr, OfBytes
+store.Schemas.OfInt.as_schema();                            // the schema a path names, where an object is wanted
 const w = store.Schemas.Form((f: any) => f.kind("literal").attributes({ value: 32n }));  // a literal width, 32
 store.Schemas.OfScalar((s: any) => s.format("ccpp").token("int32_t").bits([w]));   // any format's token; a width, a term
 store.Schemas.OfObject((o: any) => o.name("crm.Contact").ref(true).properties([...]));   // .ref(true): a reference object schema
@@ -217,8 +218,8 @@ The traps of [Python](python.md#traps) hold here too, in TypeScript's terms:
 - A schema builder's value properties are typed exactly: `.ref(1n)` throws `TypeError`; write `.ref(true)`. A
   singleton schema is a reference object schema too: `.ref(true).singleton("crm.Directory")`.
 - A reference to another schema object is an array of what it links, even where only one is allowed: `.type([Text])`,
-  never `.type(Text)`. A store links only what it holds: the basic scalars are `Builders.Meta.OfInt` and so on, never
-  `new S.OfScalar.Data(BigInt)`.
+  never `.type(Text)`. A store links only what it holds: its basic scalars are `store.Schemas.OfInt` and so on, never
+  `new S.OfScalar.Data(BigInt)` nor another store's.
 - In its store, a named schema's identity is its name: `store.Schemas.OfObject(Contact)` cannot clone it. Clone it under
   a new name with a builder in the store: `new Builders.OfObject.Builder(Contact, true, store).name("crm.Contact.v2").clone()`.
 

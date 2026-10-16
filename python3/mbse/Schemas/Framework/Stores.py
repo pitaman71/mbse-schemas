@@ -107,6 +107,11 @@ class Store(Protocol):
         `LookupError` if there is none."""
         ...
 
+    def framework(self, schema: Any) -> bool:
+        """Whether the store was made holding `schema` (a `Builders.Store`'s plain schemas, basic scalars and mutation
+        schemas): a name each store holds its own schema under."""
+        ...
+
     def restore(self, name: str, identity: str) -> Any:
         """For decoders: a builder for the object schema `name` whose `create()` gives the object the identity a snapshot
         names. A program writes one through the builder's `as_identity`."""
@@ -191,8 +196,7 @@ class Catalog:
 
 def _built_in(store: Any, name: str) -> bool:
     """Whether `store` registers `name` for a schema it was made holding (a `Builders.Store`'s own built-ins)."""
-    framework = getattr(store, "framework", None)
-    return framework is not None and framework(store.registered(name))
+    return store.framework(store.registered(name))
 
 
 class Combined:
@@ -223,7 +227,7 @@ class Combined:
 
     def framework(self, schema: Any) -> bool:
         """Whether one of the stores was made holding `schema`."""
-        return any(getattr(store, "framework", lambda _: False)(schema) for store in self.stores)
+        return any(store.framework(schema) for store in self.stores)
 
     def registered(self, name: str) -> Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data:
         return self._owner(name, LookupError).registered(name)

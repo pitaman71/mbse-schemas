@@ -9,13 +9,13 @@ import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
 import { assert, entries, raises, same_graph } from "./_support.js";
 
-const Text = Builders.Meta.OfStr;
 
 const store: any = new Builders.Store();
+const Text = store.Schemas.OfStr.as_schema(); // the store's own basic scalar
 
 // --- Schemas ---
 
-const Person = store.Schemas.Object((o: any) => (
+const Person = store.Schemas.OfObject((o: any) => (
   o
     .name("Person")
     .ref(true)
@@ -27,7 +27,7 @@ const Person = store.Schemas.Object((o: any) => (
 ));
 
 // Both links of these relations are filled by Person objects.
-const Parentage = store.Schemas.Relation((r: any) => (
+const Parentage = store.Schemas.OfRelation((r: any) => (
   r
     .name("Parentage")
     .links([
@@ -38,7 +38,7 @@ const Parentage = store.Schemas.Relation((r: any) => (
     .uniques([[]]) // a set of entries, with no other constraint: an entry equal to one held is that one
 ));
 
-const Mentorship = store.Schemas.Relation((r: any) => (
+const Mentorship = store.Schemas.OfRelation((r: any) => (
   r
     .name("Mentorship")
     .links([
@@ -47,7 +47,7 @@ const Mentorship = store.Schemas.Relation((r: any) => (
     ])
 ));
 
-store.Schemas.Object(Person, (o: any) => o.adjacencies([
+store.Schemas.OfObject(Person, (o: any) => o.adjacencies([
   (t: any) => t.name("children").relation([Parentage]).me("parent"),
   (t: any) => t.name("parents").relation([Parentage]).me("child"),
   (t: any) => t.name("mentees").relation([Mentorship]).me("mentor"),

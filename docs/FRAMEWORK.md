@@ -253,9 +253,10 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   protocol (`Readers.OfX`), or a scalar, and compares it with another: `a.compare(b)` returns -1, 0, 1, or `None` when
   incomparable. See `EQUALITY.md`.
 
-- `Builders` : schemas as data. The meta-schemas (`Builders.Meta`), each kind's builder (`Schemas.OfX.Builder`, a
-  `Visitors.OfObject` over its meta-schema) and the store, `Builders.Store`, in which schemas and data are built. See
-  Meta-schemas.
+- `Builders` : schemas as data. Each kind's builder (`Schemas.OfX.Builder`, a `Visitors.OfObject` over its plain schema,
+  its store's `Schemas.OfX`) and the store, `Builders.Store`, in which schemas and data are built, and which is made
+  holding its own plain schemas of schemas and basic scalars ([Store overhaul,
+  Levels](proposals/store-overhaul/README.md#levels)). See Meta-schemas.
 
 - `Mutations` : the schemas of a mutation log, the wire format a store is written in
   ([SERIALIZATION.md](SERIALIZATION.md)): `Plain.ToPlain(store).Snapshot()` writes a store, and
@@ -328,11 +329,12 @@ slices.
 - **A store links only the schema objects it holds.** A builder in a store refuses a link to a schema object the store
   does not hold, built outside any store or in another: "A reference object no store built is strictly forbidden"
   (Resolved, "Schema builders align with their meta-schemas": the wire format), and schema objects are reference
-  objects. The basic scalars are linked as `Builders.Meta.OfInt` and so
-  on; another scalar, a form or any other schema object is built in the store that links it.
-- **Schemas are extended, not redefined.** `store.extend` adds members to the schemas a store holds, and
-  `Builders.extend`, once per process, to the framework's, the meta-schemas included; anything else about an existing
-  schema is refused, and a framework schema changes no other way ([Schema extension](SCHEMA_EXTENSION.md)).
+  objects. A store's basic scalars are its own, linked by its paths (`store.Schemas.OfInt`, and so on); another
+  scalar, a form or any other schema object is built in the store that links it. No schema object is shared across
+  stores ([Schema extension, Decided, 23](SCHEMA_EXTENSION.md#decided)).
+- **Schemas are extended, not redefined.** `store.extend` adds members to the schemas a store holds, its plain
+  schemas of schemas included; anything else about an existing schema is refused, and a schema the store was made
+  holding changes no other way ([Schema extension](SCHEMA_EXTENSION.md)).
 - **A proxy knows its store.** `Proxies.store_of(value)` gives the store a proxy belongs to, and a placed value
   object's is its owner's.
 - **Everything that looks schemas up takes a store**: `Plain.ToPlain(store)` and `Plain.FromPlain(store)`, the JSON and

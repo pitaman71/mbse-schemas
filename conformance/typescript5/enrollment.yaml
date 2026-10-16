@@ -1,26 +1,26 @@
 - exists:
     definition:
-      key: Schemas.Module/.
+      key: Schemas.OfModule/.
       properties: {}
 - exists:
     definition:
-      key: Schemas.Object/Student
+      key: Schemas.OfObject/Student
       properties:
         name: Student
         ref: true
         pattern: 'student-(\d+)'
 - exists:
     definition:
-      key: Schemas.Adjacency/Student.enrollments
+      key: Schemas.OfAdjacency/Student.enrollments
       properties:
         me: student
 - exists:
     definition:
-      key: Schemas.Property/Student.name
+      key: Schemas.OfProperty/Student.name
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -28,16 +28,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Student.name
+                key: Schemas.OfProperty/Student.name
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -45,13 +45,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Student
+                key: Schemas.OfObject/Student
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Student.name
+                key: Schemas.OfProperty/Student.name
       - as_property:
           name: name
           mutations:
@@ -59,7 +59,7 @@
               value: name
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasAdjacency
+      key: Schemas.OfRelation/Schemas.HasAdjacency
     entries:
     - mutations:
       - as_link:
@@ -67,13 +67,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Student
+                key: Schemas.OfObject/Student
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Student.enrollments
+                key: Schemas.OfAdjacency/Student.enrollments
       - as_property:
           name: name
           mutations:
@@ -81,7 +81,7 @@
               value: enrollments
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -89,13 +89,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Student
+                key: Schemas.OfObject/Student
       - as_property:
           name: name
           mutations:
@@ -103,23 +103,23 @@
               value: Student
 - exists:
     definition:
-      key: Schemas.Object/Course
+      key: Schemas.OfObject/Course
       properties:
         name: Course
         ref: true
         pattern: 'course-(\d+)'
 - exists:
     definition:
-      key: Schemas.Adjacency/Course.enrollments
+      key: Schemas.OfAdjacency/Course.enrollments
       properties:
         me: course
 - exists:
     definition:
-      key: Schemas.Property/Course.code
+      key: Schemas.OfProperty/Course.code
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -127,16 +127,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Course.code
+                key: Schemas.OfProperty/Course.code
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -144,13 +144,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Course
+                key: Schemas.OfObject/Course
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Course.code
+                key: Schemas.OfProperty/Course.code
       - as_property:
           name: name
           mutations:
@@ -158,7 +158,7 @@
               value: code
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasAdjacency
+      key: Schemas.OfRelation/Schemas.HasAdjacency
     entries:
     - mutations:
       - as_link:
@@ -166,13 +166,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Course
+                key: Schemas.OfObject/Course
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Course.enrollments
+                key: Schemas.OfAdjacency/Course.enrollments
       - as_property:
           name: name
           mutations:
@@ -180,7 +180,7 @@
               value: enrollments
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -188,13 +188,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Course
+                key: Schemas.OfObject/Course
       - as_property:
           name: name
           mutations:
@@ -202,23 +202,23 @@
               value: Course
 - exists:
     definition:
-      key: Schemas.Object/Term
+      key: Schemas.OfObject/Term
       properties:
         name: Term
         ref: true
         pattern: 'term-(\d+)'
 - exists:
     definition:
-      key: Schemas.Adjacency/Term.enrollments
+      key: Schemas.OfAdjacency/Term.enrollments
       properties:
         me: term
 - exists:
     definition:
-      key: Schemas.Property/Term.code
+      key: Schemas.OfProperty/Term.code
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -226,20 +226,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Term.code
+                key: Schemas.OfProperty/Term.code
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - exists:
     definition:
-      key: Schemas.Property/Term.starts
+      key: Schemas.OfProperty/Term.starts
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -247,16 +247,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Term.starts
+                key: Schemas.OfProperty/Term.starts
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfStr
+                key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -264,13 +264,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Term
+                key: Schemas.OfObject/Term
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Term.code
+                key: Schemas.OfProperty/Term.code
       - as_property:
           name: name
           mutations:
@@ -282,13 +282,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Term
+                key: Schemas.OfObject/Term
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Term.starts
+                key: Schemas.OfProperty/Term.starts
       - as_property:
           name: name
           mutations:
@@ -296,7 +296,7 @@
               value: starts
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasAdjacency
+      key: Schemas.OfRelation/Schemas.HasAdjacency
     entries:
     - mutations:
       - as_link:
@@ -304,13 +304,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Term
+                key: Schemas.OfObject/Term
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Term.enrollments
+                key: Schemas.OfAdjacency/Term.enrollments
       - as_property:
           name: name
           mutations:
@@ -318,7 +318,7 @@
               value: enrollments
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -326,13 +326,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Object/Term
+                key: Schemas.OfObject/Term
       - as_property:
           name: name
           mutations:
@@ -340,28 +340,28 @@
               value: Term
 - exists:
     definition:
-      key: Schemas.Relation/Enrollment
+      key: Schemas.OfRelation/Enrollment
       properties:
         name: Enrollment
 - exists:
     definition:
-      key: Schemas.Symbol/Enrollment.student
+      key: Schemas.OfSymbol/Enrollment.student
       properties: {}
 - exists:
     definition:
-      key: Schemas.Symbol/Enrollment.course
+      key: Schemas.OfSymbol/Enrollment.course
       properties: {}
 - exists:
     definition:
-      key: Schemas.Symbol/Enrollment.term
+      key: Schemas.OfSymbol/Enrollment.term
       properties: {}
 - exists:
     definition:
-      key: Schemas.Property/Enrollment.credits
+      key: Schemas.OfProperty/Enrollment.credits
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -369,20 +369,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Enrollment.credits
+                key: Schemas.OfProperty/Enrollment.credits
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfInt
+                key: Schemas.OfScalar/Schemas.OfInt
 - exists:
     definition:
-      key: Schemas.Property/Enrollment.score
+      key: Schemas.OfProperty/Enrollment.score
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -390,20 +390,20 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Enrollment.score
+                key: Schemas.OfProperty/Enrollment.score
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfFloat
+                key: Schemas.OfScalar/Schemas.OfFloat
 - exists:
     definition:
-      key: Schemas.Property/Enrollment.audit
+      key: Schemas.OfProperty/Enrollment.audit
       properties: {}
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.Typing
     entries:
     - mutations:
       - as_link:
@@ -411,16 +411,16 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Enrollment.audit
+                key: Schemas.OfProperty/Enrollment.audit
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Scalar/Schemas.OfBool
+                key: Schemas.OfScalar/Schemas.OfBool
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasProperty
+      key: Schemas.OfRelation/Schemas.HasProperty
     entries:
     - mutations:
       - as_link:
@@ -428,13 +428,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Enrollment
+                key: Schemas.OfRelation/Enrollment
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Enrollment.credits
+                key: Schemas.OfProperty/Enrollment.credits
       - as_property:
           name: name
           mutations:
@@ -446,13 +446,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Enrollment
+                key: Schemas.OfRelation/Enrollment
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Enrollment.score
+                key: Schemas.OfProperty/Enrollment.score
       - as_property:
           name: name
           mutations:
@@ -464,13 +464,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Enrollment
+                key: Schemas.OfRelation/Enrollment
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.Property/Enrollment.audit
+                key: Schemas.OfProperty/Enrollment.audit
       - as_property:
           name: name
           mutations:
@@ -478,7 +478,7 @@
               value: audit
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.HasLink
+      key: Schemas.OfRelation/Schemas.HasLink
     entries:
     - mutations:
       - as_link:
@@ -486,13 +486,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Enrollment
+                key: Schemas.OfRelation/Enrollment
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/Enrollment.student
+                key: Schemas.OfSymbol/Enrollment.student
       - as_property:
           name: name
           mutations:
@@ -504,13 +504,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Enrollment
+                key: Schemas.OfRelation/Enrollment
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/Enrollment.course
+                key: Schemas.OfSymbol/Enrollment.course
       - as_property:
           name: name
           mutations:
@@ -522,13 +522,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Enrollment
+                key: Schemas.OfRelation/Enrollment
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.Symbol/Enrollment.term
+                key: Schemas.OfSymbol/Enrollment.term
       - as_property:
           name: name
           mutations:
@@ -536,7 +536,7 @@
               value: term
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Relating
+      key: Schemas.OfRelation/Schemas.Relating
     entries:
     - mutations:
       - as_link:
@@ -544,42 +544,42 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Term.enrollments
+                key: Schemas.OfAdjacency/Term.enrollments
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Enrollment
+                key: Schemas.OfRelation/Enrollment
     - mutations:
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Course.enrollments
+                key: Schemas.OfAdjacency/Course.enrollments
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Enrollment
+                key: Schemas.OfRelation/Enrollment
     - mutations:
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.Adjacency/Student.enrollments
+                key: Schemas.OfAdjacency/Student.enrollments
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Enrollment
+                key: Schemas.OfRelation/Enrollment
 - insert:
     relation:
-      key: Schemas.Relation/Schemas.Defines
+      key: Schemas.OfRelation/Schemas.Defines
     entries:
     - mutations:
       - as_link:
@@ -587,13 +587,13 @@
           mutations:
           - set:
               ref:
-                key: Schemas.Module/.
+                key: Schemas.OfModule/.
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.Relation/Enrollment
+                key: Schemas.OfRelation/Enrollment
       - as_property:
           name: name
           mutations:
@@ -622,7 +622,7 @@
         name: Mia
 - insert:
     relation:
-      key: Schemas.Relation/Enrollment
+      key: Schemas.OfRelation/Enrollment
     entries:
     - mutations:
       - as_link:
@@ -694,7 +694,7 @@
         name: Noah
 - insert:
     relation:
-      key: Schemas.Relation/Enrollment
+      key: Schemas.OfRelation/Enrollment
     entries:
     - mutations:
       - as_link:

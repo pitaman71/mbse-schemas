@@ -9,8 +9,8 @@ Components own ports, wires connect ports and carry a label, and each port descr
 ```python
 from mbse.Schemas.Framework import JSON, Builders, Schemas as S, Validators
 
-Int, Text = Builders.Meta.OfInt, Builders.Meta.OfStr  # the basic scalars, which every store holds
 store = Builders.Store()  # schemas and data are built in a store
+Int, Text = store.Schemas.OfInt, store.Schemas.OfStr  # its basic scalars, its own, named by its paths
 
 # A value with no identity: a value object.
 Signal = store.Schemas.OfObject(lambda o: o.properties([
@@ -96,8 +96,9 @@ assert Validators.Validate(store).Reachable(Component, copy) == []
 # Everything is built in a store: schemas with store.Schemas.<Kind>(...), data with store.<dotted name>(...). Called
 # with a callback (a Spec taking the builder), it creates; with an object and a callback, it updates the object; with
 # an object alone, it clones it. It returns the object. A named schema is registered under its name as it is built.
-store = Builders.Store()                                    # holds the meta-schemas; isolated from every other store
-Builders.Meta.OfInt                                         # basic scalars, in every store: OfBool, OfInt, OfFloat, OfStr, OfBytes
+store = Builders.Store()                                    # holds its own plain schemas of schemas; shares nothing
+store.Schemas.OfInt                                         # its basic scalars, by path: OfBool, OfInt, OfFloat, OfStr, OfBytes
+store.Schemas.OfInt.as_schema()                             # the schema a path names, where an object is wanted
 w = store.Schemas.Form(lambda f: f.kind("literal").attributes({"value": 32}))  # a literal width, 32
 store.Schemas.OfScalar(lambda s: s.format("ccpp").token("int32_t").bits([w]))   # any format's token; a width, a term
 store.Schemas.OfObject(lambda o: o.name("crm.Contact").ref(True).properties([...]))   # .ref(True): a reference object schema
@@ -208,8 +209,8 @@ ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromD
   it holds: `store.Schemas.OfObject(Contact)` cannot clone a named schema. Clone it under a new name with a builder in
   the store: `Builders.OfObject.Builder(Contact, store=store).name("crm.Contact.v2").clone()`.
 - A store links only the schema objects it holds: build schemas, forms and members in the store that links them, and
-  link the basic scalars as `Builders.Meta.OfInt` and so on, never `S.OfScalar.Data(int)`. An object of one store
-  cannot be linked from another.
+  link the store's basic scalars as `store.Schemas.OfInt` and so on, never `S.OfScalar.Data(int)` nor another store's.
+  An object of one store cannot be linked from another: each store has its own basic scalars and plain schemas.
 - `bool()` of a property is its bool value, not whether it is set: `if obj.flag:` raises when the flag is absent or
   not a bool. Ask `obj.flag.get() is not None` for presence.
 - Names starting with `_` are internal, and so are a builder's own methods (`create`, `clone`, `update`): a property

@@ -1159,7 +1159,7 @@ class LogReader {
   constructor(store: Stores.Store) {
     if (!(store instanceof Builders.Store)) throw new TypeError("a snapshot is read into a Builders.Store");
     this.store = store;
-    this.meta = new Set(Object.values(Builders.Meta));
+    this.meta = new Set(Object.values(store._meta)); // its own
   }
 
   private schema(name: string, where: Where): any {
@@ -1366,12 +1366,14 @@ export function ToPlain(store: Stores.Store, options: { flat?: boolean } = {}): 
     if (VALUES.some((kind) => schema instanceof kind)) return Value(schema, value);
     throw new NotImplementedError(`${schemaTypeName(schema)} is not supported by Plain yet`);
   };
-  return Object.assign(call, {
-    OfScalar: toPlainOfScalar,
-    OfObject,
-    Reachable: (schema: Schemas.OfObject.Data, value: Readers.OfObject): PlainMap => new Snapshot(store, flat).run(schema, value, Reachable.of(value)),
+  const named = Proxies._derefFirst; // a path names its schema
+  return Object.assign(named(call), {
+    OfScalar: named(toPlainOfScalar),
+    OfObject: named(OfObject),
+    Reachable: named((schema: Schemas.OfObject.Data, value: Readers.OfObject): PlainMap =>
+      new Snapshot(store, flat).run(schema, value, Reachable.of(value))),
     Snapshot: (): PlainData[] => new LogWriter(store).run(),
-    Value,
+    Value: named(Value),
   });
 }
 
@@ -1419,6 +1421,7 @@ export function FromPlain(store: Stores.Store): FromPlainCall {
     if (VALUES.some((kind) => schema instanceof kind)) return Value(schema, plain);
     throw new NotImplementedError(`${schemaTypeName(schema)} is not supported by Plain yet`);
   };
-  return Object.assign(call, { OfScalar, OfObject, Reachable: OfObject, Value,
-    Snapshot: (log: unknown): unknown[] => new LogReader(store).apply(log) });
+  const named = Proxies._derefFirst; // a path names its schema
+  return Object.assign(named(call), { OfScalar: named(OfScalar), OfObject: named(OfObject), Reachable: named(OfObject),
+    Value: named(Value), Snapshot: (log: unknown): unknown[] => new LogReader(store).apply(log) });
 }

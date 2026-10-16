@@ -1,9 +1,9 @@
 /**
  * Schemas: schema elements.
  *
- * For each schema element `OfX`, `Schemas.OfX.Data` captures a schema. `Schemas.OfX.Builder`, which builds one, and
- * `Schemas.OfX.Schema`, its meta-schema, are `Builders`' (each builder a `Visitors.OfObject` over its meta-schema, built
- * in a store); importing this package installs them here.
+ * For each schema element `OfX`, `Schemas.OfX.Data` captures a schema. `Schemas.OfX.Builder`, which builds one, is
+ * `Builders`' (each builder a `Visitors.OfObject` over its plain schema, its store's `Schemas.OfX`); importing this
+ * package installs it here.
  *
  * `validate()` on each `Data` returns a list of problems and runs only when the caller asks. `equals()` stands in for
  * Python's `==`: by value for `OfScalar.Data`, by identity for the other kinds.
@@ -167,7 +167,6 @@ export namespace Form {
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
   export declare const Builder: typeof Builders.FormBuilder;
   export type Builder = Builders.FormBuilder;
-  export declare const Schema: ObjectData;
 }
 
 // --- OfParameter: a variable a schema declares ---
@@ -197,7 +196,6 @@ export namespace OfParameter {
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
   export declare const Builder: typeof Builders.ParameterBuilder;
   export type Builder = Builders.ParameterBuilder;
-  export declare const Schema: ObjectData;
 }
 
 function parameterProblems(parameters: ReadonlyMap<string, ParameterData>): string[] {
@@ -384,7 +382,6 @@ export namespace OfScalar {
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
   export declare const Builder: typeof Builders.ScalarBuilder;
   export type Builder = Builders.ScalarBuilder;
-  export declare const Schema: ObjectData;
 }
 
 // --- OfProperty: a named property of an object or relation ---
@@ -412,7 +409,6 @@ export namespace OfProperty {
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
   export declare const Builder: typeof Builders.PropertyBuilder;
   export type Builder = Builders.PropertyBuilder;
-  export declare const Schema: ObjectData;
 }
 
 // --- OfSymbol: a name standing for an object ---
@@ -437,7 +433,6 @@ export namespace OfSymbol {
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
   export declare const Builder: typeof Builders.SymbolBuilder;
   export type Builder = Builders.SymbolBuilder;
-  export declare const Schema: ObjectData;
 }
 
 /** A symbol's schema, when it has one, is a reference object schema. */
@@ -552,7 +547,6 @@ export namespace OfRelation {
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
   export declare const Builder: typeof Builders.RelationBuilder;
   export type Builder = Builders.RelationBuilder;
-  export declare const Schema: ObjectData;
 }
 
 // --- OfAdjacency ---
@@ -594,7 +588,6 @@ export namespace OfAdjacency {
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
   export declare const Builder: typeof Builders.AdjacencyBuilder;
   export type Builder = Builders.AdjacencyBuilder;
-  export declare const Schema: ObjectData;
 }
 
 // --- OfObject ---
@@ -732,7 +725,6 @@ export namespace OfObject {
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
   export declare const Builder: typeof Builders.ObjectBuilder;
   export type Builder = Builders.ObjectBuilder;
-  export declare const Schema: ObjectData;
 }
 
 // --- OfUnion / OfIntersection ---
@@ -859,7 +851,6 @@ export namespace OfUnion {
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
   export declare const Builder: typeof Builders.UnionBuilder;
   export type Builder = Builders.UnionBuilder;
-  export declare const Schema: ObjectData;
 }
 
 class IntersectionData {
@@ -906,7 +897,6 @@ export namespace OfIntersection {
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
   export declare const Builder: typeof Builders.IntersectionBuilder;
   export type Builder = Builders.IntersectionBuilder;
-  export declare const Schema: ObjectData;
 }
 
 // --- OfContainer: elements by index ---
@@ -1001,7 +991,6 @@ export namespace OfContainer {
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
   export declare const Builder: typeof Builders.ContainerBuilder;
   export type Builder = Builders.ContainerBuilder;
-  export declare const Schema: ObjectData;
 }
 
 // --- OfApply: a parametric schema applied to arguments ---
@@ -1112,7 +1101,6 @@ export namespace OfApply {
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
   export declare const Builder: typeof Builders.ApplyBuilder;
   export type Builder = Builders.ApplyBuilder;
-  export declare const Schema: ObjectData;
 }
 
 // --- OfPredicate ---
@@ -1161,7 +1149,6 @@ export namespace OfPredicate {
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
   export declare const Builder: typeof Builders.PredicateBuilder;
   export type Builder = Builders.PredicateBuilder;
-  export declare const Schema: ObjectData;
 }
 
 // --- OfAny.Value: a value of any type ---
@@ -1425,5 +1412,4 @@ export namespace OfAny {
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
   export declare const Builder: typeof Builders.AnyValueBuilder;
   export type Builder = Builders.AnyValueBuilder;
-  export declare const Schema: ObjectData;
 }

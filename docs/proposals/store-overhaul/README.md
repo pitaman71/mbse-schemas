@@ -29,6 +29,10 @@ As the user confirmed ("that is correct and worth recording as you explained"), 
 | 2 | `Schemas.OfObject`, `Schemas.OfScalar`, `Schemas.OfPredicate` | the plain schemas of schemas, whose instances are schemas |
 | 3 | `Schemas.Meta.OfObject`, ... | the meta-schemas, describing level 2 |
 
+Level 3 is code: "meta-schemas return to being completely static dataclasses, never read or written just exchanged by
+reference". A level-2 schema refers to its level-3 dataclass as an object refers to its class; no store holds one, so
+their being one per process does not share a schema object across stores (Schema extension, Decided, 23).
+
 What mbse-schemas has called the meta-schemas until now (`Builders.Meta.Object`, named `Schemas.Object`, and so on) is
 level 2. **Every extension adds to level 2, never to level 3**: `HasDomain` adds `domains` to `Schemas.OfScalar`,
 mbse-patterns' `requires` an adjacency to `Schemas.OfPredicate`, each a plain schema; no meta-schema is extended. An
@@ -39,7 +43,7 @@ extension, Decided, 18), per store.
 
 As the user decided (2026-10-16), on the questions put to them:
 
-1. **The meta-schemas (level 3) are one for each kind of schema**: "the only meta-schemas we should have are:
+1. **The meta-schemas (level 3) are one for each kind of schema**, static dataclasses (Levels): "the only meta-schemas we should have are:
    stores.Meta.OfX for every OfX in stores.Schemas.OfX", reached as "`store.Schemas.Meta.OfX`" ("is correct"):
    `store.Schemas.Meta.OfObject`, `.OfScalar`, `.OfRelation`, and so on, each a store's own, each describing the plain
    schema (level 2) of the same name, `Schemas.OfObject` and so on.
@@ -53,8 +57,11 @@ As the user decided (2026-10-16), on the questions put to them:
 6. **Modules are an ordinary schema**: "`Meta.Module` : normal schema `Schemas.OfModule`", which is also the namespace
    of identities (Object identity, Decided, 2).
 7. **`Argument`, `Term` and `Form` go** in this overhaul: "drop whenever you think is best".
-8. **The basic scalars are an ordinary union**: "normal schema `Schemas.OfBool`, `Schemas.OfBytes` ... which become
-   variants of `Schemas.OfScalar`" (reading (b): `Schemas.OfScalar` a union whose branches are the five).
+8. **The basic scalars are the five instances of `Schemas.OfScalar`**: "normal schema `Schemas.OfBool`,
+   `Schemas.OfBytes` ... which become variants of `Schemas.OfScalar`", read with the levels ("yes"): each a level-1
+   schema, an instance of the plain schema `Schemas.OfScalar` (level 2), which has exactly these five. They type scalar
+   data: a property, a container's index and element, an entry property; decoding, validation and comparison;
+   codegen's host types; and the `schema` end of mbse-expressions' `HasDomain`.
 9. **Every finer scalar is a domain, in mbse-expressions**: "all scalars are domains and users may define domains and
    dialects containing domains"; "a scalar schema can have > 1 domain"; "width is a property of the domain, not the
    schema". A user defines no scalar schema of their own.
@@ -73,14 +80,17 @@ As the user decided (2026-10-16), on the questions put to them:
     an instance of `Schemas.OfObject` (level 2); the level-2 schemas are named `Schemas.OfObject`, `Schemas.OfScalar`,
     and so on, not `Schemas.Object`. A program reads a schema of level 2 or 3 to link or extend it: level 2 to extend
     (`Schemas.OfScalar`), never level 3. (This revises "(b)", chosen when level 2 and 3 were not yet told apart.)
+15. **Reading a path gives the schema it names** ("yes"): `store.Schemas.OfInt` (level 1), `store.Schemas.OfScalar`
+    (level 2); called, a path builds through it, as `store.Schemas.OfScalar(...)` does. So code links and extends
+    schemas without `Builders.Meta`, and with no string (P-015).
 
 ## Order of work
 
 Each step lands on main as its own release, with both gates at 100%, the corpora regenerated and conformance passing,
 so that main stays current and no branch waits on another.
 
-1. **Per-store schemas of schemas (0.14.0).** A store builds its own levels 2 and 3 and its basic scalars when it is
-   made, and the module-level `Builders.Meta` goes. The meta-schemas are `store.Schemas.Meta.OfX` (1), and
+1. **Per-store schemas of schemas (0.14.0).** A store builds its own level 2 and its basic scalars when it is made
+   (level 3 is static code), and the module-level `Builders.Meta` goes. The meta-schemas are `store.Schemas.Meta.OfX` (1), and
    `Meta.Schema` goes (2). A builder of a level-1 schema finds its members through its store's level-2 schema, so the
    members an extension adds (Schema extension, Decided, 18) are each store's own, not added to a shared class. `Builders.extend`, the framework store, and the framework entries of 0.12.1 and
    0.12.2 go; `store.extend` is the only extension. EXT is rewritten: round trips between stores with the same
@@ -92,8 +102,8 @@ so that main stays current and no branch waits on another.
 2. **What leaves (0.15.0).** `Argument`, `Term`, `Form`, `OfApply`, `requires`, `bits` and `bytes`, and the value
    parameters (7; Schema extension, Decided, 5 to 7). `Meta.Type` and `Meta.Typed` go (3).
    *Breaks*: PAR (parametrics) and every test of forms, widths, applications and predicates' `requires`.
-3. **Scalars and members (0.16.0).** `Schemas.OfScalar` becomes the union of the five basic scalars (8, 9); user
-   scalar schemas, `token` and `format` go. Branches and parts become `HasBranch` and `HasPart` (4).
+3. **Scalars and members (0.16.0).** User scalar schemas, `token` and `format` go (8, 9). Branches and parts become `HasBranch` and `HasPart` (4).
+   `Schemas.OfScalar` has exactly the five instances (8).
    *Breaks*: every user-defined scalar in tests, examples and tutorials; the module format of unions and
    intersections.
 4. **Object identity (0.17.0).** `Schemas.OfIdentity`, containers, modules as namespaces (6), `store.Instances` and
@@ -105,21 +115,17 @@ Then mbse-expressions redrafts its framework model on per-store extension (`Expr
 
 ## Open, for the user
 
-1. **Reading a schema.** Does reading a path (no call) give the schema it names, at any level: `store.Schemas.OfInt`
-   (level 1), `store.Schemas.OfScalar` (level 2), `store.Schemas.Meta.OfScalar` (level 3), so that code links or
-   extends it without `Builders.Meta`? And are the basic scalars (8) the five instances (level 1) of
-   `Schemas.OfScalar` (level 2), as the levels make them, rather than the branches of a union?
-2. **`Parameters.Transform`, a record or an operation.** `store.Parameters.Transform(...)` is a path, so calling it
+1. **`Parameters.Transform`, a record or an operation.** `store.Parameters.Transform(...)` is a path, so calling it
    makes an object of a schema named `Parameters.Transform`. If the transform is a record (its target and its
    replacements, kept in the store), something applies it and makes the new schema or function: on creation, or
    later? If it is an operation, it is a function of a package, as `Expressions.FromFunction(store, ...)` is. And
    `.with(...)` is a keyword in Python: `.by(...)`? Its replacement in the draft is `T` itself; for `List[Int]` it is
    `store.Schemas.OfInt`.
-3. **Scalars without tokens.** Each basic scalar maps to each language's host type by its own name, so `token` is not
+2. **Scalars without tokens.** Each basic scalar maps to each language's host type by its own name, so `token` is not
    needed for them; with user scalar schemas gone, `format` (dates, UUIDs) becomes a domain. Agreed?
-4. **When `Schema@` is inferred.** "omit `Schema@` when it can be inferred from context": I propose where a link's
+3. **When `Schema@` is inferred.** "omit `Schema@` when it can be inferred from context": I propose where a link's
    other end has one schema that may fill it, and within an object's own entry, which names its schema.
-5. **A path given to a link.** Your `e.domain(Int32)` passed a path. With `as_instance`, a link is given the instance
+4. **A path given to a link.** Your `e.domain(Int32)` passed a path. With `as_instance`, a link is given the instance
    (`e.domain(store.Instances.Expressions.Dialects.Basic.as_instance('Int32'))`); should a link also accept a path to
    an instance?
-6. **The order.** Four releases, as above, or fewer, larger ones?
+5. **The order.** Four releases, as above, or fewer, larger ones?

@@ -1,5 +1,5 @@
 <!-- nav -->
-[← Equivalence of the implementations](EQUIVALENCE.md) · [Home](../README.md) · [Open-world modeling →](OPEN_WORLD.md)
+[← Equivalence of the implementations](EQUIVALENCE.md) · [Home](../README.md) · [Reference Object Identity →](OBJECT_IDENTITY.md)
 
 # Meta-schemas overhaul
 
@@ -344,4 +344,4 @@ with a question, for review. The schema builders answer most of them; each point
 ---
 
 <!-- nav -->
-[← Equivalence of the implementations](EQUIVALENCE.md) · [Home](../README.md) · [Open-world modeling →](OPEN_WORLD.md)
+[← Equivalence of the implementations](EQUIVALENCE.md) · [Home](../README.md) · [Reference Object Identity →](OBJECT_IDENTITY.md)

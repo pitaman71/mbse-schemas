@@ -1,5 +1,5 @@
 <!-- nav -->
-[← Open-world modeling](OPEN_WORLD.md) · [Home](../README.md) · [Serialization →](SERIALIZATION.md)
+[← Parametrics : Revisited](PARAMETRICS.md) · [Home](../README.md) · [Serialization →](SERIALIZATION.md)
 
 # Schema extension
 
@@ -179,4 +179,4 @@ As the user decided (2026-10-15), on the questions put to them:
 ---
 
 <!-- nav -->
-[← Open-world modeling](OPEN_WORLD.md) · [Home](../README.md) · [Serialization →](SERIALIZATION.md)
+[← Parametrics : Revisited](PARAMETRICS.md) · [Home](../README.md) · [Serialization →](SERIALIZATION.md)

@@ -1,5 +1,5 @@
 <!-- nav -->
-[← Meta-schemas overhaul](META_SCHEMAS.md) · [Home](../README.md) · [Schema extension →](SCHEMA_EXTENSION.md)
+[← Reference Object Identity](OBJECT_IDENTITY.md) · [Home](../README.md) · [Parametrics : Revisited →](PARAMETRICS.md)
 
 # Open-world modeling
 
@@ -173,4 +173,4 @@ Each item is built in both implementations, with the same names and messages, an
 ---
 
 <!-- nav -->
-[← Meta-schemas overhaul](META_SCHEMAS.md) · [Home](../README.md) · [Schema extension →](SCHEMA_EXTENSION.md)
+[← Reference Object Identity](OBJECT_IDENTITY.md) · [Home](../README.md) · [Parametrics : Revisited →](PARAMETRICS.md)

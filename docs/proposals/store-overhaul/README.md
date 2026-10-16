@@ -122,10 +122,10 @@ Then mbse-expressions redrafts its framework model on per-store extension (`Expr
 
 ## Open, for the user
 
-1. **`Parameters.Apply`'s call.** A path called with an object alone clones it today (`store.crm.Contact(obj)`), so
-   `store.Parameters.Apply(bind)` would clone the bind as an `Apply`. Is `Apply` a record too, kept in the store
-   (`store.Parameters.Apply(lambda a: a.bound(bind))`, its `result` linking what it made: P-014's trace), or an
-   operation, a function of a package (`Parameters.Apply(store, bind)`)?
+1. **Deferred: when a binding is applied.** "I don't think we need to force the issue of eager or on-demand binding":
+   whether `Parameters.Apply` is a record in the store or an operation, and so when a `Parameters.Bind` takes effect,
+   is left open. Under object identity (step 4), a path's builder given an identity the store holds visits that object,
+   and otherwise makes one; the present code clones on `store.crm.Contact(obj)` until then.
 2. **Scalars without tokens.** Each basic scalar maps to each language's host type by its own name, so `token` is not
    needed for them; with user scalar schemas gone, `format` (dates, UUIDs) becomes a domain. Agreed?
 3. **When `Schema@` is inferred.** "omit `Schema@` when it can be inferred from context": I propose where a link's

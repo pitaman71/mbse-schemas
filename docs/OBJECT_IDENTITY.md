@@ -119,7 +119,8 @@ As the user decided (2026-10-16), on the questions put to them:
 1. A suffix is looked up by `as_instance`: "yes use as_instance". A suffix need not be an identifier (`FEA-001`, `Anna
    Baker`, a UUID), so `store.Instances.<path>.as_instance(suffix)` takes it as a string: the one place an object's
    identity references it (mbse-basis P-015, Exceptions); the path is attributes. (How a path given as data reaches
-   `as_instance`, now that an identity is a path rather than a suffix, is open; see below.)
+   `as_instance`, now that an identity is a path rather than a suffix, is open; see below.) (Superseded by 26: a path's
+   step is looked up by calling its adjacency with the entry's keys.)
 2. Namespaces are modules: "Use Schemas.OfModule instead of Schemas.Namespace".
 3. A schema is an object's module path where none is given: "yes the schema itself is the default container" (the
    identity's path is a module path, "it was never container path"). (Superseded by 12 and 14: a path starts at a
@@ -170,11 +171,19 @@ assumptions about reentrancy":
 24. `Paths.OfEntry`'s `in` and `out` are named `i` and `o` ("just call them i and o"), since `in` is a Python keyword
     and a schema's properties are its builders' and proxies' members.
 25. `next` is `Union[entry: Paths.OfEntry, target: Paths.OfTarget]`: its branches are `entry` and `target`.
+26. Lookup by path in code calls each step's adjacency with the entry's keys, a mapping of its key properties to their
+    values: `store.Instances.wts.Features.dir({ name: 'DEF-693' }).clauses({ name: 'C-1' })` (in Python,
+    `.dir({'name': 'DEF-693'})`). `store.Instances.<singleton>` is the root; each call is one `Paths.OfEntry`.
 
 ## Open questions
 
-- **Lookup.** With an identity a path, what does `store.Instances.<path>.as_instance(suffix)` (1; mbse-basis P-015)
-  take: the keys of the last step, or a `Paths.OfX`?
+- **A call that reads, beside calls that write.** On a builder, an adjacency called with an iterable or a callback
+  writes entries (the peer shorthand). Lookup (26) calls it with a mapping, which tells the two apart; is lookup on any
+  object's adjacency, or only under `store.Instances`? And what does a lookup that finds nothing give: an empty
+  visitor, as reads do, or an error?
+- **mbse-basis P-015.** Its exception names `as_instance` as "the one and only one api location where the identity of
+  an object can be used to reference the object". With 26, that location is a path's call: the exception is to be
+  restated in its terms.
 - **Unnamed schemas.** Schema members, being clauses and subclauses of a definition, take part (21) through their
   keyed relations (`HasProperty`, ...), which have the shape 14 asks for. An unnamed schema a property links, the
   schema of its values (`crm.Person.tags`' container schema), is linked through `Schemas.HasSchema`, which no key names:

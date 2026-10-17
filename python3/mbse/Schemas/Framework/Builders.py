@@ -1087,6 +1087,8 @@ class _MemberBuilder(_Builder[D]):
 class PropertyBuilder(_MemberBuilder[S.OfProperty.Data]):
     _data, _meta, _noun = S.OfProperty.Data, "OfProperty", "a property"
 
+    pattern = _Prop()  # a key's naming pattern (docs/OBJECT_IDENTITY.md, Decided, 13)
+
 
 class ParameterBuilder(_Builder[S.OfParameter.Data]):
     """A parameter: a name, by the entry that links it to its schema, a symbol standing for a schema."""
@@ -1108,6 +1110,7 @@ class AdjacencyBuilder(_Builder[S.OfAdjacency.Data]):
 
     description = _Prop()
     me = _Prop()  # the name of the link it fills
+    owner = _Prop()  # it points back to its object's owner (docs/OBJECT_IDENTITY.md, Decided, 14)
     relation = _Members("relation", accepts=lambda v: isinstance(v, S.OfRelation.Data), build=lambda: RelationBuilder,
                         **_one("relation"))
 
@@ -1370,10 +1373,10 @@ def _plain() -> _Plain:
         ContainerBuilder().index([Int]).element([Text]).create()]).create()})
     meta.OfPredicate = _object("OfPredicate", named)
     meta.OfModule = _object("OfModule", named)  # its identity is its path; it defines schemas and modules
-    meta.OfProperty = _object("OfProperty", {"description": Text})
+    meta.OfProperty = _object("OfProperty", {"description": Text, "pattern": Text})
     meta.OfParameter = _object("OfParameter", {"description": Text})  # a name, by its entry: a symbol for a schema
     meta.OfSymbol = _object("OfSymbol", {"description": Text})
-    meta.OfAdjacency = _object("OfAdjacency", {"description": Text, "me": Text})
+    meta.OfAdjacency = _object("OfAdjacency", {"description": Text, "me": Text, "owner": Bool})
     valued = (meta.OfScalar, meta.OfObject, meta.OfUnion, meta.OfIntersection, meta.OfContainer, meta.OfAny)  # of values
     schemas = (*valued, meta.OfRelation, meta.OfPredicate, meta.OfModule)  # whatever a module defines
     members = (meta.OfProperty, meta.OfSymbol)  # each of a schema
@@ -1394,9 +1397,11 @@ def _plain() -> _Plain:
                       "named": [[first, "name"]], "list": None}[how]
         return builder.uniques(determined).create()
 
-    def _adjacency(relation: S.OfRelation.Data, link: str) -> S.OfAdjacency.Data:
-        """An adjacency to `relation` filling `link`: named by the entry that links it to its object schema, or anonymous."""
-        return AdjacencyBuilder().relation([relation]).me(link).create()
+    def _adjacency(relation: S.OfRelation.Data, link: str, owner: bool = False) -> S.OfAdjacency.Data:
+        """An adjacency to `relation` filling `link`: named by the entry that links it to its object schema, or anonymous;
+        `owner` where it points back to its object's owner (docs/OBJECT_IDENTITY.md, Decided, 14)."""
+        builder = AdjacencyBuilder().relation([relation]).me(link)
+        return (builder.owner(True) if owner else builder).create()
 
     relations: list[tuple[str, tuple[str, tuple[Any, ...], str | None], tuple[str, tuple[Any, ...]], str]] = [
         # (relation, (link, the kinds at that end, adjacency named there), (link, the kinds at that end), "one": the
@@ -1418,6 +1423,7 @@ def _plain() -> _Plain:
         ("HasSymbol", ("owner", (meta.OfPredicate,), "symbols"), ("symbol", (meta.OfSymbol,)), "keyed"),
         ("HasLink", ("owner", (meta.OfRelation,), "links"), ("link", (meta.OfSymbol,)), "keyed"),
         ("Defines", ("module", (meta.OfModule,), "schemas"), ("schema", schemas), "keyed"),
+        ("HasInstance", ("schema", (meta.OfObject,), "instances"), ("instance", ()), "keyed"),
     ]
     """Each relation between schema objects. A member belongs to one owner (`Has*`: the member determines its owner); a
     schema object has at most one schema, refined schema, index, element or relation (the first determines the second);
@@ -1436,8 +1442,8 @@ def _plain() -> _Plain:
         setattr(meta, name, _relation(name, (a, b), how))
         for kind in a_kinds if named_at != "" else ():
             _declare(kind, _adjacency(getattr(meta, name), a), named_at)
-        for kind in b_kinds:
-            _declare(kind, _adjacency(getattr(meta, name), b))
+        for kind in b_kinds:  # a keyed relation's member is owned by its owner, through the entry that names it
+            _declare(kind, _adjacency(getattr(meta, name), b, owner=how == "keyed"))
     for owner in (meta.OfObject, meta.OfRelation):  # each has its own `properties`; any schema may be the owner
         _declare(owner, _adjacency(meta.HasProperty, "owner"), "properties")
     for refining in (meta.OfObject, meta.OfContainer):  # only these refine
@@ -1487,11 +1493,12 @@ class Store(Proxies._Store):
     def __init__(self) -> None:
         super().__init__()
         self._objects: dict[tuple[str, str], Any] = {}  # the schema objects, by their kind and their identity
-        from . import Mutations
+        from . import Mutations, Paths
 
         self._meta = _plain()  # its plain schemas of schemas and basic scalars, its own
         self._mutations = Mutations.schemas(self._meta.OfStr, self._meta.OfInt)
-        for schema in (*vars(self._meta).values(), *vars(self._mutations).values()):
+        self._paths = Paths.schemas(self._meta.OfStr, self._meta.OfInt, self._meta.OfBool)
+        for schema in (*vars(self._meta).values(), *vars(self._mutations).values(), *vars(self._paths).values()):
             self._objects[(_kind(schema), identity_of(schema))] = schema
             self._register(schema)
         self._framework: set[int] = {id(schema) for schema in self._objects.values()}

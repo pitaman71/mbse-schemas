@@ -250,11 +250,24 @@ class PropertyData {
   name: string;
   schema: AnyData | null;
   description: string | null;
+  /** A key's naming pattern, e.g. `FEA-(\d+\d\d)`, from which a value is generated. */
+  pattern: string | null;
 
-  constructor(fields: { name?: string; schema?: AnyData | null; description?: string | null } = {}) {
+  constructor(fields: { name?: string; schema?: AnyData | null; description?: string | null; pattern?: string | null } = {}) {
     this.name = fields.name ?? "";
     this.schema = fields.schema ?? null;
     this.description = fields.description ?? null;
+    this.pattern = fields.pattern ?? null;
+  }
+
+  /** The value the naming pattern gives the key numbered `number` (`nameFor`). */
+  name_for(number: number): string {
+    return nameFor(this.pattern as string, number);
+  }
+
+  /** The number of a value the naming pattern gives (`numberOf`); null for another value. */
+  number_of(name: string): number | null {
+    return numberOf(this.pattern, name);
   }
 
 
@@ -329,7 +342,7 @@ class EntryData {
     if (clashes.length > 0) problems.push(`names used as both link and property: ${repr(sortedStrings(new Set(clashes)))}`);
     for (const [name, link] of this.links) problems.push(...symbolProblems(link).map((p) => `link ${repr(name)}: ${p}`));
     for (const [name, prop] of this.properties) {
-      problems.push(...[...validateSchema(prop.schema), ...embeddedProblems(prop.schema), ...descriptionProblems(prop.description)]
+      problems.push(...[...validateSchema(prop.schema), ...embeddedProblems(prop.schema), ...descriptionProblems(prop.description), ...patternProblems(prop)]
         .map((p) => `property ${repr(name)}: ${p}`));
     }
     return problems;
@@ -416,12 +429,16 @@ class AdjacencyData {
   relation: RelationData | null;
   me: string;
   description: string | null;
+  /** It points back to the previous element of its object's identity path: its owner. */
+  owner: boolean | null;
 
-  constructor(fields: { name?: string; relation?: RelationData | null; me?: string; description?: string | null } = {}) {
+  constructor(fields: { name?: string; relation?: RelationData | null; me?: string; description?: string | null;
+    owner?: boolean | null } = {}) {
     this.name = fields.name ?? "";
     this.relation = fields.relation ?? null;
     this.me = fields.me ?? "";
     this.description = fields.description ?? null;
+    this.owner = fields.owner ?? null;
   }
 
 
@@ -437,8 +454,43 @@ class AdjacencyData {
     if (!this.relation.entry.links.has(this.me)) {
       return [`${label}: ${repr(this.me)} is not a link of its relation ${repr(new Tuple([...this.relation.entry.links.keys()]))}`];
     }
-    return [];
+    return this.owner ? ownerProblems(this, label) : [];
   }
+}
+
+/** An owner adjacency's relation makes path resolution unambiguous (docs/OBJECT_IDENTITY.md, Decided, 14): of two
+ * links, the owner's and the owned's (`me`); a clause holding the owner's link and not the owned's, so that the owned
+ * object determines its owner, and one holding the owned's and not the owner's, so that the owner and the keys determine
+ * the owned object. */
+function ownerProblems(adjacency: AdjacencyData, label: string): string[] {
+  const relation = adjacency.relation as RelationData;
+  const owners = [...relation.entry.links.keys()].filter((link) => link !== adjacency.me);
+  if (owners.length !== 1) return [`${label} is its object's owner: its relation has two links, the owner's and the owned's`];
+  const [owner, owned] = [owners[0]!, adjacency.me];
+  const problems: string[] = [];
+  if (!relation.uniques.some((clause) => clause.has(owner) && !clause.has(owned))) {
+    problems.push(`${label} is its object's owner: no unique clause has ${repr(owner)} without ${repr(owned)}, so that the `
+      + "owned object determines its owner");
+  }
+  if (!relation.uniques.some((clause) => clause.has(owned) && !clause.has(owner))) {
+    problems.push(`${label} is its object's owner: no unique clause has ${repr(owned)} without ${repr(owner)}, so that the `
+      + "owner and the keys determine the owned object");
+  }
+  return problems;
+}
+
+/** A property's naming pattern: literal text around one group of digits, on a property of text. */
+function patternProblems(prop: PropertyData): string[] {
+  if (prop.pattern === null) return [];
+  const problems: string[] = [];
+  if (naming(prop.pattern) === null) {
+    problems.push(`naming pattern ${repr(prop.pattern)} is not literal text around one group of digits, `
+      + "e.g. 'FEA-(\\d+\\d\\d)'");
+  }
+  if (!(prop.schema instanceof ScalarData && prop.schema.type === String)) {
+    problems.push("a naming pattern gives text: the property's schema is Schemas.OfStr");
+  }
+  return problems;
 }
 
 export namespace OfAdjacency {
@@ -479,6 +531,24 @@ function naming(pattern: unknown): [string, number, string] | null {
   return [literal(found[1]!), 1 + found[2]!.length / 2, literal(found[3]!)];
 }
 
+/** The name a naming pattern gives the number `number`: it fills the pattern's group, at its minimum width, extending
+ * on the left. */
+function nameFor(pattern: string, number: number): string {
+  const [prefix, width, suffix] = naming(pattern)!; // a valid pattern
+  return `${prefix}${String(number).padStart(width, "0")}${suffix}`;
+}
+
+/** The number of a name a naming pattern gives: its literal text around at least the minimum width of ASCII digits.
+ * Null for a name it does not give, or without a valid naming pattern. */
+function numberOf(pattern: string | null, name: string): number | null {
+  const found = pattern === null ? null : naming(pattern);
+  if (found === null) return null;
+  const [prefix, width, suffix] = found;
+  const digits = name.slice(prefix.length, name.length - suffix.length);
+  const fits = name.startsWith(prefix) && name.endsWith(suffix) && name.length >= prefix.length + suffix.length;
+  return fits && digits.length >= width && /^[0-9]+$/.test(digits) ? Number(digits) : null;
+}
+
 class ObjectData {
   properties: Map<string, PropertyData>;
   adjacencies: Map<string, AdjacencyData>;
@@ -515,22 +585,14 @@ class ObjectData {
     return [...this.adjacencies.values(), ...this.anonymous].some((a) => a.relation === relation && a.me === link);
   }
 
-  /** The name the naming pattern gives the object numbered `number`: the number fills the pattern's group, at its
-   * minimum width, extending on the left. */
+  /** The name the naming pattern gives the object numbered `number` (`nameFor`). */
   name_for(number: number): string {
-    const [prefix, width, suffix] = naming(this.pattern)!; // a valid pattern
-    return `${prefix}${String(number).padStart(width, "0")}${suffix}`;
+    return nameFor(this.pattern as string, number);
   }
 
-  /** The number of a name the naming pattern gives: its literal text around at least the minimum width of ASCII
-   * digits. Null for a name it does not give, or without a valid naming pattern. */
+  /** The number of a name the naming pattern gives (`numberOf`); null for another name. */
   number_of(name: string): number | null {
-    const found = this.pattern === null ? null : naming(this.pattern);
-    if (found === null) return null;
-    const [prefix, width, suffix] = found;
-    const digits = name.slice(prefix.length, name.length - suffix.length);
-    const fits = name.startsWith(prefix) && name.endsWith(suffix) && name.length >= prefix.length + suffix.length;
-    return fits && digits.length >= width && /^[0-9]+$/.test(digits) ? Number(digits) : null;
+    return numberOf(this.pattern, name);
   }
 
 
@@ -564,7 +626,7 @@ class ObjectData {
       problems.push(`names used as both property and adjacency: ${repr(sortedStrings(clashes))}`);
     }
     for (const [name, prop] of this.properties) {
-      problems.push(...[...validateSchema(prop.schema), ...embeddedProblems(prop.schema), ...descriptionProblems(prop.description)]
+      problems.push(...[...validateSchema(prop.schema), ...embeddedProblems(prop.schema), ...descriptionProblems(prop.description), ...patternProblems(prop)]
         .map((p) => `property ${repr(name)}: ${p}`));
     }
     for (const adjacency of [...this.adjacencies.values(), ...this.anonymous]) {

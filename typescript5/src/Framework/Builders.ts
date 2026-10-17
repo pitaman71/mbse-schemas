@@ -28,6 +28,7 @@
 
 import { AttributeError, ReadOnlyError, ValueError } from "./Errors.js";
 import * as Mutations from "./Mutations.js";
+import * as Paths from "./Paths.js";
 import * as Proxies from "./Proxies.js";
 import { _Dunders as Dunders, _innerOf as innerOf, _makeEmpty as makeEmpty, _makeProperties as makeProperties,
   _Shelled as Shelled, _shell as shell } from "./Proxies.js";
@@ -1326,6 +1327,9 @@ export class PropertyBuilder extends MemberBuilder {
   static override _data = S.OfProperty.Data;
   static override _meta = "OfProperty";
   static override _noun = "a property";
+  static override _table = extendTable(MemberBuilder._table, {
+    pattern: new Prop(), // a key's naming pattern (docs/OBJECT_IDENTITY.md, Decided, 13)
+  });
 }
 
 /** A parameter: a name, by the entry that links it to its schema, a symbol standing for a schema. */
@@ -1351,6 +1355,7 @@ export class AdjacencyBuilder extends Builder {
   static override _table = extendTable(Builder._table, {
     description: new Prop(),
     me: new Prop(), // the name of the link it fills
+    owner: new Prop(), // it points back to its object's owner (docs/OBJECT_IDENTITY.md, Decided, 14)
     relation: new Members("relation", { accepts: isA(S.OfRelation.Data), build: "RelationBuilder", ...one("relation") }),
   });
 }
@@ -1641,6 +1646,7 @@ export interface Plain {
   HasSchema: RelationData; Refines: RelationData; Indexing: RelationData; Containing: RelationData; AnyOf: RelationData;
   Relating: RelationData; HasParameter: RelationData; HasProperty: RelationData; HasAdjacency: RelationData;
   HasBranch: RelationData; HasPart: RelationData; HasSymbol: RelationData; HasLink: RelationData; Defines: RelationData;
+  HasInstance: RelationData;
 }
 
 /** Builds a store's plain schemas of schemas and its basic scalars, anew. */
@@ -1677,10 +1683,10 @@ function plainSchemas(): Plain {
     new ContainerBuilder().index([Int]).element([Text]).create()]).create()]]);
   meta.OfPredicate = metaObject("OfPredicate", named);
   meta.OfModule = metaObject("OfModule", named); // its identity is its path; it defines schemas and modules
-  meta.OfProperty = metaObject("OfProperty", [["description", Text]]);
+  meta.OfProperty = metaObject("OfProperty", [["description", Text], ["pattern", Text]]);
   meta.OfParameter = metaObject("OfParameter", [["description", Text]]); // a name, by its entry: a symbol for a schema
   meta.OfSymbol = metaObject("OfSymbol", [["description", Text]]);
-  meta.OfAdjacency = metaObject("OfAdjacency", [["description", Text], ["me", Text]]);
+  meta.OfAdjacency = metaObject("OfAdjacency", [["description", Text], ["me", Text], ["owner", Bool]]);
   const valued = [meta.OfScalar, meta.OfObject, meta.OfUnion, meta.OfIntersection, meta.OfContainer, meta.OfAny]; // of values
   const schemas = [...valued, meta.OfRelation, meta.OfPredicate, meta.OfModule]; // whatever a module defines
   const members = [meta.OfProperty, meta.OfSymbol]; // each of a schema
@@ -1700,9 +1706,11 @@ function plainSchemas(): Plain {
     return builder.uniques(determined).create();
   }
 
-  /** An adjacency to `relation` filling `link`: named by the entry that links it to its object schema, or anonymous. */
-  function metaAdjacency(relation: RelationData, link: string): S.OfAdjacency.Data {
-    return new AdjacencyBuilder().relation([relation]).me(link).create();
+  /** An adjacency to `relation` filling `link`: named by the entry that links it to its object schema, or anonymous;
+   * `owner` where it points back to its object's owner (docs/OBJECT_IDENTITY.md, Decided, 14). */
+  function metaAdjacency(relation: RelationData, link: string, owner = false): S.OfAdjacency.Data {
+    const builder = new AdjacencyBuilder().relation([relation]).me(link);
+    return (owner ? builder.owner(true) : builder).create();
   }
 
   /** Each relation between schema objects: (relation, (link, the kinds at that end, adjacency named there), (link, the
@@ -1728,6 +1736,7 @@ function plainSchemas(): Plain {
     ["HasSymbol", ["owner", [meta.OfPredicate], "symbols"], ["symbol", [meta.OfSymbol]], "keyed"],
     ["HasLink", ["owner", [meta.OfRelation], "links"], ["link", [meta.OfSymbol]], "keyed"],
     ["Defines", ["module", [meta.OfModule], "schemas"], ["schema", schemas], "keyed"],
+    ["HasInstance", ["schema", [meta.OfObject], "instances"], ["instance", []], "keyed"],
   ];
 
   /** The adjacencies each meta-schema declares: named ones by name, and anonymous ones. */
@@ -1744,7 +1753,8 @@ function plainSchemas(): Plain {
     const relation = metaRelation(name, [a, b], how);
     (meta as unknown as Record<string, unknown>)[name] = relation;
     for (const kind of namedAt !== "" ? aKinds : []) declare(kind, metaAdjacency(relation, a), namedAt);
-    for (const kind of bKinds) declare(kind, metaAdjacency(relation, b), null);
+    // a keyed relation's member is owned by its owner, through the entry that names it
+    for (const kind of bKinds) declare(kind, metaAdjacency(relation, b, how === "keyed"), null);
   }
   for (const owner of [meta.OfObject, meta.OfRelation]) { // each has its own `properties`; any schema may be the owner
     declare(owner, metaAdjacency(meta.HasProperty, "owner"), "properties");
@@ -1914,7 +1924,9 @@ export class Store extends Proxies._Store {
     this._meta = plainSchemas(); // its plain schemas of schemas and basic scalars, its own
     const mutations = Mutations.schemas({ AnyValueBuilder, ContainerBuilder, ObjectBuilder, UnionBuilder,
       Text: this._meta.OfStr, Int: this._meta.OfInt });
-    for (const schema of [...Object.values(this._meta), ...Object.values(mutations)] as (ObjectData | RelationData)[]) {
+    const paths = Paths.schemas({ AnyValueBuilder, ContainerBuilder, ObjectBuilder, UnionBuilder, Text: this._meta.OfStr,
+      Int: this._meta.OfInt, Bool: this._meta.OfBool });
+    for (const schema of [...Object.values(this._meta), ...Object.values(mutations), ...Object.values(paths)] as (ObjectData | RelationData)[]) {
       this._objects.set(key(_kind(schema), identity_of(schema) as string), schema);
       this._register(schema);
     }

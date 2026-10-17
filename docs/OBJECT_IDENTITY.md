@@ -102,6 +102,10 @@ yet to be designed.
   target via this relation; and `next`, a `Union[entry: Paths.OfEntry, target: Paths.OfTarget]`.
 - `Paths.OfTarget`: no more traversals, the object is found.
 
+A key's value is a bool, an int or text, so that `properties` is written bare (`{"name": "DEF-693"}`): a float or bytes
+would not be told apart from an int or text on the wire. Every store holds the path schemas, its own, as it holds its
+mutation schemas; `Paths.of(obj)` gives an object's path, read off its ownership entries (32).
+
 A path has no shorthand: it is written as the nested value object it is, as any value is (mbse-basis P-019). The
 definition the Ownership example places, on the wire, its unions tagged by branch:
 

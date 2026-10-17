@@ -271,6 +271,16 @@ link of `HasBranch` and `HasPart` entries is `schema`, and a derived identity en
 and the documents' current sections say schema; a scalar's host type keeps its name, and quoted decisions their
 wording. The corpora change in every relation key and link that said type.
 
+## Step 4a, as built
+
+`Schemas.OfAdjacency` has `owner`, validated as Object identity, Decided, 14 says: a relation of two links, with a
+clause holding the owner's link and not the owned's and one holding the owned's and not the owner's. A property has
+`pattern`, validated as a naming pattern on text. The keyed relations between schema objects (`HasProperty`, ...,
+`Defines`) mark their members' ends `owner()`; `Schemas.HasInstance` links an object schema to its objects, keyed by
+`name`. Every store holds `Paths.OfRoot`, `Paths.OfEntry`, `Paths.OfTarget` and `Paths.Next`, its own, a key's value a
+bool, an int or text so that it is written bare; `Paths.of(obj)` reads a proxy's path off its ownership entries back to
+a singleton. Nothing else changes: objects keep their identities until 4b, and the corpora are unchanged (IDN-01 to 04).
+
 ## Open, for the user
 
 1. **Deferred: when a binding is applied.** "I don't think we need to force the issue of eager or on-demand binding":

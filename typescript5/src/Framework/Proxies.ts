@@ -1464,7 +1464,7 @@ class _Iterator {
 class _Property extends Dunders {
   readonly [TYPE_NAME] = "_Property";
 
-  constructor(readonly _values: Values, readonly _name: string, readonly _schema: Schemas.OfProperty.Data,
+  constructor(readonly _values: Values, readonly _name: string, readonly _schema: Schemas.OfProperty.Data | Schemas.OfUnion.Branch,
     readonly _store: _Store | null, public _parent: unknown, readonly _writable: boolean,
     readonly _onWrite: (() => void) | null = null) {
     super();
@@ -1484,7 +1484,7 @@ class _Property extends Dunders {
     return found[0];
   }
 
-  as_schema(): Schemas.OfProperty.Data {
+  as_schema(): Schemas.OfProperty.Data | Schemas.OfUnion.Branch {
     return this._schema;
   }
 
@@ -1529,7 +1529,7 @@ class _Property extends Dunders {
   }
 }
 
-function makeProperty(values: Values, name: string, schema: Schemas.OfProperty.Data, store: _Store | null,
+function makeProperty(values: Values, name: string, schema: Schemas.OfProperty.Data | Schemas.OfUnion.Branch, store: _Store | null,
   parent: unknown, writable: boolean, onWrite: (() => void) | null = null): any {
   const state = new _Property(values, name, schema, store, parent, writable, onWrite);
   return shell(state, (spec) => state._call(spec));

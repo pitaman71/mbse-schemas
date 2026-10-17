@@ -225,6 +225,28 @@ class _PropertyData:
     name: str = ""
     schema: Any = None  # OfAny.Data
     description: str | None = None
+    pattern: str | None = None  # a key's naming pattern, e.g. r"FEA-(\d+\d\d)", from which a value is generated
+
+    def name_for(self, number: int) -> str:
+        """The value the naming pattern gives the key numbered `number` (`_name_for`)."""
+        return _name_for(self.pattern, number)  # type: ignore[arg-type]  # a valid pattern
+
+    def number_of(self, name: str) -> int | None:
+        """The number of a value the naming pattern gives (`_number_of`); None for another value."""
+        return _number_of(self.pattern, name)
+
+
+def _pattern_problems(prop: _PropertyData) -> list[str]:
+    """A property's naming pattern: literal text around one group of digits, on a property of text."""
+    if prop.pattern is None:
+        return []
+    problems = []
+    if _naming(prop.pattern) is None:
+        problems.append(f"naming pattern {prop.pattern!r} is not literal text around one group of digits, "
+                        "e.g. 'FEA-(\\d+\\d\\d)'")
+    if not (isinstance(prop.schema, _ScalarData) and prop.schema.type is str):
+        problems.append("a naming pattern gives text: the property's schema is Schemas.OfStr")
+    return problems
 
 
 class OfProperty:
@@ -281,7 +303,7 @@ class _EntryData:
             problems += [f"link {name!r}: {p}" for p in _symbol_problems(link)]
         for name, prop in self.properties.items():
             problems += [f"property {name!r}: {p}" for p in _validate(prop.schema) + _embedded_problems(prop.schema)
-                         + _description_problems(prop.description)]
+                         + _description_problems(prop.description) + _pattern_problems(prop)]
         return problems
 
 
@@ -347,6 +369,7 @@ class _AdjacencyData:
     relation: _RelationData | None = None
     me: str = ""
     description: str | None = None
+    owner: bool | None = None  # it points back to the previous element of its object's identity path: its owner
 
     def validate(self) -> list[str]:
         label = f"adjacency {self.name!r}" if self.name else "an anonymous adjacency"
@@ -357,7 +380,28 @@ class _AdjacencyData:
             return [f"{label} has no relation"]
         if self.me not in self.relation.entry.links:
             return [f"{label}: {self.me!r} is not a link of its relation {tuple(self.relation.entry.links)}"]
-        return []
+        return _owner_problems(self, label) if self.owner else []
+
+
+def _owner_problems(adjacency: _AdjacencyData, label: str) -> list[str]:
+    """An owner adjacency's relation makes path resolution unambiguous (docs/OBJECT_IDENTITY.md, Decided, 14): of two
+    links, the owner's and the owned's (`me`); a clause holding the owner's link and not the owned's, so that the owned
+    object determines its owner, and one holding the owned's and not the owner's, so that the owner and the keys determine
+    the owned object."""
+    relation = adjacency.relation
+    owners = [link for link in relation.entry.links if link != adjacency.me]  # type: ignore[union-attr]
+    if len(owners) != 1:
+        return [f"{label} is its object's owner: its relation has two links, the owner's and the owned's"]
+    owner, owned = owners[0], adjacency.me
+    clauses = relation.uniques  # type: ignore[union-attr]
+    problems = []
+    if not any(owner in clause and owned not in clause for clause in clauses):
+        problems.append(f"{label} is its object's owner: no unique clause has {owner!r} without {owned!r}, so that the "
+                        "owned object determines its owner")
+    if not any(owned in clause and owner not in clause for clause in clauses):
+        problems.append(f"{label} is its object's owner: no unique clause has {owned!r} without {owner!r}, so that the "
+                        "owner and the keys determine the owned object")
+    return problems
 
 
 class OfAdjacency:
@@ -403,6 +447,25 @@ def _naming(pattern: str) -> tuple[str, int, str] | None:
     return re.sub(r"\\(.)", r"\1", prefix), 1 + len(digits) // 2, re.sub(r"\\(.)", r"\1", suffix)
 
 
+def _name_for(pattern: str, number: int) -> str:
+    """The name a naming pattern gives the number `number`: it fills the pattern's group, at its minimum width,
+    extending on the left."""
+    prefix, width, suffix = _naming(pattern)  # type: ignore[misc]  # a valid pattern
+    return f"{prefix}{number:0{width}d}{suffix}"
+
+
+def _number_of(pattern: str | None, name: str) -> int | None:
+    """The number of a name a naming pattern gives: its literal text around at least the minimum width of ASCII digits.
+    None for a name it does not give, or without a valid naming pattern."""
+    naming = _naming(pattern) if pattern is not None else None
+    if naming is None:
+        return None
+    prefix, width, suffix = naming
+    digits = name[len(prefix):len(name) - len(suffix)]
+    fits = name.startswith(prefix) and name.endswith(suffix) and len(name) >= len(prefix) + len(suffix)
+    return int(digits) if fits and len(digits) >= width and digits.isascii() and digits.isdigit() else None
+
+
 @dataclass(eq=False)
 class _ObjectData:
     properties: dict[str, _PropertyData] = field(default_factory=dict)
@@ -421,21 +484,12 @@ class _ObjectData:
         return any(a.relation is relation and a.me == link for a in (*self.adjacencies.values(), *self.anonymous))
 
     def name_for(self, number: int) -> str:
-        """The name the naming pattern gives the object numbered `number`: the number fills the pattern's group, at its
-        minimum width, extending on the left."""
-        prefix, width, suffix = _naming(self.pattern)  # type: ignore[arg-type,misc]  # a valid pattern
-        return f"{prefix}{number:0{width}d}{suffix}"
+        """The name the naming pattern gives the object numbered `number` (`_name_for`)."""
+        return _name_for(self.pattern, number)  # type: ignore[arg-type]  # a valid pattern
 
     def number_of(self, name: str) -> int | None:
-        """The number of a name the naming pattern gives: its literal text around at least the minimum width of ASCII
-        digits. None for a name it does not give, or without a valid naming pattern."""
-        naming = _naming(self.pattern) if self.pattern is not None else None
-        if naming is None:
-            return None
-        prefix, width, suffix = naming
-        digits = name[len(prefix):len(name) - len(suffix)]
-        fits = name.startswith(prefix) and name.endswith(suffix) and len(name) >= len(prefix) + len(suffix)
-        return int(digits) if fits and len(digits) >= width and digits.isascii() and digits.isdigit() else None
+        """The number of a name the naming pattern gives (`_number_of`); None for another name."""
+        return _number_of(self.pattern, name)
 
     @_once
     def validate(self) -> list[str]:
@@ -458,7 +512,7 @@ class _ObjectData:
             problems.append(f"names used as both property and adjacency: {sorted(clashes)}")
         for name, prop in self.properties.items():
             problems += [f"property {name!r}: {p}" for p in _validate(prop.schema) + _embedded_problems(prop.schema)
-                         + _description_problems(prop.description)]
+                         + _description_problems(prop.description) + _pattern_problems(prop)]
         for adjacency in (*self.adjacencies.values(), *self.anonymous):
             problems += adjacency.validate()
             if not self.ref:

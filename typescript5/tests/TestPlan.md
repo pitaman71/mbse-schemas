@@ -66,6 +66,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `26_Mutations.ipynb` | MUT | 5 | as in Python; `Exists`' noun keeps Python's name, `definition`; plain mappings are `Map`s, ints `bigint`s, and `Mutations.SCHEMAS` is an array |
 | `27_Snapshots.ipynb` | SNP | 5 | as in Python; builders and the store's paths are `Proxy` objects typed loosely, so callbacks are annotated `(t: any)`; plain mappings are `Map`s, ints `bigint`s; a log written again is compared as its JSON text, `unique` clauses as sorted lists |
 | `28_Extensions.ipynb` | EXT | 5 | as in Python |
+| `29_Identity.ipynb` | IDN | 4 | as in Python |
 
 Total: 207 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).

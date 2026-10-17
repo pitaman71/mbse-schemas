@@ -182,6 +182,20 @@ assumptions about reentrancy":
 29. An unnamed schema linked through a relation no key names (the container schema of `crm.Person.tags`, through
     `Schemas.HasSchema`) is a subclause owned through that link, its step a `Paths.OfEntry` with no properties: "yes I
     think that would work".
+30. Decided 12 reads "(a)": the `Schema@` tag never appears in a path, but a schema object may be a step in one, as any
+    owner may.
+31. A reference object whose schema declares no `owner()` adjacency is owned by its schema, through a framework
+    relation shaped as `Schemas.Defines` is, `Schemas.HasInstance`, linking a schema to its objects with the entry's
+    `name`, generated where none is given ("yes to HasInstance"). A contact's path is then the root module, `crm`,
+    `Contact` (through `Defines`) and the entry named `contact-6` (through `HasInstance`), on the wire:
+
+    ```json
+    {"singleton": ".", "next": {"entry": {"i": "schemas", "o": "", "properties": {"name": "crm"}, "next": {"entry": {
+      "i": "schemas", "o": "", "properties": {"name": "Contact"}, "next": {"entry": {
+        "i": "instances", "o": "", "properties": {"name": "contact-6"}, "next": {"target": {}}}}}}}}}
+    ```
+
+    So 20 applies where a schema has neither an `owner()` adjacency nor a schema to be owned by: none, as built.
 
 ## Open questions
 

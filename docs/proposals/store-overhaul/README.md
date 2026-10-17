@@ -162,6 +162,16 @@ so that main stays current and no branch waits on another.
    `Paths.OfRoot` value; `Schema@` only in `Exists`; no UUIDs; `as_identity` read-only outside deserialization.
    *Breaks*: the snapshot format, so every corpus and every hand-written snapshot in the tests; `.ref(pattern)`;
    writing an identity (STO-08).
+   In stages, each committed with both gates at 100%, released only at the last:
+   - **4a, the vocabulary:** `owner()` on adjacencies, validated against its relation's clauses (Object identity,
+     Decided, 14); `.pattern(...)` on properties (13); `Schemas.HasInstance` (31); the `Paths.OfRoot`, `Paths.OfEntry`
+     and `Paths.OfTarget` value schemas, held by every store as its mutation schemas are (18, 24, 25); and an object's
+     path on demand (32). Nothing else changes yet.
+   - **4b, data objects:** a builder fills ownership (33) and generates keys; lookup calls an adjacency with keys (26
+     to 28); `.ref()` takes no pattern; `as_identity` is read-only (16); the UUIDs and per-schema directories go (19).
+   - **4c, schema objects:** their identities are their paths (17, 29), and derived identities go.
+   - **4d, the wire:** an object's key is its path, a nested `Paths.OfRoot` value (23), `Schema@` only in `Exists`
+     (8, 12); the corpora regenerated; 0.20.0.
 
 Then mbse-expressions redrafts its framework model on per-store extension (`Expressions.install(store)`, through
 `store.extend`), with domains, dialects and `DefinesDomains` as the user described.

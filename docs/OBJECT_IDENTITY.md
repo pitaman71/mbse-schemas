@@ -210,6 +210,9 @@ assumptions about reentrancy":
     key takes its own property's pattern (13). Where a schema gives none, a `HasInstance` key is its local name
     lowercased, a dash and a counter, `contact-1` ("local-name-N (Recommended)").
 35. `as_identity()` gives the path, a `Paths.OfRoot` value computed on demand ("The path value (Recommended)").
+36. The Reachable format lists its objects ("Objects as a list (Recommended)", 2026-10-17): `{"root": <path>,
+    "objects": [{"path": <path>, "schema": "Contact", "properties": {...}}, ...]}`, a reference `{"$ref": <path>}`, with
+    no `$schema`: the path finds the object, and its entry in `objects` names its schema, as `Exists` does.
 
 ## Open questions
 

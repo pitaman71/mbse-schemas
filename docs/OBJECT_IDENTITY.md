@@ -196,6 +196,11 @@ assumptions about reentrancy":
     ```
 
     So 20 applies where a schema has neither an `owner()` adjacency nor a schema to be owned by: none, as built.
+32. An identity is computed on demand ("yes, on demand"): no object holds one; its path is read off its ownership
+    entries when asked, so a key written anew (an entry's `name`) renames the object, and another owner moves it.
+33. Building an object whose ownership adjacency is empty links it only where one owner is possible, its schema
+    through `HasInstance` or the singleton at the owning end, a key generated per its pattern; otherwise it raises,
+    naming the ownership missing ("agreed").
 
 ## Open questions
 

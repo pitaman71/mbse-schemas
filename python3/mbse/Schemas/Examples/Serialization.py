@@ -20,11 +20,11 @@ Sample = store.Schemas.OfObject(lambda o: (
     .name('Sample')
     .ref(True)
     .properties([
-        lambda t: t.name('label').type([Text]),
-        lambda t: t.name('payload').type([store.Schemas.OfBytes]),
-        lambda t: t.name('count').type([Int]),
-        lambda t: t.name('ratio').type([store.Schemas.OfFloat]),
-        lambda t: t.name('flag').type([store.Schemas.OfBool]),
+        lambda t: t.name('label').schema([Text]),
+        lambda t: t.name('payload').schema([store.Schemas.OfBytes]),
+        lambda t: t.name('count').schema([Int]),
+        lambda t: t.name('ratio').schema([store.Schemas.OfFloat]),
+        lambda t: t.name('flag').schema([store.Schemas.OfBool]),
     ])
 ))
 
@@ -34,17 +34,17 @@ Currency = store.Schemas.OfObject(lambda o: (
     .name('iso4217.Currency')
     .ref(True)
     .properties([
-        lambda t: t.name('code').type([Text]),  # ISO 4217 alpha, e.g. 'JPY'
-        lambda t: t.name('numeric').type([Text]),  # ISO 4217 numeric, e.g. '392'; keeps zeros
-        lambda t: t.name('minor_units').type([Int]),  # 0 for JPY, 2 for EUR, 3 for BHD
+        lambda t: t.name('code').schema([Text]),  # ISO 4217 alpha, e.g. 'JPY'
+        lambda t: t.name('numeric').schema([Text]),  # ISO 4217 numeric, e.g. '392'; keeps zeros
+        lambda t: t.name('minor_units').schema([Int]),  # 0 for JPY, 2 for EUR, 3 for BHD
     ])
 ))
-Product = store.Schemas.OfObject(lambda o: o.name('Product').ref(True).properties([lambda t: t.name('sku').type([Text])]))
+Product = store.Schemas.OfObject(lambda o: o.name('Product').ref(True).properties([lambda t: t.name('sku').schema([Text])]))
 Money = store.Schemas.OfObject(lambda o: (
     o
     .name('Money')
     .ref(True)
-    .properties([lambda t: t.name('amount').type([Int])])  # in minor units
+    .properties([lambda t: t.name('amount').schema([Int])])  # in minor units
 ))
 
 # product -> [currency] -> money
@@ -55,7 +55,7 @@ Prices = store.Schemas.OfRelation(lambda r: (
         lambda t: t.name('product'),
         lambda t: t.name('price'),
     ])
-    .properties([lambda t: t.name('currency').type([Text])])
+    .properties([lambda t: t.name('currency').schema([Text])])
     .uniques('price')
 ))
 # Which currency a money amount is in.
@@ -229,7 +229,7 @@ with raises(AttributeError):
     widget.sku = 'W-2'  # instances are read-only
 
 # A schema named 'schema' is shadowed by the store's schema() method, but still reachable by name.
-Shadowed = store.Schemas.OfObject(lambda o: o.name('schema').ref(True).properties([lambda t: t.name('label').type([Text])]))
+Shadowed = store.Schemas.OfObject(lambda o: o.name('schema').ref(True).properties([lambda t: t.name('label').schema([Text])]))
 assert store.schema('schema') is Shadowed and store.builder('schema').create().as_schema().name == 'schema'
 
 print('Serialization: all checks passed')

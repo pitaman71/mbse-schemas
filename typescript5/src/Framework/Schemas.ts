@@ -168,7 +168,7 @@ class ScalarData {
     return typeof this.name === "string" ? HOSTS.get(this.name) ?? null : null;
   }
 
-  /** The basic scalar's tag (`int`), which a value of any type is tagged with on the wire, or null. */
+  /** The basic scalar's tag (`int`), which a value of any schema is tagged with on the wire, or null. */
   get tag(): string | null {
     const host = this.type;
     return host === null ? null : tokenName(host);
@@ -248,12 +248,12 @@ export namespace OfScalar {
 
 class PropertyData {
   name: string;
-  type: AnyData | null;
+  schema: AnyData | null;
   description: string | null;
 
-  constructor(fields: { name?: string; type?: AnyData | null; description?: string | null } = {}) {
+  constructor(fields: { name?: string; schema?: AnyData | null; description?: string | null } = {}) {
     this.name = fields.name ?? "";
-    this.type = fields.type ?? null;
+    this.schema = fields.schema ?? null;
     this.description = fields.description ?? null;
   }
 
@@ -277,12 +277,12 @@ export namespace OfProperty {
  * reference object schema, which a predicate's symbols require and an entry's links may leave unset (null). */
 class SymbolData {
   name: string;
-  type: AnyData | null;
+  schema: AnyData | null;
   description: string | null;
 
-  constructor(fields: { name?: string; type?: AnyData | null; description?: string | null } = {}) {
+  constructor(fields: { name?: string; schema?: AnyData | null; description?: string | null } = {}) {
     this.name = fields.name ?? "";
-    this.type = fields.type ?? null;
+    this.schema = fields.schema ?? null;
     this.description = fields.description ?? null;
   }
 }
@@ -297,9 +297,9 @@ export namespace OfSymbol {
 
 /** A symbol's schema, when it has one, is a reference object schema. */
 function symbolProblems(symbol: SymbolData): string[] {
-  if (symbol.type === null) return descriptionProblems(symbol.description);
-  const problems = validateSchema(symbol.type);
-  const target = symbol.type;
+  if (symbol.schema === null) return descriptionProblems(symbol.description);
+  const problems = validateSchema(symbol.schema);
+  const target = symbol.schema;
   if (!(target instanceof ObjectData && target.ref)) {
     problems.push("a symbol stands for a reference object, so its schema is a reference object schema");
   }
@@ -329,7 +329,7 @@ class EntryData {
     if (clashes.length > 0) problems.push(`names used as both link and property: ${repr(sortedStrings(new Set(clashes)))}`);
     for (const [name, link] of this.links) problems.push(...symbolProblems(link).map((p) => `link ${repr(name)}: ${p}`));
     for (const [name, prop] of this.properties) {
-      problems.push(...[...validateSchema(prop.type), ...embeddedProblems(prop.type), ...descriptionProblems(prop.description)]
+      problems.push(...[...validateSchema(prop.schema), ...embeddedProblems(prop.schema), ...descriptionProblems(prop.description)]
         .map((p) => `property ${repr(name)}: ${p}`));
     }
     return problems;
@@ -456,7 +456,7 @@ export namespace OfAdjacency {
 const VALIDATING = new Set<unknown>();
 
 /** A schema's problems, for a kind whose values hold others' (an object, a union, an intersection, a container, a value
- * of any type): a schema that holds itself has its problems reported once, where it is first reached. */
+ * of any schema): a schema that holds itself has its problems reported once, where it is first reached. */
 function once(schema: unknown, problems: () => string[]): string[] {
   if (VALIDATING.has(schema)) return [];
   VALIDATING.add(schema);
@@ -564,7 +564,7 @@ class ObjectData {
       problems.push(`names used as both property and adjacency: ${repr(sortedStrings(clashes))}`);
     }
     for (const [name, prop] of this.properties) {
-      problems.push(...[...validateSchema(prop.type), ...embeddedProblems(prop.type), ...descriptionProblems(prop.description)]
+      problems.push(...[...validateSchema(prop.schema), ...embeddedProblems(prop.schema), ...descriptionProblems(prop.description)]
         .map((p) => `property ${repr(name)}: ${p}`));
     }
     for (const adjacency of [...this.adjacencies.values(), ...this.anonymous]) {
@@ -592,12 +592,12 @@ export namespace OfObject {
 /** A named member of a union (a branch) or of an intersection (a part). */
 class MemberData {
   name: string;
-  type: AnyData | null;
+  schema: AnyData | null;
   description: string | null;
 
-  constructor(fields: { name?: string; type?: AnyData | null; description?: string | null } = {}) {
+  constructor(fields: { name?: string; schema?: AnyData | null; description?: string | null } = {}) {
     this.name = fields.name ?? "";
-    this.type = fields.type ?? null;
+    this.schema = fields.schema ?? null;
     this.description = fields.description ?? null;
   }
 
@@ -612,7 +612,7 @@ function memberProblems(aKind: string, member: string, plural: string, members: 
   const kind = aKind.split(" ")[1];
   const problems = reserved(members.map((m) => m.name));
   if (members.length < 2) problems.push(`${aKind} needs at least two ${plural}`);
-  if (new Set(members.map((m) => kindOf(m.type))).size > 1) problems.push(`${kind} ${plural} must all be the same kind`);
+  if (new Set(members.map((m) => kindOf(m.schema))).size > 1) problems.push(`${kind} ${plural} must all be the same kind`);
   const seen = new Set<string>();
   members.forEach((m, i) => {
     if (typeof m.name !== "string" || m.name === "") problems.push(`${member} ${i} has no name`);
@@ -636,8 +636,8 @@ function flatUnionProblems(branches: readonly MemberData[]): string[] {
   const problems: string[] = [];
   const seen = new Map<unknown, string>();
   for (const branch of branches) {
-    const key = _runtime(branch.type);
-    if (seen.has(key)) problems.push(`flat union: branches ${repr(seen.get(key))} and ${repr(branch.name)} are not told apart by type`);
+    const key = _runtime(branch.schema);
+    if (seen.has(key)) problems.push(`flat union: branches ${repr(seen.get(key))} and ${repr(branch.name)} are not told apart by schema`);
     else seen.set(key, branch.name);
   }
   return problems;
@@ -648,7 +648,7 @@ function flatIntersectionProblems(parts: readonly MemberData[]): string[] {
   const problems: string[] = [];
   const seen = new Map<string, string>();
   for (const part of parts) {
-    const schema = part.type;
+    const schema = part.schema;
     if (!(schema instanceof ObjectData)) {
       problems.push(`flat intersection: part ${repr(part.name)} is not an object schema`);
       continue;
@@ -772,7 +772,7 @@ function indexKind(type: unknown): "ordered" | "hashable" | null {
   if (index instanceof ScalarData) return ORDERED_TYPES.has(index.type) ? "ordered" : "hashable";
   if (index instanceof ObjectData && !index.ref && index.properties.size > 0) {
     const kinds = new Set([...index.properties.values()].map((prop) =>
-      prop.type instanceof ScalarData ? indexKind(prop.type) : null));
+      prop.schema instanceof ScalarData ? indexKind(prop.schema) : null));
     return kinds.has(null) ? null : kinds.has("hashable") ? "hashable" : "ordered";
   }
   return null;
@@ -783,7 +783,7 @@ function integerLike(type: unknown): boolean {
   const index = type;
   if (index instanceof ScalarData) return index.type === BigInt;
   return indexKind(index) === "ordered" && [...(index as ObjectData).properties.values()].every((p) =>
-    (p.type as ScalarData).type === BigInt);
+    (p.schema as ScalarData).type === BigInt);
 }
 
 /** A container: elements, each of the element type, held by index, each of the index type. Dense, its elements are a
@@ -879,7 +879,7 @@ class PredicateData {
     const clashes = [...this.symbols.keys()].filter((name) => this.parameters.has(name));
     if (clashes.length > 0) problems.push(`names used as both symbol and parameter: ${repr(sortedStrings(new Set(clashes)))}`);
     for (const [name, symbol] of this.symbols) {
-      if (symbol.type === null) problems.push(`symbol ${repr(name)} needs a schema`);
+      if (symbol.schema === null) problems.push(`symbol ${repr(name)} needs a schema`);
       problems.push(...symbolProblems(symbol).map((p) => `symbol ${repr(name)}: ${p}`));
     }
     return problems;
@@ -895,7 +895,7 @@ export namespace OfPredicate {
   export type Builder = Builders.PredicateBuilder;
 }
 
-// --- OfAny.Value: a value of any type ---
+// --- OfAny.Value: a value of any schema ---
 
 const ALL_FORMS = ["bool", "int", "float", "text", "mapping", "list"];
 
@@ -916,7 +916,7 @@ export function plain_forms(schema: unknown): Set<string> {
     return new Set(tensor ? ["list", "mapping"] : ["list"]);
   }
   if (held instanceof AnyValueData) {
-    return held.types.length > 0 ? new Set(held.types.flatMap((t) => [...plain_forms(t)])) : new Set(["mapping"]);
+    return held.schemas.length > 0 ? new Set(held.schemas.flatMap((t) => [...plain_forms(t)])) : new Set(["mapping"]);
   }
   return new Set(["mapping"]);
 }
@@ -930,18 +930,18 @@ function shownType(schema: unknown): string {
     : held instanceof IntersectionData ? "an intersection" : held instanceof ContainerData ? "a container" : "a schema";
 }
 
-/** A value of any type: of one of `types`, where they are given (an `OfAny` restricted to them), else of any type.
+/** A value of any schema: of one of `types`, where they are given (an `OfAny` restricted to them), else of any schema.
  * Restricted, a value is written bare, its type the one whose plain form it takes; unrestricted, it is tagged with its
  * type, a basic scalar's tag or a registered schema's name. */
 class AnyValueData {
-  types: AnyData[];
+  schemas: AnyData[];
   name: string | null;
   description: string | null;
   parameters: Map<string, ParameterData>;
 
-  constructor(types: readonly unknown[] = [], fields: { name?: string | null; description?: string | null;
+  constructor(schemas: readonly unknown[] = [], fields: { name?: string | null; description?: string | null;
     parameters?: Map<string, ParameterData> } = {}) {
-    this.types = [...types] as AnyData[];
+    this.schemas = [...schemas] as AnyData[];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
     this.parameters = fields.parameters ?? new Map();
@@ -958,9 +958,9 @@ class AnyValueData {
   private problems(): string[] {
     const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
     const valid: AnyData[] = [];
-    for (const schema of this.types as unknown[]) {
-      if (!isAnyData(schema)) problems.push(`an OfAny's types are schemas, got ${repr(schema)}`);
-      else if (schema instanceof AnyValueData) problems.push("an OfAny's types are schemas of other kinds, not an OfAny");
+    for (const schema of this.schemas as unknown[]) {
+      if (!isAnyData(schema)) problems.push(`an OfAny holds schemas, got ${repr(schema)}`);
+      else if (schema instanceof AnyValueData) problems.push("an OfAny holds schemas of other kinds, not an OfAny");
       else {
         valid.push(schema);
         problems.push(...validateSchema(schema).map((p) => `${shownType(schema)}: ${p}`));
@@ -970,7 +970,7 @@ class AnyValueData {
       for (const b of valid.slice(i + 1)) {
         const forms = plain_forms(b);
         if ([...plain_forms(a)].some((form) => forms.has(form))) {
-          problems.push(`an OfAny's types ${shownType(a)} and ${shownType(b)} are not told apart on the wire`);
+          problems.push(`an OfAny's schemas ${shownType(a)} and ${shownType(b)} are not told apart on the wire`);
         }
       }
     });
@@ -996,8 +996,8 @@ function kindOf(value: unknown): unknown {
 function kindNoun(schema: unknown): string {
   const nouns: [Function, string][] = [[ScalarData, "a scalar schema"], [ObjectData, "an object schema"],
     [ContainerData, "a container schema"], [UnionData, "a union"], [IntersectionData, "an intersection"],
-    [AnyValueData, "a value of any type"]];
-  return nouns.find(([kind]) => schema instanceof kind)?.[1] ?? "something not a type";
+    [AnyValueData, "a value of any schema"]];
+  return nouns.find(([kind]) => schema instanceof kind)?.[1] ?? "something holding no values";
 }
 
 /** Whether `schema` is `base` or refines it, directly or not: a value of it is then a value of `base`. */
@@ -1041,7 +1041,7 @@ function refinementProblems(schema: ObjectData | ContainerData): string[] {
     + "refines is one"];
   for (const [name, prop] of held.properties) {
     const own = schema.properties.get(name);
-    if (own !== undefined && own !== prop && !narrows(own.type, prop.type)) {
+    if (own !== undefined && own !== prop && !narrows(own.schema, prop.schema)) {
       problems.push(`property ${repr(name)} cannot be confirmed to narrow the refined schema's`);
     }
   }
@@ -1105,9 +1105,9 @@ function validateSchema(schema: unknown): string[] {
 function membersOf(type: unknown): unknown[] {
   const schema = type;
   if (schema instanceof ContainerData) return [schema.index, schema.element];
-  if (schema instanceof AnyValueData) return [...schema.types];
+  if (schema instanceof AnyValueData) return [...schema.schemas];
   return schema instanceof ObjectData || schema instanceof UnionData || schema instanceof IntersectionData
-    ? [...schema.properties.values()].map((member) => member.type) : [];
+    ? [...schema.properties.values()].map((member) => member.schema) : [];
 }
 
 /** Problems with a property's schema as a value: an object held by a property is a value object, so its schema is
@@ -1115,7 +1115,7 @@ function membersOf(type: unknown): unknown[] {
  * schemas on the way, so that one that holds itself is checked once. */
 function embeddedProblems(type: unknown, seen: ReadonlySet<unknown> = new Set()): string[] {
   const schema = type;
-  if (schema instanceof ObjectData) return schema.ref ? ["a reference object schema cannot be a property's type"] : [];
+  if (schema instanceof ObjectData) return schema.ref ? ["a reference object schema cannot be a property's schema"] : [];
   if (seen.has(schema)) return [];
   const inner = new Set([...seen, schema]);
   return sortedStrings(new Set(membersOf(schema).flatMap((member) => embeddedProblems(member, inner))));
@@ -1123,7 +1123,7 @@ function embeddedProblems(type: unknown, seen: ReadonlySet<unknown> = new Set())
 
 export namespace OfAny {
   /** Where a schema of any kind is expected. `OfAny.Data` is any schema kind's data; `OfAny.Value`, the kind of a value
-   * of any type, or of one of the types it is restricted to. */
+   * of any schema, or of one of the types it is restricted to. */
   export type Data = AnyData;
   export const Value = AnyValueData;
   export type Value = AnyValueData;

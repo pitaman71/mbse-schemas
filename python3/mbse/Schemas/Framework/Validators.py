@@ -48,7 +48,7 @@ _SELECT = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
 
 
 def _any_of(read: Any) -> Any:
-    """The value of any type a `Visitors.OfAny` holds: a scalar, a visitor of its own kind, or None."""
+    """The value of any schema a `Visitors.OfAny` holds: a scalar, a visitor of its own kind, or None."""
     found: list[Any] = []
     read.as_scalar(lambda s: found.extend([] if s.get() is None else [s.get()]) or s)
     for select in ("as_object", "as_union", "as_intersection", "as_container"):
@@ -57,7 +57,7 @@ def _any_of(read: Any) -> Any:
 
 
 def _own(value: Any) -> Any:
-    """The type a value of any type has: a scalar's, or its visitor's schema."""
+    """The type a value of any schema has: a scalar's, or its visitor's schema."""
     return Schemas.OfScalar.Data(type(value)) if type(value) in _SCALARS else value.as_schema()
 
 
@@ -150,10 +150,10 @@ def _key(schema: Any, value: Any) -> Hashable:
         return ("container", frozenset((index if not hasattr(index, "as_schema") else _key(held.index, index),
                                         _key(held.element, _element(e, held.element))) for index, e in _pairs(value)))
     if isinstance(held, Schemas.OfObject.Data):
-        properties = tuple((p.as_schema().name, _key(p.as_schema().type, _property_value(p, p.as_schema().type)))
+        properties = tuple((p.as_schema().name, _key(p.as_schema().schema, _property_value(p, p.as_schema().schema)))
                            for p in value.as_properties)
         return ("object", properties)
-    members = tuple((name, _key(m.type, _member(getattr(value, name), m.type))) for name, m in held.properties.items())
+    members = tuple((name, _key(m.schema, _member(getattr(value, name), m.schema))) for name, m in held.properties.items())
     return ("record", members)
 
 
@@ -198,8 +198,8 @@ class _Check:
         problems = []
         for prop in value.as_properties:
             name = prop.as_schema().name
-            problems += self._value_problems(f"{label}.{name}", prop.as_schema().type,
-                                             _property_value(prop, prop.as_schema().type))
+            problems += self._value_problems(f"{label}.{name}", prop.as_schema().schema,
+                                             _property_value(prop, prop.as_schema().schema))
         return problems
 
     def _value_problems(self, label: str, schema: Schemas.OfAny.Data, item: Any) -> list[str]:
@@ -220,18 +220,18 @@ class _Check:
         if isinstance(schema, Schemas.OfObject.Data):
             return self._properties(label, schema, item)
         problems = []
-        held = {name: _member(getattr(item, name), m.type) for name, m in schema.properties.items()}
+        held = {name: _member(getattr(item, name), m.schema) for name, m in schema.properties.items()}
         for name, member in schema.properties.items():
-            problems += self._value_problems(f"{label}.{name}", member.type, held[name])
+            problems += self._value_problems(f"{label}.{name}", member.schema, held[name])
         missing = [name for name in schema.properties if held[name] is None]
         if isinstance(schema, Schemas.OfIntersection.Data) and missing:
             problems.append(f"{label}: parts {missing} are not set")
         return problems
 
     def _any_problems(self, label: str, schema: Schemas.OfAny.Value, item: Any) -> list[str]:
-        """Problems with a value of any type: that it is of one of its types, where it is restricted, or of a
+        """Problems with a value of any schema: that it is of one of its types, where it is restricted, or of a
         registered schema, where it is not a scalar; and its own, under its own type."""
-        own, types = _own(item), list(schema.types)
+        own, types = _own(item), list(schema.schemas)
         if isinstance(own, Schemas.OfScalar.Data):
             allowed = not types or any(isinstance(t, Schemas.OfScalar.Data) and t.type is own.type for t in types)
             shown = own.tag
@@ -242,9 +242,9 @@ class _Check:
                     self._store.name_of(own)
                     allowed = True
                 except LookupError:
-                    return [f"{label}: a value of any type is of a registered schema; {shown} is not registered"]
+                    return [f"{label}: a value of any schema is of a registered schema; {shown} is not registered"]
         if not allowed:
-            return [f"{label}: {shown} is not one of its types"]
+            return [f"{label}: {shown} is not one of its schemas"]
         return self._value_problems(label, own, item)
 
     def _entry(self, label: str, adjacency: Schemas.OfAdjacency.Data, owner: Any, entry: Any) -> list[str]:
@@ -259,13 +259,13 @@ class _Check:
                 if problem:
                     problems.append(f"{label}.{name}: {problem}")
         for name, prop in relation.entry.properties.items():
-            problems += self._value_problems(f"{label}.{name}", prop.type,
-                                             _property_value(getattr(entry, name), prop.type))
+            problems += self._value_problems(f"{label}.{name}", prop.schema,
+                                             _property_value(getattr(entry, name), prop.schema))
         links = {name: _identity(_visited(getattr(entry, name), self._store)) for name in relation.entry.links if name != adjacency.me}
         links[adjacency.me] = _identity(owner)
-        values = {name: _key(prop.type, _property_value(getattr(entry, name), prop.type))
+        values = {name: _key(prop.schema, _property_value(getattr(entry, name), prop.schema))
                   for name, prop in relation.entry.properties.items()
-                  if _property_value(getattr(entry, name), prop.type) is not None}
+                  if _property_value(getattr(entry, name), prop.schema) is not None}
         full = _Entry(links, values)
         _, seen = self._entries.setdefault(id(relation), (relation, {}))
         seen.setdefault(full.key(set(relation.entry.links) | set(relation.entry.properties)), full)

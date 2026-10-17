@@ -554,22 +554,22 @@ class _Any(_Unassignable):
         self._schema, self._label, self._on_write = schema, label, on_write
         self._type = schema
         self._any = self._type if isinstance(self._type, Schemas.OfAny.Value) else None
-        self._unbuilt = ""  # why a Spec has nothing to build: where the value is of any type and its type unknown
-        if self._any is not None:  # a value of any type: of the type the value held has
+        self._unbuilt = ""  # why a Spec has nothing to build: where the value is of any schema and its type unknown
+        if self._any is not None:  # a value of any schema: of the type the value held has
             held = values.get(name)
             self._type = held._schema if isinstance(held, (_RecordData, _RecordBuilder, _Containing)) else None
 
     def _only(self, kind: Any) -> Any:
-        """Where the value is of any type: the one type of `kind` its restriction allows, else None."""
-        found = [held for held in self._any.types if isinstance(held, kind)]  # type: ignore[union-attr]
+        """Where the value is of any schema: the one type of `kind` its restriction allows, else None."""
+        found = [held for held in self._any.schemas if isinstance(held, kind)]  # type: ignore[union-attr]
         return found[0] if len(found) == 1 else None
 
     def _allows(self, schema: Any) -> bool:
-        """Where the value is of any type: whether its restriction allows a value of `schema`; any, unrestricted."""
-        return not self._any.types or any(t is schema for t in self._any.types)  # type: ignore[union-attr]
+        """Where the value is of any schema: whether its restriction allows a value of `schema`; any, unrestricted."""
+        return not self._any.schemas or any(t is schema for t in self._any.schemas)  # type: ignore[union-attr]
 
     def _of_any(self, kind: Any, cb: Any) -> None:
-        """Where the value is of any type, takes the type a write of `kind` gives: the value's own, if it is one the
+        """Where the value is of any schema, takes the type a write of `kind` gives: the value's own, if it is one the
         restriction allows, else the one type of `kind` it allows; a Spec has no other schema to build by."""
         if self._any is None or isinstance(self._type, kind):
             return
@@ -580,8 +580,8 @@ class _Any(_Unassignable):
             self._type = value._schema
         elif self._writable and self._values.get(self._name) is None:  # a Spec, where nothing is held
             self._type = self._only(kind)
-            if not self._any.types:
-                self._unbuilt = (f"{self._label} holds a value of any type: give a value, which carries its schema, "
+            if not self._any.schemas:
+                self._unbuilt = (f"{self._label} holds a value of any schema: give a value, which carries its schema, "
                                  "not a Spec")
 
     def as_schema(self) -> Any:
@@ -593,7 +593,7 @@ class _Any(_Unassignable):
 
     def as_scalar(self, cb: Any) -> _Any:
         value = self._values.get(self._name)
-        if self._any is not None and self._type is None:  # a scalar of any type, or of the one its restriction allows
+        if self._any is not None and self._type is None:  # a scalar of any schema, or of the one its restriction allows
             self._type = self._only(Schemas.OfScalar.Data) or self._any
         if isinstance(self._type, Schemas.OfUnion.Data) and self._type.flat:
             return self._flat_scalar(cb, value)
@@ -614,7 +614,7 @@ class _Any(_Unassignable):
         if isinstance(value, (_RecordData, _RecordBuilder)):  # a union value holds one branch
             ((branch, held),) = value._values.items()
             if type(held) in (int, float, str, bool, bytes):
-                _visit(cb, _Scalar(value._values, branch, self._type.properties[branch].type,
+                _visit(cb, _Scalar(value._values, branch, self._type.properties[branch].schema,
                                    False, self._label))
                 return self
         _visit(cb, _Empty(f"{self._label} holds no scalar"))
@@ -808,7 +808,7 @@ def _index_key(schema: Schemas.OfContainer.Data, index: Any, label: str) -> Hash
             raise TypeError(f"{label}: an index is a {kind.tag}, got {type(index).__name__}")
         return index
     if schema.arrangement != "entries":
-        scalars = [prop.type for prop in kind.properties.values()]
+        scalars = [prop.schema for prop in kind.properties.values()]
         if not isinstance(index, tuple) or len(index) != len(scalars) or any(
                 scalar.type is not None and type(i) is not scalar.type for i, scalar in zip(index, scalars)):
             names = ", ".join(str(scalar.tag) for scalar in scalars)
@@ -1088,7 +1088,7 @@ class _Property(_Dunders):
         self._parent, self._writable, self._on_write = parent, writable, on_write
 
     def _any(self) -> _Any:
-        return _Any(self._values, self._name, self._schema.type, self._store, self._writable, self._label(),
+        return _Any(self._values, self._name, self._schema.schema, self._store, self._writable, self._label(),
                     self._on_write)
 
     def _label(self) -> str:
@@ -1288,7 +1288,7 @@ def _member(owner: Any, name: str) -> Any:
     store = _store_of(owner)
     if isinstance(schema, (Schemas.OfUnion.Data, Schemas.OfIntersection.Data)) and name in schema.properties:
         kind = "branch" if isinstance(schema, Schemas.OfUnion.Data) else "part"
-        return _kind_visitor(values, name, schema.properties[name].type, store, owner, False, f"{kind} {name!r}")
+        return _kind_visitor(values, name, schema.properties[name].schema, store, owner, False, f"{kind} {name!r}")
     if name in schema.properties:
         return _Property(values, name, schema.properties[name], store, owner, False)
     part = _owning_part(schema, name)
@@ -1355,7 +1355,7 @@ class _Adjacency(_Unassignable, tuple):  # type: ignore[type-arg]
         if name not in relation.entry.links and name not in relation.entry.properties:
             raise KeyError(f"{name!r} is not a link or property of the relation")
         return tuple(entry._links[name] if name in relation.entry.links else
-                     _view(entry._properties.get(name), relation.entry.properties[name].type) for entry in self)
+                     _view(entry._properties.get(name), relation.entry.properties[name].schema) for entry in self)
 
     def at(self, key: Any) -> _Entry:
         """The entry whose key is `key`: one value for a key of one link or property, else a tuple of them in
@@ -1369,7 +1369,7 @@ class _Adjacency(_Unassignable, tuple):  # type: ignore[type-arg]
         links = self._schema.relation.entry.links
         properties = self._schema.relation.entry.properties
         for entry in self:
-            held = [entry._links[name] if name in links else _view(entry._properties.get(name), properties[name].type)
+            held = [entry._links[name] if name in links else _view(entry._properties.get(name), properties[name].schema)
                     for name in names]
             if all(h is v if name in links else h is not None and _scalar_key(h) == _scalar_key(v)
                    for name, h, v in zip(names, held, wanted)):  # a target by identity, a value by schema equality
@@ -1406,14 +1406,14 @@ def _view(value: Any, schema: Any) -> Any:
     if not (isinstance(schema, Schemas.OfUnion.Data) and schema.flat and isinstance(value, _RecordData) and value._values):
         return value
     ((branch, held),) = value._values.items()
-    return _view(held, schema.properties[branch].type)
+    return _view(held, schema.properties[branch].schema)
 
 
 def _owning_part(schema: Any, name: str) -> str | None:
     """The part of a flat intersection whose object schema declares the property `name`, if any."""
     if not (isinstance(schema, Schemas.OfIntersection.Data) and schema.flat):
         return None
-    return next((part.name for part in schema.parts if name in part.type.properties), None)
+    return next((part.name for part in schema.parts if name in part.schema.properties), None)
 
 
 def _runtime(value: Any) -> Any:
@@ -1426,7 +1426,7 @@ def _runtime(value: Any) -> Any:
 
 def _branch(name: str, schema: Schemas.OfUnion.Data, value: Any) -> Schemas.OfUnion.Branch:
     """The branch of a flat union whose type a value has."""
-    found = next((b for b in schema.branches if Schemas._runtime(b.type) == _runtime(value)), None)
+    found = next((b for b in schema.branches if Schemas._runtime(b.schema) == _runtime(value)), None)
     if found is None:
         raise TypeError(f"property {name!r}: a {type(value).__name__} is not a value of any branch of the flat union")
     return found
@@ -1623,7 +1623,7 @@ class _RecordBuilder(_Unassignable):
         schema = self._schema
         if isinstance(schema, (Schemas.OfUnion.Data, Schemas.OfIntersection.Data)) and name in schema.properties:
             kind = "branch" if isinstance(schema, Schemas.OfUnion.Data) else "part"
-            return _kind_visitor(self._values, name, schema.properties[name].type, self._store, self, True,
+            return _kind_visitor(self._values, name, schema.properties[name].schema, self._store, self, True,
                                  f"{kind} {name!r}", self._select(name))
         if name in schema.properties:
             return _Property(self._values, name, schema.properties[name], self._store, self, True, self._touch)

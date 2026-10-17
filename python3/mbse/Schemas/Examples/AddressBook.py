@@ -16,15 +16,15 @@ IntlAddress = store.Schemas.OfObject(lambda o: (
     .name('IntlAddress')
     .ref(True)
     .properties([
-        lambda t: t.name('street1').type([Text]),
-        lambda t: t.name('street2').type([Text]),
-        lambda t: t.name('street3').type([Text]),
-        lambda t: t.name('dependent_locality').type([Text]),  # neighborhood, district
-        lambda t: t.name('locality').type([Text]),  # city, town, post town
-        lambda t: t.name('administrative_area').type([Text]),  # state, province, prefecture
-        lambda t: t.name('postal_code').type([Text]),
-        lambda t: t.name('sorting_code').type([Text]),  # e.g. French CEDEX
-        lambda t: t.name('country_code').type([Text]),  # ISO 3166-1 alpha-2
+        lambda t: t.name('street1').schema([Text]),
+        lambda t: t.name('street2').schema([Text]),
+        lambda t: t.name('street3').schema([Text]),
+        lambda t: t.name('dependent_locality').schema([Text]),  # neighborhood, district
+        lambda t: t.name('locality').schema([Text]),  # city, town, post town
+        lambda t: t.name('administrative_area').schema([Text]),  # state, province, prefecture
+        lambda t: t.name('postal_code').schema([Text]),
+        lambda t: t.name('sorting_code').schema([Text]),  # e.g. French CEDEX
+        lambda t: t.name('country_code').schema([Text]),  # ISO 3166-1 alpha-2
     ])
 ))
 
@@ -33,10 +33,10 @@ Contact = store.Schemas.OfObject(lambda o: (
     .name('Contact')
     .ref(True)
     .properties([
-        lambda t: t.name('given_name').type([Text]),
-        lambda t: t.name('family_name').type([Text]),
-        lambda t: t.name('birth_date').type([Text]),  # ISO 8601 calendar date, YYYY-MM-DD
-        lambda t: t.name('preferred_language').type([Text]),  # BCP 47 tag, e.g. 'fr-CA'
+        lambda t: t.name('given_name').schema([Text]),
+        lambda t: t.name('family_name').schema([Text]),
+        lambda t: t.name('birth_date').schema([Text]),  # ISO 8601 calendar date, YYYY-MM-DD
+        lambda t: t.name('preferred_language').schema([Text]),  # BCP 47 tag, e.g. 'fr-CA'
     ])
 ))
 
@@ -45,7 +45,7 @@ PhoneNumber = store.Schemas.OfObject(lambda o: (
     .name('PhoneNumber')
     .ref(True)
     .properties([
-        lambda t: t.name('number').type([Text]),  # ITU-T E.164, e.g. '+14155550100'
+        lambda t: t.name('number').schema([Text]),  # ITU-T E.164, e.g. '+14155550100'
     ])
 ))
 
@@ -54,7 +54,7 @@ EmailAddress = store.Schemas.OfObject(lambda o: (
     .name('EmailAddress')
     .ref(True)
     .properties([
-        lambda t: t.name('address').type([Text]),  # RFC 5322 addr-spec
+        lambda t: t.name('address').schema([Text]),  # RFC 5322 addr-spec
     ])
 ))
 
@@ -68,7 +68,7 @@ ContactAddresses = store.Schemas.OfRelation(lambda r: (
         lambda t: t.name('address'),
     ])
     .properties([
-        lambda t: t.name('label').type([Text]),  # e.g. 'home', 'work'
+        lambda t: t.name('label').schema([Text]),  # e.g. 'home', 'work'
     ])
 ))
 
@@ -80,7 +80,7 @@ ContactPhones = store.Schemas.OfRelation(lambda r: (
         lambda t: t.name('phone'),
     ])
     .properties([
-        lambda t: t.name('label').type([Text]),  # e.g. 'mobile', 'work'
+        lambda t: t.name('label').schema([Text]),  # e.g. 'mobile', 'work'
     ])
 ))
 
@@ -92,7 +92,7 @@ ContactEmails = store.Schemas.OfRelation(lambda r: (
         lambda t: t.name('email'),
     ])
     .properties([
-        lambda t: t.name('label').type([Text]),  # e.g. 'personal', 'work'
+        lambda t: t.name('label').schema([Text]),  # e.g. 'personal', 'work'
     ])
 ))
 

@@ -15,7 +15,7 @@ How to express an interface or data model with the schema elements. The same mod
 | Multiplicity upper bound (0..1) | a `unique` clause, given with `.uniques(...)` |
 | Multiplicity lower bound (1, 1..*) | not expressible yet: constraints are planned |
 | Qualified association, map, dictionary | relation with a key property: `.uniques(["owner", "key"])` |
-| Ordered list of values or parts (tags, a component's ports) | a property holding a container by an int index: `t.name("tags").type([Tags])`, where `Tags = store.Schemas.OfContainer(lambda c: c.index([Int]).element([Text]))`, its elements scalars, value objects or containers |
+| Ordered list of values or parts (tags, a component's ports) | a property holding a container by an int index: `t.name("tags").schema([Tags])`, where `Tags = store.Schemas.OfContainer(lambda c: c.index([Int]).element([Text]))`, its elements scalars, value objects or containers |
 | Dictionary, associative array (values by key) | a container by a hashable index: `c.index([Text]).element([...])`, written as a mapping where the index is text |
 | Dense tensor, matrix | a container by a value object of ints (`{row, col}`), dense: every cell of the box its indices span; written nested or, configured on the writer, flat with its shape |
 | Sparse array or tensor | `.layout("sparse")` on the container: blocks of consecutive elements, each where it starts |

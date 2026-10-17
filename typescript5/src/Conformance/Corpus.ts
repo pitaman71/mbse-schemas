@@ -21,7 +21,7 @@ function basics(s: any): [unknown, unknown, unknown, unknown, unknown] {
 }
 
 function text(s: any, name: string, scalar: unknown = null) {
-  return (t: any) => t.name(name).type([scalar !== null ? scalar : s.Schemas.OfStr]);
+  return (t: any) => t.name(name).schema([scalar !== null ? scalar : s.Schemas.OfStr]);
 }
 
 /** A property `name` holding a container of `element` by `index`: dense by position, by default. */
@@ -30,7 +30,7 @@ function list(store: any, name: string, element: unknown, index: unknown = null,
     c.index([index !== null ? index : store.Schemas.OfInt]).element([element]);
     return layout !== null ? c.layout(layout) : c;
   };
-  return (t: any) => t.name(name).type([store.Schemas.OfContainer(container)]);
+  return (t: any) => t.name(name).schema([store.Schemas.OfContainer(container)]);
 }
 
 /** Writes a container's elements, each a scalar or, given a function, through its `Visitors.OfAny`. */
@@ -130,17 +130,17 @@ function embedded(s: any): [any, any, any] {
   const [Bool, Int, Float, Str, Bytes] = basics(s);
   const CardPhone = s.Schemas.OfObject((o: any) => o.properties([text(s, "number"), text(s, "label"), list(s, "extensions", Str)]));
   const CardEmail = s.Schemas.OfObject((o: any) => o.properties([text(s, "address")]));
-  const Reach = s.Schemas.OfUnion((u: any) => u.branches([(t: any) => t.name("phone").type([CardPhone]),
-    (t: any) => t.name("email").type([CardEmail])]));
-  const Ident = s.Schemas.OfUnion((u: any) => u.branches([(t: any) => t.name("number").type([Int]),
-    (t: any) => t.name("code").type([Str])]));
+  const Reach = s.Schemas.OfUnion((u: any) => u.branches([(t: any) => t.name("phone").schema([CardPhone]),
+    (t: any) => t.name("email").schema([CardEmail])]));
+  const Ident = s.Schemas.OfUnion((u: any) => u.branches([(t: any) => t.name("number").schema([Int]),
+    (t: any) => t.name("code").schema([Str])]));
   const CardStamp = s.Schemas.OfObject((o: any) => o.properties([text(s, "updated")]));
   const CardAudit = s.Schemas.OfObject((o: any) => o.properties([text(s, "by"), text(s, "updated")]));
-  const CardMeta = s.Schemas.OfIntersection((i: any) => i.parts([(t: any) => t.name("stamp").type([CardStamp]),
-    (t: any) => t.name("audit").type([CardAudit])]));
+  const CardMeta = s.Schemas.OfIntersection((i: any) => i.parts([(t: any) => t.name("stamp").schema([CardStamp]),
+    (t: any) => t.name("audit").schema([CardAudit])]));
   const Card = s.Schemas.OfObject((o: any) => o.name("Card").ref(true).pattern(String.raw`card-(\d+)`).properties([
-    text(s, "name"), (t: any) => t.name("home").type([CardPhone]), (t: any) => t.name("reach").type([Reach]),
-    (t: any) => t.name("ident").type([Ident]), (t: any) => t.name("meta").type([CardMeta])]));
+    text(s, "name"), (t: any) => t.name("home").schema([CardPhone]), (t: any) => t.name("reach").schema([Reach]),
+    (t: any) => t.name("ident").schema([Ident]), (t: any) => t.name("meta").schema([CardMeta])]));
   const Holding = s.Schemas.OfRelation((r: any) => r.name("Holding").links([(t: any) => t.name("deck"), (t: any) => t.name("card")]));
   const Deck = s.Schemas.OfObject((o: any) => o.name("Deck").ref(true).pattern(String.raw`deck-(\d+)`).properties([text(s, "title")])
     .adjacencies([(t: any) => t.name("cards").relation([Holding]).me("deck")]));
@@ -154,8 +154,8 @@ function lists(s: any): any {
   const [Bool, Int, Float, Str, Bytes] = basics(s);
   const Socket = s.Schemas.OfObject((o: any) => o.properties([text(s, "name"), list(s, "pins", Str)]));
   const Coord = s.Schemas.OfObject((o: any) => o.properties([text(s, "r", Int), text(s, "c", Int)]));
-  const Reading = s.Schemas.OfUnion((u: any) => u.branches([(t: any) => t.name("value").type([Float]),
-    (t: any) => t.name("note").type([Str])]));
+  const Reading = s.Schemas.OfUnion((u: any) => u.branches([(t: any) => t.name("value").schema([Float]),
+    (t: any) => t.name("note").schema([Str])]));
   const Row = s.Schemas.OfContainer((c: any) => c.index([Int]).element([Int]));
   const Bank = s.Schemas.OfObject((o: any) => o.properties([list(s, "sockets", Socket)]));
   return s.Schemas.OfObject((o: any) => o.name("Board").ref(true).pattern(String.raw`board-(\d+)`).properties([
@@ -173,15 +173,15 @@ function module(s: any): void {
   lists(s);
   s.Schemas.OfObject((o: any) => o.name("Grid").parameters([
     (t: any) => t.name("n").description("Its side"), (t: any) => t.name("x")]).properties([
-    (t: any) => t.name("mask").type([Int]), list(s, "cells", Int)]));
+    (t: any) => t.name("mask").schema([Int]), list(s, "cells", Int)]));
   s.Schemas.OfObject((o: any) => o.name("Tricky").parameters([..."abcd"].map((x) => (t: any) => t.name(x))));
   s.Schemas.OfUnion((u: any) => u.name("Choice").flat(true).branches([
-    (t: any) => t.name("n").type([Int]), (t: any) => t.name("s").type([Str])]));
+    (t: any) => t.name("n").schema([Int]), (t: any) => t.name("s").schema([Str])]));
   s.Schemas.OfIntersection((i: any) => i.name("Marked").flat(true).parts([
-    (t: any) => t.name("when").type([s.Schemas.OfObject((o: any) => o.properties([text(s, "at", Int)]))]),
-    (t: any) => t.name("who").type([s.Schemas.OfObject((o: any) => o.properties([text(s, "by")]))])]));
+    (t: any) => t.name("when").schema([s.Schemas.OfObject((o: any) => o.properties([text(s, "at", Int)]))]),
+    (t: any) => t.name("who").schema([s.Schemas.OfObject((o: any) => o.properties([text(s, "by")]))])]));
   s.Schemas.OfPredicate((p: any) => p.name("Lives").description("Who lives where").symbols([
-    (t: any) => t.name("who").type([Contact]), (t: any) => t.name("where").type([Address]).description("A home")])
+    (t: any) => t.name("who").schema([Contact]), (t: any) => t.name("where").schema([Address]).description("A home")])
     .parameters([(t: any) => t.name("since")]));
 }
 

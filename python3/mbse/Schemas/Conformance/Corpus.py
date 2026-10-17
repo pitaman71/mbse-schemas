@@ -21,7 +21,7 @@ def _basics(s):
 
 
 def _text(s, name, scalar=None):
-    return lambda t: t.name(name).type([scalar if scalar is not None else s.Schemas.OfStr])
+    return lambda t: t.name(name).schema([scalar if scalar is not None else s.Schemas.OfStr])
 
 
 def _list(store, name, element, index=None, layout=None):
@@ -31,7 +31,7 @@ def _list(store, name, element, index=None, layout=None):
         c.index([index if index is not None else store.Schemas.OfInt]).element([element])
         return c.layout(layout) if layout is not None else c
 
-    return lambda t: t.name(name).type([store.Schemas.OfContainer(container)])
+    return lambda t: t.name(name).schema([store.Schemas.OfContainer(container)])
 
 
 def _write(pairs):
@@ -127,17 +127,17 @@ def _embedded(s):
     value."""
     CardPhone = s.Schemas.OfObject(lambda o: o.properties([_text(s, "number"), _text(s, "label"), _list(s, "extensions", Str)]))
     CardEmail = s.Schemas.OfObject(lambda o: o.properties([_text(s, "address")]))
-    Reach = s.Schemas.OfUnion(lambda u: u.branches([lambda t: t.name("phone").type([CardPhone]),
-                                                  lambda t: t.name("email").type([CardEmail])]))
-    Ident = s.Schemas.OfUnion(lambda u: u.branches([lambda t: t.name("number").type([Int]),
-                                                  lambda t: t.name("code").type([Str])]))
+    Reach = s.Schemas.OfUnion(lambda u: u.branches([lambda t: t.name("phone").schema([CardPhone]),
+                                                  lambda t: t.name("email").schema([CardEmail])]))
+    Ident = s.Schemas.OfUnion(lambda u: u.branches([lambda t: t.name("number").schema([Int]),
+                                                  lambda t: t.name("code").schema([Str])]))
     CardStamp = s.Schemas.OfObject(lambda o: o.properties([_text(s, "updated")]))
     CardAudit = s.Schemas.OfObject(lambda o: o.properties([_text(s, "by"), _text(s, "updated")]))
-    CardMeta = s.Schemas.OfIntersection(lambda i: i.parts([lambda t: t.name("stamp").type([CardStamp]),
-                                                        lambda t: t.name("audit").type([CardAudit])]))
+    CardMeta = s.Schemas.OfIntersection(lambda i: i.parts([lambda t: t.name("stamp").schema([CardStamp]),
+                                                        lambda t: t.name("audit").schema([CardAudit])]))
     Card = s.Schemas.OfObject(lambda o: o.name("Card").ref(True).pattern(r"card-(\d+)").properties([
-        _text(s, "name"), lambda t: t.name("home").type([CardPhone]), lambda t: t.name("reach").type([Reach]),
-        lambda t: t.name("ident").type([Ident]), lambda t: t.name("meta").type([CardMeta])]))
+        _text(s, "name"), lambda t: t.name("home").schema([CardPhone]), lambda t: t.name("reach").schema([Reach]),
+        lambda t: t.name("ident").schema([Ident]), lambda t: t.name("meta").schema([CardMeta])]))
     Holding = s.Schemas.OfRelation(lambda r: r.name("Holding").links([lambda t: t.name("deck"), lambda t: t.name("card")]))
     Deck = s.Schemas.OfObject(lambda o: o.name("Deck").ref(True).pattern(r"deck-(\d+)").properties([_text(s, "title")])
                             .adjacencies([lambda t: t.name("cards").relation([Holding]).me("deck")]))
@@ -151,8 +151,8 @@ def _lists(s):
     containers of their own; a tensor by a pair of ints, sparse by an int, a dict by text, and entries by a float."""
     Socket = s.Schemas.OfObject(lambda o: o.properties([_text(s, "name"), _list(s, "pins", Str)]))
     Coord = s.Schemas.OfObject(lambda o: o.properties([_text(s, "r", Int), _text(s, "c", Int)]))
-    Reading = s.Schemas.OfUnion(lambda u: u.branches([lambda t: t.name("value").type([Float]),
-                                                    lambda t: t.name("note").type([Str])]))
+    Reading = s.Schemas.OfUnion(lambda u: u.branches([lambda t: t.name("value").schema([Float]),
+                                                    lambda t: t.name("note").schema([Str])]))
     Row = s.Schemas.OfContainer(lambda c: c.index([Int]).element([Int]))
     Bank = s.Schemas.OfObject(lambda o: o.properties([_list(s, "sockets", Socket)]))
     return s.Schemas.OfObject(lambda o: o.name("Board").ref(True).pattern(r"board-(\d+)").properties([
@@ -170,15 +170,15 @@ def _module(s):
     _lists(s)
     s.Schemas.OfObject(lambda o: o.name("Grid").parameters([
         lambda t: t.name("n").description("Its side"), lambda t: t.name("x")]).properties([
-        lambda t: t.name("mask").type([Int]), _list(s, "cells", Int)]))
+        lambda t: t.name("mask").schema([Int]), _list(s, "cells", Int)]))
     s.Schemas.OfObject(lambda o: o.name("Tricky").parameters([lambda t, x=x: t.name(x) for x in "abcd"]))
     s.Schemas.OfUnion(lambda u: u.name("Choice").flat(True).branches([
-        lambda t: t.name("n").type([Int]), lambda t: t.name("s").type([Str])]))
+        lambda t: t.name("n").schema([Int]), lambda t: t.name("s").schema([Str])]))
     s.Schemas.OfIntersection(lambda i: i.name("Marked").flat(True).parts([
-        lambda t: t.name("when").type([s.Schemas.OfObject(lambda o: o.properties([_text(s, "at", Int)]))]),
-        lambda t: t.name("who").type([s.Schemas.OfObject(lambda o: o.properties([_text(s, "by")]))])]))
+        lambda t: t.name("when").schema([s.Schemas.OfObject(lambda o: o.properties([_text(s, "at", Int)]))]),
+        lambda t: t.name("who").schema([s.Schemas.OfObject(lambda o: o.properties([_text(s, "by")]))])]))
     s.Schemas.OfPredicate(lambda p: p.name("Lives").description("Who lives where").symbols([
-        lambda t: t.name("who").type([Contact]), lambda t: t.name("where").type([Address]).description("A home")])
+        lambda t: t.name("who").schema([Contact]), lambda t: t.name("where").schema([Address]).description("A home")])
         .parameters([lambda t: t.name("since")]))
 
 

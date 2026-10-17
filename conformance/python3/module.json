@@ -50,14 +50,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -99,14 +99,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -148,14 +148,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -510,14 +510,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -559,14 +559,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -608,14 +608,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -657,14 +657,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -1019,14 +1019,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -1253,14 +1253,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -1604,14 +1604,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -1981,14 +1981,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -2030,14 +2030,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -2440,14 +2440,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -3036,14 +3036,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -3085,7 +3085,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfObject/Card.home#type",
+        "key": "Schemas.OfObject/Card.home#schema",
         "properties": {
           "ref": false
         }
@@ -3095,7 +3095,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Card.home#type.number",
+        "key": "Schemas.OfProperty/Card.home#schema.number",
         "properties": {}
       }
     }
@@ -3103,19 +3103,19 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.home#type.number"
+                        "key": "Schemas.OfProperty/Card.home#schema.number"
                       }
                     }
                   }
@@ -3144,7 +3144,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Card.home#type.label",
+        "key": "Schemas.OfProperty/Card.home#schema.label",
         "properties": {}
       }
     }
@@ -3152,19 +3152,19 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.home#type.label"
+                        "key": "Schemas.OfProperty/Card.home#schema.label"
                       }
                     }
                   }
@@ -3193,7 +3193,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Card.home#type.extensions",
+        "key": "Schemas.OfProperty/Card.home#schema.extensions",
         "properties": {}
       }
     }
@@ -3201,7 +3201,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfContainer/Card.home#type.extensions#type",
+        "key": "Schemas.OfContainer/Card.home#schema.extensions#schema",
         "properties": {}
       }
     }
@@ -3221,7 +3221,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Card.home#type.extensions#type"
+                        "key": "Schemas.OfContainer/Card.home#schema.extensions#schema"
                       }
                     }
                   }
@@ -3262,7 +3262,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Card.home#type.extensions#type"
+                        "key": "Schemas.OfContainer/Card.home#schema.extensions#schema"
                       }
                     }
                   }
@@ -3291,19 +3291,19 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.home#type.extensions"
+                        "key": "Schemas.OfProperty/Card.home#schema.extensions"
                       }
                     }
                   }
@@ -3317,7 +3317,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Card.home#type.extensions#type"
+                        "key": "Schemas.OfContainer/Card.home#schema.extensions#schema"
                       }
                     }
                   }
@@ -3344,7 +3344,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Card.home#type"
+                        "key": "Schemas.OfObject/Card.home#schema"
                       }
                     }
                   }
@@ -3358,7 +3358,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.home#type.number"
+                        "key": "Schemas.OfProperty/Card.home#schema.number"
                       }
                     }
                   }
@@ -3388,7 +3388,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Card.home#type"
+                        "key": "Schemas.OfObject/Card.home#schema"
                       }
                     }
                   }
@@ -3402,7 +3402,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.home#type.label"
+                        "key": "Schemas.OfProperty/Card.home#schema.label"
                       }
                     }
                   }
@@ -3432,7 +3432,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Card.home#type"
+                        "key": "Schemas.OfObject/Card.home#schema"
                       }
                     }
                   }
@@ -3446,7 +3446,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.home#type.extensions"
+                        "key": "Schemas.OfProperty/Card.home#schema.extensions"
                       }
                     }
                   }
@@ -3473,14 +3473,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -3499,7 +3499,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Card.home#type"
+                        "key": "Schemas.OfObject/Card.home#schema"
                       }
                     }
                   }
@@ -3522,7 +3522,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfUnion/Card.reach#type",
+        "key": "Schemas.OfUnion/Card.reach#schema",
         "properties": {
           "flat": false
         }
@@ -3532,7 +3532,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfObject/Card.reach#type#branches.1",
+        "key": "Schemas.OfObject/Card.reach#schema#branches.1",
         "properties": {
           "ref": false
         }
@@ -3542,7 +3542,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Card.reach#type#branches.1.address",
+        "key": "Schemas.OfProperty/Card.reach#schema#branches.1.address",
         "properties": {}
       }
     }
@@ -3550,19 +3550,19 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.reach#type#branches.1.address"
+                        "key": "Schemas.OfProperty/Card.reach#schema#branches.1.address"
                       }
                     }
                   }
@@ -3603,7 +3603,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Card.reach#type#branches.1"
+                        "key": "Schemas.OfObject/Card.reach#schema#branches.1"
                       }
                     }
                   }
@@ -3617,7 +3617,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.reach#type#branches.1.address"
+                        "key": "Schemas.OfProperty/Card.reach#schema#branches.1.address"
                       }
                     }
                   }
@@ -3656,7 +3656,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfUnion/Card.reach#type"
+                        "key": "Schemas.OfUnion/Card.reach#schema"
                       }
                     }
                   }
@@ -3665,12 +3665,12 @@
             },
             {
               "as_link": {
-                "name": "type",
+                "name": "schema",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Card.home#type"
+                        "key": "Schemas.OfObject/Card.home#schema"
                       }
                     }
                   }
@@ -3700,7 +3700,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfUnion/Card.reach#type"
+                        "key": "Schemas.OfUnion/Card.reach#schema"
                       }
                     }
                   }
@@ -3709,12 +3709,12 @@
             },
             {
               "as_link": {
-                "name": "type",
+                "name": "schema",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Card.reach#type#branches.1"
+                        "key": "Schemas.OfObject/Card.reach#schema#branches.1"
                       }
                     }
                   }
@@ -3741,14 +3741,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -3767,7 +3767,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfUnion/Card.reach#type"
+                        "key": "Schemas.OfUnion/Card.reach#schema"
                       }
                     }
                   }
@@ -3790,7 +3790,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfUnion/Card.ident#type",
+        "key": "Schemas.OfUnion/Card.ident#schema",
         "properties": {
           "flat": false
         }
@@ -3812,7 +3812,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfUnion/Card.ident#type"
+                        "key": "Schemas.OfUnion/Card.ident#schema"
                       }
                     }
                   }
@@ -3821,7 +3821,7 @@
             },
             {
               "as_link": {
-                "name": "type",
+                "name": "schema",
                 "mutations": [
                   {
                     "set": {
@@ -3856,7 +3856,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfUnion/Card.ident#type"
+                        "key": "Schemas.OfUnion/Card.ident#schema"
                       }
                     }
                   }
@@ -3865,7 +3865,7 @@
             },
             {
               "as_link": {
-                "name": "type",
+                "name": "schema",
                 "mutations": [
                   {
                     "set": {
@@ -3897,14 +3897,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -3923,7 +3923,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfUnion/Card.ident#type"
+                        "key": "Schemas.OfUnion/Card.ident#schema"
                       }
                     }
                   }
@@ -3946,7 +3946,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfIntersection/Card.meta#type",
+        "key": "Schemas.OfIntersection/Card.meta#schema",
         "properties": {
           "flat": false
         }
@@ -3956,7 +3956,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfObject/Card.meta#type#parts.0",
+        "key": "Schemas.OfObject/Card.meta#schema#parts.0",
         "properties": {
           "ref": false
         }
@@ -3966,7 +3966,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Card.meta#type#parts.0.updated",
+        "key": "Schemas.OfProperty/Card.meta#schema#parts.0.updated",
         "properties": {}
       }
     }
@@ -3974,19 +3974,19 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.meta#type#parts.0.updated"
+                        "key": "Schemas.OfProperty/Card.meta#schema#parts.0.updated"
                       }
                     }
                   }
@@ -4027,7 +4027,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Card.meta#type#parts.0"
+                        "key": "Schemas.OfObject/Card.meta#schema#parts.0"
                       }
                     }
                   }
@@ -4041,7 +4041,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.meta#type#parts.0.updated"
+                        "key": "Schemas.OfProperty/Card.meta#schema#parts.0.updated"
                       }
                     }
                   }
@@ -4068,7 +4068,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfObject/Card.meta#type#parts.1",
+        "key": "Schemas.OfObject/Card.meta#schema#parts.1",
         "properties": {
           "ref": false
         }
@@ -4078,7 +4078,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Card.meta#type#parts.1.by",
+        "key": "Schemas.OfProperty/Card.meta#schema#parts.1.by",
         "properties": {}
       }
     }
@@ -4086,19 +4086,19 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.meta#type#parts.1.by"
+                        "key": "Schemas.OfProperty/Card.meta#schema#parts.1.by"
                       }
                     }
                   }
@@ -4127,7 +4127,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Card.meta#type#parts.1.updated",
+        "key": "Schemas.OfProperty/Card.meta#schema#parts.1.updated",
         "properties": {}
       }
     }
@@ -4135,19 +4135,19 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.meta#type#parts.1.updated"
+                        "key": "Schemas.OfProperty/Card.meta#schema#parts.1.updated"
                       }
                     }
                   }
@@ -4188,7 +4188,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Card.meta#type#parts.1"
+                        "key": "Schemas.OfObject/Card.meta#schema#parts.1"
                       }
                     }
                   }
@@ -4202,7 +4202,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.meta#type#parts.1.by"
+                        "key": "Schemas.OfProperty/Card.meta#schema#parts.1.by"
                       }
                     }
                   }
@@ -4232,7 +4232,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Card.meta#type#parts.1"
+                        "key": "Schemas.OfObject/Card.meta#schema#parts.1"
                       }
                     }
                   }
@@ -4246,7 +4246,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Card.meta#type#parts.1.updated"
+                        "key": "Schemas.OfProperty/Card.meta#schema#parts.1.updated"
                       }
                     }
                   }
@@ -4285,7 +4285,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfIntersection/Card.meta#type"
+                        "key": "Schemas.OfIntersection/Card.meta#schema"
                       }
                     }
                   }
@@ -4294,12 +4294,12 @@
             },
             {
               "as_link": {
-                "name": "type",
+                "name": "schema",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Card.meta#type#parts.0"
+                        "key": "Schemas.OfObject/Card.meta#schema#parts.0"
                       }
                     }
                   }
@@ -4329,7 +4329,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfIntersection/Card.meta#type"
+                        "key": "Schemas.OfIntersection/Card.meta#schema"
                       }
                     }
                   }
@@ -4338,12 +4338,12 @@
             },
             {
               "as_link": {
-                "name": "type",
+                "name": "schema",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Card.meta#type#parts.1"
+                        "key": "Schemas.OfObject/Card.meta#schema#parts.1"
                       }
                     }
                   }
@@ -4370,14 +4370,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -4396,7 +4396,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfIntersection/Card.meta#type"
+                        "key": "Schemas.OfIntersection/Card.meta#schema"
                       }
                     }
                   }
@@ -5034,14 +5034,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -5254,14 +5254,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -5303,7 +5303,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfContainer/Board.tags#type",
+        "key": "Schemas.OfContainer/Board.tags#schema",
         "properties": {}
       }
     }
@@ -5323,7 +5323,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.tags#type"
+                        "key": "Schemas.OfContainer/Board.tags#schema"
                       }
                     }
                   }
@@ -5364,7 +5364,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.tags#type"
+                        "key": "Schemas.OfContainer/Board.tags#schema"
                       }
                     }
                   }
@@ -5393,14 +5393,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -5419,7 +5419,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.tags#type"
+                        "key": "Schemas.OfContainer/Board.tags#schema"
                       }
                     }
                   }
@@ -5442,7 +5442,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfContainer/Board.blobs#type",
+        "key": "Schemas.OfContainer/Board.blobs#schema",
         "properties": {}
       }
     }
@@ -5462,7 +5462,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.blobs#type"
+                        "key": "Schemas.OfContainer/Board.blobs#schema"
                       }
                     }
                   }
@@ -5503,7 +5503,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.blobs#type"
+                        "key": "Schemas.OfContainer/Board.blobs#schema"
                       }
                     }
                   }
@@ -5532,14 +5532,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -5558,7 +5558,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.blobs#type"
+                        "key": "Schemas.OfContainer/Board.blobs#schema"
                       }
                     }
                   }
@@ -5581,7 +5581,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfContainer/Board.grid#type",
+        "key": "Schemas.OfContainer/Board.grid#schema",
         "properties": {}
       }
     }
@@ -5589,7 +5589,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfContainer/Board.grid#type#element",
+        "key": "Schemas.OfContainer/Board.grid#schema#element",
         "properties": {}
       }
     }
@@ -5609,7 +5609,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.grid#type#element"
+                        "key": "Schemas.OfContainer/Board.grid#schema#element"
                       }
                     }
                   }
@@ -5650,7 +5650,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.grid#type#element"
+                        "key": "Schemas.OfContainer/Board.grid#schema#element"
                       }
                     }
                   }
@@ -5691,7 +5691,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.grid#type"
+                        "key": "Schemas.OfContainer/Board.grid#schema"
                       }
                     }
                   }
@@ -5705,7 +5705,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.grid#type#element"
+                        "key": "Schemas.OfContainer/Board.grid#schema#element"
                       }
                     }
                   }
@@ -5732,7 +5732,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.grid#type"
+                        "key": "Schemas.OfContainer/Board.grid#schema"
                       }
                     }
                   }
@@ -5761,14 +5761,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -5787,7 +5787,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.grid#type"
+                        "key": "Schemas.OfContainer/Board.grid#schema"
                       }
                     }
                   }
@@ -5810,7 +5810,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfContainer/Board.readings#type",
+        "key": "Schemas.OfContainer/Board.readings#schema",
         "properties": {}
       }
     }
@@ -5818,7 +5818,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfUnion/Board.readings#type#element",
+        "key": "Schemas.OfUnion/Board.readings#schema#element",
         "properties": {
           "flat": false
         }
@@ -5840,7 +5840,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfUnion/Board.readings#type#element"
+                        "key": "Schemas.OfUnion/Board.readings#schema#element"
                       }
                     }
                   }
@@ -5849,7 +5849,7 @@
             },
             {
               "as_link": {
-                "name": "type",
+                "name": "schema",
                 "mutations": [
                   {
                     "set": {
@@ -5884,7 +5884,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfUnion/Board.readings#type#element"
+                        "key": "Schemas.OfUnion/Board.readings#schema#element"
                       }
                     }
                   }
@@ -5893,7 +5893,7 @@
             },
             {
               "as_link": {
-                "name": "type",
+                "name": "schema",
                 "mutations": [
                   {
                     "set": {
@@ -5937,7 +5937,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.readings#type"
+                        "key": "Schemas.OfContainer/Board.readings#schema"
                       }
                     }
                   }
@@ -5951,7 +5951,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfUnion/Board.readings#type#element"
+                        "key": "Schemas.OfUnion/Board.readings#schema#element"
                       }
                     }
                   }
@@ -5978,7 +5978,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.readings#type"
+                        "key": "Schemas.OfContainer/Board.readings#schema"
                       }
                     }
                   }
@@ -6007,14 +6007,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -6033,7 +6033,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.readings#type"
+                        "key": "Schemas.OfContainer/Board.readings#schema"
                       }
                     }
                   }
@@ -6056,7 +6056,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfContainer/Board.sockets#type",
+        "key": "Schemas.OfContainer/Board.sockets#schema",
         "properties": {}
       }
     }
@@ -6064,7 +6064,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfObject/Board.sockets#type#element",
+        "key": "Schemas.OfObject/Board.sockets#schema#element",
         "properties": {
           "ref": false
         }
@@ -6074,7 +6074,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Board.sockets#type#element.name",
+        "key": "Schemas.OfProperty/Board.sockets#schema#element.name",
         "properties": {}
       }
     }
@@ -6082,19 +6082,19 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Board.sockets#type#element.name"
+                        "key": "Schemas.OfProperty/Board.sockets#schema#element.name"
                       }
                     }
                   }
@@ -6123,7 +6123,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Board.sockets#type#element.pins",
+        "key": "Schemas.OfProperty/Board.sockets#schema#element.pins",
         "properties": {}
       }
     }
@@ -6131,7 +6131,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfContainer/Board.sockets#type#element.pins#type",
+        "key": "Schemas.OfContainer/Board.sockets#schema#element.pins#schema",
         "properties": {}
       }
     }
@@ -6151,7 +6151,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.sockets#type#element.pins#type"
+                        "key": "Schemas.OfContainer/Board.sockets#schema#element.pins#schema"
                       }
                     }
                   }
@@ -6192,7 +6192,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.sockets#type#element.pins#type"
+                        "key": "Schemas.OfContainer/Board.sockets#schema#element.pins#schema"
                       }
                     }
                   }
@@ -6221,19 +6221,19 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Board.sockets#type#element.pins"
+                        "key": "Schemas.OfProperty/Board.sockets#schema#element.pins"
                       }
                     }
                   }
@@ -6247,7 +6247,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.sockets#type#element.pins#type"
+                        "key": "Schemas.OfContainer/Board.sockets#schema#element.pins#schema"
                       }
                     }
                   }
@@ -6274,7 +6274,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Board.sockets#type#element"
+                        "key": "Schemas.OfObject/Board.sockets#schema#element"
                       }
                     }
                   }
@@ -6288,7 +6288,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Board.sockets#type#element.name"
+                        "key": "Schemas.OfProperty/Board.sockets#schema#element.name"
                       }
                     }
                   }
@@ -6318,7 +6318,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Board.sockets#type#element"
+                        "key": "Schemas.OfObject/Board.sockets#schema#element"
                       }
                     }
                   }
@@ -6332,7 +6332,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Board.sockets#type#element.pins"
+                        "key": "Schemas.OfProperty/Board.sockets#schema#element.pins"
                       }
                     }
                   }
@@ -6371,7 +6371,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.sockets#type"
+                        "key": "Schemas.OfContainer/Board.sockets#schema"
                       }
                     }
                   }
@@ -6385,7 +6385,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Board.sockets#type#element"
+                        "key": "Schemas.OfObject/Board.sockets#schema#element"
                       }
                     }
                   }
@@ -6412,7 +6412,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.sockets#type"
+                        "key": "Schemas.OfContainer/Board.sockets#schema"
                       }
                     }
                   }
@@ -6441,14 +6441,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -6467,7 +6467,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.sockets#type"
+                        "key": "Schemas.OfContainer/Board.sockets#schema"
                       }
                     }
                   }
@@ -6490,7 +6490,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfContainer/Board.banks#type",
+        "key": "Schemas.OfContainer/Board.banks#schema",
         "properties": {}
       }
     }
@@ -6498,7 +6498,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfObject/Board.banks#type#element",
+        "key": "Schemas.OfObject/Board.banks#schema#element",
         "properties": {
           "ref": false
         }
@@ -6508,7 +6508,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Board.banks#type#element.sockets",
+        "key": "Schemas.OfProperty/Board.banks#schema#element.sockets",
         "properties": {}
       }
     }
@@ -6516,7 +6516,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfContainer/Board.banks#type#element.sockets#type",
+        "key": "Schemas.OfContainer/Board.banks#schema#element.sockets#schema",
         "properties": {}
       }
     }
@@ -6536,7 +6536,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.banks#type#element.sockets#type"
+                        "key": "Schemas.OfContainer/Board.banks#schema#element.sockets#schema"
                       }
                     }
                   }
@@ -6550,7 +6550,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Board.sockets#type#element"
+                        "key": "Schemas.OfObject/Board.sockets#schema#element"
                       }
                     }
                   }
@@ -6577,7 +6577,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.banks#type#element.sockets#type"
+                        "key": "Schemas.OfContainer/Board.banks#schema#element.sockets#schema"
                       }
                     }
                   }
@@ -6606,19 +6606,19 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Board.banks#type#element.sockets"
+                        "key": "Schemas.OfProperty/Board.banks#schema#element.sockets"
                       }
                     }
                   }
@@ -6632,7 +6632,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.banks#type#element.sockets#type"
+                        "key": "Schemas.OfContainer/Board.banks#schema#element.sockets#schema"
                       }
                     }
                   }
@@ -6659,7 +6659,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Board.banks#type#element"
+                        "key": "Schemas.OfObject/Board.banks#schema#element"
                       }
                     }
                   }
@@ -6673,7 +6673,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Board.banks#type#element.sockets"
+                        "key": "Schemas.OfProperty/Board.banks#schema#element.sockets"
                       }
                     }
                   }
@@ -6712,7 +6712,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.banks#type"
+                        "key": "Schemas.OfContainer/Board.banks#schema"
                       }
                     }
                   }
@@ -6726,7 +6726,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Board.banks#type#element"
+                        "key": "Schemas.OfObject/Board.banks#schema#element"
                       }
                     }
                   }
@@ -6753,7 +6753,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.banks#type"
+                        "key": "Schemas.OfContainer/Board.banks#schema"
                       }
                     }
                   }
@@ -6782,14 +6782,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -6808,7 +6808,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.banks#type"
+                        "key": "Schemas.OfContainer/Board.banks#schema"
                       }
                     }
                   }
@@ -6831,7 +6831,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfContainer/Board.matrix#type",
+        "key": "Schemas.OfContainer/Board.matrix#schema",
         "properties": {}
       }
     }
@@ -6839,7 +6839,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfObject/Board.matrix#type#index",
+        "key": "Schemas.OfObject/Board.matrix#schema#index",
         "properties": {
           "ref": false
         }
@@ -6849,7 +6849,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Board.matrix#type#index.r",
+        "key": "Schemas.OfProperty/Board.matrix#schema#index.r",
         "properties": {}
       }
     }
@@ -6857,19 +6857,19 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Board.matrix#type#index.r"
+                        "key": "Schemas.OfProperty/Board.matrix#schema#index.r"
                       }
                     }
                   }
@@ -6898,7 +6898,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Board.matrix#type#index.c",
+        "key": "Schemas.OfProperty/Board.matrix#schema#index.c",
         "properties": {}
       }
     }
@@ -6906,19 +6906,19 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Board.matrix#type#index.c"
+                        "key": "Schemas.OfProperty/Board.matrix#schema#index.c"
                       }
                     }
                   }
@@ -6959,7 +6959,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Board.matrix#type#index"
+                        "key": "Schemas.OfObject/Board.matrix#schema#index"
                       }
                     }
                   }
@@ -6973,7 +6973,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Board.matrix#type#index.r"
+                        "key": "Schemas.OfProperty/Board.matrix#schema#index.r"
                       }
                     }
                   }
@@ -7003,7 +7003,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Board.matrix#type#index"
+                        "key": "Schemas.OfObject/Board.matrix#schema#index"
                       }
                     }
                   }
@@ -7017,7 +7017,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Board.matrix#type#index.c"
+                        "key": "Schemas.OfProperty/Board.matrix#schema#index.c"
                       }
                     }
                   }
@@ -7056,7 +7056,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.matrix#type"
+                        "key": "Schemas.OfContainer/Board.matrix#schema"
                       }
                     }
                   }
@@ -7097,7 +7097,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.matrix#type"
+                        "key": "Schemas.OfContainer/Board.matrix#schema"
                       }
                     }
                   }
@@ -7111,7 +7111,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Board.matrix#type#index"
+                        "key": "Schemas.OfObject/Board.matrix#schema#index"
                       }
                     }
                   }
@@ -7126,14 +7126,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -7152,7 +7152,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.matrix#type"
+                        "key": "Schemas.OfContainer/Board.matrix#schema"
                       }
                     }
                   }
@@ -7175,7 +7175,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfContainer/Board.cells#type",
+        "key": "Schemas.OfContainer/Board.cells#schema",
         "properties": {
           "layout": "sparse"
         }
@@ -7197,7 +7197,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.cells#type"
+                        "key": "Schemas.OfContainer/Board.cells#schema"
                       }
                     }
                   }
@@ -7238,7 +7238,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.cells#type"
+                        "key": "Schemas.OfContainer/Board.cells#schema"
                       }
                     }
                   }
@@ -7267,14 +7267,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -7293,7 +7293,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.cells#type"
+                        "key": "Schemas.OfContainer/Board.cells#schema"
                       }
                     }
                   }
@@ -7316,7 +7316,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfContainer/Board.attrs#type",
+        "key": "Schemas.OfContainer/Board.attrs#schema",
         "properties": {}
       }
     }
@@ -7336,7 +7336,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.attrs#type"
+                        "key": "Schemas.OfContainer/Board.attrs#schema"
                       }
                     }
                   }
@@ -7377,7 +7377,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.attrs#type"
+                        "key": "Schemas.OfContainer/Board.attrs#schema"
                       }
                     }
                   }
@@ -7406,14 +7406,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -7432,7 +7432,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.attrs#type"
+                        "key": "Schemas.OfContainer/Board.attrs#schema"
                       }
                     }
                   }
@@ -7455,7 +7455,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfContainer/Board.weights#type",
+        "key": "Schemas.OfContainer/Board.weights#schema",
         "properties": {}
       }
     }
@@ -7475,7 +7475,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.weights#type"
+                        "key": "Schemas.OfContainer/Board.weights#schema"
                       }
                     }
                   }
@@ -7516,7 +7516,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.weights#type"
+                        "key": "Schemas.OfContainer/Board.weights#schema"
                       }
                     }
                   }
@@ -7545,14 +7545,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -7571,7 +7571,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Board.weights#type"
+                        "key": "Schemas.OfContainer/Board.weights#schema"
                       }
                     }
                   }
@@ -8169,14 +8169,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -8218,7 +8218,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfContainer/Grid.cells#type",
+        "key": "Schemas.OfContainer/Grid.cells#schema",
         "properties": {}
       }
     }
@@ -8238,7 +8238,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Grid.cells#type"
+                        "key": "Schemas.OfContainer/Grid.cells#schema"
                       }
                     }
                   }
@@ -8279,7 +8279,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Grid.cells#type"
+                        "key": "Schemas.OfContainer/Grid.cells#schema"
                       }
                     }
                   }
@@ -8308,14 +8308,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -8334,7 +8334,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfContainer/Grid.cells#type"
+                        "key": "Schemas.OfContainer/Grid.cells#schema"
                       }
                     }
                   }
@@ -8909,7 +8909,7 @@
             },
             {
               "as_link": {
-                "name": "type",
+                "name": "schema",
                 "mutations": [
                   {
                     "set": {
@@ -8953,7 +8953,7 @@
             },
             {
               "as_link": {
-                "name": "type",
+                "name": "schema",
                 "mutations": [
                   {
                     "set": {
@@ -9067,14 +9067,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -9179,14 +9179,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -9294,7 +9294,7 @@
             },
             {
               "as_link": {
-                "name": "type",
+                "name": "schema",
                 "mutations": [
                   {
                     "set": {
@@ -9338,7 +9338,7 @@
             },
             {
               "as_link": {
-                "name": "type",
+                "name": "schema",
                 "mutations": [
                   {
                     "set": {
@@ -9450,14 +9450,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -9501,14 +9501,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {

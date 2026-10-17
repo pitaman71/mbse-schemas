@@ -376,7 +376,7 @@ def _container_annotation(adjacency: Schemas.OfAdjacency.Data, objects: Mapping[
     if not relation.entry.properties:
         return ast.Subscript(value=_load("set"), slice=element, ctx=ast.Load())
     (key, key_property), *more = relation.entry.properties.items()
-    key_schema = key_property.type
+    key_schema = key_property.schema
     if more or relation.uniques != (frozenset({other}),) or not isinstance(key_schema, Schemas.OfScalar.Data):
         raise TypeError(f"adjacency {adjacency.name!r}: only one scalar property and unique({other!r}) have a "
                         "container form")
@@ -417,7 +417,7 @@ class _ToDataclass:
                 raise TypeError(f"{name!r}: expected an object or relation schema, got {type(schema).__name__}")
         body: list[ast.stmt] = []
         for name, schema in objects.items():
-            fields = [_field(_identifier(p, "property"), _type_annotation(p, prop.type)) for p, prop in schema.properties.items()]
+            fields = [_field(_identifier(p, "property"), _type_annotation(p, prop.schema)) for p, prop in schema.properties.items()]
             for adjacency in schema.adjacencies.values():
                 annotation = _container_annotation(adjacency, objects)
                 if annotation is not None:

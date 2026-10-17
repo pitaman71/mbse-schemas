@@ -46,7 +46,7 @@ function selecting(schema: unknown): string {
     : schema instanceof Schemas.OfContainer.Data ? "as_container" : "as_object";
 }
 
-/** The value of any type a `Visitors.OfAny` holds: a scalar, a visitor of its own kind, or null. */
+/** The value of any schema a `Visitors.OfAny` holds: a scalar, a visitor of its own kind, or null. */
 function anyOf(read: any): any {
   const found: any[] = [];
   read.as_scalar((s: any) => {
@@ -62,7 +62,7 @@ function anyOf(read: any): any {
   return found.length > 0 ? found[0] : null;
 }
 
-/** The type a value of any type has: a scalar's, or its visitor's schema. */
+/** The type a value of any schema has: a scalar's, or its visitor's schema. */
 function own(value: any): any {
   const host = Schemas.hostOf(value);
   return host !== null ? new Schemas.OfScalar.Data(host) : value.as_schema();
@@ -162,11 +162,11 @@ function key(schema: unknown, value: any): string {
   }
   if (type instanceof Schemas.OfObject.Data) {
     const properties = [...value.as_properties as Iterable<Readers.OfProperty>].map((p) =>
-      [p.as_schema().name, key(p.as_schema().type, propertyValue(p, p.as_schema().type))]);
+      [p.as_schema().name, key(p.as_schema().schema, propertyValue(p, p.as_schema().schema))]);
     return `object:${JSON.stringify(properties)}`;
   }
   const record = type as Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
-  const members = [...record.properties].map(([name, m]) => [name, key(m.type, member(value[name], m.type))]);
+  const members = [...record.properties].map(([name, m]) => [name, key(m.schema, member(value[name], m.schema))]);
   return `record:${JSON.stringify(members)}`;
 }
 
@@ -215,7 +215,7 @@ class Checker {
     const problems: string[] = [];
     for (const prop of value.as_properties as Iterable<Readers.OfProperty>) {
       const name = prop.as_schema().name;
-      problems.push(...this.valueProblems(`${label}.${name}`, prop.as_schema().type, propertyValue(prop, prop.as_schema().type)));
+      problems.push(...this.valueProblems(`${label}.${name}`, prop.as_schema().schema, propertyValue(prop, prop.as_schema().schema)));
     }
     return problems;
   }
@@ -237,8 +237,8 @@ class Checker {
     if (schema instanceof Schemas.OfObject.Data) return this.properties(label, item);
     const record = schema as Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
     const problems: string[] = [];
-    const members = new Map([...record.properties].map(([name, m]) => [name, member(item[name], m.type)]));
-    for (const [name, m] of record.properties) problems.push(...this.valueProblems(`${label}.${name}`, m.type, members.get(name)));
+    const members = new Map([...record.properties].map(([name, m]) => [name, member(item[name], m.schema)]));
+    for (const [name, m] of record.properties) problems.push(...this.valueProblems(`${label}.${name}`, m.schema, members.get(name)));
     const missing = [...record.properties.keys()].filter((name) => members.get(name) === null);
     if (record instanceof Schemas.OfIntersection.Data && missing.length > 0) problems.push(`${label}: parts ${repr(missing)} are not set`);
     return problems;
@@ -246,11 +246,11 @@ class Checker {
 
   /** Problems with one entry: each linked object's schema declares an adjacency to the relation via its link, and its
    * values have their types. */
-  /** Problems with a value of any type: that it is of one of its types, where it is restricted, or of a registered
+  /** Problems with a value of any schema: that it is of one of its types, where it is restricted, or of a registered
    * schema, where it is not a scalar; and its own, under its own type. */
   private anyProblems(label: string, schema: Schemas.OfAny.Value, item: any): string[] {
     const of = own(item);
-    const types = [...schema.types];
+    const types = [...schema.schemas];
     let allowed: boolean;
     let shown: string;
     if (of instanceof Schemas.OfScalar.Data) {
@@ -264,11 +264,11 @@ class Checker {
           this.store.name_of(of);
           allowed = true;
         } catch { // a store's name_of refuses an unregistered schema
-          return [`${label}: a value of any type is of a registered schema; ${shown} is not registered`];
+          return [`${label}: a value of any schema is of a registered schema; ${shown} is not registered`];
         }
       }
     }
-    if (!allowed) return [`${label}: ${shown} is not one of its types`];
+    if (!allowed) return [`${label}: ${shown} is not one of its schemas`];
     return this.valueProblems(label, of, item);
   }
 
@@ -282,15 +282,15 @@ class Checker {
       if (problem !== null) problems.push(`${label}.${name}: ${problem}`);
     }
     for (const [name, prop] of relation.entry.properties) {
-      problems.push(...this.valueProblems(`${label}.${name}`, prop.type, propertyValue(entry[name], prop.type)));
+      problems.push(...this.valueProblems(`${label}.${name}`, prop.schema, propertyValue(entry[name], prop.schema)));
     }
     const links = new Map<string, string>([...relation.entry.links.keys()].filter((name) => name !== adjacency.me)
       .map((name) => [name, identity(visited(entry[name], this.store))]));
     links.set(adjacency.me, identity(owner));
     const values = new Map<string, string>();
     for (const [name, prop] of relation.entry.properties) {
-      const found = propertyValue(entry[name], prop.type);
-      if (found !== null) values.set(name, key(prop.type, found));
+      const found = propertyValue(entry[name], prop.schema);
+      if (found !== null) values.set(name, key(prop.schema, found));
     }
     const full = new Entry(links, values);
     let seen = this.entries.get(relation);

@@ -70,14 +70,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -119,14 +119,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {
@@ -529,14 +529,14 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Typing"
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
       },
       "entries": [
         {
           "mutations": [
             {
               "as_link": {
-                "name": "typed",
+                "name": "member",
                 "mutations": [
                   {
                     "set": {

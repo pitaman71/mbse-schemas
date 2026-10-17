@@ -20,9 +20,9 @@ const Person = store.Schemas.OfObject((o: any) => (
     .name("Person")
     .ref(true)
     .properties([
-      (t: any) => t.name("given_name").type([Text]),
-      (t: any) => t.name("family_name").type([Text]),
-      (t: any) => t.name("birth_date").type([Text]), // ISO 8601 calendar date
+      (t: any) => t.name("given_name").schema([Text]),
+      (t: any) => t.name("family_name").schema([Text]),
+      (t: any) => t.name("birth_date").schema([Text]), // ISO 8601 calendar date
     ])
 ));
 
@@ -34,7 +34,7 @@ const Parentage = store.Schemas.OfRelation((r: any) => (
       (t: any) => t.name("parent"),
       (t: any) => t.name("child"),
     ])
-    .properties([(t: any) => t.name("kind").type([Text])]) // 'biological', 'adoptive'
+    .properties([(t: any) => t.name("kind").schema([Text])]) // 'biological', 'adoptive'
     .uniques([[]]) // a set of entries, with no other constraint: an entry equal to one held is that one
 ));
 

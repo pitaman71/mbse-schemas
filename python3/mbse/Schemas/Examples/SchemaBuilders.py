@@ -15,14 +15,14 @@ Text = store.Schemas.OfStr.as_schema()  # the store's own basic scalar
 
 # A member's type is linked, not built: a schema that exists, such as a scalar schema.
 Named = store.Schemas.OfObject(lambda o: o.properties([
-    lambda t: t.name('first').type([Text]),
-    lambda t: t.name('last').type([Text]),
+    lambda t: t.name('first').schema([Text]),
+    lambda t: t.name('last').schema([Text]),
 ]))
-assert Named.properties['first'].type is Text and Named.properties['last'].type is Text
+assert Named.properties['first'].schema is Text and Named.properties['last'].schema is Text
 
-# A value of any type has no types; a value of one of several types, those.
-assert store.Schemas.OfAny(lambda a: a).types == ()
-assert store.Schemas.OfAny(lambda a: a.types([Text, store.Schemas.OfInt])).types == (Text, store.Schemas.OfInt.as_schema())
+# A value of any schema has no types; a value of one of several types, those.
+assert store.Schemas.OfAny(lambda a: a).schemas == ()
+assert store.Schemas.OfAny(lambda a: a.schemas([Text, store.Schemas.OfInt])).schemas == (Text, store.Schemas.OfInt.as_schema())
 
 # A property takes its value whole, of exactly its type.
 with raises(TypeError):
@@ -42,36 +42,36 @@ with raises(TypeError):
     store.Schemas.OfObject()  # a callback, an object and a callback, or an object
 
 # A clone leaves the source untouched; an update changes it in place and returns it.
-Extended = store.Schemas.OfObject(store.Schemas.OfObject(Named), lambda o: o.properties([lambda t: t.name('middle').type([Text])]))
+Extended = store.Schemas.OfObject(store.Schemas.OfObject(Named), lambda o: o.properties([lambda t: t.name('middle').schema([Text])]))
 assert Extended is not Named and 'middle' in Extended.properties and 'middle' not in Named.properties
 
-updated = store.Schemas.OfObject(Named, lambda o: o.properties([lambda t: t.name('nickname').type([Text])]))
+updated = store.Schemas.OfObject(Named, lambda o: o.properties([lambda t: t.name('nickname').schema([Text])]))
 assert updated is Named and 'nickname' in Named.properties
 
 # A clone owns its members: they are clones too, and later edits do not leak.
-assert Extended.properties['first'] is not Named.properties['first'] and Extended.properties['first'].type is Text
+assert Extended.properties['first'] is not Named.properties['first'] and Extended.properties['first'].schema is Text
 
 # Each call builds its own schema: building twice through the same callback gives independent schemas.
-a_only = lambda o: o.properties([lambda t: t.name('a').type([Text])])  # noqa: E731
+a_only = lambda o: o.properties([lambda t: t.name('a').schema([Text])])  # noqa: E731
 first = store.Schemas.OfObject(a_only)
 second = store.Schemas.OfObject(a_only)
-store.Schemas.OfObject(second, lambda o: o.properties([lambda t: t.name('b').type([Text])]))
+store.Schemas.OfObject(second, lambda o: o.properties([lambda t: t.name('b').schema([Text])]))
 assert first is not second and list(first.properties) == ['a'] and list(second.properties) == ['a', 'b']
 
 # Redefining a property replaces it.
 Retyped = store.Schemas.OfObject(store.Schemas.OfObject(first), lambda o: o.properties([
-    lambda t: t.name('a').type([store.Schemas.OfInt]),
+    lambda t: t.name('a').schema([store.Schemas.OfInt]),
 ]))
-assert Retyped.properties['a'].type is store.Schemas.OfInt.as_schema() and first.properties['a'].type is Text
+assert Retyped.properties['a'].schema is store.Schemas.OfInt.as_schema() and first.properties['a'].schema is Text
 
 # --- Relations and cardinality ---
 
 # A map a -> [key] -> b: a relation with links a, b and property key. ISO 4217 currency codes as keys.
-Product = store.Schemas.OfObject(lambda o: o.ref(True).properties([lambda t: t.name('sku').type([Text])]))
+Product = store.Schemas.OfObject(lambda o: o.ref(True).properties([lambda t: t.name('sku').schema([Text])]))
 Money = store.Schemas.OfObject(lambda o: (
     o
     .ref(True)  # an entry links only reference objects
-    .properties([lambda t: t.name('minor_units').type([store.Schemas.OfInt])])  # e.g. cents
+    .properties([lambda t: t.name('minor_units').schema([store.Schemas.OfInt])])  # e.g. cents
 ))
 Prices = store.Schemas.OfRelation(lambda r: (
     r
@@ -79,7 +79,7 @@ Prices = store.Schemas.OfRelation(lambda r: (
         lambda t: t.name('product'),
         lambda t: t.name('price'),
     ])
-    .properties([lambda t: t.name('currency').type([Text])])  # ISO 4217 alpha code, e.g. 'EUR'
+    .properties([lambda t: t.name('currency').schema([Text])])  # ISO 4217 alpha code, e.g. 'EUR'
     .uniques([
         ['price'],  # (product, currency) determine the price
         ['product', 'currency'],  # each price belongs to one product under one currency
@@ -102,7 +102,7 @@ def parent_child(r):
 Ownership = store.Schemas.OfRelation(lambda r: parent_child(r).uniques('parent'))
 Directory = store.Schemas.OfRelation(lambda r: (
     parent_child(r)
-    .properties([lambda t: t.name('key').type([Text])])
+    .properties([lambda t: t.name('key').schema([Text])])
     .uniques([
         ['parent', 'key'],
         ['child'],
@@ -124,7 +124,7 @@ Clash = store.Schemas.OfRelation(lambda r: (
         lambda t: t.name('owner'),
         lambda t: t.name('item'),
     ])
-    .properties([lambda t: t.name('item').type([Text])])
+    .properties([lambda t: t.name('item').schema([Text])])
 ))
 assert any('both link and property' in p for p in Clash.validate())
 
@@ -151,7 +151,7 @@ assert any('not a link' in p for p in WrongSide.validate())
 
 NameClash = store.Schemas.OfObject(lambda o: (
     o
-    .properties([lambda t: t.name('children').type([Text])])
+    .properties([lambda t: t.name('children').schema([Text])])
     .adjacencies([lambda t: t.name('children').relation([Ownership]).me('parent')])
 ))
 assert any('both property and adjacency' in p for p in NameClash.validate())
@@ -173,51 +173,51 @@ assert Registry.singleton == 'iso3166.Registry' and Registry.validate() == []
 # A union's branches and an intersection's parts are named: a union value holds exactly one branch, by name, and an
 # intersection value every part.
 
-Phone = store.Schemas.OfObject(lambda o: o.properties([lambda t: t.name('number').type([Text])]))
-Email = store.Schemas.OfObject(lambda o: o.properties([lambda t: t.name('address').type([Text])]))
+Phone = store.Schemas.OfObject(lambda o: o.properties([lambda t: t.name('number').schema([Text])]))
+Email = store.Schemas.OfObject(lambda o: o.properties([lambda t: t.name('address').schema([Text])]))
 
 ContactMethod = store.Schemas.OfUnion(lambda u: u.branches([
-    lambda t: t.name('phone').type([Phone]),
-    lambda t: t.name('email').type([Email]),
+    lambda t: t.name('phone').schema([Phone]),
+    lambda t: t.name('email').schema([Email]),
 ]))
 assert ContactMethod.validate() == []
 
 Unnamed = store.Schemas.OfUnion(lambda u: u.branches([
-    lambda t: t.type([Phone]),
-    lambda t: t.name('email').type([Email]),
+    lambda t: t.schema([Phone]),
+    lambda t: t.name('email').schema([Email]),
 ]))
 assert any('has no name' in p for p in Unnamed.validate())
 
 SameName = store.Schemas.OfUnion(lambda u: u.branches([
-    lambda t: t.name('m').type([Phone]),
-    lambda t: t.name('m').type([Email]),
+    lambda t: t.name('m').schema([Phone]),
+    lambda t: t.name('m').schema([Email]),
 ]))
 assert any('more than once' in p for p in SameName.validate())
 
 MixedKinds = store.Schemas.OfUnion(lambda u: u.branches([
-    lambda t: t.name('phone').type([Phone]),
-    lambda t: t.name('text').type([Text]),
+    lambda t: t.name('phone').schema([Phone]),
+    lambda t: t.name('text').schema([Text]),
 ]))
 assert any('same kind' in p for p in MixedKinds.validate())
 
-SingleBranch = store.Schemas.OfUnion(lambda u: u.branches([lambda t: t.name('phone').type([Phone])]))
+SingleBranch = store.Schemas.OfUnion(lambda u: u.branches([lambda t: t.name('phone').schema([Phone])]))
 assert any('at least two' in p for p in SingleBranch.validate())
 
 # Intersections combine same-kind schemas as named parts. Each part keeps its own properties, so two parts may
 # declare the same property, even with different types.
-Timestamped = store.Schemas.OfObject(lambda o: o.properties([lambda t: t.name('updated').type([Text])]))
+Timestamped = store.Schemas.OfObject(lambda o: o.properties([lambda t: t.name('updated').schema([Text])]))
 EpochStamped = store.Schemas.OfObject(lambda o: o.properties([
-    lambda t: t.name('updated').type([store.Schemas.OfInt]),
+    lambda t: t.name('updated').schema([store.Schemas.OfInt]),
 ]))
 Stamps = store.Schemas.OfIntersection(lambda i: i.parts([
-    lambda t: t.name('text').type([Timestamped]),
-    lambda t: t.name('epoch').type([EpochStamped]),
+    lambda t: t.name('text').schema([Timestamped]),
+    lambda t: t.name('epoch').schema([EpochStamped]),
 ]))
 assert Stamps.validate() == []
 
 assert store.Schemas.OfIntersection(lambda i: i.parts([
-    lambda t: t.name('stamp').type([Timestamped]),
-    lambda t: t.name('text').type([Text]),
+    lambda t: t.name('stamp').schema([Timestamped]),
+    lambda t: t.name('text').schema([Text]),
 ])).validate()  # mixed kinds
 
 print('SchemaBuilders: all checks passed')

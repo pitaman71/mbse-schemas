@@ -15,7 +15,7 @@
  * `OfRelation.AsEntries` apply their lists in modulo order.
  *
  * Payloads (a property's value, an object's properties) are values of whatever schema the target gives: their type here
- * is a value of any type, and ToPlain writes them untyped, interpreted by the target's schema.
+ * is a value of any schema, and ToPlain writes them untyped, interpreted by the target's schema.
  *
  * The schemas are built with the builders, anew for each store, which holds its own (docs/SCHEMA_EXTENSION.md, Decided,
  * 23): a store calls `schemas`, handing it the builders and its basic scalars.
@@ -52,11 +52,11 @@ function verb(name: string, ...properties: Spec[]): ObjectData {
 
 /** A verb's nested mutations: a list of `of`. */
 function mutations(of: unknown): Spec {
-  return (t: any) => t.name("mutations").type([list(of)]);
+  return (t: any) => t.name("mutations").schema([list(of)]);
 }
 
 function text(name: string): Spec {
-  return (t: any) => t.name(name).type([kit.Text]);
+  return (t: any) => t.name(name).schema([kit.Text]);
 }
 
 function union(name: string): UnionData {
@@ -65,7 +65,7 @@ function union(name: string): UnionData {
 
 /** Gives the union `of` its branches, `members`: each a name and the verb it holds. */
 function branches(of: UnionData, members: [string, unknown][]): void {
-  new kit.UnionBuilder(of).branches(members.map(([name, type]) => (t: any) => t.name(name).type([type]))).update();
+  new kit.UnionBuilder(of).branches(members.map(([name, type]) => (t: any) => t.name(name).schema([type]))).update();
 }
 
 /** The mutation schemas, built anew with `builders` for a store whose basic scalars they are given: by name, each
@@ -79,12 +79,12 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
   const Def = verb(
     "OfObject.Def",
     text("key"), // "Module.Schema/ID": the schema reference and the identity
-    (t) => t.name("properties").type([new ContainerBuilder().index([Text]).element([Payload]).create()]),
+    (t) => t.name("properties").schema([new ContainerBuilder().index([Text]).element([Payload]).create()]),
   );
   const Slice = verb(
     "OfContainer.Slice",
-    (t) => t.name("index").type([Payload]), // where the section starts, by the container's index
-    (t) => t.name("items").type([list(Payload)]),
+    (t) => t.name("index").schema([Payload]), // where the section starts, by the container's index
+    (t) => t.name("items").schema([list(Payload)]),
   );
 
   const Reference = union("Reference");
@@ -95,36 +95,36 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
   const OfLink = union("OfLink");
   const OfEntryMember = union("OfEntry.Member");
 
-  const PropertySet = verb("OfProperty.Set", (t) => t.name("value").type([Payload]));
+  const PropertySet = verb("OfProperty.Set", (t) => t.name("value").schema([Payload]));
   const PropertyClear = verb("OfProperty.Clear");
   const PropertyAsAny = verb("OfProperty.AsAny", mutations(OfAny));
-  const ContainerInsert = verb("OfContainer.Insert", (t) => t.name("slice").type([Slice]));
+  const ContainerInsert = verb("OfContainer.Insert", (t) => t.name("slice").schema([Slice]));
   const ContainerRemove = verb( // a section, by its start and its length
     "OfContainer.Remove",
-    (t) => t.name("index").type([Payload]),
-    (t) => t.name("count").type([Int]),
+    (t) => t.name("index").schema([Payload]),
+    (t) => t.name("count").schema([Int]),
   );
-  const ContainerAppend = verb("OfContainer.Append", (t) => t.name("items").type([list(Payload)]));
-  const ContainerPrepend = verb("OfContainer.Prepend", (t) => t.name("items").type([list(Payload)]));
+  const ContainerAppend = verb("OfContainer.Append", (t) => t.name("items").schema([list(Payload)]));
+  const ContainerPrepend = verb("OfContainer.Prepend", (t) => t.name("items").schema([list(Payload)]));
   const ContainerClear = verb("OfContainer.Clear");
   const AsItems = verb("OfContainer.AsItems", mutations(OfAny)); // applied in modulo order
-  const AnySet = verb("OfAny.Set", (t) => t.name("value").type([Payload]));
+  const AnySet = verb("OfAny.Set", (t) => t.name("value").schema([Payload]));
   const AnyClear = verb("OfAny.Clear");
   const AsScalar = verb("OfAny.AsScalar", mutations(OfScalar));
   const AsContainer = verb("OfAny.AsContainer", mutations(OfContainer));
-  const ScalarSet = verb("OfScalar.Set", (t) => t.name("value").type([Payload]));
+  const ScalarSet = verb("OfScalar.Set", (t) => t.name("value").schema([Payload]));
   const ScalarClear = verb("OfScalar.Clear");
   const AsBranch = verb("OfUnion.AsBranch", text("name"), mutations(OfProperty));
   const AsPart = verb("OfIntersection.AsPart", text("name"), mutations(OfProperty));
   const AsUnion = verb("OfAny.AsUnion", mutations(AsBranch));
   const AsIntersection = verb("OfAny.AsIntersection", mutations(AsPart));
-  const LinkSet = verb("OfLink.Set", (t) => t.name("ref").type([Ref]));
+  const LinkSet = verb("OfLink.Set", (t) => t.name("ref").schema([Ref]));
   const LinkClear = verb("OfLink.Clear");
 
-  const Exists = verb("OfObject.Exists", (t) => t.name("definition").type([Def])); // as Python, which cannot spell `def`
+  const Exists = verb("OfObject.Exists", (t) => t.name("definition").schema([Def])); // as Python, which cannot spell `def`
   const AsProperty = verb( // `ref` at the top of the log only: nested under OfAny.AsObject, the path gives the object
     "OfObject.AsProperty",
-    (t) => t.name("ref").type([Ref]),
+    (t) => t.name("ref").schema([Ref]),
     text("name"),
     mutations(OfProperty),
   );
@@ -134,18 +134,18 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
   const Entry = verb("OfEntry", mutations(OfEntryMember)); // an entry: its links' and its properties' mutations
   const RelationInsert = verb(
     "OfRelation.Insert",
-    (t) => t.name("relation").type([Ref]), // the relation schema
-    (t) => t.name("entries").type([list(Entry)]),
+    (t) => t.name("relation").schema([Ref]), // the relation schema
+    (t) => t.name("entries").schema([list(Entry)]),
   );
   const RelationRemove = verb(
     "OfRelation.Remove",
-    (t) => t.name("relation").type([Ref]),
-    (t) => t.name("entries").type([list(Entry)]),
+    (t) => t.name("relation").schema([Ref]),
+    (t) => t.name("entries").schema([list(Entry)]),
   );
-  const RelationClear = verb("OfRelation.Clear", (t) => t.name("ref").type([Ref]), text("adjacency"));
+  const RelationClear = verb("OfRelation.Clear", (t) => t.name("ref").schema([Ref]), text("adjacency"));
   const AsEntries = verb( // applied in modulo order
     "OfRelation.AsEntries",
-    (t) => t.name("ref").type([Ref]),
+    (t) => t.name("ref").schema([Ref]),
     text("adjacency"),
     mutations(EntryAsProperty),
   );

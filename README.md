@@ -38,13 +38,13 @@ Text = store.Schemas.OfStr  # its basic scalars are its own
 
 # Reference objects stand on their own, each named in its store: CON-001, CON-002, ...
 Contact = store.Schemas.OfObject(lambda o: o.name('Contact').ref(True).pattern(r'CON-(\d+\d\d)').properties([
-    lambda t: t.name('name').type([Text])]))
+    lambda t: t.name('name').schema([Text])]))
 Address = store.Schemas.OfObject(lambda o: o.name('Address').ref(True).pattern(r'ADR-(\d+\d\d)').properties([
-    lambda t: t.name('street').type([Text])]))
+    lambda t: t.name('street').schema([Text])]))
 
 # Collections are relations: entries link objects and carry their own properties.
 ContactAddresses = store.Schemas.OfRelation(lambda r: r.name('ContactAddresses').links([
-    lambda t: t.name('contact'), lambda t: t.name('address')]).properties([lambda t: t.name('label').type([Text])]))
+    lambda t: t.name('contact'), lambda t: t.name('address')]).properties([lambda t: t.name('label').schema([Text])]))
 store.Schemas.OfObject(Contact, lambda o: o.adjacencies([lambda t: t.name('addresses').relation([ContactAddresses]).me('contact')]))
 store.Schemas.OfObject(Address, lambda o: o.adjacencies([lambda t: t.name('residents').relation([ContactAddresses]).me('address')]))
 

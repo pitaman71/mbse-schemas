@@ -86,7 +86,7 @@ def _any(read: Readers.OfAny, schema: Schemas.OfAny.Data, ref: Ref) -> tuple[boo
 
 
 def _any_value(read: Readers.OfAny, schema: Schemas.OfAny.Value, ref: Ref) -> tuple[bool, PlainData]:
-    """A value of any type as plain data, and whether there is one: restricted, written bare as the type it holds;
+    """A value of any schema as plain data, and whether there is one: restricted, written bare as the type it holds;
     unrestricted, tagged with its type, a basic scalar's tag or its schema's registered name."""
     found: list[Any] = []
     read.as_scalar(lambda s: found.extend([] if s.get() is None else [s.get()]) or s)
@@ -94,14 +94,14 @@ def _any_value(read: Readers.OfAny, schema: Schemas.OfAny.Value, ref: Ref) -> tu
         getattr(read, select)(lambda v: found.extend([v] if _present(v) else []) or v)
     if not found:
         return False, None
-    value, types = found[0], list(schema.types)
+    value, types = found[0], list(schema.schemas)
     if type(value) in Schemas.SCALAR_TYPES:
         scalar = Schemas.OfScalar.Data(type(value))
         if not types:
             return True, {scalar.tag: scalar.to_plain(value)}
         own = next((t for t in types if isinstance(t, Schemas.OfScalar.Data) and t.type is type(value)), None)
         if own is None:  # builders do not check scalars' types; proxies refuse a value of another schema
-            raise TypeError(f"a value of any type holds one of its types; {type(value).__name__} is not one")
+            raise TypeError(f"a value of any schema holds one of its schemas; {type(value).__name__} is not one")
         return _any(read, own, ref)
     own = value.as_schema()
     return True, {ref.name_of(own): _any(read, own, ref)[1]} if not types else _any(read, own, ref)[1]
@@ -112,7 +112,7 @@ def _tensor(schema: Schemas.OfContainer.Data) -> list[str] | None:
     index = schema.index
     if not isinstance(index, Schemas.OfObject.Data):
         return None
-    hosts = [prop.type for prop in index.properties.values()]
+    hosts = [prop.schema for prop in index.properties.values()]
     return list(index.properties) if all(isinstance(h, Schemas.OfScalar.Data) and h.type is int for h in hosts) else None
 
 
@@ -128,7 +128,7 @@ def _plain_index(schema: Schemas.OfContainer.Data, index: Any, ref: Ref) -> Plai
     if isinstance(held, Schemas.OfScalar.Data):
         return held.to_plain(index)
     if isinstance(index, tuple):
-        return {name: prop.type.to_plain(value)
+        return {name: prop.schema.to_plain(value)
                 for (name, prop), value in zip(held.properties.items(), index)}
     return _object(index, held, ref)
 
@@ -195,7 +195,7 @@ def _record(read: Any, schema: Any, ref: Ref) -> dict[str, PlainData]:
     """A union value or an intersection value, nested as a mapping of its branch or its parts."""
     out: dict[str, PlainData] = {}
     for name, member in schema.properties.items():
-        present, plain = _member(getattr(read, name), member.type, ref)
+        present, plain = _member(getattr(read, name), member.schema, ref)
         if present:
             out[name] = plain
     return out
@@ -205,7 +205,7 @@ def _object(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref) -> 
     """An object, a reference object or a value object nested in its owner, as a mapping: its properties, in the
     schema's order, then its adjacencies' entries. A value object has no symbol: entries never reference value
     objects."""
-    out: dict[str, PlainData] = {prop.as_schema().name: _value(prop, prop.as_schema().type, ref)[1]
+    out: dict[str, PlainData] = {prop.as_schema().name: _value(prop, prop.as_schema().schema, ref)[1]
                                  for prop in read.as_properties}  # the properties that are set
     for name, adjacency in schema.adjacencies.items():
         entries = [_entry(entry, adjacency, ref) for entry in getattr(read, name)]
@@ -221,7 +221,7 @@ def _entry(read: Readers.OfEntry, adjacency: Schemas.OfAdjacency.Data, ref: Ref)
         if name != adjacency.me:
             out[name] = ref(getattr(read, name))
     for name, prop in adjacency.relation.entry.properties.items():
-        present, plain = _value(getattr(read, name), prop.type, ref)
+        present, plain = _value(getattr(read, name), prop.schema, ref)
         if present:
             out[name] = plain
     return out
@@ -297,12 +297,12 @@ class _Snapshot:
         return f"{self.store.name_of(schema)}/{value.as_identity()}"
 
     def name_of(self, schema: Any) -> str:
-        """The name a value of any type is tagged with: its schema's registered name."""
+        """The name a value of any schema is tagged with: its schema's registered name."""
         schema = Proxies._deref(schema)  # a path names its schema
         try:
             return self.store.name_of(schema)
         except LookupError:
-            raise TypeError(f"a value of any type is of a registered schema; {schema.name!r} is not registered") from None
+            raise TypeError(f"a value of any schema is of a registered schema; {schema.name!r} is not registered") from None
 
     def _ref(self, target: Readers.OfObject) -> dict[str, PlainData]:
         """A reference to a linked object, which is a reference object: entries never reference value objects."""
@@ -415,7 +415,7 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, store: A
     for key, item in plain.items():
         if key not in schema.properties:
             raise DecodeError(f"{owner} has no {member} {key!r}", path=path(*where, key))
-        values[key] = _decode(schema.properties[key].type, item, (*where, key), store)
+        values[key] = _decode(schema.properties[key].schema, item, (*where, key), store)
     if isinstance(schema, Schemas.OfUnion.Data) and len(values) != 1:
         raise DecodeError(f"a union value holds exactly one branch, got {len(values)}", path=path(*where))
     return _Record(schema, values)
@@ -425,16 +425,16 @@ _FORMS = {bool: "bool", int: "int", float: "float", str: "text", dict: "mapping"
 
 
 def _decode_any(schema: Schemas.OfAny.Value, plain: PlainData, where: tuple, store: Any) -> Any:
-    """A value of any type: restricted, of the one type whose plain form it takes; unrestricted, a mapping of its type,
+    """A value of any schema: restricted, of the one type whose plain form it takes; unrestricted, a mapping of its type,
     a basic scalar's tag or a schema's registered name, to its value."""
-    if schema.types:
-        fits = [t for t in schema.types if _FORMS.get(type(plain)) in Schemas.plain_forms(t)]
+    if schema.schemas:
+        fits = [t for t in schema.schemas if _FORMS.get(type(plain)) in Schemas.plain_forms(t)]
         if len(fits) != 1:
-            raise DecodeError(f"a value of any type takes the plain form of one of its types, got "
+            raise DecodeError(f"a value of any schema takes the plain form of one of its schemas, got "
                               f"{type(plain).__name__}", path=path(*where))
         return _decode(fits[0], plain, where, store)
     if not isinstance(plain, dict) or len(plain) != 1:
-        raise DecodeError("a value of any type is {type: value}, its type a basic scalar's tag or a registered "
+        raise DecodeError("a value of any schema is {schema: value}, its schema a basic scalar's tag or a registered "
                           "schema's name", path=path(*where))
     ((tag, value),) = plain.items()
     scalar = next((t for t in Schemas.SCALAR_TYPES if Schemas.OfScalar.Data(t).tag == tag), None)
@@ -565,7 +565,7 @@ def _decode_rows(adjacency: Schemas.OfAdjacency.Data, value: PlainData, where: t
                     raise DecodeError("a link must be a reference", path=at)
                 row[name] = _Link(item[REF])
             elif name in relation.entry.properties:
-                row[name] = _decode(relation.entry.properties[name].type, item, (*where, key, i, name), store)
+                row[name] = _decode(relation.entry.properties[name].schema, item, (*where, key, i, name), store)
             else:
                 raise DecodeError(f"the relation has no link or property {name!r}", path=at)
         missing = [n for n in relation.entry.links if n != adjacency.me and n not in entry]
@@ -648,7 +648,7 @@ def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
             if key in object_schema.adjacencies:
                 adjacencies[key] = _decode_rows(object_schema.adjacencies[key], value, where, key, store)
             elif key in object_schema.properties:
-                properties[key] = _decode(object_schema.properties[key].type, value, (*where, key), store)
+                properties[key] = _decode(object_schema.properties[key].schema, value, (*where, key), store)
             else:
                 raise DecodeError(f"{names[symbol]!r} has no property or adjacency {key!r}", path=path(*where, key))
         decoded[symbol] = (properties, adjacencies)
@@ -753,8 +753,8 @@ def _agrees(entry: Any, row: dict[str, Any], resolve: Callable[[str], Any], ref:
             if linked.as_identity() != target.as_identity() or linked.as_schema() is not target.as_schema():
                 return False
     for name, prop in schema.properties.items():
-        present, plain = _value(getattr(entry, name), prop.type, ref)
-        if present != (name in row) or present and _decoded_key(_decode(prop.type, plain, (), ref.store)) != _decoded_key(
+        present, plain = _value(getattr(entry, name), prop.schema, ref)
+        if present != (name in row) or present and _decoded_key(_decode(prop.schema, plain, (), ref.store)) != _decoded_key(
                 row[name]):
             return False
     return True
@@ -896,7 +896,7 @@ class _LogWriter:
         self._written.add(key)
         properties: dict[str, PlainData] = {}
         for prop in visitor.as_properties:  # the properties that are set
-            properties[prop.as_schema().name] = _value(prop, prop.as_schema().type, self._names)[1]
+            properties[prop.as_schema().name] = _value(prop, prop.as_schema().schema, self._names)[1]
         self._out.append({"exists": {"definition": {"key": key, "properties": {} if singleton else properties}}})
         if singleton:
             self._out.extend({"as_property": {"ref": {"key": key}, "name": name, "mutations": [{"set": {"value": value}}]}}
@@ -931,7 +931,7 @@ class _LogWriter:
                     contained.append((target, links[link]))
             properties: dict[str, PlainData] = {}
             for name, prop in relation.entry.properties.items():
-                present, plain = _value(getattr(entry, name), prop.type, self._names)
+                present, plain = _value(getattr(entry, name), prop.schema, self._names)
                 if present:
                     properties[name] = plain
             identity = (id(relation), tuple(sorted(links.items())), repr(sorted(properties.items())))
@@ -1106,7 +1106,7 @@ class _LogReader:
                     self._ignore((*where, prop_name), f"{name} has no property {prop_name!r}")
                     continue
                 raise DecodeError(f"{name} has no property {prop_name!r}", path=path(*where, prop_name))
-            _set(builder, prop_name, _decode(properties[prop_name].type, plain, (*where, prop_name), self._store))
+            _set(builder, prop_name, _decode(properties[prop_name].schema, plain, (*where, prop_name), self._store))
         self._made.append(builder.create())
 
     def _as_property(self, body: dict[str, Any], where: tuple) -> None:
@@ -1120,7 +1120,7 @@ class _LogReader:
         for change in body.get("mutations", []):
             verb, payload = self._one(change, where)
             if verb == "set":
-                _set(builder, name, _decode(schema.properties[name].type, payload.get("value"), where, self._store))
+                _set(builder, name, _decode(schema.properties[name].schema, payload.get("value"), where, self._store))
             else:
                 getattr(builder, name).as_value(lambda value: value.clear())
         builder.update()
@@ -1144,7 +1144,7 @@ class _LogReader:
                             continue
                         if prop is None:
                             raise DecodeError(f"the relation has no property {member['name']!r}", path=path(*at))
-                        values[member["name"]] = _decode(prop.type, payload.get("value"), at, self._store)
+                        values[member["name"]] = _decode(prop.schema, payload.get("value"), at, self._store)
             self._link(relation, links, values, at)
 
     def _link(self, relation: Any, links: dict[str, Any], values: dict[str, Any], where: tuple) -> None:
@@ -1227,7 +1227,7 @@ class ToPlain:
 
     def Value(self, schema: Schemas.OfAny.Data, value: Any) -> PlainData:
         """A standalone value as plain data, written as a property holding it writes it: a value object, union value,
-        intersection value or container of `schema`, read through its visitor, or a value of any type (`OfAny`), of a
+        intersection value or container of `schema`, read through its visitor, or a value of any schema (`OfAny`), of a
         registered schema or a scalar."""
         schema = Proxies._deref(schema)  # a path names its schema
         held = schema

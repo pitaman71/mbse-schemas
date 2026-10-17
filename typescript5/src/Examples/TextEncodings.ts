@@ -21,12 +21,12 @@ const Reading = store.Schemas.OfObject((o: any) => (
     .name("Reading")
     .ref(true)
     .properties([
-      (t: any) => t.name("observed").type([Text]), // ISO 8601, e.g. '2026-09-28T12:00:00Z'
-      (t: any) => t.name("value").type([store.Schemas.OfFloat]),
-      (t: any) => t.name("quality").type([store.Schemas.OfInt]),
-      (t: any) => t.name("valid").type([store.Schemas.OfBool]),
-      (t: any) => t.name("raw").type([store.Schemas.OfBytes]),
-      (t: any) => t.name("note").type([Text]),
+      (t: any) => t.name("observed").schema([Text]), // ISO 8601, e.g. '2026-09-28T12:00:00Z'
+      (t: any) => t.name("value").schema([store.Schemas.OfFloat]),
+      (t: any) => t.name("quality").schema([store.Schemas.OfInt]),
+      (t: any) => t.name("valid").schema([store.Schemas.OfBool]),
+      (t: any) => t.name("raw").schema([store.Schemas.OfBytes]),
+      (t: any) => t.name("note").schema([Text]),
     ])
 ));
 const Station = store.Schemas.OfObject((o: any) => (
@@ -34,8 +34,8 @@ const Station = store.Schemas.OfObject((o: any) => (
     .name("Station")
     .ref(true)
     .properties([
-      (t: any) => t.name("wmo_id").type([Text]), // e.g. '03772'; leading zeros matter
-      (t: any) => t.name("name").type([Text]),
+      (t: any) => t.name("wmo_id").schema([Text]), // e.g. '03772'; leading zeros matter
+      (t: any) => t.name("name").schema([Text]),
     ])
 ));
 const Readings = store.Schemas.OfRelation((r: any) => (
@@ -45,7 +45,7 @@ const Readings = store.Schemas.OfRelation((r: any) => (
       (t: any) => t.name("station"),
       (t: any) => t.name("reading"),
     ])
-    .properties([(t: any) => t.name("sensor").type([Text])])
+    .properties([(t: any) => t.name("sensor").schema([Text])])
     .uniques(["station", "sensor"]) // each reading comes from one sensor of one station
 ));
 store.Schemas.OfObject(Station, (o: any) => o.adjacencies([(t: any) => t.name("readings").relation([Readings]).me("station")]));

@@ -16,14 +16,14 @@ const Text = store.Schemas.OfStr.as_schema(); // the store's own basic scalar
 
 // A member's type is linked, not built: a schema that exists, such as a scalar schema.
 const Named = store.Schemas.OfObject((o: any) => o.properties([
-  (t: any) => t.name("first").type([Text]),
-  (t: any) => t.name("last").type([Text]),
+  (t: any) => t.name("first").schema([Text]),
+  (t: any) => t.name("last").schema([Text]),
 ]));
-assert(Named.properties.get("first").type === Text && Named.properties.get("last").type === Text);
+assert(Named.properties.get("first").schema === Text && Named.properties.get("last").schema === Text);
 
-// A value of any type has no types; a value of one of several types, those.
-assert(store.Schemas.OfAny((a: any) => a).types.length === 0);
-const types = store.Schemas.OfAny((a: any) => a.types([Text, store.Schemas.OfInt])).types;
+// A value of any schema has no types; a value of one of several types, those.
+assert(store.Schemas.OfAny((a: any) => a).schemas.length === 0);
+const types = store.Schemas.OfAny((a: any) => a.schemas([Text, store.Schemas.OfInt])).schemas;
 assert(types.length === 2 && types[0] === Text && types[1] === store.Schemas.OfInt.as_schema());
 
 // A property takes its value whole, of exactly its type.
@@ -38,36 +38,36 @@ raises(ValueError, () => new Builders.OfObject.Builder().update()); // update() 
 raises(TypeError, () => store.Schemas.OfObject()); // a callback, an object and a callback, or an object
 
 // A clone leaves the source untouched; an update changes it in place and returns it.
-const Extended = store.Schemas.OfObject(store.Schemas.OfObject(Named), (o: any) => o.properties([(t: any) => t.name("middle").type([Text])]));
+const Extended = store.Schemas.OfObject(store.Schemas.OfObject(Named), (o: any) => o.properties([(t: any) => t.name("middle").schema([Text])]));
 assert(Extended !== Named && Extended.properties.has("middle") && !Named.properties.has("middle"));
 
-const updated = store.Schemas.OfObject(Named, (o: any) => o.properties([(t: any) => t.name("nickname").type([Text])]));
+const updated = store.Schemas.OfObject(Named, (o: any) => o.properties([(t: any) => t.name("nickname").schema([Text])]));
 assert(updated === Named && Named.properties.has("nickname"));
 
 // A clone owns its members: they are clones too, and later edits do not leak.
-assert(Extended.properties.get("first") !== Named.properties.get("first") && Extended.properties.get("first").type === Text);
+assert(Extended.properties.get("first") !== Named.properties.get("first") && Extended.properties.get("first").schema === Text);
 
 // Each call builds its own schema: building twice through the same callback gives independent schemas.
-const a_only = (o: any) => o.properties([(t: any) => t.name("a").type([Text])]);
+const a_only = (o: any) => o.properties([(t: any) => t.name("a").schema([Text])]);
 const first = store.Schemas.OfObject(a_only);
 const second = store.Schemas.OfObject(a_only);
-store.Schemas.OfObject(second, (o: any) => o.properties([(t: any) => t.name("b").type([Text])]));
+store.Schemas.OfObject(second, (o: any) => o.properties([(t: any) => t.name("b").schema([Text])]));
 assert(first !== second && [...first.properties.keys()].join() === "a" && [...second.properties.keys()].join() === "a,b");
 
 // Redefining a property replaces it.
 const Retyped = store.Schemas.OfObject(store.Schemas.OfObject(first), (o: any) => o.properties([
-  (t: any) => t.name("a").type([store.Schemas.OfInt]),
+  (t: any) => t.name("a").schema([store.Schemas.OfInt]),
 ]));
-assert(Retyped.properties.get("a").type === store.Schemas.OfInt.as_schema() && first.properties.get("a").type === Text);
+assert(Retyped.properties.get("a").schema === store.Schemas.OfInt.as_schema() && first.properties.get("a").schema === Text);
 
 // --- Relations and cardinality ---
 
 // A map a -> [key] -> b: a relation with links a, b and property key. ISO 4217 currency codes as keys.
-const Product = store.Schemas.OfObject((o: any) => o.ref(true).properties([(t: any) => t.name("sku").type([Text])]));
+const Product = store.Schemas.OfObject((o: any) => o.ref(true).properties([(t: any) => t.name("sku").schema([Text])]));
 const Money = store.Schemas.OfObject((o: any) => (
   o
     .ref(true) // an entry links only reference objects
-    .properties([(t: any) => t.name("minor_units").type([store.Schemas.OfInt])]) // e.g. cents
+    .properties([(t: any) => t.name("minor_units").schema([store.Schemas.OfInt])]) // e.g. cents
 ));
 const Prices = store.Schemas.OfRelation((r: any) => (
   r
@@ -75,7 +75,7 @@ const Prices = store.Schemas.OfRelation((r: any) => (
       (t: any) => t.name("product"),
       (t: any) => t.name("price"),
     ])
-    .properties([(t: any) => t.name("currency").type([Text])]) // ISO 4217 alpha code, e.g. 'EUR'
+    .properties([(t: any) => t.name("currency").schema([Text])]) // ISO 4217 alpha code, e.g. 'EUR'
     .uniques([
       ["price"], // (product, currency) determine the price
       ["product", "currency"], // each price belongs to one product under one currency
@@ -96,7 +96,7 @@ function parent_child(r: any): any {
 const Ownership = store.Schemas.OfRelation((r: any) => parent_child(r).uniques("parent"));
 const Directory = store.Schemas.OfRelation((r: any) => (
   parent_child(r)
-    .properties([(t: any) => t.name("key").type([Text])])
+    .properties([(t: any) => t.name("key").schema([Text])])
     .uniques([
       ["parent", "key"],
       ["child"],
@@ -118,7 +118,7 @@ const Clash = store.Schemas.OfRelation((r: any) => (
       (t: any) => t.name("owner"),
       (t: any) => t.name("item"),
     ])
-    .properties([(t: any) => t.name("item").type([Text])])
+    .properties([(t: any) => t.name("item").schema([Text])])
 ));
 assert(Clash.validate().some((p: string) => p.includes("both link and property")));
 
@@ -145,7 +145,7 @@ assert(WrongSide.validate().some((p: string) => p.includes("not a link")));
 
 const NameClash = store.Schemas.OfObject((o: any) => (
   o
-    .properties([(t: any) => t.name("children").type([Text])])
+    .properties([(t: any) => t.name("children").schema([Text])])
     .adjacencies([(t: any) => t.name("children").relation([Ownership]).me("parent")])
 ));
 assert(NameClash.validate().some((p: string) => p.includes("both property and adjacency")));
@@ -167,51 +167,51 @@ assert(Registry.singleton === "iso3166.Registry" && Registry.validate().length =
 // A union's branches and an intersection's parts are named: a union value holds exactly one branch, by name, and an
 // intersection value every part.
 
-const Phone = store.Schemas.OfObject((o: any) => o.properties([(t: any) => t.name("number").type([Text])]));
-const Email = store.Schemas.OfObject((o: any) => o.properties([(t: any) => t.name("address").type([Text])]));
+const Phone = store.Schemas.OfObject((o: any) => o.properties([(t: any) => t.name("number").schema([Text])]));
+const Email = store.Schemas.OfObject((o: any) => o.properties([(t: any) => t.name("address").schema([Text])]));
 
 const ContactMethod = store.Schemas.OfUnion((u: any) => u.branches([
-  (t: any) => t.name("phone").type([Phone]),
-  (t: any) => t.name("email").type([Email]),
+  (t: any) => t.name("phone").schema([Phone]),
+  (t: any) => t.name("email").schema([Email]),
 ]));
 assert(ContactMethod.validate().length === 0);
 
 const Unnamed = store.Schemas.OfUnion((u: any) => u.branches([
-  (t: any) => t.type([Phone]),
-  (t: any) => t.name("email").type([Email]),
+  (t: any) => t.schema([Phone]),
+  (t: any) => t.name("email").schema([Email]),
 ]));
 assert(Unnamed.validate().some((p: string) => p.includes("has no name")));
 
 const SameName = store.Schemas.OfUnion((u: any) => u.branches([
-  (t: any) => t.name("m").type([Phone]),
-  (t: any) => t.name("m").type([Email]),
+  (t: any) => t.name("m").schema([Phone]),
+  (t: any) => t.name("m").schema([Email]),
 ]));
 assert(SameName.validate().some((p: string) => p.includes("more than once")));
 
 const MixedKinds = store.Schemas.OfUnion((u: any) => u.branches([
-  (t: any) => t.name("phone").type([Phone]),
-  (t: any) => t.name("text").type([Text]),
+  (t: any) => t.name("phone").schema([Phone]),
+  (t: any) => t.name("text").schema([Text]),
 ]));
 assert(MixedKinds.validate().some((p: string) => p.includes("same kind")));
 
-const SingleBranch = store.Schemas.OfUnion((u: any) => u.branches([(t: any) => t.name("phone").type([Phone])]));
+const SingleBranch = store.Schemas.OfUnion((u: any) => u.branches([(t: any) => t.name("phone").schema([Phone])]));
 assert(SingleBranch.validate().some((p: string) => p.includes("at least two")));
 
 // Intersections combine same-kind schemas as named parts. Each part keeps its own properties, so two parts may
 // declare the same property, even with different types.
-const Timestamped = store.Schemas.OfObject((o: any) => o.properties([(t: any) => t.name("updated").type([Text])]));
+const Timestamped = store.Schemas.OfObject((o: any) => o.properties([(t: any) => t.name("updated").schema([Text])]));
 const EpochStamped = store.Schemas.OfObject((o: any) => o.properties([
-  (t: any) => t.name("updated").type([store.Schemas.OfInt]),
+  (t: any) => t.name("updated").schema([store.Schemas.OfInt]),
 ]));
 const Stamps = store.Schemas.OfIntersection((i: any) => i.parts([
-  (t: any) => t.name("text").type([Timestamped]),
-  (t: any) => t.name("epoch").type([EpochStamped]),
+  (t: any) => t.name("text").schema([Timestamped]),
+  (t: any) => t.name("epoch").schema([EpochStamped]),
 ]));
 assert(Stamps.validate().length === 0);
 
 assert(store.Schemas.OfIntersection((i: any) => i.parts([
-  (t: any) => t.name("stamp").type([Timestamped]),
-  (t: any) => t.name("text").type([Text]),
+  (t: any) => t.name("stamp").schema([Timestamped]),
+  (t: any) => t.name("text").schema([Text]),
 ])).validate().length > 0); // mixed kinds
 
 console.log("SchemaBuilders: all checks passed");

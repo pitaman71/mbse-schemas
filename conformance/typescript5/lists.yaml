@@ -15,11 +15,11 @@
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.HasSchema
     entries:
     - mutations:
       - as_link:
-          name: typed
+          name: member
           mutations:
           - set:
               ref:
@@ -36,7 +36,7 @@
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfContainer/Board.tags#type'
+      key: 'Schemas.OfContainer/Board.tags#schema'
       properties: {}
 - insert:
     relation:
@@ -48,7 +48,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.tags#type'
+                key: 'Schemas.OfContainer/Board.tags#schema'
       - as_link:
           name: element
           mutations:
@@ -65,7 +65,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.tags#type'
+                key: 'Schemas.OfContainer/Board.tags#schema'
       - as_link:
           name: index
           mutations:
@@ -74,11 +74,11 @@
                 key: Schemas.OfScalar/Schemas.OfInt
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.HasSchema
     entries:
     - mutations:
       - as_link:
-          name: typed
+          name: member
           mutations:
           - set:
               ref:
@@ -88,14 +88,14 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.tags#type'
+                key: 'Schemas.OfContainer/Board.tags#schema'
 - exists:
     definition:
       key: Schemas.OfProperty/Board.blobs
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfContainer/Board.blobs#type'
+      key: 'Schemas.OfContainer/Board.blobs#schema'
       properties: {}
 - insert:
     relation:
@@ -107,7 +107,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.blobs#type'
+                key: 'Schemas.OfContainer/Board.blobs#schema'
       - as_link:
           name: element
           mutations:
@@ -124,7 +124,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.blobs#type'
+                key: 'Schemas.OfContainer/Board.blobs#schema'
       - as_link:
           name: index
           mutations:
@@ -133,11 +133,11 @@
                 key: Schemas.OfScalar/Schemas.OfInt
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.HasSchema
     entries:
     - mutations:
       - as_link:
-          name: typed
+          name: member
           mutations:
           - set:
               ref:
@@ -147,18 +147,18 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.blobs#type'
+                key: 'Schemas.OfContainer/Board.blobs#schema'
 - exists:
     definition:
       key: Schemas.OfProperty/Board.grid
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfContainer/Board.grid#type'
+      key: 'Schemas.OfContainer/Board.grid#schema'
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfContainer/Board.grid#type#element'
+      key: 'Schemas.OfContainer/Board.grid#schema#element'
       properties: {}
 - insert:
     relation:
@@ -170,7 +170,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.grid#type#element'
+                key: 'Schemas.OfContainer/Board.grid#schema#element'
       - as_link:
           name: element
           mutations:
@@ -187,7 +187,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.grid#type#element'
+                key: 'Schemas.OfContainer/Board.grid#schema#element'
       - as_link:
           name: index
           mutations:
@@ -204,13 +204,13 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.grid#type'
+                key: 'Schemas.OfContainer/Board.grid#schema'
       - as_link:
           name: element
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.grid#type#element'
+                key: 'Schemas.OfContainer/Board.grid#schema#element'
 - insert:
     relation:
       key: Schemas.OfRelation/Schemas.Indexing
@@ -221,7 +221,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.grid#type'
+                key: 'Schemas.OfContainer/Board.grid#schema'
       - as_link:
           name: index
           mutations:
@@ -230,11 +230,11 @@
                 key: Schemas.OfScalar/Schemas.OfInt
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.HasSchema
     entries:
     - mutations:
       - as_link:
-          name: typed
+          name: member
           mutations:
           - set:
               ref:
@@ -244,18 +244,18 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.grid#type'
+                key: 'Schemas.OfContainer/Board.grid#schema'
 - exists:
     definition:
       key: Schemas.OfProperty/Board.readings
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfContainer/Board.readings#type'
+      key: 'Schemas.OfContainer/Board.readings#schema'
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfUnion/Board.readings#type#element'
+      key: 'Schemas.OfUnion/Board.readings#schema#element'
       properties:
         flat: false
 - insert:
@@ -268,9 +268,9 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfUnion/Board.readings#type#element'
+                key: 'Schemas.OfUnion/Board.readings#schema#element'
       - as_link:
-          name: type
+          name: schema
           mutations:
           - set:
               ref:
@@ -286,9 +286,9 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfUnion/Board.readings#type#element'
+                key: 'Schemas.OfUnion/Board.readings#schema#element'
       - as_link:
-          name: type
+          name: schema
           mutations:
           - set:
               ref:
@@ -308,13 +308,13 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.readings#type'
+                key: 'Schemas.OfContainer/Board.readings#schema'
       - as_link:
           name: element
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfUnion/Board.readings#type#element'
+                key: 'Schemas.OfUnion/Board.readings#schema#element'
 - insert:
     relation:
       key: Schemas.OfRelation/Schemas.Indexing
@@ -325,7 +325,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.readings#type'
+                key: 'Schemas.OfContainer/Board.readings#schema'
       - as_link:
           name: index
           mutations:
@@ -334,11 +334,11 @@
                 key: Schemas.OfScalar/Schemas.OfInt
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.HasSchema
     entries:
     - mutations:
       - as_link:
-          name: typed
+          name: member
           mutations:
           - set:
               ref:
@@ -348,35 +348,35 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.readings#type'
+                key: 'Schemas.OfContainer/Board.readings#schema'
 - exists:
     definition:
       key: Schemas.OfProperty/Board.sockets
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfContainer/Board.sockets#type'
+      key: 'Schemas.OfContainer/Board.sockets#schema'
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfObject/Board.sockets#type#element'
+      key: 'Schemas.OfObject/Board.sockets#schema#element'
       properties:
         ref: false
 - exists:
     definition:
-      key: 'Schemas.OfProperty/Board.sockets#type#element.name'
+      key: 'Schemas.OfProperty/Board.sockets#schema#element.name'
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.HasSchema
     entries:
     - mutations:
       - as_link:
-          name: typed
+          name: member
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Board.sockets#type#element.name'
+                key: 'Schemas.OfProperty/Board.sockets#schema#element.name'
       - as_link:
           name: schema
           mutations:
@@ -385,11 +385,11 @@
                 key: Schemas.OfScalar/Schemas.OfStr
 - exists:
     definition:
-      key: 'Schemas.OfProperty/Board.sockets#type#element.pins'
+      key: 'Schemas.OfProperty/Board.sockets#schema#element.pins'
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfContainer/Board.sockets#type#element.pins#type'
+      key: 'Schemas.OfContainer/Board.sockets#schema#element.pins#schema'
       properties: {}
 - insert:
     relation:
@@ -401,7 +401,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.sockets#type#element.pins#type'
+                key: 'Schemas.OfContainer/Board.sockets#schema#element.pins#schema'
       - as_link:
           name: element
           mutations:
@@ -418,7 +418,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.sockets#type#element.pins#type'
+                key: 'Schemas.OfContainer/Board.sockets#schema#element.pins#schema'
       - as_link:
           name: index
           mutations:
@@ -427,21 +427,21 @@
                 key: Schemas.OfScalar/Schemas.OfInt
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.HasSchema
     entries:
     - mutations:
       - as_link:
-          name: typed
+          name: member
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Board.sockets#type#element.pins'
+                key: 'Schemas.OfProperty/Board.sockets#schema#element.pins'
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.sockets#type#element.pins#type'
+                key: 'Schemas.OfContainer/Board.sockets#schema#element.pins#schema'
 - insert:
     relation:
       key: Schemas.OfRelation/Schemas.HasProperty
@@ -452,13 +452,13 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfObject/Board.sockets#type#element'
+                key: 'Schemas.OfObject/Board.sockets#schema#element'
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Board.sockets#type#element.name'
+                key: 'Schemas.OfProperty/Board.sockets#schema#element.name'
       - as_property:
           name: name
           mutations:
@@ -470,13 +470,13 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfObject/Board.sockets#type#element'
+                key: 'Schemas.OfObject/Board.sockets#schema#element'
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Board.sockets#type#element.pins'
+                key: 'Schemas.OfProperty/Board.sockets#schema#element.pins'
       - as_property:
           name: name
           mutations:
@@ -492,13 +492,13 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.sockets#type'
+                key: 'Schemas.OfContainer/Board.sockets#schema'
       - as_link:
           name: element
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfObject/Board.sockets#type#element'
+                key: 'Schemas.OfObject/Board.sockets#schema#element'
 - insert:
     relation:
       key: Schemas.OfRelation/Schemas.Indexing
@@ -509,7 +509,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.sockets#type'
+                key: 'Schemas.OfContainer/Board.sockets#schema'
       - as_link:
           name: index
           mutations:
@@ -518,11 +518,11 @@
                 key: Schemas.OfScalar/Schemas.OfInt
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.HasSchema
     entries:
     - mutations:
       - as_link:
-          name: typed
+          name: member
           mutations:
           - set:
               ref:
@@ -532,27 +532,27 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.sockets#type'
+                key: 'Schemas.OfContainer/Board.sockets#schema'
 - exists:
     definition:
       key: Schemas.OfProperty/Board.banks
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfContainer/Board.banks#type'
+      key: 'Schemas.OfContainer/Board.banks#schema'
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfObject/Board.banks#type#element'
+      key: 'Schemas.OfObject/Board.banks#schema#element'
       properties:
         ref: false
 - exists:
     definition:
-      key: 'Schemas.OfProperty/Board.banks#type#element.sockets'
+      key: 'Schemas.OfProperty/Board.banks#schema#element.sockets'
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfContainer/Board.banks#type#element.sockets#type'
+      key: 'Schemas.OfContainer/Board.banks#schema#element.sockets#schema'
       properties: {}
 - insert:
     relation:
@@ -564,13 +564,13 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.banks#type#element.sockets#type'
+                key: 'Schemas.OfContainer/Board.banks#schema#element.sockets#schema'
       - as_link:
           name: element
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfObject/Board.sockets#type#element'
+                key: 'Schemas.OfObject/Board.sockets#schema#element'
 - insert:
     relation:
       key: Schemas.OfRelation/Schemas.Indexing
@@ -581,7 +581,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.banks#type#element.sockets#type'
+                key: 'Schemas.OfContainer/Board.banks#schema#element.sockets#schema'
       - as_link:
           name: index
           mutations:
@@ -590,21 +590,21 @@
                 key: Schemas.OfScalar/Schemas.OfInt
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.HasSchema
     entries:
     - mutations:
       - as_link:
-          name: typed
+          name: member
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Board.banks#type#element.sockets'
+                key: 'Schemas.OfProperty/Board.banks#schema#element.sockets'
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.banks#type#element.sockets#type'
+                key: 'Schemas.OfContainer/Board.banks#schema#element.sockets#schema'
 - insert:
     relation:
       key: Schemas.OfRelation/Schemas.HasProperty
@@ -615,13 +615,13 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfObject/Board.banks#type#element'
+                key: 'Schemas.OfObject/Board.banks#schema#element'
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Board.banks#type#element.sockets'
+                key: 'Schemas.OfProperty/Board.banks#schema#element.sockets'
       - as_property:
           name: name
           mutations:
@@ -637,13 +637,13 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.banks#type'
+                key: 'Schemas.OfContainer/Board.banks#schema'
       - as_link:
           name: element
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfObject/Board.banks#type#element'
+                key: 'Schemas.OfObject/Board.banks#schema#element'
 - insert:
     relation:
       key: Schemas.OfRelation/Schemas.Indexing
@@ -654,7 +654,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.banks#type'
+                key: 'Schemas.OfContainer/Board.banks#schema'
       - as_link:
           name: index
           mutations:
@@ -663,11 +663,11 @@
                 key: Schemas.OfScalar/Schemas.OfInt
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.HasSchema
     entries:
     - mutations:
       - as_link:
-          name: typed
+          name: member
           mutations:
           - set:
               ref:
@@ -677,35 +677,35 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.banks#type'
+                key: 'Schemas.OfContainer/Board.banks#schema'
 - exists:
     definition:
       key: Schemas.OfProperty/Board.matrix
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfContainer/Board.matrix#type'
+      key: 'Schemas.OfContainer/Board.matrix#schema'
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfObject/Board.matrix#type#index'
+      key: 'Schemas.OfObject/Board.matrix#schema#index'
       properties:
         ref: false
 - exists:
     definition:
-      key: 'Schemas.OfProperty/Board.matrix#type#index.r'
+      key: 'Schemas.OfProperty/Board.matrix#schema#index.r'
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.HasSchema
     entries:
     - mutations:
       - as_link:
-          name: typed
+          name: member
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Board.matrix#type#index.r'
+                key: 'Schemas.OfProperty/Board.matrix#schema#index.r'
       - as_link:
           name: schema
           mutations:
@@ -714,19 +714,19 @@
                 key: Schemas.OfScalar/Schemas.OfInt
 - exists:
     definition:
-      key: 'Schemas.OfProperty/Board.matrix#type#index.c'
+      key: 'Schemas.OfProperty/Board.matrix#schema#index.c'
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.HasSchema
     entries:
     - mutations:
       - as_link:
-          name: typed
+          name: member
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Board.matrix#type#index.c'
+                key: 'Schemas.OfProperty/Board.matrix#schema#index.c'
       - as_link:
           name: schema
           mutations:
@@ -743,13 +743,13 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfObject/Board.matrix#type#index'
+                key: 'Schemas.OfObject/Board.matrix#schema#index'
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Board.matrix#type#index.r'
+                key: 'Schemas.OfProperty/Board.matrix#schema#index.r'
       - as_property:
           name: name
           mutations:
@@ -761,13 +761,13 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfObject/Board.matrix#type#index'
+                key: 'Schemas.OfObject/Board.matrix#schema#index'
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Board.matrix#type#index.c'
+                key: 'Schemas.OfProperty/Board.matrix#schema#index.c'
       - as_property:
           name: name
           mutations:
@@ -783,7 +783,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.matrix#type'
+                key: 'Schemas.OfContainer/Board.matrix#schema'
       - as_link:
           name: element
           mutations:
@@ -800,20 +800,20 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.matrix#type'
+                key: 'Schemas.OfContainer/Board.matrix#schema'
       - as_link:
           name: index
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfObject/Board.matrix#type#index'
+                key: 'Schemas.OfObject/Board.matrix#schema#index'
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.HasSchema
     entries:
     - mutations:
       - as_link:
-          name: typed
+          name: member
           mutations:
           - set:
               ref:
@@ -823,14 +823,14 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.matrix#type'
+                key: 'Schemas.OfContainer/Board.matrix#schema'
 - exists:
     definition:
       key: Schemas.OfProperty/Board.cells
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfContainer/Board.cells#type'
+      key: 'Schemas.OfContainer/Board.cells#schema'
       properties:
         layout: sparse
 - insert:
@@ -843,7 +843,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.cells#type'
+                key: 'Schemas.OfContainer/Board.cells#schema'
       - as_link:
           name: element
           mutations:
@@ -860,7 +860,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.cells#type'
+                key: 'Schemas.OfContainer/Board.cells#schema'
       - as_link:
           name: index
           mutations:
@@ -869,11 +869,11 @@
                 key: Schemas.OfScalar/Schemas.OfInt
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.HasSchema
     entries:
     - mutations:
       - as_link:
-          name: typed
+          name: member
           mutations:
           - set:
               ref:
@@ -883,14 +883,14 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.cells#type'
+                key: 'Schemas.OfContainer/Board.cells#schema'
 - exists:
     definition:
       key: Schemas.OfProperty/Board.attrs
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfContainer/Board.attrs#type'
+      key: 'Schemas.OfContainer/Board.attrs#schema'
       properties: {}
 - insert:
     relation:
@@ -902,7 +902,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.attrs#type'
+                key: 'Schemas.OfContainer/Board.attrs#schema'
       - as_link:
           name: element
           mutations:
@@ -919,7 +919,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.attrs#type'
+                key: 'Schemas.OfContainer/Board.attrs#schema'
       - as_link:
           name: index
           mutations:
@@ -928,11 +928,11 @@
                 key: Schemas.OfScalar/Schemas.OfStr
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.HasSchema
     entries:
     - mutations:
       - as_link:
-          name: typed
+          name: member
           mutations:
           - set:
               ref:
@@ -942,14 +942,14 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.attrs#type'
+                key: 'Schemas.OfContainer/Board.attrs#schema'
 - exists:
     definition:
       key: Schemas.OfProperty/Board.weights
       properties: {}
 - exists:
     definition:
-      key: 'Schemas.OfContainer/Board.weights#type'
+      key: 'Schemas.OfContainer/Board.weights#schema'
       properties: {}
 - insert:
     relation:
@@ -961,7 +961,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.weights#type'
+                key: 'Schemas.OfContainer/Board.weights#schema'
       - as_link:
           name: element
           mutations:
@@ -978,7 +978,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.weights#type'
+                key: 'Schemas.OfContainer/Board.weights#schema'
       - as_link:
           name: index
           mutations:
@@ -987,11 +987,11 @@
                 key: Schemas.OfScalar/Schemas.OfFloat
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Typing
+      key: Schemas.OfRelation/Schemas.HasSchema
     entries:
     - mutations:
       - as_link:
-          name: typed
+          name: member
           mutations:
           - set:
               ref:
@@ -1001,7 +1001,7 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfContainer/Board.weights#type'
+                key: 'Schemas.OfContainer/Board.weights#schema'
 - insert:
     relation:
       key: Schemas.OfRelation/Schemas.HasProperty

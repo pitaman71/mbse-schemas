@@ -77,7 +77,7 @@ _SELECT = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
 
 
 def _any_of(read: Any) -> Any:
-    """The value of any type a `Visitors.OfAny` holds: a scalar, a visitor of its own kind, or None."""
+    """The value of any schema a `Visitors.OfAny` holds: a scalar, a visitor of its own kind, or None."""
     found: list[Any] = []
     read.as_scalar(lambda s: found.extend([] if s.get() is None else [s.get()]) or s)
     for select in ("as_object", "as_union", "as_intersection", "as_container"):
@@ -86,7 +86,7 @@ def _any_of(read: Any) -> Any:
 
 
 def _own(value: Any) -> Any:
-    """The type a value of any type has: a scalar's, or its visitor's schema."""
+    """The type a value of any schema has: a scalar's, or its visitor's schema."""
     return Schemas.OfScalar.Data(type(value)) if type(value) in Schemas.SCALAR_TYPES else value.as_schema()
 
 
@@ -148,9 +148,9 @@ def _compare(schema: Any, a: Any, b: Any) -> Result:
         return _objects(held, a, b, deep=True)
     if isinstance(held, Schemas.OfContainer.Data):
         return _containers(held, a, b)
-    if isinstance(held, Schemas.OfAny.Value):  # values of any type: comparable under one type only
+    if isinstance(held, Schemas.OfAny.Value):  # values of any schema: comparable under one type only
         return _compare(_own(a), a, b) if _same_type(_own(a), _own(b)) else None
-    return _all_equal([_compare(m.type, _read_member(getattr(a, name), m.type), _read_member(getattr(b, name), m.type))
+    return _all_equal([_compare(m.schema, _read_member(getattr(a, name), m.schema), _read_member(getattr(b, name), m.schema))
                        for name, m in held.properties.items()])
 
 
@@ -180,8 +180,8 @@ def _containers(schema: Schemas.OfContainer.Data, a: Any, b: Any) -> Result:
 
 def _objects(schema: Schemas.OfObject.Data, a: Any, b: Any, deep: bool) -> Result:
     """Two objects of `schema`: their properties, and with `deep`, their entries."""
-    results = [_compare(prop.type, _read_property(getattr(a, name), prop.type),
-                        _read_property(getattr(b, name), prop.type)) for name, prop in schema.properties.items()]
+    results = [_compare(prop.schema, _read_property(getattr(a, name), prop.schema),
+                        _read_property(getattr(b, name), prop.schema)) for name, prop in schema.properties.items()]
     if deep:
         results += [_adjacencies(adjacency, list(getattr(a, name)), list(getattr(b, name)))
                     for name, adjacency in schema.adjacencies.items()]
@@ -199,7 +199,7 @@ def _adjacencies(adjacency: Schemas.OfAdjacency.Data, a: list[Any], b: list[Any]
 def _entries(adjacency: Schemas.OfAdjacency.Data, a: Any, b: Any) -> Result:
     relation = adjacency.relation
     links = [_links(getattr(a, name), getattr(b, name)) for name in relation.entry.links if name != adjacency.me]
-    values = [_compare(prop.type, _read_property(getattr(a, name), prop.type), _read_property(getattr(b, name), prop.type))
+    values = [_compare(prop.schema, _read_property(getattr(a, name), prop.schema), _read_property(getattr(b, name), prop.schema))
               for name, prop in relation.entry.properties.items()]
     return _all_equal(links + values)
 
@@ -250,8 +250,8 @@ class OfProperty:
     def compare(self, other: OfProperty) -> Result:
         if self._read is None or other._read is None:
             return 0 if self._read is None and other._read is None else None
-        schema = self._read.as_schema().type
-        if not _same_type(schema, other._read.as_schema().type):
+        schema = self._read.as_schema().schema
+        if not _same_type(schema, other._read.as_schema().schema):
             return None
         return _compare(schema, _read_property(self._read, schema), _read_property(other._read, schema))
 

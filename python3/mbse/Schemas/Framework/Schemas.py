@@ -119,7 +119,7 @@ def _parameter_problems(parameters: dict[str, _ParameterData]) -> list[str]:
 
 
 _BASIC_NAMES = {bool: "bool", int: "int", float: "float", str: "str", bytes: "bytes"}
-"""Each basic scalar's tag, a value of any type's on the wire: mbse-expressions' Basic dialect's names."""
+"""Each basic scalar's tag, a value of any schema's on the wire: mbse-expressions' Basic dialect's names."""
 _HOSTS = {f"Schemas.Of{tag.capitalize()}": host for host, tag in _BASIC_NAMES.items()}
 """The basic scalars, the only scalar schemas, by name, each mapping to its host type (docs/proposals/store-overhaul,
 Decided, 8 and 22)."""
@@ -149,7 +149,7 @@ class _ScalarData:
 
     @property
     def tag(self) -> str | None:
-        """The basic scalar's tag (`int`), which a value of any type is tagged with on the wire, or None."""
+        """The basic scalar's tag (`int`), which a value of any schema is tagged with on the wire, or None."""
         return None if self.type is None else _BASIC_NAMES[self.type]
 
     def host(self) -> type[Scalar]:
@@ -223,7 +223,7 @@ class OfScalar:
 @dataclass(eq=False)
 class _PropertyData:
     name: str = ""
-    type: Any = None  # OfAny.Data
+    schema: Any = None  # OfAny.Data
     description: str | None = None
 
 
@@ -240,7 +240,7 @@ class _SymbolData:
     reference object schema, which a predicate's symbols require and an entry's links may leave unset (None)."""
 
     name: str = ""
-    type: Any = None  # OfAny.Data
+    schema: Any = None  # OfAny.Data
     description: str | None = None
 
 
@@ -250,10 +250,10 @@ class OfSymbol:
 
 def _symbol_problems(symbol: _SymbolData) -> list[str]:
     """A symbol's schema, when it has one, is a reference object schema."""
-    if symbol.type is None:
+    if symbol.schema is None:
         return _description_problems(symbol.description)
-    problems = _validate(symbol.type)
-    target = symbol.type
+    problems = _validate(symbol.schema)
+    target = symbol.schema
     if not (isinstance(target, _ObjectData) and target.ref):
         problems.append("a symbol stands for a reference object, so its schema is a reference object schema")
     return problems + _description_problems(symbol.description)
@@ -280,7 +280,7 @@ class _EntryData:
         for name, link in self.links.items():
             problems += [f"link {name!r}: {p}" for p in _symbol_problems(link)]
         for name, prop in self.properties.items():
-            problems += [f"property {name!r}: {p}" for p in _validate(prop.type) + _embedded_problems(prop.type)
+            problems += [f"property {name!r}: {p}" for p in _validate(prop.schema) + _embedded_problems(prop.schema)
                          + _description_problems(prop.description)]
         return problems
 
@@ -375,7 +375,7 @@ _VALIDATING: set[int] = set()
 
 def _once(validate: Callable[[Any], list[str]]) -> Callable[[Any], list[str]]:
     """A schema's `validate`, for a kind whose values hold others' (an object, a union, an intersection, a container, a
-    value of any type): a schema that holds itself has its problems reported once, where it is first reached."""
+    value of any schema): a schema that holds itself has its problems reported once, where it is first reached."""
 
     def guarded(self: Any) -> list[str]:
         if id(self) in _VALIDATING:
@@ -457,7 +457,7 @@ class _ObjectData:
         if clashes:
             problems.append(f"names used as both property and adjacency: {sorted(clashes)}")
         for name, prop in self.properties.items():
-            problems += [f"property {name!r}: {p}" for p in _validate(prop.type) + _embedded_problems(prop.type)
+            problems += [f"property {name!r}: {p}" for p in _validate(prop.schema) + _embedded_problems(prop.schema)
                          + _description_problems(prop.description)]
         for adjacency in (*self.adjacencies.values(), *self.anonymous):
             problems += adjacency.validate()
@@ -480,7 +480,7 @@ class _MemberData:
     """A named member of a union (a branch) or of an intersection (a part)."""
 
     name: str = ""
-    type: Any = None  # OfAny.Data
+    schema: Any = None  # OfAny.Data
     description: str | None = None
 
 
@@ -490,7 +490,7 @@ def _member_problems(a_kind: str, member: str, plural: str, members: tuple[_Memb
     problems = _reserved(m.name for m in members)
     if len(members) < 2:
         problems.append(f"{a_kind} needs at least two {plural}")
-    if len({type(m.type) for m in members}) > 1:
+    if len({type(m.schema) for m in members}) > 1:
         problems.append(f"{kind} {plural} must all be the same kind")
     seen: set[str] = set()
     for i, m in enumerate(members):
@@ -516,9 +516,9 @@ def _flat_union_problems(branches: tuple[_MemberData, ...]) -> list[str]:
     problems: list[str] = []
     seen: dict[Any, str] = {}
     for branch in branches:
-        key = _runtime(branch.type)
+        key = _runtime(branch.schema)
         if key in seen:
-            problems.append(f"flat union: branches {seen[key]!r} and {branch.name!r} are not told apart by type")
+            problems.append(f"flat union: branches {seen[key]!r} and {branch.name!r} are not told apart by schema")
         seen.setdefault(key, branch.name)
     return problems
 
@@ -528,7 +528,7 @@ def _flat_intersection_problems(parts: tuple[_MemberData, ...]) -> list[str]:
     problems: list[str] = []
     seen: dict[str, str] = {}
     for part in parts:
-        schema = part.type
+        schema = part.schema
         if not isinstance(schema, _ObjectData):
             problems.append(f"flat intersection: part {part.name!r} is not an object schema")
             continue
@@ -607,7 +607,7 @@ def _index_kind(index: Any) -> str | None:
     if isinstance(index, _ScalarData):
         return "ordered" if index.type in _ORDERED else "hashable"
     if isinstance(index, _ObjectData) and not index.ref and index.properties:
-        kinds = {_index_kind(prop.type) if isinstance(prop.type, _ScalarData) else None
+        kinds = {_index_kind(prop.schema) if isinstance(prop.schema, _ScalarData) else None
                  for prop in index.properties.values()}
         return None if None in kinds else "hashable" if "hashable" in kinds else "ordered"
     return None
@@ -617,7 +617,7 @@ def _integer_like(index: Any) -> bool:
     """Whether an index is an int, or a value object of ints: a dense container's positions, by default."""
     if isinstance(index, _ScalarData):
         return index.type is int
-    return _index_kind(index) == "ordered" and all(p.type.type is int for p in index.properties.values())
+    return _index_kind(index) == "ordered" and all(p.schema.type is int for p in index.properties.values())
 
 
 @dataclass(eq=False)
@@ -664,7 +664,7 @@ class OfContainer:
     Data = _ContainerData
 
 
-# --- OfAny.Value: a value of any type ---
+# --- OfAny.Value: a value of any schema ---
 
 
 def plain_forms(schema: Any) -> frozenset[str]:
@@ -682,7 +682,7 @@ def plain_forms(schema: Any) -> frozenset[str]:
         tensor = held.arrangement == "dense" and isinstance(index, _ObjectData)
         return frozenset({"list", "mapping"}) if tensor else frozenset({"list"})
     if isinstance(held, _AnyValueData):
-        return frozenset().union(*map(plain_forms, held.types)) if held.types else frozenset({"mapping"})
+        return frozenset().union(*map(plain_forms, held.schemas)) if held.schemas else frozenset({"mapping"})
     return frozenset({"mapping"})
 
 
@@ -697,11 +697,11 @@ def _shown_type(schema: Any) -> str:
 
 @dataclass(eq=False)
 class _AnyValueData:
-    """A value of any type: of one of `types`, where they are given (an `OfAny` restricted to them), else of any type.
-    Restricted, a value is written bare, its type the one whose plain form it takes; unrestricted, it is tagged with its
-    type, a basic scalar's tag or a registered schema's name."""
+    """A value of any schema: of one of `schemas`, where they are given (an `OfAny` restricted to them), else of any
+    schema. Restricted, a value is written bare, its schema the one whose plain form it takes; unrestricted, it is
+    tagged with its schema, a basic scalar's tag or a registered schema's name."""
 
-    types: tuple[Any, ...] = ()  # OfAny.Data each
+    schemas: tuple[Any, ...] = ()  # OfAny.Data each
     name: str | None = None
     description: str | None = None
     parameters: dict[str, _ParameterData] = field(default_factory=dict)
@@ -710,18 +710,18 @@ class _AnyValueData:
     def validate(self) -> list[str]:
         problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
         valid = []
-        for schema in self.types:
+        for schema in self.schemas:
             if not isinstance(schema, _KINDS):
-                problems.append(f"an OfAny's types are schemas, got {schema!r}")
+                problems.append(f"an OfAny holds schemas, got {schema!r}")
             elif isinstance(schema, _AnyValueData):
-                problems.append("an OfAny's types are schemas of other kinds, not an OfAny")
+                problems.append("an OfAny holds schemas of other kinds, not an OfAny")
             else:
                 valid.append(schema)
                 problems += [f"{_shown_type(schema)}: {p}" for p in _validate(schema)]
         for i, a in enumerate(valid):
             for b in valid[i + 1:]:
                 if plain_forms(a) & plain_forms(b):
-                    problems.append(f"an OfAny's types {_shown_type(a)} and {_shown_type(b)} are not told apart on the "
+                    problems.append(f"an OfAny's schemas {_shown_type(a)} and {_shown_type(b)} are not told apart on the "
                                     "wire")
         return problems
 
@@ -746,7 +746,7 @@ class _PredicateData:
         if clashes:
             problems.append(f"names used as both symbol and parameter: {sorted(clashes)}")
         for name, symbol in self.symbols.items():
-            if symbol.type is None:
+            if symbol.schema is None:
                 problems.append(f"symbol {name!r} needs a schema")
             problems += [f"symbol {name!r}: {p}" for p in _symbol_problems(symbol)]
         return problems
@@ -766,11 +766,11 @@ _KINDS = (_ScalarData, _ObjectData, _UnionData, _IntersectionData, _ContainerDat
 # --- Refinement ---
 
 _KIND_NOUNS = {_ScalarData: "a scalar schema", _ObjectData: "an object schema", _ContainerData: "a container schema",
-               _UnionData: "a union", _IntersectionData: "an intersection", _AnyValueData: "a value of any type"}
+               _UnionData: "a union", _IntersectionData: "an intersection", _AnyValueData: "a value of any schema"}
 
 
 def _kind_noun(schema: Any) -> str:
-    return _KIND_NOUNS.get(type(schema), "something not a type")
+    return _KIND_NOUNS.get(type(schema), "something holding no values")
 
 
 def is_a(schema: Any, base: Any) -> bool:
@@ -812,7 +812,7 @@ def _refinement_problems(schema: Any) -> list[str]:
                                                   "refines is one"]
     for name, prop in base.properties.items():
         own = schema.properties.get(name)
-        if own is not None and own is not prop and not _narrows(own.type, prop.type):
+        if own is not None and own is not prop and not _narrows(own.schema, prop.schema):
             problems.append(f"property {name!r} cannot be confirmed to narrow the refined schema's")
     for name, adjacency in base.adjacencies.items():
         own = schema.adjacencies.get(name)
@@ -864,8 +864,8 @@ def _members_of(schema: Any) -> list[Any]:
     if isinstance(schema, _ContainerData):
         return [schema.index, schema.element]
     if isinstance(schema, _AnyValueData):
-        return list(schema.types)
-    return [m.type for m in schema.properties.values()] if isinstance(schema, (_ObjectData, _UnionData, _IntersectionData)) else []
+        return list(schema.schemas)
+    return [m.schema for m in schema.properties.values()] if isinstance(schema, (_ObjectData, _UnionData, _IntersectionData)) else []
 
 
 def _embedded_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[str]:
@@ -873,7 +873,7 @@ def _embedded_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[
     not a reference object schema; nor are the schemas of the objects a union or an intersection holds. `seen` holds
     the schemas on the way, so that one that holds itself is checked once."""
     if isinstance(schema, _ObjectData):
-        return ["a reference object schema cannot be a property's type"] if schema.ref else []
+        return ["a reference object schema cannot be a property's schema"] if schema.ref else []
     if id(schema) in seen:
         return []
     inner = seen | {id(schema)}
@@ -882,7 +882,7 @@ def _embedded_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[
 
 class OfAny:
     """Where a schema of any kind is expected. `OfAny.Data` is any schema kind's data; `OfAny.Value`, the kind of a value
-    of any type, or of one of the types it is restricted to."""
+    of any schema, or of one of the types it is restricted to."""
 
     Data = _ScalarData | _ObjectData | _UnionData | _IntersectionData | _ContainerData | _AnyValueData
     Value = _AnyValueData

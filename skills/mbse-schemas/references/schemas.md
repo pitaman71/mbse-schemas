@@ -19,11 +19,11 @@ Contact = store.Schemas.OfObject(lambda o: (
     o
     .name("crm.Contact")
     .ref(True)
-    .properties([lambda t: t.name("given_name").type([Text])])
+    .properties([lambda t: t.name("given_name").schema([Text])])
 ))
 
 # Extend in place: the schema and a callback update it, as an object and a callback update data.
-store.Schemas.OfObject(Contact, lambda o: o.properties([lambda t: t.name("age").type([Int])]))
+store.Schemas.OfObject(Contact, lambda o: o.properties([lambda t: t.name("age").schema([Int])]))
 assert list(Contact.properties) == ["given_name", "age"]
 
 # Remove a member: the adjacency's visitor removes the entries agreeing with a template.
@@ -32,7 +32,7 @@ assert list(Contact.properties) == ["given_name"]
 
 # A new version beside the old: a named schema's identity is its name, so clone it under another, in the store.
 V2 = Builders.OfObject.Builder(Contact, store=store).name("crm.Contact.v2").clone()
-store.Schemas.OfObject(V2, lambda o: o.properties([lambda t: t.name("email").type([Text])]))
+store.Schemas.OfObject(V2, lambda o: o.properties([lambda t: t.name("email").schema([Text])]))
 assert list(V2.properties) == ["given_name", "email"] and list(Contact.properties) == ["given_name"]
 
 # A refinement: the members of the schema it refines, and its own; its objects are that schema's objects too.
@@ -41,14 +41,14 @@ Customer = store.Schemas.OfObject(lambda o: (
     .name("crm.Customer")
     .ref(True)
     .refines([Contact])
-    .properties([lambda t: t.name("account").type([Text])])
+    .properties([lambda t: t.name("account").schema([Text])])
 ))
 assert list(Customer.properties) == ["given_name", "account"]
 
 # Generate: a program builds schemas from whatever describes them.
 fields = {"street": Text, "number": Int}
 Address = store.Schemas.OfObject(lambda o: o.name("crm.Address").properties([
-    lambda t, name=name, of=of: t.name(name).type([of]) for name, of in fields.items()
+    lambda t, name=name, of=of: t.name(name).schema([of]) for name, of in fields.items()
 ]))
 
 # Read a schema through its builder, read-only: its members are its plain schema's, the store's Schemas.OfX.
@@ -73,11 +73,11 @@ const Contact = store.Schemas.OfObject((o: any) => (
   o
     .name("crm.Contact")
     .ref(true)
-    .properties([(t: any) => t.name("given_name").type([Text])])
+    .properties([(t: any) => t.name("given_name").schema([Text])])
 ));
 
 // Extend in place: the schema and a callback update it, as an object and a callback update data.
-store.Schemas.OfObject(Contact, (o: any) => o.properties([(t: any) => t.name("age").type([Int])]));
+store.Schemas.OfObject(Contact, (o: any) => o.properties([(t: any) => t.name("age").schema([Int])]));
 check([...Contact.properties.keys()].join() === "given_name,age");
 
 // Remove a member: the adjacency's visitor removes the entries agreeing with a template.
@@ -86,7 +86,7 @@ check([...Contact.properties.keys()].join() === "given_name");
 
 // A new version beside the old: a named schema's identity is its name, so clone it under another, in the store.
 const V2 = new Builders.OfObject.Builder(Contact, true, store).name("crm.Contact.v2").clone();
-store.Schemas.OfObject(V2, (o: any) => o.properties([(t: any) => t.name("email").type([Text])]));
+store.Schemas.OfObject(V2, (o: any) => o.properties([(t: any) => t.name("email").schema([Text])]));
 check([...V2.properties.keys()].join() === "given_name,email" && Contact.properties.size === 1);
 
 // A refinement: the members of the schema it refines, and its own; its objects are that schema's objects too.
@@ -95,14 +95,14 @@ const Customer = store.Schemas.OfObject((o: any) => (
     .name("crm.Customer")
     .ref(true)
     .refines([Contact])
-    .properties([(t: any) => t.name("account").type([Text])])
+    .properties([(t: any) => t.name("account").schema([Text])])
 ));
 check([...Customer.properties.keys()].join() === "given_name,account");
 
 // Generate: a program builds schemas from whatever describes them.
 const fields = new Map([["street", Text], ["number", Int]]);
 const Address = store.Schemas.OfObject((o: any) => o.name("crm.Address").properties(
-  [...fields].map(([name, of]) => (t: any) => t.name(name).type([of])),
+  [...fields].map(([name, of]) => (t: any) => t.name(name).schema([of])),
 ));
 
 // Read a schema through its builder, read-only: its members are its plain schema's, the store's Schemas.OfX.

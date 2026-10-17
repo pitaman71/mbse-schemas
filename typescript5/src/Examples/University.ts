@@ -14,7 +14,7 @@ const store: any = new Builders.Store();
 const Text = store.Schemas.OfStr.as_schema(); // the store's own basic scalar
 
 function text(name: string) {
-  return (t: any) => t.name(name).type([Text]);
+  return (t: any) => t.name(name).schema([Text]);
 }
 
 // --- Schemas ---
@@ -40,9 +40,9 @@ const Enrollment = store.Schemas.OfRelation((r: any) => (
       (t: any) => t.name("term"),
     ])
     .properties([
-      (t: any) => t.name("credits").type([store.Schemas.OfInt]),
-      (t: any) => t.name("score").type([store.Schemas.OfFloat]),
-      (t: any) => t.name("audit").type([store.Schemas.OfBool]),
+      (t: any) => t.name("credits").schema([store.Schemas.OfInt]),
+      (t: any) => t.name("score").schema([store.Schemas.OfFloat]),
+      (t: any) => t.name("audit").schema([store.Schemas.OfBool]),
     ])
     .uniques(["score", "audit", "credits"]) // (student, course, term) determine the rest
 ));

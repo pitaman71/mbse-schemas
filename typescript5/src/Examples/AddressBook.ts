@@ -17,15 +17,15 @@ const IntlAddress = store.Schemas.OfObject((o: any) => (
     .name("IntlAddress")
     .ref(true)
     .properties([
-      (t: any) => t.name("street1").type([Text]),
-      (t: any) => t.name("street2").type([Text]),
-      (t: any) => t.name("street3").type([Text]),
-      (t: any) => t.name("dependent_locality").type([Text]), // neighborhood, district
-      (t: any) => t.name("locality").type([Text]), // city, town, post town
-      (t: any) => t.name("administrative_area").type([Text]), // state, province, prefecture
-      (t: any) => t.name("postal_code").type([Text]),
-      (t: any) => t.name("sorting_code").type([Text]), // e.g. French CEDEX
-      (t: any) => t.name("country_code").type([Text]), // ISO 3166-1 alpha-2
+      (t: any) => t.name("street1").schema([Text]),
+      (t: any) => t.name("street2").schema([Text]),
+      (t: any) => t.name("street3").schema([Text]),
+      (t: any) => t.name("dependent_locality").schema([Text]), // neighborhood, district
+      (t: any) => t.name("locality").schema([Text]), // city, town, post town
+      (t: any) => t.name("administrative_area").schema([Text]), // state, province, prefecture
+      (t: any) => t.name("postal_code").schema([Text]),
+      (t: any) => t.name("sorting_code").schema([Text]), // e.g. French CEDEX
+      (t: any) => t.name("country_code").schema([Text]), // ISO 3166-1 alpha-2
     ])
 ));
 
@@ -34,10 +34,10 @@ const Contact = store.Schemas.OfObject((o: any) => (
     .name("Contact")
     .ref(true)
     .properties([
-      (t: any) => t.name("given_name").type([Text]),
-      (t: any) => t.name("family_name").type([Text]),
-      (t: any) => t.name("birth_date").type([Text]), // ISO 8601 calendar date, YYYY-MM-DD
-      (t: any) => t.name("preferred_language").type([Text]), // BCP 47 tag, e.g. 'fr-CA'
+      (t: any) => t.name("given_name").schema([Text]),
+      (t: any) => t.name("family_name").schema([Text]),
+      (t: any) => t.name("birth_date").schema([Text]), // ISO 8601 calendar date, YYYY-MM-DD
+      (t: any) => t.name("preferred_language").schema([Text]), // BCP 47 tag, e.g. 'fr-CA'
     ])
 ));
 
@@ -46,7 +46,7 @@ const PhoneNumber = store.Schemas.OfObject((o: any) => (
     .name("PhoneNumber")
     .ref(true)
     .properties([
-      (t: any) => t.name("number").type([Text]), // ITU-T E.164, e.g. '+14155550100'
+      (t: any) => t.name("number").schema([Text]), // ITU-T E.164, e.g. '+14155550100'
     ])
 ));
 
@@ -55,7 +55,7 @@ const EmailAddress = store.Schemas.OfObject((o: any) => (
     .name("EmailAddress")
     .ref(true)
     .properties([
-      (t: any) => t.name("address").type([Text]), // RFC 5322 addr-spec
+      (t: any) => t.name("address").schema([Text]), // RFC 5322 addr-spec
     ])
 ));
 
@@ -69,7 +69,7 @@ const ContactAddresses = store.Schemas.OfRelation((r: any) => (
       (t: any) => t.name("address"),
     ])
     .properties([
-      (t: any) => t.name("label").type([Text]), // e.g. 'home', 'work'
+      (t: any) => t.name("label").schema([Text]), // e.g. 'home', 'work'
     ])
 ));
 
@@ -81,7 +81,7 @@ const ContactPhones = store.Schemas.OfRelation((r: any) => (
       (t: any) => t.name("phone"),
     ])
     .properties([
-      (t: any) => t.name("label").type([Text]), // e.g. 'mobile', 'work'
+      (t: any) => t.name("label").schema([Text]), // e.g. 'mobile', 'work'
     ])
 ));
 
@@ -93,7 +93,7 @@ const ContactEmails = store.Schemas.OfRelation((r: any) => (
       (t: any) => t.name("email"),
     ])
     .properties([
-      (t: any) => t.name("label").type([Text]), // e.g. 'personal', 'work'
+      (t: any) => t.name("label").schema([Text]), // e.g. 'personal', 'work'
     ])
 ));
 

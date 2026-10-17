@@ -21,11 +21,11 @@ const Sample = store.Schemas.OfObject((o: any) => (
     .name("Sample")
     .ref(true)
     .properties([
-      (t: any) => t.name("label").type([Text]),
-      (t: any) => t.name("payload").type([store.Schemas.OfBytes]),
-      (t: any) => t.name("count").type([Int]),
-      (t: any) => t.name("ratio").type([store.Schemas.OfFloat]),
-      (t: any) => t.name("flag").type([store.Schemas.OfBool]),
+      (t: any) => t.name("label").schema([Text]),
+      (t: any) => t.name("payload").schema([store.Schemas.OfBytes]),
+      (t: any) => t.name("count").schema([Int]),
+      (t: any) => t.name("ratio").schema([store.Schemas.OfFloat]),
+      (t: any) => t.name("flag").schema([store.Schemas.OfBool]),
     ])
 ));
 
@@ -35,17 +35,17 @@ const Currency = store.Schemas.OfObject((o: any) => (
     .name("iso4217.Currency")
     .ref(true)
     .properties([
-      (t: any) => t.name("code").type([Text]), // ISO 4217 alpha, e.g. 'JPY'
-      (t: any) => t.name("numeric").type([Text]), // ISO 4217 numeric, e.g. '392'; keeps zeros
-      (t: any) => t.name("minor_units").type([Int]), // 0 for JPY, 2 for EUR, 3 for BHD
+      (t: any) => t.name("code").schema([Text]), // ISO 4217 alpha, e.g. 'JPY'
+      (t: any) => t.name("numeric").schema([Text]), // ISO 4217 numeric, e.g. '392'; keeps zeros
+      (t: any) => t.name("minor_units").schema([Int]), // 0 for JPY, 2 for EUR, 3 for BHD
     ])
 ));
-const Product = store.Schemas.OfObject((o: any) => o.name("Product").ref(true).properties([(t: any) => t.name("sku").type([Text])]));
+const Product = store.Schemas.OfObject((o: any) => o.name("Product").ref(true).properties([(t: any) => t.name("sku").schema([Text])]));
 const Money = store.Schemas.OfObject((o: any) => (
   o
     .name("Money")
     .ref(true)
-    .properties([(t: any) => t.name("amount").type([Int])]) // in minor units
+    .properties([(t: any) => t.name("amount").schema([Int])]) // in minor units
 ));
 
 // product -> [currency] -> money
@@ -56,7 +56,7 @@ const Prices = store.Schemas.OfRelation((r: any) => (
       (t: any) => t.name("product"),
       (t: any) => t.name("price"),
     ])
-    .properties([(t: any) => t.name("currency").type([Text])])
+    .properties([(t: any) => t.name("currency").schema([Text])])
     .uniques("price")
 ));
 // Which currency a money amount is in.
@@ -227,7 +227,7 @@ raises(AttributeError, () => {
 });
 
 // A schema named 'schema' is shadowed by the store's schema() method, but still reachable by name.
-const Shadowed = store.Schemas.OfObject((o: any) => o.name("schema").ref(true).properties([(t: any) => t.name("label").type([Text])]));
+const Shadowed = store.Schemas.OfObject((o: any) => o.name("schema").ref(true).properties([(t: any) => t.name("label").schema([Text])]));
 assert(store.schema("schema") === Shadowed && store.builder("schema").create().as_schema().name === "schema");
 
 console.log("Serialization: all checks passed");

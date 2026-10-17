@@ -23,12 +23,12 @@ Reading = store.Schemas.OfObject(lambda o: (
     .name('Reading')
     .ref(True)
     .properties([
-        lambda t: t.name('observed').type([Text]),  # ISO 8601, e.g. '2026-09-28T12:00:00Z'
-        lambda t: t.name('value').type([store.Schemas.OfFloat]),
-        lambda t: t.name('quality').type([store.Schemas.OfInt]),
-        lambda t: t.name('valid').type([store.Schemas.OfBool]),
-        lambda t: t.name('raw').type([store.Schemas.OfBytes]),
-        lambda t: t.name('note').type([Text]),
+        lambda t: t.name('observed').schema([Text]),  # ISO 8601, e.g. '2026-09-28T12:00:00Z'
+        lambda t: t.name('value').schema([store.Schemas.OfFloat]),
+        lambda t: t.name('quality').schema([store.Schemas.OfInt]),
+        lambda t: t.name('valid').schema([store.Schemas.OfBool]),
+        lambda t: t.name('raw').schema([store.Schemas.OfBytes]),
+        lambda t: t.name('note').schema([Text]),
     ])
 ))
 Station = store.Schemas.OfObject(lambda o: (
@@ -36,8 +36,8 @@ Station = store.Schemas.OfObject(lambda o: (
     .name('Station')
     .ref(True)
     .properties([
-        lambda t: t.name('wmo_id').type([Text]),  # e.g. '03772'; leading zeros matter
-        lambda t: t.name('name').type([Text]),
+        lambda t: t.name('wmo_id').schema([Text]),  # e.g. '03772'; leading zeros matter
+        lambda t: t.name('name').schema([Text]),
     ])
 ))
 Readings = store.Schemas.OfRelation(lambda r: (
@@ -47,7 +47,7 @@ Readings = store.Schemas.OfRelation(lambda r: (
         lambda t: t.name('station'),
         lambda t: t.name('reading'),
     ])
-    .properties([lambda t: t.name('sensor').type([Text])])
+    .properties([lambda t: t.name('sensor').schema([Text])])
     .uniques(['station', 'sensor'])  # each reading comes from one sensor of one station
 ))
 store.Schemas.OfObject(Station, lambda o: o.adjacencies([lambda t: t.name('readings').relation([Readings]).me('station')]))

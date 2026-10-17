@@ -6,7 +6,7 @@
  * Every schema object is a reference object: a kind of schema, and each of its members (a property, an adjacency, a
  * parameter, a symbol, a branch or a part). A property of a schema object holds a value (a name, a flag); every
  * reference from one schema object to another is a relation: a schema to its members (`Schemas.HasProperty`, ...), a
- * member to its type (`Schemas.Typing`), a refinement to what it refines (`Schemas.Refines`), and so on
+ * member to its schema (`Schemas.HasSchema`), a refinement to what it refines (`Schemas.Refines`), and so on
  * (`plainSchemas`, below): each store builds its own (docs/proposals/store-overhaul, Levels).
  *
  * Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over its plain schema (`Schemas.OfX`), as VISITOR_PATTERN.md
@@ -88,7 +88,7 @@ function scalarOf(held: unknown): unknown {
 
 /** A property's type: its meta-schema property's `type`; null where there is no meta-schema property. */
 function typeOf(schema: any): unknown {
-  return schema == null ? null : schema.type;
+  return schema == null ? null : schema.schema;
 }
 
 // --- Properties: values ---
@@ -500,7 +500,7 @@ class Members {
 }
 
 /** An adjacency whose entries the data holds as records (a union's branches, an intersection's parts): each entry
- * links, at `link`, a schema that exists, its type, and carries the record's other `fields` as its properties, its
+ * links, at `link`, a schema that exists, its schema, and carries the record's other `fields` as its properties, its
  * `name` and `description`; no object of its own stands between (docs/proposals/store-overhaul, Decided, 4). A record
  * is never written in place: an entry written gives its data a new one. */
 class Records extends Members {
@@ -510,7 +510,7 @@ class Records extends Members {
   }
 
   override referents(data: any): any[] {
-    return this.items(data).map((record) => record.type);
+    return this.items(data).map((record) => record.schema);
   }
 
   override links(value: unknown): boolean {
@@ -569,7 +569,7 @@ class AdjacencyMember extends Shelled {
     } else {
       throw new TypeError(`an entry, or a callback taking one, is expected; got ${repr(spec)}`);
     }
-    if (this._members instanceof Records) { // a record may lack its type: validation reports it
+    if (this._members instanceof Records) { // a record may lack its schema: validation reports it
       this._store([...this._held(), entry._referent]);
       return this._proxy;
     }
@@ -632,7 +632,7 @@ class AdjacencyMember extends Shelled {
         throw new TypeError(`link ${repr(this._members.link)} cannot link ${repr(item)}`);
       }
       if (this._members instanceof Records) {
-        checkHeld(this._builder, this._members.link, referent.type);
+        checkHeld(this._builder, this._members.link, referent.schema);
         this._store([...this._held(), referent]);
         continue;
       }
@@ -674,9 +674,9 @@ class Entry extends Shelled {
     return members instanceof Records ? members : null;
   }
 
-  /** The object its link links: a record's type, or the referent. */
+  /** The object its link links: a record's schema, or the referent. */
   _linked(): any {
-    return this._records() !== null ? this._referent.type : this._referent;
+    return this._records() !== null ? this._referent.schema : this._referent;
   }
 
   as_schema(): any {
@@ -739,9 +739,9 @@ class Entry extends Shelled {
   }
 
   _relink(referent: unknown, template: any[] | null): void {
-    if (this._records() !== null) { // a record's link is its type
+    if (this._records() !== null) { // a record's link is its schema
       this._fields.add(this._adjacency._members.link);
-      this._replaceRecord({ type: referent });
+      this._replaceRecord({ schema: referent });
       return;
     }
     this._referent = referent;
@@ -750,9 +750,9 @@ class Entry extends Shelled {
   }
 
   _agrees(referent: any): boolean {
-    if (this._records() !== null) { // each field written, and the type linked, agree
+    if (this._records() !== null) { // each field written, and the schema linked, agree
       const link = this._adjacency._members.link;
-      return [...this._fields].every((name) => name === link ? referent.type === this._referent.type
+      return [...this._fields].every((name) => name === link ? referent.schema === this._referent.schema
         : referent[name] === this._referent[name]);
     }
     if (this._name !== null && Object(referent).name !== this._name) return false;
@@ -868,7 +868,7 @@ class Them extends Shelled {
   /** The object linked: the one given, built, or updated; and the entry's name. A record's entry gives its record. */
   _result(): [any, string | null] {
     const members = this._entry._adjacency._members;
-    if (members instanceof Records) return [this._entry._referent, null]; // a record may lack its type: validation reports it
+    if (members instanceof Records) return [this._entry._referent, null]; // a record may lack its schema: validation reports it
     let builder = this._object;
     let referent = this._entry._referent;
     if (builder === null && referent === null && members.build !== null) {
@@ -1024,7 +1024,7 @@ function extensionProperty(prop: S.OfProperty.Data): Prop {
     put: (data, value) => {
       hidden(data, "_extended").set(name, value);
     },
-    container: prop.type instanceof S.OfContainer.Data,
+    container: prop.schema instanceof S.OfContainer.Data,
   });
   member.extension = true;
   return member;
@@ -1285,9 +1285,9 @@ abstract class Builder extends Shelled {
   }
 }
 
-/** The adjacency to the schema something has as its type, its evaluation type, of any kind (`Schemas.Typing`): a
- * schema that exists, such as `new Schemas.OfScalar.Data(BigInt)`. */
-function typed(field: string): Members {
+/** The adjacency to the schema of something's values, of any kind (`Schemas.HasSchema`): a schema that exists, such
+ * as the store's `Schemas.OfInt`. */
+function schemaOf(field: string): Members {
   return new Members("schema", { accepts: isSchema, ...one(field) });
 }
 
@@ -1317,13 +1317,12 @@ abstract class KindBuilder extends Builder {
 
 // --- Builders of members ---
 
-/** A builder of a member with a type: a property, a parameter, a symbol, a branch or a part. Its name is the entry's
- * that links it to its owner. */
-abstract class TypedBuilder extends Builder {
-  static override _table = extendTable(Builder._table, { description: new Prop(), type: typed("type") });
+/** A builder of a member with a schema: a property or a symbol. Its name is the entry's that links it to its owner. */
+abstract class MemberBuilder extends Builder {
+  static override _table = extendTable(Builder._table, { description: new Prop(), schema: schemaOf("schema") });
 }
 
-export class PropertyBuilder extends TypedBuilder {
+export class PropertyBuilder extends MemberBuilder {
   static override _data = S.OfProperty.Data;
   static override _meta = "OfProperty";
   static override _noun = "a property";
@@ -1337,7 +1336,7 @@ export class ParameterBuilder extends Builder {
   static override _table = extendTable(Builder._table, { description: new Prop() });
 }
 
-export class SymbolBuilder extends TypedBuilder {
+export class SymbolBuilder extends MemberBuilder {
   static override _data = S.OfSymbol.Data;
   static override _meta = "OfSymbol";
   static override _noun = "a symbol";
@@ -1437,7 +1436,7 @@ export class UnionBuilder extends KindBuilder {
   static override _noun = "a union";
   static override _table = extendTable(KindBuilder._table, {
     flat: new Prop(),
-    branches: new Records("type", S.OfUnion.Branch, ["name", "description"], { extensible: true, ...inOrder("branches") }),
+    branches: new Records("schema", S.OfUnion.Branch, ["name", "description"], { extensible: true, ...inOrder("branches") }),
   });
 }
 
@@ -1447,7 +1446,7 @@ export class IntersectionBuilder extends KindBuilder {
   static override _noun = "an intersection";
   static override _table = extendTable(KindBuilder._table, {
     flat: new Prop(),
-    parts: new Records("type", S.OfIntersection.Part, ["name", "description"], inOrder("parts")),
+    parts: new Records("schema", S.OfIntersection.Part, ["name", "description"], inOrder("parts")),
   });
 }
 
@@ -1473,13 +1472,13 @@ export class ContainerBuilder extends KindBuilder {
   }
 }
 
-/** A value of any type, or of one of `types`. */
+/** A value of any schema, or of one of `schemas`. */
 export class AnyValueBuilder extends KindBuilder {
   static override _data = S.OfAny.Value;
   static override _meta = "OfAny";
-  static override _noun = "a value of any type";
+  static override _noun = "a value of any schema";
   static override _table = extendTable(KindBuilder._table, {
-    types: new Members("schema", { accepts: isSchema, ...inOrder("types") }),
+    schemas: new Members("schema", { accepts: isSchema, ...inOrder("schemas") }),
   });
 }
 
@@ -1632,14 +1631,14 @@ type ObjectData = S.OfObject.Data;
 type RelationData = S.OfRelation.Data;
 
 /** A store's plain schemas of schemas (level 2) and its basic scalars, each its own (docs/proposals/store-overhaul,
- * Levels): `OfObject` is `Schemas.OfObject`, `OfInt` is `Schemas.OfInt`, `Typing` the relation `Schemas.Typing`. */
+ * Levels): `OfObject` is `Schemas.OfObject`, `OfInt` is `Schemas.OfInt`, `HasSchema` the relation `Schemas.HasSchema`. */
 export interface Plain {
   OfBool: S.OfScalar.Data; OfInt: S.OfScalar.Data; OfFloat: S.OfScalar.Data; OfStr: S.OfScalar.Data;
   OfBytes: S.OfScalar.Data;
   OfScalar: ObjectData; OfObject: ObjectData; OfUnion: ObjectData; OfIntersection: ObjectData; OfContainer: ObjectData;
   OfAny: ObjectData; OfRelation: ObjectData; OfPredicate: ObjectData; OfModule: ObjectData; OfProperty: ObjectData;
   OfParameter: ObjectData; OfSymbol: ObjectData; OfAdjacency: ObjectData;
-  Typing: RelationData; Refines: RelationData; Indexing: RelationData; Containing: RelationData; AnyOf: RelationData;
+  HasSchema: RelationData; Refines: RelationData; Indexing: RelationData; Containing: RelationData; AnyOf: RelationData;
   Relating: RelationData; HasParameter: RelationData; HasProperty: RelationData; HasAdjacency: RelationData;
   HasBranch: RelationData; HasPart: RelationData; HasSymbol: RelationData; HasLink: RelationData; Defines: RelationData;
 }
@@ -1663,7 +1662,7 @@ function plainSchemas(): Plain {
     return new ObjectBuilder()
       .name(`Schemas.${name}`)
       .ref(true)
-      .properties(properties.map(([n, s]) => (t: any) => t.name(n).type([s])))
+      .properties(properties.map(([n, s]) => (t: any) => t.name(n).schema([s])))
       .create();
   }
 
@@ -1682,9 +1681,9 @@ function plainSchemas(): Plain {
   meta.OfParameter = metaObject("OfParameter", [["description", Text]]); // a name, by its entry: a symbol for a schema
   meta.OfSymbol = metaObject("OfSymbol", [["description", Text]]);
   meta.OfAdjacency = metaObject("OfAdjacency", [["description", Text], ["me", Text]]);
-  const types = [meta.OfScalar, meta.OfObject, meta.OfUnion, meta.OfIntersection, meta.OfContainer, meta.OfAny];
-  const schemas = [...types, meta.OfRelation, meta.OfPredicate, meta.OfModule]; // whatever a module defines
-  const typed = [meta.OfProperty, meta.OfSymbol]; // each of a type
+  const valued = [meta.OfScalar, meta.OfObject, meta.OfUnion, meta.OfIntersection, meta.OfContainer, meta.OfAny]; // of values
+  const schemas = [...valued, meta.OfRelation, meta.OfPredicate, meta.OfModule]; // whatever a module defines
+  const members = [meta.OfProperty, meta.OfSymbol]; // each of a schema
 
   /** A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
    * `RELATIONS`): a keyed relation's entries have `name`; the member determines its owner and its name
@@ -1694,8 +1693,8 @@ function plainSchemas(): Plain {
   function metaRelation(name: string, links: [string, string], how: string): RelationData {
     const [first, second] = links;
     const builder = new RelationBuilder().name(`Schemas.${name}`).links(links.map((n) => (t: any) => t.name(n)));
-    if (how === "keyed" || how === "named") builder.properties([(t: any) => t.name("name").type([Text])]);
-    if (how === "named") builder.properties([(t: any) => t.name("description").type([Text])]);
+    if (how === "keyed" || how === "named") builder.properties([(t: any) => t.name("name").schema([Text])]);
+    if (how === "named") builder.properties([(t: any) => t.name("description").schema([Text])]);
     const determined = new Map<string, string[][] | null>([["one", [[second]]], ["owned", [[first]]],
       ["keyed", [[first, "name"], [second]]], ["named", [[first, "name"]]], ["list", null]]).get(how);
     return builder.uniques(determined).create();
@@ -1714,17 +1713,17 @@ function plainSchemas(): Plain {
    * Decided, 10). A member belongs to one owner (`Has*`: the member determines its owner); a schema object has at most
    * one type, refined schema, index, element or relation (the first determines the second); types are lists. */
   const RELATIONS: [keyof Plain, [string, ObjectData[], string], [string, ObjectData[]], string][] = [
-    ["Typing", ["typed", typed, "type"], ["schema", types], "one"],
-    ["Refines", ["refinement", [], ""], ["refined", types], "one"],
-    ["Indexing", ["container", [meta.OfContainer], "index"], ["index", types], "one"],
-    ["Containing", ["container", [meta.OfContainer], "element"], ["element", types], "one"],
-    ["AnyOf", ["any", [meta.OfAny], "types"], ["schema", types], "list"],
+    ["HasSchema", ["member", members, "schema"], ["schema", valued], "one"],
+    ["Refines", ["refinement", [], ""], ["refined", valued], "one"],
+    ["Indexing", ["container", [meta.OfContainer], "index"], ["index", valued], "one"],
+    ["Containing", ["container", [meta.OfContainer], "element"], ["element", valued], "one"],
+    ["AnyOf", ["any", [meta.OfAny], "schemas"], ["schema", valued], "list"],
     ["Relating", ["adjacency", [meta.OfAdjacency], "relation"], ["relation", [meta.OfRelation]], "one"],
     ["HasParameter", ["owner", schemas, "parameters"], ["parameter", [meta.OfParameter]], "keyed"],
     ["HasProperty", ["owner", [], ""], ["property", [meta.OfProperty]], "keyed"],
     ["HasAdjacency", ["owner", [meta.OfObject], "adjacencies"], ["adjacency", [meta.OfAdjacency]], "keyed"],
-    ["HasBranch", ["owner", [meta.OfUnion], "branches"], ["type", types], "named"],
-    ["HasPart", ["owner", [meta.OfIntersection], "parts"], ["type", types], "named"],
+    ["HasBranch", ["owner", [meta.OfUnion], "branches"], ["schema", valued], "named"],
+    ["HasPart", ["owner", [meta.OfIntersection], "parts"], ["schema", valued], "named"],
     ["HasSymbol", ["owner", [meta.OfPredicate], "symbols"], ["symbol", [meta.OfSymbol]], "keyed"],
     ["HasLink", ["owner", [meta.OfRelation], "links"], ["link", [meta.OfSymbol]], "keyed"],
     ["Defines", ["module", [meta.OfModule], "schemas"], ["schema", schemas], "keyed"],
@@ -2117,7 +2116,7 @@ function key(kind: string, identity: string): string {
 }
 
 /** `store.moduleName.[...moduleName].schemaName`: a schema's name, one part per member; called, it builds, and given
- * where an object is expected, it is the schema it names (`.type([store.Schemas.OfInt])`); `as_schema()` gives it. */
+ * where an object is expected, it is the schema it names (`.schema([store.Schemas.OfInt])`); `as_schema()` gives it. */
 function makePath(store: Store, name: string): any {
   const asSchema = (): unknown => store.registered(name);
   const path = new Proxy((...args: unknown[]) => store._build(name, args), {

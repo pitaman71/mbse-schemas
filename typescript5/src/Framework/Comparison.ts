@@ -79,7 +79,7 @@ function selecting(schema: unknown): string {
     : schema instanceof Schemas.OfContainer.Data ? "as_container" : "as_object";
 }
 
-/** The value of any type a `Visitors.OfAny` holds: a scalar, a visitor of its own kind, or null. */
+/** The value of any schema a `Visitors.OfAny` holds: a scalar, a visitor of its own kind, or null. */
 function anyOf(read: any): any {
   const found: any[] = [];
   read.as_scalar((s: any) => {
@@ -95,7 +95,7 @@ function anyOf(read: any): any {
   return found.length > 0 ? found[0] : null;
 }
 
-/** The type a value of any type has: a scalar's, or its visitor's schema. */
+/** The type a value of any schema has: a scalar's, or its visitor's schema. */
 function own(value: any): any {
   const host = Schemas.hostOf(value);
   return host !== null ? new Schemas.OfScalar.Data(host) : value.as_schema();
@@ -155,7 +155,7 @@ function compareValues(schema: unknown, a: any, b: any): Result {
   if (held instanceof Schemas.OfContainer.Data) return containers(held, a, b);
   if (held instanceof Schemas.OfAny.Value) return sameType(own(a), own(b)) ? compareValues(own(a), a, b) : null; // under one type only
   const record = held as Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
-  return allEqual([...record.properties].map(([name, m]) => compareValues(m.type, readMember(a[name], m.type), readMember(b[name], m.type))));
+  return allEqual([...record.properties].map(([name, m]) => compareValues(m.schema, readMember(a[name], m.schema), readMember(b[name], m.schema))));
 }
 
 /** Whether two indices of one index type are one: scalars, or arrays of them, equal; value objects equal. */
@@ -182,7 +182,7 @@ function containers(schema: Schemas.OfContainer.Data, a: any, b: any): Result {
 /** Two objects of `schema`: their properties, and with `deep`, their entries. */
 function objects(schema: Schemas.OfObject.Data, a: any, b: any, deep: boolean): Result {
   const results = [...schema.properties].map(([name, prop]) =>
-    compareValues(prop.type, readProperty(a[name], prop.type), readProperty(b[name], prop.type)));
+    compareValues(prop.schema, readProperty(a[name], prop.schema), readProperty(b[name], prop.schema)));
   if (deep) {
     for (const [name, adjacency] of schema.adjacencies) results.push(adjacencies(adjacency, [...a[name]], [...b[name]]));
   }
@@ -199,7 +199,7 @@ function entries(adjacency: Schemas.OfAdjacency.Data, a: any, b: any): Result {
   const relation = adjacency.relation as Schemas.OfRelation.Data;
   const links = [...relation.entry.links.keys()].filter((name) => name !== adjacency.me).map((name) => compareLinks(a[name], b[name]));
   const values = [...relation.entry.properties].map(([name, prop]) =>
-    compareValues(prop.type, readProperty(a[name], prop.type), readProperty(b[name], prop.type)));
+    compareValues(prop.schema, readProperty(a[name], prop.schema), readProperty(b[name], prop.schema)));
   return allEqual([...links, ...values]);
 }
 
@@ -245,8 +245,8 @@ export class OfProperty {
 
   compare(other: OfProperty): Result {
     if (this.read === null || other.read === null) return this.read === null && other.read === null ? 0 : null;
-    const schema = this.read.as_schema().type;
-    if (!sameType(schema, other.read.as_schema().type)) return null;
+    const schema = this.read.as_schema().schema;
+    if (!sameType(schema, other.read.as_schema().schema)) return null;
     return compareValues(schema, readProperty(this.read, schema), readProperty(other.read, schema));
   }
 }

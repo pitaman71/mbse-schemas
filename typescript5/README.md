@@ -22,14 +22,14 @@ The same program in both languages:
 ```python
 store = Builders.Store()
 IntlAddress = store.Schemas.OfObject(lambda o: o.name('IntlAddress').ref(True).properties([
-    lambda t: t.name('street1').type([store.Schemas.OfStr])]))
+    lambda t: t.name('street1').schema([store.Schemas.OfStr])]))
 addr = store.IntlAddress(lambda a: a.street1('10 Downing Street'))
 ```
 
 ```ts
 const store: any = new Builders.Store();
 const IntlAddress = store.Schemas.OfObject((o: any) => o.name("IntlAddress").ref(true).properties([
-  (t: any) => t.name("street1").type([store.Schemas.OfStr])]));
+  (t: any) => t.name("street1").schema([store.Schemas.OfStr])]));
 const addr = store.IntlAddress((a: any) => a.street1("10 Downing Street"));
 ```
 

@@ -17,9 +17,9 @@ Person = store.Schemas.OfObject(lambda o: (
     .name('Person')
     .ref(True)
     .properties([
-        lambda t: t.name('given_name').type([Text]),
-        lambda t: t.name('family_name').type([Text]),
-        lambda t: t.name('birth_date').type([Text]),  # ISO 8601 calendar date
+        lambda t: t.name('given_name').schema([Text]),
+        lambda t: t.name('family_name').schema([Text]),
+        lambda t: t.name('birth_date').schema([Text]),  # ISO 8601 calendar date
     ])
 ))
 
@@ -31,7 +31,7 @@ Parentage = store.Schemas.OfRelation(lambda r: (
         lambda t: t.name('parent'),
         lambda t: t.name('child'),
     ])
-    .properties([lambda t: t.name('kind').type([Text])])  # 'biological', 'adoptive'
+    .properties([lambda t: t.name('kind').schema([Text])])  # 'biological', 'adoptive'
     .uniques([[]])  # a set of entries, with no other constraint: an entry equal to one held is that one
 ))
 

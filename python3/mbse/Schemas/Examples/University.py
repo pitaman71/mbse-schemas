@@ -14,7 +14,7 @@ Text = store.Schemas.OfStr.as_schema()  # the store's own basic scalar
 
 
 def text(name):
-    return lambda t: t.name(name).type([Text])
+    return lambda t: t.name(name).schema([Text])
 
 
 # --- Schemas ---
@@ -40,9 +40,9 @@ Enrollment = store.Schemas.OfRelation(lambda r: (
         lambda t: t.name('term'),
     ])
     .properties([
-        lambda t: t.name('credits').type([store.Schemas.OfInt]),
-        lambda t: t.name('score').type([store.Schemas.OfFloat]),
-        lambda t: t.name('audit').type([store.Schemas.OfBool]),
+        lambda t: t.name('credits').schema([store.Schemas.OfInt]),
+        lambda t: t.name('score').schema([store.Schemas.OfFloat]),
+        lambda t: t.name('audit').schema([store.Schemas.OfBool]),
     ])
     .uniques(['score', 'audit', 'credits'])  # (student, course, term) determine the rest
 ))

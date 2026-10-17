@@ -205,6 +205,11 @@ assumptions about reentrancy":
 33. Building an object whose ownership adjacency is empty links it only where one owner is possible, its schema
     through `HasInstance` or the singleton at the owning end, a key generated per its pattern; otherwise it raises,
     naming the ownership missing ("agreed").
+34. A schema's naming pattern stays on the object schema, `OfObject.pattern`, and names the entries of
+    `Schemas.HasInstance` that own its objects ("Keep OfObject.pattern (Recommended)"); an explicit ownership relation's
+    key takes its own property's pattern (13). Where a schema gives none, a `HasInstance` key is its local name
+    lowercased, a dash and a counter, `contact-1` ("local-name-N (Recommended)").
+35. `as_identity()` gives the path, a `Paths.OfRoot` value computed on demand ("The path value (Recommended)").
 
 ## Open questions
 

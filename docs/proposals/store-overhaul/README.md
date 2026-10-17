@@ -167,11 +167,13 @@ so that main stays current and no branch waits on another.
      Decided, 14); `.pattern(...)` on properties (13); `Schemas.HasInstance` (31); the `Paths.OfRoot`, `Paths.OfEntry`
      and `Paths.OfTarget` value schemas, held by every store as its mutation schemas are (18, 24, 25); and an object's
      path on demand (32). Nothing else changes yet.
-   - **4b, data objects:** a builder fills ownership (33) and generates keys; lookup calls an adjacency with keys (26
-     to 28); `.ref()` takes no pattern; `as_identity` is read-only (16); the UUIDs and per-schema directories go (19).
-   - **4c, schema objects:** their identities are their paths (17, 29), and derived identities go.
-   - **4d, the wire:** an object's key is its path, a nested `Paths.OfRoot` value (23), `Schema@` only in `Exists`
-     (8, 12); the corpora regenerated; 0.20.0.
+   - **4b, data objects:** a builder fills ownership (33) and generates keys, `OfObject.pattern` naming `HasInstance`'s
+     (34); lookup calls an adjacency with keys (26 to 28); `as_identity` gives the path (35) and is read-only (16); the
+     UUIDs and per-schema directories go (19); and the wire moves with them, a data object's key its path, `Schema@`
+     only in `Exists` (8, 12, 23), as the user chose: "Wire moves with each stage (Recommended)".
+   - **4c, schema objects:** their identities are their paths (17, 29), derived identities go, and their keys on the
+     wire are paths too.
+   - **4d, the release:** the corpora as 4c leaves them; 0.20.0.
 
 Then mbse-expressions redrafts its framework model on per-store extension (`Expressions.install(store)`, through
 `store.extend`), with domains, dialects and `DefinesDomains` as the user described.

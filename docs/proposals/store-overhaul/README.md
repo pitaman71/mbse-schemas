@@ -118,6 +118,12 @@ As the user decided (2026-10-16), on the questions put to them:
 23. **A user scalar in tests, tutorials and examples becomes the basic scalar**, "The basic scalar (Recommended)": a
     property typed by a user scalar (an `Email`, a `Date`) is typed by the basic scalar it refined (`Schemas.OfStr`),
     the finer meaning moving to the property's description; a case that teaches scalar refinement is rewritten or cut.
+24. **Schema, never "type"**, as the user decided (2026-10-16): "the term "type" has no meaning in mbse-*", and "it looks
+    like you are using 'type' in multiple places where it really should be 'schema'". What has a schema names it
+    `schema`: the builders' `.type([X])` becomes `.schema([X])` (a property, a symbol, a branch, a part), the data's
+    `type` field `schema`, `OfAny`'s `types` `schemas`, and `Schemas.Typing`, linking `typed` to `schema`, becomes
+    `Schemas.HasSchema`, linking `member` to `schema`; messages and documents say schema. A host language's own type
+    (`OfScalar.Data.type`, `host()`: Python's `int`, TypeScript's `BigInt`) stays, qualified as the host's.
 
 ## Order of work
 
@@ -148,9 +154,14 @@ so that main stays current and no branch waits on another.
    `Schemas.OfScalar` has exactly the five instances (8).
    *Breaks*: every user-defined scalar in tests, examples and tutorials; the module format of unions and
    intersections.
-4. **Object identity (0.19.0).** `Schemas.OfIdentity`, module paths, modules as namespaces (6), `store.Instances` and
-   `as_instance`, `Schema@Path/Suffix` on the wire.
-   *Breaks*: the snapshot format, so every corpus and every hand-written snapshot in the tests.
+3b. **Schema, never "type" (0.19.0).** The rename 24 lists, in both languages, messages and documents included.
+   *Breaks*: every `.type([...])` (1671 in 126 files), `OfAny`'s `types`, the wire's `Schemas.Typing` entries and the
+   `HasBranch` and `HasPart` link, and every message that said type.
+4. **Object identity (0.20.0).** As [Object identity](../../OBJECT_IDENTITY.md) now describes it: an identity is a path
+   from a singleton through ownership entries (`owner()`, key properties with patterns), written as a nested
+   `Paths.OfRoot` value; `Schema@` only in `Exists`; no UUIDs; `as_identity` read-only outside deserialization.
+   *Breaks*: the snapshot format, so every corpus and every hand-written snapshot in the tests; `.ref(pattern)`;
+   writing an identity (STO-08).
 
 Then mbse-expressions redrafts its framework model on per-store extension (`Expressions.install(store)`, through
 `store.extend`), with domains, dialects and `DefinesDomains` as the user described.

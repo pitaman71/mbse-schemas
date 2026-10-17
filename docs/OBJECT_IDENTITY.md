@@ -174,16 +174,15 @@ assumptions about reentrancy":
 26. Lookup by path in code calls each step's adjacency with the entry's keys, a mapping of its key properties to their
     values: `store.Instances.wts.Features.dir({ name: 'DEF-693' }).clauses({ name: 'C-1' })` (in Python,
     `.dir({'name': 'DEF-693'})`). `store.Instances.<singleton>` is the root; each call is one `Paths.OfEntry`.
+27. Lookup is on any adjacency ("on any adjacency I should think"), not only under `store.Instances`: an object's
+    adjacency called with a mapping of the entry's keys gives the object that entry links. And mbse-basis P-015
+    "reverts to its original form. Code expressions that name a reference object use Paths, not string lookup": its
+    `as_instance` exception (1) is withdrawn.
 
 ## Open questions
 
-- **A call that reads, beside calls that write.** On a builder, an adjacency called with an iterable or a callback
-  writes entries (the peer shorthand). Lookup (26) calls it with a mapping, which tells the two apart; is lookup on any
-  object's adjacency, or only under `store.Instances`? And what does a lookup that finds nothing give: an empty
-  visitor, as reads do, or an error?
-- **mbse-basis P-015.** Its exception names `as_instance` as "the one and only one api location where the identity of
-  an object can be used to reference the object". With 26, that location is a path's call: the exception is to be
-  restated in its terms.
+- **A lookup that finds nothing.** An adjacency called with a mapping of keys no entry has: an empty visitor, as every
+  read gives (mbse-basis P-007), or an error?
 - **Unnamed schemas.** Schema members, being clauses and subclauses of a definition, take part (21) through their
   keyed relations (`HasProperty`, ...), which have the shape 14 asks for. An unnamed schema a property links, the
   schema of its values (`crm.Person.tags`' container schema), is linked through `Schemas.HasSchema`, which no key names:

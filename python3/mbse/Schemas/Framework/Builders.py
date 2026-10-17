@@ -1496,8 +1496,8 @@ class Store(Proxies._Store):
         from . import Mutations, Paths
 
         self._meta = _plain()  # its plain schemas of schemas and basic scalars, its own
-        self._mutations = Mutations.schemas(self._meta.OfStr, self._meta.OfInt)
         self._paths = Paths.schemas(self._meta.OfStr, self._meta.OfInt, self._meta.OfBool)
+        self._mutations = Mutations.schemas(self._meta.OfStr, self._meta.OfInt, self._paths.OfRoot)
         for schema in (*vars(self._meta).values(), *vars(self._mutations).values(), *vars(self._paths).values()):
             self._objects[(_kind(schema), identity_of(schema))] = schema
             self._register(schema)
@@ -1623,6 +1623,13 @@ class Store(Proxies._Store):
             raise ValueError(f"a schema object with the identity {identity!r} is already in this store")
         del self._objects[(kind, identity_of(referent))]
         self._objects[(kind, identity)] = _identify(referent, identity)
+
+    @property
+    def Instances(self) -> _Instances:
+        """The store's reference objects by their paths (docs/OBJECT_IDENTITY.md, Decided, 26): `store.Instances.<a
+        singleton's global name>` is the singleton, whose adjacencies called with keys continue the path, and
+        `store.Instances.<a schema's name>({"name": key})` the object its schema owns under that key."""
+        return _Instances(self, "")
 
     def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):
@@ -1756,6 +1763,34 @@ def _clashes(schema: S.OfObject.Data, names: list[Any]) -> list[str]:
             if (name in refinement.properties and name not in own[0]) or (name in refinement.adjacencies and name not in own[1]):
                 problems.append(f"adds {name!r}, which {_shown(refinement)} declares")
     return problems
+
+
+class _Instances(_Unassignable):
+    """`store.Instances.<path>`: a dotted name, each part an attribute, until it names a singleton, which it gives; called
+    with keys, the object the schema it names owns under them (`Schemas.HasInstance`)."""
+
+    def __init__(self, store: Store, name: str):
+        self._store, self._name = store, name
+
+    def __getattr__(self, part: str) -> Any:
+        if part.startswith("_"):
+            raise AttributeError(part)
+        name = f"{self._name}.{part}" if self._name else part
+        singletons = self._store._singletons
+        return singletons[name] if name in singletons else _Instances(self._store, name)
+
+    def __call__(self, keys: Any) -> Any:
+        schema = self._store.registered(self._name)
+        if not isinstance(keys, Mapping) or set(keys) != {"name"}:
+            raise KeyError(f"an object its schema owns is found by its key, {{'name': ...}}; got {keys!r}")
+        found = self._store._directory(self._name).live.get(keys["name"])
+        owned = not any(a.owner for a in (*schema.adjacencies.values(), *schema.anonymous))
+        if found is None or not owned:
+            raise LookupError(f"no {self._name!r} has the key {keys['name']!r}")
+        return found
+
+    def __repr__(self) -> str:
+        return f"<Instances.{self._name}>"
 
 
 class _Path(_Unassignable, Proxies._Named):

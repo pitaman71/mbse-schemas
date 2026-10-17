@@ -29,7 +29,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from . import Readers, Schemas
+from . import Proxies, Readers, Schemas
 from .Visitors import Scalar
 
 __all__ = [
@@ -206,8 +206,8 @@ def _entries(adjacency: Schemas.OfAdjacency.Data, a: Any, b: Any) -> Result:
 
 def _links(a: Any, b: Any) -> Result:
     """Links compare by their targets' identities: a link targets a reference object, never a value object."""
-    a_id = None if a is None or a.as_identity() is None else (id(a.as_schema()), a.as_identity())
-    b_id = None if b is None or b.as_identity() is None else (id(b.as_schema()), b.as_identity())
+    a_id = None if a is None or Proxies._key_of(a) is None else (id(a.as_schema()), Proxies._key_of(a))
+    b_id = None if b is None or Proxies._key_of(b) is None else (id(b.as_schema()), Proxies._key_of(b))
     if not a_id or not b_id:
         return 0 if not a_id and not b_id else None
     return 0 if a_id == b_id else None

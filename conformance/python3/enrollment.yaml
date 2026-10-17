@@ -601,23 +601,87 @@
               value: Enrollment
 - exists:
     definition:
-      key: Term/term-1
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Term
+            next:
+              entry:
+                i: instances
+                o: ''
+                properties:
+                  name: term-1
+                next:
+                  target: {}
+      schema: Term
       properties:
         code: 2026-FA
         starts: '2026-09-01'
 - exists:
     definition:
-      key: Course/course-1
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Course
+            next:
+              entry:
+                i: instances
+                o: ''
+                properties:
+                  name: course-1
+                next:
+                  target: {}
+      schema: Course
       properties:
         code: CS101
 - exists:
     definition:
-      key: Course/course-2
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Course
+            next:
+              entry:
+                i: instances
+                o: ''
+                properties:
+                  name: course-2
+                next:
+                  target: {}
+      schema: Course
       properties:
         code: MA201
 - exists:
     definition:
-      key: Student/student-1
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Student
+            next:
+              entry:
+                i: instances
+                o: ''
+                properties:
+                  name: student-1
+                next:
+                  target: {}
+      schema: Student
       properties:
         name: Mia
 - insert:
@@ -630,19 +694,64 @@
           mutations:
           - set:
               ref:
-                key: Student/student-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Student
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: student-1
+                          next:
+                            target: {}
       - as_link:
           name: course
           mutations:
           - set:
               ref:
-                key: Course/course-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Course
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: course-1
+                          next:
+                            target: {}
       - as_link:
           name: term
           mutations:
           - set:
               ref:
-                key: Term/term-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Term
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: term-1
+                          next:
+                            target: {}
       - as_property:
           name: credits
           mutations:
@@ -664,19 +773,64 @@
           mutations:
           - set:
               ref:
-                key: Student/student-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Student
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: student-1
+                          next:
+                            target: {}
       - as_link:
           name: course
           mutations:
           - set:
               ref:
-                key: Course/course-2
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Course
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: course-2
+                          next:
+                            target: {}
       - as_link:
           name: term
           mutations:
           - set:
               ref:
-                key: Term/term-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Term
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: term-1
+                          next:
+                            target: {}
       - as_property:
           name: credits
           mutations:
@@ -689,7 +843,23 @@
               value: -0.0
 - exists:
     definition:
-      key: Student/student-2
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Student
+            next:
+              entry:
+                i: instances
+                o: ''
+                properties:
+                  name: student-2
+                next:
+                  target: {}
+      schema: Student
       properties:
         name: Noah
 - insert:
@@ -702,19 +872,64 @@
           mutations:
           - set:
               ref:
-                key: Student/student-2
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Student
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: student-2
+                          next:
+                            target: {}
       - as_link:
           name: course
           mutations:
           - set:
               ref:
-                key: Course/course-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Course
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: course-1
+                          next:
+                            target: {}
       - as_link:
           name: term
           mutations:
           - set:
               ref:
-                key: Term/term-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Term
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: term-1
+                          next:
+                            target: {}
       - as_property:
           name: audit
           mutations:

@@ -31,7 +31,7 @@ write byte-identical JSON. The TypeScript core runs in Node, in browsers and in 
 from `mbse.Schemas.Framework`, TypeScript from `@mbse/schemas/Framework`.
 
 ```python
-from mbse.Schemas.Framework import JSON, Builders, Plain, Validators
+from mbse.Schemas.Framework import JSON, Builders, Paths, Plain, Validators
 
 store = Builders.Store()  # schemas and the objects built with them belong to a store
 Text = store.Schemas.OfStr  # its basic scalars are its own
@@ -54,14 +54,18 @@ alice = store.Contact(lambda c: c.name('Alice').addresses(lambda a: a.insert(
 text = JSON.ToJSON(store).Reachable(Contact, alice)  # the whole graph, shared objects written once
 other = Builders.Store()  # another store, with the same schemas, its own: a store's snapshot writes them
 Plain.FromPlain(other).Snapshot(Plain.ToPlain(store).Snapshot())
-copy = JSON.FromJSON(other).Reachable(other.Contact, text)  # the same objects, with the same identities, in it
-assert copy.as_identity() == alice.as_identity() == 'CON-001' and Validators.Validate(other).Reachable(other.Contact, copy) == []
+copy = JSON.FromJSON(other).Reachable(other.Contact, text)  # the same objects, at the same paths, in it
+assert Paths.same(copy.as_identity(), alice.as_identity()) and Validators.Validate(other).Reachable(other.Contact, copy) == []
 ```
 
-```json
-{"root": "Contact/CON-001",
- "objects": {"Contact/CON-001": {"name": "Alice", "addresses": [{"address": {"$ref": "Address/ADR-001", "$schema": "Address"}, "label": "home"}]},
-             "Address/ADR-001": {"street": "10 Downing Street", "residents": [{"contact": {"$ref": "Contact/CON-001", "$schema": "Contact"}, "label": "home"}]}}}
+```text
+{"root": CON,
+ "objects": [{"path": CON, "schema": "Contact", "properties": {"name": "Alice", "addresses": [{"address": {"$ref": ADR}, "label": "home"}]}},
+             {"path": ADR, "schema": "Address", "properties": {"street": "10 Downing Street", "residents": [{"contact": {"$ref": CON}, "label": "home"}]}}]}
+
+CON = {"singleton": ".", "next": {"entry": {"i": "schemas", "o": "", "properties": {"name": "Contact"},
+       "next": {"entry": {"i": "instances", "o": "", "properties": {"name": "CON-001"}, "next": {"target": {}}}}}}}
+ADR = the same, through "Address" and "ADR-001": each object's identity is its path
 ```
 
 ## Why another schema language?

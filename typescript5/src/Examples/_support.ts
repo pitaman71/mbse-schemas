@@ -2,6 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { _symbol } from "@mbse/schemas/Framework/Plain";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import type { PlainData, PlainMap } from "@mbse/schemas/Framework/Plain";
 
@@ -53,10 +54,11 @@ export function entries(_schema: unknown, obj: Instance, adjacency: string): Map
 
 /** Snapshot equality up to entry order, and the order objects are written in. Objects are written in first-reference
  * order, which depends on entry order, and entries form a set whose order depends on history. Each object is
- * identified here by its own property values, which the examples keep unique within a graph. */
+ * identified here by its own property values, which the examples keep unique within a graph, rather than by its
+ * path. */
 export function same_graph(a: PlainData, b: PlainData): boolean {
   const canonical = (graph: PlainMap): string => {
-    const objects = graph.get("objects") as Map<string, PlainMap>;
+    const objects = new Map((graph.get("objects") as PlainMap[]).map((o) => [_symbol(o.get("path")), o.get("properties") as PlainMap]));
     const labels = new Map<string, string>();
     for (const [symbol, obj] of objects) {
       const own = [...obj].filter(([, v]) => !Array.isArray(v)).sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0));
@@ -64,13 +66,13 @@ export function same_graph(a: PlainData, b: PlainData): boolean {
     }
     assert(new Set(labels.values()).size === labels.size, "objects must have distinct property values");
     const entry = (e: PlainMap): string =>
-      key([...e].map(([k, v]) => [k, v instanceof Map ? labels.get(v.get("$ref") as string) : v] as [string, unknown])
+      key([...e].map(([k, v]) => [k, v instanceof Map ? labels.get(_symbol(v.get("$ref"))) : v] as [string, unknown])
         .sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0)));
     const lists = [...objects].map(([symbol, obj]) => [
       labels.get(symbol),
       [...obj].filter(([, v]) => Array.isArray(v)).map(([k, v]) => [k, (v as PlainMap[]).map(entry).sort()]).sort(),
     ]);
-    return key([labels.get(graph.get("root") as string), lists.sort()]);
+    return key([labels.get(_symbol(graph.get("root"))), lists.sort()]);
   };
   return canonical(a as PlainMap) === canonical(b as PlainMap);
 }

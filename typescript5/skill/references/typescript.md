@@ -82,7 +82,7 @@ const Board = store.Schemas.OfObject((o: any) => (
 // Data is built the same way: a callback creates, an object and a callback update, an object alone clones. Builders
 // and data instances implement the visitor protocol: members named after the schema's names.
 const irq = store.Port((p: any) => p.name("irq").signal((v: any) => v.as_object((s: any) => s.width(1n).unit("bit"))));
-const picIn = store.Port((p: any) => p.as_identity("pic-in").name("pic_in")); // an identity written; else the store gives one
+const picIn = store.Port((p: any) => p.name("pic_in")); // keyed by the store, port-2; its identity is its path, never written
 const cpu = store.Component((c: any) => c.name("cpu").ports((a: any) => a.insert((e: any) => e.port(irq))));
 store.Port(irq, (p: any) => p.fanout((a: any) => a.insert((e: any) => e.target(picIn).label("interrupt"))));
 const targets = [...irq.fanout].map((e: any) => e.target);
@@ -125,7 +125,7 @@ store.Schemas.OfInt.as_schema();                            // the schema a path
 // The five are the only scalar schemas: a store builds no other. A finer scalar (a date, an int32) is a domain,
 // mbse-expressions'; until then, give the property its basic scalar and say what it means in its description.
 store.Schemas.OfObject((o: any) => o.name("crm.Contact").ref(true).properties([...]));   // .ref(true): a reference object schema
-store.Schemas.OfObject((o: any) => o.name("pm.Feature").ref(true).pattern(String.raw`FEA-(\d+\d\d)`));  // FEA-001, ...; else UUIDs
+store.Schemas.OfObject((o: any) => o.name("pm.Feature").ref(true).pattern(String.raw`FEA-(\d+\d\d)`));  // FEA-001, ...; else feature-1, ...
 store.Schemas.OfObject((o: any) => o.properties([(t: any) => t.name("x").schema([Int])]));  // a value object schema, for a property's values
 // A schema's members are its entries, each named by its entry: t.name("x"). A reference to another schema object is
 // an array of what it links (.schema([T]), .relation([R]), .refines([T])), one item where only one is allowed, which
@@ -189,8 +189,9 @@ obj.likes.as_iterable((entries: Iterator<any>) => entries);  // an iterator over
 store.crm.Card((c: any) => c.reach((p: any) => p.phone(spec)));  // a branch: a property of one kind has its members
 obj.reach.phone.number.get();                                // read through them, as through as_value and as_union
 obj.as_properties; obj.as_adjacencies((a: any) => a);      // schema unaware: the properties set, every adjacency
-obj.as_schema(); obj.as_identity();                        // what every visitor has: its schema; an object's identity, else null
-store.by_identity("Feature", "FEA-001");                   // the live object of that schema with that identity
+obj.as_schema(); obj.as_identity();                        // what every visitor has: its schema; an object's path, else null
+store.Instances.pm.Feature({ name: "FEA-001" });           // the object its schema owns under that key
+store.Instances.wts.Features.dir({ name: "DEF-693" });     // a singleton by its global name; a lookup by keys on any adjacency
 Proxies.owner_of(valueObject);                             // the object a value object belongs to
 
 // Schemas as data: designing, extending, versioning and generating them is schemas.md.

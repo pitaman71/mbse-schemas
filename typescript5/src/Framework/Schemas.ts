@@ -533,14 +533,14 @@ function naming(pattern: unknown): [string, number, string] | null {
 
 /** The name a naming pattern gives the number `number`: it fills the pattern's group, at its minimum width, extending
  * on the left. */
-function nameFor(pattern: string, number: number): string {
+export function nameFor(pattern: string, number: number): string {
   const [prefix, width, suffix] = naming(pattern)!; // a valid pattern
   return `${prefix}${String(number).padStart(width, "0")}${suffix}`;
 }
 
 /** The number of a name a naming pattern gives: its literal text around at least the minimum width of ASCII digits.
  * Null for a name it does not give, or without a valid naming pattern. */
-function numberOf(pattern: string | null, name: string): number | null {
+export function numberOf(pattern: string | null, name: string): number | null {
   const found = pattern === null ? null : naming(pattern);
   if (found === null) return null;
   const [prefix, width, suffix] = found;
@@ -1189,3 +1189,5 @@ export namespace OfAny {
   export declare const Builder: typeof Builders.AnyValueBuilder;
   export type Builder = Builders.AnyValueBuilder;
 }
+
+export { nameFor as _name_for, numberOf as _number_of };

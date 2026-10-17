@@ -91,7 +91,7 @@ edge = store.Sample(lambda s: (
     .flag(False)  # a present False is not an absent property
 ))
 plain = Plain.ToPlain(store)(Sample, edge)
-fields = plain['objects'][plain['root']]
+fields = plain['objects'][0]['properties']  # the root, listed first
 assert fields['payload'] == 'AP8QAP8QAP8Q'  # bytes become base64 text
 assert fields['flag'] is False and fields['count'] == 2**100
 
@@ -107,10 +107,10 @@ back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty))
 assert (back.label.get(), back.payload.get(), back.count.get(), back.ratio.get()) == ('', b'', 0, 0.0)
 assert back.flag.get() is None  # never set, so absent
 
-# An object with nothing set serializes to an empty object, keyed by its identity qualified by its schema's name.
+# An object with nothing set serializes to empty properties, listed with its path and its schema's name.
 blank = store.Sample(lambda s: s)
-key = f'Sample/{blank.as_identity()}'
-assert Plain.ToPlain(store)(Sample, blank) == {'root': key, 'objects': {key: {}}}
+path = Plain.ToPlain(store)(store.Paths.OfRoot.as_schema(), blank.as_identity())
+assert Plain.ToPlain(store)(Sample, blank) == {'root': path, 'objects': [{'path': path, 'schema': 'Sample', 'properties': {}}]}
 
 # Per-kind entry points.
 assert Plain.ToPlain(store)(store.Schemas.OfBytes.as_schema(), b'\x01') == Plain.ToPlain(store).OfScalar(store.Schemas.OfBytes.as_schema(), b'\x01') == 'AQ=='
@@ -155,10 +155,8 @@ by_currency = {e['currency']: int(e['price'].amount) for e in entries(Product, w
 assert by_currency == {'JPY': 1500, 'EUR': 1299}
 
 graph = Plain.ToPlain(store).Reachable(Product, widget)
-assert sorted(o.get('code') for o in graph['objects'].values() if 'code' in o) == ['EUR', 'JPY']
-schemas_named = {ref['$schema'] for obj in graph['objects'].values() for v in obj.values() if isinstance(v, list)
-                 for e in v for ref in e.values() if isinstance(ref, dict)}
-assert schemas_named == {'Product', 'Money', 'iso4217.Currency'}
+assert sorted(o['properties'].get('code') for o in graph['objects'] if 'code' in o['properties']) == ['EUR', 'JPY']
+assert {o['schema'] for o in graph['objects']} == {'Product', 'Money', 'iso4217.Currency'}  # each listed with its schema
 again = from_plain.Reachable(Product, json.loads(json.dumps(graph)))
 assert {e['currency']: int(e['price'].amount) for e in entries(Product, again, 'prices')} == by_currency
 
@@ -180,7 +178,14 @@ assert validate(Currency, widget) != []
 
 good = Plain.ToPlain(store).Reachable(Product, widget)
 root = good['root']
-price_ref = good['objects'][root]['prices'][0]['price']
+
+
+def listed(snapshot, path):
+    """The object a snapshot lists at `path`."""
+    return next(o for o in snapshot['objects'] if o['path'] == path)
+
+
+price_ref = listed(good, root)['properties']['prices'][0]['price']
 
 
 def mutated(change):
@@ -192,12 +197,12 @@ def mutated(change):
 bad_snapshots = [
     [],  # not a snapshot
     {'root': root},  # no objects
-    {'root': 'nope', 'objects': good['objects']},  # root not in objects
-    mutated(lambda s: s['objects'].pop(price_ref['$ref'])),  # unresolved reference
-    mutated(lambda s: s['objects'][root]['prices'][1].update(price={'$ref': price_ref['$ref'], '$schema': 'Product'})),
-    mutated(lambda s: s['objects'].__setitem__('s99', {'sku': 'orphan'})),  # an object nothing references
-    mutated(lambda s: s['objects'][root].__setitem__('colour', 'red')),  # not a property or adjacency
-    mutated(lambda s: s['objects'][root]['prices'][0].__setitem__('discount', 5)),  # not a link or property
+    {'root': {'singleton': 'nope', 'next': {'target': {}}}, 'objects': good['objects']},  # root not in objects
+    mutated(lambda s: s['objects'].remove(listed(s, price_ref['$ref']))),  # unresolved reference
+    mutated(lambda s: listed(s, price_ref['$ref']).update(schema='Product')),  # its path is not its schema's
+    mutated(lambda s: s['objects'].append(listed(s, root))),  # an object listed twice
+    mutated(lambda s: listed(s, root)['properties'].__setitem__('colour', 'red')),  # not a property or adjacency
+    mutated(lambda s: listed(s, root)['properties']['prices'][0].__setitem__('discount', 5)),  # not a link or property
 ]
 for snapshot in bad_snapshots:
     with raises(DecodeError):

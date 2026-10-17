@@ -5,29 +5,36 @@ and TypeScript write byte-identical JSON, and each reads the other's.
 
 ## The snapshot format
 
-```json
-{"root": "Component/CMP-001", "objects": {
-  "Component/CMP-001": {"name": "cpu", "ports": [{"port": {"$ref": "Port/PRT-001", "$schema": "Port"}}]},
-  "Port/PRT-001": {"name": "irq", "signal": {"width": 1, "unit": "bit"},
-                   "reach": {"phone": {"number": "1"}},
-                   "owner": [{"owner": {"$ref": "Component/CMP-001", "$schema": "Component"}}]}}}
+```text
+{"root": CMP, "objects": [
+  {"path": CMP, "schema": "Component", "properties": {"name": "cpu", "ports": [{"port": {"$ref": PRT}}]}},
+  {"path": PRT, "schema": "Port", "properties": {"name": "irq", "signal": {"width": 1, "unit": "bit"},
+                                                 "reach": {"phone": {"number": "1"}},
+                                                 "owner": [{"owner": {"$ref": CMP}}]}}]}
+
+CMP = {"singleton": ".", "next": {"entry": {"i": "schemas", "o": "", "properties": {"name": "Component"},
+       "next": {"entry": {"i": "instances", "o": "", "properties": {"name": "CMP-001"}, "next": {"target": {}}}}}}}
+PRT = the same, through "Port" and "PRT-001"
 ```
 
-- Objects are keyed by their identities, qualified by their schemas' registered names (`Port/PRT-001`; a singleton's
-  key is its global name alone). Each object appears once, however many objects link to it, and cycles need no
-  special handling. Identities are kept across snapshots and stores: reading a snapshot into a store that holds an
-  object of the same identity updates that object: what the snapshot holds is written, what it omits is kept, and
-  reading it again changes nothing.
-- An object maps property names to values, and adjacency names to lists of entries. An entry holds the other links
-  as references `{"$ref": key, "$schema": name}` and its own properties. The object's own link is implied.
+- Each object is listed once with its path, its identity, and its schema's registered name, however many objects
+  link to it; cycles need no special handling. A path is a nested value: the singleton it starts from, then each
+  ownership entry from it to the object (`i`, the adjacency into the entry; `o`, the owned object's adjacency marked
+  `owner`; `properties`, the entry's keys), then `target`. An object whose schema declares no owner is its schema's:
+  the root module `"."`, the schema's path by name, then its key, as above. A singleton's path is its global name
+  alone. Paths are kept across snapshots and stores: reading a snapshot into a store that holds an object at the same
+  path updates that object: what the snapshot holds is written, what it omits is kept, and reading it again changes
+  nothing.
+- An object's properties map property names to values, and adjacency names to lists of entries. An entry holds the
+  other links as references `{"$ref": path}` and its own properties. The object's own link is implied.
 - A value object is a nested mapping, with its containers nested in it, and no key: nothing links to it.
   Union and intersection values are nested mappings keyed by branch or part name: a union value has exactly one key,
   and an intersection value one per part. A list, a dict or a map is an adjacency's entries like any other,
   `"tags": [{"value": "a"}, {"value": "b"}]`, sorted by the key its relation declares where that key's values are
   ordered, and in the order added otherwise; there are no compact forms. Names starting with `$` are reserved for the
   format.
-- Object content carries no schema, except where nothing else gives it. The root schema is passed to the decoder, and
-  references carry schema names, so a linked reference object's schema must be registered.
+- Each listed object names its schema, which must be registered; its properties carry none, except where nothing else
+  gives it. The root schema is passed to the decoder, and the root's listing must agree with it.
 
 ## Calls
 
@@ -35,7 +42,7 @@ and TypeScript write byte-identical JSON, and each reads the other's.
 |---|---|
 | `ToPlain(store).OfObject`, and the JSON and YAML forms | the root only; its references stay unresolved, and decoding rejects them |
 | `ToPlain(store).Reachable`, and the JSON and YAML forms | the root and everything reachable through adjacencies |
-| `FromPlain(store)(schema, data)`, and the JSON and YAML forms | builds in the store given, with the snapshot's identities, updating an object the store holds; a snapshot is how objects move between stores |
+| `FromPlain(store)(schema, data)`, and the JSON and YAML forms | builds in the store given, at the snapshot's paths, updating an object the store holds; a snapshot is how objects move between stores |
 
 ## Strictness
 

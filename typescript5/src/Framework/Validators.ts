@@ -24,7 +24,7 @@
 import * as Builders from "./Builders.js";
 import { NotImplementedError } from "./Errors.js";
 import { schemaTypeName } from "./Plain.js";
-import { _derefFirst, scalarKey } from "./Proxies.js";
+import { _derefFirst, _key_of, scalarKey } from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
 import type * as Readers from "./Readers.js";
 import { repr, sortedStrings, tokenName, typeName } from "./Repr.js";
@@ -109,7 +109,7 @@ let schemaCount = 0;
 
 /** A linked object's identity, unique among the objects of every schema: an identity is unique within its schema. */
 function identity(target: any): string {
-  return `${numberOf(target.as_schema())}:${target.as_identity()}`;
+  return `${numberOf(target.as_schema())}:${_key_of(target)}`;
 }
 
 /** A number for each schema, as Python's `id()` of it. */

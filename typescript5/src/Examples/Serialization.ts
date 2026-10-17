@@ -95,7 +95,7 @@ const edge = store.Sample((s: any) => (
     .flag(false) // a present false is not an absent property
 ));
 const plain = Plain.ToPlain(store)(Sample, edge) as PlainMap;
-const fields = (plain.get("objects") as PlainMap).get(plain.get("root") as string) as PlainMap;
+const fields = (plain.get("objects") as PlainMap[])[0]!.get("properties") as PlainMap; // the root, listed first
 assert(fields.get("payload") === "AP8QAP8QAP8Q"); // bytes become base64 text
 assert(fields.get("flag") === false && fields.get("count") === 2n ** 100n);
 
@@ -111,10 +111,10 @@ const back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty))
 assert(back.label.get() === "" && equal(back.payload.get(), bytes()) && back.count.get() === 0n && back.ratio.get() === 0);
 assert(back.flag.get() === null); // never set, so absent
 
-// An object with nothing set serializes to an empty object, keyed by its identity qualified by its schema's name.
+// An object with nothing set serializes to empty properties, listed with its path and its schema's name.
 const blank = store.Sample((s: any) => s);
-const key = `Sample/${blank.as_identity()}`;
-assert(equal(Plain.ToPlain(store)(Sample, blank), map({ root: key, objects: { [key]: {} } })));
+const path = Plain.ToPlain(store)(store.Paths.OfRoot.as_schema(), blank.as_identity());
+assert(equal(Plain.ToPlain(store)(Sample, blank), map({ root: path, objects: [{ path, schema: "Sample", properties: {} }] })));
 
 // Per-kind entry points.
 const bytesSchema = store.Schemas.OfBytes.as_schema();
@@ -159,12 +159,10 @@ const byCurrency = (obj: Instance) =>
 assert(equal(byCurrency(widget), map({ JPY: 1500n, EUR: 1299n })));
 
 const graph = Plain.ToPlain(store).Reachable(Product, widget);
-const objectsOf = (g: PlainMap) => [...(g.get("objects") as Map<string, PlainMap>).values()];
+const objectsOf = (g: PlainMap) => (g.get("objects") as PlainMap[]).map((o) => o.get("properties") as PlainMap);
 assert(equal(sortedStrings(objectsOf(graph).filter((o) => o.has("code")).map((o) => o.get("code") as string)), ["EUR", "JPY"]));
-const schemasNamed = new Set(objectsOf(graph).flatMap((obj) => [...obj.values()].filter(Array.isArray)
-  .flatMap((list) => (list as PlainMap[]).flatMap((e) => [...e.values()].filter((v) => v instanceof Map)
-    .map((ref) => (ref as PlainMap).get("$schema"))))));
-assert(equal(sortedStrings(schemasNamed as Set<string>), ["Money", "Product", "iso4217.Currency"]));
+const schemasNamed = new Set((graph.get("objects") as PlainMap[]).map((o) => o.get("schema") as string)); // each listed with its schema
+assert(equal(sortedStrings(schemasNamed), ["Money", "Product", "iso4217.Currency"]));
 const again = from_plain.Reachable(Product, JSON.loads(JSON.dumps(graph))) as Instance;
 assert(equal(byCurrency(again), byCurrency(widget)));
 
@@ -185,9 +183,11 @@ assert(validate(Currency, widget).length > 0);
 // --- Malformed snapshots are rejected ---
 
 const good = Plain.ToPlain(store).Reachable(Product, widget);
-const root = good.get("root") as string;
-const objectsIn = (s: PlainMap) => s.get("objects") as Map<string, PlainMap>;
-const pricesOf = (s: PlainMap) => (objectsIn(s).get(root) as PlainMap).get("prices") as PlainMap[];
+const root = good.get("root") as PlainMap;
+/** The object a snapshot lists at `path`. */
+const listed = (s: PlainMap, path: PlainData) => (s.get("objects") as PlainMap[]).find((o) => equal(o.get("path"), path)) as PlainMap;
+const objectsIn = (s: PlainMap) => s.get("objects") as PlainMap[];
+const pricesOf = (s: PlainMap) => (listed(s, root).get("properties") as PlainMap).get("prices") as PlainMap[];
 const priceRef = (pricesOf(good)[0] as PlainMap).get("price") as PlainMap;
 
 function mutated(change: (snapshot: PlainMap) => unknown): PlainMap {
@@ -199,11 +199,11 @@ function mutated(change: (snapshot: PlainMap) => unknown): PlainMap {
 const badSnapshots: PlainData[] = [
   [], // not a snapshot
   map({ root }), // no objects
-  new Map<string, PlainData>([["root", "nope"], ["objects", good.get("objects") as PlainData]]), // root not in objects
-  mutated((s) => objectsIn(s).delete(priceRef.get("$ref") as string)), // unresolved reference
-  mutated((s) => (pricesOf(s)[1] as PlainMap).set("price", map({ $ref: priceRef.get("$ref"), $schema: "Product" }))),
-  mutated((s) => objectsIn(s).set("s99", map({ sku: "orphan" }) as PlainMap)), // an object nothing references
-  mutated((s) => (objectsIn(s).get(root) as PlainMap).set("colour", "red")), // not a property or adjacency
+  new Map<string, PlainData>([["root", map({ singleton: "nope", next: { target: {} } })], ["objects", good.get("objects") as PlainData]]), // root not in objects
+  mutated((s) => objectsIn(s).splice(objectsIn(s).indexOf(listed(s, priceRef.get("$ref") as PlainData)), 1)), // unresolved reference
+  mutated((s) => listed(s, priceRef.get("$ref") as PlainData).set("schema", "Product")), // its path is not its schema's
+  mutated((s) => objectsIn(s).push(listed(s, root))), // an object listed twice
+  mutated((s) => (listed(s, root).get("properties") as PlainMap).set("colour", "red")), // not a property or adjacency
   mutated((s) => (pricesOf(s)[0] as PlainMap).set("discount", 5n)), // not a link or property
 ];
 for (const snapshot of badSnapshots) raises(DecodeError, () => from_plain.Reachable(Product, snapshot));

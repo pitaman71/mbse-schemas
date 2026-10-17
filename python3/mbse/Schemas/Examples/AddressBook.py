@@ -2,7 +2,7 @@
 #
 # Lines marked PROPOSED use syntax that FRAMEWORK.md does not define yet.
 
-from mbse.Schemas.Framework import Builders, Schemas, Plain, JSON
+from mbse.Schemas.Framework import Builders, Paths, Schemas, Plain, JSON
 
 
 # Schemas and objects are built in a store, `store.<schema name>(...)`; a named schema registers itself as it is built.
@@ -164,22 +164,22 @@ alice = store.Contact(lambda c: (
 
 # --- Serialization ---
 
-# A single-object snapshot includes addr1's adjacencies, so it references alice by key without containing her.
+# A single-object snapshot includes addr1's adjacencies, so it references alice by her path without containing her.
 # Deserializing it on its own is an error: the reference cannot be resolved.
 plain = Plain.ToPlain(store)(IntlAddress, addr1)
 # equivalent to
 # plain = Plain.ToPlain(store).OfObject(IntlAddress, addr1)
 
 # PROPOSED: a snapshot of addr1 and every object reachable through adjacencies (alice, her phone and email), so all
-# references resolve within the snapshot. Each object is keyed by its identity, qualified by its schema's name.
+# references resolve within the snapshot. Each object is listed with its path, its identity, and its schema's name.
 graph = Plain.ToPlain(store).Reachable(IntlAddress, addr1)
-assert graph['root'] == f'IntlAddress/{addr1.as_identity()}'
+assert graph['root'] == Plain.ToPlain(store)(store.Paths.OfRoot.as_schema(), addr1.as_identity())
 
 # Read into another store, the snapshot builds objects of the same identities there.
 backup = Builders.Store()
 Plain.FromPlain(backup).Snapshot(Plain.ToPlain(store).Snapshot())  # the same schemas, its own: a store's snapshot writes them
 roundtrip = Plain.FromPlain(backup).Reachable(backup.IntlAddress, graph)
-assert roundtrip is not addr1 and roundtrip.as_identity() == addr1.as_identity()
+assert roundtrip is not addr1 and Paths.same(roundtrip.as_identity(), addr1.as_identity())
 assert Plain.ToPlain(backup).Reachable(backup.IntlAddress, roundtrip) == graph
 
 # Read into the store that holds them, it updates them through their builders: what it omits, they keep.

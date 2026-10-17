@@ -102,19 +102,15 @@ class Store(Protocol):
         `update()` of `instance`."""
         ...
 
-    def by_identity(self, name: str, identity: str) -> Readers.OfObject:
-        """The live object of the schema `name` whose identity (unqualified, as `as_identity()` gives it) is `identity`;
-        `LookupError` if there is none."""
-        ...
-
     def framework(self, schema: Any) -> bool:
         """Whether the store was made holding `schema` (a `Builders.Store`'s plain schemas, basic scalars and mutation
         schemas): a name each store holds its own schema under."""
         ...
 
     def restore(self, name: str, identity: str) -> Any:
-        """For decoders: a builder for the object schema `name` whose `create()` gives the object the identity a snapshot
-        names. A program writes one through the builder's `as_identity`."""
+        """For decoders: a builder for the object schema `name` whose `create()` gives the object the key among its
+        schema's objects a snapshot's path names. A program writes no identity: it is the object's path
+        (docs/OBJECT_IDENTITY.md, Decided, 16)."""
         ...
 
     def member(self, instance: Any, name: str) -> Any:
@@ -242,9 +238,6 @@ class Combined:
 
     def builder(self, name: str, instance: Any = None) -> Any:
         return self._owner(name, AttributeError).builder(name, instance)
-
-    def by_identity(self, name: str, identity: str) -> Readers.OfObject:
-        return self._owner(name, AttributeError).by_identity(name, identity)
 
     def restore(self, name: str, identity: str) -> Any:
         return self._owner(name, AttributeError).restore(name, identity)

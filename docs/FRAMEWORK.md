@@ -379,21 +379,22 @@ Both in-memory objects and mutations (see `Mutations`) are serializable.
 
 Over the wire, object content carries no schema. Association of an object with a schema is done dynamically, starting
 from the expected root schema, which is why deserializers such as `Plain.FromPlain(store)(schema, ...)` take it as an
-argument, and continuing through property schemas and the branch written with each union value. Links are untyped, so a serialized
-reference to a linked reference object carries that object's schema name alongside its key. Consequently, a
-reference object that is linked from another object must have a named (registered) schema. A reference to a value
-object carries no schema, since its owner's schema gives it, and a reference object that only such references reach
-carries its schema itself, `{"$schema": "Card", ...}`: an object carries its schema whenever nothing else gives it.
+argument, and continuing through property schemas and the branch written with each union value. Links are untyped, so
+each reference object a snapshot lists names its schema beside its content, `{"path": ..., "schema": "Card",
+"properties": {...}}`, and a reference to it is its path alone, `{"$ref": path}` (docs/OBJECT_IDENTITY.md, Decided, 36).
+Consequently, a reference object written in a snapshot must have a named (registered) schema.
 
 A transaction is a flat sequence of mutations. Mutations may be nested; transactions are not.
 
-- Objects are identified over the wire by their identities (Resolved, Reference identity): each reference object's
-  key is its identity qualified by its schema's registered name, `"crm.Feature/FEA-001"`, and a singleton's is its
-  global name alone. An identity is given when its object is created and never changes, so keys are not local to a
-  transaction or a snapshot: a later one refers to the same object by the same key, and loading a key the store
-  already updates that object through its builder (Resolved, Reference identity, on update): what the snapshot holds
-  is written, and what it omits is kept.
-- Keys name only reference objects, never values or entries.
+- Objects are identified over the wire by their paths (docs/OBJECT_IDENTITY.md): a data object's path runs from a
+  singleton through the entries that own it, each keyed by its relation's key properties; an object no `owner()`
+  adjacency owns is its schema's (`Schemas.HasInstance`), under a key given when it is created: the root module `.`,
+  the schema's path by name, then the key. A singleton's path is its global name alone. Paths are not local to a
+  transaction or a snapshot: a later one refers to the same object by the same path, and loading a path the store
+  already holds updates that object through its builder (Resolved, Reference identity, on update): what the snapshot
+  holds is written, and what it omits is kept. Schema objects are still referred to by `Module.Schema/ID` keys in a
+  log, until step 4c of the store overhaul gives them paths too.
+- Paths name only reference objects, never values or entries.
 - A value object is written nested, as a mapping of its properties and its adjacencies, without a key. Union and intersection values are written the
   same way, keyed by branch or part name: a union value `{"phone": {"number": "1"}}` has exactly one key, and decoding
   rejects any other count; an intersection value `{"stamp": {...}, "audit": {...}}` has a key per part, and a missing
@@ -406,12 +407,13 @@ A transaction is a flat sequence of mutations. Mutations may be nested; transact
   objects written, and builds the objects read. `Schemas.OfScalar` converts scalars to forms plain
   data can hold (`bytes` as base64 text; non-finite floats as the strings `NaN`, `Infinity`, `-Infinity`), so text
   encodings never handle that themselves. An object's plain form includes its
-  adjacencies; linked objects appear as references by key, not nested content. Deserializing a snapshot
+  adjacencies; linked objects appear as references by path, not nested content. Deserializing a snapshot
   that references an object it does not contain is an error.
-  An object snapshot is `{"root": key, "objects": {key: object}}`. Each object maps property names to plain
-  values and adjacency names to lists of entries; an entry maps the other links to references and the entry properties
-  to plain values (the object's own link is implied). A reference is `{"$ref": key, "$schema": name}`, to a reference object. Objects are
-  written in the order they are first referenced, the root first. `Plain.ToPlain(store).OfObject` includes only the root, so its references
+  An object snapshot is `{"root": path, "objects": [{"path": path, "schema": name, "properties": {...}}, ...]}`, each
+  object listed once. Its properties map property names to plain values and adjacency names to lists of entries; an
+  entry maps the other links to references and the entry properties to plain values (the object's own link is
+  implied). A reference is `{"$ref": path}`, to a reference object. Objects are written in the order they are first
+  referenced, the root first; reading builds each owner before what it owns. `Plain.ToPlain(store).OfObject` includes only the root, so its references
   are unresolved; `Plain.ToPlain(store).Reachable` includes every object reachable through adjacencies. An entry appears under
   each object it links, and reading counts it once: by value where the relation has a `unique` clause, and in an open
   relation the k-th entry equal to a given one in one list is the k-th in another. A container is written inside its
@@ -482,7 +484,7 @@ documents.
 - **Entry properties may be value objects, never reference objects.** Such a value object is owned by the object that
   added its entry, is written nested in the entry, and keys and compares the entry by its properties.
 - **Value objects are written nested**, inside their owner, with their containers nested in them, and carry no key:
-  nothing links to them. Decoding rejects a reference without `$schema` ("a reference names its target's schema").
+  nothing links to them. Decoding rejects a reference that is not `{"$ref": path}`.
 - **Decoding** rebuilds a value object through its owner's builder. `Store.member(instance, name)` reads the value an
   instance holds in a property (a union's branch, an intersection's part).
 - **Value objects compare deeply**: by their properties, recursively, containers included. They have no identity.
@@ -693,7 +695,7 @@ it is fixed here:
 | Keyword arguments | `ToJSON(..., indent=2)` | options objects: `ToJSON(..., { indent: 2 })` |
 | Dynamic proxies | `__getattr__`, `__call__` | a `Proxy` with a function target, its `name` and `length` hidden; JavaScript protocol probes (`then`, `toJSON`, symbols) are not schema lookups |
 | Scalar sugar | dunders (`str(card.name)`, `int(...)`) | `[Symbol.toPrimitive]` and `valueOf` (`` `${card.name}` ``, `+card.age`) |
-| Identities | a UUID from `uuid.uuid4()`; the weak directory a `weakref.WeakValueDictionary`, which forgets an object when its last reference goes | a UUID from `crypto.getRandomValues`; `WeakRef`s and a `FinalizationRegistry`, which forget an object when the garbage collector runs |
+| Lookup by keys | `adjacency({"name": "DEF-693"})`, `store.Instances.wts.Free({"name": "free-1"})`: any mapping | `adjacency({ name: "DEF-693" })`, `store.Instances.wts.Free({ name: "free-1" })`: an object literal |
 | Incomparable (`Comparison`) | `None` | `null` |
 | JSON | `json` with strict options | own reader and writer reproducing Python's output; ints and floats kept distinct |
 | YAML | PyYAML (optional extra), YAML 1.2 core loader | `yaml` package loader, own block emitter; the same quoting |
@@ -1075,7 +1077,10 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     registers. A reference object schema still takes a snapshot, and `.OfObject` still refuses a value object schema.
 
 - **Reference identity** ([Visitor pattern](VISITOR_PATTERN.md), "Reference Identity", as the user wrote it), refining
-  The visitor pattern's "global name, otherwise a UUID":
+  The visitor pattern's "global name, otherwise a UUID" (superseded since 0.20.0 by [Object identity](OBJECT_IDENTITY.md),
+  Decided, 1 to 36: an identity is the object's path, read off its ownership; there are no UUIDs, an object its schema
+  owns being keyed by its local name and a number where it has no naming pattern; `by_identity` gives way to lookup by
+  keys; a snapshot lists each object with its path and its schema's name, and a reference is its path alone):
   - a reference object with a global name (`.singleton("foo")`) uses it on the wire; a reference object schema may
     instead give a naming pattern to `.ref()` (`.ref(r'FEA-(\d+\d\d)')`, the number "extend[ing] on the left"); one
     declared with `.ref()` alone has a UUID given by `.create()` or `.clone()`; on the wire every identity is
@@ -1185,7 +1190,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - `OfScalar` "completely displaces" `OfNative`, in `Schemas` and `Visitors`: a module writes `{"scalar": {"format":
     ..., "token": ...}}` (superseded since 0.18.0: a scalar has no token; Store overhaul, Decided, 22);
   - a reference object is named by its global name if it has one, otherwise by "a UUID on creation by `.create()` or
-    `.clone()` that is saved on the wire" (refined by Reference identity: a naming pattern may take the UUID's place); "value objects are never shared"; "value objects cannot be referenced by
+    `.clone()` that is saved on the wire" (refined by Reference identity: a naming pattern may take the UUID's place;
+    superseded since 0.20.0 by Object identity: no UUIDs); "value objects are never shared"; "value objects cannot be referenced by
     entries"; a value object may have adjacencies only to one-link relations, of "zero or more" properties (since
     Containers, above, a value object has none: its lists are containers); "Paths go away";
   - `.ref()` declares a reference object schema, and an object schema without it is a value object schema ("drop the

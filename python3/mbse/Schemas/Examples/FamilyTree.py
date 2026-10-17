@@ -3,7 +3,7 @@
 # Covers self-relations, several relations between the same pair of objects, multiple owners, cycles, a self-loop,
 # duplicate elision, entries that differ only by a property, entry removal, clone() copying entries, and round trips.
 
-from mbse.Schemas.Framework import Builders, Schemas, Plain, Reachable, Validators
+from mbse.Schemas.Framework import Builders, Paths, Schemas, Plain, Reachable, Validators
 from mbse.Schemas.Examples._support import entries, raises, same_graph
 
 
@@ -160,7 +160,7 @@ Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot())  # the same s
 for root in (ada, carol, loner):
     graph = Plain.ToPlain(store).Reachable(Person, root)
     restored = Plain.FromPlain(archive).Reachable(archive.Person, graph)
-    assert restored is not root and restored.as_identity() == root.as_identity()
+    assert restored is not root and Paths.same(restored.as_identity(), root.as_identity())
     assert str(restored.given_name) == str(root.given_name)
     assert same_graph(Plain.ToPlain(archive).Reachable(archive.Person, restored), graph)
     assert Plain.FromPlain(store).Reachable(Person, graph) is root

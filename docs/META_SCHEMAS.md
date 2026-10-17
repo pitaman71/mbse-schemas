@@ -103,7 +103,8 @@ call sites, and the docs; phase 3, the old builders removed, the corpora regener
     and `entries_of`. With them goes what V1 left without a use: `Comparison`'s paths between value objects (`OfLink` compares by identity only), and the state's references
   in a value object's entries (`Bindings`, "no snapshot holds the value"), which only a two-link relation of a value
   object, now invalid, could hold.
-- V4. **Identity**, as FRAMEWORK.md, Resolved, "Reference identity" decides: a reference object named by its global name,
+- V4. **Identity** (superseded since 0.20.0 by [Object identity](OBJECT_IDENTITY.md): an identity is a path, and there
+  are no UUIDs), as FRAMEWORK.md, Resolved, "Reference identity" decides: a reference object named by its global name,
   by a name its schema's `.ref(pattern)` gives, or by a UUID, given by `create()` or `clone()` and never by the program;
   one directory per schema in each store, its numbers strictly increasing, which loading advances; the identity saved
   on the wire, qualified by the schema's registered name, as the object's key in a snapshot and in the links to it, a

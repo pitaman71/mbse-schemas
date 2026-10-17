@@ -27,9 +27,10 @@ from .Builders import AnyValueBuilder, ContainerBuilder, ObjectBuilder, UnionBui
 __all__ = ["schemas"]
 
 
-def schemas(Text: Any, Int: Any) -> SimpleNamespace:
+def schemas(Text: Any, Int: Any, Path: Any) -> SimpleNamespace:
     """The mutation schemas, built anew for a store whose basic scalars `Text` (`Schemas.OfStr`) and `Int`
-    (`Schemas.OfInt`) they use: each store holds its own (docs/SCHEMA_EXTENSION.md, Decided, 23)."""
+    (`Schemas.OfInt`) and whose `Paths.OfRoot` (`Path`) they use: each store holds its own (docs/SCHEMA_EXTENSION.md,
+    Decided, 23)."""
     Payload = AnyValueBuilder().create()  # untyped: interpreted by the target's schema
 
     def _list(element: Any) -> Any:
@@ -51,10 +52,16 @@ def schemas(Text: Any, Int: Any) -> SimpleNamespace:
 
     # --- Nouns ---
 
-    Ref = _verb("OfObject.Ref", _text("key"))  # identity only: "Module.Schema/ID"
+    Ref = _verb(  # a schema object by its key, "Module.Schema/ID"; data by its path (docs/OBJECT_IDENTITY.md, Decided, 8)
+        "OfObject.Ref",
+        _text("key"),
+        lambda t: t.name("path").schema([Path]),
+    )
     Def = _verb(
         "OfObject.Def",
-        _text("key"),  # "Module.Schema/ID": the schema reference and the identity
+        _text("key"),  # a schema object's: "Module.Schema/ID", the schema reference and the identity
+        lambda t: t.name("path").schema([Path]),  # data's: its path, and its schema's name, `Schema@`
+        _text("schema"),
         lambda t: t.name("properties").schema([ContainerBuilder().index([Text]).element([Payload]).create()]),
     )
     Slice = _verb(

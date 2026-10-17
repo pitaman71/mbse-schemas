@@ -1095,7 +1095,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Person/person-1",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Person"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "person-1"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Person",
         "properties": {
           "given_name": "Ada",
           "birth_date": "1815-12-10"
@@ -1106,7 +1130,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Person/person-2",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Person"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "person-2"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Person",
         "properties": {
           "given_name": "Bob"
         }
@@ -1128,7 +1176,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Person/person-2"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "person-2"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1142,7 +1213,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Person/person-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "person-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1160,7 +1254,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Person/person-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "person-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1174,7 +1291,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Person/person-2"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "person-2"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1201,7 +1341,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Person/person-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "person-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1215,7 +1378,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Person/person-2"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "person-2"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1242,7 +1428,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Person/person-3",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Person"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "person-3"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Person",
         "properties": {
           "given_name": "Carol"
         }
@@ -1264,7 +1474,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Person/person-3"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "person-3"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1278,7 +1511,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Person/person-3"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "person-3"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1293,7 +1549,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Person/person-4",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Person"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "person-4"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Person",
         "properties": {
           "given_name": "Dan",
           "birth_date": "2001-02-03"
@@ -1316,7 +1596,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Person/person-3"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "person-3"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1330,7 +1633,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Person/person-4"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "person-4"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }

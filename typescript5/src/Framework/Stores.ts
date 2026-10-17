@@ -89,14 +89,12 @@ export interface Store {
    * `update()` of `instance`. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   builder(name: string, instance?: unknown): any;
-  /** The live object of the schema `name` whose identity (unqualified, as `as_identity()` gives it) is `identity`;
-   * `LookupError` if there is none. */
-  by_identity(name: string, identity: string): Readers.OfObject;
   /** Whether the store was made holding `schema` (a `Builders.Store`'s plain schemas, basic scalars and mutation
    * schemas): a name each store holds its own schema under. */
   framework(schema: unknown): boolean;
-  /** For decoders: a builder for the object schema `name` whose `create()` gives the object the identity a snapshot
-   * names. A program writes one through the builder's `as_identity`. */
+  /** For decoders: a builder for the object schema `name` whose `create()` gives the object the key among its
+   * schema's objects a snapshot's path names. A program writes no identity: it is the object's path
+   * (docs/OBJECT_IDENTITY.md, Decided, 16). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   restore(name: string, identity: string): any;
   /** The value `instance` holds in its property `name`, e.g. a value object or a union's branch. */
@@ -235,10 +233,6 @@ export class Combined implements Store {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   builder(name: string, instance?: unknown): any {
     return this.owner(name, AttributeError).builder(name, instance);
-  }
-
-  by_identity(name: string, identity: string): Readers.OfObject {
-    return this.owner(name, AttributeError).by_identity(name, identity);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -26,7 +26,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { AttributeError, ReadOnlyError, ValueError } from "./Errors.js";
+import { AttributeError, KeyError, LookupError, ReadOnlyError, ValueError } from "./Errors.js";
 import * as Mutations from "./Mutations.js";
 import * as Paths from "./Paths.js";
 import * as Proxies from "./Proxies.js";
@@ -1922,10 +1922,10 @@ export class Store extends Proxies._Store {
   constructor() {
     super();
     this._meta = plainSchemas(); // its plain schemas of schemas and basic scalars, its own
-    const mutations = Mutations.schemas({ AnyValueBuilder, ContainerBuilder, ObjectBuilder, UnionBuilder,
-      Text: this._meta.OfStr, Int: this._meta.OfInt });
     const paths = Paths.schemas({ AnyValueBuilder, ContainerBuilder, ObjectBuilder, UnionBuilder, Text: this._meta.OfStr,
       Int: this._meta.OfInt, Bool: this._meta.OfBool });
+    const mutations = Mutations.schemas({ AnyValueBuilder, ContainerBuilder, ObjectBuilder, UnionBuilder,
+      Text: this._meta.OfStr, Int: this._meta.OfInt, Path: paths.OfRoot as S.OfObject.Data });
     for (const schema of [...Object.values(this._meta), ...Object.values(mutations), ...Object.values(paths)] as (ObjectData | RelationData)[]) {
       this._objects.set(key(_kind(schema), identity_of(schema) as string), schema);
       this._register(schema);
@@ -1954,6 +1954,13 @@ export class Store extends Proxies._Store {
   holds(data: unknown): boolean {
     const identity = identity_of(data);
     return identity !== null && this._objects.get(key(_kind(data), identity)) === data;
+  }
+
+  /** The store's reference objects by their paths (docs/OBJECT_IDENTITY.md, Decided, 26): `store.Instances.<a
+   * singleton's global name>` is the singleton, whose adjacencies called with keys continue the path, and
+   * `store.Instances.<a schema's name>({ name: key })` the object its schema owns under that key. */
+  get Instances(): any {
+    return makeInstances(this, "");
   }
 
   /** The module whose path is `path` (`crm.sales`), made with the modules it is in where there is none; the root module
@@ -2130,6 +2137,32 @@ function key(kind: string, identity: string): string {
 
 /** `store.moduleName.[...moduleName].schemaName`: a schema's name, one part per member; called, it builds, and given
  * where an object is expected, it is the schema it names (`.schema([store.Schemas.OfInt])`); `as_schema()` gives it. */
+/** `store.Instances.<path>`: a dotted name, each part an attribute, until it names a singleton, which it gives; called
+ * with keys, the object the schema it names owns under them (`Schemas.HasInstance`). */
+function makeInstances(store: Store, name: string): any {
+  const find = (keys: unknown): unknown => {
+    const schema = store.registered(name) as S.OfObject.Data;
+    const plain = keys !== null && typeof keys === "object" && Object.getPrototypeOf(keys) === Object.prototype;
+    const held = plain ? new Map(Object.entries(keys as object)) : null;
+    if (held === null || held.size !== 1 || !held.has("name")) {
+      throw new KeyError(`an object its schema owns is found by its key, {'name': ...}; got ${repr(held ?? keys)}`);
+    }
+    const found = store._directory(name).live.get(held.get("name") as string);
+    const owned = ![...schema.adjacencies.values(), ...schema.anonymous].some((a) => a.owner);
+    if (found === undefined || !owned) throw new LookupError(`no ${repr(name)} has the key ${repr(held.get("name"))}`);
+    return found;
+  };
+  return new Proxy(find, {
+    get: (_target, part) => {
+      if (part === REPR) return () => `<Instances.${name}>`;
+      if (typeof part === "symbol" || Proxies._probes.has(part)) return undefined;
+      if (part.startsWith("_")) throw new AttributeError(part);
+      const dotted = name === "" ? part : `${name}.${part}`;
+      return store._singletons.has(dotted) ? store._singletons.get(dotted) : makeInstances(store, dotted);
+    },
+  });
+}
+
 function makePath(store: Store, name: string): any {
   const asSchema = (): unknown => store.registered(name);
   const path = new Proxy((...args: unknown[]) => store._build(name, args), {
@@ -2246,6 +2279,15 @@ export function _linked(visitor: unknown): unknown {
   if (!(inner instanceof Link)) return null;
   const referent = inner._entry._linked();
   return [referent, null][Number(builderFor(referent) === null)];
+}
+
+/** The data an entry's link read links, where it links data (an extension's relation, from a schema object's end);
+ * null otherwise. */
+export function _linked_data(visitor: unknown): unknown {
+  const inner = innerOf(visitor);
+  if (!(inner instanceof Link)) return null;
+  const referent = inner._entry._linked();
+  return referent !== null && builderFor(referent) === null ? referent : null;
 }
 
 /** Whether an adjacency member holds one entry at most, as a `unique` clause of its relation makes it. */

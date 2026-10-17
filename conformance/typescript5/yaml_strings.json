@@ -821,7 +821,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Notebook/notebook-1",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Notebook"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "notebook-1"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Notebook",
         "properties": {
           "title": "tricky"
         }
@@ -831,7 +855,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-1",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-1"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "yes"
         }
@@ -853,7 +901,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -867,7 +938,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -894,7 +988,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-2",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-2"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "No"
         }
@@ -916,7 +1034,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -930,7 +1071,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-2"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-2"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -957,7 +1121,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-3",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-3"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "on"
         }
@@ -979,7 +1167,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -993,7 +1204,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-3"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-3"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1020,7 +1254,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-4",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-4"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "OFF"
         }
@@ -1042,7 +1300,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1056,7 +1337,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-4"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-4"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1083,7 +1387,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-5",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-5"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "y"
         }
@@ -1105,7 +1433,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1119,7 +1470,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-5"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-5"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1146,7 +1520,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-6",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-6"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "true"
         }
@@ -1168,7 +1566,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1182,7 +1603,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-6"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-6"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1209,7 +1653,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-7",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-7"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "null"
         }
@@ -1231,7 +1699,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1245,7 +1736,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-7"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-7"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1272,7 +1786,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-8",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-8"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "~"
         }
@@ -1294,7 +1832,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1308,7 +1869,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-8"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-8"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1335,7 +1919,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-9",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-9"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": ""
         }
@@ -1357,7 +1965,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1371,7 +2002,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-9"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-9"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1398,7 +2052,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-10",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-10"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "010"
         }
@@ -1420,7 +2098,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1434,7 +2135,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-10"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-10"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1461,7 +2185,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-11",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-11"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "0o17"
         }
@@ -1483,7 +2231,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1497,7 +2268,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-11"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-11"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1524,7 +2318,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-12",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-12"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "0x1F"
         }
@@ -1546,7 +2364,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1560,7 +2401,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-12"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-12"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1587,7 +2451,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-13",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-13"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "1e3"
         }
@@ -1609,7 +2497,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1623,7 +2534,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-13"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-13"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1650,7 +2584,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-14",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-14"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "1_000"
         }
@@ -1672,7 +2630,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1686,7 +2667,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-14"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-14"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1713,7 +2717,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-15",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-15"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "1:30"
         }
@@ -1735,7 +2763,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1749,7 +2800,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-15"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-15"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1776,7 +2850,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-16",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-16"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "2026-09-01"
         }
@@ -1798,7 +2896,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1812,7 +2933,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-16"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-16"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1839,7 +2983,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-17",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-17"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": ".inf"
         }
@@ -1861,7 +3029,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1875,7 +3066,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-17"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-17"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1902,7 +3116,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-18",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-18"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": ".nan"
         }
@@ -1924,7 +3162,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1938,7 +3199,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-18"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-18"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1965,7 +3249,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-19",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-19"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "NaN"
         }
@@ -1987,7 +3295,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2001,7 +3332,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-19"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-19"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2028,7 +3382,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-20",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-20"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "Infinity"
         }
@@ -2050,7 +3428,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2064,7 +3465,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-20"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-20"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2091,7 +3515,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-21",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-21"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "-0.0"
         }
@@ -2113,7 +3561,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2127,7 +3598,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-21"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-21"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2154,7 +3648,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-22",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-22"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "+1"
         }
@@ -2176,7 +3694,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2190,7 +3731,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-22"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-22"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2217,7 +3781,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-23",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-23"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": " lead"
         }
@@ -2239,7 +3827,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2253,7 +3864,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-23"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-23"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2280,7 +3914,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-24",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-24"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "trail "
         }
@@ -2302,7 +3960,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2316,7 +3997,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-24"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-24"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2343,7 +4047,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-25",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-25"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "a: b"
         }
@@ -2365,7 +4093,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2379,7 +4130,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-25"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-25"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2406,7 +4180,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-26",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-26"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "- dash"
         }
@@ -2428,7 +4226,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2442,7 +4263,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-26"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-26"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2469,7 +4313,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-27",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-27"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "#hash"
         }
@@ -2491,7 +4359,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2505,7 +4396,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-27"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-27"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2532,7 +4446,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-28",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-28"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "x #y"
         }
@@ -2554,7 +4492,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2568,7 +4529,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-28"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-28"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2595,7 +4579,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-29",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-29"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "\"dq\""
         }
@@ -2617,7 +4625,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2631,7 +4662,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-29"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-29"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2658,7 +4712,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-30",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-30"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "'sq'"
         }
@@ -2680,7 +4758,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2694,7 +4795,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-30"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-30"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2721,7 +4845,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-31",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-31"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "@at"
         }
@@ -2743,7 +4891,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2757,7 +4928,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-31"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-31"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2784,7 +4978,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-32",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-32"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "`tick"
         }
@@ -2806,7 +5024,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2820,7 +5061,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-32"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-32"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2847,7 +5111,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-33",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-33"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "%pct"
         }
@@ -2869,7 +5157,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2883,7 +5194,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-33"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-33"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2910,7 +5244,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-34",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-34"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "!bang"
         }
@@ -2932,7 +5290,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2946,7 +5327,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-34"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-34"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2973,7 +5377,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-35",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-35"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "&amp"
         }
@@ -2995,7 +5423,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3009,7 +5460,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-35"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-35"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3036,7 +5510,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-36",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-36"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "*star"
         }
@@ -3058,7 +5556,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3072,7 +5593,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-36"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-36"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3099,7 +5643,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-37",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-37"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "|"
         }
@@ -3121,7 +5689,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3135,7 +5726,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-37"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-37"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3162,7 +5776,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-38",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-38"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": ">"
         }
@@ -3184,7 +5822,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3198,7 +5859,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-38"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-38"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3225,7 +5909,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-39",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-39"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "{}"
         }
@@ -3247,7 +5955,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3261,7 +5992,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-39"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-39"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3288,7 +6042,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-40",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-40"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "[]"
         }
@@ -3310,7 +6088,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3324,7 +6125,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-40"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-40"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3351,7 +6175,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-41",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-41"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": ","
         }
@@ -3373,7 +6221,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3387,7 +6258,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-41"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-41"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3414,7 +6308,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-42",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-42"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "?"
         }
@@ -3436,7 +6354,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3450,7 +6391,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-42"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-42"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3477,7 +6441,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-43",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-43"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "<<"
         }
@@ -3499,7 +6487,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3513,7 +6524,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-43"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-43"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3540,7 +6574,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-44",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-44"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "---"
         }
@@ -3562,7 +6620,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3576,7 +6657,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-44"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-44"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3603,7 +6707,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-45",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-45"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "..."
         }
@@ -3625,7 +6753,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3639,7 +6790,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-45"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-45"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3666,7 +6840,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-46",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-46"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "a\nb"
         }
@@ -3688,7 +6886,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3702,7 +6923,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-46"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-46"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3729,7 +6973,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-47",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-47"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "\t"
         }
@@ -3751,7 +7019,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3765,7 +7056,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-47"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-47"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3792,7 +7106,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-48",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-48"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "\u0000"
         }
@@ -3814,7 +7152,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3828,7 +7189,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-48"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-48"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3855,7 +7239,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-49",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-49"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "\u0007"
         }
@@ -3877,7 +7285,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3891,7 +7322,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-49"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-49"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3918,7 +7372,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-50",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-50"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "﻿bom"
         }
@@ -3940,7 +7418,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3954,7 +7455,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-50"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-50"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -3981,7 +7505,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-51",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-51"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "ab"
         }
@@ -4003,7 +7551,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -4017,7 +7588,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-51"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-51"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -4044,7 +7638,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-52",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-52"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "a b"
         }
@@ -4066,7 +7684,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -4080,7 +7721,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-52"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-52"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -4107,7 +7771,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-53",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-53"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "日本語 🚀"
         }
@@ -4129,7 +7817,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -4143,7 +7854,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-53"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-53"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -4170,7 +7904,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Note/note-54",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Note"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "note-54"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Note",
         "properties": {
           "text": "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word "
         }
@@ -4192,7 +7950,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Notebook/notebook-1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Notebook"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "notebook-1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -4206,7 +7987,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Note/note-54"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Note"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "instances",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "note-54"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }

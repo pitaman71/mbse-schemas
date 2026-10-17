@@ -949,12 +949,44 @@
               value: Deck
 - exists:
     definition:
-      key: Deck/deck-1
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Deck
+            next:
+              entry:
+                i: instances
+                o: ''
+                properties:
+                  name: deck-1
+                next:
+                  target: {}
+      schema: Deck
       properties:
         title: contacts
 - exists:
     definition:
-      key: Card/card-1
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Card
+            next:
+              entry:
+                i: instances
+                o: ''
+                properties:
+                  name: card-1
+                next:
+                  target: {}
+      schema: Card
       properties:
         name: Ann
         home:
@@ -977,16 +1009,62 @@
           mutations:
           - set:
               ref:
-                key: Deck/deck-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Deck
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: deck-1
+                          next:
+                            target: {}
       - as_link:
           name: card
           mutations:
           - set:
               ref:
-                key: Card/card-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: card-1
+                          next:
+                            target: {}
 - exists:
     definition:
-      key: Card/card-2
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Card
+            next:
+              entry:
+                i: instances
+                o: ''
+                properties:
+                  name: card-2
+                next:
+                  target: {}
+      schema: Card
       properties:
         name: Bo
         reach:
@@ -1010,16 +1088,62 @@
           mutations:
           - set:
               ref:
-                key: Deck/deck-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Deck
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: deck-1
+                          next:
+                            target: {}
       - as_link:
           name: card
           mutations:
           - set:
               ref:
-                key: Card/card-2
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: card-2
+                          next:
+                            target: {}
 - exists:
     definition:
-      key: Card/card-3
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Card
+            next:
+              entry:
+                i: instances
+                o: ''
+                properties:
+                  name: card-3
+                next:
+                  target: {}
+      schema: Card
       properties:
         name: Cy
 - insert:
@@ -1032,10 +1156,40 @@
           mutations:
           - set:
               ref:
-                key: Deck/deck-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Deck
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: deck-1
+                          next:
+                            target: {}
       - as_link:
           name: card
           mutations:
           - set:
               ref:
-                key: Card/card-3
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: card-3
+                          next:
+                            target: {}

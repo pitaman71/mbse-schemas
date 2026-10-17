@@ -4,7 +4,7 @@
 // values, an ambiguous link that refuses inline creation, the builder not validating scalar types, and round trips.
 
 import { ValueError } from "@mbse/schemas/Framework/Errors";
-import { Builders, Plain, Proxies, Reachable, Schemas, Validators } from "@mbse/schemas/Framework";
+import { Builders, Paths, Plain, Proxies, Reachable, Schemas, Validators } from "@mbse/schemas/Framework";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
 import { assert, entries, raises, same_graph } from "./_support.js";
@@ -182,7 +182,7 @@ Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot()); // the same 
 for (const [root, schema, its] of [[fall, Term, archive.Term], [mia, Student, archive.Student], [noah, Student, archive.Student]] as const) {
   graph = Plain.ToPlain(store).Reachable(schema, root);
   restored = Plain.FromPlain(archive).Reachable(its, graph) as Instance;
-  assert(restored !== root && restored.as_identity() === root.as_identity());
+  assert(restored !== root && Paths.same(restored.as_identity(), root.as_identity()));
   assert(same_graph(Plain.ToPlain(archive).Reachable(its, restored), graph));
 }
 

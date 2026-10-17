@@ -42,11 +42,11 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 
 | Notebook | Suite | Cases | Focus |
 |---|---|---|---|
-| `01_Schemas.ipynb` | SCH | 23 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` |
+| `01_Schemas.ipynb` | SCH | 24 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array` |
 | `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length`, the read-only views by the type checker; data instances are callable as a `Proxy` with a function target (`typeof` is `"function"`); the scalar sugar is `[Symbol.toPrimitive]` and `valueOf`; JavaScript's probes and `in` on a builder |
 | `03_Proxies.ipynb` | PRX | 21 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances, adjacencies, entry builders, link members and stores, `util.inspect` of instances, builders and members, the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel), and the reprs of builders of value objects and adjacencies |
 | `04_Reachable.ipynb` | RCH | 8 | as in Python |
-| `05_Plain.ipynb` | PLN | 17 | as in Python; the same 26 malformed snapshots with byte-identical `DecodeError` paths and reasons |
+| `05_Plain.ipynb` | PLN | 18 | as in Python; the same 26 malformed snapshots with byte-identical `DecodeError` paths and reasons |
 | `06_JSON.ipynb` | JSN | 11 | as in Python, including Python's exact output format; the 62-row JSN-09 table of `DecodeError`s is shared verbatim and matches exactly |
 | `07_YAML.ipynb` | YML | 14 | as in Python; the `yaml` package in YAML 1.1 mode is the "stock 1.1 reader"; the shared YML-06 table matches exactly, syntax errors (YML-06b) carry the `yaml` package's reasons |
 | `08_Validators.ipynb` | VAL | 16 | as in Python, with byte-identical problem messages |
@@ -57,7 +57,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `13_Comparison.ipynb` | CMP | 13 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
 | `14_Embedded.ipynb` | EMB | 12 | as in Python; the runtime's own probes (`then`, symbols) are not members, and `in` on a value object says what its schema declares, and on a property whose value has one kind its members |
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
-| `20_Stores.ipynb` | STO | 7 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), STO-05 builds its unplaced value object through `Proxies._internals`, and STO-07 runs the garbage collector (`gc()`, the suites running with `--expose-gc`), then awaits the store's forgetting |
+| `20_Stores.ipynb` | STO | 8 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), STO-05 builds its unplaced value object through `Proxies._internals`, and STO-07 runs the garbage collector (`gc()`, the suites running with `--expose-gc`), then awaits the store's forgetting |
 | `21_Random.ipynb` | RND | 3 | as in Python; PCG32 computes on `bigint`s, and the UTF-8 bytes of keys are encoded without `TextEncoder` |
 | `22_Parametrics.ipynb` | PAR | 2 | as in Python |
 | `23_Containers.ipynb` | CNT | 7 | as in Python; an index of several ints is an array, `[1n, 2n]`, not a tuple; a container's size is `length`, not `len()`; the writer's option is `ToPlain(store, { flat: true })` |
@@ -66,9 +66,9 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `26_Mutations.ipynb` | MUT | 5 | as in Python; `Exists`' noun keeps Python's name, `definition`; plain mappings are `Map`s, ints `bigint`s, and `Mutations.SCHEMAS` is an array |
 | `27_Snapshots.ipynb` | SNP | 5 | as in Python; builders and the store's paths are `Proxy` objects typed loosely, so callbacks are annotated `(t: any)`; plain mappings are `Map`s, ints `bigint`s; a log written again is compared as its JSON text, `unique` clauses as sorted lists |
 | `28_Extensions.ipynb` | EXT | 5 | as in Python |
-| `29_Identity.ipynb` | IDN | 4 | as in Python |
+| `29_Identity.ipynb` | IDN | 7 | as in Python |
 
-Total: 207 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
+Total: 221 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences
@@ -87,7 +87,7 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | Scalar sugar | the dunders, each of its own type | `[Symbol.toPrimitive]` and `valueOf`; never `===` on a member | VIS-06 |
 | Scalar comparison | a scalar visitor compares, orders and hashes as its value (`card.name == "Ada"`) | compared once read (`card.name.get() === "Ada"`) | VIS-06 |
 | Name collisions (F2) | names starting with `_` and a builder's own methods are never members | the same, and declared names win over JavaScript's own members | PRX-04 |
-| A store's weak directory (`by_identity`) | forgets an object as soon as its last reference goes | forgets it when the garbage collector runs | STO-07 |
+| Lookup by keys | any mapping | an object literal, `{ name: ... }` | IDN-06 |
 | Finalizer arguments | extra arguments raise `TypeError` | the same, checked explicitly (JavaScript ignores extra arguments) | SCH-09, PRX-04 |
 | Lone surrogate to UTF-8 | raises `UnicodeEncodeError` | `TextEncoder` substitutes U+FFFD | JSN-06 |
 | YAML text | PyYAML's layout (folds long lines, `...` after a top-level scalar) | own block emitter (no folding, no end marker); values are identical | YML-04, YML-08, CONF-03 |

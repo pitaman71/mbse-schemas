@@ -17,7 +17,7 @@ from typing import Any
 from . import Proxies
 from .Builders import AnyValueBuilder, ContainerBuilder, ObjectBuilder, UnionBuilder
 
-__all__ = ["schemas", "of"]
+__all__ = ["schemas", "of", "same"]
 
 
 def schemas(Text: Any, Int: Any, Bool: Any) -> SimpleNamespace:
@@ -57,11 +57,35 @@ def _owned_by(obj: Any) -> tuple[Any, Any, Any]:
     return adjacency, entry, owner
 
 
-def of(obj: Any) -> Any:
-    """The path of a reference object, read off its ownership entries back to a singleton: a `Paths.OfRoot` value,
-    standalone, of the object's store."""
+def _owner_adjacency(schema: Any) -> bool:
+    return any(adjacency.owner for adjacency in (*schema.adjacencies.values(), *schema.anonymous))
+
+
+def _schema_steps(store: Any, schema: Any, name: str) -> list[tuple[str, str, dict[str, Any]]]:
+    """The steps from the root module to a schema, through `Schemas.Defines` by name (Decided, 17); for a schema the
+    store has not placed, those its name, `name`, spells."""
+    if id(schema) not in store._placed:
+        return [("schemas", "", {"name": part}) for part in name.split(".")]
+    steps, current = [], schema
+    while id(current) in store._placed:
+        module, local = store._placed[id(current)]
+        steps.append(("schemas", "", {"name": local}))
+        current = module
+    return steps[::-1]
+
+
+def _steps(obj: Any) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]:
+    """The singleton a reference object's path starts from, and the ownership entries from it to the object: through
+    the adjacencies marked `owner()`, else, for an object whose schema declares none, through its schema's
+    `Schemas.HasInstance` entry, after the schema's own path from the root module (Decided, 31)."""
     store, steps, current, seen = Proxies.store_of(obj), [], obj, set()
-    while object.__getattribute__(current, "_schema").singleton is None:
+    while True:
+        schema = object.__getattribute__(current, "_schema")
+        if schema.singleton is not None:
+            return schema.singleton, steps[::-1]
+        if not _owner_adjacency(schema):
+            steps.append(("instances", "", {"name": object.__getattribute__(current, "_identity")}))
+            return ".", _schema_steps(store, schema, object.__getattribute__(current, "_schema_name")) + steps[::-1]
         if id(current) in seen:
             raise LookupError("an ownership cycle: no singleton owns the object")
         seen.add(id(current))
@@ -72,7 +96,12 @@ def of(obj: Any) -> Any:
                   if held.relation is adjacency.relation and held.me == owner_link), "")
         steps.append((i, adjacency.name, dict(entry._properties)))
         current = owner
-    singleton = object.__getattribute__(current, "_schema").singleton
+
+
+def of(obj: Any) -> Any:
+    """The path of a reference object, read off its ownership entries (Decided, 32): a `Paths.OfRoot` value,
+    standalone, of the object's store."""
+    singleton, steps = _steps(obj)
 
     def step(rest: list[tuple[str, str, dict[str, Any]]]) -> Any:
         if not rest:
@@ -80,4 +109,14 @@ def of(obj: Any) -> Any:
         i, o, keys = rest[0]
         return lambda n: n.entry(lambda e: e.i(i).o(o).properties(keys).next(step(rest[1:])))
 
-    return store.Paths.OfRoot(lambda r: r.singleton(singleton).next(step(steps[::-1])))
+    return Proxies.store_of(obj).Paths.OfRoot(lambda r: r.singleton(singleton).next(step(steps)))
+
+
+def same(a: Any, b: Any) -> bool:
+    """Whether two paths name the same object: equal as plain data. None, an identity not yet given, is the same only
+    as None."""
+    if a is None or b is None:
+        return a is b
+    from . import Plain
+
+    return Plain.ToPlain(None)(a.as_schema(), a) == Plain.ToPlain(None)(b.as_schema(), b)  # keys written bare: no names

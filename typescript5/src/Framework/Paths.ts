@@ -13,9 +13,11 @@
 
 import type * as Builders from "./Builders.js";
 import { LookupError } from "./Errors.js";
+import * as Plain from "./Plain.js";
 import * as Proxies from "./Proxies.js";
 import { repr } from "./Repr.js";
 import type * as S from "./Schemas.js";
+import type * as Stores from "./Stores.js";
 
 /** What `schemas` builds with: the builders, and the store's basic scalars `Text`, `Int` and `Bool`. */
 interface Kit {
@@ -73,28 +75,69 @@ function ownedBy(obj: unknown): [S.OfAdjacency.Data, any, unknown] {
   return [adjacency, entry, owner];
 }
 
-/** The path of a reference object, read off its ownership entries back to a singleton: a `Paths.OfRoot` value,
- * standalone, of the object's store. */
-export function of(obj: unknown): unknown {
+function hasOwnerAdjacency(schema: S.OfObject.Data): boolean {
+  return [...schema.adjacencies.values(), ...schema.anonymous].some((adjacency) => adjacency.owner);
+}
+
+type Step = [string, string, Map<string, unknown>];
+
+/** The steps from the root module to a schema, through `Schemas.Defines` by name (Decided, 17); for a schema the store
+ * has not placed, those its name, `name`, spells. */
+function schemaSteps(store: any, schema: unknown, name: string): Step[] {
+  if (!store._placed.has(schema)) return name.split(".").map((part) => ["schemas", "", new Map([["name", part]])]);
+  const steps: Step[] = [];
+  let current = schema;
+  while (store._placed.has(current)) {
+    const [module, local] = store._placed.get(current);
+    steps.push(["schemas", "", new Map([["name", local]])]);
+    current = module;
+  }
+  return steps.reverse();
+}
+
+/** The singleton a reference object's path starts from, and the ownership entries from it to the object: through the
+ * adjacencies marked `owner()`, else, for an object whose schema declares none, through its schema's
+ * `Schemas.HasInstance` entry, after the schema's own path from the root module (Decided, 31). */
+function stepsOf(obj: unknown): [string, Step[]] {
   const store: any = Proxies._store_of(obj);
-  const steps: [string, string, Map<string, unknown>][] = [];
+  const steps: Step[] = [];
   const seen = new Set<unknown>();
   let current = obj;
-  while ((Proxies._innerOf(current)._schema as S.OfObject.Data).singleton === null) {
+  for (;;) {
+    const state = Proxies._innerOf(current);
+    const schema = state._schema as S.OfObject.Data;
+    if (schema.singleton !== null) return [schema.singleton, steps.reverse()];
+    if (!hasOwnerAdjacency(schema)) {
+      steps.push(["instances", "", new Map([["name", state._identity]])]);
+      return [".", [...schemaSteps(store, schema, state._schemaName), ...steps.reverse()]];
+    }
     if (seen.has(current)) throw new LookupError("an ownership cycle: no singleton owns the object");
     seen.add(current);
     const [adjacency, entry, owner] = ownedBy(current);
     const ownerLink = [...entry._links.keys()].find((link: string) => link !== adjacency.me) as string;
     const ownerSchema = Proxies._innerOf(owner)._schema as S.OfObject.Data;
     const i = [...ownerSchema.adjacencies].find(([, held]) => held.relation === adjacency.relation && held.me === ownerLink)?.[0] ?? "";
-    steps.push([i, adjacency.name, new Map(entry._properties)]);
+    steps.push([i, adjacency.name as string, new Map(entry._properties)]);
     current = owner;
   }
-  const singleton = (Proxies._innerOf(current)._schema as S.OfObject.Data).singleton;
-  const step = (rest: [string, string, Map<string, unknown>][]): (n: any) => any => {
+}
+
+/** The path of a reference object, read off its ownership entries (Decided, 32): a `Paths.OfRoot` value, standalone,
+ * of the object's store. */
+export function of(obj: unknown): unknown {
+  const [singleton, steps] = stepsOf(obj);
+  const step = (rest: Step[]): (n: any) => any => {
     if (rest.length === 0) return (n: any) => n.target((t: any) => t);
     const [i, o, keys] = rest[0]!;
     return (n: any) => n.entry((e: any) => e.i(i).o(o).properties(keys).next(step(rest.slice(1))));
   };
-  return store.Paths.OfRoot((r: any) => r.singleton(singleton).next(step(steps.reverse())));
+  return (Proxies._store_of(obj) as any).Paths.OfRoot((r: any) => r.singleton(singleton).next(step(steps)));
+}
+
+/** Whether two paths name the same object: equal as plain data. Null, an identity not yet given, is the same only as
+ * null. */
+export function same(a: any, b: any): boolean {
+  if (a === null || b === null) return a === b;
+  const plain = Plain.ToPlain(null as unknown as Stores.Store);
+  return Plain._symbol(plain(a.as_schema(), a)) === Plain._symbol(plain(b.as_schema(), b)); // keys written bare: no names
 }

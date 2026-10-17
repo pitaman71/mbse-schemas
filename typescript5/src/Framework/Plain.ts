@@ -40,6 +40,7 @@
 import * as Builders from "./Builders.js";
 import { AttributeError, DecodeError, LookupError, NotImplementedError, path, ValueError } from "./Errors.js";
 import * as Json from "./JSON.js";
+import * as Paths from "./Paths.js";
 import * as Proxies from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
 import type * as Readers from "./Readers.js";
@@ -332,24 +333,16 @@ class Held {
 
 // --- Snapshots ---
 
-/** Writes the included objects, in first-reference order, each keyed by its qualified identity. */
+/** Writes the included objects, in first-reference order, each listed with its path, its schema's name and its
+ * members (docs/OBJECT_IDENTITY.md, Decided, 36). */
 class Snapshot {
   readonly ref: Ref;
 
   constructor(private readonly store: Stores.Store, flat = false) {
     /** A reference to a linked object, which is a reference object: entries never reference value objects. */
-    this.ref = Object.assign((target: Readers.OfObject): PlainMap =>
-      new Map<string, PlainData>([[REF, this.symbol(target)], [SCHEMA, this.store.name_of(target.as_schema())]]), { flat, store });
+    this.ref = Object.assign((target: Readers.OfObject): PlainMap => new Map<string, PlainData>([[REF, pathOf(target)]]),
+      { flat, store });
   }
-
-  /** An object's key in a snapshot, and in the links to it: its identity, qualified by its schema's registered name
-   * (`"crm.Feature/FEA-001"`); a global name alone, being unique in a store. */
-  private symbol(value: Readers.OfObject): string {
-    const schema = value.as_schema();
-    if (schema.singleton !== null) return schema.singleton;
-    return `${this.store.name_of(schema)}/${value.as_identity()}`;
-  }
-
 
   run(schema: Schemas.OfObject.Data, root: Readers.OfObject, include: Readers.OfObject[]): PlainMap {
     if (root.as_schema() !== schema) {
@@ -358,13 +351,14 @@ class Snapshot {
     if (!schema.ref) {
       throw new TypeError(`a snapshot's root must be a reference object; ${repr(schema.name)} is a value object schema`);
     }
-    const objects: PlainMap = new Map();
+    const objects: PlainMap[] = [];
     for (const value of include) {
       const out = object(value, value.as_schema(), this.ref);
       sortEntries(value.as_schema(), out);
-      objects.set(this.symbol(value), out);
+      objects.push(new Map<string, PlainData>([["path", pathOf(value)], ["schema", this.store.name_of(value.as_schema())],
+        ["properties", out]]));
     }
-    return new Map<string, PlainData>([["root", this.symbol(root)], ["objects", objects]]);
+    return new Map<string, PlainData>([["root", pathOf(root)], ["objects", objects]]);
   }
 }
 
@@ -403,10 +397,57 @@ function sortEntries(schema: Schemas.OfObject.Data, record: PlainMap): void {
   }
 }
 
-/** A reference: `{'$ref': symbol, '$schema': name}` to a reference object, or `{'$ref': symbol}` to a value object. */
+/** A reference: `{'$ref': path}`, the path of a reference object. */
 function isRef(value: unknown): value is PlainMap {
-  return value instanceof Map && value.has(REF) && (value.size === 1 || (value.size === 2 && value.has(SCHEMA))) &&
-    [...value.values()].every((v) => typeof v === "string");
+  return value instanceof Map && value.size === 1 && value.get(REF) instanceof Map;
+}
+
+/** A path's text in a reader, which tells paths apart: its canonical JSON, keys sorted. A path holds no lists. */
+export function _symbol(plain: unknown): string {
+  if (!(plain instanceof Map)) return Json.dumps(plain as PlainData);
+  const keys = sortedStrings([...plain.keys()] as string[]);
+  return `{${keys.map((key) => `${JSON.stringify(key)}:${_symbol(plain.get(key))}`).join(",")}}`;
+}
+
+/** A reference object's path, as plain data, in its own store (`Paths.of`). */
+function pathOf(value: unknown): PlainMap {
+  const store: any = Proxies._store_of(value);
+  return ToPlain(store)(store.Paths.OfRoot.as_schema(), Paths.of(value)) as PlainMap;
+}
+
+type Step = [string, string, PlainMap];
+
+/** A path as plain data: the singleton it starts from, and each entry transited (`i`, `o`, keys). `DecodeError` where
+ * it is not a `Paths.OfRoot` value. */
+function stepsOf(plain: unknown, where: Where): [string, Step[]] {
+  const malformed = (why: string): DecodeError =>
+    new DecodeError(`a path is {'singleton': name, 'next': {'entry': ...} or {'target': {}}}: ${why}`, { path: path(...where) });
+  const only = (value: unknown, ...names: string[]): value is PlainMap =>
+    value instanceof Map && value.size === names.length && names.every((name) => value.has(name));
+  if (!only(plain, "singleton", "next")) throw malformed("a mapping of 'singleton' and 'next'");
+  const singleton = plain.get("singleton");
+  if (typeof singleton !== "string") throw malformed("its singleton is text");
+  const steps: Step[] = [];
+  let step = plain.get("next");
+  while (!only(step, "target")) {
+    const entry = only(step, "entry") ? step.get("entry") : null;
+    if (!only(entry, "i", "o", "properties", "next") || typeof entry.get("i") !== "string" || typeof entry.get("o") !== "string"
+      || !(entry.get("properties") instanceof Map)) {
+      throw malformed("each step an entry of 'i', 'o', 'properties' and 'next'");
+    }
+    steps.push([entry.get("i") as string, entry.get("o") as string, new Map(entry.get("properties") as PlainMap)]);
+    step = entry.get("next");
+  }
+  return [singleton, steps];
+}
+
+/** The path of the steps given, as plain data. */
+function pathFrom(singleton: string, steps: Step[]): PlainMap {
+  let nested: PlainMap = new Map([["target", new Map()]]);
+  for (const [i, o, keys] of [...steps].reverse()) {
+    nested = new Map([["entry", new Map<string, PlainData>([["i", i], ["o", o], ["properties", keys], ["next", nested]])]]);
+  }
+  return new Map<string, PlainData>([["singleton", singleton], ["next", nested]]);
 }
 
 /** A decoded link: the symbol of the target object. */
@@ -637,7 +678,7 @@ function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: 
       if (name === adjacency.me) throw new DecodeError(`${repr(name)} is this object's own link, which is implied`, { path: at });
       if (relation.entry.links.has(name)) {
         if (!isRef(item)) throw new DecodeError("a link must be a reference", { path: at });
-        row.set(name, new Link(item.get(REF) as string));
+        row.set(name, new Link(_symbol(item.get(REF))));
       } else if (entryType !== undefined) {
         row.set(name, decode(entryType, item, [...where, key, i, name], store));
       } else {
@@ -655,8 +696,7 @@ function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: 
 function references(value: unknown, where: Where, found: (ref: PlainMap, where: Where) => void): void {
   if (value instanceof Map && value.has(REF)) {
     if (!isRef(value)) {
-      throw new DecodeError("a reference is {'$ref': key, '$schema': name}, or {'$ref': key} to a value object",
-        { path: path(...where) });
+      throw new DecodeError("a reference is {'$ref': path}", { path: path(...where) });
     }
     found(value, where);
   } else if (value instanceof Map) {
@@ -669,121 +709,202 @@ function references(value: unknown, where: Where, found: (ref: PlainMap, where: 
 /** Per reference object symbol: its decoded property values and its entries. */
 type Decoded = Map<string, [Map<string, unknown>, Rows]>;
 
-/** Checks a snapshot against the schemas and decodes its values before anything is built. Returns the root symbol,
- * each reference object's schema name, the decoded reference objects and their identities. Problems in the snapshot
+/** Where a path places an object: its key among its schema's objects (`Schemas.HasInstance`), a singleton's global name,
+ * or, through an `owner()` adjacency, the path of its owner (its symbol, and as plain data), the adjacency's name and the
+ * entry's keys. */
+interface Placed {
+  key: string | null;
+  owner: string | null;
+  ownerPath: PlainMap | null;
+  o: string;
+  keys: PlainMap;
+}
+
+/** Where `plain`, a path, places an object of `schema`, registered as `name` (docs/OBJECT_IDENTITY.md, Decided, 31). */
+function placedOf(plain: unknown, name: string, schema: Schemas.OfObject.Data, where: Where): Placed {
+  const [singleton, steps] = stepsOf(plain, where);
+  const at = (key: string | null): Placed => ({ key, owner: null, ownerPath: null, o: "", keys: new Map() });
+  if (schema.singleton !== null) {
+    if (steps.length > 0 || singleton !== schema.singleton) {
+      throw new DecodeError(`the singleton ${repr(name)} is the path of its global name ${repr(schema.singleton)} alone`,
+        { path: path(...where) });
+    }
+    return at(singleton);
+  }
+  if (singleton === "." && steps.length > 0 && steps[steps.length - 1]![0] === "instances") {
+    const before = steps.slice(0, -1);
+    const last = steps[steps.length - 1]![2];
+    const spelled = before.filter(([i]) => i === "schemas").map(([, , keys]) => String(keys.get("name"))).join(".");
+    const key = last.get("name");
+    if (spelled !== name || before.some(([i]) => i !== "schemas") || last.size !== 1 || !last.has("name")
+      || typeof key !== "string" || key === "") {
+      throw new DecodeError(`a ${repr(name)} its schema owns has the path of ${repr(name)}, then its key: `
+        + "{'i': 'instances', 'properties': {'name': key}}", { path: path(...where) });
+    }
+    const naming = Proxies._naming_of(schema, name);
+    if (schema.pattern !== null && Schemas._number_of(naming, key) === null) {
+      throw new DecodeError(`${repr(key)} is not a name ${repr(name)}'s naming pattern ${repr(schema.pattern)} gives`,
+        { path: path(...where) });
+    }
+    return at(key);
+  }
+  if (steps.length === 0) {
+    throw new DecodeError(`a ${repr(name)} is not a singleton: its path goes through what owns it`, { path: path(...where) });
+  }
+  const ownerPath = pathFrom(singleton, steps.slice(0, -1)); // the owner's path: the same steps but the last
+  const [, o, keys] = steps[steps.length - 1]!;
+  return { key: null, owner: _symbol(ownerPath), ownerPath, o, keys };
+}
+
+/** Checks a snapshot against the schemas and decodes its values before anything is built. Returns the root's symbol,
+ * each object's schema name, the decoded objects and where each path places its object. Problems in the snapshot
  * throw `DecodeError`. */
-function check(store: Stores.Store, schema: unknown, plain: unknown): [string, Map<string, string>, Decoded, Map<string, string>] {
+function check(store: Stores.Store, schema: unknown, plain: unknown): [string, Map<string, string>, Decoded, Map<string, Placed>] {
   if (!(schema instanceof Schemas.OfObject.Data)) {
     throw new TypeError(`the root schema must be an object schema, got ${schemaTypeName(schema)}`);
   }
   if (!schema.ref) throw new TypeError("the root schema must be a reference object schema");
-  if (!(plain instanceof Map) || plain.size !== 2 || !plain.has("root") || !(plain.get("objects") instanceof Map)) {
-    throw new DecodeError("expected an object snapshot: {'root': key, 'objects': {key: object}}", { path: "$" });
+  if (!(plain instanceof Map) || plain.size !== 2 || !plain.has("root") || !Array.isArray(plain.get("objects"))) {
+    throw new DecodeError("expected an object snapshot: {'root': path, 'objects': [{'path': path, 'schema': name, "
+      + "'properties': {...}}, ...]}", { path: "$" });
   }
-  const root: unknown = plain.get("root");
-  const objects = plain.get("objects") as Map<string, unknown>;
-  if (typeof root !== "string" || !objects.has(root)) {
-    throw new DecodeError(`root ${repr(root)} is not in the snapshot's objects`, { path: "$.root" });
-  }
-  for (const [symbol, obj] of objects) {
-    if (!(obj instanceof Map)) {
-      throw new DecodeError(`an object must be a mapping, got ${typeName(obj)}`, { path: path("objects", symbol) });
+  const objects = new Map<string, PlainMap>();
+  const names = new Map<string, string>();
+  const paths = new Map<string, PlainMap>();
+  (plain.get("objects") as unknown[]).forEach((listed, index) => {
+    const where: Where = ["objects", index];
+    if (!(listed instanceof Map) || listed.size !== 3 || !listed.has("path") || !listed.has("schema") || !listed.has("properties")) {
+      throw new DecodeError("an object is {'path': path, 'schema': name, 'properties': {...}}", { path: path(...where) });
     }
+    if (typeof listed.get("schema") !== "string" || !(listed.get("properties") instanceof Map)) {
+      throw new DecodeError("an object's schema is a name, and its properties a mapping", { path: path(...where) });
+    }
+    stepsOf(listed.get("path"), [...where, "path"]);
+    const symbol = _symbol(listed.get("path"));
+    if (objects.has(symbol)) {
+      throw new DecodeError("an object is listed once: another has the same path", { path: path(...where, "path") });
+    }
+    objects.set(symbol, listed.get("properties"));
+    names.set(symbol, listed.get("schema"));
+    paths.set(symbol, listed.get("path"));
+  });
+  stepsOf(plain.get("root"), ["root"]);
+  const root = _symbol(plain.get("root"));
+  if (!objects.has(root)) throw new DecodeError("the root is not one of the snapshot's objects", { path: "$.root" });
+  if (names.get(root) !== store.name_of(schema)) {
+    throw new DecodeError(`the root is a ${repr(names.get(root))}, not a ${repr(store.name_of(schema))}`, { path: "$.root" });
   }
+  const position = new Map([...objects.keys()].map((symbol, index) => [symbol, index]));
 
-  // Pass 1: infer each reference object's schema from the references to it.
-  const names = new Map<string, string>([[root, store.name_of(schema)]]);
-  const unnamed: [string, Where][] = []; // references without a schema, refused once more specific problems are not
   const found = (ref: PlainMap, where: Where): void => {
-    const target = ref.get(REF) as string;
-    if (!ref.has(SCHEMA)) { // the form a reference to a value object had; refused once the rest is checked
-      unnamed.push([target, where]);
-      return;
-    }
-    const targetSchema = ref.get(SCHEMA) as string;
-    if (!objects.has(target)) {
-      throw new DecodeError(`unresolved reference ${repr(target)}: the snapshot does not contain it`, { path: path(...where) });
-    }
-    if (!names.has(target)) names.set(target, targetSchema);
-    if (names.get(target) !== targetSchema) {
-      throw new DecodeError(`${repr(target)} is referenced as both ${repr(names.get(target))} and ${repr(targetSchema)}`,
-        { path: path(...where) });
+    if (!objects.has(_symbol(ref.get(REF)))) {
+      throw new DecodeError("unresolved reference: the snapshot does not contain its path", { path: path(...where) });
     }
   };
-  for (const [symbol, obj] of objects as Map<string, PlainMap>) { // every object but the root is reached by a reference that names its schema
-    for (const [key, value] of obj) references(value, ["objects", symbol, key], found);
+  for (const [symbol, obj] of objects) {
+    for (const [key, value] of obj) references(value, ["objects", position.get(symbol)!, "properties", key], found);
   }
-
-  // Pass 2: check every key against the schemas and decode the values.
   const decoded: Decoded = new Map();
-  const identities = new Map<string, string>();
-  for (const [symbol, obj] of objects as Map<string, PlainMap>) {
-    const name = names.get(symbol);
-    if (name === undefined) continue;
+  const placed = new Map<string, Placed>();
+  for (const [symbol, obj] of objects) {
+    const where: Where = ["objects", position.get(symbol)!];
+    const name = names.get(symbol)!;
     let objectSchema: Schemas.OfObject.Data;
     try {
       objectSchema = store.schema(name);
     } catch (error) {
       if (error instanceof AttributeError || error instanceof LookupError || error instanceof TypeError) {
-        throw new DecodeError(`no object schema registered as ${repr(name)}`, { path: path("objects", symbol) });
+        throw new DecodeError(`no object schema registered as ${repr(name)}`, { path: path(...where, "schema") });
       }
       throw error;
     }
-    if (!objectSchema.ref) throw new DecodeError(`${repr(name)} is not a reference object schema`, { path: path("objects", symbol) });
-    identities.set(symbol, identityOf(symbol, name, objectSchema));
+    if (!objectSchema.ref) throw new DecodeError(`${repr(name)} is not a reference object schema`, { path: path(...where, "schema") });
+    placed.set(symbol, placedOf(paths.get(symbol), name, objectSchema, [...where, "path"]));
     const properties = new Map<string, unknown>();
     const adjacencies: Rows = new Map();
     for (const [key, value] of obj) {
-      const where: Where = ["objects", symbol];
+      const at: Where = [...where, "properties"];
       const adjacency = objectSchema.adjacencies.get(key);
       const propertyType = objectSchema.properties.get(key)?.schema as Schemas.OfAny.Data | undefined;
       if (adjacency !== undefined) {
-        adjacencies.set(key, decodeRows(adjacency, value, where, key, store));
+        adjacencies.set(key, decodeRows(adjacency, value, at, key, store));
       } else if (propertyType !== undefined) {
-        properties.set(key, decode(propertyType, value, [...where, key], store));
+        properties.set(key, decode(propertyType, value, [...at, key], store));
       } else {
-        throw new DecodeError(`${repr(name)} has no property or adjacency ${repr(key)}`, { path: path(...where, key) });
+        throw new DecodeError(`${repr(name)} has no property or adjacency ${repr(key)}`, { path: path(...at, key) });
       }
     }
     decoded.set(symbol, [properties, adjacencies]);
   }
-  const unreached = sortedStrings([...objects.keys()].filter((symbol) => !names.has(symbol)));
-  if (unreached.length > 0) {
-    throw new DecodeError("nothing references this object, so its schema is unknown", { path: path("objects", unreached[0] as string) });
-  }
-  for (const [target, where] of unnamed) {
-    throw new DecodeError(`a reference names its target's schema: ${repr(target)} has none, and a link targets a `
-      + "reference object", { path: path(...where) });
-  }
-  return [root, names, decoded, identities];
+  return [root, names, decoded, placed];
 }
 
-/** The identity a snapshot's key gives an object of `schema`, registered as `name`: the key is the identity, qualified
- * by `name` (`"crm.Feature/FEA-001"`), or a singleton's global name alone. */
-function identityOf(symbol: string, name: string, schema: Schemas.OfObject.Data): string {
-  const where = path("objects", symbol);
-  if (schema.singleton !== null) {
-    if (symbol !== schema.singleton) {
-      throw new DecodeError(`the singleton ${repr(name)} is keyed by its global name ${repr(schema.singleton)}`, { path: where });
+/** Whether an entry's keys are those a path's step gives, equal as plain data. */
+function sameKeys(properties: Map<string, unknown>, keys: PlainMap): boolean {
+  return properties.size === keys.size && [...keys].every(([name, value]) => properties.has(name)
+    && Proxies.scalarKey(properties.get(name)) === Proxies.scalarKey(value));
+}
+
+/** The object a path names, where the store holds it: by its key among its schema's objects, as a singleton, or
+ * through its owner's adjacency named by the path's last step; null where it holds none. */
+function foundAt(store: any, name: string, placed: Placed, created: Map<string, unknown>): unknown {
+  if (placed.owner === null) {
+    if (store.registered(name).singleton !== null) return store.singleton(placed.key);
+    return store._directory(name).live.get(placed.key) ?? null;
+  }
+  const owner = created.get(placed.owner); // created first: a path names its owner by its own
+  const adjacency = ownerAdjacency(store.registered(name), placed.o);
+  const relation = adjacency.relation as Schemas.OfRelation.Data;
+  const link = [...relation.entry.links.keys()].find((other) => other !== adjacency.me) as string;
+  for (const entry of Proxies._linking(relation, link, owner)) {
+    const state = Proxies._innerOf(entry);
+    if ([...placed.keys].every(([key, value]) => Proxies.scalarKey(state._properties.get(key)) === Proxies.scalarKey(value))) {
+      return state._links.get(adjacency.me);
     }
-    return symbol;
   }
-  const identity = symbol.slice(name.length + 1);
-  if (!symbol.startsWith(`${name}/`) || identity === "") {
-    throw new DecodeError(`a ${repr(name)} is keyed by its identity qualified by its schema's name, e.g. '${name}/<name>'`,
-      { path: where });
+  return null;
+}
+
+/** The data object a path names in `store`, or null: by its key among its schema's objects, a singleton, or through its
+ * owner's entries, the one whose keys the path's last step gives and whose other end's owner adjacency is `o`. */
+function byPath(store: any, plain: unknown, where: Where): unknown {
+  const [singleton, steps] = stepsOf(plain, where);
+  if (singleton === "." && steps.length > 0 && steps[steps.length - 1]![0] === "instances") {
+    const name = steps.slice(0, -1).map(([, , keys]) => String(keys.get("name"))).join(".");
+    return store.names().includes(name) ? store._directory(name).live.get(steps[steps.length - 1]![2].get("name")) ?? null : null;
   }
-  if (schema.pattern !== null && schema.number_of(identity) === null) {
-    throw new DecodeError(`${repr(identity)} is not a name ${repr(name)}'s naming pattern ${repr(schema.pattern)} gives`,
-      { path: where });
+  if (steps.length === 0) return store._singletons.get(singleton) ?? null;
+  const owner = byPath(store, pathFrom(singleton, steps.slice(0, -1)), where);
+  if (owner === null) return null;
+  const [, o, keys] = steps[steps.length - 1]!;
+  for (const table of Proxies._adjacent_of(owner).values()) {
+    for (const entry of table.values()) {
+      const state = Proxies._innerOf(entry);
+      for (const [link, target] of state._links) {
+        if (target === owner || !(Proxies._innerOf(target) instanceof Proxies._internals._ObjectData)) continue;
+        const schema = Proxies._innerOf(target)._schema as Schemas.OfObject.Data;
+        const owned = [...schema.adjacencies.values(), ...schema.anonymous]
+          .some((a) => a.owner && a.name === o && a.relation === state._relation && a.me === link);
+        if (owned && sameKeys(state._properties, keys)) return target;
+      }
+    }
   }
-  return identity;
+  return null;
+}
+
+/** The adjacency of `schema` marked `owner()` that a path's `o` names; the anonymous one where `o` is empty. */
+function ownerAdjacency(schema: Schemas.OfObject.Data, o: string): Schemas.OfAdjacency.Data {
+  const found = [...schema.adjacencies.values(), ...schema.anonymous].filter((a) => a.owner && a.name === o);
+  if (found.length !== 1) {
+    throw new DecodeError(`${repr(schema.name)} has no adjacency ${repr(o)} marked owner() for a path to go through`);
+  }
+  return found[0]!;
 }
 
 /** Rebuilds objects from an object snapshot in `store`. Every reference must resolve within the snapshot:
  * reference objects are built first, with the value objects they hold, then the entries are added. */
 function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unknown): unknown {
-  const [root, names, decoded, identities] = check(store, schema, plain);
+  const [root, names, decoded, placed] = check(store, schema, plain);
   const seen = new Map<string, number>();
 
   /** The entries of an adjacency not already added through another, each with its position in the snapshot's list
@@ -824,18 +945,39 @@ function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unkn
   };
 
   const created = new Map<string, unknown>();
-  for (const [symbol, [properties]] of decoded) {
-    const name = names.get(symbol) as string;
-    let existing: unknown = null;
-    try { // an identity the store already holds, a singleton's included, is an update of that object
-      existing = store.by_identity(name, identities.get(symbol) as string);
-    } catch (error) {
-      if (!(error instanceof LookupError)) throw error;
+  const owned: [string, unknown][] = []; // objects placed through an owner, given their ownership entries once all exist
+  (store as any)._writing(() => {
+    let pending = [...decoded.keys()];
+    while (pending.length > 0) { // an owner before what it owns: its path is the owned's but the last step, so never a cycle
+      const progress = pending.filter((symbol) => {
+        const owner = placed.get(symbol)!.owner;
+        return owner === null || created.has(owner) || !decoded.has(owner);
+      });
+      for (const symbol of progress) {
+        pending = pending.filter((other) => other !== symbol);
+        const [properties] = decoded.get(symbol)!;
+        const where = placed.get(symbol)!;
+        const name = names.get(symbol)!;
+        if (where.owner !== null && !created.has(where.owner)) {
+          throw new DecodeError("an object's owner is not in the snapshot", { path: "$.objects" });
+        }
+        const existing = foundAt(store, name, where, created);
+        const builder = existing !== null ? store.builder(name, existing)
+          : where.key !== null ? store.restore(name, where.key) : store.builder(name);
+        for (const [key, value] of properties) set(builder, key, value);
+        created.set(symbol, existing === null ? builder.create() : builder.update());
+        if (existing === null && where.owner !== null) owned.push([symbol, created.get(symbol)]);
+      }
     }
-    const builder = existing === null ? store.restore(name, identities.get(symbol) as string) : store.builder(name, existing);
-    for (const [key, value] of properties) set(builder, key, value);
-    created.set(symbol, existing === null ? builder.create() : builder.update());
-  }
+    for (const [symbol, target] of owned) { // its ownership entry, from the path's last step
+      const where = placed.get(symbol)!;
+      const adjacency = ownerAdjacency(store.registered(names.get(symbol)!) as Schemas.OfObject.Data, where.o);
+      const relation = adjacency.relation as Schemas.OfRelation.Data;
+      const link = [...relation.entry.links.keys()].find((other) => other !== adjacency.me) as string;
+      Proxies._add_entry(relation, Proxies._make_entry(relation,
+        new Map([[link, created.get(where.owner!)], [adjacency.me, target]]), where.keys));
+    }
+  });
 
   /** The reference object a symbol names: entries never reference value objects. */
   const resolve = (symbol: string): unknown => created.get(symbol);
@@ -879,7 +1021,7 @@ function agrees(entry: any, row: Map<string, unknown>, resolve: (symbol: string)
     const link = row.get(name);
     if (link === undefined) continue;
     const [linked, target] = [entry[name], resolve((link as Link).symbol) as any];
-    if (linked.as_identity() !== target.as_identity() || linked.as_schema() !== target.as_schema()) return false;
+    if (Proxies._key_of(linked) !== Proxies._key_of(target) || linked.as_schema() !== target.as_schema()) return false;
   }
   for (const [name, prop] of schema.properties) {
     const [has, plain] = value(entry[name], prop.schema, ref);
@@ -980,6 +1122,8 @@ class LogWriter {
   /** Each object's adjacencies are scanned once: an inner object's later than its owner's. */
   private scans = 0;
   private readonly relations = new Map<unknown, number>();
+  /** Each object's reference on the wire, by its key. */
+  private readonly refs = new Map<string, PlainMap>();
 
   constructor(store: Stores.Store) {
     if (!(store instanceof Builders.Store)) {
@@ -995,9 +1139,14 @@ class LogWriter {
     return new builder(value, false, this.store);
   }
 
-  /** `Module.Schema/ID`: the registered name of the object's schema, and its identity. */
+  /** What tells an object apart in the writer: `Module.Schema/ID`, the registered name of its schema and its key. On
+   * the wire, a schema object is referred to by it, and data by its path (`refs`). */
   private key(visitor: any): string {
-    return `${this.store.name_of(visitor.as_schema())}/${visitor.as_identity()}`;
+    const key = `${this.store.name_of(visitor.as_schema())}/${Proxies._key_of(visitor)}`;
+    if (!this.refs.has(key)) {
+      this.refs.set(key, Proxies._is_data(visitor) ? m([["path", pathOf(visitor)]]) : m([["key", key]]));
+    }
+    return key;
   }
 
   /** Refuses a schema object the store does not hold, saying where it is linked: there are no foreign schemas. */
@@ -1019,10 +1168,15 @@ class LogWriter {
     for (const prop of visitor.as_properties) { // the properties that are set
       properties.set(prop.as_schema().name, value(prop, prop.as_schema().schema, this.names)[1]);
     }
-    this.out.push(m([["exists", m([["definition", m([["key", key], ["properties", singleton ? new Map() : properties]])]])]]));
+    const written = singleton ? new Map() : properties;
+    const ref = this.refs.get(key)!;
+    const definition = ref.has("path") // data: its path, and its schema's name, as it is created
+      ? m([["path", ref.get("path")!], ["schema", this.store.name_of(visitor.as_schema())], ["properties", written]])
+      : m([["key", key], ["properties", written]]);
+    this.out.push(m([["exists", m([["definition", definition]])]]));
     if (singleton) {
       for (const [name, plain] of properties) {
-        this.out.push(m([["as_property", m([["ref", m([["key", key]])], ["name", name],
+        this.out.push(m([["as_property", m([["ref", ref], ["name", name],
           ["mutations", [m([["set", m([["value", plain]])]])]]])]]));
       }
     }
@@ -1049,6 +1203,7 @@ class LogWriter {
         }
         let target = entry[link];
         if (Builders._builder_for(target) !== null) target = this.reader(target); // a schema object a proxy's entry links
+        else target = Builders._linked_data(target) ?? target; // data a schema object's entry links (an extension's)
         this.held(target, `${key}, ${schema.name},`);
         const targetKey = this.key(target);
         links.set(link, targetKey);
@@ -1089,7 +1244,7 @@ class LogWriter {
       const relationKey = this.key(this.reader(pending.relation));
       const entry = m([["mutations", [
         ...[...pending.links].map(([name, target]) => m([["as_link", m([["name", name],
-          ["mutations", [m([["set", m([["ref", m([["key", target]])]])]])]]])]])),
+          ["mutations", [m([["set", m([["ref", this.refs.get(target)!]])]])]]])]])),
         ...[...pending.properties].map(([name, plain]) => m([["as_property", m([["name", name],
           ["mutations", [m([["set", m([["value", plain]])]])]]])]])),
       ]]]);
@@ -1126,10 +1281,7 @@ class LogWriter {
     }
     for (const singleton of store._singletons.values()) this.define(singleton, this.key(singleton), true);
     for (const directory of [...store._directories.values()]) {
-      for (const held of [...directory.live.values()]) {
-        const value = held.deref();
-        if (value !== undefined) this.define(value, this.key(value));
-      }
+      for (const value of [...directory.live.values()]) this.define(value, this.key(value));
     }
     for (const held of [...store._objects.values()].filter((held) => store.framework(held))) {
       this.extended(this.reader(held));
@@ -1202,19 +1354,18 @@ class LogReader {
     return [key.slice(0, at), key.slice(at + 1)];
   }
 
-  private resolve(key: unknown, where: Where): any {
-    const [name, identity] = this.split(key, where);
-    const schema = this.schema(name, where);
-    let found: unknown = null;
-    if (this.meta.has(schema)) {
-      found = this.store.held(name, identity);
-    } else {
-      try {
-        found = this.store.by_identity(name, identity);
-      } catch { // none of that identity, or no object schema of that name
-        found = null;
-      }
+  /** The object a reference names: a schema object by its key, data by its path. */
+  private resolve(ref: unknown, where: Where): any {
+    if (ref instanceof Map && ref.has("path")) {
+      const found = byPath(this.store, ref.get("path"), [...where, "path"]);
+      if (found === null) throw new DecodeError("no object of the store has the path referred to", { path: path(...where, "path") });
+      return found;
     }
+    const key = ref instanceof Map ? ref.get("key") ?? null : null;
+    const [name, identity] = this.split(key, [...where, "key"]);
+    const schema = this.schema(name, where);
+    if (!this.meta.has(schema)) throw new DecodeError(`${repr(key)}: data is referred to by its path, not a key`, { path: path(...where) });
+    const found = this.store.held(name, identity);
     if (found === null) throw new DecodeError(`${repr(key)} is not in the store`, { path: path(...where) });
     return found;
   }
@@ -1228,6 +1379,10 @@ class LogReader {
 
   apply(log: unknown): unknown[] {
     if (!Array.isArray(log)) throw new DecodeError(`a log is a list, got ${typeName(log)}`, { path: "$" });
+    return this.store._writing(() => this.applyAll(log)); // an object's ownership is settled once the log is read
+  }
+
+  private applyAll(log: unknown[]): unknown[] {
     log.forEach((item, index) => {
       const [verb, body] = this.one(item, [index]);
       if (verb === "exists") this.exists(field(body, "definition", new Map()), [index, verb]);
@@ -1239,6 +1394,10 @@ class LogReader {
   }
 
   private exists(definition: any, where: Where): void {
+    if (definition instanceof Map && definition.has("path")) {
+      this.data(definition, where);
+      return;
+    }
     const key = field(definition, "key", null);
     const [name, identity] = this.split(key, [...where, "key"]);
     const schema = this.schema(name, [...where, "key"]);
@@ -1251,31 +1410,53 @@ class LogReader {
       builder.as_identity(identity);
       properties = builder.as_schema().properties;
     } else {
-      try {
-        this.store.by_identity(name, identity);
-        return;
-      } catch { // by_identity throws only LookupError
-        builder = this.store.restore(name, identity);
-      }
-      properties = schema.properties;
+      throw new DecodeError(`${repr(key)}: data is created with its path and its schema, not a key`, { path: path(...where, "key") });
     }
     for (const [propName, plain] of field(definition, "properties", new Map())) {
-      if (!properties.has(propName)) {
-        const owner = this.meta.has(schema) ? builder.as_schema() : schema;
-        if (this.store.framework(owner)) { // an extension of a schema the store was made holding, which it lacks
-          this.ignore([...where, propName], `${name} has no property ${repr(propName)}`);
-          continue;
-        }
-        throw new DecodeError(`${name} has no property ${repr(propName)}`, { path: path(...where, propName) });
+      if (!properties.has(propName)) { // an extension of a schema the store was made holding, which it lacks
+        this.ignore([...where, propName], `${name} has no property ${repr(propName)}`);
+        continue;
       }
       set(builder, propName, decode(properties.get(propName).schema, plain, [...where, propName], this.store));
     }
     this.made.push(builder.create());
   }
 
+  /** Creates a data object where its path places it, unless the store holds one there: by its key among its schema's
+   * objects, or through its owner, whose entry its path's last step gives. */
+  private data(definition: PlainMap, where: Where): void {
+    const name = definition.get("schema");
+    if (typeof name !== "string") throw new DecodeError("a data object's definition names its schema", { path: path(...where, "schema") });
+    const schema = this.schema(name, [...where, "schema"]);
+    if (!(schema instanceof Schemas.OfObject.Data) || !schema.ref) {
+      throw new DecodeError(`${repr(name)} is not a reference object schema`, { path: path(...where, "schema") });
+    }
+    const placed = placedOf(definition.get("path"), name, schema, [...where, "path"]);
+    if (byPath(this.store, definition.get("path"), [...where, "path"]) !== null) return;
+    let owner: unknown = null;
+    if (placed.ownerPath !== null) {
+      owner = byPath(this.store, placed.ownerPath, [...where, "path"]);
+      if (owner === null) throw new DecodeError("the object's owner is not in the store", { path: path(...where, "path") });
+    }
+    const builder = placed.key !== null ? this.store.restore(name, placed.key) : this.store.builder(name);
+    for (const [propName, plain] of field(definition, "properties", new Map()) as PlainMap) {
+      const prop = schema.properties.get(propName);
+      if (prop === undefined) throw new DecodeError(`${name} has no property ${repr(propName)}`, { path: path(...where, propName) });
+      set(builder, propName, decode(prop.schema as Schemas.OfAny.Data, plain, [...where, propName], this.store));
+    }
+    const made = builder.create();
+    if (owner !== null) {
+      const adjacency = ownerAdjacency(schema, placed.o);
+      const relation = adjacency.relation as Schemas.OfRelation.Data;
+      const link = [...relation.entry.links.keys()].find((other) => other !== adjacency.me) as string;
+      Proxies._add_entry(relation, Proxies._make_entry(relation, new Map([[link, owner], [adjacency.me, made]]), placed.keys));
+    }
+    this.made.push(made);
+  }
+
   /** Sets or clears a property of an object that exists (a singleton's, in an initial snapshot). */
   private asProperty(body: any, where: Where): void {
-    const target = this.resolve(field(field(body, "ref", new Map()), "key", null), [...where, "ref"]);
+    const target = this.resolve(field(body, "ref", new Map()), [...where, "ref"]);
     const name = field(body, "name", null);
     const schema = target.as_schema();
     if (!schema.properties.has(name)) {
@@ -1294,7 +1475,7 @@ class LogReader {
   }
 
   private insert(body: any, where: Where): void {
-    const relation = this.resolve(field(field(body, "relation", new Map()), "key", null), [...where, "relation"]);
+    const relation = this.resolve(field(body, "relation", new Map()), [...where, "relation"]);
     field(body, "entries", []).forEach((entry: any, number: number) => {
       const at = [...where, "entries", number];
       const links = new Map<string, unknown>();
@@ -1305,7 +1486,7 @@ class LogReader {
           const [, payload] = this.one(change, at); // an entry's links and properties are set
           const name = member.get("name");
           if (kind === "as_link") {
-            links.set(name, this.resolve(field(field(payload, "ref", new Map()), "key", null), at));
+            links.set(name, this.resolve(field(payload, "ref", new Map()), at));
           } else {
             const prop = relation.entry.properties.get(name);
             if (prop === undefined && this.store.framework(relation)) {

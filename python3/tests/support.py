@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -57,9 +58,66 @@ def value_of(read: Any) -> Any:
     return next((v for v in found if v.as_schema() is not None), None)  # a visitor of nothing has no schema
 
 
+def owned(name: str, key: str) -> dict:
+    """The path of an object its schema, registered as `name`, owns under `key` (`Schemas.HasInstance`): the root
+    module, its schema's path by name, then its key (docs/OBJECT_IDENTITY.md, Decided, 31)."""
+    step: dict = {"entry": {"i": "instances", "o": "", "properties": {"name": key}, "next": {"target": {}}}}
+    for part in reversed(name.split(".")):
+        step = {"entry": {"i": "schemas", "o": "", "properties": {"name": part}, "next": step}}
+    return {"singleton": ".", "next": step}
+
+
+def listed(name: str, key: str, properties: dict | None = None) -> dict:
+    """An object's entry in an object snapshot's list: its path (`owned`), its schema's name and its members."""
+    return {"path": owned(name, key), "schema": name, "properties": properties or {}}
+
+
+def single(name: str, key: str, properties: dict | None = None) -> dict:
+    """The object snapshot of one object its schema owns: rooted at it, listing it alone."""
+    return {"root": owned(name, key), "objects": [listed(name, key, properties)]}
+
+
+def ref(name: str, key: str) -> dict:
+    """A reference to an object its schema owns: its path."""
+    return {"$ref": owned(name, key)}
+
+
+def path_of(obj: Any) -> dict:
+    """An object's path (`as_identity()`), as plain data."""
+    from mbse.Schemas.Framework import Plain
+
+    identity = obj.as_identity()
+    return Plain.ToPlain(None)(identity.as_schema(), identity)
+
+
+def key_of(obj: Any) -> Any:
+    """An object's key: the `name` of its path's last step, or a singleton's global name."""
+    return key_in(path_of(obj))
+
+
+def key_in(path: dict) -> Any:
+    """The key a path, as plain data, ends with: the `name` of its last step, or a singleton's global name."""
+    key, step = path["singleton"], path["next"]
+    while "entry" in step:
+        key = step["entry"]["properties"].get("name")
+        step = step["entry"]["next"]
+    return key
+
+
+def _symbol(path: Any) -> str:
+    return json.dumps(path, sort_keys=True)
+
+
+def members(snapshot: dict, name: str, key: str) -> dict:
+    """The members of the object an object snapshot lists with the path `owned(name, key)`."""
+    wanted = _symbol(owned(name, key))
+    return next(o["properties"] for o in snapshot["objects"] if _symbol(o["path"]) == wanted)
+
+
 def root_of(snapshot: dict) -> dict:
-    """A snapshot's root object."""
-    return snapshot["objects"][snapshot["root"]]
+    """A snapshot's root object's members."""
+    root = _symbol(snapshot["root"])
+    return next(o["properties"] for o in snapshot["objects"] if _symbol(o["path"]) == root)
 
 
 def is_adjacency(value: Any) -> bool:
@@ -83,7 +141,7 @@ def same_graph(a: dict, b: dict) -> bool:
         return value
 
     def canonical(graph: dict) -> tuple:
-        objects = graph["objects"]
+        objects = {_symbol(o["path"]): o["properties"] for o in graph["objects"]}
         labels = {s: repr(content(o)) for s, o in objects.items()}
         assert len(set(labels.values())) == len(labels), "objects must have distinct property values"
         holders: list[tuple[str, dict]] = []  # every object and value object, by label
@@ -104,9 +162,10 @@ def same_graph(a: dict, b: dict) -> bool:
             visit(labels[symbol], obj)
 
         def entry(e: dict) -> str:
-            return repr(sorted((k, labels[v["$ref"]] if isinstance(v, dict) and "$ref" in v else v) for k, v in e.items()))
+            return repr(sorted((k, labels[_symbol(v["$ref"])] if isinstance(v, dict) and "$ref" in v else v)
+                               for k, v in e.items()))
 
-        return labels[graph["root"]], {
+        return labels[_symbol(graph["root"])], {
             label: {k: sorted(map(entry, v)) for k, v in mapping.items() if is_adjacency(v)} for label, mapping in holders
         }
 

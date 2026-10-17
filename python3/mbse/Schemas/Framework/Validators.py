@@ -102,7 +102,7 @@ def _pairs(read: Any) -> list[tuple[Any, Any]]:
 
 def _identity(target: Any) -> Hashable:
     """A linked object's identity, unique among the objects of every schema: an identity is unique within its schema."""
-    return id(target.as_schema()), target.as_identity()
+    return id(target.as_schema()), Proxies._key_of(target)
 
 
 # --- Checks ---

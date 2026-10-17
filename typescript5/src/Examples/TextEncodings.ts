@@ -6,7 +6,7 @@
 import * as Y from "yaml";
 
 import { DecodeError } from "@mbse/schemas/Framework/Errors";
-import { Builders, JSON, Plain, Proxies, Schemas, Validators, YAML } from "@mbse/schemas/Framework";
+import { Builders, JSON, Paths, Plain, Proxies, Schemas, Validators, YAML } from "@mbse/schemas/Framework";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { assert, equal, raises, same_graph } from "./_support.js";
 
@@ -117,36 +117,43 @@ assert((from_yaml(Station, YAML.ToYAML(store)(Station, paris)) as Instance).wmo_
 
 // --- Hand-written YAML follows the YAML 1.2 core schema ---
 
+/** The path of the reading its schema owns under `key`, as YAML: the root module, the schema, then the key. */
+const at = (key: string) => "{singleton: ., next: {entry: {i: schemas, o: '', properties: {name: Reading}, next: {entry: {i: instances, "
+  + `o: '', properties: {name: ${key}}, next: {target: {}}}}}}}`;
+
 const written = `
-root: Reading/noon
+root: ${at("noon")}
 objects:
-  Reading/noon:
-    observed: 2026-09-28T12:00:00Z   # unquoted, but stays a string
-    quality: 010                     # ten, not eight
-    value: .inf
-    valid: true
-    note: 1:30                       # a string, not ninety
+  - path: ${at("noon")}
+    schema: Reading
+    properties:
+      observed: 2026-09-28T12:00:00Z   # unquoted, but stays a string
+      quality: 010                     # ten, not eight
+      value: .inf
+      valid: true
+      note: 1:30                       # a string, not ninety
 `;
 const reading = from_yaml(Reading, written) as Instance;
 assert(reading.observed.get() === "2026-09-28T12:00:00Z" && reading.quality.get() === 10n && reading.value.get() === Infinity &&
   reading.valid.get() === true && reading.note.get() === "1:30");
 
 // 'yes' is a string in YAML 1.2, so it is not accepted for a bool.
-raises(DecodeError, () => from_yaml(Reading, "root: Reading/noon\nobjects:\n  Reading/noon:\n    valid: yes\n"));
+raises(DecodeError, () => from_yaml(Reading, `root: ${at("noon")}\nobjects:\n  - path: ${at("noon")}\n    schema: Reading\n    properties:\n      valid: yes\n`));
 
 // --- Malformed text is rejected ---
 
-for (const bad of ['{"root": "Reading/a", "objects": {"Reading/a": {"value": NaN}}}', // NaN literal: not JSON
-  '{"root": "Reading/a", "root": "Reading/b", "objects": {}}', // duplicate key
-  '{"root": "Reading/a", "objects": ', // truncated
-  '{"root": "Reading/a", "objects": {"Reading/a": {"value": "nan"}}}']) { // only 'NaN', 'Infinity', '-Infinity'
+const a = JSON.dumps((Plain.ToPlain(store)(Reading, store.Reading((r: any) => r)) as any).get("root")); // a reading's path, as JSON
+for (const bad of [`{"root": ${a}, "objects": [{"path": ${a}, "schema": "Reading", "properties": {"value": NaN}}]}`, // not JSON
+  `{"root": ${a}, "root": ${a}, "objects": []}`, // duplicate key
+  `{"root": ${a}, "objects": `, // truncated
+  `{"root": ${a}, "objects": [{"path": ${a}, "schema": "Reading", "properties": {"value": "nan"}}]}`]) { // only 'NaN', 'Infinity', '-Infinity'
   raises(DecodeError, () => from_json(Reading, bad));
 }
 
-for (const bad of ["root: Reading/a\nroot: Reading/b\nobjects: {}", // duplicate key
-  "root: Reading/a\nobjects:\n  Reading/a:\n    raw: !!binary AAAA", // tagged binary: not plain data
+for (const bad of [`root: ${at("a")}\nroot: ${at("b")}\nobjects: []`, // duplicate key
+  `root: ${at("a")}\nobjects:\n  - path: ${at("a")}\n    schema: Reading\n    properties:\n      raw: !!binary AAAA`, // tagged binary: not plain data
   "1: x", // non-string key
-  "---\nroot: Reading/a\n---\nroot: Reading/b", // two documents
+  `---\nroot: ${at("a")}\n---\nroot: ${at("b")}`, // two documents
   "root: [unclosed"]) {
   raises(DecodeError, () => from_yaml(Reading, bad));
 }
@@ -166,7 +173,7 @@ for (const [encoded, decoder] of [[JSON.ToJSON(store).Reachable(Station, lyon), 
   const elsewhere: any = new Builders.Store(); // read into another store: objects of the same identities
   Plain.FromPlain(elsewhere).Snapshot(Plain.ToPlain(store).Snapshot()); // the same schemas, its own: a store's snapshot writes them
   const restored = decoder(elsewhere).Reachable(elsewhere.Station, encoded) as Instance;
-  assert(restored !== lyon && restored.as_identity() === lyon.as_identity());
+  assert(restored !== lyon && Paths.same(restored.as_identity(), lyon.as_identity()));
   assert(String(restored.name) === "Lyon-Saint-Exupéry");
   assert(same_graph(Plain.ToPlain(elsewhere).Reachable(elsewhere.Station, restored), graph));
   assert(Validators.Validate(elsewhere).Reachable(elsewhere.Station, restored).length === 0);

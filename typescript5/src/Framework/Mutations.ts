@@ -37,6 +37,7 @@ interface Kit {
   UnionBuilder: typeof Builders.UnionBuilder;
   Text: S.OfScalar.Data;
   Int: S.OfScalar.Data;
+  Path: ObjectData;
 }
 
 let kit!: Kit; // the builders `schemas` builds with, set as it begins
@@ -72,13 +73,19 @@ function branches(of: UnionData, members: [string, unknown][]): void {
  * `Mutations.<name>`'s local name (`Log`, `Ref`, ...). */
 export function schemas(builders: Kit): Record<string, ObjectData | UnionData | S.OfContainer.Data> {
   kit = builders;
-  const { AnyValueBuilder, ContainerBuilder, Int, Text } = builders;
+  const { AnyValueBuilder, ContainerBuilder, Int, Path, Text } = builders;
   const Payload = new AnyValueBuilder().create();
 
-  const Ref = verb("OfObject.Ref", text("key"));
+  const Ref = verb( // a schema object by its key, "Module.Schema/ID"; data by its path (docs/OBJECT_IDENTITY.md, Decided, 8)
+    "OfObject.Ref",
+    text("key"),
+    (t) => t.name("path").schema([Path]),
+  );
   const Def = verb(
     "OfObject.Def",
-    text("key"), // "Module.Schema/ID": the schema reference and the identity
+    text("key"), // a schema object's: "Module.Schema/ID", the schema reference and the identity
+    (t) => t.name("path").schema([Path]), // data's: its path, and its schema's name, `Schema@`
+    text("schema"),
     (t) => t.name("properties").schema([new ContainerBuilder().index([Text]).element([Payload]).create()]),
   );
   const Slice = verb(

@@ -27,6 +27,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { _key_of } from "./Proxies.js";
 import type * as Readers from "./Readers.js";
 import { compareStrings, tokenName, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
@@ -206,8 +207,8 @@ function entries(adjacency: Schemas.OfAdjacency.Data, a: any, b: any): Result {
 /** Links compare by their targets' identities, each unique within its schema: a link targets a reference object, never
  * a value object. */
 function compareLinks(a: any, b: any): Result {
-  const x = a === null || a === undefined ? null : a.as_identity();
-  const y = b === null || b === undefined ? null : b.as_identity();
+  const x = a === null || a === undefined ? null : _key_of(a);
+  const y = b === null || b === undefined ? null : _key_of(b);
   if (x === null || y === null) return x === null && y === null ? 0 : null;
   return x === y && a.as_schema() === b.as_schema() ? 0 : null;
 }

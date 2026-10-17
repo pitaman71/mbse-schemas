@@ -283,6 +283,32 @@ clause holding the owner's link and not the owned's and one holding the owned's 
 bool, an int or text so that it is written bare; `Paths.of(obj)` reads a proxy's path off its ownership entries back to
 a singleton. Nothing else changes: objects keep their identities until 4b, and the corpora are unchanged (IDN-01 to 04).
 
+## Step 4b, as built
+
+Data objects are identified by their paths (Object identity, Decided, 31 to 36). An object whose schema declares an
+`owner()` adjacency is owned at build: when the outermost builder's write ends, one created without an owner is given
+the one singleton that can own it, its keys the next its naming patterns give past every number held, and otherwise
+the write raises, naming the ownership missing (IDN-05). An object whose schema declares none is its schema's, through
+`Schemas.HasInstance`, under a key its naming pattern gives, else its local name lowercased, a dash and a number
+(`contact-1`); there are no UUIDs, and the schema holds the object while the store lives (STO-02). `as_identity()` is
+the path, read-only on builders as on data (STO-08); `by_identity` is gone, and an object is found by calling an
+adjacency with keys, `features.dir({"name": "DEF-693"})`, or through `store.Instances` (IDN-06). The Reachable format
+lists each object with its path and its schema's name, a reference being `{"$ref": path}`; reading builds each owner
+before what it owns and adds each ownership entry from the path's last step (IDN-07). In a log, data is defined by its
+path and its schema's name and referred to by its path; schema objects keep their `Module.Schema/ID` keys until 4c.
+The corpora are regenerated, the JSON byte-identical between the languages.
+
+Points settled while building, for the user's review:
+
+- A schema the store registers but no module defines (as the dataclass adapter makes them) has the path its dotted
+  name spells, so that its objects' paths read back (IDN-06, DC).
+- A snapshot that lists an object nothing references is read: each listing names its schema, which is why the old
+  refusal ("nothing references this object, so its schema is unknown") existed. Listing one path twice is refused.
+- A lookup by keys skips an entry that lacks one of them, rather than raising (IDN-05).
+- Python's YAML writer quotes strings the YAML 1.1 specification's float pattern matches, such as `.` (a root module's
+  path) and `1.2.3`, as TypeScript's already did (YML-02, CONF-03).
+- In TypeScript, keys are given as an object literal, `features.dir({ name: "DEF-693" })` (docs/EQUIVALENCE.md).
+
 ## Open, for the user
 
 1. **Deferred: when a binding is applied.** "I don't think we need to force the issue of eager or on-demand binding":

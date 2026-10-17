@@ -2,7 +2,7 @@
 //
 // Lines marked PROPOSED use syntax that FRAMEWORK.md does not define yet.
 
-import { Builders, JSON, Plain, Proxies, Schemas } from "@mbse/schemas/Framework";
+import { Builders, JSON, Paths, Plain, Proxies, Schemas } from "@mbse/schemas/Framework";
 import { assert, equal } from "./_support.js";
 
 
@@ -167,7 +167,7 @@ export { IntlAddress, addr1 };
 
 // --- Serialization ---
 
-// A single-object snapshot includes addr1's adjacencies, so it references alice by key without containing her.
+// A single-object snapshot includes addr1's adjacencies, so it references alice by her path without containing her.
 // Deserializing it on its own is an error: the reference cannot be resolved.
 const plain = Plain.ToPlain(store)(IntlAddress, addr1);
 // equivalent to
@@ -175,15 +175,15 @@ const plain = Plain.ToPlain(store)(IntlAddress, addr1);
 void plain;
 
 // PROPOSED: a snapshot of addr1 and every object reachable through adjacencies (alice, her phone and email), so all
-// references resolve within the snapshot. Each object is keyed by its identity, qualified by its schema's name.
+// references resolve within the snapshot. Each object is listed with its path, its identity, and its schema's name.
 const graph = Plain.ToPlain(store).Reachable(IntlAddress, addr1);
-assert(graph.get("root") === `IntlAddress/${addr1.as_identity()}`);
+assert(equal(graph.get("root"), Plain.ToPlain(store)(store.Paths.OfRoot.as_schema(), addr1.as_identity())));
 
 // Read into another store, the snapshot builds objects of the same identities there.
 const backup: any = new Builders.Store();
 Plain.FromPlain(backup).Snapshot(Plain.ToPlain(store).Snapshot()); // the same schemas, its own: a store's snapshot writes them
 const roundtrip = Plain.FromPlain(backup).Reachable(backup.IntlAddress, graph) as Proxies.Instance;
-assert(roundtrip !== addr1 && roundtrip.as_identity() === addr1.as_identity());
+assert(roundtrip !== addr1 && Paths.same(roundtrip.as_identity(), addr1.as_identity()));
 assert(equal(Plain.ToPlain(backup).Reachable(backup.IntlAddress, roundtrip), graph));
 
 // Read into the store that holds them, it updates them through their builders: what it omits, they keep.

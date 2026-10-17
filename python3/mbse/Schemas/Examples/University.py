@@ -5,7 +5,7 @@
 
 import math
 
-from mbse.Schemas.Framework import Builders, Schemas, Plain, Reachable, Validators
+from mbse.Schemas.Framework import Builders, Paths, Schemas, Plain, Reachable, Validators
 from mbse.Schemas.Examples._support import entries, raises, same_graph
 
 
@@ -184,7 +184,7 @@ Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot())  # the same s
 for root, schema, its in [(fall, Term, archive.Term), (mia, Student, archive.Student), (noah, Student, archive.Student)]:
     graph = Plain.ToPlain(store).Reachable(schema, root)
     restored = Plain.FromPlain(archive).Reachable(its, graph)
-    assert restored is not root and restored.as_identity() == root.as_identity()
+    assert restored is not root and Paths.same(restored.as_identity(), root.as_identity())
     assert same_graph(Plain.ToPlain(archive).Reachable(its, restored), graph)
 
 # Apart from Noah's duplicate enrollments, the whole component is valid.

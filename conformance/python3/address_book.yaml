@@ -815,7 +815,23 @@
               value: ContactPhones
 - exists:
     definition:
-      key: Address/address-1
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Address
+            next:
+              entry:
+                i: instances
+                o: ''
+                properties:
+                  name: address-1
+                next:
+                  target: {}
+      schema: Address
       properties:
         street1: 10 Downing Street
         locality: London
@@ -823,7 +839,23 @@
         country_code: GB
 - exists:
     definition:
-      key: Contact/contact-1
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Contact
+            next:
+              entry:
+                i: instances
+                o: ''
+                properties:
+                  name: contact-1
+                next:
+                  target: {}
+      schema: Contact
       properties:
         given_name: Alice
         family_name: Liddell
@@ -838,13 +870,43 @@
           mutations:
           - set:
               ref:
-                key: Contact/contact-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Contact
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: contact-1
+                          next:
+                            target: {}
       - as_link:
           name: address
           mutations:
           - set:
               ref:
-                key: Address/address-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Address
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: address-1
+                          next:
+                            target: {}
       - as_property:
           name: label
           mutations:
@@ -852,7 +914,23 @@
               value: home
 - exists:
     definition:
-      key: Contact/contact-2
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Contact
+            next:
+              entry:
+                i: instances
+                o: ''
+                properties:
+                  name: contact-2
+                next:
+                  target: {}
+      schema: Contact
       properties:
         given_name: Bob
 - insert:
@@ -865,13 +943,43 @@
           mutations:
           - set:
               ref:
-                key: Contact/contact-2
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Contact
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: contact-2
+                          next:
+                            target: {}
       - as_link:
           name: address
           mutations:
           - set:
               ref:
-                key: Address/address-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Address
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: address-1
+                          next:
+                            target: {}
       - as_property:
           name: label
           mutations:
@@ -879,7 +987,23 @@
               value: home
 - exists:
     definition:
-      key: Phone/phone-1
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Phone
+            next:
+              entry:
+                i: instances
+                o: ''
+                properties:
+                  name: phone-1
+                next:
+                  target: {}
+      schema: Phone
       properties:
         number: '+447700900123'
 - insert:
@@ -892,13 +1016,43 @@
           mutations:
           - set:
               ref:
-                key: Contact/contact-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Contact
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: contact-1
+                          next:
+                            target: {}
       - as_link:
           name: phone
           mutations:
           - set:
               ref:
-                key: Phone/phone-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Phone
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: phone-1
+                          next:
+                            target: {}
       - as_property:
           name: label
           mutations:
@@ -906,7 +1060,23 @@
               value: mobile
 - exists:
     definition:
-      key: Phone/phone-2
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Phone
+            next:
+              entry:
+                i: instances
+                o: ''
+                properties:
+                  name: phone-2
+                next:
+                  target: {}
+      schema: Phone
       properties:
         number: '+14155550100'
 - insert:
@@ -919,13 +1089,43 @@
           mutations:
           - set:
               ref:
-                key: Contact/contact-1
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Contact
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: contact-1
+                          next:
+                            target: {}
       - as_link:
           name: phone
           mutations:
           - set:
               ref:
-                key: Phone/phone-2
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Phone
+                      next:
+                        entry:
+                          i: instances
+                          o: ''
+                          properties:
+                            name: phone-2
+                          next:
+                            target: {}
       - as_property:
           name: label
           mutations:

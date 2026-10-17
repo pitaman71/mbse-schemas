@@ -1,5 +1,6 @@
 # Helpers shared by the examples.
 
+import json
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -25,23 +26,24 @@ def same_graph(a, b):
 
     Objects are written in first-reference order, which depends on entry order, and entries form a set whose order
     depends on history. Each object is identified here by its own property values, which the examples keep unique
-    within a graph.
+    within a graph, rather than by its path.
     """
 
     def canonical(graph):
-        objects = graph['objects']
+        symbol = lambda path: json.dumps(path, sort_keys=True)
+        objects = {symbol(obj['path']): obj['properties'] for obj in graph['objects']}
         labels = {
-            symbol: repr(sorted((k, v) for k, v in obj.items() if not isinstance(v, list)))
-            for symbol, obj in objects.items()
+            at: repr(sorted((k, v) for k, v in obj.items() if not isinstance(v, list)))
+            for at, obj in objects.items()
         }
         assert len(set(labels.values())) == len(labels), 'objects must have distinct property values'
 
         def entry(e):
-            return repr(sorted((k, labels[v['$ref']] if isinstance(v, dict) else v) for k, v in e.items()))
+            return repr(sorted((k, labels[symbol(v['$ref'])] if isinstance(v, dict) else v) for k, v in e.items()))
 
-        return labels[graph['root']], {
-            labels[symbol]: {k: sorted(map(entry, v)) for k, v in obj.items() if isinstance(v, list)}
-            for symbol, obj in objects.items()
+        return labels[symbol(graph['root'])], {
+            labels[at]: {k: sorted(map(entry, v)) for k, v in obj.items() if isinstance(v, list)}
+            for at, obj in objects.items()
         }
 
     return canonical(a) == canonical(b)

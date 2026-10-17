@@ -146,6 +146,9 @@ def _yaml() -> tuple[Any, type, type]:
         Dumper.add_implicit_resolver(tag, re.compile(pattern), first)
     # The YAML 1.1 specification also makes y / Y / n / N booleans, which PyYAML's own resolver omits; quote them too.
     Dumper.add_implicit_resolver("tag:yaml.org,2002:bool", re.compile(r"^(?:y|Y|n|N)$"), list("yYnN"))
+    # Its float pattern matches '.' and '1.2.3', which PyYAML's narrower one does not: quote them too.
+    Dumper.add_implicit_resolver("tag:yaml.org,2002:float", re.compile(r"^[-+]?(?:[0-9][0-9_]*)?\.[0-9.]*(?:[eE][-+][0-9]+)?$"),
+                                 list("-+0123456789."))
 
     return yaml, Loader, Dumper
 

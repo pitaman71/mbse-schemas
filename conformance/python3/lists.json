@@ -2908,7 +2908,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Board/board-1",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Board"
+              },
+              "next": {
+                "entry": {
+                  "i": "instances",
+                  "o": "",
+                  "properties": {
+                    "name": "board-1"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Board",
         "properties": {
           "name": "rack",
           "tags": [

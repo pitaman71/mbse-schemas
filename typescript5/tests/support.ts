@@ -1,5 +1,6 @@
 /** Shared helpers for the test notebooks. Each notebook runs in its own process and makes its own stores. */
 
+import { _symbol, ToPlain } from "@mbse/schemas/Framework/Plain";
 import type { PlainData, PlainMap } from "@mbse/schemas/Framework/Plain";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import type { Callback } from "@mbse/schemas/Framework/Specs";
@@ -106,11 +107,64 @@ export function key(value: unknown): string {
   });
 }
 
+/** The path of an object its schema, registered as `name`, owns under `key` (`Schemas.HasInstance`): the root module,
+ * its schema's path by name, then its key (docs/OBJECT_IDENTITY.md, Decided, 31). */
+export function owned(name: string, key: string): PlainMap {
+  let step: unknown = { entry: { i: "instances", o: "", properties: { name: key }, next: { target: {} } } };
+  for (const part of name.split(".").reverse()) step = { entry: { i: "schemas", o: "", properties: { name: part }, next: step } };
+  return map({ singleton: ".", next: step });
+}
+
+/** An object's entry in an object snapshot's list: its path (`owned`), its schema's name and its members. */
+export function listed(name: string, key: string, properties: unknown = {}): PlainMap {
+  return new Map<string, PlainData>([["path", owned(name, key)], ["schema", name], ["properties", map(properties)]]);
+}
+
+/** The object snapshot of one object its schema owns: rooted at it, listing it alone. */
+export function single(name: string, key: string, properties: unknown = {}): PlainMap {
+  return new Map<string, PlainData>([["root", owned(name, key)], ["objects", [listed(name, key, properties)]]]);
+}
+
+/** A reference to an object its schema owns: its path. */
+export function ref(name: string, key: string): PlainMap {
+  return new Map([["$ref", owned(name, key)]]);
+}
+
+/** An object's path (`as_identity()`), as plain data. */
+export function path_of(obj: any): PlainMap {
+  const identity = obj.as_identity();
+  return ToPlain(null as any)(identity.as_schema(), identity) as PlainMap;
+}
+
+/** An object's key: the `name` of its path's last step, or a singleton's global name. */
+export function key_of(obj: unknown): unknown {
+  return key_in(path_of(obj));
+}
+
+/** The key a path, as plain data, ends with: the `name` of its last step, or a singleton's global name. */
+export function key_in(path: PlainMap): unknown {
+  let found: unknown = path.get("singleton");
+  let step = path.get("next") as PlainMap;
+  while (step.has("entry")) {
+    const entry = step.get("entry") as PlainMap;
+    found = (entry.get("properties") as PlainMap).get("name");
+    step = entry.get("next") as PlainMap;
+  }
+  return found;
+}
+
+/** The members of the object an object snapshot lists with the path `owned(name, key)`. */
+export function members(snapshot: any, name: string, key: string): any {
+  const wanted = _symbol(owned(name, key));
+  return snapshot.get("objects").find((o: PlainMap) => _symbol(o.get("path")) === wanted).get("properties");
+}
+
 /** Whether a snapshot's list is an adjacency: each of its entries links something, while a list a property holds never
  * has a reference at its top level. */
-/** A snapshot's root object. */
+/** A snapshot's root object's members. */
 export function root_of(snapshot: any): any {
-  return snapshot.get("objects").get(snapshot.get("root"));
+  const root = _symbol(snapshot.get("root"));
+  return snapshot.get("objects").find((o: PlainMap) => _symbol(o.get("path")) === root).get("properties");
 }
 
 export function is_adjacency(value: unknown): value is PlainMap[] {
@@ -128,7 +182,7 @@ export function same_graph(a: PlainData, b: PlainData): boolean {
     ? [...value].filter(([k, v]) => k !== "$id" && !is_adjacency(v)).map(([k, v]) => [k, content(v)] as [string, unknown]).sort(byKey)
     : Array.isArray(value) ? value.map(content) : value;
   const canonical = (graph: PlainMap): string => {
-    const objects = graph.get("objects") as Map<string, PlainMap>;
+    const objects = new Map((graph.get("objects") as PlainMap[]).map((o) => [_symbol(o.get("path")), o.get("properties") as PlainMap]));
     const labels = new Map<string, string>();
     for (const [symbol, obj] of objects) labels.set(symbol, key(content(obj)));
     assert(new Set(labels.values()).size === labels.size, "objects must have distinct property values");
@@ -144,13 +198,13 @@ export function same_graph(a: PlainData, b: PlainData): boolean {
     };
     for (const [symbol, obj] of objects) visit(labels.get(symbol) as string, obj);
     const entry = (e: PlainMap): string => key([...e]
-      .map(([k, v]) => [k, v instanceof Map && v.has("$ref") ? labels.get(v.get("$ref") as string) : v] as [string, unknown])
+      .map(([k, v]) => [k, v instanceof Map && v.has("$ref") ? labels.get(_symbol(v.get("$ref"))) : v] as [string, unknown])
       .sort(byKey));
     const lists = holders.map(([label, mapping]) => key([
       label,
       [...mapping].filter(([, v]) => is_adjacency(v)).map(([k, v]) => [k, (v as PlainMap[]).map(entry).sort()]).sort(),
     ]));
-    return key([labels.get(graph.get("root") as string), lists.sort()]);
+    return key([labels.get(_symbol(graph.get("root"))), lists.sort()]);
   };
   return canonical(a as PlainMap) === canonical(b as PlainMap);
 }

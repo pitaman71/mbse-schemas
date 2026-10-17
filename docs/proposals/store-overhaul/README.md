@@ -12,8 +12,8 @@ elsewhere (below, "Decided here"), and cites those that are.
 - **What leaves mbse-schemas** (Schema extension, Decided, 5 to 7, 14): `requires`, `OfApply` and its arguments
   (`ArgumentTerm`), `Form` and terms in schemas, a scalar's `bits` and `bytes`, and the value parameters, all to
   mbse-expressions or mbse-patterns.
-- **Object identity** ([Object identity, Decided](../../OBJECT_IDENTITY.md#decided)): `Schema@Path/Suffix`, a container
-  (a module, or another named reference object; the schema by default) and a suffix; `store.Instances.<path>
+- **Object identity** ([Object identity, Decided](../../OBJECT_IDENTITY.md#decided)): `Schema@Path/Suffix`, a module
+  path (the schema by default) and a suffix, `Schema@` written only in `Exists` (Object identity, Decided, 8); `store.Instances.<path>
   .as_instance(suffix)`; `Schemas.OfIdentity` an object.
 - **P-015** (mbse-basis): a concrete reference is programmatic; `as_instance` "is the one and only one api location
   where the identity of an object can be used to reference the object".
@@ -81,7 +81,7 @@ As the user decided (2026-10-16), on the questions put to them:
       `as_adjacencies`, through the target's own structure.
 13. **`Schemas.Meta` is a module**, holding the meta-schemas as its instances: "Make `Meta` a module, put the meta schema
     (as instances) underneath it", "Actually `Schemas.Meta`". A meta-schema's identity is `Schemas.Meta/OfObject`, its
-    container the module `Schemas.Meta` (Object identity, Decided, 2 and 3), and `store.Schemas.Meta.OfObject` reads it.
+    module path `Schemas.Meta` (Object identity, Decided, 2 and 3), and `store.Schemas.Meta.OfObject` reads it.
 14. **Building is through the plain schema's own name**: "`store.Schemas.Object(...)` should be
     `store.Schemas.OfObject(...)`". Calling `store.Schemas.OfObject(lambda o: ...)` builds an object schema (level 1),
     an instance of `Schemas.OfObject` (level 2); the level-2 schemas are named `Schemas.OfObject`, `Schemas.OfScalar`,
@@ -148,7 +148,7 @@ so that main stays current and no branch waits on another.
    `Schemas.OfScalar` has exactly the five instances (8).
    *Breaks*: every user-defined scalar in tests, examples and tutorials; the module format of unions and
    intersections.
-4. **Object identity (0.19.0).** `Schemas.OfIdentity`, containers, modules as namespaces (6), `store.Instances` and
+4. **Object identity (0.19.0).** `Schemas.OfIdentity`, module paths, modules as namespaces (6), `store.Instances` and
    `as_instance`, `Schema@Path/Suffix` on the wire.
    *Breaks*: the snapshot format, so every corpus and every hand-written snapshot in the tests.
 
@@ -249,8 +249,9 @@ Found, for the user:
    is left open. Under object identity (step 4), a path's builder given an identity the store holds visits that object,
    and otherwise makes one; the present code clones on `store.crm.Contact(obj)` until then.
 2. *Settled by 22.*
-3. **When `Schema@` is inferred.** "omit `Schema@` when it can be inferred from context": I propose where a link's
-   other end has one schema that may fill it, and within an object's own entry, which names its schema.
+3. *Settled by Object identity, Decided, 8:* `Schema@` only in `Exists`, one directory per module. Step 4 then tells
+   apart what shares a `ModulePath/Suffix` today across kinds: a predicate's parameter and symbol of one name
+   (`crm.Kinds.x`), and a module named as a schema is (`crm.Contact`, holding `crm.Contact.v2`).
 4. **A path given to a link.** Your `e.domain(Int32)` passed a path. With `as_instance`, a link is given the instance
    (`e.domain(store.Instances.Expressions.Dialects.Basic.as_instance('Int32'))`); should a link also accept a path to
    an instance?

@@ -178,15 +178,14 @@ assumptions about reentrancy":
     adjacency called with a mapping of the entry's keys gives the object that entry links. And mbse-basis P-015
     "reverts to its original form. Code expressions that name a reference object use Paths, not string lookup": its
     `as_instance` exception (1) is withdrawn.
+28. A lookup with keys no entry has raises: "adjacency is called with keys no entry has -> raise".
+29. An unnamed schema linked through a relation no key names (the container schema of `crm.Person.tags`, through
+    `Schemas.HasSchema`) is a subclause owned through that link, its step a `Paths.OfEntry` with no properties: "yes I
+    think that would work".
 
 ## Open questions
 
-- **A lookup that finds nothing.** An adjacency called with a mapping of keys no entry has: an empty visitor, as every
-  read gives (mbse-basis P-007), or an error?
-- **Unnamed schemas.** Schema members, being clauses and subclauses of a definition, take part (21) through their
-  keyed relations (`HasProperty`, ...), which have the shape 14 asks for. An unnamed schema a property links, the
-  schema of its values (`crm.Person.tags`' container schema), is linked through `Schemas.HasSchema`, which no key names:
-  is it a subclause owned through that link, its step written with no properties?
+None at present.
 
 ---
 

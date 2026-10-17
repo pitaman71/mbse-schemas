@@ -10,12 +10,12 @@ reachable from it.
 The validator reads the value through the visitor protocol (`Readers.OfObject`), through its schema. Checks:
 
 - the schemas involved pass `validate()`;
-- each property value has exactly its schema's scalar type (distinct scalar types are never interchangeable);
+- each property value has exactly its schema's scalar type (distinct scalars are never interchangeable);
 - each linked object's schema declares an adjacency to that relation via that link;
 - `unique(S)` clauses hold over the entries seen: entries that agree on everything outside `S` agree on `S`.
   Uniqueness is checked only over the entries reachable from what was validated.
-- a value object's properties hold values of their types, recursively;
-- an intersection value holds every one of the intersection's parts, each with a value of that part's type.
+- a value object's properties hold values of their schemas, recursively;
+- an intersection value holds every one of the intersection's parts, each with a value of that part's schema.
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ def _any_of(read: Any) -> Any:
 
 
 def _own(value: Any) -> Any:
-    """The type a value of any schema has: a scalar's, or its visitor's schema."""
+    """The schema a value of any schema has: a scalar's, or its visitor's schema."""
     return Schemas.OfScalar.Data(type(value)) if type(value) in _SCALARS else value.as_schema()
 
 
@@ -73,7 +73,7 @@ def _held(read: Any, schema: Any) -> Any:
 
 
 def _member(read: Any, schema: Any) -> Any:
-    """A union's branch's or an intersection's part's value, read through its visitor of its own type's kind: a scalar,
+    """A union's branch's or an intersection's part's value, read through its visitor of its own schema's kind: a scalar,
     a visitor, or None."""
     if isinstance(schema, Schemas.OfScalar.Data):
         return read.get()
@@ -136,7 +136,7 @@ _ABSENT = ("absent",)
 
 
 def _key(schema: Any, value: Any) -> Hashable:
-    """Equality key per EQUALITY.md, of a value read as `_property_value` reads it: distinct scalar types never compare
+    """Equality key per EQUALITY.md, of a value read as `_property_value` reads it: distinct scalars never compare
     equal; floats compare by bit pattern; a value object by its properties."""
     held = schema
     if value is None:
@@ -203,7 +203,7 @@ class _Check:
         return problems
 
     def _value_problems(self, label: str, schema: Schemas.OfAny.Data, item: Any) -> list[str]:
-        """Problems with a value: its type, recursively, and that an intersection value holds every part."""
+        """Problems with a value: its schema, recursively, and that an intersection value holds every part."""
         if schema is None or item is None:
             return []
         if isinstance(schema, Schemas.OfScalar.Data):
@@ -229,15 +229,15 @@ class _Check:
         return problems
 
     def _any_problems(self, label: str, schema: Schemas.OfAny.Value, item: Any) -> list[str]:
-        """Problems with a value of any schema: that it is of one of its types, where it is restricted, or of a
-        registered schema, where it is not a scalar; and its own, under its own type."""
-        own, types = _own(item), list(schema.schemas)
+        """Problems with a value of any schema: that it is of one of its schemas, where it is restricted, or of a
+        registered schema, where it is not a scalar; and its own, under its own schema."""
+        own, restricted = _own(item), list(schema.schemas)
         if isinstance(own, Schemas.OfScalar.Data):
-            allowed = not types or any(isinstance(t, Schemas.OfScalar.Data) and t.type is own.type for t in types)
+            allowed = not restricted or any(isinstance(t, Schemas.OfScalar.Data) and t.type is own.type for t in restricted)
             shown = own.tag
         else:
-            allowed, shown = any(t is own for t in types), repr(own.name)
-            if not types:
+            allowed, shown = any(t is own for t in restricted), repr(own.name)
+            if not restricted:
                 try:
                     self._store.name_of(own)
                     allowed = True
@@ -249,7 +249,7 @@ class _Check:
 
     def _entry(self, label: str, adjacency: Schemas.OfAdjacency.Data, owner: Any, entry: Any) -> list[str]:
         """Problems with one entry: each linked object's schema declares an adjacency to the relation via its link, and
-        its values have their types."""
+        its values have their schemas."""
         relation = adjacency.relation
         self._schema(f"of {label}", relation)
         problems = []

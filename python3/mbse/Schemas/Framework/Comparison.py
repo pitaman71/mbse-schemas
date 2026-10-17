@@ -5,7 +5,7 @@ For each schema element `OfX`, `Comparison.OfX(schema, value)` holds a value rea
 greater than `b`, and `None` when they are incomparable.
 
 - Absent compares equal to absent; absent and present are incomparable. So do values under different schemas.
-- `OfScalar`: a value must have exactly the schema's scalar type. `int`, `float`, `str` and `bytes` are ordered:
+- `OfScalar`: a value must have exactly the schema's host type. `int`, `float`, `str` and `bytes` are ordered:
   strings by code point, bytes lexicographically, floats by value with `-0.0` before `0.0`. NaNs equal each other
   and are incomparable with other floats. Booleans are equal or incomparable.
 - `OfObject`: equal when every property its schema declares is absent in both or equal in both; otherwise
@@ -15,7 +15,7 @@ greater than `b`, and `None` when they are incomparable.
 - `OfUnion`: equal when both hold the same branch with equal values; otherwise incomparable.
 - `OfIntersection`: equal when every part is absent in both or equal in both; otherwise incomparable.
 - `OfContainer`: equal when both hold elements at the same indices, each equal; otherwise incomparable. Containers
-  with different index types, or different element types, are incomparable.
+  with different index schemas, or different element schemas, are incomparable.
 - `OfLink`: equal when both link the same object, by identity: a link targets a reference object; otherwise
   incomparable.
 - `OfEntry`: equal when every link and property is equal; otherwise incomparable.
@@ -51,7 +51,7 @@ def _all_equal(results: list[Result]) -> Result:
 
 
 def _scalars(a: Scalar, b: Scalar) -> Result:
-    """Compares two values of the same scalar type."""
+    """Compares two values of the same scalar."""
     if isinstance(a, bool):
         return 0 if a == b else None
     if isinstance(a, float):
@@ -86,7 +86,7 @@ def _any_of(read: Any) -> Any:
 
 
 def _own(value: Any) -> Any:
-    """The type a value of any schema has: a scalar's, or its visitor's schema."""
+    """The schema a value of any schema has: a scalar's, or its visitor's schema."""
     return Schemas.OfScalar.Data(type(value)) if type(value) in Schemas.SCALAR_TYPES else value.as_schema()
 
 
@@ -108,7 +108,7 @@ def _read_property(read: Any, schema: Any) -> Any:
 
 
 def _read_member(read: Any, schema: Any) -> Any:
-    """A union's branch's or an intersection's part's value, read through its visitor of its type's kind."""
+    """A union's branch's or an intersection's part's value, read through its visitor of its schema's kind."""
     if isinstance(schema, Schemas.OfScalar.Data):
         return read.get()
     return read if read.as_schema() is not None else None
@@ -131,7 +131,7 @@ def _read_element(read: Any, schema: Any) -> Any:
 
 
 def _same_type(a: Any, b: Any) -> bool:
-    """Whether two types are one: scalars by value, other schemas by identity."""
+    """Whether two schemas are one: scalars by value, other schemas by identity."""
     return a == b if isinstance(a, Schemas.OfScalar.Data) else a is b
 
 
@@ -155,7 +155,7 @@ def _compare(schema: Any, a: Any, b: Any) -> Result:
 
 
 def _same_index(schema: Any, a: Any, b: Any) -> bool:
-    """Whether two indices of one index type are one: scalars, or tuples of them, equal; value objects equal."""
+    """Whether two indices of one index schema are one: scalars, or tuples of them, equal; value objects equal."""
     if isinstance(a, tuple):
         return all(_scalars(x, y) == 0 for x, y in zip(a, b))
     if isinstance(schema, Schemas.OfScalar.Data):
@@ -214,7 +214,7 @@ def _links(a: Any, b: Any) -> Result:
 
 
 class OfScalar:
-    """A scalar value, which must have exactly the schema's scalar type; None for absent."""
+    """A scalar value, which must have exactly the schema's host type; None for absent."""
 
     def __init__(self, schema: Schemas.OfScalar.Data, value: Scalar | None = None):
         if value is not None and type(value) is not schema.host():
@@ -289,7 +289,7 @@ class OfIntersection(OfUnion):
 
 class OfContainer:
     """A container read through its visitor (`Readers.OfContainer`); None for absent. Containers of different index
-    types, or of different element types, are incomparable."""
+    schemas, or of different element schemas, are incomparable."""
 
     def __init__(self, schema: Schemas.OfContainer.Data, value: Readers.OfContainer | None = None):
         self._schema, self._value = schema, value

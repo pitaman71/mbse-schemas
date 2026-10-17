@@ -68,7 +68,7 @@ function identify<T>(data: T, identity: string): T {
 /** The name a schema object had when it was last given an identity, so that its identity follows a rename. */
 const NAMED_AS = new WeakMap<object, string | null>();
 
-/** Whether a value agrees with a template's: a reference object by identity, a value by value and type. */
+/** Whether a value agrees with a template's: a reference object by identity, a value by value and host type. */
 function same(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((item, i) => same(item, b[i]));
@@ -86,7 +86,7 @@ function scalarOf(held: unknown): unknown {
   return S.hostOf(held) === null ? null : held;
 }
 
-/** A property's type: its meta-schema property's `type`; null where there is no meta-schema property. */
+/** A property's schema: its plain schema property's `schema`; null where there is no plain schema property. */
 function typeOf(schema: any): unknown {
   return schema == null ? null : schema.schema;
 }
@@ -167,7 +167,7 @@ class PropertyMember extends Dunders {
     return this._proxy;
   }
 
-  /** A value given whole (a shorthand), whose type must match the property's exactly: a scalar of its scalar type; for
+  /** A value given whole (a shorthand), whose host type must match the property's schema exactly: a scalar of its scalar's host type; for
    * a container, an iterable of its elements, or a map of names to them where it is arranged as a dict. It sets the
    * value, merging nothing; null clears it. */
   _matched(value: unknown): unknown {
@@ -439,7 +439,7 @@ type BuilderClass = new (original?: unknown, writable?: boolean, store?: Store |
  * another (the referent). `items` and `store` read and write the referents from and to however the data stores them;
  * `accepts` says which objects `link` may link, and `build` how a callback given to it builds one: through a builder (a
  * class, named), or not at all (null: it links an object that exists). `one`: at most one entry, as a `unique` clause
- * of its relation makes it. `keyed`: the relation's entries have one property, `name`, of string type, which names
+ * of its relation makes it. `keyed`: the relation's entries have one property, `name`, a string, which names
  * the referent within the schema object (the data keeps it as the referent's `name`). `owned`: each referent belongs
  * to the schema object alone (keyed ones do), so that a clone of it has clones of them. `names`, for a keyed adjacency
  * whose data keeps its entries' names apart from its referents (a module's), reads and writes them:
@@ -828,7 +828,7 @@ class EntryField extends Dunders {
 
 /** `OfThem.Visitor`, for one item of the peer shorthand: an entry of a relation of two links, and the object it links
  * (them). Its members are the entry's properties (`t.name`), its link (`t.property`, to link an object that exists),
- * and the members of the object it links (`t.type`), which are written through that object's builder: a new one, or,
+ * and the members of the object it links (`t.schema`), which are written through that object's builder: a new one, or,
  * where the link is set, that one, updated. Each, called, returns the visitor. */
 class Them extends Shelled {
   readonly [TYPE_NAME] = "_Them";
@@ -1016,7 +1016,7 @@ function hidden(data: any, name: "_extended" | "_pending"): Map<string, any> {
 }
 
 /** A property `store.extend` declares on a plain schema, held on each schema object apart from its fields: a scalar,
- * or a container where its type is one. */
+ * or a container where its schema is one. */
 function extensionProperty(prop: S.OfProperty.Data): Prop {
   const name = prop.name;
   const member = new Prop({
@@ -1688,7 +1688,7 @@ function plainSchemas(): Plain {
   /** A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
    * `RELATIONS`): a keyed relation's entries have `name`; the member determines its owner and its name
    * (`unique(owner, name)`), and the owner and the name determine the member (`unique(member)`). A named relation's
-   * entries have `name` and `description`, and link a type that may be linked again: the owner and the name determine
+   * entries have `name` and `description`, and link a schema that may be linked again: the owner and the name determine
    * the entry. */
   function metaRelation(name: string, links: [string, string], how: string): RelationData {
     const [first, second] = links;
@@ -1708,10 +1708,11 @@ function plainSchemas(): Plain {
   /** Each relation between schema objects: (relation, (link, the kinds at that end, adjacency named there), (link, the
    * kinds at that end), "one": the first determines the second; "owned": the second determines the first; "keyed":
    * owned, and named within its owner by the entry's `name`; "named": the entry's `name` and `description` are a member
-   * of the first, which links its type, the second; "list": neither). An adjacency named "" is declared below,
+   * of the first, which links its schema, the second; "list": neither). An adjacency named "" is declared below,
    * on the kinds that have it. Each kind declares the adjacencies of every relation it is at an end of (Store overhaul,
    * Decided, 10). A member belongs to one owner (`Has*`: the member determines its owner); a schema object has at most
-   * one type, refined schema, index, element or relation (the first determines the second); types are lists. */
+   * one schema, refined schema, index, element or relation (the first determines the second); `OfAny`'s schemas are a
+   * list. */
   const RELATIONS: [keyof Plain, [string, ObjectData[], string], [string, ObjectData[]], string][] = [
     ["HasSchema", ["member", members, "schema"], ["schema", valued], "one"],
     ["Refines", ["refinement", [], ""], ["refined", valued], "one"],
@@ -2008,7 +2009,7 @@ export class Store extends Proxies._Store {
 
   /** Gives the schema objects `owner` holds or links that have no name of their own the identities their path from it
    * derives: a member its owner's and its name (`crm.Person.age`); another, the first object's to link it and the
-   * adjacency (`crm.Person.tags#type`). */
+   * adjacency (`crm.Person.tags#schema`). */
   _derive(owner: any, identity: string): void {
     const builderClass = builderFor(owner) as unknown as typeof Builder;
     for (const [name, members] of new Map([...builderClass._table, ...(this._added.get(builderClass) ?? [])])) {

@@ -123,7 +123,8 @@ check(Validators.Validate(store)(Customer, ada).length === 0);
   and member in the store that links it. A store's basic scalars are its own, reached by its paths
   (`store.Schemas.OfBool`, `.OfInt`, `.OfFloat`, `.OfStr`, `.OfBytes`), the only scalar schemas: a store builds no
   other, and a finer scalar (a date, an int32) is a domain, mbse-expressions'. Never link `Schemas.OfX.Data(...)`.
-- **A type exists before what it types.** Build a value object or container schema, then the property typed by it.
+- **A schema exists before what holds its values.** Build a value object or container schema, then the property that
+  holds its values.
   Two schemas that refer to each other are built in two steps: the first, then the second, then the first updated.
 - **A named schema's identity is its name.** `store.Schemas.OfObject(Contact)` cannot clone it into the same store; a
   version beside it is a builder's clone under a new name. Renaming one (`.name(...)` in an update) moves it to the

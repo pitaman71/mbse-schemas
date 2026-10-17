@@ -100,19 +100,19 @@ store = Builders.Store()                                    # holds its own plai
 store.Schemas.OfInt                                         # its basic scalars, by path: OfBool, OfInt, OfFloat, OfStr, OfBytes
 store.Schemas.OfInt.as_schema()                             # the schema a path names, where an object is wanted
 # The five are the only scalar schemas: a store builds no other. A finer scalar (a date, an int32) is a domain,
-# mbse-expressions'; until then, type it by its basic scalar and say what it means in the property's description.
+# mbse-expressions'; until then, give the property its basic scalar and say what it means in its description.
 store.Schemas.OfObject(lambda o: o.name("crm.Contact").ref(True).properties([...]))   # .ref(True): a reference object schema
 store.Schemas.OfObject(lambda o: o.name("pm.Feature").ref(True).pattern(r"FEA-(\d+\d\d)"))  # objects FEA-001, ...; else UUIDs
-store.Schemas.OfObject(lambda o: o.properties([lambda t: t.name("x").schema([Int])]))  # a value object schema, for a type
+store.Schemas.OfObject(lambda o: o.properties([lambda t: t.name("x").schema([Int])]))  # a value object schema, for a property's values
 # A schema's members are its entries, each named by its entry: t.name("x"). A reference to another schema object is
 # a list of what it links (.schema([T]), .relation([R]), .refines([T])), one item where only one is allowed, which
-# replaces it; a type must exist first. Value properties take their value whole, of exactly their type.
+# replaces it; a schema must exist first. Value properties take their value whole, of exactly their schema.
 lambda t: t.name("x").property(existing)                    # link a member that exists, rather than build one
 store.Schemas.OfRelation(lambda r: (
     r
     .name("crm.Knows")
     .links([
-        lambda t: t.name("a"),                              # a link is a name; its type follows from the adjacencies
+        lambda t: t.name("a"),                              # a link is a name; its schema follows from the adjacencies
         lambda t: t.name("b"),
     ])
     .properties([lambda t: t.name("since").schema([Int])])
@@ -129,13 +129,13 @@ store.Schemas.OfIntersection(lambda i: i.parts([lambda t: t.name("stamp").schema
 store.Schemas.OfContainer(lambda c: c.index([Int]).element([Text]))   # a list: a container by position, a property's schema
 store.Schemas.OfContainer(lambda c: c.index([Cell]).element([Float]).layout("sparse"))  # a tensor by a value object of ints
 obj.tags.as_value(lambda v: v.as_container(lambda c: c.at(0)))  # elements by index, each a Visitors.OfAny
-store.Schemas.OfAny(lambda a: a.schemas([Int, Phone]))          # a value of any of these types, written bare; none: any type
+store.Schemas.OfAny(lambda a: a.schemas([Int, Phone]))          # a value of any of these schemas, written bare; none: any
 store.Phone(lambda p: p.number("1"))                        # a standalone value, assigned to an unrestricted OfAny, tagged
 schema.validate()                                           # the schema's own problems, [] when valid
 
 .name("crm.Contact")                                        # a name, identifiers separated by dots, on any kind of schema
 .description("A person we know")                            # documentation, on a schema or a member: property, adjacency,
-schema.properties["home"].type                              # branch or part; a property is an element, its type inside
+schema.properties["home"].schema                             # branch or part; a property is an element, its schema inside
 .parameters([lambda t: t.name("n")])                        # parameters, names only, on any kind of schema; binding is
                                                             # mbse-expressions'
 store.Schemas.OfPredicate(lambda p: p.symbols([lambda t: t.name("p").schema([Person])]))  # symbols, each of a ref schema
@@ -197,11 +197,11 @@ ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromD
 - A relation has two links or more, and a value object no adjacencies: a list of values is a container, and anything
   that is linked is a reference object.
 - Setting a value object into a property or an entry copies it. Edit one in place through a Spec instead.
-- A schema builder's value properties are typed exactly: `.ref(1)` raises `TypeError`; write `.ref(True)`. A
+- A schema builder's value properties take exactly their schema's values: `.ref(1)` raises `TypeError`; write `.ref(True)`. A
   singleton schema is a reference object schema too: `.ref(True).singleton("crm.Directory")`.
 - A reference to another schema object is a list of what it links, even where only one is allowed: `.schema([Text])`,
-  never `.type(Text)`. It links schemas that exist, so build a container or value object schema before the property
-  typed by it.
+  never `.schema(Text)`. It links schemas that exist, so build a container or value object schema before the property
+  that holds its values.
 - In its store, a named schema's identity is its name, and the store refuses a second schema object with an identity
   it holds: `store.Schemas.OfObject(Contact)` cannot clone a named schema. Clone it under a new name with a builder in
   the store: `Builders.OfObject.Builder(Contact, store=store).name("crm.Contact.v2").clone()`.

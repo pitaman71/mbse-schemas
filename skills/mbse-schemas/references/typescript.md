@@ -123,19 +123,19 @@ const store: any = new Builders.Store();                    // holds its own pla
 store.Schemas.OfInt;                                        // its basic scalars, by path: OfBool, OfInt, OfFloat, OfStr, OfBytes
 store.Schemas.OfInt.as_schema();                            // the schema a path names, where an object is wanted
 // The five are the only scalar schemas: a store builds no other. A finer scalar (a date, an int32) is a domain,
-// mbse-expressions'; until then, type it by its basic scalar and say what it means in the property's description.
+// mbse-expressions'; until then, give the property its basic scalar and say what it means in its description.
 store.Schemas.OfObject((o: any) => o.name("crm.Contact").ref(true).properties([...]));   // .ref(true): a reference object schema
 store.Schemas.OfObject((o: any) => o.name("pm.Feature").ref(true).pattern(String.raw`FEA-(\d+\d\d)`));  // FEA-001, ...; else UUIDs
-store.Schemas.OfObject((o: any) => o.properties([(t: any) => t.name("x").schema([Int])]));  // a value object schema, for a type
+store.Schemas.OfObject((o: any) => o.properties([(t: any) => t.name("x").schema([Int])]));  // a value object schema, for a property's values
 // A schema's members are its entries, each named by its entry: t.name("x"). A reference to another schema object is
 // an array of what it links (.schema([T]), .relation([R]), .refines([T])), one item where only one is allowed, which
-// replaces it; a type must exist first. Value properties take their value whole, of exactly their type.
+// replaces it; a schema must exist first. Value properties take their value whole, of exactly their schema.
 (t: any) => t.name("x").property(existing);                 // link a member that exists, rather than build one
 store.Schemas.OfRelation((r: any) => (
   r
     .name("crm.Knows")
     .links([
-      (t: any) => t.name("a"),                              // a link is a name; its type follows from the adjacencies
+      (t: any) => t.name("a"),                              // a link is a name; its schema follows from the adjacencies
       (t: any) => t.name("b"),
     ])
     .properties([(t: any) => t.name("since").schema([Int])])
@@ -152,13 +152,13 @@ store.Schemas.OfIntersection((i: any) => i.parts([(t: any) => t.name("stamp").sc
 store.Schemas.OfContainer((c: any) => c.index([Int]).element([Text]));   // a list: a container by position, a property's schema
 store.Schemas.OfContainer((c: any) => c.index([Cell]).element([Float]).layout("sparse"));  // a tensor by a value object of ints
 obj.tags.as_value((v: any) => v.as_container((c: any) => c.at(0n)));  // elements by index, each a Visitors.OfAny
-store.Schemas.OfAny((a: any) => a.schemas([Int, Phone]));      // a value of any of these types, written bare; none: any type
+store.Schemas.OfAny((a: any) => a.schemas([Int, Phone]));      // a value of any of these schemas, written bare; none: any
 store.Phone((p: any) => p.number("1"));                    // a standalone value, assigned to an unrestricted OfAny, tagged
 schema.validate();                                         // the schema's own problems, [] when valid
 
 .name("crm.Contact")                                       // a name, identifiers separated by dots, on any kind of schema
 .description("A person we know")                           // documentation, on a schema or a member: property, adjacency,
-schema.properties.get("home")?.type;                       // branch or part; a property is an element, its type inside
+schema.properties.get("home")?.schema;                       // branch or part; a property is an element, its schema inside
 .parameters([(t: any) => t.name("n")])                     // parameters, names only, on any kind of schema; binding is
                                                            // mbse-expressions'
 store.Schemas.OfPredicate((p: any) => p.symbols([(t: any) => t.name("p").schema([Person])]));  // symbols, each of a ref schema
@@ -212,10 +212,10 @@ new Comparison.OfObject(schema, a).compare(new Comparison.OfObject(schema, b)); 
 The traps of [Python](python.md#traps) hold here too, in TypeScript's terms:
 
 - `1` is a float, and `true` is neither: an int is a `bigint`, `1n`. Validation reports `expected int, got float`.
-- A schema builder's value properties are typed exactly: `.ref(1n)` throws `TypeError`; write `.ref(true)`. A
+- A schema builder's value properties take exactly their schema's values: `.ref(1n)` throws `TypeError`; write `.ref(true)`. A
   singleton schema is a reference object schema too: `.ref(true).singleton("crm.Directory")`.
 - A reference to another schema object is an array of what it links, even where only one is allowed: `.schema([Text])`,
-  never `.type(Text)`. A store links only what it holds: its basic scalars are `store.Schemas.OfInt` and so on, never
+  never `.schema(Text)`. A store links only what it holds: its basic scalars are `store.Schemas.OfInt` and so on, never
   `new S.OfScalar.Data(BigInt)` nor another store's.
 - In its store, a named schema's identity is its name: `store.Schemas.OfObject(Contact)` cannot clone it. Clone it under
   a new name with a builder in the store: `new Builders.OfObject.Builder(Contact, true, store).name("crm.Contact.v2").clone()`.

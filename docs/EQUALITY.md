@@ -59,7 +59,7 @@ These edge cases are proposals; see Open questions in `FRAMEWORK.md`.
   This makes `eq` on floats differ from IEEE `==`.
 - An `OfScalar` gives neither a width nor an interpretation (signedness, encoding): a scalar is unbounded, as
   Python's `int` is, and a width, and whether a value fits it, is the domain's that interprets it (mbse-expressions'
-  value domains), not the schema's. See Scalar types in `FRAMEWORK.md`.
+  value domains), not the schema's. See Scalars in `FRAMEWORK.md`.
 - Strings compare by code point with no Unicode normalization.
 - Object identity holds only within one loaded graph. Objects from two separately loaded graphs can be matched through
   their key in a singleton's directory; objects without one cannot be matched.

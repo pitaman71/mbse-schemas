@@ -11,12 +11,12 @@
  * The validator reads the value through the visitor protocol (`Readers.OfObject`), through its schema. Checks:
  *
  * - the schemas involved pass `validate()`;
- * - each property value has exactly its schema's scalar type (distinct scalar types are never interchangeable);
+ * - each property value has exactly its schema's scalar type (distinct scalars are never interchangeable);
  * - each linked object's schema declares an adjacency to that relation via that link;
  * - `unique(S)` clauses hold over the entries seen: entries that agree on everything outside `S` agree on `S`.
  *   Uniqueness is checked only over the entries reachable from what was validated.
- * - a value object's properties hold values of their types, recursively;
- * - an intersection value holds every one of the intersection's parts, each with a value of that part's type.
+ * - a value object's properties hold values of their schemas, recursively;
+ * - an intersection value holds every one of the intersection's parts, each with a value of that part's schema.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -62,7 +62,7 @@ function anyOf(read: any): any {
   return found.length > 0 ? found[0] : null;
 }
 
-/** The type a value of any schema has: a scalar's, or its visitor's schema. */
+/** The schema a value of any schema has: a scalar's, or its visitor's schema. */
 function own(value: any): any {
   const host = Schemas.hostOf(value);
   return host !== null ? new Schemas.OfScalar.Data(host) : value.as_schema();
@@ -80,7 +80,7 @@ function held(read: any, schema: unknown): any {
   return found[0].as_schema() !== null ? found[0] : null; // a callback is always called; a visitor of nothing has no schema
 }
 
-/** A union's branch's or an intersection's part's value, read through its visitor of its own type's kind: a scalar, a
+/** A union's branch's or an intersection's part's value, read through its visitor of its own schema's kind: a scalar, a
  * visitor, or null. */
 function member(read: any, schema: unknown): unknown {
   if (schema instanceof Schemas.OfScalar.Data) return read.get();
@@ -89,11 +89,11 @@ function member(read: any, schema: unknown): unknown {
 
 /** A container's element, read through its `Visitors.OfAny`: a scalar or a visitor; an element present holds one. */
 function element(read: any, schema: unknown): any {
-  const type = schema;
+  const held = schema;
   const found: unknown[] = [];
-  if (type instanceof Schemas.OfScalar.Data || type === null) read.as_scalar((s: any) => found.push(s.get()));
-  else if (type instanceof Schemas.OfAny.Value) return anyOf(read);
-  else read[selecting(type)]((v: any) => found.push(v));
+  if (held instanceof Schemas.OfScalar.Data || held === null) read.as_scalar((s: any) => found.push(s.get()));
+  else if (held instanceof Schemas.OfAny.Value) return anyOf(read);
+  else read[selecting(held)]((v: any) => found.push(v));
   return found[0];
 }
 
@@ -144,35 +144,34 @@ function filling(relation: Schemas.OfRelation.Data, name: string, schema: Schema
 
 const ABSENT = "absent";
 
-/** Equality key per EQUALITY.md, of a value read as `propertyValue` reads it: distinct scalar types never compare
+/** Equality key per EQUALITY.md, of a value read as `propertyValue` reads it: distinct scalars never compare
  * equal; floats compare by bit pattern; a value object by its properties. */
 function key(schema: unknown, value: any): string {
-  const type = schema;
+  const held = schema;
   if (value === null || value === undefined) return ABSENT;
-  if (type instanceof Schemas.OfScalar.Data || type === null) return scalarKey(value);
-  if (type instanceof Schemas.OfAny.Value) {
+  if (held instanceof Schemas.OfScalar.Data || held === null) return scalarKey(value);
+  if (held instanceof Schemas.OfAny.Value) {
     const of = own(value);
     return `any:${of instanceof Schemas.OfScalar.Data ? of.tag : numberOf(of)}:${key(of, value)}`;
   }
-  if (type instanceof Schemas.OfContainer.Data) {
+  if (held instanceof Schemas.OfContainer.Data) {
     const keyed = pairs(value).map(([index, e]) => JSON.stringify([
       Array.isArray(index) ? index.map(scalarKey) : scalarKey(index), // a value object index by its values too
-      key(type.element, element(e, type.element))]));
+      key(held.element, element(e, held.element))]));
     return `container:${JSON.stringify(sortedStrings(keyed))}`;
   }
-  if (type instanceof Schemas.OfObject.Data) {
+  if (held instanceof Schemas.OfObject.Data) {
     const properties = [...value.as_properties as Iterable<Readers.OfProperty>].map((p) =>
       [p.as_schema().name, key(p.as_schema().schema, propertyValue(p, p.as_schema().schema))]);
     return `object:${JSON.stringify(properties)}`;
   }
-  const record = type as Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
+  const record = held as Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
   const members = [...record.properties].map(([name, m]) => [name, key(m.schema, member(value[name], m.schema))]);
   return `record:${JSON.stringify(members)}`;
 }
 
 function propertyValue(read: any, schema: unknown): any {
-  const type = schema;
-  return type instanceof Schemas.OfScalar.Data || type === null ? scalar(read) : held(read, type);
+  return schema instanceof Schemas.OfScalar.Data || schema === null ? scalar(read) : held(read, schema);
 }
 
 /** One relation entry with all its links, from whichever end it was seen: identities and value keys. */
@@ -220,10 +219,9 @@ class Checker {
     return problems;
   }
 
-  /** Problems with a value: its type, recursively, and that an intersection value holds every part. An application's
+  /** Problems with a value: its schema, recursively, and that an intersection value holds every part. An application's
    * value is its applied schema's; one that applies itself, a problem its schema reports, has none. */
-  private valueProblems(label: string, type: unknown, item: any): string[] {
-    const schema = type;
+  private valueProblems(label: string, schema: unknown, item: any): string[] {
     if (schema === null || item === null || item === undefined) return [];
     if (schema instanceof Schemas.OfScalar.Data) {
       const problem = scalarProblem(schema, item);
@@ -245,21 +243,21 @@ class Checker {
   }
 
   /** Problems with one entry: each linked object's schema declares an adjacency to the relation via its link, and its
-   * values have their types. */
-  /** Problems with a value of any schema: that it is of one of its types, where it is restricted, or of a registered
-   * schema, where it is not a scalar; and its own, under its own type. */
+   * values have their schemas. */
+  /** Problems with a value of any schema: that it is of one of its schemas, where it is restricted, or of a registered
+   * schema, where it is not a scalar; and its own, under its own schema. */
   private anyProblems(label: string, schema: Schemas.OfAny.Value, item: any): string[] {
     const of = own(item);
-    const types = [...schema.schemas];
+    const restricted = [...schema.schemas];
     let allowed: boolean;
     let shown: string;
     if (of instanceof Schemas.OfScalar.Data) {
-      allowed = types.length === 0 || types.some((t) => t instanceof Schemas.OfScalar.Data && t.type === of.type);
+      allowed = restricted.length === 0 || restricted.some((t) => t instanceof Schemas.OfScalar.Data && t.type === of.type);
       shown = String(of.tag);
     } else {
-      allowed = types.some((t) => t === of);
+      allowed = restricted.some((t) => t === of);
       shown = repr(of.name);
-      if (types.length === 0) {
+      if (restricted.length === 0) {
         try {
           this.store.name_of(of);
           allowed = true;

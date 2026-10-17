@@ -86,25 +86,25 @@ def _any(read: Readers.OfAny, schema: Schemas.OfAny.Data, ref: Ref) -> tuple[boo
 
 
 def _any_value(read: Readers.OfAny, schema: Schemas.OfAny.Value, ref: Ref) -> tuple[bool, PlainData]:
-    """A value of any schema as plain data, and whether there is one: restricted, written bare as the type it holds;
-    unrestricted, tagged with its type, a basic scalar's tag or its schema's registered name."""
+    """A value of any schema as plain data, and whether there is one: restricted, written bare as the schema it holds;
+    unrestricted, tagged with its schema, a basic scalar's tag or its schema's registered name."""
     found: list[Any] = []
     read.as_scalar(lambda s: found.extend([] if s.get() is None else [s.get()]) or s)
     for select in ("as_object", "as_union", "as_intersection", "as_container"):
         getattr(read, select)(lambda v: found.extend([v] if _present(v) else []) or v)
     if not found:
         return False, None
-    value, types = found[0], list(schema.schemas)
+    value, restricted = found[0], list(schema.schemas)
     if type(value) in Schemas.SCALAR_TYPES:
         scalar = Schemas.OfScalar.Data(type(value))
-        if not types:
+        if not restricted:
             return True, {scalar.tag: scalar.to_plain(value)}
-        own = next((t for t in types if isinstance(t, Schemas.OfScalar.Data) and t.type is type(value)), None)
-        if own is None:  # builders do not check scalars' types; proxies refuse a value of another schema
+        own = next((t for t in restricted if isinstance(t, Schemas.OfScalar.Data) and t.type is type(value)), None)
+        if own is None:  # builders do not check scalars' values; proxies refuse a value of another schema
             raise TypeError(f"a value of any schema holds one of its schemas; {type(value).__name__} is not one")
         return _any(read, own, ref)
     own = value.as_schema()
-    return True, {ref.name_of(own): _any(read, own, ref)[1]} if not types else _any(read, own, ref)[1]
+    return True, {ref.name_of(own): _any(read, own, ref)[1]} if not restricted else _any(read, own, ref)[1]
 
 
 def _tensor(schema: Schemas.OfContainer.Data) -> list[str] | None:
@@ -179,7 +179,7 @@ def _container(read: Readers.OfContainer, schema: Schemas.OfContainer.Data, ref:
 
 
 def _member(read: Any, schema: Any, ref: Ref) -> tuple[bool, PlainData]:
-    """A union's branch or an intersection's part as plain data: its visitor is of its type's kind."""
+    """A union's branch or an intersection's part as plain data: its visitor is of its schema's kind."""
     held = schema
     if isinstance(held, Schemas.OfScalar.Data):
         value = read.get()
@@ -330,7 +330,7 @@ _ORDERED = (bool, int, float, str)
 def _sort_entries(schema: Schemas.OfObject.Data, plain: dict[str, PlainData]) -> None:
     """Sorts the entries of each adjacency written in `plain`, an object of `schema`, by the key their relation
     declares from the adjacency's end (`Schemas.OfRelation.Data.key`): where every entry has each of its values, and
-    each holds values of one ordered type (booleans false first, numbers by value, strings by code point). Otherwise, as
+    each holds values of one ordered scalar (booleans false first, numbers by value, strings by code point). Otherwise, as
     where a key holds a link, entries keep the order they were written in."""
     for name, adjacency in schema.adjacencies.items():
         entries, names = plain.get(name), adjacency.relation.key(adjacency.me)
@@ -425,7 +425,7 @@ _FORMS = {bool: "bool", int: "int", float: "float", str: "text", dict: "mapping"
 
 
 def _decode_any(schema: Schemas.OfAny.Value, plain: PlainData, where: tuple, store: Any) -> Any:
-    """A value of any schema: restricted, of the one type whose plain form it takes; unrestricted, a mapping of its type,
+    """A value of any schema: restricted, of the one schema whose plain form it takes; unrestricted, a mapping of its schema,
     a basic scalar's tag or a schema's registered name, to its value."""
     if schema.schemas:
         fits = [t for t in schema.schemas if _FORMS.get(type(plain)) in Schemas.plain_forms(t)]
@@ -773,7 +773,7 @@ _SELECT = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
 
 
 def _holds_members(visitor: Any) -> bool:
-    """Whether a visitor's members are a union's branches or an intersection's parts, each of its own type's kind,
+    """Whether a visitor's members are a union's branches or an intersection's parts, each of its own schema's kind,
     rather than properties."""
     return isinstance(visitor.as_schema(), (Schemas.OfUnion.Data, Schemas.OfIntersection.Data))
 

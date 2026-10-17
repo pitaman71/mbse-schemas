@@ -14,8 +14,8 @@
  * `ref`). A verb nested under `OfAny.AsObject` names no reference object. `OfContainer.AsItems` and
  * `OfRelation.AsEntries` apply their lists in modulo order.
  *
- * Payloads (a property's value, an object's properties) are values of whatever schema the target gives: their type here
- * is a value of any schema, and ToPlain writes them untyped, interpreted by the target's schema.
+ * Payloads (a property's value, an object's properties) are values of whatever schema the target gives: their schema
+ * here is a value of any schema, and ToPlain writes them untagged, interpreted by the target's schema.
  *
  * The schemas are built with the builders, anew for each store, which holds its own (docs/SCHEMA_EXTENSION.md, Decided,
  * 23): a store calls `schemas`, handing it the builders and its basic scalars.
@@ -45,7 +45,7 @@ function list(element: unknown): S.OfContainer.Data {
   return new kit.ContainerBuilder().index([kit.Int]).element([element]).create();
 }
 
-/** A verb or a noun, `Mutations.<name>`: a value object of `properties`, each naming one and giving its type. */
+/** A verb or a noun, `Mutations.<name>`: a value object of `properties`, each naming one and giving its schema. */
 function verb(name: string, ...properties: Spec[]): ObjectData {
   return new kit.ObjectBuilder().name(`Mutations.${name}`).properties(properties).create();
 }

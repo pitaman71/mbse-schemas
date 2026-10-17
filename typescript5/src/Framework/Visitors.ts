@@ -22,7 +22,7 @@
  *
  * Scalars read compactly through `[Symbol.toPrimitive]` and `valueOf`, sugar over `get()`, on `Visitors.OfScalar` and,
  * passing through `as_scalar`, on `Visitors.OfProperty` (`` `${card.name}` ``, `+card.age`). Each throws when the value
- * is not set or is not of the type asked for. They reach less far than Python's dunders: not `===`, nor truthiness, so
+ * is not set or is not of the host type asked for. They reach less far than Python's dunders: not `===`, nor truthiness, so
  * a scalar is compared once read (`card.name.get() === "Ada"`), where Python compares the member itself (see
  * EQUIVALENCE.md).
  */
@@ -64,7 +64,7 @@ export type DataType<V> = V extends OfScalar<infer T> ? T
   : V extends OfAny | OfProperty ? Scalar | OfObject | OfUnion | OfIntersection
   : never;
 
-/** Sugar over a scalar's `get()`: each conversion throws when the value is not set or not of the type asked for. */
+/** Sugar over a scalar's `get()`: each conversion throws when the value is not set or not of the host type asked for. */
 export interface Primitive {
   [Symbol.toPrimitive](hint: "number" | "string" | "default"): Scalar;
   valueOf(): Scalar;
@@ -177,14 +177,14 @@ export interface OfEntry {
   readonly [member: string]: unknown;
 }
 
-/** A union value: its branches are members, each the visitor of its type's kind (`shape.circle`); a branch it does not
+/** A union value: its branches are members, each the visitor of its schema's kind (`shape.circle`); a branch it does not
  * hold reads as empty, and writing one branch clears the others. */
 export interface OfUnion {
   as_schema(): Schemas.OfUnion.Data;
   readonly [member: string]: unknown;
 }
 
-/** An intersection value: its parts are members, each the visitor of its type's kind (`ticket.stamp`). */
+/** An intersection value: its parts are members, each the visitor of its schema's kind (`ticket.stamp`). */
 export interface OfIntersection {
   as_schema(): Schemas.OfIntersection.Data;
   readonly [member: string]: unknown;

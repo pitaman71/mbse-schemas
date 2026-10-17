@@ -136,7 +136,7 @@ osv.<propName> -> Visitors.OfProperty: ...
 
 # singleton and iterable shorthands - type must match exactly
 # all of these set the property value - no merging
-osv.<propName>(value_: T) -> Visitors.OfObject: ...  # a value of the property's type: a scalar, a value object, ...
+osv.<propName>(value_: T) -> Visitors.OfObject: ...  # a value of the property's schema: a scalar, a value object, ...
 osv.<propName>(value_: Iterable[T | Specs.Callback[Visitors.OfAny]]) -> Visitors.OfObject: ...  # a container's elements
 osv.<propName>(value_: Map[str, T | Specs.Callback[Visitors.OfAny]]) -> Visitors.OfObject: ...  # by index
 # each element of a container given as an iterable or a map is a value, or a callback writing it through its visitor:
@@ -260,7 +260,7 @@ av.as_object(cb: Specs.Callback[Visitors.OfObject]) -> Visitors.OfAny: ...
 av.as_union(cb: Specs.Callback[Visitors.OfUnion]) -> Visitors.OfAny: ...
 av.as_intersection(cb: Specs.Callback[Visitors.OfIntersection]) -> Visitors.OfAny: ...
 
-# a union's branches and an intersection's parts are members giving the visitor of their own type's kind, Visitors.OfY:
+# a union's branches and an intersection's parts are members giving the visitor of their own schema's kind, Visitors.OfY:
 # OfScalar, OfObject, OfUnion or OfIntersection (shape.circle.radius); a branch the union does not hold reads empty
 uv: Visitors.OfUnion
 uv.<branchName> -> Visitors.OfY: ...
@@ -301,13 +301,13 @@ env.<propName>(spec: Specs.Callback[Visitors.OfProperty]) -> Visitors.OfEntry: .
 
 ## Containers
 
-- Schemas.OfContainer is one of the variants under Schemas.OfAny and has an element type and an index type both of which are Schemas.OfAny
+- Schemas.OfContainer is one of the variants under Schemas.OfAny and has an element schema and an index schema both of which are Schemas.OfAny
 - OfRelation must have at least two links and can have any number of properties
 - OfContainer with a total order on its index schema becomes an array/list in the target language
 - ... or else OfContainer with a hashable index schema becomes an dict/map the target language
 - ... or else OfContainer becomes of entries in the target language
 - containers are allowed to nest
-- containers with different index types are incomparable
+- containers with different index schemas are incomparable
 
 ## Another new problem:
 

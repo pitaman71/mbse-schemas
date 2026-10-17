@@ -21,7 +21,7 @@ written by calling it, never by assignment: assigning to any visitor's member ra
 
 Scalars read compactly through dunders (`int`, `float`, `str`, `bool`, `bytes`), sugar over `get()`, on
 `Visitors.OfScalar` and, passing through `as_scalar`, on `Visitors.OfProperty` (`str(card.name)`). Each raises when
-the value is not set or is not of its type. The same visitors compare and order as their values do
+the value is not set or is not of its scalar. The same visitors compare and order as their values do
 (`card.name == "Ada"`, `card.age < 40`), a value of another kind by its identity; a read-only one hashes as its
 value, and a writable one is unhashable.
 """
@@ -57,7 +57,7 @@ T = TypeVar("T", int, float, str, bool, bytes)
 
 
 class _Dunders(Protocol):
-    """Sugar over a scalar's `get()`, each raising when the value is not set or not of its type."""
+    """Sugar over a scalar's `get()`, each raising when the value is not set or not of its scalar."""
 
     def __int__(self) -> int: ...
 
@@ -257,7 +257,7 @@ class OfIterator(Protocol):
 
 
 class OfUnion(Protocol):
-    """A union value: its branches are members, each the visitor of its type's kind (`shape.circle`); a branch it does
+    """A union value: its branches are members, each the visitor of its schema's kind (`shape.circle`); a branch it does
     not hold reads as empty, and writing one branch clears the others."""
 
     def as_schema(self) -> Schemas.OfUnion.Data: ...
@@ -266,7 +266,7 @@ class OfUnion(Protocol):
 
 
 class OfIntersection(Protocol):
-    """An intersection value: its parts are members, each the visitor of its type's kind (`ticket.stamp`)."""
+    """An intersection value: its parts are members, each the visitor of its schema's kind (`ticket.stamp`)."""
 
     def as_schema(self) -> Schemas.OfIntersection.Data: ...
 

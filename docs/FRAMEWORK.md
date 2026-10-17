@@ -4,7 +4,7 @@
 # Schemas Framework
 
 A framework that allows programmers to encode data structure schema
-with a robust language-independent type algebra using an in-language DSL.
+with a robust language-independent schema algebra using an in-language DSL.
 
 Given a schema, bindings for a wide variety of
 programming languages such as Python, Typescript, C++, SystemVerilog, etc.
@@ -18,13 +18,13 @@ proxies as the in-memory representation.
 
 The schema elements include:
 
-- `OfAny` : where a schema of any kind is expected; `Schemas.OfAny.Value`, the kind of a value of any type, unrestricted
-            or restricted to the types an `OfAny.Builder` selects (Resolved, "`OfAny` returns")
+- `OfAny` : where a schema of any kind is expected; `Schemas.OfAny.Value`, the kind of a value of any schema, unrestricted
+            or restricted to the schemas an `OfAny.Builder` selects (Resolved, "`OfAny` returns")
 - `OfScalar` : a scalar value, of one of the five basic scalars a store holds, `Schemas.OfBool`, `Schemas.OfInt`,
-               `Schemas.OfFloat`, `Schemas.OfStr` and `Schemas.OfBytes` (see Scalar types below). In Python their
+               `Schemas.OfFloat`, `Schemas.OfStr` and `Schemas.OfBytes` (see Scalars below). In Python their
                host types are `bool`, `int`, `float`, `str` and `bytes`.
                Conversion between the scalar format and the over-the-wire format is the responsibility of `Schemas.OfScalar`.
-- `OfObject` : named properties list where each property has type described by `OfAny`. An `OfObject` schema describes
+- `OfObject` : named properties list where each property's schema is described by `OfAny`. An `OfObject` schema describes
                reference objects when marked `.ref()`, and otherwise value objects; see Value objects and
                reference objects. An `OfObject` schema may declare
                a singleton global name; that single instance is created implicitly, must always exist, and is referenced
@@ -37,13 +37,13 @@ The schema elements include:
                  A relation has two links or more: values that belong to one owner, a contact's own phone
                  numbers, are a container (`OfContainer`), held by a property. Data that several objects share
                  is an `OfObject`, linked to each.
-- `OfProperty` : a property of an object or a relation's entries: its `name` and `type`, an `OfAny`. An object's or
-                 relation's `properties` map each name to its `OfProperty`, in declared order, so a property's type is
-                 `schema.properties['home'].type`.
+- `OfProperty` : a property of an object or a relation's entries: its `name` and `schema`, an `OfAny`. An object's or
+                 relation's `properties` map each name to its `OfProperty`, in declared order, so a property's schema is
+                 `schema.properties['home'].schema`.
 - `OfParameter` : a parameter a schema of any kind declares: its `name` and `description`, a symbol standing for what
                   is bound where the schema is referred to (see Parametrics).
 - `OfAdjacency` : declares that a particular `OfObject` is adjacent to an `OfRelation` via
-                  a particular link name. Relations name their links without types
+                  a particular link name. Relations name their links without schemas
                   (`.links('contact', 'address')`); each object declares its adjacencies:
                   `.relations(lambda adj: adj.name('addresses').of(ContactAddresses).me('contact'))`, where
                   `name` is the accessor on the object, `of` the relation, and `me` the link the object fills.
@@ -56,8 +56,8 @@ The schema elements include:
               branch, by name (see Unions and intersections by name).
 - `OfIntersection` : of two or more named parts, each an OfX schema (all of the same kind). Used to implement object and
                      aspect oriented structures. A value holds every part, by name; parts do not merge, so two parts may
-                     declare the same property, even with different types.
-- `OfContainer` : elements of an element type, each at an index of an index type, both `OfAny`: dense by position for
+                     declare the same property, even with different schemas.
+- `OfContainer` : elements of an element schema, each at an index of an index schema, both `OfAny`: dense by position for
                   an integer-like index, a dict for any other hashable one, or entry-like elements; `.dense()` or
                   `.sparse()` set its layout (see Lists, and Resolved, Containers).
 
@@ -132,7 +132,7 @@ Uniqueness gives only an upper bound. Requiring at least one entry is a separate
 
 ### Equality
 
-Equality is defined by the schema, never by host-language `==`, and ordering only for ordered scalar types. See
+Equality is defined by the schema, never by host-language `==`, and ordering only for ordered scalars. See
 [Equality](EQUALITY.md) for its definition, hashing, ordering, the `Comparison` module, and the edge cases still to
 confirm.
 
@@ -158,7 +158,7 @@ separate from the optional instance, and exposes accessor methods that the calle
 
 None of these validate; validation happens only when the caller asks for it.
 
-`Schemas.OfAny.Builder` is the builder used wherever a schema of any kind is expected (e.g. a property's type). It
+`Schemas.OfAny.Builder` is the builder used wherever a schema of any kind is expected (e.g. a property's schema). It
 selects the kind through `as_<kind>` methods, e.g. `as_scalar(str)` for `OfScalar`.
 
 Finalizing a `Schemas.OfAny.Builder` after an `as_<kind>` call yields that kind's data, e.g. `Schemas.OfScalar.Data`
@@ -171,8 +171,8 @@ a direct value or a callable that takes and returns the corresponding builder. F
 
 - A property's `of(...)` takes a `Schemas.OfAny.Spec`: either a `Schemas.OfAny.Data` or a
   `Callable[[Schemas.OfAny.Builder], Schemas.OfAny.Builder]`.
-- A scalar type is one of the store's basic scalars, linked by its path (`.type([store.Schemas.OfStr])`): a store
-  builds no other scalar schema (Scalar types).
+- A scalar is one of the store's basic scalars, linked by its path (`.schema([store.Schemas.OfStr])`): a store
+  builds no other scalar schema (Scalars).
 
 Anonymous sub-schemas are created inline by passing a lambda that receives a builder, e.g.
 `prop.name('street1').of(lambda t: t.as_scalar(str))`, where `t` is a `Schemas.OfAny.Builder`. The lambda only
@@ -234,17 +234,17 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   are located (see Stores). Everything that looks a schema up by name takes a store.
 
 - `Mutations` : for each schema element `OfX`, `Mutations.OfX` is used to represent incremental changes to anything that has a schema,
-  including schemas themselves (via their meta-schemas). Mutation types scale with the number of schema elements, not with the number of user schemas.
+  including schemas themselves (via their meta-schemas). Mutation schemas scale with the number of schema elements, not with the number of user schemas.
   The vocabulary for each kind is the obvious set for that kind (e.g. creating and deleting an `OfObject`, setting its
   properties, adding and removing `OfRelation` entries).
 
 - `Validators` : `Validators.Validate(store)(schema, value)` checks data against its schema and returns a list of
   problems, each with a path (e.g. `Student#0.enrollments[1].credits: expected int, got bool`). `.Reachable(schema, root)`
   checks everything reachable from the root. It is constructed with the store that looks schemas up by name, and runs
-  only when the caller asks. It checks the schemas' own `validate()`, exact scalar types
+  only when the caller asks. It checks the schemas' own `validate()`, exact scalars
   of properties and entry properties, that every linked object's schema declares an adjacency via its link,
   `unique(...)` clauses over the entries seen, value objects' properties and entries recursively, and that an
-  intersection value holds every one of its parts, each with a value of its type. It reads the value through the
+  intersection value holds every one of its parts, each with a value of its schema. It reads the value through the
   visitor protocol (`Readers.OfObject`), through its schema, as other modules and packages that read objects do (e.g.
   mbse-expressions' evaluators). `Validators.Check(store)` checks the same and also reports what it cannot decide.
 
@@ -264,13 +264,13 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
 - `Adapters` : translate between a language's own type declarations and schemas, so they are specific to each
   language. Python has `Adapters.Dataclasses`: `FromDataclass(cls)` returns the `OfObject` a dataclass describes and
   `ToDataclass(schema, name)` returns a new dataclass, both through `ast` trees rather than source text;
-  `FromDataclass.model(*classes)` and `ToDataclass.model(schemas)` translate several at once. Only types are
-  translated. Scalar fields are properties, and so are lists and dicts of scalars, nested or not: each holds a
+  `FromDataclass.model(*classes)` and `ToDataclass.model(schemas)` translate several at once. Only the classes'
+  declarations are translated. Scalar fields are properties, and so are lists and dicts of scalars, nested or not: each holds a
   container, by an int index (dense) or by its scalar key (sparse for an int key), written back as `list[E]` and
   `dict[K, E]`. A container of dataclasses (`set[X]`, `list[X]`, `dict[K, X]`) is a
   relation with links `owner` and `item`, plus `index: int` or `key: K` with `unique(item)` for lists and dicts: the
   owner's adjacency is the field, and each element class gets an adjacency via `item`. Adjacencies declare which
-  object schemas may fill a link, so writing a class finds a container's element type by reverse lookup, and writes
+  object schemas may fill a link, so writing a class finds a container's element schema by reverse lookup, and writes
   fields only for adjacencies via a relation's first link. Defaults, mandatoriness and nested classes (value
   objects) are left out or refused.
 
@@ -362,7 +362,7 @@ slices.
   declares from this end (`Schemas.OfRelation.Data.key`), a `KeyError` for none and a `TypeError` where the relation
   declares none (in TypeScript it replaces the array's own `at(index)`). On the wire, an entry is written in its
   adjacency's form, without the link the adjacency implies, and an adjacency's entries are written sorted by that key
-  where every entry holds it as values of one ordered type (booleans false first, numbers by value, strings by code
+  where every entry holds it as values of one ordered scalar (booleans false first, numbers by value, strings by code
   point), and in the order they were added otherwise (a key holding a link, an entry without one).
 
 ## Generated code
@@ -379,7 +379,7 @@ Both in-memory objects and mutations (see `Mutations`) are serializable.
 
 Over the wire, object content carries no schema. Association of an object with a schema is done dynamically, starting
 from the expected root schema, which is why deserializers such as `Plain.FromPlain(store)(schema, ...)` take it as an
-argument, and continuing through property types and the branch written with each union value. Links are untyped, so a serialized
+argument, and continuing through property schemas and the branch written with each union value. Links are untyped, so a serialized
 reference to a linked reference object carries that object's schema name alongside its key. Consequently, a
 reference object that is linked from another object must have a named (registered) schema. A reference to a value
 object carries no schema, since its owner's schema gives it, and a reference object that only such references reach
@@ -465,7 +465,7 @@ documents.
   schema*; an object schema without it is a *value object schema*. A singleton's schema is a reference object schema.
 - **A reference object** stands on its own: a snapshot writes it once among its `objects`, under its key. A
   snapshot's root is a reference object, and a store's builders (`store.<Name>()`) make only reference objects. A reference
-  object schema is never a property's type, directly or as a union's branch or an intersection's part held by a
+  object schema is never a property's schema, directly or as a union's branch or an intersection's part held by a
   property, nor an entry property's: `validate()` reports it ("a reference object schema cannot be a property's
   type"). Reference objects are reached through relations only.
 - **A value object** is held by a property whose schema is a value object schema, and belongs to that one owner, a
@@ -505,9 +505,9 @@ These replace the earlier design, in which a union's branches were chosen by pre
 - **A union or an intersection may be flat**, a configuration of its schema (`.flat()`, written `"flat": true` in a
   module), which proxies and generated bindings alike honor, so that code reads either the same way. A flat union's
   value reads as its branch's value (`card.reach` is the `Mail` or the `Call`, `ticket.code` the `int` or the
-  `str`), told apart by type; a builder takes a branch's value and picks the branch by its type, and a Spec as before.
+  `str`), told apart by schema; a builder takes a branch's value and picks the branch by its schema, and a Spec as before.
   A flat intersection's value reads its parts' properties as its own (`ticket.stamp.at`), and its builder sets them in
-  their part. `validate()` requires a flat union's branches to be told apart by type (distinct scalars, distinct
+  their part. `validate()` requires a flat union's branches to be told apart by schema (distinct scalars, distinct
   schemas) and a flat
   intersection's parts to be object schemas whose properties have distinct names. Values are held, written, read,
   validated, compared and visited in the unpacked form, by branch and by part: flat is how code reads and builds them.
@@ -543,26 +543,26 @@ Reference objects are never kept in containers: a collection of them is a relati
 - **Over the wire**, a dense container is an array (nested, or flat with its shape, for a tensor), a sparse one its
   blocks, a dict by text a mapping, and any other an array of `{"index", "element"}` (Serialization).
 - **Validation** checks each element at the path `label.tags[0]`; **comparison** is element by element, by index;
-  containers of different index or element types are incomparable (Equality).
+  containers of different index or element schemas are incomparable (Equality).
 - **An open relation's entries are a list** from each end, in the order added, equal entries kept; with a `unique`
   clause a relation holds a set (Cardinality).
-- **No bound is part of a list.** An array's size, a capacity or a tensor's shape is a constraint on the type of a
+- **No bound is part of a list.** An array's size, a capacity or a tensor's shape is a constraint on the schema of a
   container's index, which constraints (planned) will express; until then nothing checks it.
 
-## Scalar types
+## Scalars
 
-Scalar types are implemented, and written over the wire by their meta-schema (see Meta-schemas).
+Scalars are implemented, and written over the wire by their meta-schema (see Meta-schemas).
 
 - **The scalar schemas are the five basic scalars** (since 0.18.0; [Store overhaul, Decided, 8, 9, 22 and
   23](proposals/store-overhaul/README.md#decided-here)): `Schemas.OfBool`, `Schemas.OfInt`, `Schemas.OfFloat`,
   `Schemas.OfStr` and `Schemas.OfBytes`, which every store is made holding, each its own. Each maps to each
-  language's host type by its own name; a value of any type is tagged with its basic scalar's tag (`int`, `str`, ...,
+  language's host type by its own name; a value of any schema is tagged with its basic scalar's tag (`int`, `str`, ...,
   the names of mbse-expressions' Basic dialect). A store builds no other scalar schema ("a store builds no scalar
   schema"), and a scalar has no `token`, `format` or `refines`: every finer scalar, a date or an `int32`, is a domain,
   mbse-expressions', which may associate several with one basic scalar.
 - **`OfScalar.Data` holds its name**: a host type given to it (`Schemas.OfScalar.Data(int)`, `new
   Schemas.OfScalar.Data(BigInt)`) is shorthand for the basic scalar's name. Data no store builds may name another
-  (`Schemas.OfScalar.Data(name="Word")`): its `type` is none, `host()` and converting a value raise `TypeError` ("the
+  (`Schemas.OfScalar.Data(name="Word")`): its host type, `type`, is none, `host()` and converting a value raise `TypeError` ("the
   scalar 'Word' is not a basic scalar"), decoding raises `Errors.DecodeError`, and `validate()` reports it.
 - **A scalar has no width** (since 0.17.0; [Store overhaul](proposals/store-overhaul/README.md), Decided, 20): a width,
   and how the bits are interpreted (signedness, encoding, float format, text encoding), are a domain's, which
@@ -708,9 +708,9 @@ it is fixed here:
 - **Open-world modeling**: independent extension of schemas a module does not own, by intersections as subtyping
   (reference intersections, extents over parts), policies for undeclared properties (preserved, or extension
   properties declared elsewhere), and evolution that keeps data valid. A proposal, with its decisions and the work
-  it entails, in [Open-world modeling](OPEN_WORLD.md). A restricted `OfAny` refuses a value of a type outside its
+  it entails, in [Open-world modeling](OPEN_WORLD.md). A restricted `OfAny` refuses a value of a schema outside its
   restriction, which open-world modeling "would require different handling" for (Resolved, "`OfAny` returns").
-- **Parametrics**, beyond the proposal (see Parametrics): type parameters now or later; equality of differently
+- **Parametrics**, beyond the proposal (see Parametrics): schema parameters now or later; equality of differently
   written applications that substitute alike (`Matrix(n, n)` and `Square(n)`); and what proxies accept for data
   whose shape depends on an unbound parameter.
 
@@ -754,6 +754,12 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 ### Resolved
 
+- **Schema, never "type"** (0.19.0; [Store overhaul, Decided, 24](proposals/store-overhaul/README.md#decided-here);
+  mbse-basis V-026), as the user decided: "the term "type" has no meaning in mbse-*". What has a schema names it
+  `schema`: `.schema([X])` (a property, a symbol, a branch, a part), the data's `schema` field, `OfAny`'s `schemas`, and
+  `Schemas.HasSchema` linking `member` to `schema` (`Schemas.Typing`, linking `typed` to `schema`, until then); the
+  messages say schema ("a reference object schema cannot be a property's schema", "a value of any schema"), and a
+  derived identity ends `#schema`. A host language's own type, a scalar's `type` and `host()`, keeps its name.
 - **A scalar is one of the five basic scalars** (0.18.0; [Store overhaul, Decided, 8, 9, 22 and
   23](proposals/store-overhaul/README.md#decided-here)), as the user decided: `token` and `format` leave
   `Schemas.OfScalar`, "Drop both (Recommended)", each basic scalar mapping to each language's host type by its own
@@ -769,7 +775,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   an entry of `Schemas.HasBranch` or `Schemas.HasPart` links the owner and the member's type, and carries its `name`
   and `description`; `Schemas.Member` and its builder are gone. The owner and the name determine the entry; a type may
   be linked by several. A branch has no identity of its own, and an unnamed type takes the first to link it's
-  (`crm.Shape#branches.1`, SNP-02). Builders write them as before (`t.name("p").type([A]).description("...")`).
+  (`crm.Shape#branches.1`, SNP-02). Builders write them as before (`t.name("p").schema([A]).description("...")`).
 
 - **Parameters are names only** (0.17.0; [Store overhaul, Decided, 20 and
   21](proposals/store-overhaul/README.md#decided-here)), as the user decided. A schema's parameters are "Names only

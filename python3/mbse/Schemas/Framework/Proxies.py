@@ -21,7 +21,7 @@ the tuple of its entries in the order they were added, with `project(name)`, eac
 
 A property whose schema is an `OfObject` holds a value object (`Proxies.OfObject.Record`), owned by one object, read
 through `as_object` (`card.home.as_object(...)`) and written through it on a builder. A union value's branches and an
-intersection value's parts are members giving the visitor of their own type's kind (`shape.circle`, `ticket.stamp`);
+intersection value's parts are members giving the visitor of their own schema's kind (`shape.circle`, `ticket.stamp`);
 writing one branch clears any other.
 
 Reads never raise: a visitor of an absent value, of a value of another kind, or of a member the schema lacks reads as
@@ -176,7 +176,7 @@ def _same_store(store: _Store | None, value: Any) -> None:
 
 
 def _scalar_key(value: Any) -> Hashable:
-    """Equality key per EQUALITY.md: distinct scalar types never compare equal; floats compare by bit pattern; a value
+    """Equality key per EQUALITY.md: distinct scalars never compare equal; floats compare by bit pattern; a value
     object by its schema and properties, whatever its identity."""
     if isinstance(value, _RecordData):
         values = object.__getattribute__(value, "_values")
@@ -341,7 +341,7 @@ def _article(kind: type) -> str:
 
 
 def _converted(value: Any, host: type, label: str) -> Any:
-    """A scalar's value for a dunder: it must be set and of the dunder's own type."""
+    """A scalar's value for a dunder: it must be set and of the dunder's own host type."""
     if value is None:
         raise TypeError(f"{label} is not set")
     if type(value) is not host:
@@ -367,7 +367,7 @@ def _operand(value: Any) -> Any:
 
 
 class _Dunders(_Unassignable):
-    """The scalar dunders, sugar over `get()`: each conversion raises when the value is not set or not of its type, and
+    """The scalar dunders, sugar over `get()`: each conversion raises when the value is not set or not of its scalar, and
     a visitor compares and orders as its value does (`card.name == "Ada"`), a value of another kind by its identity. A
     read-only visitor hashes as its value; a writable one, whose value may change, is unhashable. A subclass gives
     `_scalar()`, the value, `_held()`, the value held whatever its kind, `_label()`, what holds it, and `_writable`."""
@@ -554,13 +554,13 @@ class _Any(_Unassignable):
         self._schema, self._label, self._on_write = schema, label, on_write
         self._type = schema
         self._any = self._type if isinstance(self._type, Schemas.OfAny.Value) else None
-        self._unbuilt = ""  # why a Spec has nothing to build: where the value is of any schema and its type unknown
-        if self._any is not None:  # a value of any schema: of the type the value held has
+        self._unbuilt = ""  # why a Spec has nothing to build: where the value is of any schema and its schema unknown
+        if self._any is not None:  # a value of any schema: of the schema the value held has
             held = values.get(name)
             self._type = held._schema if isinstance(held, (_RecordData, _RecordBuilder, _Containing)) else None
 
     def _only(self, kind: Any) -> Any:
-        """Where the value is of any schema: the one type of `kind` its restriction allows, else None."""
+        """Where the value is of any schema: the one schema of `kind` its restriction allows, else None."""
         found = [held for held in self._any.schemas if isinstance(held, kind)]  # type: ignore[union-attr]
         return found[0] if len(found) == 1 else None
 
@@ -569,8 +569,8 @@ class _Any(_Unassignable):
         return not self._any.schemas or any(t is schema for t in self._any.schemas)  # type: ignore[union-attr]
 
     def _of_any(self, kind: Any, cb: Any) -> None:
-        """Where the value is of any schema, takes the type a write of `kind` gives: the value's own, if it is one the
-        restriction allows, else the one type of `kind` it allows; a Spec has no other schema to build by."""
+        """Where the value is of any schema, takes the schema a write of `kind` gives: the value's own, if it is one the
+        restriction allows, else the one schema of `kind` it allows; a Spec has no other schema to build by."""
         if self._any is None or isinstance(self._type, kind):
             return
         value = cb._values.get(cb._name) if isinstance(cb, _Property) else cb
@@ -607,7 +607,7 @@ class _Any(_Unassignable):
         return self
 
     def _flat_scalar(self, cb: Any, value: Any) -> _Any:
-        """A flat union's value read as its branch's, and written to the branch its type picks."""
+        """A flat union's value read as its branch's, and written to the branch its schema picks."""
         if not _is_function(cb):
             self._write_record(lambda u: _member_of(u, _branch(self._name, self._type, cb).name)(cb))
             return self
@@ -738,7 +738,7 @@ class _Any(_Unassignable):
         self._values[self._name] = value
 
     def __getattr__(self, name: str) -> Any:
-        """A member of the value's kind, where its type has one: a union's branch, an object's property, an
+        """A member of the value's kind, where its schema has one: a union's branch, an object's property, an
         intersection's part, as through `as_union`, `as_object` or `as_intersection` (docs/VISITOR_PATTERN.md); written,
         it selects the kind. Any other name is not a member."""
         held = self._type if not name.startswith("_") else None
@@ -783,7 +783,7 @@ def _kind_members(schema: Any) -> set[str]:
 
 
 def _shown_type(schema: Any) -> str:
-    """A type in a message: its name, or its kind."""
+    """A schema in a message: its name, or its kind."""
     return schema.name if getattr(schema, "name", None) is not None else _a(_noun(schema))
 
 
@@ -799,7 +799,7 @@ def _standalone(schema: Any, source: Any, store: _Store) -> Any:
 
 
 def _index_key(schema: Schemas.OfContainer.Data, index: Any, label: str) -> Hashable:
-    """The key a container holds an element by: its index, checked against the index type, a scalar or, for an index
+    """The key a container holds an element by: its index, checked against the index's schema, a scalar or, for an index
     of a value object of scalars, a tuple of the value object's properties in declaration order; any other index, a
     value object, by its equality key."""
     kind = schema.index
@@ -1132,7 +1132,7 @@ class _Property(_Dunders):
         return self._parent
 
     def __getattr__(self, name: str) -> Any:
-        """A member of its value's kind, where its type has one (`_Any`'s)."""
+        """A member of its value's kind, where its schema has one (`_Any`'s)."""
         if name.startswith("_"):
             raise AttributeError(name)
         return getattr(self._any(), name)
@@ -1165,7 +1165,7 @@ def _properties_of(owner: Any, values: dict[str, Any], schema: Any, store: _Stor
 
 def _kind_visitor(values: dict[str, Any], name: str, schema: Any, store: _Store | None, parent: Any, writable: bool,
                   label: str, on_write: Callable[[], None] | None = None) -> Any:
-    """The visitor of a union's branch or an intersection's part: of its own type's kind, the value itself for a value
+    """The visitor of a union's branch or an intersection's part: of its own schema's kind, the value itself for a value
     object held, or an empty one."""
     held = schema
     value = values.get(name)
@@ -1240,7 +1240,7 @@ class _ObjectData:
 class _RecordData:
     """A value object: the value of a property whose schema is an `OfObject`, a read-only `Visitors.OfObject`; or a
     union or intersection value, a read-only `Visitors.OfUnion` or `Visitors.OfIntersection`, whose branches or parts
-    are members giving the visitor of their own type's kind. It belongs to one owner and has no identity of its own;
+    are members giving the visitor of their own schema's kind. It belongs to one owner and has no identity of its own;
     nothing links it, so it has no adjacencies."""
 
     __slots__ = ("_schema", "_values", "_owner", "_source", "_copy_of")
@@ -1282,7 +1282,7 @@ class _RecordData:
 
 def _member(owner: Any, name: str) -> Any:
     """A data instance's or a value object's member, read-only: a property, or a union's branch or an intersection's
-    part, the visitor of its type's kind; a flat intersection's part's property, as its own; or an adjacency."""
+    part, the visitor of its schema's kind; a flat intersection's part's property, as its own; or an adjacency."""
     schema = object.__getattribute__(owner, "_schema")
     values = object.__getattribute__(owner, "_values")
     store = _store_of(owner)
@@ -1417,7 +1417,7 @@ def _owning_part(schema: Any, name: str) -> str | None:
 
 
 def _runtime(value: Any) -> Any:
-    """What tells a value apart at run time, as `Schemas` tells a flat union's branches apart: a scalar's type, or a
+    """What tells a value apart at run time, as `Schemas` tells a flat union's branches apart: a scalar's host type, or a
     value object's schema."""
     if isinstance(value, (_RecordData, _RecordBuilder)):
         return ("schema", id(value._schema))
@@ -1425,7 +1425,7 @@ def _runtime(value: Any) -> Any:
 
 
 def _branch(name: str, schema: Schemas.OfUnion.Data, value: Any) -> Schemas.OfUnion.Branch:
-    """The branch of a flat union whose type a value has."""
+    """The branch of a flat union whose schema a value has."""
     found = next((b for b in schema.branches if Schemas._runtime(b.schema) == _runtime(value)), None)
     if found is None:
         raise TypeError(f"property {name!r}: a {type(value).__name__} is not a value of any branch of the flat union")
@@ -1575,7 +1575,7 @@ def _finalized(values: dict[str, Any]) -> dict[str, Any]:
 class _RecordBuilder(_Unassignable):
     """A writable `Visitors.OfObject` building a value object, starting from `source` if given; or a writable
     `Visitors.OfUnion` or `Visitors.OfIntersection`, whose branches or parts are members giving the visitor of their own
-    type's kind. It attaches itself to what holds it (`attach`) when first written, so that an unwritten builder
+    schema's kind. It attaches itself to what holds it (`attach`) when first written, so that an unwritten builder
     changes nothing. Writing a union's branch clears any other."""
 
     def __init__(self, schema: Any, source: _RecordData | None = None, store: _Store | None = None,

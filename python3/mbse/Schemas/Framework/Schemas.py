@@ -127,7 +127,7 @@ Decided, 8 and 22)."""
 
 @dataclass(init=False)
 class _ScalarData:
-    """A scalar type: one of the five basic scalars, `Schemas.OfBool`, `Schemas.OfInt`, `Schemas.OfFloat`,
+    """A scalar: one of the five basic scalars, `Schemas.OfBool`, `Schemas.OfInt`, `Schemas.OfFloat`,
     `Schemas.OfStr` and `Schemas.OfBytes`, each mapping to its host type by its name. A host type given in place of the
     name (`OfScalar.Data(int)`) is shorthand for the basic scalar's. Every finer scalar is a domain, mbse-expressions'."""
 
@@ -184,7 +184,7 @@ class _ScalarData:
         return self.type
 
     def from_plain(self, plain: object) -> Scalar:
-        """Converts plain data back to a scalar value. Distinct scalar types are never coerced into each other.
+        """Converts plain data back to a scalar value. Distinct scalars are never coerced into each other.
         Plain data that does not hold such a value, or a scalar that is not a basic scalar, raises
         `Errors.DecodeError`."""
         host = self._host_for_decoding()
@@ -512,7 +512,7 @@ def _runtime(schema: Any) -> Any:
 
 
 def _flat_union_problems(branches: tuple[_MemberData, ...]) -> list[str]:
-    """A flat union's branches are told apart by their values' types."""
+    """A flat union's branches are told apart by their values' schemas."""
     problems: list[str] = []
     seen: dict[Any, str] = {}
     for branch in branches:
@@ -546,7 +546,7 @@ class _UnionData:
     description: str | None = None
     parameters: dict[str, _ParameterData] = field(default_factory=dict)
     flat: bool = False
-    """Whether a value reads as its branch's value, told apart by type, rather than as an object of one branch."""
+    """Whether a value reads as its branch's value, told apart by schema, rather than as an object of one branch."""
 
     @property
     def properties(self) -> dict[str, _MemberData]:
@@ -595,13 +595,13 @@ class OfIntersection:
 
 
 _ORDERED = (int, float, str, bool)
-"""The scalar types with a total order: a container indexed by one, or by a value object of them, may be dense or
+"""The scalars with a total order: a container indexed by one, or by a value object of them, may be dense or
 sparse."""
 _LAYOUTS = ("dense", "sparse")
 
 
 def _index_kind(index: Any) -> str | None:
-    """What a container's index allows: "ordered" for a scalar of a type with a total order, or a value object of
+    """What a container's index allows: "ordered" for a scalar with a total order, or a value object of
     such scalars (several indices, as a tensor's, ordered by its properties in declaration order); "hashable" for any
     other scalar, or a value object of scalars; None otherwise."""
     if isinstance(index, _ScalarData):
@@ -622,7 +622,7 @@ def _integer_like(index: Any) -> bool:
 
 @dataclass(eq=False)
 class _ContainerData:
-    """A container: elements, each of the element type, held by index, each of the index type. Dense, its elements
+    """A container: elements, each of the element's schema, held by index, each of the index's schema. Dense, its elements
     are a packed array; sparse, an associative store of dense blocks; with neither, it is dense where its index is
     integer-like (an int, or a value object of ints), a dict (by index) where its index is otherwise hashable, and its
     elements paired with their indices otherwise."""
@@ -687,7 +687,7 @@ def plain_forms(schema: Any) -> frozenset[str]:
 
 
 def _shown_type(schema: Any) -> str:
-    """A type in a message: its name, or its kind."""
+    """A schema in a message: its name, or its kind."""
     held = schema
     if getattr(schema, "name", None) is not None:
         return schema.name
@@ -882,7 +882,7 @@ def _embedded_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[
 
 class OfAny:
     """Where a schema of any kind is expected. `OfAny.Data` is any schema kind's data; `OfAny.Value`, the kind of a value
-    of any schema, or of one of the types it is restricted to."""
+    of any schema, or of one of the schemas it is restricted to."""
 
     Data = _ScalarData | _ObjectData | _UnionData | _IntersectionData | _ContainerData | _AnyValueData
     Value = _AnyValueData

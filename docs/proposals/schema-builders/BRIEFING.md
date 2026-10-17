@@ -28,8 +28,8 @@ Person = store.Schemas.Object(lambda o: (
     .name("crm.Person")
     .ref(True)
     .properties([
-        lambda t: t.name("given_name").type([Text]),
-        lambda t: t.name("age").type([Int]),
+        lambda t: t.name("given_name").schema([Text]),
+        lambda t: t.name("age").schema([Int]),
     ])
 ))
 Knows = store.Schemas.Relation(lambda r: (
@@ -39,7 +39,7 @@ Knows = store.Schemas.Relation(lambda r: (
         lambda t: t.name("knower"),
         lambda t: t.name("known"),
     ])
-    .properties([lambda t: t.name("since").type([Int])])
+    .properties([lambda t: t.name("since").schema([Int])])
     .uniques("since")
 ))
 store.Schemas.Object(Person, lambda o: o.adjacencies([
@@ -55,9 +55,9 @@ twin = store.crm.Person(ada)                                   # clone
   Intersection, Container, Apply, Any, Relation, Predicate, Property, Parameter, Symbol, Member, Adjacency, Form). Data
   is built with `store.<dotted schema name>(...)`. A callback creates, an object and a callback update, an object alone
   clones; the call returns the object. Named schemas register under their name.
-- Every reference between schema objects is an adjacency, given with the peer shorthand: `.type([T])`,
+- Every reference between schema objects is an adjacency, given with the peer shorthand: `.schema([T])`,
   `.refines([T])`, `.index([T])`, `.element([T])`, `.of([T])`, `.relation([R])`, `.bits([term])`, `.requires([term])`,
-  `.types([T, U])`. A schema's members are given as `.properties([lambda t: t.name("x").type([T]), ...])` (likewise
+  `.schemas([T, U])`. A schema's members are given as `.properties([lambda t: t.name("x").schema([T]), ...])` (likewise
   `adjacencies`, `parameters`, `branches`, `parts`, `symbols`, `links`); a member's name is its entry's (`t.name`).
 - By exception, `me` and `uniques` name links and properties by string: `.me("knower")`, `.uniques("since")`,
   `.uniques(["a", "b"])`, `.uniques([["a"], ["b", "c"]])`.

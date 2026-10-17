@@ -90,7 +90,7 @@ As the user decided (2026-10-16), on the questions put to them:
 15. **Reading a path gives the schema it names** ("yes"): `store.Schemas.OfInt` (level 1), `store.Schemas.OfScalar`
     (level 2); called, a path builds through it, as `store.Schemas.OfScalar(...)` does. So code links and extends
     schemas without `Builders.Meta`, and with no string (P-015).
-16. **Code names a store's schema by the store's path**, "(a)": `.type([store.Schemas.OfInt])`, each use naming its
+16. **Code names a store's schema by the store's path**, "(a)": `.schema([store.Schemas.OfInt])`, each use naming its
     store, rather than a path rooted in no store.
 17. **One store, which registers by building**: asked what `register` does now and whether a store of proxies is still
     needed, "I agree Proxies.OfStore might also be redundant so merge into one": a store registers a named schema as a
@@ -120,8 +120,8 @@ As the user decided (2026-10-16), on the questions put to them:
     the finer meaning moving to the property's description; a case that teaches scalar refinement is rewritten or cut.
 24. **Schema, never "type"**, as the user decided (2026-10-16): "the term "type" has no meaning in mbse-*", and "it looks
     like you are using 'type' in multiple places where it really should be 'schema'". What has a schema names it
-    `schema`: the builders' `.type([X])` becomes `.schema([X])` (a property, a symbol, a branch, a part), the data's
-    `type` field `schema`, `OfAny`'s `types` `schemas`, and `Schemas.Typing`, linking `typed` to `schema`, becomes
+    `schema`: the builders' `.schema([X])` becomes `.schema([X])` (a property, a symbol, a branch, a part), the data's
+    `type` field `schema`, `OfAny`'s `types` `schemas`, and `Schemas.HasSchema`, linking `typed` to `schema`, becomes
     `Schemas.HasSchema`, linking `member` to `schema`; messages and documents say schema. A host language's own type
     (`OfScalar.Data.type`, `host()`: Python's `int`, TypeScript's `BigInt`) stays, qualified as the host's.
 
@@ -155,7 +155,7 @@ so that main stays current and no branch waits on another.
    *Breaks*: every user-defined scalar in tests, examples and tutorials; the module format of unions and
    intersections.
 3b. **Schema, never "type" (0.19.0).** The rename 24 lists, in both languages, messages and documents included.
-   *Breaks*: every `.type([...])` (1671 in 126 files), `OfAny`'s `types`, the wire's `Schemas.Typing` entries and the
+   *Breaks*: every `.schema([...])` (1671 in 126 files), `OfAny`'s `types`, the wire's `Schemas.HasSchema` entries and the
    `HasBranch` and `HasPart` link, and every message that said type.
 4. **Object identity (0.20.0).** As [Object identity](../../OBJECT_IDENTITY.md) now describes it: an identity is a path
    from a singleton through ownership entries (`owner()`, key properties with patterns), written as a nested
@@ -252,6 +252,14 @@ Found, for the user:
 - **A property an extension adds to `Schemas.OfScalar` can hold no value.** The store's own scalars change only
   through `store.extend`, which only adds members, so `HasDomain` and other extensions of scalars are adjacencies,
   whose entries are written from either end (EXT-04 now adds its `unit` property to `Schemas.OfObject`).
+
+## Step 3b, as built (0.19.0)
+
+"Type" is gone from the API, the wire and the messages (24): `.schema([X])` builds a member's link to its schema, the
+data's field is `schema`, `OfAny` holds `schemas`, `Schemas.Typing` is `Schemas.HasSchema` (`member`, `schema`), the
+link of `HasBranch` and `HasPart` entries is `schema`, and a derived identity ends `#schema`. Tests, tutorials, the skill
+and the documents' current sections say schema; a scalar's host type keeps its name, and quoted decisions their
+wording. The corpora change in every relation key and link that said type.
 
 ## Open, for the user
 

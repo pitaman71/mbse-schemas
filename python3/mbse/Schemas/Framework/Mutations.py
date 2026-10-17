@@ -13,8 +13,8 @@ are nested in them, following a path from the reference object a top-level verb 
 A verb nested under `OfAny.AsObject` names no reference object. `OfContainer.AsItems` and `OfRelation.AsEntries` apply
 their lists in modulo order.
 
-Payloads (a property's value, an object's properties) are values of whatever schema the target gives: their type here is
-a value of any schema, and ToPlain writes them untyped, interpreted by the target's schema.
+Payloads (a property's value, an object's properties) are values of whatever schema the target gives: their schema here is
+a value of any schema, and ToPlain writes them untagged, interpreted by the target's schema.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ def schemas(Text: Any, Int: Any) -> SimpleNamespace:
         return ContainerBuilder().index([Int]).element([element]).create()
 
     def _verb(name: str, *properties: Any) -> Any:
-        """A verb or a noun, `Mutations.<name>`: a value object of `properties`, each naming one and giving its type."""
+        """A verb or a noun, `Mutations.<name>`: a value object of `properties`, each naming one and giving its schema."""
         return ObjectBuilder().name(f"Mutations.{name}").properties(list(properties)).create()
 
     def _mutations(of: Any) -> Any:

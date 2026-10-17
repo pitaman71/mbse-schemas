@@ -30,7 +30,7 @@
  *
  * A property whose schema is an `OfObject` holds a value object (`Proxies.OfObject.Record`), owned by one object, read
  * through `as_object` (`card.home.as_object(...)`) and written through it on a builder. A union value's branches and an
- * intersection value's parts are members giving the visitor of their own type's kind (`shape.circle`, `ticket.stamp`);
+ * intersection value's parts are members giving the visitor of their own schema's kind (`shape.circle`, `ticket.stamp`);
  * writing one branch clears any other.
  *
  * Reads never throw: a visitor of an absent value, of a value of another kind, or of a member the schema lacks reads
@@ -342,7 +342,7 @@ function schemaId(schema: object): number {
   return schemaIds.get(schema) as number;
 }
 
-/** Equality key per EQUALITY.md: distinct scalar types never compare equal; floats compare by bit pattern; a value
+/** Equality key per EQUALITY.md: distinct scalars never compare equal; floats compare by bit pattern; a value
  * object by its schema and properties, whatever its identity. */
 export function scalarKey(value: unknown): string {
   if (isRecordData(value)) {
@@ -814,18 +814,18 @@ function makeScalar(values: Values, name: string, schema: unknown, writable: boo
 class _Any {
   _type: unknown;
   readonly _any: Schemas.OfAny.Value | null;
-  /** Why a Spec has nothing to build: where the value is of any schema and its type unknown. */
+  /** Why a Spec has nothing to build: where the value is of any schema and its schema unknown. */
   _unbuilt = "";
 
   constructor(readonly _values: Values, readonly _name: string, readonly _schema: unknown, readonly _store: _Store | null,
     readonly _writable: boolean, readonly _label: string, readonly _onWrite: (() => void) | null = null) {
     this._type = _schema;
     this._any = this._type instanceof Schemas.OfAny.Value ? this._type : null;
-    if (this._any !== null) { // a value of any schema: of the type the value held has
+    if (this._any !== null) { // a value of any schema: of the schema the value held has
       const held = _values.get(_name);
       this._type = isRecordData(held) || isRecordBuilder(held) || isContaining(held) ? innerOf(held)._schema : null;
     }
-    return new Proxy(this, { // a member of the value's kind, where its type has one (`_kindMember`)
+    return new Proxy(this, { // a member of the value's kind, where its schema has one (`_kindMember`)
       get: (target, prop, receiver) => prop in target ? Reflect.get(target, prop, receiver) : target._kindMember(prop),
     });
   }
@@ -836,7 +836,7 @@ class _Any {
     return isRecordSchema(held) && kindMembers(held).has(name as string);
   }
 
-  /** A member of the value's kind, where its type has one: a union's branch, an object's property, an intersection's
+  /** A member of the value's kind, where its schema has one: a union's branch, an object's property, an intersection's
    * part, as through `as_union`, `as_object` or `as_intersection` (docs/VISITOR_PATTERN.md); written, it selects the
    * kind. Any other name is not a member. */
   _kindMember(name: string | symbol): unknown {
@@ -846,7 +846,7 @@ class _Any {
     return isRecordData(value) ? (value as any)[name] : makeEmpty(`${this._label} is not set`);
   }
 
-  /** Where the value is of any schema: the one type of `kind` its restriction allows, else null. */
+  /** Where the value is of any schema: the one schema of `kind` its restriction allows, else null. */
   _only(kind: abstract new (...args: never[]) => unknown): unknown {
     const found = (this._any as Schemas.OfAny.Value).schemas.filter((t) => t instanceof kind);
     return found.length === 1 ? found[0] : null;
@@ -854,12 +854,12 @@ class _Any {
 
   /** Where the value is of any schema: whether its restriction allows a value of `schema`; any, unrestricted. */
   _allows(schema: unknown): boolean {
-    const types = (this._any as Schemas.OfAny.Value).schemas;
-    return types.length === 0 || types.some((t) => t === schema);
+    const restricted = (this._any as Schemas.OfAny.Value).schemas;
+    return restricted.length === 0 || restricted.some((t) => t === schema);
   }
 
-  /** Where the value is of any schema, takes the type a write of `kind` gives: the value's own, if it is one the
-   * restriction allows, else the one type of `kind` it allows; a Spec has no other schema to build by. */
+  /** Where the value is of any schema, takes the schema a write of `kind` gives: the value's own, if it is one the
+   * restriction allows, else the one schema of `kind` it allows; a Spec has no other schema to build by. */
   _ofAny(kind: abstract new (...args: never[]) => unknown, cb: unknown): void {
     if (this._any === null || this._type instanceof kind) return;
     const value = isProperty(cb) ? innerOf(cb)._values.get(innerOf(cb)._name) : cb;
@@ -898,7 +898,7 @@ class _Any {
     return this;
   }
 
-  /** A flat union's value read as its branch's, and written to the branch its type picks. */
+  /** A flat union's value read as its branch's, and written to the branch its schema picks. */
   _flatScalar(cb: unknown, value: unknown): this {
     const union = this._type as Schemas.OfUnion.Data;
     if (!isFunction(cb)) {
@@ -909,8 +909,8 @@ class _Any {
       const values: Values = innerOf(value)._values;
       const [branch, held] = values.entries().next().value as [string, unknown];
       if (isScalar(held)) {
-        const type = ((union.properties.get(branch) as Schemas.OfProperty.Data).schema);
-        visit(cb, makeScalar(values, branch, type, false, this._label));
+        const branchSchema = (union.properties.get(branch) as Schemas.OfProperty.Data).schema;
+        visit(cb, makeScalar(values, branch, branchSchema, false, this._label));
         return this;
       }
     }
@@ -1084,7 +1084,7 @@ function shown(index: unknown): string {
   return repr(index);
 }
 
-/** The key (a string, for a Map) a container holds an element by: its index, checked against the index type, a scalar
+/** The key (a string, for a Map) a container holds an element by: its index, checked against the index's schema, a scalar
  * or, for an index of a value object of scalars, an array of the value object's properties in declaration order; any
  * other index, a value object, by its equality key. */
 function indexKey(schema: Schemas.OfContainer.Data, index: unknown, label: string): string {
@@ -1116,7 +1116,7 @@ function positional(schema: Schemas.OfContainer.Data): boolean {
   return ["dense", "sparse"].includes(schema.arrangement) && index instanceof Schemas.OfScalar.Data && index.type === BigInt;
 }
 
-/** The order of two indices of one ordered scalar type: numbers by value, text by code point, false first. */
+/** The order of two indices of one ordered scalar: numbers by value, text by code point, false first. */
 function compareIndices(a: unknown, b: unknown): number {
   if (typeof a === "string") return compareStrings(a, b as string);
   return (a as number) < (b as number) ? -1 : (a as number) > (b as number) ? 1 : 0;
@@ -1329,7 +1329,7 @@ class _ContainerBuilder extends _Containing {
   }
 }
 
-/** A type in a message: its name, or its kind. */
+/** A schema in a message: its name, or its kind. */
 function shownType(schema: unknown): string {
   const name = (schema as { name?: unknown }).name;
   return typeof name === "string" ? name : withArticle(noun(schema));
@@ -1515,7 +1515,7 @@ class _Property extends Dunders {
     return this._parent;
   }
 
-  /** A member of its value's kind, where its type has one (`_Any`'s). */
+  /** A member of its value's kind, where its schema has one (`_Any`'s). */
   override _member(name: string): unknown {
     return this._any()._kindMember(name);
   }
@@ -1573,7 +1573,7 @@ function propertiesOf(owner: unknown, values: Values, schema: RecordSchema, stor
     .map(([name, prop]) => makeProperty(values, name, prop, store, owner, writable, onWrite)));
 }
 
-/** The visitor of a union's branch or an intersection's part: of its own type's kind, the value itself for a value
+/** The visitor of a union's branch or an intersection's part: of its own schema's kind, the value itself for a value
  * object held, or an empty one. */
 function kindVisitor(values: Values, name: string, schema: unknown, store: _Store | null, parent: unknown,
   writable: boolean, label: string, onWrite: (() => void) | null = null): any {
@@ -1661,7 +1661,7 @@ function isObjectData(value: unknown): boolean {
 
 /** A value object: the value of a property whose schema is an `OfObject`, a read-only `Visitors.OfObject`; or a union
  * or intersection value, a read-only `Visitors.OfUnion` or `Visitors.OfIntersection`, whose branches or parts are
- * members giving the visitor of their own type's kind. It belongs to one owner and has no identity of its own; nothing
+ * members giving the visitor of their own schema's kind. It belongs to one owner and has no identity of its own; nothing
  * links it, so it has no adjacencies. */
 class _RecordData extends Shelled {
   readonly [TYPE_NAME] = "_RecordData";
@@ -1723,7 +1723,7 @@ function isRecordData(value: unknown): boolean {
 }
 
 /** A data instance's or a value object's member, read-only: a property, or a union's branch or an intersection's part,
- * the visitor of its type's kind; a flat intersection's part's property, as its own; or an adjacency. */
+ * the visitor of its schema's kind; a flat intersection's part's property, as its own; or an adjacency. */
 function member(owner: unknown, name: string): unknown {
   const state = innerOf(owner);
   const schema: RecordSchema = state._schema;
@@ -1731,8 +1731,8 @@ function member(owner: unknown, name: string): unknown {
   const store = storeOf(owner);
   if ((schema instanceof Schemas.OfUnion.Data || schema instanceof Schemas.OfIntersection.Data) && schema.properties.has(name)) {
     const kind = schema instanceof Schemas.OfUnion.Data ? "branch" : "part";
-    const type = (schema.properties.get(name) as Schemas.OfProperty.Data).schema;
-    return kindVisitor(values, name, type, store, owner, false, `${kind} ${repr(name)}`);
+    const held = (schema.properties.get(name) as Schemas.OfProperty.Data).schema;
+    return kindVisitor(values, name, held, store, owner, false, `${kind} ${repr(name)}`);
   }
   const prop = schema.properties.get(name);
   if (prop !== undefined) return makeProperty(values, name, prop, store, owner, false);
@@ -1895,8 +1895,7 @@ function agrees(entry: unknown, spec: unknown, adjacency: AdjacencySchema, store
 }
 
 /** A value as `project` and `at` read it: a flat union's value as its branch's value. */
-function view(value: unknown, type: unknown): unknown {
-  const schema = type;
+function view(value: unknown, schema: unknown): unknown {
   if (!(schema instanceof Schemas.OfUnion.Data && schema.flat && isRecordData(value) && innerOf(value)._values.size > 0)) {
     return value;
   }
@@ -1911,14 +1910,14 @@ function owningPart(schema: RecordSchema, name: string): string | null {
   return found === undefined ? null : found.name;
 }
 
-/** What tells a value apart at run time, as `Schemas` tells a flat union's branches apart: a scalar's type, or a value
+/** What tells a value apart at run time, as `Schemas` tells a flat union's branches apart: a scalar's host type, or a value
  * object's schema. */
 function runtime(value: unknown): unknown {
   if (isRecordData(value) || isRecordBuilder(value)) return innerOf(value)._schema;
   return Schemas.SCALAR_TYPES.find((host) => Schemas.isScalarOf(host, value));
 }
 
-/** The branch of a flat union whose type a value has. */
+/** The branch of a flat union whose schema a value has. */
 function branchOf(name: string, schema: Schemas.OfUnion.Data, value: unknown): Schemas.OfUnion.Branch {
   const found = schema.branches.find((branch) => Schemas._runtime(branch.schema) === runtime(value));
   if (found === undefined) {
@@ -2069,7 +2068,7 @@ function finalized(values: Values): Values {
 
 /** A writable `Visitors.OfObject` building a value object, starting from `source` if given; or a writable
  * `Visitors.OfUnion` or `Visitors.OfIntersection`, whose branches or parts are members giving the visitor of their own
- * type's kind. It attaches itself to what holds it (`attach`) when first written, so that an unwritten builder changes
+ * schema's kind. It attaches itself to what holds it (`attach`) when first written, so that an unwritten builder changes
  * nothing. Writing a union's branch clears any other. */
 class _RecordBuilder extends Shelled {
   readonly [TYPE_NAME] = "_RecordBuilder";

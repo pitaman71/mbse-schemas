@@ -21,7 +21,7 @@ With VISITOR_PATTERN.md's shorthands:
   link, or a callback taking `OfThem.Visitor`, which sets three things:
   - the entry's properties: `t.name(...)`, a member's name, which its entry carries;
   - its link: `t.property(age)`, linking an object that exists;
-  - the linked object's members: `t.type([T])`, building a new object, or updating the linked one if the link is set
+  - the linked object's members: `t.schema([T])`, building a new object, or updating the linked one if the link is set
     first.
 
   Every relation between schema objects has two links. Where the relation allows only one entry, the shorthand
@@ -29,8 +29,8 @@ With VISITOR_PATTERN.md's shorthands:
 
 | Old | New |
 |---|---|
-| `.properties(lambda p: p.name("x").of(T))` | `.properties([lambda t: t.name("x").type([T])])`; one built first, `.properties([lambda t: t.name("x").property(x)])` |
-| `.of(T)` on a property, parameter, symbol, branch, part | `.type([T])`, the evaluation type, a schema that exists (`[S.OfScalar.Data(int)]`) |
+| `.properties(lambda p: p.name("x").of(T))` | `.properties([lambda t: t.name("x").schema([T])])`; one built first, `.properties([lambda t: t.name("x").property(x)])` |
+| `.of(T)` on a property, parameter, symbol, branch, part | `.schema([T])`, the evaluation type, a schema that exists (`[S.OfScalar.Data(int)]`) |
 | `.relations(lambda a: a.name("n").of(R).me("l"))` | `.adjacencies([lambda t: t.name("n").relation([R]).me("l")])`; an anonymous one has no `name` |
 | `.links("a", "b")` | `.links([lambda t: t.name("a"), lambda t: t.name("b")])`, a link's type following from the adjacencies that fill it |
 | `.unique("a")`, `.unique("a", "b")` | `.uniques("a")`, `.uniques(["a", "b"])`; several clauses, `.uniques([["a"], ["b", "c"]])` |
@@ -42,7 +42,7 @@ With VISITOR_PATTERN.md's shorthands:
 | `.ref()`, `.ref(pattern)` | `.ref(True)`, `.ref(True).pattern(pattern)` |
 | `.flat()`, `.dense()` | `.flat(True)`, `.layout("dense")` |
 | `.type(int)`, `.token(fmt, name)` on a scalar | `.token("int")`, `.format(fmt).token(name)` |
-| `S.OfAny.Builder().as_scalar(...)` selector | `OfAny.Builder().types([T, U])` |
+| `S.OfAny.Builder().as_scalar(...)` selector | `OfAny.Builder().schemas([T, U])` |
 | `.entry(spec)`, `OfEntry.Builder` | gone: a relation's `links` and `properties` are its own |
 
 ## Points for your review

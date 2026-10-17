@@ -94,7 +94,7 @@ tools.
 - **Validation runs when you ask.** It reports every problem, each with a path, rather than failing on the first
   assignment.
 - **Strict, portable text.** JSON is strict. YAML is read with the 1.2 core schema, so there's no Norway problem.
-  Types are never coerced (`1`, `1.0` and `true` are different values). Every input problem is a `DecodeError`
+  Scalars are never coerced (`1`, `1.0` and `true` are different values). Every input problem is a `DecodeError`
   with a line and column, or a path.
 - **One protocol for tools.** Every object is read and written through one *visitor protocol*, whatever its schema.
   Serializers, the validator and your own tools all work on any schema.

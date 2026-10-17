@@ -21,8 +21,8 @@ declares an adjacency on, say, `Arguments`' `argument` link and may fill it from
 ```python
 store.extend(lambda m: (
     m.Expressions.BitWidth(lambda r: r.links([
-        lambda t: t.name("scalar").type([Builders.Meta.Scalar]),
-        lambda t: t.name("width").type([Term]),
+        lambda t: t.name("scalar").schema([Builders.Meta.Scalar]),
+        lambda t: t.name("width").schema([Term]),
     ]).uniques("scalar")),
     m.Schemas.Scalar(Builders.Meta.Scalar, lambda o: o.adjacencies([      # an extension: a member added,
         lambda t: t.name("bit_width").relation([BitWidth]).me("scalar"),   # nothing redefined

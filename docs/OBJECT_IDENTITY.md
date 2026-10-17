@@ -38,7 +38,7 @@ Defines = store.Schemas.OfRelation(lambda r: (
         lambda t: t.name('directory'),
         lambda t: t.name('defn'),
     ])
-    .properties([lambda t: t.name('name').type([store.Schemas.OfStr]).pattern(r'DEF-\d+\d\d')])
+    .properties([lambda t: t.name('name').schema([store.Schemas.OfStr]).pattern(r'DEF-\d+\d\d')])
     .uniques([['directory', 'name'], ['defn']])  # a definition's one directory and name; they find one definition
 ))
 store.Schemas.OfObject(Directory, lambda o: o.adjacencies([
@@ -179,7 +179,7 @@ assumptions about reentrancy":
   take: the keys of the last step, or a `Paths.OfX`?
 - **Unnamed schemas.** Schema members, being clauses and subclauses of a definition, take part (21) through their
   keyed relations (`HasProperty`, ...), which have the shape 14 asks for. An unnamed schema a property links, the
-  schema of its values (`crm.Person.tags`' container schema), is linked through `Schemas.Typing`, which no key names:
+  schema of its values (`crm.Person.tags`' container schema), is linked through `Schemas.HasSchema`, which no key names:
   is it a subclause owned through that link, its step written with no properties?
 
 ---

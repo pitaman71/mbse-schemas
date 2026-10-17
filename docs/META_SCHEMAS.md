@@ -183,13 +183,13 @@ store's own, reached by its path (`store.Schemas.OfObject`; [Store overhaul](pro
 every schema object is a reference object (Resolved: "we already decided
 at least one time to make schema objects references. all of them.").
 
-- **Kinds.** `Schemas.OfScalar`, `OfObject`, `OfUnion`, `OfIntersection`, `OfContainer` and `OfAny` are the types:
-  only a type is anything's type, refined, indexed, contained or allowed. `OfRelation`, `OfPredicate` and `OfModule`
-  are not types. Every kind has the properties `name` and `description`, and owns `parameters`, each kind declaring
+- **Kinds.** `Schemas.OfScalar`, `OfObject`, `OfUnion`, `OfIntersection`, `OfContainer` and `OfAny` are the schemas of
+  values: only such a schema is anything's schema, refined, indexed, contained or allowed. `OfRelation`, `OfPredicate`
+  and `OfModule` are not schemas of values (mbse-basis V-026: schema, never "type"). Every kind has the properties `name` and `description`, and owns `parameters`, each kind declaring
   them itself: there are no abstract bases (`Schemas.Schema`, `Type` and `Typed` are gone since 0.17.0;
   [Store overhaul](proposals/store-overhaul/README.md), Decided, 20 and 21).
-- **Members.** `Schemas.OfProperty`, `OfSymbol` and `Member` (a union's branch or an intersection's part) have a
-  `description` and a `type`; `OfParameter` has a `description` only: a parameter is a name, a symbol standing for
+- **Members.** `Schemas.OfProperty` and `OfSymbol` have a `description` and a `schema` (a union's branch and an
+  intersection's part, `Member` objects until 0.18.0, are entries since); `OfParameter` has a `description` only: a parameter is a name, a symbol standing for
   what a use of the schema binds (Store overhaul, Decided, 20). A member's name is not its own: it is the `name`
   property of the entry that links it to its owner (`HasProperty`, ...), since a member is named within its owner.
 - **Other schema objects.** `OfAdjacency` (a `description`, and `me`), and `OfModule`, which defines schemas and
@@ -205,19 +205,20 @@ at least one time to make schema objects references. all of them.").
 - **Every reference is a relation** of two links, `Schemas.<Relation>`, with an adjacency named at the end that
   declares it and an anonymous one at the end referred to (Resolved, "Refinement, identities and relations": an
   anonymous adjacency lets an object fill a link, with no member). Each kind declares the adjacencies of every relation
-  it is at an end of (Store overhaul, Decided, 10), so each type declares the six anonymous adjacencies to it.
+  it is at an end of (Store overhaul, Decided, 10), so each schema of values declares the anonymous
+  adjacencies to it.
 
 | Relation | Links: first, second (their kinds) | Named at the first | Constraint, as `unique` clauses state it |
 |---|---|---|---|
-| Typing | typed (Property, Symbol; a Member until 0.18.0), schema (a type) | `.type` | one: `unique(schema)`, the typed determines its schema |
-| Refines | refinement, refined (a type) | `OfObject.refines`, `OfContainer.refines` (`OfScalar.refines` until 0.18.0) | one |
-| Indexing, Containing | container (Container), index / element (a type) | `OfContainer.index`, `OfContainer.element` | one |
-| AnyOf | any (Any), schema (a type) | `OfAny.types` | none: open, a list in declaration order |
+| HasSchema (`Typing` until 0.19.0) | member (Property, Symbol; a Member until 0.18.0), schema (of values) | `.schema` | one: `unique(schema)`, the member determines its schema |
+| Refines | refinement, refined (of values) | `OfObject.refines`, `OfContainer.refines` (`OfScalar.refines` until 0.18.0) | one |
+| Indexing, Containing | container (Container), index / element (of values) | `OfContainer.index`, `OfContainer.element` | one |
+| AnyOf | any (Any), schema (of values) | `OfAny.schemas` (`types` until 0.19.0) | none: open, a list in declaration order |
 | Relating | adjacency (Adjacency), relation (Relation) | `OfAdjacency.relation` | one |
 | HasParameter | owner (every kind), parameter (Parameter); property `name` | `.parameters` | keyed: `unique(owner, name)`, `unique(parameter)` |
 | HasProperty | owner (Object, Relation), property (Property); `name` | `OfObject.properties`, `OfRelation.properties` | keyed |
 | HasAdjacency | owner (Object), adjacency (Adjacency); `name` | `OfObject.adjacencies` | keyed |
-| HasBranch, HasPart | owner (Union / Intersection), type (a type); `name`, `description` (since 0.18.0; a Member object until then) | `OfUnion.branches`, `OfIntersection.parts` | named: `unique(owner, name)` |
+| HasBranch, HasPart | owner (Union / Intersection), schema (of values; `type` in 0.18.0); `name`, `description` (since 0.18.0; a Member object until then) | `OfUnion.branches`, `OfIntersection.parts` | named: `unique(owner, name)` |
 | HasSymbol, HasLink | owner (Predicate / Relation), symbol / link (Symbol); `name` | `OfPredicate.symbols`, `OfRelation.links` | keyed |
 | Defines | module (Module), schema (every kind); `name` | `OfModule.schemas` | keyed |
 
@@ -242,13 +243,13 @@ every write.
   it and returns the builder. A container-valued property (a relation's `uniques`, or one of an extended schema) hands over a `Visitors.OfContainer`.
   An entry's link to its referent is a member, `env.<linkName>`: called, it links the referent given, or builds one
   through the callback, new, or the one the entry links, updated in place; read, it gives the referent, read-only.
-  Members and an adjacency's relation are built through a link; a type, a refined schema, an index and an element are
+  Members and an adjacency's relation are built through a link; a schema, a refined schema, an index and an element are
   linked as objects that exist (Resolved: "a link to a
   type takes a schema that exists, not a callback that builds one").
-- **Shorthands** ([Visitor pattern](VISITOR_PATTERN.md)): a property takes its value whole, of exactly its type
+- **Shorthands** ([Visitor pattern](VISITOR_PATTERN.md)): a property takes its value whole, of exactly its schema
   (`.ref(True)`, `.layout("dense")`); an adjacency takes an iterable, each item an entry, the object to link, or a
   callback taking `OfThem.Visitor`, which writes the entry's `name`, its link (`t.property(p)`), and the linked object's
-  members (`t.type([T])`). Where a relation allows one entry, the shorthand replaces it, and `insert` raises until it
+  members (`t.schema([T])`). Where a relation allows one entry, the shorthand replaces it, and `insert` raises until it
   is removed; an entry linking a referent held is elided.
 - **`as_*`.** `as_schema()` is `Meta.X`, and a member's `as_schema()` its property or adjacency in `Meta.X`;
   `as_properties` and `as_adjacencies` follow the meta-schema's order; `as_identity()` reads the identity and

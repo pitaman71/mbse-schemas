@@ -148,7 +148,7 @@ export interface ScalarFields {
   parameters?: Map<string, ParameterData>;
 }
 
-/** A scalar type: one of the five basic scalars, `Schemas.OfBool`, `Schemas.OfInt`, `Schemas.OfFloat`,
+/** A scalar: one of the five basic scalars, `Schemas.OfBool`, `Schemas.OfInt`, `Schemas.OfFloat`,
  * `Schemas.OfStr` and `Schemas.OfBytes`, each mapping to its host type by its name. A host type given in place of the
  * name (`new OfScalar.Data(BigInt)`) is shorthand for the basic scalar's. Every finer scalar is a domain,
  * mbse-expressions'. */
@@ -213,7 +213,7 @@ class ScalarData {
     return this.type;
   }
 
-  /** Converts plain data back to a scalar value. Distinct scalar types are never coerced into each other.
+  /** Converts plain data back to a scalar value. Distinct scalars are never coerced into each other.
    * Plain data that does not hold such a value, or a scalar that is not a basic scalar, throws
    * `Errors.DecodeError`. */
   from_plain(plain: unknown): Scalar {
@@ -631,7 +631,7 @@ export function _runtime(schema: unknown): unknown {
   return found;
 }
 
-/** A flat union's branches are told apart by their values' types. */
+/** A flat union's branches are told apart by their values' schemas. */
 function flatUnionProblems(branches: readonly MemberData[]): string[] {
   const problems: string[] = [];
   const seen = new Map<unknown, string>();
@@ -670,7 +670,7 @@ class UnionData {
   name: string | null;
   description: string | null;
   parameters: Map<string, ParameterData>;
-  /** Whether a value reads as its branch's value, told apart by type, rather than as an object of one branch. */
+  /** Whether a value reads as its branch's value, told apart by schema, rather than as an object of one branch. */
   flat: boolean;
 
   constructor(fields: { branches?: readonly MemberData[]; name?: string | null; description?: string | null;
@@ -759,16 +759,15 @@ export namespace OfIntersection {
 
 // --- OfContainer: elements by index ---
 
-/** The scalar types with a total order: a container indexed by one, or by a value object of them, may be dense or
+/** The scalars with a total order: a container indexed by one, or by a value object of them, may be dense or
  * sparse. */
 const ORDERED_TYPES = new Set<unknown>([BigInt, Number, String, Boolean]);
 const LAYOUTS = ["dense", "sparse"];
 
-/** What a container's index allows: "ordered" for a scalar of a type with a total order, or a value object of such
+/** What a container's index allows: "ordered" for a scalar with a total order, or a value object of such
  * scalars (several indices, as a tensor's, ordered by its properties in declaration order); "hashable" for any other
  * scalar, or a value object of scalars; null otherwise. */
-function indexKind(type: unknown): "ordered" | "hashable" | null {
-  const index = type;
+function indexKind(index: unknown): "ordered" | "hashable" | null {
   if (index instanceof ScalarData) return ORDERED_TYPES.has(index.type) ? "ordered" : "hashable";
   if (index instanceof ObjectData && !index.ref && index.properties.size > 0) {
     const kinds = new Set([...index.properties.values()].map((prop) =>
@@ -779,14 +778,13 @@ function indexKind(type: unknown): "ordered" | "hashable" | null {
 }
 
 /** Whether an index is an int, or a value object of ints: a dense container's positions, by default. */
-function integerLike(type: unknown): boolean {
-  const index = type;
+function integerLike(index: unknown): boolean {
   if (index instanceof ScalarData) return index.type === BigInt;
   return indexKind(index) === "ordered" && [...(index as ObjectData).properties.values()].every((p) =>
     (p.schema as ScalarData).type === BigInt);
 }
 
-/** A container: elements, each of the element type, held by index, each of the index type. Dense, its elements are a
+/** A container: elements, each of the element's schema, held by index, each of the index's schema. Dense, its elements are a
  * packed array; sparse, an associative store of dense blocks; with neither, it is dense where its index is
  * integer-like (an int, or a value object of ints), a dict (by index) where its index is otherwise hashable, and its
  * elements paired with their indices otherwise. */
@@ -921,7 +919,7 @@ export function plain_forms(schema: unknown): Set<string> {
   return new Set(["mapping"]);
 }
 
-/** A type in a message: its name, or its kind. */
+/** A schema in a message: its name, or its kind. */
 function shownType(schema: unknown): string {
   const held = schema;
   const name = (schema as { name?: unknown }).name;
@@ -930,9 +928,9 @@ function shownType(schema: unknown): string {
     : held instanceof IntersectionData ? "an intersection" : held instanceof ContainerData ? "a container" : "a schema";
 }
 
-/** A value of any schema: of one of `types`, where they are given (an `OfAny` restricted to them), else of any schema.
- * Restricted, a value is written bare, its type the one whose plain form it takes; unrestricted, it is tagged with its
- * type, a basic scalar's tag or a registered schema's name. */
+/** A value of any schema: of one of `schemas`, where they are given (an `OfAny` restricted to them), else of any
+ * schema. Restricted, a value is written bare, its schema the one whose plain form it takes; unrestricted, it is tagged
+ * with its schema, a basic scalar's tag or a registered schema's name. */
 class AnyValueData {
   schemas: AnyData[];
   name: string | null;
@@ -1102,8 +1100,7 @@ function validateSchema(schema: unknown): string[] {
 
 /** The schemas of the values a value of `schema` holds: a value object's properties, a union's branches, an
  * intersection's parts. */
-function membersOf(type: unknown): unknown[] {
-  const schema = type;
+function membersOf(schema: unknown): unknown[] {
   if (schema instanceof ContainerData) return [schema.index, schema.element];
   if (schema instanceof AnyValueData) return [...schema.schemas];
   return schema instanceof ObjectData || schema instanceof UnionData || schema instanceof IntersectionData
@@ -1113,8 +1110,7 @@ function membersOf(type: unknown): unknown[] {
 /** Problems with a property's schema as a value: an object held by a property is a value object, so its schema is
  * not a reference object schema; nor are the schemas of the objects a union or an intersection holds. `seen` holds the
  * schemas on the way, so that one that holds itself is checked once. */
-function embeddedProblems(type: unknown, seen: ReadonlySet<unknown> = new Set()): string[] {
-  const schema = type;
+function embeddedProblems(schema: unknown, seen: ReadonlySet<unknown> = new Set()): string[] {
   if (schema instanceof ObjectData) return schema.ref ? ["a reference object schema cannot be a property's schema"] : [];
   if (seen.has(schema)) return [];
   const inner = new Set([...seen, schema]);
@@ -1123,7 +1119,7 @@ function embeddedProblems(type: unknown, seen: ReadonlySet<unknown> = new Set())
 
 export namespace OfAny {
   /** Where a schema of any kind is expected. `OfAny.Data` is any schema kind's data; `OfAny.Value`, the kind of a value
-   * of any schema, or of one of the types it is restricted to. */
+   * of any schema, or of one of the schemas it is restricted to. */
   export type Data = AnyData;
   export const Value = AnyValueData;
   export type Value = AnyValueData;

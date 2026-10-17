@@ -40,7 +40,7 @@ and TypeScript write byte-identical JSON, and each reads the other's.
 ## Strictness
 
 - JSON is strict. YAML is read with the 1.2 core schema, so `no` is a string (no "Norway problem").
-- Nothing is coerced: `1`, `1.0` and `true` are different values, and a wrong type is an error.
+- Nothing is coerced: `1`, `1.0` and `true` are different values, and a value of another scalar is an error.
 - An adjacency's entries are written sorted by the key its relation declares from that end, where the key's values
   are ordered (numbers, strings, booleans); otherwise in the order they were added.
 - Every problem in the input raises `DecodeError` (a `ValueError`) with a one-line reason and a location: a line and

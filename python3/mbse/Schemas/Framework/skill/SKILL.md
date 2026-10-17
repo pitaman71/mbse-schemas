@@ -39,7 +39,7 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
    constraints are not implemented yet.
 5. **Validation runs only when asked:** `Validators.Validate(store)(schema, value)`, or `.Reachable(...)` for a
    whole graph. It returns every problem, each with a path. Schemas have their own `.validate()`.
-6. **Scalar types are exact, never coerced.** `int`, `float`, `bool`, `str` and `bytes` are distinct. In TypeScript,
+6. **Scalars are exact, never coerced.** `int`, `float`, `bool`, `str` and `bytes` are distinct. In TypeScript,
    `int` is `bigint`.
 7. **Objects are read-only visitors.** Read a scalar with `str(obj.name)` or `obj.name.get()` (TypeScript:
    `` `${obj.name}` ``). In Python a member compares and orders as its value (`obj.name == "Ada"`); in TypeScript

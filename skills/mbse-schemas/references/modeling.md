@@ -19,7 +19,7 @@ How to express an interface or data model with the schema elements. The same mod
 | Dictionary, associative array (values by key) | a container by a hashable index: `c.index([Text]).element([...])`, written as a mapping where the index is text |
 | Dense tensor, matrix | a container by a value object of ints (`{row, col}`), dense: every cell of the box its indices span; written nested or, configured on the writer, flat with its shape |
 | Sparse array or tensor | `.layout("sparse")` on the container: blocks of consecutive elements, each where it starts |
-| Fixed-size array | a container by an int index; its bounds are a constraint on the index type, which is planned |
+| Fixed-size array | a container by an int index; its bounds are a constraint on the index's schema, which is planned |
 | Ordered list of shared objects | relation with an index property: links `owner` and `item`, a property `index`, `.uniques(["owner", "index"])` |
 | Tagged union, variant, `oneOf`, `xsd:choice` | `OfUnion`: named, same-kind branches; a value holds exactly one |
 | Mixin, aspect, `allOf` | `OfIntersection`: named, same-kind parts; a value holds every one. Supported for property values. Objects with identity composed from aspects are not yet |
@@ -61,7 +61,7 @@ then add each object's adjacencies by updating its schema in the store,
 `store.Schemas.OfObject(existing, lambda o: o.adjacencies([...]))`.
 
 **Evolving a schema.** Add properties freely, since old data lacks them and nothing is mandatory. Never reuse a name
-with a new type.
+with a new schema.
 
 ## Go deeper
 

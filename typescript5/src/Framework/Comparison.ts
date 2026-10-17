@@ -6,7 +6,7 @@
  * greater than `b`, and `null` when they are incomparable.
  *
  * - Absent compares equal to absent; absent and present are incomparable. So do values under different schemas.
- * - `OfScalar`: a value must have exactly the schema's scalar type. `int`, `float`, `str` and `bytes` are ordered:
+ * - `OfScalar`: a value must have exactly the schema's host type. `int`, `float`, `str` and `bytes` are ordered:
  *   strings by code point, bytes lexicographically, floats by value with `-0.0` before `0.0`. NaNs equal each other
  *   and are incomparable with other floats. Booleans are equal or incomparable.
  * - `OfObject`: equal when every property its schema declares is absent in both or equal in both; otherwise
@@ -16,7 +16,7 @@
  * - `OfUnion`: equal when both hold the same branch with equal values; otherwise incomparable.
  * - `OfIntersection`: equal when every part is absent in both or equal in both; otherwise incomparable.
  * - `OfContainer`: equal when both hold elements at the same indices, each equal; otherwise incomparable. Containers
- *   with different index types, or different element types, are incomparable.
+ *   with different index schemas, or different element schemas, are incomparable.
  * - `OfLink`: equal when both link the same object, by identity: a link targets a reference object; otherwise
  *   incomparable.
  * - `OfEntry`: equal when every link and property is equal; otherwise incomparable.
@@ -51,7 +51,7 @@ function compareBytes(a: Uint8Array, b: Uint8Array): number {
   return a.length - b.length;
 }
 
-/** Compares two values of the same scalar type. */
+/** Compares two values of the same scalar. */
 function compareScalars(a: Scalar, b: Scalar): Result {
   if (typeof a === "boolean") return a === b ? 0 : null;
   if (typeof a === "number") {
@@ -95,7 +95,7 @@ function anyOf(read: any): any {
   return found.length > 0 ? found[0] : null;
 }
 
-/** The type a value of any schema has: a scalar's, or its visitor's schema. */
+/** The schema a value of any schema has: a scalar's, or its visitor's schema. */
 function own(value: any): any {
   const host = Schemas.hostOf(value);
   return host !== null ? new Schemas.OfScalar.Data(host) : value.as_schema();
@@ -119,7 +119,7 @@ function readProperty(read: any, schema: unknown): any {
   return held instanceof Schemas.OfScalar.Data || held === null ? readScalar(read) : readHeld(read, held);
 }
 
-/** A union's branch's or an intersection's part's value, read through its visitor of its type's kind. */
+/** A union's branch's or an intersection's part's value, read through its visitor of its schema's kind. */
 function readMember(read: any, schema: unknown): any {
   if (schema instanceof Schemas.OfScalar.Data) return read.get();
   return read.as_schema() !== null ? read : null;
@@ -127,17 +127,17 @@ function readMember(read: any, schema: unknown): any {
 
 /** A container's element, read through its `Visitors.OfAny`: a scalar or a visitor; an element present holds one. */
 function readElement(read: any, schema: unknown): any {
-  const type = schema;
+  const held = schema;
   const found: unknown[] = [];
-  if (type instanceof Schemas.OfScalar.Data || type === null) read.as_scalar((s: any) => found.push(s.get()));
-  else if (type instanceof Schemas.OfAny.Value) return anyOf(read);
-  else read[selecting(type)]((v: any) => found.push(v));
+  if (held instanceof Schemas.OfScalar.Data || held === null) read.as_scalar((s: any) => found.push(s.get()));
+  else if (held instanceof Schemas.OfAny.Value) return anyOf(read);
+  else read[selecting(held)]((v: any) => found.push(v));
   return found[0];
 }
 
 // --- Comparing ---
 
-/** Whether two types are one: scalars by value, other schemas by identity, through applications. */
+/** Whether two schemas are one: scalars by value, other schemas by identity, through applications. */
 function sameType(a: unknown, b: unknown): boolean {
   const x = a;
   const y = b;
@@ -153,12 +153,12 @@ function compareValues(schema: unknown, a: any, b: any): Result {
   if (held instanceof Schemas.OfScalar.Data) return typeName(a) !== typeName(b) ? null : compareScalars(a, b);
   if (held instanceof Schemas.OfObject.Data) return objects(held, a, b, true);
   if (held instanceof Schemas.OfContainer.Data) return containers(held, a, b);
-  if (held instanceof Schemas.OfAny.Value) return sameType(own(a), own(b)) ? compareValues(own(a), a, b) : null; // under one type only
+  if (held instanceof Schemas.OfAny.Value) return sameType(own(a), own(b)) ? compareValues(own(a), a, b) : null; // under one schema only
   const record = held as Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
   return allEqual([...record.properties].map(([name, m]) => compareValues(m.schema, readMember(a[name], m.schema), readMember(b[name], m.schema))));
 }
 
-/** Whether two indices of one index type are one: scalars, or arrays of them, equal; value objects equal. */
+/** Whether two indices of one index schema are one: scalars, or arrays of them, equal; value objects equal. */
 function sameIndex(schema: unknown, a: any, b: any): boolean {
   if (Array.isArray(a)) return a.every((x, i) => compareScalars(x, b[i]) === 0);
   if (schema instanceof Schemas.OfScalar.Data) return compareScalars(a, b) === 0;
@@ -212,7 +212,7 @@ function compareLinks(a: any, b: any): Result {
   return x === y && a.as_schema() === b.as_schema() ? 0 : null;
 }
 
-/** A scalar value, which must have exactly the schema's scalar type; null for absent. */
+/** A scalar value, which must have exactly the schema's host type; null for absent. */
 export class OfScalar {
   readonly #value: Scalar | null;
 
@@ -282,8 +282,8 @@ export class OfUnion {
 /** An intersection value read through its visitor; null for absent. */
 export class OfIntersection extends OfUnion {}
 
-/** A container read through its visitor (`Readers.OfContainer`); null for absent. Containers of different index types,
- * or of different element types, are incomparable. */
+/** A container read through its visitor (`Readers.OfContainer`); null for absent. Containers of different index schemas,
+ * or of different element schemas, are incomparable. */
 export class OfContainer {
   constructor(private readonly schema: Schemas.OfContainer.Data, private readonly value: Readers.OfContainer | null = null) {}
 

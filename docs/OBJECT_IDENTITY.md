@@ -96,8 +96,8 @@ yet to be designed.
 
 - `Paths.OfRoot` bears two properties: `singleton`, a globally unique singleton name, and `next`, a
   `Union[Paths.OfEntry, Paths.OfTarget]`.
-- `Paths.OfEntry` bears four properties: `in`, the name of the adjacency to the object addressed by the previous path
-  element; `out`, the name of the adjacency to the object addressed by the next path element; `properties`, a value
+- `Paths.OfEntry` bears four properties: `i`, the name of the adjacency to the object addressed by the previous path
+  element; `o`, the name of the adjacency to the object addressed by the next path element; `properties`, a value
   object literal assigning each property of the transited relation the value that uniquely continues the path to the
   target via this relation; and `next`, a `Union[Paths.OfEntry, Paths.OfTarget]`.
 - `Paths.OfTarget`: no more traversals, the object is found.
@@ -107,7 +107,7 @@ definition the Ownership example places, on the wire, its unions tagged by branc
 
 ```json
 {"singleton": "wts.Features", "next": {"entry": {
-    "in": "dir", "out": "def", "properties": {"name": "DEF-693"}, "next": {"target": {}}}}}
+    "i": "dir", "o": "def", "properties": {"name": "DEF-693"}, "next": {"target": {}}}}}
 ```
 
 ---
@@ -156,7 +156,7 @@ assumptions about reentrancy":
     need to be generated per their regex."
 16. "as_identity can resume being read-only for code outside of deserialization".
 17. "the default module path gets ported over so that modules and schemas participate in this mechanism".
-18. Paths are data, `Paths.OfX`, "nestable value objects": `Paths.OfRoot`, `Paths.OfEntry` (its `in`, `out`,
+18. Paths are data, `Paths.OfX`, "nestable value objects": `Paths.OfRoot`, `Paths.OfEntry` (its `i`, `o`,
     `properties` and `next`) and `Paths.OfTarget`, as
     Paths as data gives them, with the shorthand `path.to.root.singleton` `.{inAdj}-{entryProps}>{outAdj}` ...,
     for example `wts.Features.dir-{name:"FEA-693"}>def`, "oftarget is implied". (The shorthand is superseded by 23.)
@@ -167,12 +167,11 @@ assumptions about reentrancy":
     kind (usually module scoped), clauses of a definition, subclauses of a definition clause".
 22. A key value given that does not match its property's pattern: "raise when written".
 23. No shorthand: "Maybe we should do without shorthand. Just write the path as a nested value object."
+24. `Paths.OfEntry`'s `in` and `out` are named `i` and `o` ("just call them i and o"), since `in` is a Python keyword
+    and a schema's properties are its builders' and proxies' members.
 
 ## Open questions
 
-- **`in` is a Python keyword.** A schema's properties are its builders' and proxies' members, and `e.in(...)` does not
-  parse in Python. Rename `in` and `out` (`via` and `to`, `source` and `sink`, ...), or give Python an alias such as
-  `in_`?
 - **Branch names of `next`.** The JSON above tags `Union[Paths.OfEntry, Paths.OfTarget]` by branches named `entry` and
   `target`, which the draft does not name.
 - **Lookup.** With an identity a path, what does `store.Instances.<path>.as_instance(suffix)` (1; mbse-basis P-015)

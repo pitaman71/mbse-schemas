@@ -20,9 +20,10 @@ programs, languages or tools must agree on. Two equivalent implementations exist
 ## Invariants when changing code
 
 - **One vocabulary across the mbse repositories.** A kind's or schema's named members are *properties*, never
-  "fields" (a field is only the host language's class member that holds one). An element of an expression tree is
-  a *term* (mbse-expressions), and of a program tree a *syntax node* (mbse-programs); never a bare "node" in code,
-  docs or messages. What a specification requires is a *constraint*, never a "rule"; a constraint is checked,
+  "fields" (a field is only the host language's class member that holds one), and what describes a value is its
+  *schema*, never its "type" (a type is only the host language's, qualified as such; mbse-basis V-026). An element
+  of an expression tree is a *term* (mbse-expressions), and of a program tree a *syntax node* (mbse-programs); never a
+  bare "node" in code, docs or messages. What a specification requires is a *constraint*, never a "rule"; a constraint is checked,
   resolved or generated from, never executed ([MBSE.md, What a specification is made
   of](https://github.com/pitaman71/mbse-basis/blob/main/MBSE.md#what-a-specification-is-made-of)). Across this many languages, terms collide (an SVA
   `property`, a C++ template parameter, a SystemVerilog `constraint` block): wherever ours meets a language's own,

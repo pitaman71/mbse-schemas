@@ -95,11 +95,11 @@ yet to be designed.
 `Paths.OfX` are nestable value objects:
 
 - `Paths.OfRoot` bears two properties: `singleton`, a globally unique singleton name, and `next`, a
-  `Union[Paths.OfEntry, Paths.OfTarget]`.
+  `Union[entry: Paths.OfEntry, target: Paths.OfTarget]`.
 - `Paths.OfEntry` bears four properties: `i`, the name of the adjacency to the object addressed by the previous path
   element; `o`, the name of the adjacency to the object addressed by the next path element; `properties`, a value
   object literal assigning each property of the transited relation the value that uniquely continues the path to the
-  target via this relation; and `next`, a `Union[Paths.OfEntry, Paths.OfTarget]`.
+  target via this relation; and `next`, a `Union[entry: Paths.OfEntry, target: Paths.OfTarget]`.
 - `Paths.OfTarget`: no more traversals, the object is found.
 
 A path has no shorthand: it is written as the nested value object it is, as any value is (mbse-basis P-019). The
@@ -169,11 +169,10 @@ assumptions about reentrancy":
 23. No shorthand: "Maybe we should do without shorthand. Just write the path as a nested value object."
 24. `Paths.OfEntry`'s `in` and `out` are named `i` and `o` ("just call them i and o"), since `in` is a Python keyword
     and a schema's properties are its builders' and proxies' members.
+25. `next` is `Union[entry: Paths.OfEntry, target: Paths.OfTarget]`: its branches are `entry` and `target`.
 
 ## Open questions
 
-- **Branch names of `next`.** The JSON above tags `Union[Paths.OfEntry, Paths.OfTarget]` by branches named `entry` and
-  `target`, which the draft does not name.
 - **Lookup.** With an identity a path, what does `store.Instances.<path>.as_instance(suffix)` (1; mbse-basis P-015)
   take: the keys of the last step, or a `Paths.OfX`?
 - **Unnamed schemas.** Schema members, being clauses and subclauses of a definition, take part (21) through their

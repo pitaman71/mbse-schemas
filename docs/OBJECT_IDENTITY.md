@@ -7,7 +7,7 @@ A reference object is identified in one of three ways, which its schema's declar
 
 | Mode | Declared by | Identity | Lifetime |
 |---|---|---|---|
-| Singleton | `.singleton(name)` | its global name | the store's |
+| Singleton | `.singleton(name)` | its path of no steps: its global name, the root of every path | the store's |
 | Owned | an adjacency marked `owner()` | its path: the route from a singleton to it through the entries that own it | its owning entry's |
 | Counted | neither | the id of the transaction that created it, and its index among the objects that transaction created | the host language's: reference counted, collected once nothing holds it |
 
@@ -17,7 +17,7 @@ the same snapshots.
 
 ## What takes which mode
 
-- **Singletons**, such as the root module and a directory such as `wts.Features`: by their global names, as before.
+- **Singletons**, such as the root module and a directory such as `wts.Features`: by their global names, as before, each the path of no steps.
 - **Owned**, through `owner()` adjacencies: named definitions of any kind (usually module scoped, owned by their module
   through `Schemas.Defines`), clauses of a definition and subclauses of a clause, and the instances of a program's
   schemas at the root level of its data model, owned by a singleton directory (37).
@@ -106,7 +106,8 @@ links it or the program, as the host language decides; the store does not keep i
 
 A program cannot find a counted object directly, only by visiting what links it (40). Its identity appears only on the
 wire, where later transactions and snapshots refer to it: a reference is `{"$ref": {"tx": <uid>, "n": <index>}}`, beside
-`{"$ref": <path>}` and a singleton's global name, and its `Exists` carries no id, its position among the transaction's
+`{"$ref": <path>}`, by which an owned object and a singleton alike are referred to (a singleton's path has no steps),
+and its `Exists` carries no id, its position among the transaction's
 creations being its index (49). Within one transaction, a reference to its own creation may give the index alone,
 `{"$ref": {"n": <index>}}` (51).
 
@@ -140,8 +141,8 @@ transaction id and index it was created with, so that later transactions still f
 
 A Reachable document, the one graph a program sends without its store (an expression tree, a syntax tree), is one
 transaction (51): its creations are the counted objects reachable from the root, the root first, in first-reference
-order, under a uid the caller gives; the owned objects and singletons the graph links are referred to by path or
-global name, not included, and resolved in the reader's store, reading aborting where one is missing. Reading the
+order, under a uid the caller gives; the owned objects and singletons the graph links are referred to by path, not
+included, and resolved in the reader's store, reading aborting where one is missing. Reading the
 document applies it as a transaction. A document that must carry owned objects too is a store's snapshot.
 
 ## Paths as data
@@ -314,10 +315,12 @@ As the user decided (2026-10-18), on the questions 41 to 47 left:
     within the transaction; a counted object it linked lives on while anything else holds it.
 49. A counted object on the wire ("fine"): a reference `{"$ref": {"tx": <uid>, "n": <index>}}` beside `{"$ref": <path>}`
     and a global name, its `Exists` carrying no id, its position among the transaction's creations being its index.
+    (A singleton needs no form of its own: "why do singletons need a separate syntax?" Its reference is its path, of
+    no steps, `{"singleton": "crm.Book", "next": {"target": {}}}`.)
 50. Nested transactions are "prevented by schema. Mutation.OfTransaction is strictly the root".
 51. The Reachable format (superseding 36), "precisely": a Reachable document is one transaction, whose creations are
     the counted objects reachable from the root, the root first, under a uid the caller gives, references within it by
-    index alone; the owned objects and singletons it links are referred to by path or global name, not included, and
+    index alone; the owned objects and singletons it links are referred to by path (a singleton's has no steps), not included, and
     resolved in the reader's store, reading aborting where one is missing. A document carrying owned objects too is a
     store's snapshot. Its uses: a graph sent across a process or language boundary (mbse-programs' Verilog reader),
     the corpora of expression and syntax trees (mbse-expressions, mbse-programs), round trips in tests, and copying a

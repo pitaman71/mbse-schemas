@@ -183,7 +183,7 @@ so that main stays current and no branch waits on another.
      singleton directory.
    - **4e, the wire** (45, 49, 51): a store's snapshot is made of transactions; a counted object is referred to as
      `{"$ref": {"tx": ..., "n": ...}}`, `{"$ref": {"n": ...}}` within its own transaction; a Reachable document is one
-     transaction under a uid its writer is given, owned objects and singletons referred to by path or name. The corpora
+     transaction under a uid its writer is given, owned objects and singletons referred to by path, a singleton's of no steps. The corpora
      are regenerated, the JSON byte-identical between the languages.
    - **4f, schema objects** (17, 29): their identities are their paths, derived identities go, and their keys on the
      wire are paths too.

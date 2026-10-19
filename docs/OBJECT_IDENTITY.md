@@ -117,7 +117,8 @@ read off its ownership entries on demand, as a `Paths.OfRoot` value, by `Paths.o
 
 - a singleton by its global name, `store.Instances.wts.Features` (26);
 - an owned object by calling an adjacency with the keys of the entry that leads to it, on any adjacency:
-  `store.Instances.wts.Features.dir({"name": "DEF-693"}).clauses({"name": "C-1"})`; keys no entry has raise (26 to 28);
+  `store.Instances.wts.Features.dir({ name: 'DEF-693' }).clauses({ name: 'C-1' })` (in Python, a mapping:
+  `.dir({'name': 'DEF-693'})`); keys no entry has raise (26 to 28);
 - a counted object only by visiting what links it (40).
 
 Reading a snapshot or a journal is the one way an object is given an identity it did not get by being built: the same

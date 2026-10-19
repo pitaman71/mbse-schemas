@@ -92,6 +92,11 @@ ownership adjacency is still empty is given the one owner possible, the singleto
 from their patterns; where none or more than one is possible, the transaction aborts, naming the ownership missing
 (15, 33).
 
+### Deleting
+
+Removing an owned object's owning entry deletes it, and in cascade everything it owns, within the transaction; a
+counted object it linked lives on while anything else holds it (48).
+
 ## Counted objects
 
 A counted object is identified by the id of the transaction that created it and its index in the order that
@@ -100,7 +105,10 @@ fixed when it is created and never changes, whatever links it later. It lives wh
 links it or the program, as the host language decides; the store does not keep it alive.
 
 A program cannot find a counted object directly, only by visiting what links it (40). Its identity appears only on the
-wire, where later transactions and snapshots refer to it.
+wire, where later transactions and snapshots refer to it: a reference is `{"$ref": {"tx": <uid>, "n": <index>}}`, beside
+`{"$ref": <path>}` and a singleton's global name, and its `Exists` carries no id, its position among the transaction's
+creations being its index (49). Within one transaction, a reference to its own creation may give the index alone,
+`{"$ref": {"n": <index>}}` (51).
 
 ## Reading and finding
 
@@ -119,7 +127,8 @@ identity appearing again is an update of the object that has it, through its bui
 
 Every write to a store is part of a transaction (44): building, cloning and updating any object, owned, counted or a
 singleton's, and so every schema built. `Mutations.OfTransaction` is the schema of one: its id and its list of
-mutations (38). A program applies one by `store.mutation(mv)`, `mv` a `Visitors.OfMutation` whose `.uid()` gives the
+mutations (38). It is strictly the root of what a program applies, so transactions cannot nest: the schema does not
+let one hold another (50). A program applies one by `store.mutation(mv)`, `mv` a `Visitors.OfMutation` whose `.uid()` gives the
 transaction's UUID; the program provides it, and nothing draws one at random (42).
 
 A transaction that aborts, for any reason, changes nothing in the store of any kind (46): its creations are never made,
@@ -127,6 +136,12 @@ its index numbers are never used, and its other writes are undone.
 
 Snapshots are made of transactions (45): reading one replays them, and a counted object it re-states keeps the
 transaction id and index it was created with, so that later transactions still find it.
+
+A Reachable document, the one graph a program sends without its store (an expression tree, a syntax tree), is one
+transaction (51): its creations are the counted objects reachable from the root, the root first, in first-reference
+order, under a uid the caller gives; the owned objects and singletons the graph links are referred to by path or
+global name, not included, and resolved in the reader's store, reading aborting where one is missing. Reading the
+document applies it as a transaction. A document that must carry owned objects too is a store's snapshot.
 
 ## Paths as data
 
@@ -251,7 +266,7 @@ assumptions about reentrancy":
     lowercased, a dash and a counter, `contact-1` ("local-name-N (Recommended)"). (In question since 37; see Open
     questions, 1.)
 35. `as_identity()` gives the path, a `Paths.OfRoot` value computed on demand ("The path value (Recommended)"). (Superseded by 43.)
-36. The Reachable format lists its objects ("Objects as a list (Recommended)", 2026-10-17): `{"root": <path>,
+36. (Superseded by 51.) The Reachable format lists its objects ("Objects as a list (Recommended)", 2026-10-17): `{"root": <path>,
     "objects": [{"path": <path>, "schema": "Contact", "properties": {...}}, ...]}`, a reference `{"$ref": <path>}`, with
     no `$schema`: the path finds the object, and its entry in `objects` names its schema, as `Exists` does.
 
@@ -292,18 +307,24 @@ As the user decided (2026-10-18), on the questions 37 to 40 left:
     than two links": validation refuses an `owner()` adjacency whose owning end a counted schema can fill, as 14 already
     refuses an ownership relation of more than two links.
 
+As the user decided (2026-10-18), on the questions 41 to 47 left:
+
+48. Deleting an owned object ("correct"): removing its owning entry deletes it, and in cascade everything it owns,
+    within the transaction; a counted object it linked lives on while anything else holds it.
+49. A counted object on the wire ("fine"): a reference `{"$ref": {"tx": <uid>, "n": <index>}}` beside `{"$ref": <path>}`
+    and a global name, its `Exists` carrying no id, its position among the transaction's creations being its index.
+50. Nested transactions are "prevented by schema. Mutation.OfTransaction is strictly the root".
+51. The Reachable format (superseding 36), "precisely": a Reachable document is one transaction, whose creations are
+    the counted objects reachable from the root, the root first, under a uid the caller gives, references within it by
+    index alone; the owned objects and singletons it links are referred to by path or global name, not included, and
+    resolved in the reader's store, reading aborting where one is missing. A document carrying owned objects too is a
+    store's snapshot. Its uses: a graph sent across a process or language boundary (mbse-programs' Verilog reader),
+    the corpora of expression and syntax trees (mbse-expressions, mbse-programs), round trips in tests, and copying a
+    component into another store.
+
 ## Open questions
 
-1. **Deleting an owned object.** Proposed: removing its owning entry deletes it, and in cascade everything it owns,
-   within the transaction; a counted object it linked lives on while anything else holds it.
-2. **A counted object on the wire.** Proposed: a reference `{"$ref": {"tx": <uid>, "n": <index>}}` beside
-   `{"$ref": <path>}` and a global name, its `Exists` carrying no id (its position among the transaction's creations
-   is its index); a log may list its transactions' ids once and refer to them by position.
-3. **The Reachable format (36) under 45.** Is a Reachable snapshot a list of transactions too, or does the list of
-   objects stay for a one-shot document, its counted objects referred to as in 2?
-4. **Nested transactions.** FRAMEWORK.md has transactions flat ("mutations may be nested; transactions are not"): is
-   `store.mutation` called while one is open refused?
-5. **`Visitors.OfMutation`.** What a program writes to build within a transaction: a visitor over a
+1. **`Visitors.OfMutation`.** What a program writes to build within a transaction: a visitor over a
    `Mutations.OfTransaction` value, its `.uid()` and its mutations, and how the builders' callbacks run inside it.
 
 ---

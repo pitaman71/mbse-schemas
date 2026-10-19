@@ -157,23 +157,65 @@ so that main stays current and no branch waits on another.
 3b. **Schema, never "type" (0.19.0).** The rename 24 lists, in both languages, messages and documents included.
    *Breaks*: every `.schema([...])` (1671 in 126 files), `OfAny`'s `types`, the wire's `Schemas.HasSchema` entries and the
    `HasBranch` and `HasPart` link, and every message that said type.
-4. **Object identity (0.20.0).** As [Object identity](../../OBJECT_IDENTITY.md) now describes it: an identity is a path
-   from a singleton through ownership entries (`owner()`, key properties with patterns), written as a nested
-   `Paths.OfRoot` value; `Schema@` only in `Exists`; no UUIDs; `as_identity` read-only outside deserialization.
-   *Breaks*: the snapshot format, so every corpus and every hand-written snapshot in the tests; `.ref(pattern)`;
-   writing an identity (STO-08).
+4. **Object identity (0.20.0).** As [Object identity](../../OBJECT_IDENTITY.md) now describes it: three modes, a
+   singleton by its global name, an owned object by its path from a singleton through ownership entries (`owner()`, key
+   properties with patterns), a counted object by its transaction's uid and its creation index; every write in a
+   transaction; `Schema@` only in `Exists`; `as_identity` gone.
+   *Breaks*: every write outside `store.mutation` (about 1200 build calls in 214 cells of the Python notebooks alone,
+   and as many in TypeScript's, the tutorials, examples, skill and README included); the snapshot and Reachable
+   formats, so every corpus and hand-written snapshot; `.ref(pattern)`, `OfObject.pattern`; `as_identity`; and in the
+   dependents, mbse-expressions' and mbse-programs' corpora and their `Reachable` documents.
    In stages, each committed with both gates at 100%, released only at the last:
-   - **4a, the vocabulary:** `owner()` on adjacencies, validated against its relation's clauses (Object identity,
-     Decided, 14); `.pattern(...)` on properties (13); `Schemas.HasInstance` (31); the `Paths.OfRoot`, `Paths.OfEntry`
-     and `Paths.OfTarget` value schemas, held by every store as its mutation schemas are (18, 24, 25); and an object's
-     path on demand (32). Nothing else changes yet.
-   - **4b, data objects:** a builder fills ownership (33) and generates keys, `OfObject.pattern` naming `HasInstance`'s
-     (34); lookup calls an adjacency with keys (26 to 28); `as_identity` gives the path (35) and is read-only (16); the
-     UUIDs and per-schema directories go (19); and the wire moves with them, a data object's key its path, `Schema@`
-     only in `Exists` (8, 12, 23), as the user chose: "Wire moves with each stage (Recommended)".
-   - **4c, schema objects:** their identities are their paths (17, 29), derived identities go, and their keys on the
+   - **4a, the vocabulary** (done): `owner()`, `.pattern(...)` on properties, the path schemas, a path on demand.
+   - **4b, data objects by path** (done, `1513108`): ownership filled at build, keys generated, lookup by keys, paths on
+     the wire. What Object identity, Decided, 37 to 51 reverse of it, 4c to 4e undo: `HasInstance`, `OfObject.pattern`,
+     `local-name-N` keys, the schema holding its objects, `as_identity`, and the Reachable list of objects.
+   - **4c, transactions in memory** (38, 42, 44, 46, 50): `Mutations.OfTransaction` (`uid`, `mutations`) and
+     `Visitors.OfMutation`; `store.mutation(mv)`; every write outside one refused, with a message naming
+     `store.mutation`; a transaction that raises undone entirely, from a journal of its writes; ownership settled when
+     it ends, an unsettled ownership aborting it (33). Objects keep 4b's identities for this stage, so that only the way
+     programs write changes: every test, tutorial, example and skill block moves into transactions here.
+   - **4d, counted objects** (37, 39, 40, 41, 43, 46, 47, 48): `HasInstance`, `OfObject.pattern`, the `local-name-N`
+     keys, the directories and `store.Instances.<schema>(keys)` go; an object whose schema declares no `owner()` is
+     counted, given its transaction's uid and creation index (a clone too), and held by nothing but what links it;
+     `as_identity` goes; validation refuses an `owner()` adjacency a counted schema can fill; removing an owning entry
+     deletes the owned object, cascading. The tests whose root-level objects must be found move them under a
+     singleton directory.
+   - **4e, the wire** (45, 49, 51): a store's snapshot is made of transactions; a counted object is referred to as
+     `{"$ref": {"tx": ..., "n": ...}}`, `{"$ref": {"n": ...}}` within its own transaction; a Reachable document is one
+     transaction under a uid its writer is given, owned objects and singletons referred to by path or name. The corpora
+     are regenerated, the JSON byte-identical between the languages.
+   - **4f, schema objects** (17, 29): their identities are their paths, derived identities go, and their keys on the
      wire are paths too.
-   - **4d, the release:** the corpora as 4c leaves them; 0.20.0.
+   - **4g, the release**: the corpora as 4f leaves them; 0.20.0; the dependents (mbse-expressions, mbse-programs)
+     adapt, their corpora as Reachable transactions.
+
+### Transactions, as proposed for 4c
+
+A transaction is written as everything else is, through a builder given to a callback (mbse-basis P-004): the builder
+is the `Visitors.OfMutation` of a `Mutations.OfTransaction`, its `uid` set by the program, and the store's builders work
+inside the callback, the transaction open:
+
+```python
+ada = None
+
+def add_contact(t):
+    global ada
+    t.uid("6f1c4e2a-0000-4000-8000-000000000001")
+    ada = store.crm.Contact(lambda c: c.name("Ada"))  # within the transaction: allowed
+    return t
+
+store.mutation(add_contact)
+store.crm.Contact(lambda c: c.name("Bob"))  # outside one: refused, naming store.mutation
+```
+
+- `store.mutation(mv)` takes the visitor itself too, as any `Spec` may be "an instance of the built object": a
+  transaction read from a log is applied as one, its mutations replayed through the store's builders.
+- A transaction without a uid raises before it applies anything; the uid is the program's, never drawn.
+- Undoing: each primitive write (a property's value, an entry added or removed, an object entered in the store)
+  records how to reverse it; a transaction that raises reverses them, last first, and re-raises. A transaction that
+  completes discards the journal: nothing is recorded beyond the transaction, as no history is kept.
+- In TypeScript the same, `store.mutation((t: any) => { t.uid("..."); ...; return t; })`.
 
 Then mbse-expressions redrafts its framework model on per-store extension (`Expressions.install(store)`, through
 `store.extend`), with domains, dialects and `DefinesDomains` as the user described.
@@ -323,3 +365,14 @@ Points settled while building, for the user's review:
    (`e.domain(store.Instances.Expressions.Dialects.Basic.as_instance('Int32'))`); should a link also accept a path to
    an instance?
 5. **The order.** Four releases, as above, or fewer, larger ones?
+6. **The transaction builder (4c).** As proposed above: a callback given the transaction's builder, the store's
+   builders working inside it, the uid set by `t.uid(...)`. Or should the mutations be written as data only
+   (`Mutations.OfTransaction` values), the builders being how a program makes them?
+7. **Re-stating a counted object in a snapshot (4e).** Objects 0 to 4 of a transaction may be gone when object 5 is
+   written, so a snapshot cannot give it its index by position, as a creation's `Exists` does (Object identity,
+   Decided, 49). Proposed: a snapshot is one transaction, under a uid its writer is given, holding the schemas, the
+   singletons' properties and the owned objects as creations, and each counted object as an `Exists` that names the
+   `{"tx", "n"}` it was created with; its entries follow. Or one transaction per original transaction, its `Exists`
+   naming their indexes?
+8. **Releases within step 4.** 4c alone changes every program that writes; should 0.20.0 be cut after 4e (data
+   identity whole), schema objects following as 0.21.0?

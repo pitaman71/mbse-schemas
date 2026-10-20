@@ -133,10 +133,11 @@ Every write to a store is part of a transaction (44): building, cloning and upda
 singleton's, and so every schema built. `Mutations.OfTransaction` is the schema of one: its id and its list of
 mutations (38). It is strictly the root of what a program applies, so transactions cannot nest: the schema does not
 let one hold another (50). A program applies one by `store.mutation(mv)`, `mv` a `Visitors.OfMutation` whose `.uid()` gives the
-transaction's UUID; the program provides it, and nothing draws one at random (42). A mutation visitor is a builder like
-any other, of a `Mutations` value: it appears where a property visitor is called with a callback expecting it, as every
-builder does (mbse-basis P-004), the transaction's given to the callback `store.mutation` is called with, and each
-nested term's where its property (`then`, ...) is called with one (58).
+transaction's UUID; the program provides it, and nothing draws one at random (42). Mutation visitors are the builders a
+program is given whenever it calls a property with a callback, on an object, `<object_path>.<propName>(cb)`, or on a
+relation's entry, `<rel_entry_path>.<propName>(cb)` (58): what such a builder writes is a mutation verb,
+`Mutations.OfX.Y` (`OfProperty.Set`, `OfContainer.Insert`, `OfAny.AsObject`, ...), so the verbs stay, the write side of
+the visitor protocol, and a transaction's terms ([Mutations as queries](STREAMING_QUERIES.md)) carry them.
 
 A transaction holds the terms of a mutation expression ([Mutations as queries](STREAMING_QUERIES.md)). The query
 executor may divide its execution into shards (52, 53), allocating their ids, but shards are the executor's alone: what
@@ -363,7 +364,9 @@ nothing beyond one document needs a counted object's identity ("yes, please"):
 As the user decided (2026-10-19):
 
 58. `Visitors.OfMutation`: "Mutation visitors (builders) appear when a property visitor is called with a callback
-    expecting it."
+    expecting it": "mutation builders are currently passed to the callback whenever <object_path>.<propName>(cb) or
+    <rel_entry_path>.<propName>(cb) are invoked". The mutation verbs therefore stay ("why would you think mutations go
+    away?").
 
 ## Open questions
 

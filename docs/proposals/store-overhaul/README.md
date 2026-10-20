@@ -204,7 +204,7 @@ so that main stays current and no branch waits on another.
      (placeholders mbse-expressions refines), `OfCollector` (rejected by validation where it declares neither
      `.commutative()` nor `.associative()`, 62); built, validated and written as every schema is. `Schemas.OfPredicate`
      goes (67). A symbol is found as a singleton by its schema, or through its pattern's `spec` (76, 77), which
-     replaced the locators a first build made (64 to 75, superseded). Done, on the branch; `spec` is built in 4e, with the
+     replaced the locators a first build made (64 to 75, superseded). Done, released as 0.21.0; `spec` is built in 4e, with the
      mutation builders that record it. As built
      (FRAMEWORK.md, Resolved, Patterns, has the choices made for the user's review):
      - the meta-schemas `Schemas.OfPattern`, `OfVariable`, `OfExpression` and `OfCollector`; the relations
@@ -217,7 +217,7 @@ so that main stays current and no branch waits on another.
      continue it; derived identities go; an unnamed schema has no identity, and is written nested in the one object that
      links it; an unnamed schema linked from more than one place is refused; a value schema may hold itself (82,
      superseding 72); schema objects' keys on the wire become paths. `as_identity` leaves the schema builders. Done,
-     on the branch. As built:
+     released as 0.21.0. As built:
      - a path is a `Paths.OfRoot` value from the root module, the singleton `"."`, through each module and then the
        schema by name (`{"i": "schemas", "o": "", "properties": {"name": ...}}`), then through the keyed adjacency that
        owns each member (`properties`, `adjacencies`, `parameters`, `symbols`, `variables`, `links`). `Paths.of(x)` gives
@@ -253,7 +253,7 @@ so that main stays current and no branch waits on another.
    - **4h, the last release**, and the dependents: mbse-expressions refines `OfExpression` and `OfConstraint`;
      mbse-programs' corpora become Reachable transactions; mbse-patterns, built on `OfPredicate`, is left without it.
    Releases (question 8, renumbered by the reorder, proposed for the user's review): 0.20.0 after 4c, 0.21.0 after 4d
-   and 4g, 0.22.0 after 4e and 4f, each landing the branch on main. 4e builds only the in-memory, sequential executor
+   and 4g (released), 0.22.0 after 4e and 4f, each landing the branch on main. 4e builds only the in-memory, sequential executor
    (question 11).
 
 ### Example: a transaction, as 4e would build it

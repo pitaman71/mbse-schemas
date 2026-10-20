@@ -240,7 +240,7 @@ so that main stays current and no branch waits on another.
      - tests, examples and the corpus name the schemas they share, and SNP-02, BLD-03 and BLD-10 test paths in
        place of identities.
    - **4e, mutation expressions and the in-memory executor** (38, 42, 44, 46, 50, 56 to 63): the mutation vocabulary as
-     Decided 59 nests it, `Mutations.OfTransaction` → `Mutations.OfTerm` (`OfAll`, `OfMap`, `OfReduce`, `OfPartition`,
+     Decided 59 nests it, `Mutations.OfTransaction` → `Mutations.OfTerm` (`OfMap`, `OfReduce`, `OfPartition`,
      `OfUpdate`, `OfUpsert`) → `Mutations.OfPattern` → `Mutations.OfObject` → `Mutations.OfAdjacency` (`OfEntry`) →
      `Mutations.OfProperty`, `Exists` and the relation verbs gone; `store.mutation(cb)`, its builders those a property
      call with a callback gives (58); a sequential executor over frames, upserts finding owned objects by path (60) and

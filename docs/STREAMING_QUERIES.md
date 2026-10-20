@@ -123,10 +123,10 @@ A mutation nests, roughly, as:
 Mutations.OfTransaction [ -> Mutations.OfShard ] -> Mutations.OfTerm -> Mutations.OfPattern -> Mutations.OfObject -> Mutations.OfAdjacency -> Mutations.OfProperty
 ```
 
-- `Mutations.OfTransaction` is the root: its uid and its one chain of terms, `Mutations.OfAll` first.
+- `Mutations.OfTransaction` is the root: its uid and its one chain of terms, any term first ([Object identity](OBJECT_IDENTITY.md), Decided, 85).
 - `Mutations.OfShard` is strictly optional: the query executor's division of the work, which it allocates; never in what
   a program submits nor in what a journal records ([Object identity](OBJECT_IDENTITY.md), Decided, 53, 56).
-- `Mutations.OfTerm`: one term of the chain (`OfAll`, `OfMap`, `OfReduce`, `OfPartition`, `OfUpdate`, `OfUpsert`). Each
+- `Mutations.OfTerm`: one term of the chain (`OfMap`, `OfReduce`, `OfPartition`, `OfUpdate`, `OfUpsert`). Each
   term has just one pattern; `Mutations.OfPartition` forks the chain where paths must diverge.
 - `Mutations.OfPattern`: the pattern's symbols, each the address of the mutations under it: a symbol names the object,
   located once in the pattern, so no verb carries a `ref` of its own.
@@ -166,14 +166,9 @@ The vocabulary of `Mutations.OfX.Y` tracks the vocabulary of Schema kinds: that 
 
 The mutation vocabulary uses `Schemas.OfPattern` across its quantifier term vocabulary.
 
-`Mutations.OfAll` is a universal quantifier with optional fused selection. This is the only term that may be used as the root of a mutation expression. The `over` clause's symbols may refer to any kind of reference object ([Object identity](OBJECT_IDENTITY.md), Decided, 84): each ranges over the extant objects of its schema, a singleton's binding the singleton (77), and the frames are their cross product, filtered by the pattern's spec and constraints.
+A transaction's frame stream starts as one frame, empty, the cross product of no extents, and its terms may be nested in any order: there is no root-only term ([Object identity](OBJECT_IDENTITY.md), Decided, 85, superseding `Mutations.OfAll`). A term refers only to symbols that a term before it binds, which validation checks. A symbol a pattern binds to existing objects may be of any kind of reference object (84): it ranges over the extant objects of its schema, a singleton's binding the singleton (77), and the frames are their cross product, filtered by the pattern's spec and constraints.
 
-```python
-Mutations.OfAll.over(Schemas.OfPattern)
-Mutations.OfAll.then(Mutations.OfTerm)
-```
-
-Normally the symbols and variables injected by every ancestor term in a mutation expression (`OfAll`'s `over`, `OfMap`, `OfReduce`, `OfUpsert`'s `exists`) are accumulated during recursive evaluation and passed through to descendants. There are three mutation kinds which route and/or multiplex the frame stream: `Mutations.OfPartition`, `Mutations.OfMap`, and `Mutations.OfReduce`
+Normally the symbols and variables injected by every ancestor term in a mutation expression (`OfMap`, `OfReduce`, `OfUpsert`'s `exists`) are accumulated during recursive evaluation and passed through to descendants. There are three mutation kinds which route and/or multiplex the frame stream: `Mutations.OfPartition`, `Mutations.OfMap`, and `Mutations.OfReduce`
 
 `Mutations.OfMap` programmatically expands each frame in the consumed frame stream into zero or more frames in the produced frame stream. 
 
@@ -253,7 +248,7 @@ Mutations.OfReduce.as_symbols(pred: Schemas.OfCollector).then(Mutations.OfTerm)
 Mutations.OfReduce.as_variables(pred: Schemas.OfCollector).then(Mutations.OfTerm)
 ```
 
-`Mutations.OfPartition` routes the frame stream. Using this at the root is either a schema violation or a validation error. Each branch represents a conditional arm. `first` and `last` specify that at most one arm with matching condition should be recursively executed. If `first` and `last` are both called it is a validation error. If neither are called every branch with matching condition is recursively executed. If no branch has a matching condition and the `none` clause is present, that one is recursively executed.
+`Mutations.OfPartition` routes the frame stream. Each branch represents a conditional arm. `first` and `last` specify that at most one arm with matching condition should be recursively executed. If `first` and `last` are both called it is a validation error. If neither are called every branch with matching condition is recursively executed. If no branch has a matching condition and the `none` clause is present, that one is recursively executed.
 
 `Mutations.OfBranch` pairs a condition constraint with a mutation sub-clause.
 
@@ -274,18 +269,18 @@ Mutations.OfPartition.expect(Schemas.OfPredicate) # optional join schema
 Mutations.OfBranch.then(Mutations.OfTerm)
 
 
-`Mutations.OfUpdate` is used to update properties and adjacencies for symbols already in the frame stream. Using this at the root is either a schema violation or a validation error. 
+`Mutations.OfUpdate` is used to update properties and adjacencies for symbols already in the frame stream: first in a transaction, it binds none, which validation refuses. 
 
 ```python
-Mutations.OfUpdate # update, only used below root
+Mutations.OfUpdate # update
 Mutations.OfUpdate.apply(pred: Schemas.OfPattern)
 Mutations.OfUpdate.then(Mutations.OfTerm)
 ```
 
-`Mutations.OfUpsert` is used to upsert frames each of which contains zero or more new objects. Using this at the root is either a schema violation or a validation error. Any symbol declared in `exists` which is not present in the frame stream is considered a reference that must be upserted. If the pattern's spec finds the object, that object will be bound, otherwise a new object is created and bound, and the spec written.
+`Mutations.OfUpsert` is used to upsert frames each of which contains zero or more new objects; first in a transaction, it upserts from the one empty frame. Any symbol declared in `exists` which is not present in the frame stream is considered a reference that must be upserted. If the pattern's spec finds the object, that object will be bound, otherwise a new object is created and bound, and the spec written.
 
 ```python
-Mutations.OfUpsert # upsert, only used below root
+Mutations.OfUpsert # upsert
 Mutations.OfUpsert.key(key: str) # optional: tells apart the counted objects one upsert creates from one frame
 Mutations.OfUpsert.exists(Schemas.OfPattern)
 Mutations.OfUpsert.then(Mutations.OfTerm)
@@ -297,7 +292,7 @@ creates is identified by the frame that reached the upsert, its `key` and the sy
 the expression again finds it rather than creating another ([Object identity](OBJECT_IDENTITY.md), Decided, 60, 61 and
 63).
 
-- `Mutations.OfTerm` a schema-governed union of the terms a child may be: `Mutations.OfMap`, `Mutations.OfReduce`, `Mutations.OfPartition`, `Mutations.OfUpdate`, `Mutations.OfUpsert` (`Mutations.OfAll` is the root only)
+- `Mutations.OfTerm` a schema-governed union of every term, a transaction's root term and every `then` one of them: `Mutations.OfMap`, `Mutations.OfReduce`, `Mutations.OfPartition`, `Mutations.OfUpdate`, `Mutations.OfUpsert` (85)
 
 ## Resolved
 

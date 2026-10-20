@@ -101,18 +101,15 @@ def install(txn):
     """This module's schemas, defined in the store a transaction writes: `store.transaction(Locators.install)`."""
     return (txn
         .uid("mbse.Schemas.Locators/1")  # fixed, not random (Object identity, Decided, 42): installing again finds them
-        .mutations([lambda mu: mu        # OfAll, the one root term
-            .over([lambda p: p])         # no symbols: one empty frame (open point 1)
-            .then(lambda up: up          # OfUpsert: each symbol found by its spec, else created and the spec written
-                .exists([lambda p: p
-                    .symbols([lambda s: s.name("OfSymbol").schema([txn.Schemas.OfObject])])
-                    .spec([lambda _: _.OfSymbol
-                        .name("Locators.OfSymbol")  # its path: the module Locators, made as needed, then OfSymbol
-                        .ref(True)
-                        .properties([lambda t: t.name("name").schema([txn.Schemas.OfStr])])
-                    ])
+        .mutations([lambda mu: mu        # OfUpsert, the root term, from the one empty frame (Object identity, 85)
+            .exists([lambda p: p         # each symbol found by its spec, else created and the spec written
+                .symbols([lambda s: s.name("OfSymbol").schema([txn.Schemas.OfObject])])
+                .spec([lambda _: _.OfSymbol
+                    .name("Locators.OfSymbol")  # its path: the module Locators, made as needed, then OfSymbol
+                    .ref(True)
+                    .properties([lambda t: t.name("name").schema([txn.Schemas.OfStr])])
                 ])
-            )
+            ])
         ])
     )
 ```
@@ -120,8 +117,8 @@ def install(txn):
 *Fixed by the agent (2026-10-20), for review:*
 
 - **The terms** are written as in the transaction syntax settled for 4e (Object identity, Decided, 76 to 78):
-  `.mutations([...])` holds the one root term, `OfAll` (`.over`); its `.then` is an `OfUpsert` (`.exists`). There is
-  no `as_all`/`as_upsert`, and `requires` takes constraints, which a definition does not need: what the schema must be
+  `.mutations([...])` holds the one root term, here an `OfUpsert` (`.exists`), which may come first (Object identity,
+  Decided, 85: `OfAll` went). There is no `as_all`/`as_upsert`, and `requires` takes constraints, which a definition does not need: what the schema must be
   is its `spec`.
 - **No module builder.** There is no `Mutations.OfModule` nor `children`: a module's adjacency is `schemas`
   (`Schemas.Defines`, keyed by name), and a named schema is placed in its module by its name (80), the module made as
@@ -137,14 +134,9 @@ def install(txn):
 
 Open points:
 
-1. **What `over` binds.** An `OfAll`'s symbols may be of any kind of reference object (Object identity, Decided, 84),
-   each ranging over its schema's extant objects. Installing needs no object to start from, and a symbol of
-   `txn.Schemas.OfModule` would range over every module, running the upsert once per module (finding, after the first,
-   the schema it made). Proposed: a pattern of no symbols has one frame, empty, the cross product of no extents, as an
-   mbse-patterns predicate without symbols has one match; so `.over([lambda p: p])` runs what follows once.
-2. **Locators are superseded** (76): this example would install a schema that no longer exists; the mechanism is the
+1. **Locators are superseded** (76): this example would install a schema that no longer exists; the mechanism is the
    same for any module (mbse-expressions' `Expressions.Framework`, say).
-3. **Extending an existing schema** (`store.extend`) would be the same transaction, with the existing schema's spec
+2. **Extending an existing schema** (`store.extend`) would be the same transaction, with the existing schema's spec
    adding members; the check that an extension only adds (the rules above) would apply to what that spec writes.
 
 ## Decided

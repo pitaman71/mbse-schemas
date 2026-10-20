@@ -549,6 +549,18 @@ As the user decided (2026-10-20), correcting STREAMING_QUERIES.md, which require
 
 84. "OfAll does not need a singleton! Its symbols may refer to any kind of reference object": each symbol of an
     `OfAll`'s pattern ranges over the extant objects of its schema, and a singleton's binds the singleton (77).
+    (`OfAll` then went: 85.)
+
+As the user decided (2026-10-20), "I'm sorta thinking Mutations.OfAll goes away and mutations can be nested in any
+order", on the three points that follow from it ("yes"):
+
+85. `Mutations.OfAll` goes: its role is `OfMap.as_symbols`, which binds symbols to existing objects, each ranging over
+    its schema's extant objects (84), filtered by the pattern's spec and constraints, and which may come anywhere. A
+    transaction starts from one frame, empty, the cross product of no extents. Any term may come first and follow any
+    other: `Mutations.OfTerm` is the union of every term, a transaction's root term and every `then` one of them. That
+    a term refers only to symbols some term before it binds (an `OfUpdate` first, binding none, is refused) is checked
+    by validation, not by the schemas. This amends 59 ("`Mutations.OfAll` is the first term of a transaction's one
+    chain") and STREAMING_QUERIES.md's rules on what may come at the root.
 
 ## Open questions
 

@@ -219,7 +219,7 @@ so that main stays current and no branch waits on another.
        collector in place of its predicate; the suite PAT tests them, in both languages.
    - **4g, schema objects** (17, 29, 69, 70): a named schema's identity is its path, and its members' paths continue it;
      derived identities go; an unnamed schema has no identity, and is written nested in the one object that links it;
-     validation refuses an unnamed schema linked from more than one place, and a cycle among value schemas; schema
+     validation refuses an unnamed schema linked from more than one place, and a cycle among value object schemas (72); schema
      objects' keys on the wire become paths. `as_identity` leaves the schema builders.
    - **4e, mutation expressions and the in-memory executor** (38, 42, 44, 46, 50, 56 to 63): the mutation vocabulary as
      Decided 59 nests it, `Mutations.OfTransaction` → `Mutations.OfTerm` (`OfAll`, `OfMap`, `OfReduce`, `OfPartition`,

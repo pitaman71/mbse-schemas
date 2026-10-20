@@ -465,13 +465,18 @@ As the user decided (2026-10-20), on the order of step 4 and on schema objects:
     linked from more than one place, and a cycle among value schemas, named or not.
 71. `Locators.OfSymbol` has a name, the earlier symbol it starts from, and a schema, "Schemas.OfObject (must be ref)",
     by which a hop from it finds its adjacencies (amending 64).
+72. "Value object schemas cannot have cycles. Reference object schemas can." (amending 70): validation refuses a value
+    object schema that holds itself, through its properties, a union's branches, an intersection's parts or a
+    container's index or element, at any depth; reference object schemas may form cycles through relations (a person
+    who knows persons).
 
 ## Open questions
 
 1. **Recursive expression terms.** mbse-expressions' terms are value objects (FRAMEWORK.md, Resolved: "2 = Y"), and a
-   term holds terms (an application's arguments): a cycle among value schemas, which 70 refuses. 37 has "expression
-   terms : should be reference counted", which would make terms counted reference objects linked through relations,
-   recursion going through links; mbse-expressions would adapt in 4h. Is that the resolution?
+   term holds terms (an application's arguments): a cycle among value object schemas, which 72 refuses. 37 has
+   "expression terms : should be reference counted", which would make terms counted reference objects linked through
+   relations, recursion going through links, a cycle 72 allows; mbse-expressions would adapt in 4h. Is that the
+   resolution?
 
 ---
 

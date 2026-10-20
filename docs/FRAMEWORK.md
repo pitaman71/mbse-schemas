@@ -589,7 +589,8 @@ written as a log of mutations ([SERIALIZATION.md](SERIALIZATION.md)); the old `M
 removed.
 
 - **A schema may hold itself**, as a node holds a list of nodes, or a container a container of itself. Validating it
-  reports each problem once, for every kind whose values hold others'.
+  reports each problem once, for every kind whose values hold others'. (Superseded in 4g of the store overhaul for
+  value object schemas, which "cannot have cycles"; reference object schemas can: Object identity, Decided, 72.)
 
 ## A store's schemas as a module
 

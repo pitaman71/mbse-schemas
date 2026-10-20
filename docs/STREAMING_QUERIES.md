@@ -125,7 +125,8 @@ Mutations.OfTransaction [ -> Mutations.OfShard ] -> Mutations.OfTerm -> Mutation
   located once in the pattern, so no verb carries a `ref` of its own.
 - `Mutations.OfObject`: the mutations of the object one symbol binds.
 - `Mutations.OfAdjacency`: that object's adjacencies, their entries inserted, removed or edited, each entry's links and
-  properties through `Mutations.OfEntry` (`AsLink`, `AsProperty`).
+  properties through `Mutations.OfEntry` (`AsLink`, `AsProperty`). Entries change only through an adjacency: the
+  relation-level verbs, `Mutations.OfRelation.*` on a relation's whole extent, go for now.
 - `Mutations.OfProperty`: the value verbs (`Set`, `Clear`, `AsAny`, ...), nesting into value objects, unions,
   intersections and containers as they do today.
 
@@ -201,6 +202,8 @@ Mutations.OfMap.as_variables(pred: Schemas.OfPattern).then(Mutations.OfTerm)
     .pattern(Schemas.OfPattern)
     .symbols([name: str...])
     .variables([name: str...])
+    .commutative() # optional
+    .associative() # optional
     .suffixes({ current: str, next: str })
     .computes(Schemas.OfExpression)
 )

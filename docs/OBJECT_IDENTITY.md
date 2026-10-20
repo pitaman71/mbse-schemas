@@ -373,13 +373,14 @@ As the user decided (2026-10-19):
     ([Mutations as queries](STREAMING_QUERIES.md), Mutation structure). An adjacency's entries go through
     `Mutations.OfEntry` to their links and properties ("yes"); the shard is "strictly optional", the executor's (56); a
     term has "just one" pattern, "one can use Mutations.OfPartition to fork paths if needs be"; `Mutations.OfAll` is
-    the first term of a transaction's one chain.
+    the first term of a transaction's one chain. "Keep adjacency verbs, lose relation verbs for now": entries change
+    only through an object's adjacency.
 
 ## Open questions
 
-1. **Order independence (57), in detail.** The canonical order of frames for generating keys (by the identities and
-   values each frame holds?), and `Mutations.OfReduce`'s fold: collectors required to be commutative and associative, as
-   distributed reductions usually are, or the group given a canonical order in which "the first frame" is defined.
+1. **Order independence (57), in detail.** A collector declares whether it is `.commutative()` and `.associative()`
+   ([Mutations as queries](STREAMING_QUERIES.md)); what the executor does with one that is not, and how keys generated
+   from a pattern avoid depending on the order frames arrive in, are open.
 
 ---
 

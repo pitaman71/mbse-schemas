@@ -403,6 +403,27 @@ As the user decided (2026-10-19):
     the upsert's `key` and the symbol it is created for (amending 61), so that one upsert may create several from one
     frame.
 
+As the user decided (2026-10-20), on how a pattern's symbol finds its objects, and on step 4d's shapes:
+
+64. A symbol's locator is "an ordinary schema" over three kinds: `Locators.OfSymbol` (name, next),
+    `Locators.OfSingleton` (schema, next) and `Locators.OfRelation` (schema, the relation; adjacency, "name of adjacency
+    to current obj"; link, "name of link to next obj"; properties, the entry's property values; next). "Only
+    `Locators.OfSymbol` or `Locators.OfSingleton` may be used as the root of a locator expression"; each hop is
+    reached by `next`, root first. "Locators target reference objects, not value objects. Locators can only traverse
+    named adjacencies. Builder shorthand makes locators a path language." A locator is not an identity: it is a route a
+    query follows, and may reach many objects, or a counted object, which has no path (55); "path" names identities
+    only. This makes 60's "symbol's locator" an `OfRelation` hop through the owning adjacency.
+65. "cardinality is gone": a hop yields every object its entry's properties match, so a frame fans out where they
+    leave the match open. A frame whose locator reaches nothing yields no frame, as for a constraint it cannot satisfy.
+66. Step 4d's shapes ("yes"): `OfPattern`, `OfExpression` and `OfCollector` are schema kinds, named or not, defined in
+    modules and written as every schema is; `OfVariable` is a member a pattern owns, as `OfSymbol` is; one kind,
+    `OfExpression` (a pattern, through `Schemas.Matching`; a result schema; its terms mbse-expressions'), whose builder
+    `Schemas.OfConstraint` fixes the result to the store's `OfBool`, validation refusing a pattern's `requires` of any
+    other result; `requires`, the pattern's own constraints, in order (`Schemas.Requiring`); a collector's pattern,
+    collected symbol and variable names, `commutative`, `associative`, `suffixes` (`current`, `next`) and `computes`
+    (an `OfExpression`), validation refusing a name the pattern lacks and equal suffixes, and what a reduce requires of
+    them left to 4e. 4d is schema-level only: frames, matching and the executor are 4e's.
+
 ## Open questions
 
 None at present.

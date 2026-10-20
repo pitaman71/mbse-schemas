@@ -18,7 +18,7 @@ It can also comprehensively and efficiently capture data streams as:
 
 In the course of streaming query execution, mutator kinds consume and produce streams of frames. Mutation expressions comprise nested terms with operations that modify the frame stream between consumption and production. A query evaluator recursively evaluates each term, passing computed frame stream to each successive term. 
 
-In this context, a `Schemas.OfPattern` with multiple symbols has a default interpretation as a cross-product over the sets of reference objects bindable to each symbol. A symbol locator path or constraint reduces query complexity in a manner that the query executor should automatically exploit.
+In this context, a `Schemas.OfPattern` with multiple symbols has a default interpretation as a cross-product over the sets of reference objects bindable to each symbol. A symbol's locator or a constraint reduces query complexity in a manner that the query executor should automatically exploit.
 
 In this context, a `Schemas.OfPattern` with multiple variables has a default interpretation as a cross-product over the sets of values assignable to each variable. A constraint reduces query complexity in a manner that the query executor should automatically exploit.
 
@@ -77,8 +77,32 @@ A mutation kind that adds a symbol is said to "inject" that symbol into the fram
 `Schemas.OfSymbol` declares one symbol:
 - must provide a symbol name
 - may provide `schema`: reference object schema for that symbol (`schema: Schemas.OfObject`)
-- may provide `path`: a visitor path expression to locate it
-In some contexts, `path` and/or `schema` may be optional or mandatory.
+- may provide `locator`: a locator expression to locate it (below)
+In some contexts, `locator` and/or `schema` may be optional or mandatory.
+
+## Locators
+
+Pattern symbols sometimes specify a locator expression. These expressions are represented by an ordinary schema over
+these kinds:
+- `Locators.OfSymbol` # name, next
+- `Locators.OfSingleton` # schema, next
+- `Locators.OfRelation` # schema, adjacency, link, properties, next
+
+Only `Locators.OfSymbol` or `Locators.OfSingleton` may be used as the root of a locator expression.
+
+```python
+Locators.OfRelation.schema: Schemas.OfRelation
+Locators.OfRelation.adjacency : str # denotes name of adjacency to current obj
+Locators.OfRelation.link : str # denotes name of link to next obj
+```
+
+Locators target reference objects, not value objects.
+Locators can only traverse named adjacencies.
+Builder shorthand makes locators a path language:
+`l.singleton(Directory).dir({"name": "DEF-693"}).clauses({"name": "C-1"})`.
+
+A locator is not an identity: it is a route a query follows, which may reach many objects, or a counted object, which
+has no path ([Object identity](OBJECT_IDENTITY.md), Decided, 64).
 
 `Schemas.OfVariable` declares one variable: 
 - must provide a variable name
@@ -159,7 +183,7 @@ The vocabulary of `Mutations.OfX.Y` tracks the vocabulary of Schema kinds: that 
 
 The mutation vocabulary uses `Schemas.OfPattern` across its quantifier term vocabulary.
 
-`Mutations.OfAll` is a universal quantifier with optional fused selection. This is the only term that may be used as the root of a mutation expression. The `over` clause must be provided with at least one symbol and a path locator expression. The query executor interprets this term as a select over all extant singleton/owned reference objects.
+`Mutations.OfAll` is a universal quantifier with optional fused selection. This is the only term that may be used as the root of a mutation expression. The `over` clause must be provided with at least one symbol and a locator expression. The query executor interprets this term as a select over all extant singleton/owned reference objects.
 
 ```python
 Mutations.OfAll.over(Schemas.OfPattern)
@@ -177,7 +201,7 @@ Normally the symbols and variables injected by every ancestor term in a mutation
 # if association is not unique, complexity multiplies
 #
 # pred.requires : describes object to find and associate
-# pred.requires : may use locator path or via links to other symbols
+# pred.requires : may use a symbol's locator or links to other symbols
 Mutations.OfMap.as_symbols(pred: Schemas.OfPattern).then(Mutations.OfTerm)
 ```
 
@@ -275,7 +299,7 @@ Mutations.OfUpdate.apply(pred: Schemas.OfPattern)
 Mutations.OfUpdate.then(Mutations.OfTerm)
 ```
 
-`Mutations.OfUpsert` is used to upsert frames each of which contains zero or more new objects. Using this at the root is either a schema violation or a validation error. Any symbol declared in `exists` which is not present in the frame stream is considered a reference that must be upserted. If the symbol provides a locator path, and the object exists, that object will be bound, otherwise a new object is created and bound.
+`Mutations.OfUpsert` is used to upsert frames each of which contains zero or more new objects. Using this at the root is either a schema violation or a validation error. Any symbol declared in `exists` which is not present in the frame stream is considered a reference that must be upserted. If the symbol provides a locator, and the object exists, that object will be bound, otherwise a new object is created and bound.
 
 ```python
 Mutations.OfUpsert # upsert, only used below root

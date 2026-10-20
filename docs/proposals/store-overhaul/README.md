@@ -198,9 +198,9 @@ so that main stays current and no branch waits on another.
        `Corpus.Root`, so. YAML quotes the key `'n'`, which a YAML 1.1 reader takes for false;
      - the tutorials retell case study 6 with counted contacts and addresses, numbered, and point to owned objects for
        lasting names; case study 8's audit log labels linked objects by their values.
-   - **4d, patterns** (STREAMING_QUERIES.md, Patterns; Value expressions and constraints): `Schemas.OfPattern`,
-     `OfSymbol` (its locator: a path from a singleton or from another symbol, through any adjacency, serializable),
-     `OfVariable`, `OfExpression` and its boolean variant `OfConstraint` (placeholders mbse-expressions refines),
+   - **4d, patterns** (STREAMING_QUERIES.md, Patterns; Locators; Value expressions and constraints; Object identity,
+     Decided, 64 to 66): `Schemas.OfPattern`, `OfSymbol` (its `locator`, a value of the `Locators` schemas each store
+     holds: `OfSymbol` or `OfSingleton` at the root, `OfRelation` hops through named adjacencies), `OfVariable`, `OfExpression` and its boolean variant `OfConstraint` (placeholders mbse-expressions refines),
      `OfCollector` (rejected by validation where it declares neither `.commutative()` nor `.associative()`, 62); built,
      validated and written as every schema is. `Schemas.OfPredicate` stays for now, beside them (question 10).
    - **4e, mutation expressions and the in-memory executor** (38, 42, 44, 46, 50, 56 to 63): the mutation vocabulary as

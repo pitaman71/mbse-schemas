@@ -610,6 +610,15 @@ As the user decided (2026-10-20), on how 4e-1 builds them:
     `Mutations.OfAdjacency` inserts and removes entries, each through `Mutations.OfEntry`; and a reference may name a
     symbol, `{"symbol": "ada"}`, beside a path and a number. The log's verbs stay until 4f replaces the log.
 
+96. How far the overlay reaches ("(a)", amending 89): a data object's state, its property values and entry tables, is
+    held in the transaction's overlay, read through it while the transaction is open, and written back on commit. A
+    schema object's builder already writes its working copy into the object at `update()`; within a transaction that
+    write waits for commit. The store's registries (names, modules, the schema objects it holds, what links each) go
+    through the overlay, so that a schema object the transaction creates is found by the frames after it. A change to a
+    schema object that exists is seen only once its transaction commits: a transaction that adds a property to a schema
+    writes no object with it, a second one does. (Offered against writing a schema object at once with an undo record,
+    and against an overlay of every schema field read, which would intercept each read of a schema object.)
+
 ## Open questions
 
 None at present.

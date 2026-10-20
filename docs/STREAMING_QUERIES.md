@@ -18,7 +18,7 @@ It can also comprehensively and efficiently capture data streams as:
 
 In the course of streaming query execution, mutator kinds consume and produce streams of frames. Mutation expressions comprise nested terms with operations that modify the frame stream between consumption and production. A query evaluator recursively evaluates each term, passing computed frame stream to each successive term. 
 
-In this context, a `Schemas.OfPattern` with multiple symbols has a default interpretation as a cross-product over the sets of reference objects bindable to each symbol. A symbol's locator or a constraint reduces query complexity in a manner that the query executor should automatically exploit.
+In this context, a `Schemas.OfPattern` with multiple symbols has a default interpretation as a cross-product over the sets of reference objects bindable to each symbol. A pattern's spec or a constraint reduces query complexity in a manner that the query executor should automatically exploit.
 
 In this context, a `Schemas.OfPattern` with multiple variables has a default interpretation as a cross-product over the sets of values assignable to each variable. A constraint reduces query complexity in a manner that the query executor should automatically exploit.
 
@@ -77,8 +77,8 @@ A mutation kind that adds a symbol is said to "inject" that symbol into the fram
 `Schemas.OfSymbol` declares one symbol:
 - must provide a symbol name
 - may provide `schema`: reference object schema for that symbol (`schema: Schemas.OfObject`)
-- may provide `locator`: a locator expression to locate it ([Object identity, Locators](OBJECT_IDENTITY.md#locators))
-In some contexts, `locator` and/or `schema` may be optional or mandatory.
+- may provide `schema`'s singleton: a symbol whose schema is a singleton's binds it
+In some contexts, `schema` may be optional or mandatory.
 
 `Schemas.OfVariable` declares one variable: 
 - must provide a variable name
@@ -86,10 +86,12 @@ In some contexts, `locator` and/or `schema` may be optional or mandatory.
 
 - `Schemas.OfPattern.requires`: constraint expressions (`Schemas.OfConstraint`) over a frame
 
-## Locators
+## Spec
 
-A pattern's symbol may locate its objects with a locator expression: a route from a singleton or another symbol through
-named adjacencies, which is not an identity. Its schema and rules are in [Object identity, Locators](OBJECT_IDENTITY.md#locators).
+A pattern's `spec` says what must hold of a frame: property values the symbols' objects have, and relation entries that
+link them, written in the builders' notation over the frame's symbols, `lambda _: _.bob.name("Bob").knows([_.ada])`. In
+a match it filters; in an upsert it is written where it does not hold. It replaces locators; a symbol whose schema is a
+singleton's binds that singleton ([Object identity](OBJECT_IDENTITY.md), Decided, 76 to 78).
 
 ## Putative objects
 
@@ -164,7 +166,7 @@ The vocabulary of `Mutations.OfX.Y` tracks the vocabulary of Schema kinds: that 
 
 The mutation vocabulary uses `Schemas.OfPattern` across its quantifier term vocabulary.
 
-`Mutations.OfAll` is a universal quantifier with optional fused selection. This is the only term that may be used as the root of a mutation expression. The `over` clause must be provided with at least one symbol and a locator expression. The query executor interprets this term as a select over all extant singleton/owned reference objects.
+`Mutations.OfAll` is a universal quantifier with optional fused selection. This is the only term that may be used as the root of a mutation expression. The `over` clause must be provided with at least one symbol, a singleton's or one its spec reaches from one. The query executor interprets this term as a select over all extant singleton/owned reference objects.
 
 ```python
 Mutations.OfAll.over(Schemas.OfPattern)
@@ -182,7 +184,7 @@ Normally the symbols and variables injected by every ancestor term in a mutation
 # if association is not unique, complexity multiplies
 #
 # pred.requires : describes object to find and associate
-# pred.requires : may use a symbol's locator or links to other symbols
+# pred.spec : may give property values and links to other symbols
 Mutations.OfMap.as_symbols(pred: Schemas.OfPattern).then(Mutations.OfTerm)
 ```
 
@@ -280,7 +282,7 @@ Mutations.OfUpdate.apply(pred: Schemas.OfPattern)
 Mutations.OfUpdate.then(Mutations.OfTerm)
 ```
 
-`Mutations.OfUpsert` is used to upsert frames each of which contains zero or more new objects. Using this at the root is either a schema violation or a validation error. Any symbol declared in `exists` which is not present in the frame stream is considered a reference that must be upserted. If the symbol provides a locator, and the object exists, that object will be bound, otherwise a new object is created and bound.
+`Mutations.OfUpsert` is used to upsert frames each of which contains zero or more new objects. Using this at the root is either a schema violation or a validation error. Any symbol declared in `exists` which is not present in the frame stream is considered a reference that must be upserted. If the pattern's spec finds the object, that object will be bound, otherwise a new object is created and bound, and the spec written.
 
 ```python
 Mutations.OfUpsert # upsert, only used below root
@@ -289,8 +291,8 @@ Mutations.OfUpsert.exists(Schemas.OfPattern)
 Mutations.OfUpsert.then(Mutations.OfTerm)
 ```
 
-An owned object an upsert finds or creates is placed by its symbol's locator, which gives its whole path: owner, owning
-adjacency and the ownership entry's keys; its path is its identity, and `key` takes no part. A counted object an upsert
+An owned object an upsert finds or creates is placed by its spec's owning entry, which gives its whole path: owner,
+owning adjacency and the ownership entry's keys; its path is its identity, and `key` takes no part. A counted object an upsert
 creates is identified by the frame that reached the upsert, its `key` and the symbol it is created for, so that running
 the expression again finds it rather than creating another ([Object identity](OBJECT_IDENTITY.md), Decided, 60, 61 and
 63).
@@ -305,7 +307,7 @@ It's possible mutation verbs are no longer needed in the specific case of counte
 
 Within a mutation expression, objects created through a symbol are named by their symbol. A counted object has no identity beyond the document that writes it, and sharding is the executor's, never recorded; see [Object identity](OBJECT_IDENTITY.md) (Decided, 55 to 57).
 
-Symbol locator expressions subsume visitor paths. Such locator expressions must be serializable.
+A pattern's spec subsumes visitor paths and locators, and is serializable, being mutations ([Object identity](OBJECT_IDENTITY.md), Decided, 76).
 
 ---
 

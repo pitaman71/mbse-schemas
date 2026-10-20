@@ -137,10 +137,8 @@ schema.validate()                                           # the schema's own p
 schema.properties["home"].schema                             # branch or part; a property is an element, its schema inside
 .parameters([lambda t: t.name("n")])                        # parameters, names only, on any kind of schema; binding is
                                                             # mbse-expressions'
-store.Schemas.OfPattern(lambda p: p.symbols([                # a pattern: symbols, variables, constraints (requires)
-    lambda t: t.name("book").schema([Book]).locator(lambda l: l.singleton(Book)),  # a locator: a route, root first
-    lambda t: t.name("p").schema([Person]).locator(lambda l: l.symbol("book", Book).people({"name": "Ada"}))])
-    .variables([lambda t: t.name("since").schema([Int])]))
+store.Schemas.OfPattern(lambda p: p.symbols([lambda t: t.name("p").schema([Person])])  # a pattern: symbols,
+    .variables([lambda t: t.name("since").schema([Int])]))      # variables, and constraints (requires)
 Validators.Check(store)(schema, obj).holds                  # True or False: since extents went, nothing it checks is unknown
 store.registered("crm.Contact")                             # a schema by name
 store.extent("Name"); store.singleton("Global")             # a schema's objects its singletons reach; a singleton

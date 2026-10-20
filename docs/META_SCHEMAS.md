@@ -224,7 +224,6 @@ at least one time to make schema objects references. all of them.").
 | HasVariable | owner (Pattern), variable (Variable); `name` | `OfPattern.variables` | keyed |
 | Requiring | pattern, constraint (Expression) | `OfPattern.requires` | list |
 | Matching, Resulting, Computing | expression (Expression / Collector), pattern; expression, schema; collector, expression | `pattern`, `result`, `computes` | one |
-| Locating, Following, Traversing | symbol, locator; locator, hop; hop, relation | `OfSymbol.locator`, a locator's `next`, a hop's `schema` | one |
 | Defines | module (Module), schema (every kind); `name` | `OfModule.schemas` | keyed |
 
 Applications (`OfApply`, `Applying`, `HasArgument`, `Binding`, `ArgumentTerm`), terms (`Term`, `Form`, `Operands`),

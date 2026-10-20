@@ -13,11 +13,11 @@ Every kind of schema may declare `parameters` (`OfParameter`): names, each a sym
 where the schema is referred to (docs/proposals/store-overhaul, Decided, 12 and 20). Terms, applications and widths are
 mbse-expressions' (docs/SCHEMA_EXTENSION.md, Decided, 5 to 7).
 
-A pattern (`OfPattern`) declares symbols (`OfSymbol`), each standing for a reference object and perhaps located by a
-locator (`Locators`), variables (`OfVariable`), each standing for a value, and the constraints a frame meets (its
-`requires`, each an `OfExpression` of boolean result); an expression (`OfExpression`) ranges over a pattern, and a
-collector (`OfCollector`) folds the frames of one (docs/STREAMING_QUERIES.md; docs/OBJECT_IDENTITY.md, Locators). A
-relation holds the schema of its entries (`OfEntry`): their links, each a symbol, and their properties.
+A pattern (`OfPattern`) declares symbols (`OfSymbol`), each standing for a reference object, variables
+(`OfVariable`), each standing for a value, and the constraints a frame meets (its `requires`, each an `OfExpression` of
+boolean result); an expression (`OfExpression`) ranges over a pattern, and a collector (`OfCollector`) folds the frames
+of one (docs/STREAMING_QUERIES.md). A relation holds the schema of its entries (`OfEntry`): their links, each a symbol,
+and their properties.
 """
 
 from __future__ import annotations
@@ -49,7 +49,6 @@ __all__ = [
     "OfExpression",
     "OfConstraint",
     "OfCollector",
-    "Locators",
     "OfUnion",
     "OfIntersection",
     "OfParameter",
@@ -267,13 +266,11 @@ class OfProperty:
 @dataclass(eq=False)
 class _SymbolData:
     """A name standing for an object: a pattern's symbol, which a frame binds, or an entry's link. Its schema is a
-    reference object schema, which either may leave unset (None); a pattern's symbol may give a locator, the route by
-    which it finds its objects (`Locators`), and a link never does."""
+    reference object schema, which either may leave unset (None)."""
 
     name: str = ""
     schema: Any = None  # OfAny.Data
     description: str | None = None
-    locator: Any = None  # Locators.OfSymbol.Data | Locators.OfSingleton.Data
 
 class OfSymbol:
     Data = _SymbolData
@@ -310,8 +307,6 @@ class _EntryData:
             problems.append(f"names used as both link and property: {sorted(clashes)}")
         for name, link in self.links.items():
             problems += [f"link {name!r}: {p}" for p in _symbol_problems(link)]
-            if link.locator is not None:
-                problems.append(f"link {name!r}: a relation's link has no locator; a pattern's symbol may")
         for name, prop in self.properties.items():
             problems += [f"property {name!r}: {p}" for p in _validate(prop.schema) + _embedded_problems(prop.schema)
                          + _description_problems(prop.description) + _pattern_problems(prop)]
@@ -774,96 +769,6 @@ class _AnyValueData:
         return problems
 
 
-# --- Locators: how a pattern's symbol finds its objects ---
-
-
-@dataclass(eq=False)
-class _LocatorSymbolData:
-    """A locator's root at a symbol the pattern declares before: its name, and its schema, a reference object schema,
-    by which a hop from it finds its adjacencies."""
-
-    name: str = ""
-    schema: Any = None
-    next: Any = None  # the hop after it, a Locators.OfRelation.Data, or None
-
-
-@dataclass(eq=False)
-class _LocatorSingletonData:
-    """A locator's root at a singleton: its schema, a singleton's."""
-
-    schema: Any = None
-    next: Any = None
-
-
-@dataclass(eq=False)
-class _LocatorRelationData:
-    """A hop: through the named adjacency `adjacency` of the object before, to `relation`'s (`schema`'s) entries whose
-    properties hold `properties`, then through their link `link` to the next object (docs/OBJECT_IDENTITY.md, Locators)."""
-
-    schema: Any = None  # an OfRelation.Data
-    adjacency: str = ""
-    link: str = ""
-    properties: dict[str, Any] = field(default_factory=dict)
-    next: Any = None
-
-
-class Locators:
-    """The locator schemas: `Locators.OfSymbol` or `Locators.OfSingleton` at the root, `Locators.OfRelation` each hop."""
-
-    class OfSymbol:
-        Data = _LocatorSymbolData
-
-    class OfSingleton:
-        Data = _LocatorSingletonData
-
-    class OfRelation:
-        Data = _LocatorRelationData
-
-
-_ROOTS = (_LocatorSymbolData, _LocatorSingletonData)
-
-
-def _locator_problems(locator: Any, before: dict[str, _SymbolData]) -> list[str]:
-    """A symbol's locator: a root, a symbol among `before` or a singleton's schema, then hops, each through a named
-    adjacency of the schema the object before has, where it is known, to a link of its relation other than the one the
-    adjacency fills, matching properties the relation's entries have."""
-    if not isinstance(locator, _ROOTS):
-        return ["a locator starts at a symbol or a singleton: Locators.OfSymbol or Locators.OfSingleton"]
-    problems: list[str] = []
-    if isinstance(locator, _LocatorSymbolData):
-        if locator.name not in before:
-            problems.append(f"a locator starts at symbol {locator.name!r}, which the pattern does not declare before it")
-        if not (isinstance(locator.schema, _ObjectData) and locator.schema.ref):
-            problems.append("a locator's symbol has a reference object schema")
-        current = locator.schema
-    else:
-        if not (isinstance(locator.schema, _ObjectData) and locator.schema.singleton is not None):
-            problems.append("a locator's singleton is a singleton's schema")
-        current = locator.schema
-    hop, step = locator.next, 0
-    while hop is not None:
-        step += 1
-        where = f"hop {step}: "
-        if not isinstance(hop, _LocatorRelationData):
-            problems.append(f"{where}only a locator's root is a symbol or a singleton; each hop is a Locators.OfRelation")
-            break
-        relation = hop.schema
-        if not isinstance(relation, _RelationData):
-            problems.append(f"{where}a hop's schema is a relation")
-            break
-        adjacency = current.adjacencies.get(hop.adjacency) if isinstance(current, _ObjectData) else None
-        if isinstance(current, _ObjectData) and (adjacency is None or adjacency.relation is not relation):
-            problems.append(f"{where}{current.name!r} has no adjacency {hop.adjacency!r} to {relation.name!r}: a locator "
-                            "traverses named adjacencies")
-        if hop.link not in relation.entry.links or (adjacency is not None and hop.link == adjacency.me):
-            problems.append(f"{where}{hop.link!r} is not a link of {relation.name!r} to the next object")
-        unknown = sorted(set(hop.properties) - set(relation.entry.properties))
-        if unknown:
-            problems.append(f"{where}{relation.name!r} has no properties {unknown}")
-        current, hop = relation.entry.links.get(hop.link, _SymbolData()).schema, hop.next
-    return problems
-
-
 # --- OfVariable: a name standing for a value ---
 
 
@@ -954,12 +859,8 @@ class _PatternData:
             clashes = set(first) & set(second)
             if clashes:
                 problems.append(f"names used as both {plural}: {sorted(clashes)}")
-        before: dict[str, _SymbolData] = {}
         for name, symbol in self.symbols.items():
             problems += [f"symbol {name!r}: {p}" for p in _symbol_problems(symbol)]
-            if symbol.locator is not None:
-                problems += [f"symbol {name!r}: {p}" for p in _locator_problems(symbol.locator, before)]
-            before[name] = symbol
         for name, variable in self.variables.items():
             problems += [f"variable {name!r}: {p}" for p in _variable_problems(variable)]
         for index, constraint in enumerate(self.requires):

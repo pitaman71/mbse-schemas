@@ -1494,7 +1494,7 @@ class LogReader {
     let properties: Map<string, any>;
     if (this.meta.has(schema)) {
       if (this.store.held(name, identity) !== null) return;
-      const builderClass = Builders._META_BUILDERS.get(name) as any;
+      const builderClass = Builders._META_BUILDERS.get(name.slice("Schemas.".length)) as any;
       builder = new builderClass(null, true, this.store);
       builder.as_identity(identity);
       properties = builder.as_schema().properties;

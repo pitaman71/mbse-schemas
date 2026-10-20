@@ -17,7 +17,7 @@ log meets them, so that every implementation writes the same text ([Object ident
 | `enrollment` | a three-link relation with int, float and bool entry properties |
 | `yaml_strings` | strings that YAML readers misread, Unicode line breaks, long text |
 | `embedded` | value objects, one with a list of its own, union values of object and scalar branches, keyed by branch name, and an intersection value, keyed by part name |
-| `module` | the corpus's own schemas as data: a module of object, relation, union, intersection, container and scalar schemas, a pattern with a locator, a variable and a constraint, an expression and a collector, parametric schemas (parameters as names), a scalar of another format's token, a list declared inline, a flat union and a flat intersection, shared schemas by name and the others inline |
+| `module` | the corpus's own schemas as data: a module of object, relation, union, intersection, container and scalar schemas, a pattern with a variable and a constraint, an expression and a collector, parametric schemas (parameters as names), a scalar of another format's token, a list declared inline, a flat union and a flat intersection, shared schemas by name and the others inline |
 | `lists` | lists as one-link relations: of strings, bytes, lists of ints (value objects holding lists), union values and value objects; value objects in entries with lists of their own, one nested in another's list; keyed by `str`, by `float` (including `NaN`, whose key is not ordered, so entries keep their order), by a value object, and by a pair of ints (a matrix), written as entries sorted by key where it orders |
 
 The CONF test suite in each implementation checks that:

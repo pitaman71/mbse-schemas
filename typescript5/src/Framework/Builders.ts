@@ -1109,8 +1109,6 @@ abstract class Builder extends Shelled {
   static _data: Function;
   static _meta: string;
   static _noun: string;
-  /** Its kind's name, where it is not `Schemas.<_meta>`. */
-  static _kind_name: string | null = null;
   static _table: Table = new Map();
   declare readonly [TYPE_NAME]: string;
   /** Its members, by name: typed loosely, as the proxy DSL's are. */
@@ -1279,7 +1277,6 @@ abstract class Builder extends Shelled {
   override _member(name: string): unknown {
     const member = this._table().get(name);
     if (member instanceof Prop) return callable(new PropertyMember(this, member));
-    if (member instanceof LocatorMembers) return callable(new LocatorMember(this, member));
     if (member instanceof Members) return callable(new AdjacencyMember(this, member));
     return makeEmpty(`${repr(name)} is not a member of ${(this.constructor as typeof Builder)._noun}'s builder`);
   }
@@ -1343,177 +1340,16 @@ export class ParameterBuilder extends Builder {
   static override _table = extendTable(Builder._table, { description: new Prop() });
 }
 
-/** A symbol's locator, at most one: linked, or, called with a callback, written in the locator shorthand, which the
- * callback is handed (`LocatorPath`). */
-class LocatorMembers extends Members {}
-
-class LocatorMember extends AdjacencyMember {
-  override _call(spec: unknown): unknown {
-    if (!isFunction(spec)) return super._call(spec);
-    const path = new LocatorPath(this._builder._store, this._proxy);
-    visit(spec, shell(path));
-    if (path._root !== null) { // written in the shorthand; otherwise the callback visited the adjacency
-      this._builder._check();
-      this._store([path._built()]);
-    }
-    return this._builder._proxy;
-  }
-}
-
-type Hop = [string, unknown, string, Map<string, unknown>];
-
-/** The locator shorthand, a path language (docs/OBJECT_IDENTITY.md, Locators): `l.singleton(Directory)` or
- * `l.symbol("alice", Contact)`, then a hop for each named adjacency called with the keys its entries hold,
- * `.dir({ name: "DEF-693" })`, through the relation it is to, to the relation's other link. Where a relation has more
- * than two links, or the object after a hop has no single schema, `.hop(adjacency, relation, link, properties)` gives
- * one in full; it writes `Locators` data, built in the store. It is the symbol's `locator` adjacency too, as every
- * adjacency called with a callback hands it: `insert`, `remove`, `as_iterable`, `as_schema` and iterating are the
- * adjacency's, so no adjacency of those names is traversed by the shorthand. */
-class LocatorPath extends Shelled {
-  readonly [TYPE_NAME] = "_LocatorPath";
-  static readonly ADJACENCY = new Set(["insert", "remove", "as_iterable", "as_schema"]);
-  _root: [string, string | null, unknown] | null = null;
-  readonly _hops: Hop[] = [];
-  _current: unknown = null;
-
-  constructor(readonly _store: Store | null, readonly _adjacency: any = null) {
-    super();
-  }
-
-  [Symbol.iterator](): Iterator<unknown> {
-    return this._adjacency[Symbol.iterator]();
-  }
-
-  singleton(schema: unknown): any {
-    schema = Proxies._deref(schema);
-    [this._root, this._current] = [["singleton", null, schema], schema];
-    return this._proxy;
-  }
-
-  symbol(name: string, schema: unknown): any {
-    schema = Proxies._deref(schema);
-    [this._root, this._current] = [["symbol", name, schema], schema];
-    return this._proxy;
-  }
-
-  hop(adjacency: string, relation: unknown, link: string, properties: unknown = {}): any {
-    if (this._root === null) {
-      throw new ValueError("a locator starts at a symbol or a singleton: l.symbol(name, schema) or l.singleton(schema)");
-    }
-    relation = Proxies._deref(relation);
-    this._hops.push([adjacency, relation, link, new Map(Proxies._mapping(properties) as [string, unknown][])]);
-    const held = relation instanceof S.OfRelation.Data ? relation.entry.links.get(link) ?? null : null;
-    let schema: unknown = held?.schema ?? null;
-    if (schema === null && this._store !== null && held !== null) {
-      const filling = this._store._filling(relation as S.OfRelation.Data, link);
-      schema = filling.length === 1 ? this._store.registered(filling[0] as string) : null;
-    }
-    this._current = schema;
-    return this._proxy;
-  }
-
-  override _member(name: string): unknown {
-    if (LocatorPath.ADJACENCY.has(name) && this._root === null) return this._adjacency[name];
-    const current = this._current;
-    if (!(current instanceof S.OfObject.Data)) {
-      throw new TypeError(`the object before ${repr(name)} has no single schema: give the hop in full, .hop(adjacency, `
-        + "relation, link, properties)");
-    }
-    const adjacency = current.adjacencies.get(name);
-    if (adjacency === undefined) {
-      throw new AttributeError(`${repr(current.name)} has no adjacency ${repr(name)}: a locator traverses named adjacencies`);
-    }
-    const relation = adjacency.relation as S.OfRelation.Data;
-    const others = [...relation.entry.links.keys()].filter((link) => link !== adjacency.me);
-    if (others.length !== 1) {
-      throw new TypeError(`${repr(relation.name)} has more than two links: give the hop in full, `
-        + `.hop(${repr(name)}, relation, link, properties)`);
-    }
-    return (properties: unknown = {}) => this.hop(name, relation, others[0] as string, properties);
-  }
-
-  _built(): unknown {
-    if (this._root === null) {
-      throw new ValueError("a locator starts at a symbol or a singleton: l.symbol(name, schema) or l.singleton(schema)");
-    }
-    let after: unknown = null;
-    for (const [adjacency, relation, link, properties] of [...this._hops].reverse()) {
-      let builder = new LocatorRelationBuilder(null, true, this._store).schema([relation]).adjacency(adjacency).link(link);
-      if (properties.size > 0) builder = builder.properties(properties);
-      after = (after !== null ? builder.next([after]) : builder).create();
-    }
-    const [kind, name, schema] = this._root;
-    const root = (kind === "symbol" ? new LocatorSymbolBuilder(null, true, this._store).name(name)
-      : new LocatorSingletonBuilder(null, true, this._store)).schema([schema]);
-    return (after !== null ? root.next([after]) : root).create();
-  }
-
-  override _repr(): string {
-    return "<locator>";
-  }
-}
-
-/** The locator shorthand, outside a symbol's builder: for tests. */
-export function _LocatorPath(store: Store | null): any {
-  return shell(new LocatorPath(store));
-}
-
-function isLocator(value: unknown): boolean {
-  return value instanceof S.Locators.OfSymbol.Data || value instanceof S.Locators.OfSingleton.Data
-    || value instanceof S.Locators.OfRelation.Data;
-}
-
-/** The hop after a locator's root or hop, which it owns: a clone has its own. */
-function nextHop(): Members {
-  return new Members("hop", { accepts: isLocator, build: "LocatorRelationBuilder", owned: true, ...one("next") });
-}
-
 export class SymbolBuilder extends MemberBuilder {
   static override _data = S.OfSymbol.Data;
   static override _meta = "OfSymbol";
   static override _noun = "a symbol";
-  static override _table = extendTable(MemberBuilder._table, {
-    locator: new LocatorMembers("locator", { accepts: isLocator, owned: true, ...one("locator") }),
-  });
 }
 
 export class VariableBuilder extends MemberBuilder {
   static override _data = S.OfVariable.Data;
   static override _meta = "OfVariable";
   static override _noun = "a variable";
-}
-
-export class LocatorSymbolBuilder extends Builder {
-  static override _data = S.Locators.OfSymbol.Data;
-  static override _meta = "LocatorsOfSymbol";
-  static override _noun = "a symbol's locator";
-  static override _kind_name = "Locators.OfSymbol";
-  static override _table = extendTable(Builder._table, { name: new Prop(), schema: schemaOf("schema"), next: nextHop() });
-}
-
-export class LocatorSingletonBuilder extends Builder {
-  static override _data = S.Locators.OfSingleton.Data;
-  static override _meta = "LocatorsOfSingleton";
-  static override _noun = "a singleton's locator";
-  static override _kind_name = "Locators.OfSingleton";
-  static override _table = extendTable(Builder._table, { schema: schemaOf("schema"), next: nextHop() });
-}
-
-export class LocatorRelationBuilder extends Builder {
-  static override _data = S.Locators.OfRelation.Data;
-  static override _meta = "LocatorsOfRelation";
-  static override _noun = "a hop";
-  static override _kind_name = "Locators.OfRelation";
-  static override _table = extendTable(Builder._table, {
-    schema: new Members("relation", { accepts: isA(S.OfRelation.Data), ...one("schema") }),
-    adjacency: new Prop(),
-    link: new Prop(),
-    properties: new Prop({ container: true, get: (data) => data.properties.size > 0 ? new Map(data.properties) : null,
-      put: (data, value) => {
-        data.properties = new Map((value ?? []) as Map<string, unknown>);
-      } }),
-    next: nextHop(),
-  });
 }
 
 /** An adjacency: named by the entry that links it to its object schema, or anonymous, with no name. It fills its
@@ -1822,7 +1658,6 @@ const BUILDER_CLASSES = new Map<string, BuilderClass>([
   ["PropertyBuilder", PropertyBuilder], ["ParameterBuilder", ParameterBuilder], ["SymbolBuilder", SymbolBuilder],
   ["AdjacencyBuilder", AdjacencyBuilder], ["RelationBuilder", RelationBuilder], ["VariableBuilder", VariableBuilder],
   ["PatternBuilder", PatternBuilder], ["ExpressionBuilder", ExpressionBuilder], ["ConstraintBuilder", ConstraintBuilder],
-  ["LocatorRelationBuilder", LocatorRelationBuilder],
 ]);
 
 const BUILDERS = new Map<unknown, BuilderClass>([
@@ -1832,8 +1667,6 @@ const BUILDERS = new Map<unknown, BuilderClass>([
   [S.OfParameter.Data, ParameterBuilder], [S.OfSymbol.Data, SymbolBuilder],
   [S.OfAdjacency.Data, AdjacencyBuilder], [ModuleData, ModuleBuilder], [S.OfVariable.Data, VariableBuilder],
   [S.OfPattern.Data, PatternBuilder], [S.OfExpression.Data, ExpressionBuilder], [S.OfCollector.Data, CollectorBuilder],
-  [S.Locators.OfSymbol.Data, LocatorSymbolBuilder], [S.Locators.OfSingleton.Data, LocatorSingletonBuilder],
-  [S.Locators.OfRelation.Data, LocatorRelationBuilder],
 ]);
 
 for (const builderClass of new Set(BUILDERS.values())) {
@@ -1847,8 +1680,7 @@ function builderFor(referent: unknown): BuilderClass | null {
 
 /** The name of a schema object's meta-schema, `Schemas.OfObject`: the kind its identity is unique within. */
 export function _kind(data: unknown): string {
-  const builder = builderFor(data) as unknown as typeof Builder;
-  return builder._kind_name ?? `Schemas.${builder._meta}`;
+  return `Schemas.${(builderFor(data) as unknown as typeof Builder)._meta}`;
 }
 
 /** Whether a schema object has a name of its own (a kind of schema a module defines, or a module), rather than the one
@@ -1870,12 +1702,12 @@ export interface Plain {
   OfScalar: ObjectData; OfObject: ObjectData; OfUnion: ObjectData; OfIntersection: ObjectData; OfContainer: ObjectData;
   OfAny: ObjectData; OfRelation: ObjectData; OfPattern: ObjectData; OfExpression: ObjectData; OfCollector: ObjectData;
   OfModule: ObjectData; OfProperty: ObjectData; OfParameter: ObjectData; OfSymbol: ObjectData; OfVariable: ObjectData;
-  OfAdjacency: ObjectData; LocatorsOfSymbol: ObjectData; LocatorsOfSingleton: ObjectData; LocatorsOfRelation: ObjectData;
+  OfAdjacency: ObjectData;
   HasSchema: RelationData; Refines: RelationData; Indexing: RelationData; Containing: RelationData; AnyOf: RelationData;
   Relating: RelationData; HasParameter: RelationData; HasProperty: RelationData; HasAdjacency: RelationData;
   HasBranch: RelationData; HasPart: RelationData; HasSymbol: RelationData; HasLink: RelationData; Defines: RelationData;
   HasVariable: RelationData; Requiring: RelationData; Matching: RelationData; Resulting: RelationData;
-  Computing: RelationData; Locating: RelationData; Following: RelationData; Traversing: RelationData;
+  Computing: RelationData;
 }
 
 /** Builds a store's plain schemas of schemas and its basic scalars, anew. */
@@ -1891,11 +1723,11 @@ function plainSchemas(): Plain {
   meta.OfBytes = new ScalarBuilder().name("Schemas.OfBytes").create();
   const [Text, Bool, Int] = [meta.OfStr, meta.OfBool, meta.OfInt];
 
-  /** A plain schema of schemas: a reference object schema, `<space>.<name>`, with `properties` of their schemas, by
+  /** A plain schema of schemas: a reference object schema, `Schemas.<name>`, with `properties` of their schemas, by
    * name. */
-  function metaObject(name: string, properties: [string, unknown][], space = "Schemas"): ObjectData {
+  function metaObject(name: string, properties: [string, unknown][]): ObjectData {
     return new ObjectBuilder()
-      .name(`${space}.${name}`)
+      .name(`Schemas.${name}`)
       .ref(true)
       .properties(properties.map(([n, s]) => (t: any) => t.name(n).schema([s])))
       .create();
@@ -1920,15 +1752,10 @@ function plainSchemas(): Plain {
   meta.OfParameter = metaObject("OfParameter", [["description", Text]]); // a name, by its entry: a symbol for a schema
   meta.OfSymbol = metaObject("OfSymbol", [["description", Text]]);
   meta.OfVariable = metaObject("OfVariable", [["description", Text]]);
-  const keys = new ContainerBuilder().index([Text]).element([new AnyValueBuilder().schemas([Bool, Int, Text]).create()]).create();
-  meta.LocatorsOfSymbol = metaObject("OfSymbol", [["name", Text]], "Locators");
-  meta.LocatorsOfSingleton = metaObject("OfSingleton", [], "Locators");
-  meta.LocatorsOfRelation = metaObject("OfRelation", [["adjacency", Text], ["link", Text], ["properties", keys]], "Locators");
-  const roots = [meta.LocatorsOfSymbol, meta.LocatorsOfSingleton]; // where a locator starts
   meta.OfAdjacency = metaObject("OfAdjacency", [["description", Text], ["me", Text], ["owner", Bool]]);
   const valued = [meta.OfScalar, meta.OfObject, meta.OfUnion, meta.OfIntersection, meta.OfContainer, meta.OfAny]; // of values
   const schemas = [...valued, meta.OfRelation, meta.OfPattern, meta.OfExpression, meta.OfCollector, meta.OfModule]; // a module's
-  const members = [meta.OfProperty, meta.OfSymbol, meta.OfVariable, ...roots]; // each with a schema
+  const members = [meta.OfProperty, meta.OfSymbol, meta.OfVariable]; // each with a schema
 
   /** A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
    * `RELATIONS`): a keyed relation's entries have `name`; the member determines its owner and its name
@@ -1978,9 +1805,6 @@ function plainSchemas(): Plain {
     ["Matching", ["expression", [meta.OfExpression, meta.OfCollector], "pattern"], ["pattern", [meta.OfPattern]], "one"],
     ["Resulting", ["expression", [meta.OfExpression], "result"], ["schema", valued], "one"],
     ["Computing", ["collector", [meta.OfCollector], "computes"], ["expression", [meta.OfExpression]], "one"],
-    ["Locating", ["symbol", [meta.OfSymbol], "locator"], ["locator", roots], "one"],
-    ["Following", ["locator", [...roots, meta.LocatorsOfRelation], "next"], ["hop", [meta.LocatorsOfRelation]], "one"],
-    ["Traversing", ["hop", [meta.LocatorsOfRelation], "schema"], ["relation", [meta.OfRelation]], "one"],
     ["HasLink", ["owner", [meta.OfRelation], "links"], ["link", [meta.OfSymbol]], "keyed"],
     ["Defines", ["module", [meta.OfModule], "schemas"], ["schema", schemas], "keyed"],
   ];
@@ -2027,14 +1851,12 @@ TEMPLATE = plainSchemas();
 
 /** The schema objects a store builds as `store.Schemas.OfX(...)`, each through its builder. */
 export const _META_BUILDERS = new Map<string, BuilderClass>([
-  ...([["OfScalar", ScalarBuilder], ["OfObject", ObjectBuilder], ["OfUnion", UnionBuilder], ["OfIntersection", IntersectionBuilder],
-    ["OfContainer", ContainerBuilder], ["OfAny", AnyValueBuilder], ["OfRelation", RelationBuilder],
-    ["OfProperty", PropertyBuilder], ["OfParameter", ParameterBuilder], ["OfSymbol", SymbolBuilder],
-    ["OfAdjacency", AdjacencyBuilder], ["OfModule", ModuleBuilder], ["OfVariable", VariableBuilder],
-    ["OfPattern", PatternBuilder], ["OfExpression", ExpressionBuilder], ["OfConstraint", ConstraintBuilder],
-    ["OfCollector", CollectorBuilder]] as [string, BuilderClass][]).map(([name, builder]) => [`Schemas.${name}`, builder] as const),
-  ["Locators.OfSymbol", LocatorSymbolBuilder], ["Locators.OfSingleton", LocatorSingletonBuilder],
-  ["Locators.OfRelation", LocatorRelationBuilder],
+  ["OfScalar", ScalarBuilder], ["OfObject", ObjectBuilder], ["OfUnion", UnionBuilder], ["OfIntersection", IntersectionBuilder],
+  ["OfContainer", ContainerBuilder], ["OfAny", AnyValueBuilder], ["OfRelation", RelationBuilder],
+  ["OfProperty", PropertyBuilder], ["OfParameter", ParameterBuilder], ["OfSymbol", SymbolBuilder],
+  ["OfAdjacency", AdjacencyBuilder], ["OfModule", ModuleBuilder], ["OfVariable", VariableBuilder],
+  ["OfPattern", PatternBuilder], ["OfExpression", ExpressionBuilder], ["OfConstraint", ConstraintBuilder],
+  ["OfCollector", CollectorBuilder],
 ]);
 
 /** A schema object in a message: its name, else its identity. */
@@ -2368,7 +2190,7 @@ export class Store extends Proxies._Store {
     else if (args.length === 2) [existing, cb] = args;
     else throw new TypeError(`${name}(...) takes a callback, an object and a callback, or an object`);
     existing = Proxies._deref(existing);
-    const kind = _META_BUILDERS.get(name);
+    const kind = name.startsWith("Schemas.") ? _META_BUILDERS.get(name.slice("Schemas.".length)) : undefined;
     let builder: any;
     if (kind !== undefined) builder = new kind(existing, true, this);
     else if (this._schemas.has(name)) builder = this.builder(name, existing);
@@ -2531,28 +2353,6 @@ export namespace OfCollector {
   export type Builder = CollectorBuilder;
 }
 
-/** The locator schemas (docs/OBJECT_IDENTITY.md, Locators). */
-export namespace Locators {
-  export namespace OfSymbol {
-    export const Data = S.Locators.OfSymbol.Data;
-    export type Data = S.Locators.OfSymbol.Data;
-    export const Builder = LocatorSymbolBuilder;
-    export type Builder = LocatorSymbolBuilder;
-  }
-  export namespace OfSingleton {
-    export const Data = S.Locators.OfSingleton.Data;
-    export type Data = S.Locators.OfSingleton.Data;
-    export const Builder = LocatorSingletonBuilder;
-    export type Builder = LocatorSingletonBuilder;
-  }
-  export namespace OfRelation {
-    export const Data = S.Locators.OfRelation.Data;
-    export type Data = S.Locators.OfRelation.Data;
-    export const Builder = LocatorRelationBuilder;
-    export type Builder = LocatorRelationBuilder;
-  }
-}
-
 export namespace OfAny {
   export const Data = S.OfAny.Value;
   export type Data = S.OfAny.Value;
@@ -2594,8 +2394,7 @@ for (const [namespace, own] of [[S.OfScalar, OfScalar], [S.OfObject, OfObject], 
   [S.OfAdjacency, OfAdjacency], [S.OfRelation, OfRelation], [S.OfSymbol, OfSymbol], [S.OfParameter, OfParameter],
   [S.OfUnion, OfUnion], [S.OfIntersection, OfIntersection], [S.OfContainer, OfContainer], [S.OfAny, OfAny],
   [S.OfVariable, OfVariable], [S.OfPattern, OfPattern], [S.OfExpression, OfExpression], [S.OfConstraint, OfConstraint],
-  [S.OfCollector, OfCollector], [S.Locators.OfSymbol, Locators.OfSymbol], [S.Locators.OfSingleton, Locators.OfSingleton],
-  [S.Locators.OfRelation, Locators.OfRelation]] as const) {
+  [S.OfCollector, OfCollector]] as const) {
   Object.assign(namespace, { Builder: own.Builder });
 }
 

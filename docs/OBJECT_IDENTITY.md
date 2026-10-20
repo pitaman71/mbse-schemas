@@ -137,10 +137,16 @@ allowed. A counted object read from a document is always a new one (55).
 
 ## Locators
 
+Superseded by a pattern's `spec` (76): a symbol is found as a singleton by its schema (77), or through the entries and
+values its pattern's spec says must hold over the other symbols. What follows is kept for the record of 64 to 75.
+
+
 A pattern's symbols ([Mutations as queries](STREAMING_QUERIES.md)) sometimes specify a locator expression. These
 expressions are represented by an ordinary schema over these kinds:
 - `Locators.OfSymbol` # name, schema, next
 - `Locators.OfSingleton` # schema, next
+
+`Locators.HasPath(symbol: Schemas.OfSymbol, root: Locators.OfRoot)` links a symbol to its locator's root (74, 75).
 - `Locators.OfRelation` # schema, adjacency, link, properties, next
 
 Only `Locators.OfSymbol` or `Locators.OfSingleton` may be used as the root of a locator expression.
@@ -469,6 +475,35 @@ As the user decided (2026-10-20), on the order of step 4 and on schema objects:
     object schema that holds itself, through its properties, a union's branches, an intersection's parts or a
     container's index or element, at any depth; reference object schemas may form cycles through relations (a person
     who knows persons).
+
+As the user decided (2026-10-20), on what needs a meta-schema:
+
+73. "Needs meta-schemas: Schemas.OfX, Schemas.HasY. Should not need meta-schemas: Mutations.OfX, Mutations.HasY,
+    Locators.OfX, Locators.HasY": the locator schemas are ordinary schemas each store holds, as `Paths` and
+    `Mutations` are, a locator is data, and their relations are ordinary relations (amending 64's "an ordinary schema",
+    which the first build of 4d made meta-schemas).
+74. A relation need not be declared as early as its first reference: "Locators.HasPath(symbol: Schemas.OfSymbol, root:
+    Locators.OfRoot)", declared by Locators, links a pattern's symbol to its locator's root.
+75. "The Schemas kind vocabulary is closed. This means no modifications to the meta schemas or to code that builds
+    around. Schema kinds can be extended with relations by adding an adjacency." `Schemas.OfSymbol` gains an adjacency
+    to `Locators.HasPath`, `path` ("(b) ofc"), added as an extension adds one, so that `symbol.path` reads a symbol's
+    locator and the locator shorthand is the symbol's builder's.
+
+As the user decided (2026-10-20), on how a pattern's symbols find their objects:
+
+76. A pattern has a `spec`: "property values that must be assigned and relation entries that must exist for a frame to
+    match the pattern"; "Schemas.OfPattern.spec completely replaces paths and locators" ("I think so"), superseding 64,
+    65, 71, 74 and 75: `Locators`, `Locators.HasPath` and a symbol's `path` go. Each spec item is written in the
+    builders' own notation, over the frame, whose members are the pattern's symbols, each the mutation builder of the
+    object it binds (58): `lambda _: _.bob.name("Bob Massey").knows([_.ada]).directory([_.book])`. In a match, what a
+    spec says must hold; in an upsert, it is written where it does not. A spec is stored as mutations, which "are
+    serializable already". An owned object an upsert finds or creates is placed by its spec's owning entry, owner and
+    keys, which gives its path (restating 60); paths remain owned objects' identities.
+77. "singletons are denoted by their schema": a symbol whose schema is a singleton's binds that singleton, with no spec.
+78. "schemas are pulled from txn": within a transaction, `txn.Schemas.<name>` names a schema, so that no constructor
+    notation appears in one; the entry point is `store.transaction` (renaming `store.mutation`), and a term's pattern and
+    a transaction's root term are relations (`.exists([...])`, `.mutations([...])`, peer shorthand), a transaction having
+    one root.
 
 ## Open questions
 

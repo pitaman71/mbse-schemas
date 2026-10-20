@@ -49,7 +49,6 @@ __all__ = [
     "OfSymbol",
     "OfUnion",
     "OfVariable",
-    "Locators",
     "Store",
     "extend",
     "identity_of",
@@ -825,7 +824,6 @@ class _Builder(_Unassignable, Generic[D]):
     _data: ClassVar[type]
     _meta: ClassVar[str]
     _noun: ClassVar[str]
-    _kind_name: ClassVar[str | None] = None  # its kind's name, where it is not `Schemas.<_meta>`
     _members_: ClassVar[dict[str, _Prop | _Members]] = {}
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -1104,145 +1102,12 @@ class ParameterBuilder(_Builder[S.OfParameter.Data]):
     description = _Prop()
 
 
-class _LocatorMembers(_Members):
-    """A symbol's locator, at most one: linked, or, called with a callback, written in the locator shorthand, which
-    the callback is handed (`_LocatorPath`)."""
-
-    def __get__(self, builder: Any, owner: type | None = None) -> Any:
-        return self if builder is None else _LocatorMember(builder, self)
-
-
-class _LocatorMember(_AdjacencyMember):
-    def __call__(self, spec: Any) -> Any:
-        if not _is_function(spec):
-            return super().__call__(spec)
-        path = _LocatorPath(self._builder._store, self)
-        _visit(spec, path)
-        if path._root is not None:  # written in the shorthand; otherwise the callback visited the adjacency
-            self._builder._check()
-            self._store([path._built()])
-        return self._builder
-
-
-class _LocatorPath(_Unassignable):
-    """The locator shorthand, a path language (docs/OBJECT_IDENTITY.md, Locators): `l.singleton(Directory)` or
-    `l.symbol("alice", Contact)`, then a hop for each named adjacency called with the keys its entries hold,
-    `.dir({"name": "DEF-693"})`, through the relation it is to, to the relation's other link. Where a relation has more
-    than two links, or the object after a hop has no single schema, `.hop(adjacency, relation, link, properties)` gives
-    one in full; it writes `Locators` data, built in the store. It is the symbol's `locator` adjacency too, as every
-    adjacency called with a callback hands it: `insert`, `remove`, `as_iterable`, `as_schema` and iterating are the
-    adjacency's, so no adjacency of those names is traversed by the shorthand."""
-
-    _ADJACENCY = ("insert", "remove", "as_iterable", "as_schema")
-
-    def __init__(self, store: Any, adjacency: Any = None):
-        self._store, self._adjacency, self._root, self._hops, self._current = store, adjacency, None, [], None
-
-    def __iter__(self) -> Iterator[Any]:
-        return iter(self._adjacency)
-
-    def singleton(self, schema: Any) -> _LocatorPath:
-        schema = Proxies._deref(schema)
-        self._root, self._current = ("singleton", None, schema), schema
-        return self
-
-    def symbol(self, name: str, schema: Any) -> _LocatorPath:
-        schema = Proxies._deref(schema)
-        self._root, self._current = ("symbol", name, schema), schema
-        return self
-
-    def hop(self, adjacency: str, relation: Any, link: str, properties: Mapping[str, Any] | None = None) -> _LocatorPath:
-        if self._root is None:
-            raise ValueError("a locator starts at a symbol or a singleton: l.symbol(name, schema) or l.singleton(schema)")
-        relation = Proxies._deref(relation)
-        self._hops.append((adjacency, relation, link, dict(properties or {})))
-        held = relation.entry.links.get(link) if isinstance(relation, S.OfRelation.Data) else None
-        schema = getattr(held, "schema", None)
-        if schema is None and self._store is not None and held is not None:
-            filling = self._store._filling(relation, link)
-            schema = self._store.registered(filling[0]) if len(filling) == 1 else None
-        self._current = schema
-        return self
-
-    def __getattr__(self, name: str) -> Any:
-        if name.startswith("_"):
-            raise AttributeError(name)
-        if name in self._ADJACENCY and self._root is None:
-            return getattr(self._adjacency, name)
-        current = self._current
-        if not isinstance(current, S.OfObject.Data):
-            raise TypeError(f"the object before {name!r} has no single schema: give the hop in full, .hop(adjacency, "
-                            "relation, link, properties)")
-        adjacency = current.adjacencies.get(name)
-        if adjacency is None:
-            raise AttributeError(f"{current.name!r} has no adjacency {name!r}: a locator traverses named adjacencies")
-        others = [link for link in adjacency.relation.entry.links if link != adjacency.me]
-        if len(others) != 1:
-            raise TypeError(f"{adjacency.relation.name!r} has more than two links: give the hop in full, "
-                            f".hop({name!r}, relation, link, properties)")
-        return lambda properties=None: self.hop(name, adjacency.relation, others[0], properties)
-
-    def _built(self) -> Any:
-        if self._root is None:
-            raise ValueError("a locator starts at a symbol or a singleton: l.symbol(name, schema) or l.singleton(schema)")
-        after = None
-        for adjacency, relation, link, properties in reversed(self._hops):
-            builder = LocatorRelationBuilder(None, True, self._store).schema([relation]).adjacency(adjacency).link(link)
-            builder = builder.properties(properties) if properties else builder
-            after = (builder.next([after]) if after is not None else builder).create()
-        kind, name, schema = self._root
-        root = (LocatorSymbolBuilder(None, True, self._store).name(name) if kind == "symbol"
-                else LocatorSingletonBuilder(None, True, self._store)).schema([schema])
-        return (root.next([after]) if after is not None else root).create()
-
-    def __repr__(self) -> str:
-        return "<locator>"
-
-
-def _is_locator(value: Any) -> bool:
-    return isinstance(value, (S.Locators.OfSymbol.Data, S.Locators.OfSingleton.Data, S.Locators.OfRelation.Data))
-
-
-def _next() -> _Members:
-    """The hop after a locator's root or hop, which it owns: a clone has its own."""
-    return _Members("hop", accepts=_is_locator, build=lambda: LocatorRelationBuilder, owned=True, **_one("next"))
-
-
 class SymbolBuilder(_MemberBuilder[S.OfSymbol.Data]):
     _data, _meta, _noun = S.OfSymbol.Data, "OfSymbol", "a symbol"
-
-    locator = _LocatorMembers("locator", accepts=_is_locator, owned=True, **_one("locator"))
 
 
 class VariableBuilder(_MemberBuilder[S.OfVariable.Data]):
     _data, _meta, _noun = S.OfVariable.Data, "OfVariable", "a variable"
-
-
-class LocatorSymbolBuilder(_Builder[S.Locators.OfSymbol.Data]):
-    _data, _meta, _noun, _kind_name = S.Locators.OfSymbol.Data, "LocatorsOfSymbol", "a symbol's locator", "Locators.OfSymbol"
-
-    name = _Prop()
-    schema = _schema()
-    next = _next()
-
-
-class LocatorSingletonBuilder(_Builder[S.Locators.OfSingleton.Data]):
-    _data, _meta, _noun, _kind_name = (S.Locators.OfSingleton.Data, "LocatorsOfSingleton", "a singleton's locator",
-                                       "Locators.OfSingleton")
-
-    schema = _schema()
-    next = _next()
-
-
-class LocatorRelationBuilder(_Builder[S.Locators.OfRelation.Data]):
-    _data, _meta, _noun, _kind_name = S.Locators.OfRelation.Data, "LocatorsOfRelation", "a hop", "Locators.OfRelation"
-
-    schema = _Members("relation", accepts=lambda v: isinstance(v, S.OfRelation.Data), **_one("schema"))
-    adjacency = _Prop()
-    link = _Prop()
-    properties = _Prop(container=True, get=lambda data: dict(data.properties) or None,
-                       put=lambda data, value: setattr(data, "properties", dict(value or {})))
-    next = _next()
 
 
 class AdjacencyBuilder(_Builder[S.OfAdjacency.Data]):
@@ -1504,8 +1369,6 @@ _BUILDERS: dict[type, type] = {
     S.OfProperty.Data: PropertyBuilder, S.OfParameter.Data: ParameterBuilder, S.OfSymbol.Data: SymbolBuilder,
     S.OfAdjacency.Data: AdjacencyBuilder, S.OfVariable.Data: VariableBuilder, S.OfPattern.Data: PatternBuilder,
     S.OfExpression.Data: ExpressionBuilder, S.OfCollector.Data: CollectorBuilder,
-    S.Locators.OfSymbol.Data: LocatorSymbolBuilder, S.Locators.OfSingleton.Data: LocatorSingletonBuilder,
-    S.Locators.OfRelation.Data: LocatorRelationBuilder,
     _ModuleData: ModuleBuilder,
 }
 
@@ -1513,7 +1376,7 @@ _BUILDERS: dict[type, type] = {
 def _kind(data: Any) -> str:
     """The name of a schema object's meta-schema, `Schemas.OfObject`: the kind its identity is unique within."""
     builder = _builder_for(data)
-    return (builder._kind_name or f"Schemas.{builder._meta}") if builder is not None else type(data).__name__
+    return f"Schemas.{builder._meta}" if builder is not None else type(data).__name__
 
 
 def _builder_for(referent: Any) -> type | None:
@@ -1547,12 +1410,12 @@ def _plain() -> _Plain:
     meta.OfBytes = ScalarBuilder().name("Schemas.OfBytes").create()
     Text, Bool, Int = meta.OfStr, meta.OfBool, meta.OfInt
 
-    def _object(name: str, properties: dict[str, Any], space: str = "Schemas") -> S.OfObject.Data:
-        """A plain schema of schemas: a reference object schema, `<space>.<name>`, with `properties` of their schemas, by
+    def _object(name: str, properties: dict[str, Any]) -> S.OfObject.Data:
+        """A plain schema of schemas: a reference object schema, `Schemas.<name>`, with `properties` of their schemas, by
         name."""
         return (
             ObjectBuilder()
-            .name(f"{space}.{name}")
+            .name(f"Schemas.{name}")
             .ref(True)
             .properties([lambda t, n=n, s=s: t.name(n).schema([s]) for n, s in properties.items()])
             .create()
@@ -1578,15 +1441,10 @@ def _plain() -> _Plain:
     meta.OfParameter = _object("OfParameter", {"description": Text})  # a name, by its entry: a symbol for a schema
     meta.OfSymbol = _object("OfSymbol", {"description": Text})
     meta.OfVariable = _object("OfVariable", {"description": Text})
-    keys = ContainerBuilder().index([Text]).element([AnyValueBuilder().schemas([Bool, Int, Text]).create()]).create()
-    meta.LocatorsOfSymbol = _object("OfSymbol", {"name": Text}, "Locators")
-    meta.LocatorsOfSingleton = _object("OfSingleton", {}, "Locators")
-    meta.LocatorsOfRelation = _object("OfRelation", {"adjacency": Text, "link": Text, "properties": keys}, "Locators")
-    roots = (meta.LocatorsOfSymbol, meta.LocatorsOfSingleton)  # where a locator starts
     meta.OfAdjacency = _object("OfAdjacency", {"description": Text, "me": Text, "owner": Bool})
     valued = (meta.OfScalar, meta.OfObject, meta.OfUnion, meta.OfIntersection, meta.OfContainer, meta.OfAny)  # of values
     schemas = (*valued, meta.OfRelation, meta.OfPattern, meta.OfExpression, meta.OfCollector, meta.OfModule)  # a module's
-    members = (meta.OfProperty, meta.OfSymbol, meta.OfVariable, *roots)  # each with a schema
+    members = (meta.OfProperty, meta.OfSymbol, meta.OfVariable)  # each with a schema
 
     def _relation(name: str, links: tuple[str, str], how: str) -> S.OfRelation.Data:
         """A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
@@ -1634,9 +1492,6 @@ def _plain() -> _Plain:
          "one"),
         ("Resulting", ("expression", (meta.OfExpression,), "result"), ("schema", valued), "one"),
         ("Computing", ("collector", (meta.OfCollector,), "computes"), ("expression", (meta.OfExpression,)), "one"),
-        ("Locating", ("symbol", (meta.OfSymbol,), "locator"), ("locator", roots), "one"),
-        ("Following", ("locator", (*roots, meta.LocatorsOfRelation), "next"), ("hop", (meta.LocatorsOfRelation,)), "one"),
-        ("Traversing", ("hop", (meta.LocatorsOfRelation,), "schema"), ("relation", (meta.OfRelation,)), "one"),
         ("HasLink", ("owner", (meta.OfRelation,), "links"), ("link", (meta.OfSymbol,)), "keyed"),
         ("Defines", ("module", (meta.OfModule,), "schemas"), ("schema", schemas), "keyed"),
     ]
@@ -1690,11 +1545,7 @@ _META_BUILDERS: dict[str, Callable[[], type]] = {
     "OfPattern": lambda: PatternBuilder, "OfExpression": lambda: ExpressionBuilder,
     "OfConstraint": lambda: ConstraintBuilder, "OfCollector": lambda: CollectorBuilder,
 }
-_META_BUILDERS = {**{f"Schemas.{name}": builder for name, builder in _META_BUILDERS.items()},
-                  "Locators.OfSymbol": lambda: LocatorSymbolBuilder, "Locators.OfSingleton": lambda: LocatorSingletonBuilder,
-                  "Locators.OfRelation": lambda: LocatorRelationBuilder}
-"""The schema objects a store builds as `store.Schemas.OfX(...)` or `store.Locators.OfX(...)`, each through its builder,
-by the name of its kind."""
+"""The schema objects a store builds as `store.Schemas.OfX(...)`, each through its builder."""
 
 
 class Store(Proxies._Store):
@@ -1896,7 +1747,7 @@ class Store(Proxies._Store):
         else:
             raise TypeError(f"{name}(...) takes a callback, an object and a callback, or an object")
         existing = Proxies._deref(existing)
-        kind = _META_BUILDERS.get(name)
+        kind = _META_BUILDERS.get(name[len("Schemas."):]) if name.startswith("Schemas.") else None
         if kind is not None:
             builder: Any = kind()(existing, True, self)
         elif name in self._schemas:
@@ -2097,19 +1948,6 @@ class OfCollector:
     Data, Builder = S.OfCollector.Data, CollectorBuilder
 
 
-class Locators:
-    """The locator schemas (docs/OBJECT_IDENTITY.md, Locators)."""
-
-    class OfSymbol:
-        Data, Builder = S.Locators.OfSymbol.Data, LocatorSymbolBuilder
-
-    class OfSingleton:
-        Data, Builder = S.Locators.OfSingleton.Data, LocatorSingletonBuilder
-
-    class OfRelation:
-        Data, Builder = S.Locators.OfRelation.Data, LocatorRelationBuilder
-
-
 class OfAny:
     Data, Builder = S.OfAny.Value, AnyValueBuilder
 
@@ -2121,6 +1959,5 @@ for _namespace, _own in ((S.OfScalar, OfScalar), (S.OfObject, OfObject), (S.OfPr
                          (S.OfParameter, OfParameter), (S.OfUnion, OfUnion), (S.OfIntersection, OfIntersection),
                          (S.OfContainer, OfContainer), (S.OfAny, OfAny), (S.OfVariable, OfVariable),
                          (S.OfPattern, OfPattern), (S.OfExpression, OfExpression), (S.OfConstraint, OfConstraint),
-                         (S.OfCollector, OfCollector), (S.Locators.OfSymbol, Locators.OfSymbol),
-                         (S.Locators.OfSingleton, Locators.OfSingleton), (S.Locators.OfRelation, Locators.OfRelation)):
+                         (S.OfCollector, OfCollector)):
     _namespace.Builder = _own.Builder

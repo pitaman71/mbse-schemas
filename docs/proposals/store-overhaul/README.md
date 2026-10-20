@@ -199,24 +199,19 @@ so that main stays current and no branch waits on another.
      - the tutorials retell case study 6 with counted contacts and addresses, numbered, and point to owned objects for
        lasting names; case study 8's audit log labels linked objects by their values.
    Done in this order, so that `Schemas` is stable early (Object identity, Decided, 68): 4d, 4g, then 4e and 4f.
-   - **4d, patterns** (STREAMING_QUERIES.md, Patterns; Value expressions and constraints; Object identity, Locators,
-     and Decided, 64 to 67, 71): `Schemas.OfPattern`, `OfSymbol` (its `locator`, a value of the `Locators` schemas each
-     store holds: `OfSymbol` or `OfSingleton` at the root, `OfRelation` hops through named adjacencies), `OfVariable`,
-     `OfExpression` and its boolean variant `OfConstraint` (placeholders mbse-expressions refines), `OfCollector`
-     (rejected by validation where it declares neither `.commutative()` nor `.associative()`, 62); built, validated
-     and written as every schema is. `Schemas.OfPredicate` goes (67). Done, on the branch. As built (FRAMEWORK.md,
-     Resolved, Patterns, has the choices made for the user's review):
-     - the meta-schemas `Schemas.OfPattern`, `OfVariable`, `OfExpression` and `OfCollector`, and a second namespace,
-       `Locators.OfSymbol`, `OfSingleton` and `OfRelation`; the relations `Schemas.HasVariable`, `Requiring`,
-       `Matching`, `Resulting`, `Computing`, `Locating`, `Following` and `Traversing`, `HasSymbol` now a pattern's. A
-       kind's builder may name a kind outside `Schemas.` (`_kind_name`), and the builders a store builds by name, and a
-       log reads, are keyed by the kind's whole name;
+   - **4d, patterns** (STREAMING_QUERIES.md, Patterns and Spec; Value expressions and constraints; Object identity,
+     Decided, 66, 67, 76 to 78): `Schemas.OfPattern`, `OfVariable`, `OfExpression` and its boolean variant `OfConstraint`
+     (placeholders mbse-expressions refines), `OfCollector` (rejected by validation where it declares neither
+     `.commutative()` nor `.associative()`, 62); built, validated and written as every schema is. `Schemas.OfPredicate`
+     goes (67). A symbol is found as a singleton by its schema, or through its pattern's `spec` (76, 77), which
+     replaced the locators a first build made (64 to 75, superseded). Done, on the branch, but for `spec`. As built
+     (FRAMEWORK.md, Resolved, Patterns, has the choices made for the user's review):
+     - the meta-schemas `Schemas.OfPattern`, `OfVariable`, `OfExpression` and `OfCollector`; the relations
+       `Schemas.HasVariable`, `Requiring`, `Matching`, `Resulting` and `Computing`, `HasSymbol` now a pattern's;
      - `store.Schemas.OfConstraint(...)` builds an expression of the store's `OfBool`; a pattern's `requires` builds
        constraints, which it owns; a collector's names are text lists, its `suffixes` a map;
-     - the locator shorthand writes `Locators` data through their builders, in the store; it is the symbol's
-       `locator` adjacency too, so `insert`, `remove`, `as_iterable` and `as_schema` are the adjacency's;
-     - the corpus's `module` case has a pattern with a locator, a variable and a constraint, an expression and a
-       collector in place of its predicate; the suite PAT tests them, in both languages.
+     - the corpus's `module` case has a pattern with a variable and a constraint, an expression and a collector in
+       place of its predicate; the suite PAT tests them, in both languages.
    - **4g, schema objects** (17, 29, 69, 70): a named schema's identity is its path, and its members' paths continue it;
      derived identities go; an unnamed schema has no identity, and is written nested in the one object that links it;
      validation refuses an unnamed schema linked from more than one place, and a cycle among value object schemas (72); schema

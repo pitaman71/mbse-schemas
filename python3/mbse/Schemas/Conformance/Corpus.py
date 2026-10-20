@@ -178,7 +178,7 @@ def _lists(s):
 
 def _module(s):
     """The corpus's own schemas as data, with parametric schemas, whose parameters are names, and a pattern, with a
-    locator, a variable and a constraint, an expression and a collector."""
+    variable and a constraint, an expression and a collector."""
     Bool, Int, Float, Str, Bytes = _basics(s)
     Contact, Address, _ = _address_book(s)
     _family(s)
@@ -195,8 +195,7 @@ def _module(s):
         lambda t: t.name("who").schema([s.Schemas.OfObject(lambda o: o.properties([_text(s, "by")]))])]))
     Lives = s.Schemas.OfPattern(lambda p: p.name("Lives").description("Who lives where").symbols([
         lambda t: t.name("who").schema([Contact]),
-        lambda t: t.name("where").schema([Address]).description("A home")
-        .locator(lambda l: l.symbol("who", Contact).addresses({"label": "home"}))])
+        lambda t: t.name("where").schema([Address]).description("A home")])
         .variables([lambda t: t.name("since").schema([Str])])
         .requires([lambda c: c.description("lived there since")])
         .parameters([lambda t: t.name("era")]))

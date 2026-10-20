@@ -177,8 +177,8 @@ function lists(s: any): any {
     list(s, "cells", Int, Int, "sparse"), list(s, "attrs", Float, Str), list(s, "weights", Str, Float)]));
 }
 
-/** The corpus's own schemas as data, with parametric schemas, whose parameters are names, and a pattern, with a locator,
- * a variable and a constraint, an expression and a collector. */
+/** The corpus's own schemas as data, with parametric schemas, whose parameters are names, and a pattern, with a variable
+ * and a constraint, an expression and a collector. */
 function module(s: any): void {
   const [Bool, Int, Float, Str, Bytes] = basics(s);
   const [Contact, Address] = addressBook(s);
@@ -196,8 +196,7 @@ function module(s: any): void {
     (t: any) => t.name("who").schema([s.Schemas.OfObject((o: any) => o.properties([text(s, "by")]))])]));
   const Lives = s.Schemas.OfPattern((p: any) => p.name("Lives").description("Who lives where").symbols([
     (t: any) => t.name("who").schema([Contact]),
-    (t: any) => t.name("where").schema([Address]).description("A home")
-      .locator((l: any) => l.symbol("who", Contact).addresses({ label: "home" }))])
+    (t: any) => t.name("where").schema([Address]).description("A home")])
     .variables([(t: any) => t.name("since").schema([Str])])
     .requires([(c: any) => c.description("lived there since")])
     .parameters([(t: any) => t.name("era")]));

@@ -762,29 +762,19 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 ### Resolved
 
-- **Patterns** (0.21.0, step 4d of the store overhaul; [Object identity](OBJECT_IDENTITY.md), Locators and Decided, 64
-  to 67; [Mutations as queries](STREAMING_QUERIES.md), Patterns and Value expressions and constraints), as the user
+- **Patterns** (0.21.0, step 4d of the store overhaul; [Object identity](OBJECT_IDENTITY.md), Decided, 66, 67 and 76 to
+  78; [Mutations as queries](STREAMING_QUERIES.md), Patterns and Value expressions and constraints), as the user
   decided: `Schemas.OfPattern` replaces `Schemas.OfPredicate`, which goes. A pattern declares its symbols
-  (`Schemas.HasSymbol`), each with an optional reference object schema and an optional locator, its variables
-  (`Schemas.HasVariable`), each with an optional value schema, and its constraints, in order (`Schemas.Requiring`);
-  `Schemas.OfExpression` has a pattern (`Schemas.Matching`) and a result schema (`Schemas.Resulting`), its terms
-  mbse-expressions'; `Schemas.OfConstraint` builds an expression whose result is the store's `Schemas.OfBool`;
-  `Schemas.OfCollector` has a pattern, the names it collects, `commutative`, `associative`, `suffixes` and what it
-  `computes` (`Schemas.Computing`). A symbol's locator (`Schemas.Locating`) is a value of the `Locators` meta-schemas,
-  `Locators.OfSymbol` or `Locators.OfSingleton` at its root, each hop a `Locators.OfRelation` (`Schemas.Following`,
-  `Schemas.Traversing`). Each is a schema object, built, validated and written in a store's snapshot as every one is.
-  Choices made in building it, for the user's review:
-  - the locator shorthand, `.locator(lambda l: l.singleton(Directory).dir({"name": "DEF-693"}))`, is handed the
-    symbol's `locator` adjacency too, as every adjacency called with a callback is: `insert`, `remove`, `as_iterable`
-    and `as_schema` are the adjacency's, so an adjacency of one of those names is traversed only by
-    `.hop(adjacency, relation, link, properties)`, which also gives a hop through a relation of more than two links, or
-    after an object whose link no single schema fills; `l.symbol(name, schema)` takes the symbol's schema, as
-    `Locators.OfSymbol` holds it (Decided, 71);
+  (`Schemas.HasSymbol`), each with an optional reference object schema, its variables (`Schemas.HasVariable`), each with
+  an optional value schema, and its constraints, in order (`Schemas.Requiring`); `Schemas.OfExpression` has a pattern
+  (`Schemas.Matching`) and a result schema (`Schemas.Resulting`), its terms mbse-expressions'; `Schemas.OfConstraint`
+  builds an expression whose result is the store's `Schemas.OfBool`; `Schemas.OfCollector` has a pattern, the names it
+  collects, `commutative`, `associative`, `suffixes` and what it `computes` (`Schemas.Computing`). Each is a schema
+  object, built, validated and written in a store's snapshot as every one is. A pattern's `spec`, which replaces
+  locators (76), is to come. Choices made in building it, for the user's review:
   - a flag is written `.commutative(True)`, as `.ref(True)` and `.owner(True)` are;
   - a symbol's and a variable's schemas are optional, as the design has them ("may provide"); what a term requires of
     them, and of a collector's `suffixes` and `computes`, is 4e's;
-  - validation refuses a hop's adjacency only where the schema of the object before is known: a root's, or a link's
-    own schema;
   - `Catalog.schema` names the kind it refuses: "'X' is a pattern; no pattern builder is exposed", "a value schema"
     for a union, an intersection or a container.
 - **Schema, never "type"** (0.19.0; [Store overhaul, Decided, 24](proposals/store-overhaul/README.md#decided-here);

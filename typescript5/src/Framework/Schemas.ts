@@ -15,11 +15,11 @@
  * where the schema is referred to (docs/proposals/store-overhaul, Decided, 12 and 20). Terms, applications and widths
  * are mbse-expressions' (docs/SCHEMA_EXTENSION.md, Decided, 5 to 7).
  *
- * A pattern (`OfPattern`) declares symbols (`OfSymbol`), each standing for a reference object and perhaps located by a
- * locator (`Locators`), variables (`OfVariable`), each standing for a value, and the constraints a frame meets (its
- * `requires`, each an `OfExpression` of boolean result); an expression (`OfExpression`) ranges over a pattern, and a
- * collector (`OfCollector`) folds the frames of one (docs/STREAMING_QUERIES.md; docs/OBJECT_IDENTITY.md, Locators). A
- * relation holds the schema of its entries (`OfEntry`): their links, each a symbol, and their properties.
+ * A pattern (`OfPattern`) declares symbols (`OfSymbol`), each standing for a reference object, variables
+ * (`OfVariable`), each standing for a value, and the constraints a frame meets (its `requires`, each an `OfExpression` of
+ * boolean result); an expression (`OfExpression`) ranges over a pattern, and a collector (`OfCollector`) folds the frames
+ * of one (docs/STREAMING_QUERIES.md). A relation holds the schema of its entries (`OfEntry`): their links, each a symbol,
+ * and their properties.
  */
 
 import { fromBase64, toBase64 } from "./Bytes.js";
@@ -290,20 +290,16 @@ export namespace OfProperty {
 // --- OfSymbol: a name standing for an object ---
 
 /** A name standing for an object: a pattern's symbol, which a frame binds, or an entry's link. Its schema is a
- * reference object schema, which either may leave unset (null); a pattern's symbol may give a locator, the route by
- * which it finds its objects (`Locators`), and a link never does. */
+ * reference object schema, which either may leave unset (null). */
 class SymbolData {
   name: string;
   schema: AnyData | null;
   description: string | null;
-  locator: LocatorSymbolData | LocatorSingletonData | null;
 
-  constructor(fields: { name?: string; schema?: AnyData | null; description?: string | null;
-    locator?: LocatorSymbolData | LocatorSingletonData | null } = {}) {
+  constructor(fields: { name?: string; schema?: AnyData | null; description?: string | null } = {}) {
     this.name = fields.name ?? "";
     this.schema = fields.schema ?? null;
     this.description = fields.description ?? null;
-    this.locator = fields.locator ?? null;
   }
 }
 
@@ -347,10 +343,7 @@ class EntryData {
     }
     const clashes = [...this.links.keys()].filter((link) => this.properties.has(link));
     if (clashes.length > 0) problems.push(`names used as both link and property: ${repr(sortedStrings(new Set(clashes)))}`);
-    for (const [name, link] of this.links) {
-      problems.push(...symbolProblems(link).map((p) => `link ${repr(name)}: ${p}`));
-      if (link.locator !== null) problems.push(`link ${repr(name)}: a relation's link has no locator; a pattern's symbol may`);
-    }
+    for (const [name, link] of this.links) problems.push(...symbolProblems(link).map((p) => `link ${repr(name)}: ${p}`));
     for (const [name, prop] of this.properties) {
       problems.push(...[...validateSchema(prop.schema), ...embeddedProblems(prop.schema), ...descriptionProblems(prop.description), ...patternProblems(prop)]
         .map((p) => `property ${repr(name)}: ${p}`));
@@ -898,123 +891,6 @@ export namespace OfContainer {
   export type Builder = Builders.ContainerBuilder;
 }
 
-// --- Locators: how a pattern's symbol finds its objects ---
-
-/** A locator's root at a symbol the pattern declares before: its name, and its schema, a reference object schema, by
- * which a hop from it finds its adjacencies. */
-class LocatorSymbolData {
-  name: string;
-  schema: unknown;
-  /** The hop after it, a Locators.OfRelation.Data, or null. */
-  next: unknown;
-
-  constructor(fields: { name?: string; schema?: unknown; next?: unknown } = {}) {
-    this.name = fields.name ?? "";
-    this.schema = fields.schema ?? null;
-    this.next = fields.next ?? null;
-  }
-}
-
-/** A locator's root at a singleton: its schema, a singleton's. */
-class LocatorSingletonData {
-  schema: unknown;
-  next: unknown;
-
-  constructor(fields: { schema?: unknown; next?: unknown } = {}) {
-    this.schema = fields.schema ?? null;
-    this.next = fields.next ?? null;
-  }
-}
-
-/** A hop: through the named adjacency `adjacency` of the object before, to `relation`'s (`schema`'s) entries whose
- * properties hold `properties`, then through their link `link` to the next object (docs/OBJECT_IDENTITY.md, Locators). */
-class LocatorRelationData {
-  schema: unknown;
-  adjacency: string;
-  link: string;
-  properties: Map<string, unknown>;
-  next: unknown;
-
-  constructor(fields: { schema?: unknown; adjacency?: string; link?: string; properties?: Map<string, unknown>;
-    next?: unknown } = {}) {
-    this.schema = fields.schema ?? null;
-    this.adjacency = fields.adjacency ?? "";
-    this.link = fields.link ?? "";
-    this.properties = fields.properties ?? new Map();
-    this.next = fields.next ?? null;
-  }
-}
-
-/** The locator schemas: `Locators.OfSymbol` or `Locators.OfSingleton` at the root, `Locators.OfRelation` each hop. */
-export namespace Locators {
-  export namespace OfSymbol {
-    export const Data = LocatorSymbolData;
-    export type Data = LocatorSymbolData;
-    /** Its builder, `Builders`': importing the package installs it here. */
-    export declare const Builder: typeof Builders.LocatorSymbolBuilder;
-    export type Builder = Builders.LocatorSymbolBuilder;
-  }
-  export namespace OfSingleton {
-    export const Data = LocatorSingletonData;
-    export type Data = LocatorSingletonData;
-    export declare const Builder: typeof Builders.LocatorSingletonBuilder;
-    export type Builder = Builders.LocatorSingletonBuilder;
-  }
-  export namespace OfRelation {
-    export const Data = LocatorRelationData;
-    export type Data = LocatorRelationData;
-    export declare const Builder: typeof Builders.LocatorRelationBuilder;
-    export type Builder = Builders.LocatorRelationBuilder;
-  }
-}
-
-/** A symbol's locator: a root, a symbol among `before` or a singleton's schema, then hops, each through a named
- * adjacency of the schema the object before has, where it is known, to a link of its relation other than the one the
- * adjacency fills, matching properties the relation's entries have. */
-function locatorProblems(locator: unknown, before: ReadonlyMap<string, SymbolData>): string[] {
-  if (!(locator instanceof LocatorSymbolData || locator instanceof LocatorSingletonData)) {
-    return ["a locator starts at a symbol or a singleton: Locators.OfSymbol or Locators.OfSingleton"];
-  }
-  const problems: string[] = [];
-  if (locator instanceof LocatorSymbolData) {
-    if (!before.has(locator.name)) {
-      problems.push(`a locator starts at symbol ${repr(locator.name)}, which the pattern does not declare before it`);
-    }
-    if (!(locator.schema instanceof ObjectData && locator.schema.ref)) problems.push("a locator's symbol has a reference object schema");
-  } else if (!(locator.schema instanceof ObjectData && locator.schema.singleton !== null)) {
-    problems.push("a locator's singleton is a singleton's schema");
-  }
-  let current: unknown = locator.schema;
-  let hop: unknown = locator.next;
-  let step = 0;
-  while (hop !== null) {
-    step += 1;
-    const where = `hop ${step}: `;
-    if (!(hop instanceof LocatorRelationData)) {
-      problems.push(`${where}only a locator's root is a symbol or a singleton; each hop is a Locators.OfRelation`);
-      break;
-    }
-    const relation = hop.schema;
-    if (!(relation instanceof RelationData)) {
-      problems.push(`${where}a hop's schema is a relation`);
-      break;
-    }
-    const adjacency = current instanceof ObjectData ? current.adjacencies.get(hop.adjacency) ?? null : null;
-    if (current instanceof ObjectData && (adjacency === null || adjacency.relation !== relation)) {
-      problems.push(`${where}${repr(current.name)} has no adjacency ${repr(hop.adjacency)} to ${repr(relation.name)}: a locator `
-        + "traverses named adjacencies");
-    }
-    if (!relation.entry.links.has(hop.link) || (adjacency !== null && hop.link === adjacency.me)) {
-      problems.push(`${where}${repr(hop.link)} is not a link of ${repr(relation.name)} to the next object`);
-    }
-    const unknown = sortedStrings(new Set([...hop.properties.keys()].filter((name) => !relation.entry.properties.has(name))));
-    if (unknown.length > 0) problems.push(`${where}${repr(relation.name)} has no properties ${repr(unknown)}`);
-    current = relation.entry.links.get(hop.link)?.schema ?? null;
-    hop = hop.next;
-  }
-  return problems;
-}
-
 // --- OfVariable: a name standing for a value ---
 
 /** A name standing for a value: a pattern's variable, which a frame assigns a value of its schema. */
@@ -1135,12 +1011,7 @@ class PatternData {
       const clashes = [...first.keys()].filter((name) => second.has(name));
       if (clashes.length > 0) problems.push(`names used as both ${plural}: ${repr(sortedStrings(new Set(clashes)))}`);
     }
-    const before = new Map<string, SymbolData>();
-    for (const [name, symbol] of this.symbols) {
-      problems.push(...symbolProblems(symbol).map((p) => `symbol ${repr(name)}: ${p}`));
-      if (symbol.locator !== null) problems.push(...locatorProblems(symbol.locator, before).map((p) => `symbol ${repr(name)}: ${p}`));
-      before.set(name, symbol);
-    }
+    for (const [name, symbol] of this.symbols) problems.push(...symbolProblems(symbol).map((p) => `symbol ${repr(name)}: ${p}`));
     for (const [name, variable] of this.variables) {
       problems.push(...variableProblems(variable).map((p) => `variable ${repr(name)}: ${p}`));
     }

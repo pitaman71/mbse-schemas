@@ -90,6 +90,64 @@ mbse-expressions will also introduce the ability to register native functions ("
 
 PROPERTY [Expressions.Framework.Intrinsic] Expressions.Framework.HasNative(cb: Callable) # should be named reference objs
 
+## Injection
+
+Standardize the schema registration mechanism 
+
+```python
+# Locators.py
+
+def install(txn):
+    """This module's schemas, defined in the store a transaction writes: `store.transaction(Locators.install)`."""
+    return (txn
+        .uid("mbse.Schemas.Locators/1")  # fixed, not random (Object identity, Decided, 42): installing again finds them
+        .mutations([lambda mu: mu        # OfAll, the one root term
+            .over([lambda p: p
+                .symbols([lambda s: s.name("root").schema([txn.Schemas.OfModule])])  # the root module: see note 1
+            ])
+            .then(lambda up: up          # OfUpsert: each symbol found by its spec, else created and the spec written
+                .exists([lambda p: p
+                    .symbols([lambda s: s.name("OfSymbol").schema([txn.Schemas.OfObject])])
+                    .spec([lambda _: _.OfSymbol
+                        .name("Locators.OfSymbol")  # its path: the module Locators, made as needed, then OfSymbol
+                        .ref(True)
+                        .properties([lambda t: t.name("name").schema([txn.Schemas.OfStr])])
+                    ])
+                ])
+            )
+        ])
+    )
+```
+
+*Fixed by the agent (2026-10-20), for review:*
+
+- **The terms** are written as in the transaction syntax settled for 4e (Object identity, Decided, 76 to 78):
+  `.mutations([...])` holds the one root term, `OfAll` (`.over`); its `.then` is an `OfUpsert` (`.exists`). There is
+  no `as_all`/`as_upsert`, and `requires` takes constraints, which a definition does not need: what the schema must be
+  is its `spec`.
+- **No module builder.** There is no `Mutations.OfModule` nor `children`: a module's adjacency is `schemas`
+  (`Schemas.Defines`, keyed by name), and a named schema is placed in its module by its name (80), the module made as
+  needed. So the definition is one symbol of `txn.Schemas.OfObject` whose spec gives its name, and nothing writes
+  `Defines`.
+- **Schemas from the transaction:** `txn.Schemas.OfStr` (`OfString` does not exist), in a list, as every link is
+  (`.schema([...])`); `store` is not in scope, and `txn.Schemas.<name>` names any schema (78).
+- **Lists for relations:** `.over([...])`, `.exists([...])`, `.symbols([...])`, `.spec([...])` take the peer shorthand;
+  called with a callback instead, each would hand over the adjacency. (Your draft of 2026-10-20 had `.over(lambda p:
+  ...)`, which this makes `.over([lambda p: ...])`.)
+- **`install` returns the transaction builder**, so that `store.transaction(Locators.install)` runs it; the name has no
+  underscores, since it is the module's public entry point.
+
+Open points:
+
+1. **What `over` binds.** An `OfAll` needs a singleton (77), and the root module is not one: `Schemas.OfModule` has
+   many instances. Either the root module becomes the singleton of a schema of its own (`Schemas.OfRootModule`,
+   refining `Schemas.OfModule`, singleton `Schemas.Root`), or an `OfAll` over no symbol is allowed for a transaction
+   that only upserts by spec.
+2. **Locators are superseded** (76): this example would install a schema that no longer exists; the mechanism is the
+   same for any module (mbse-expressions' `Expressions.Framework`, say).
+3. **Extending an existing schema** (`store.extend`) would be the same transaction, with the existing schema's spec
+   adding members; the check that an extension only adds (the rules above) would apply to what that spec writes.
+
 ## Decided
 
 As the user decided (2026-10-15), on the questions put to them:

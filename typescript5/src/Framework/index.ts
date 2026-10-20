@@ -4,7 +4,7 @@
  * Objects, relations whose entries carry properties, unions and intersections. One schema value drives in-memory
  * objects (`Proxies`), JSON and YAML (`Plain`, `JSON`, `YAML`), validation (`Validators`) and comparison
  * (`Comparison`). Schemas are built in a store (`Builders.Store`), and a store is written as a log of mutations
- * (`Mutations`).
+ * (`Mutations`); its writes are mutation expressions over frames (`Transactions`).
  *
  * For AI agents: read `skill/SKILL.md` at the root of this package first. It says when to use this package, the
  * practices that prevent most mistakes, and which reference to load for a task. The design is in docs/FRAMEWORK.md at
@@ -25,6 +25,7 @@ export * as Repr from "./Repr.js";
 export * as Schemas from "./Schemas.js";
 export * as Specs from "./Specs.js";
 export * as Stores from "./Stores.js";
+export * as Transactions from "./Transactions.js";
 export * as Validators from "./Validators.js";
 export * as Visitors from "./Visitors.js";
 export * as YAML from "./YAML.js";

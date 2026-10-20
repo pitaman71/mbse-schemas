@@ -29,15 +29,22 @@ type UnionData = S.OfUnion.Data;
 
 type Spec = (t: any) => any;
 
-/** What `schemas` builds with: the builders, and the store's basic scalars `Text` (`Schemas.OfStr`) and `Int`. */
+/** What `schemas` builds with: the builders, the store's basic scalars `Text` (`Schemas.OfStr`), `Int` and `Bool`, its
+ * `Paths.OfRoot` (`Path`), and its meta-schemas `Pattern`, `Collector` and `Expression` (`Schemas.OfPattern`, ...). */
 interface Kit {
+  AdjacencyBuilder: typeof Builders.AdjacencyBuilder;
   AnyValueBuilder: typeof Builders.AnyValueBuilder;
   ContainerBuilder: typeof Builders.ContainerBuilder;
   ObjectBuilder: typeof Builders.ObjectBuilder;
+  RelationBuilder: typeof Builders.RelationBuilder;
   UnionBuilder: typeof Builders.UnionBuilder;
   Text: S.OfScalar.Data;
   Int: S.OfScalar.Data;
+  Bool: S.OfScalar.Data;
   Path: ObjectData;
+  Pattern: ObjectData;
+  Collector: ObjectData;
+  Expression: ObjectData;
 }
 
 let kit!: Kit; // the builders `schemas` builds with, set as it begins
@@ -71,14 +78,15 @@ function branches(of: UnionData, members: [string, unknown][]): void {
 
 /** The mutation schemas, built anew with `builders` for a store whose basic scalars they are given: by name, each
  * `Mutations.<name>`'s local name (`Log`, `Ref`, ...). */
-export function schemas(builders: Kit): Record<string, ObjectData | UnionData | S.OfContainer.Data> {
+export function schemas(builders: Kit): Record<string, ObjectData | UnionData | S.OfContainer.Data | S.OfRelation.Data> {
   kit = builders;
   const { AnyValueBuilder, ContainerBuilder, Int, ObjectBuilder, Path, Text } = builders;
   const Payload = new AnyValueBuilder().create();
 
-  const Ref = verb( // an object by its path: a schema object's from the root module (docs/OBJECT_IDENTITY.md, Decided, 81)
-    "OfObject.Ref",
+  const Ref = verb( // an object by its path, a schema object's from the root module (docs/OBJECT_IDENTITY.md, Decided, 81),
+    "OfObject.Ref", // or, within a pattern's spec, by the symbol that binds it (95)
     (t) => t.name("path").schema([Path]),
+    text("symbol"),
   );
   const Def = verb( // its path, but where it is linked; its schema's name (a schema object's kind's); its properties
     "OfObject.Def",
@@ -176,6 +184,51 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
   branches(OfEntryMember, [["as_property", EntryAsProperty], ["as_link", EntryAsLink]]);
   const Log = new ContainerBuilder().name("Mutations.Log").index([Int]).element([Reference]).create();
 
+  // --- Mutation expressions: a transaction and its terms, reference objects linked by relations (93) ---
+
+  /** A kind of term, `Mutations.<name>`: a reference object schema of `properties`. */
+  const term = (name: string, ...properties: Spec[]): ObjectData =>
+    new kit.ObjectBuilder().name(`Mutations.${name}`).ref(true).properties(properties).create();
+  /** A relation, `Mutations.<name>`, from `first` to `second`, whose schema is `schema`: an object of `first` holds one
+   * entry of it at most where `one`, else a list. */
+  const relation = (name: string, first: string, second: string, schema: unknown, one = true): S.OfRelation.Data =>
+    new kit.RelationBuilder().name(`Mutations.${name}`).links([(t: any) => t.name(first), (t: any) => t.name(second).schema([schema])])
+      .uniques(one ? [[second]] : []).create();
+  const bool = (name: string): Spec => (t: any) => t.name(name).schema([kit.Bool]);
+
+  const OfTerm = union("OfTerm"); // a kind union (97): its branches, given below, are the kinds of term
+  const OfTransaction = term("OfTransaction", text("uid")); // the root: its uid, given by the program (42), and one term
+  const OfMap = term("OfMap");
+  const OfReduce = term("OfReduce");
+  const OfPartition = term("OfPartition", bool("first"), bool("last"));
+  const OfBranch = term("OfBranch");
+  const OfUpdate = term("OfUpdate");
+  const OfUpsert = term("OfUpsert", text("key"));
+  const HasRoot = relation("HasRoot", "transaction", "term", OfTerm);
+  const Then = relation("Then", "term", "next", OfTerm);
+  const MapsSymbols = relation("MapsSymbols", "term", "pattern", kit.Pattern);
+  const MapsVariables = relation("MapsVariables", "term", "pattern", kit.Pattern);
+  const ReducesSymbols = relation("ReducesSymbols", "term", "collector", kit.Collector);
+  const ReducesVariables = relation("ReducesVariables", "term", "collector", kit.Collector);
+  const Branching = relation("Branching", "partition", "branch", OfBranch, false);
+  const Otherwise = relation("Otherwise", "partition", "next", OfTerm);
+  const Requiring = relation("Requiring", "branch", "constraint", kit.Expression, false);
+  const Applies = relation("Applies", "term", "pattern", kit.Pattern);
+  const Existing = relation("Exists", "term", "pattern", kit.Pattern); // not `Exists`, the verb's
+  branches(OfTerm, [["map", OfMap], ["reduce", OfReduce], ["partition", OfPartition], ["update", OfUpdate], ["upsert", OfUpsert]]);
+  /** Gives `kind` its adjacencies: each a name, a relation, and the link `kind` fills. */
+  const adjacencies = (kind: ObjectData, ...named: [string, S.OfRelation.Data, string][]): void => {
+    new kit.ObjectBuilder(kind).adjacencies(named.map(([name, of, me]) => (t: any) => t.name(name).adjacency(
+      new kit.AdjacencyBuilder().relation([of]).me(me).create()))).update();
+  };
+  adjacencies(OfTransaction, ["mutations", HasRoot, "transaction"]);
+  adjacencies(OfMap, ["symbols", MapsSymbols, "term"], ["variables", MapsVariables, "term"], ["then", Then, "term"]);
+  adjacencies(OfReduce, ["symbols", ReducesSymbols, "term"], ["variables", ReducesVariables, "term"], ["then", Then, "term"]);
+  adjacencies(OfPartition, ["branches", Branching, "partition"], ["none", Otherwise, "partition"], ["then", Then, "term"]);
+  adjacencies(OfBranch, ["requires", Requiring, "branch"], ["then", Then, "term"]);
+  adjacencies(OfUpdate, ["apply", Applies, "term"], ["then", Then, "term"]);
+  adjacencies(OfUpsert, ["exists", Existing, "term"], ["then", Then, "term"]);
+
   return {
     Ref,
     Def,
@@ -219,5 +272,24 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
     RelationClear,
     AsEntries,
     Log,
+    OfTerm,
+    OfTransaction,
+    OfMap,
+    OfReduce,
+    OfPartition,
+    OfBranch,
+    OfUpdate,
+    OfUpsert,
+    HasRoot,
+    Then,
+    MapsSymbols,
+    MapsVariables,
+    ReducesSymbols,
+    ReducesVariables,
+    Branching,
+    Otherwise,
+    Requiring,
+    Applies,
+    Existing,
   };
 }

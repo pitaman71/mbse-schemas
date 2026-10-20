@@ -30,6 +30,7 @@ import { AttributeError, KeyError, LookupError, ReadOnlyError, ValueError } from
 import * as Mutations from "./Mutations.js";
 import * as Paths from "./Paths.js";
 import * as PlainModule from "./Plain.js";
+import * as Transactions from "./Transactions.js";
 import * as Proxies from "./Proxies.js";
 import { _Dunders as Dunders, _innerOf as innerOf, _makeEmpty as makeEmpty, _makeProperties as makeProperties,
   _Shelled as Shelled, _shell as shell } from "./Proxies.js";
@@ -612,9 +613,11 @@ class AdjacencyMember extends Shelled {
       visit(spec, this._proxy);
       return this._builder._proxy;
     }
-    if (typeof spec === "string" || spec instanceof Uint8Array || spec instanceof Map || !Proxies._iterable(spec)) {
-      throw new TypeError(`${repr(this._members.name)} takes an iterable of what it links, or of entries, or a callback `
-        + `taking the adjacency; got ${repr(spec)}`);
+    const items = Proxies._mapping(spec);
+    if (items !== null) spec = this._keyed(items);
+    if (typeof spec === "string" || spec instanceof Uint8Array || !Proxies._iterable(spec)) {
+      throw new TypeError(`${repr(this._members.name)} takes an iterable of what it links, or of entries, a mapping, or a `
+        + `callback taking the adjacency; got ${repr(spec)}`);
     }
     this._builder._check();
     for (let item of spec) {
@@ -644,6 +647,30 @@ class AdjacencyMember extends Shelled {
       this._store(this._members.one ? [referent] : [...held, referent]);
     }
     return this._builder._proxy;
+  }
+
+  /** A mapping, as the peer shorthand: each item an entry, its key the value of the relation's one property, its value
+   * given to the entry (FRAMEWORK.md, Resolved, Mappings for keyed adjacencies). */
+  _keyed(items: [unknown, unknown][]): unknown[] {
+    const relation = this.as_schema().relation;
+    if (relation.entry.links.size !== 2 || relation.entry.properties.size !== 1) {
+      throw new TypeError(`${repr(this._members.name)} takes a mapping only where its relation has two links and one property`);
+    }
+    const key = [...relation.entry.properties.keys()][0] as string;
+    const members = this._members;
+    const builderClass: any = members.build !== null ? members._builderClass() : null;
+    const plain: any = this._builder._store !== null ? this._builder._store._meta : TEMPLATE;
+    const objectMeta = builderClass !== null ? plain[builderClass._meta] : null;
+    return items.map(([name, value]) => (them: any) => {
+      them[key](name);
+      const given = Proxies._deref(value);
+      const takers: [string, boolean, boolean][] = objectMeta === null || isFunction(given) ? [] : [...builderClass._table]
+        .filter(([memberName]: [string, unknown]) => memberName !== key)
+        .map(([memberName, member]: [string, any]): [string, boolean, boolean] => [memberName, member instanceof Members,
+          member instanceof Members ? member.links(given)
+            : objectMeta.properties.has(memberName) && Proxies._holds(objectMeta.properties.get(memberName).schema, given)]);
+      Proxies._given(them, given, members.link, !isFunction(given) && members.accepts(given), takers);
+    });
   }
 
   override _repr(): string {
@@ -1476,6 +1503,18 @@ export class PatternBuilder extends KindBuilder {
     requires: new Members("constraint", { accepts: isA(S.OfExpression.Data), build: "ConstraintBuilder", owned: true,
       ...inOrder("requires") }),
   });
+
+  /** What must hold of a frame (docs/OBJECT_IDENTITY.md, Decided, 76, 95): each callback given, in order, is handed the
+   * frame, whose members are the symbols declared so far, each the visitor of the object it binds, which records what it
+   * is given; its record, a `Mutations.OfPattern` as plain data, is added to the pattern's. */
+  spec(specs: unknown): any {
+    this._check();
+    if (this._store === null) throw new TypeError("a spec is written in a store, whose schemas its symbols name");
+    const items = isFunction(specs) ? [specs] : [...(specs as Iterable<unknown>)];
+    const recorded = items.map((item) => Transactions._recorded(this._store, this._working.symbols, item));
+    this._working.spec = [...this._working.spec, ...recorded];
+    return this._proxy;
+  }
 }
 
 /** An expression: the pattern it ranges over, and the schema of its result; its terms are mbse-expressions'. */
@@ -1938,16 +1977,22 @@ export class Store extends Proxies._Store {
   [name: string]: any;
   /** The schema objects it holds. */
   readonly _objects = new Set<unknown>();
+  /** Those with no name of their own, held while what links them is (docs/OBJECT_IDENTITY.md, Decided, 94): a term's
+   * pattern goes with its transaction. */
+  readonly _unnamed = new WeakSet<object>();
   /** What links each object with no name of its own, and how. */
-  readonly _linkers = new Map<unknown, [any, Members]>();
+  readonly _linkers = new WeakMap<object, [any, Members]>();
   /** Its plain schemas of schemas and basic scalars, its own. */
   readonly _meta: Plain;
   /** The schemas it was made holding. */
   readonly _framework: Set<unknown>;
   /** The members its extensions added to builders, by builder class. */
   readonly _added = new Map<unknown, Table>();
-  /** The schema objects held when an extension began, while it runs. */
-  _extending: Set<unknown> | null = null;
+  /** How many schema objects were held when an extension began, while it runs: those are its to check. */
+  _extending: number | null = null;
+  /** When each schema object was first held, in order: those held when an extension began are its to extend only. */
+  readonly _heldAt = new WeakMap<object, number>();
+  _held = 0;
   /** The modules, by path; the root module's is "". */
   readonly _modules = new Map<string, ModuleData>();
   /** Each schema's module, and its name there. */
@@ -1959,8 +2004,10 @@ export class Store extends Proxies._Store {
     this._meta = plainSchemas(); // its plain schemas of schemas and basic scalars, its own
     const paths = Paths.schemas({ AnyValueBuilder, ContainerBuilder, ObjectBuilder, UnionBuilder, Text: this._meta.OfStr,
       Int: this._meta.OfInt, Bool: this._meta.OfBool });
-    const mutations = Mutations.schemas({ AnyValueBuilder, ContainerBuilder, ObjectBuilder, UnionBuilder,
-      Text: this._meta.OfStr, Int: this._meta.OfInt, Path: paths.OfRoot as S.OfObject.Data });
+    const mutations = Mutations.schemas({ AdjacencyBuilder, AnyValueBuilder, ContainerBuilder, ObjectBuilder, RelationBuilder,
+      UnionBuilder, Text: this._meta.OfStr, Int: this._meta.OfInt, Path: paths.OfRoot as S.OfObject.Data,
+      Bool: this._meta.OfBool, Pattern: this._meta.OfPattern, Collector: this._meta.OfCollector,
+      Expression: this._meta.OfExpression });
     const framework = [...Object.values(this._meta), ...Object.values(mutations), ...Object.values(paths)] as (ObjectData | RelationData)[];
     for (const schema of framework) this._register(schema);
     const reached: unknown[] = [...framework];
@@ -1968,8 +2015,9 @@ export class Store extends Proxies._Store {
       const schema = reached.pop();
       if (this._objects.has(schema)) continue;
       this._objects.add(schema);
+      this._heldAt.set(schema as object, this._held++);
       for (const [referent, members] of this._referents(schema)) {
-        if (!this._linkers.has(referent)) this._linkers.set(referent, [schema, members]);
+        if (!this._linkers.has(referent as object)) this._linkers.set(referent as object, [schema, members]);
         reached.push(referent);
       }
     }
@@ -2046,7 +2094,7 @@ export class Store extends Proxies._Store {
 
   /** What links an object with no name of its own, and through which adjacency, while it links it still. */
   _linker(data: unknown): [any, Members] | null {
-    const found = this._linkers.get(data);
+    const found = this._linkers.get(data as object);
     if (found === undefined || !found[1].referents(found[0]).includes(data)) return null;
     return found;
   }
@@ -2061,13 +2109,13 @@ export class Store extends Proxies._Store {
         throw new ValueError(`${(builderFor(referent) as unknown as typeof Builder)._noun} with no name of its own is linked `
           + "by one schema object alone, and another links it already: name it to share it");
       }
-      this._linkers.set(referent, [data, members]);
+      this._linkers.set(referent as object, [data, members]);
     }
   }
 
   /** Whether the store holds the schema object `data`. */
   holds(data: unknown): boolean {
-    return this._objects.has(data);
+    return this._objects.has(data) || this._unnamed.has(data as object);
   }
 
   /** The store's owned objects by their paths (docs/OBJECT_IDENTITY.md, Decided, 26): `store.Instances.<a
@@ -2095,7 +2143,7 @@ export class Store extends Proxies._Store {
    * is the store's own. Refused, a change to a schema throws before it is written, but what was written before it
    * stays: a refused extension is a program error. */
   extend(cb: unknown): this {
-    this._extending = new Set(this._objects);
+    this._extending = this._held;
     const before = new Map<unknown, [Set<string>, Set<string>]>();
     for (const meta of Object.values(this._meta)) {
       if (meta instanceof S.OfObject.Data) before.set(meta, [new Set(meta.properties.keys()), new Set(meta.adjacencies.keys())]);
@@ -2117,7 +2165,7 @@ export class Store extends Proxies._Store {
       throw new TypeError(`${shown(original)} is one of the schemas the store was made holding: extend it with `
         + "store.extend");
     }
-    if (this._extending !== null && this._extending.has(original)) {
+    if (this._extending !== null && (this._heldAt.get(original) as number) < this._extending) { // one never held: false
       const problems = extensionProblems(builder);
       if (problems.length > 0) throw new TypeError(`an extension only adds members to ${shown(original)}: it ${problems.join("; ")}`);
     }
@@ -2154,7 +2202,14 @@ export class Store extends Proxies._Store {
         + "store.Schemas.OfBool, OfInt, OfFloat, OfStr and OfBytes");
     }
     this._link(data);
-    this._objects.add(data);
+    if (!this._heldAt.has(data)) this._heldAt.set(data, this._held++);
+    if (_named(data)) {
+      this._objects.add(data);
+      this._unnamed.delete(data);
+    } else { // renamed, or its name cleared
+      this._unnamed.add(data);
+      this._objects.delete(data);
+    }
     HELD_BY.set(data, this); // its store, which gives its path (`Paths.of`)
     if (S._defined(data)) {
       for (const [name, schema] of [...this._schemas]) {
@@ -2172,6 +2227,21 @@ export class Store extends Proxies._Store {
       this._place(data);
     }
     return data;
+  }
+
+  /** A builder of a schema object of the meta-schema registered as `name`, new or `target` updated, as a link builds one
+   * (docs/OBJECT_IDENTITY.md, Decided, 97); null where `name` is not a meta-schema. */
+  _meta_builder(name: string, target: unknown = null): any {
+    const local = name.startsWith("Schemas.") ? name.slice("Schemas.".length) : "";
+    const kind = _META_BUILDERS.get(local);
+    const registered = this._schemas.get(name);
+    if (kind === undefined || registered === undefined || registered !== (this._meta as any)[local]) return null;
+    return new kind(target, true, this);
+  }
+
+  /** The builder of a schema object. */
+  _meta_builder_class(target: unknown): any {
+    return builderFor(target);
   }
 
   _build(name: string, args: unknown[]): any {

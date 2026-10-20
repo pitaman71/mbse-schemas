@@ -155,7 +155,11 @@ class _Store(Stores.Catalog):
         return _read(instance, name)
 
     def _filled(self, relation: RelationSchema, link: str) -> str:
-        """The name of the one object schema that declares an adjacency to `relation` via `link`."""
+        """The name of the schema of what `link` links: the reference object schema the link declares, else the one object
+        schema that declares an adjacency to `relation` via `link`."""
+        declared = relation.entry.links[link].schema
+        if isinstance(declared, ObjectSchema) and declared.ref:
+            return self.name_of(declared)
         names = self._filling(relation, link)
         if len(names) != 1:
             raise TypeError(f"expected exactly one object schema filling link {link!r}, found {names}")
@@ -1723,6 +1727,88 @@ class _RecordBuilder(_Unassignable):
         return self.build()
 
 
+def _is_builder(value: Any) -> bool:
+    """Whether a link holds a builder, finalized when the entry is: a proxy's, or a schema object's (a meta-schema's)."""
+    return callable(getattr(type(value), "create", None)) and callable(getattr(type(value), "update", None))
+
+
+def _builder_of(store: Any, name: str, target: Any = None) -> Any:
+    """A builder of an object of the schema registered as `name`, new or `target` updated: a meta-schema's builder for a
+    schema object (docs/OBJECT_IDENTITY.md, Decided, 97), else a proxy's."""
+    built = store._meta_builder(name, target)
+    return built if built is not None else _ObjectBuilder(store, store.schema(name), name, target)
+
+
+def _schema_name_of(store: Any, target: Any) -> str:
+    """The registered name of a linked object's schema: a proxy's, or a schema object's meta-schema's."""
+    if isinstance(target, _ObjectData):
+        return target._schema_name
+    return store.name_of(store._meta_builder_class(target)(target, False, store).as_schema())
+
+
+def _link_kinds(relation: RelationSchema, link: str) -> dict[str, Any] | None:
+    """The kinds a link may link, by branch name, where its schema is a kind union."""
+    return Schemas._kinds(relation.entry.links[link].schema)
+
+
+def _schema_of(store: Any, value: Any) -> Any:
+    """The schema of what `value` is, where it is an object a link may link: a proxy's schema, a schema object's
+    meta-schema, or the schema of the object a spec's visitor records; None for a value."""
+    recorded = getattr(type(value), "_linked_schema", None)
+    if recorded is not None:  # a spec's visitor of the object a symbol binds (Transactions)
+        return value._linked_schema
+    value = _deref(value)
+    if isinstance(value, _ObjectData):
+        return value._schema
+    if store.holds(value):
+        return store._meta_builder_class(value)(value, False, store).as_schema()
+    return None
+
+
+def _links(store: Any, relation: Any, link: str, value: Any) -> bool:
+    """Whether `link` of `relation` may link `value`: an object of the link's schema, of a kind of its kind union, or
+    of a schema declaring an adjacency that fills it."""
+    schema = _schema_of(store, value)
+    if schema is None:
+        return False
+    declared = relation.entry.links[link].schema
+    kinds = Schemas._kinds(declared)
+    if kinds is not None:
+        return any(Schemas.is_a(schema, kind) for kind in kinds.values())
+    if declared is not None:
+        return Schemas.is_a(schema, declared)
+    return any(Schemas.is_a(schema, store.registered(name)) for name in store._filling(relation, link))
+
+
+def _links_through(store: Any, adjacency: Any, value: Any) -> bool:
+    """Whether an adjacency's entries may link `value` at their other link."""
+    relation = adjacency.relation
+    others = [link for link in relation.entry.links if link != adjacency.me] if relation is not None else []
+    return len(others) == 1 and _links(store, relation, others[0], value)
+
+
+def _holds(schema: Any, value: Any) -> bool:
+    """Whether a property of `schema` holds `value` as given: a scalar of its scalar's host type."""
+    return isinstance(schema, Schemas.OfScalar.Data) and type(value) is getattr(schema, "type", None)
+
+
+def _given(them: Any, value: Any, link: str, link_takes: bool, members: Any) -> None:
+    """Gives a keyed mapping's value to the peer shorthand's visitor of one entry, its key written (FRAMEWORK.md,
+    Resolved, Mappings for keyed adjacencies): a callback is called with it; any other value goes to the one member that
+    accepts it, the entry's link (`link_takes`) or one of the linked object's properties and adjacencies (`members`, each
+    a name, and whether it is an adjacency and takes the value)."""
+    if _is_function(value):
+        _visit(value, them)
+        return
+    takers = [(link, False)] if link_takes else []
+    takers += [(name, adjacency) for name, adjacency, takes in members if takes]
+    if len(takers) != 1:
+        raise TypeError(f"{'no member' if not takers else 'more than one member'} of the entry takes {value!r}: give a "
+                        "callback")
+    name, adjacency = takers[0]
+    getattr(them, name)([value] if adjacency else value)
+
+
 class _AdjacencyBuilder(_Unassignable):
     """A writable `Visitors.OfAdjacency` over one adjacency of an object's builder: iterated, its entries' builders."""
 
@@ -1766,9 +1852,11 @@ class _AdjacencyBuilder(_Unassignable):
         if _is_function(spec):
             _visit(spec, self)
             return self._builder
-        if isinstance(spec, (str, bytes, Mapping)) or not isinstance(spec, Iterable):
-            raise TypeError(f"adjacency {self._name!r} takes an iterable of entries or of what it links, or a callback "
-                            f"taking the adjacency; got {spec!r}")
+        if isinstance(spec, Mapping):
+            spec = self._keyed(spec)
+        if isinstance(spec, (str, bytes)) or not isinstance(spec, Iterable):
+            raise TypeError(f"adjacency {self._name!r} takes an iterable of entries or of what it links, a mapping, or a "
+                            f"callback taking the adjacency; got {spec!r}")
         relation = self._schema.relation
         others = [link for link in relation.entry.links if link != self._schema.me]
         for item in spec:
@@ -1790,6 +1878,33 @@ class _AdjacencyBuilder(_Unassignable):
         return self._builder
 
 
+    def _keyed(self, mapping: Mapping[Any, Any]) -> list[Any]:
+        """A mapping, as the peer shorthand: each item an entry, its key the value of the relation's one property, its
+        value given to the entry (FRAMEWORK.md, Resolved, Mappings for keyed adjacencies)."""
+        relation, store = self._schema.relation, self._builder._store
+        keys = list(relation.entry.properties)
+        if len(relation.entry.links) != 2 or len(keys) != 1:
+            raise TypeError(f"adjacency {self._name!r} takes a mapping only where its relation has two links and one "
+                            "property")
+        other = next(link for link in relation.entry.links if link != self._schema.me)
+
+        def item(key: Any, value: Any) -> Any:
+            def write(them: _Them) -> None:
+                getattr(them, keys[0])(key)
+                if _is_function(value):
+                    _visit(value, them)
+                    return
+                given = _deref(value)
+                schema = None if _link_kinds(relation, other) is not None else store.registered(store._filled(relation, other))
+                members = [] if schema is None else [
+                    *((name, False, _holds(prop.schema, given)) for name, prop in schema.properties.items()),
+                    *((name, True, _links_through(store, adjacency, given)) for name, adjacency in schema.adjacencies.items())]
+                _given(them, given, other, _links(store, relation, other, given), members)
+            return write
+
+        return [item(key, value) for key, value in mapping.items()]
+
+
 def _single(relation: RelationSchema, me: str) -> bool:
     """Whether an object holds one entry of `relation` at most from its link `me`: a `unique` clause makes `me`
     determine every other link and property."""
@@ -1806,19 +1921,23 @@ class _Them(_Unassignable):
     def __init__(self, adjacency: _AdjacencyBuilder, other: str):
         self._adjacency, self._other = adjacency, other
         self._entry = _EntryBuilder(adjacency._schema.relation, adjacency._schema.me, adjacency._builder._store)
-        self._object: _ObjectBuilder | None = None
+        self._object: Any = None  # the linked object's builder: a proxy's, or a meta-schema's
 
     def as_schema(self) -> Schemas.OfEntry.Data:
         return self._entry.as_schema()
 
-    def _builder(self) -> _ObjectBuilder:
+    def _builder(self) -> Any:
         if self._object is None:
             store, target = self._entry._store, self._entry._links.get(self._other)
-            if isinstance(target, _ObjectBuilder):
+            if _is_builder(target):
                 self._object = target
             else:
-                name = store._filled(self._entry._relation, self._other) if target is None else target._schema_name
-                self._object = _ObjectBuilder(store, store.schema(name), name, target)
+                kinds = _link_kinds(self._entry._relation, self._other)
+                if kinds is not None and target is None:
+                    raise TypeError(f"link {self._other!r} is a kind union: build through one of its kinds, "
+                                    f"{', '.join(kinds)}")
+                name = store._filled(self._entry._relation, self._other) if target is None else _schema_name_of(store, target)
+                self._object = _builder_of(store, name, target)
         return self._object
 
     def __getattr__(self, name: str) -> Any:
@@ -1826,12 +1945,15 @@ class _Them(_Unassignable):
             raise AttributeError(name)
         if name == self._other or name in self._entry._relation.entry.properties:
             return _Chained(getattr(self._entry, name), self, name == self._other)
+        kinds = _link_kinds(self._entry._relation, self._other)
+        if kinds is not None and name in kinds:
+            return _Chained(_KindMember(self._entry, self._other, kinds[name]), self, True)
         return _Chained(getattr(self._builder(), name), self, False)
 
     def _entry_builder(self) -> _EntryBuilder:
         """The entry: linking the object given, updated where its members were written, or the one built."""
         builder, target = self._object, self._entry._links.get(self._other)
-        if builder is not None and builder is not target:
+        if builder is not None and builder is not target and not _is_builder(target):
             if target is None:
                 self._entry._links[self._other] = builder
             else:
@@ -1871,8 +1993,8 @@ class _LinkMember(_Unassignable):
 
     def _target(self) -> Any:
         target = self._entry._links.get(self._name)
-        if isinstance(target, _ObjectBuilder):
-            return target._source if target._source is not None else _Empty("not created yet")
+        if _is_builder(target):
+            return _Empty("not created yet")  # what an entry builds through its link is created with the entry
         return target if target is not None else _Empty(f"link {self._name!r} is not set")
 
     def as_schema(self) -> Any:
@@ -1894,9 +2016,11 @@ class _LinkMember(_Unassignable):
     def __call__(self, spec: Any) -> _EntryBuilder:
         entry, name = self._entry, self._name
         if _is_function(spec):
+            kinds = _link_kinds(entry._relation, name)
+            if kinds is not None:
+                raise TypeError(f"link {name!r} is a kind union: build through one of its kinds, {', '.join(kinds)}")
             store = entry._store  # a link is a reference object's, built in a store
-            schema_name = store._filled(entry._relation, name)
-            builder = _ObjectBuilder(store, store.schema(schema_name), schema_name)
+            builder = _builder_of(store, store._filled(entry._relation, name))
             _visit(spec, builder)
             entry._links[name] = builder
             return entry
@@ -1915,6 +2039,28 @@ class _LinkMember(_Unassignable):
 
     def __repr__(self) -> str:
         return f"<link {self._name!r}>"
+
+
+class _KindMember(_Unassignable):
+    """A kind of a kind union, one of its branches, as an entry builder's member: called with a callback, it builds
+    through the link an object of that kind's schema; called with an object of that kind, it links it."""
+
+    def __init__(self, entry: _EntryBuilder, link: str, schema: ObjectSchema):
+        object.__setattr__(self, "_entry", entry)
+        object.__setattr__(self, "_link", link)
+        object.__setattr__(self, "_schema", schema)
+
+    def __call__(self, spec: Any) -> _EntryBuilder:
+        entry, store = self._entry, self._entry._store
+        if not _is_function(spec):
+            return _LinkMember(entry, self._link)(spec)
+        builder = _builder_of(store, store.name_of(self._schema))
+        _visit(spec, builder)
+        entry._links[self._link] = builder
+        return entry
+
+    def __repr__(self) -> str:
+        return f"<kind of link {self._link!r}>"
 
 
 class _EntryBuilder(_Unassignable):
@@ -1939,6 +2085,10 @@ class _EntryBuilder(_Unassignable):
         prop = self._relation.entry.properties.get(name)
         if prop is not None:
             return _Property(self._values, name, prop, self._store, self, True)
+        for link in self._relation.entry.links:  # a kind union's kind, built through its link
+            kinds = _link_kinds(self._relation, link) if link != self._me else None
+            if kinds is not None and name in kinds:
+                return _KindMember(self, link, kinds[name])
         return _Empty(f"{name!r} is not a link this entry can set, nor a property of the relation")
 
     def __repr__(self) -> str:
@@ -1968,7 +2118,7 @@ class _EntryBuilder(_Unassignable):
             if name not in self._links:
                 raise ValueError(f"link {name!r} is not set")
             value = self._links[name]
-            links[name] = value.create() if isinstance(value, _ObjectBuilder) else value
+            links[name] = value.create() if _is_builder(value) else value
         return _Entry(self._relation, links, _finalized(self._values))
 
 

@@ -79,6 +79,15 @@ function present(visitor: any): boolean {
 }
 
 /** A property's value as plain data, read through its visitor, and whether it has one. */
+/** What `value` needs to write a value, for a store: the names of the schemas of the values it holds. */
+export function _names(store: Stores.Store): Ref {
+  return new Snapshot(store).ref;
+}
+
+export function _value(read: Readers.OfProperty, schema: unknown, ref: Ref): [boolean, PlainData] {
+  return value(read, schema, ref);
+}
+
 function value(read: Readers.OfProperty, schema: unknown, ref: Ref): [boolean, PlainData] {
   const found: [boolean, PlainData][] = [];
   read.as_value((a) => found.push(anyValue(a, schema, ref)));

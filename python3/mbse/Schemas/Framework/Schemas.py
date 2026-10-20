@@ -277,14 +277,26 @@ class OfSymbol:
 
 
 def _symbol_problems(symbol: _SymbolData) -> list[str]:
-    """A symbol's schema, when it has one, is a reference object schema."""
+    """A symbol's schema, when it has one, is a reference object schema, or a kind union: a union of reference object
+    schemas, its branches naming the kinds of object it may stand for (docs/OBJECT_IDENTITY.md, Decided, 97)."""
     if symbol.schema is None:
         return _description_problems(symbol.description)
     problems = _validate(symbol.schema)
     target = symbol.schema
-    if not (isinstance(target, _ObjectData) and target.ref):
+    if isinstance(target, _UnionData):
+        if not all(isinstance(b.schema, _ObjectData) and b.schema.ref for b in target.branches):
+            problems.append("a kind union's branches are reference object schemas")
+    elif not (isinstance(target, _ObjectData) and target.ref):
         problems.append("a symbol stands for a reference object, so its schema is a reference object schema")
     return problems + _description_problems(symbol.description)
+
+
+def _kinds(schema: Any) -> dict[str, Any] | None:
+    """A kind union's branches' schemas, by name; None for any other schema (docs/OBJECT_IDENTITY.md, Decided, 97)."""
+    if isinstance(schema, _UnionData) and schema.branches and all(
+            isinstance(b.schema, _ObjectData) and b.schema.ref for b in schema.branches):
+        return {b.name: b.schema for b in schema.branches}
+    return None
 
 
 # --- OfEntry: the schema of a relation's entries ---
@@ -849,6 +861,7 @@ class _PatternData:
     name: str | None = None
     description: str | None = None
     parameters: dict[str, _ParameterData] = field(default_factory=dict)
+    spec: tuple[Any, ...] = ()  # what must hold of a frame: `Mutations.OfPattern`s, as plain data (Object identity, 95)
 
     def validate(self) -> list[str]:
         problems = (_name_problems(self.name) + _description_problems(self.description)

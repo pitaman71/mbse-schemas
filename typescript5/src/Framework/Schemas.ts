@@ -312,14 +312,29 @@ export namespace OfSymbol {
 }
 
 /** A symbol's schema, when it has one, is a reference object schema. */
+/** A symbol's schema, when it has one, is a reference object schema, or a kind union: a union of reference object
+ * schemas, its branches naming the kinds of object it may stand for (docs/OBJECT_IDENTITY.md, Decided, 97). */
 function symbolProblems(symbol: SymbolData): string[] {
   if (symbol.schema === null) return descriptionProblems(symbol.description);
   const problems = validateSchema(symbol.schema);
   const target = symbol.schema;
-  if (!(target instanceof ObjectData && target.ref)) {
+  if (target instanceof UnionData) {
+    if (!target.branches.every((b) => b.schema instanceof ObjectData && b.schema.ref)) {
+      problems.push("a kind union's branches are reference object schemas");
+    }
+  } else if (!(target instanceof ObjectData && target.ref)) {
     problems.push("a symbol stands for a reference object, so its schema is a reference object schema");
   }
   return [...problems, ...descriptionProblems(symbol.description)];
+}
+
+/** A kind union's branches' schemas, by name; null for any other schema (docs/OBJECT_IDENTITY.md, Decided, 97). */
+export function _kinds(schema: unknown): Map<string, ObjectData> | null {
+  if (schema instanceof UnionData && schema.branches.length > 0
+    && schema.branches.every((b) => b.schema instanceof ObjectData && b.schema.ref)) {
+    return new Map(schema.branches.map((b) => [b.name, b.schema as ObjectData]));
+  }
+  return null;
 }
 
 // --- OfEntry: the schema of a relation's entries ---
@@ -988,15 +1003,18 @@ class PatternData {
   name: string | null;
   description: string | null;
   parameters: Map<string, ParameterData>;
+  /** What must hold of a frame: `Mutations.OfPattern`s, as plain data (docs/OBJECT_IDENTITY.md, Decided, 95). */
+  spec: unknown[];
 
   constructor(fields: { symbols?: Map<string, SymbolData>; variables?: Map<string, VariableData>; requires?: ExpressionData[];
-    name?: string | null; description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
+    name?: string | null; description?: string | null; parameters?: Map<string, ParameterData>; spec?: unknown[] } = {}) {
     this.symbols = fields.symbols ?? new Map();
     this.variables = fields.variables ?? new Map();
     this.requires = fields.requires ?? [];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
     this.parameters = fields.parameters ?? new Map();
+    this.spec = fields.spec ?? [];
   }
 
   equals(other: unknown): boolean {

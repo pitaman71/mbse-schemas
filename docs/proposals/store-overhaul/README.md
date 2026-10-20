@@ -245,7 +245,28 @@ so that main stays current and no branch waits on another.
      `Mutations.OfProperty`, `Exists` and the relation verbs gone; `store.mutation(cb)`, its builders those a property
      call with a callback gives (58); a sequential executor over frames, upserts finding owned objects by path (60) and
      counted ones by frame, key and symbol through a weak index (61, 63); a transaction that raises undone entirely; every
-     write outside one refused (44), so every caller moves into transactions here.
+     write outside one refused (44), so every caller moves into transactions here. In two stages (88), 4e-1 in three
+     commits, each with both gates at 100%: the vocabulary and specs, the overlay (89, 96), and the executor with
+     `store.transaction`. The first, as built:
+     - a kind union (97): a link's schema may be a union of reference object schemas; the peer shorthand's visitor and
+       an entry builder have its branches as members, each building an object of its kind through the link, or linking
+       one given. A link that declares a reference object schema builds that one, and a data link to a schema object
+       (a term's pattern) builds it with its meta-schema's builder (`Store._meta_builder`);
+     - mappings for keyed adjacencies (FRAMEWORK.md, Resolved), in the schema builders, the proxies and specs;
+     - the terms (93): `Mutations.OfTransaction` (`uid`, `mutations`), the kind union `Mutations.OfTerm` (`map`,
+       `reduce`, `partition`, `update`, `upsert`), `OfMap` and `OfReduce` (`symbols`, `variables`, `then`),
+       `OfPartition` (`first`, `last`, `branches`, `none`, `then`), `OfBranch` (`requires`, `then`), `OfUpdate`
+       (`apply`, `then`), `OfUpsert` (`key`, `exists`, `then`), each a reference object linked by a relation
+       (`Mutations.HasRoot`, `Then`, `MapsSymbols`, ...); a reference may name a symbol;
+     - a store holds a schema object with no name of its own weakly, and what links one weakly too (94);
+     - `PatternBuilder.spec([...])`: each callback given the frame, its symbols recording visitors (`Transactions`),
+       its record, a `Mutations.OfPattern` as plain data, kept in the pattern's `spec`; a link refers to a symbol, a
+       path, or an object it defines (`{"def": ...}`). It is not written in a log until 4f.
+
+     Settled while building it, for the user's review: `map`'s and `reduce`'s `as_symbols` and `as_variables` (91) are
+     `symbols` and `variables`, since a schema member may not start with `as_` (the visitor protocol's); a spec is
+     recorded per symbol as `as_property` and `as_adjacency` members, an adjacency's `insert` entries leaving out the
+     object's own link, rather than through relation-level verbs.
    - **4f, the wire** (45, 51, 55, 56): a store's snapshot is made of transactions; a journal holds transactions as
      submitted, replayed by executing them; a Reachable document is one transaction, its counted objects numbered within
      it, owned objects and singletons referred to by path. The corpora are regenerated, the JSON byte-identical between

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+import weakref
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar
@@ -488,9 +489,11 @@ class _AdjacencyMember(_Unassignable):
         if _is_function(spec):
             _visit(spec, self)
             return self._builder
-        if isinstance(spec, (str, bytes, Mapping)) or not isinstance(spec, Iterable):
-            raise TypeError(f"{self._members.name!r} takes an iterable of what it links, or of entries, or a callback "
-                            f"taking the adjacency; got {spec!r}")
+        if isinstance(spec, Mapping):
+            spec = self._keyed(spec)
+        if isinstance(spec, (str, bytes)) or not isinstance(spec, Iterable):
+            raise TypeError(f"{self._members.name!r} takes an iterable of what it links, or of entries, a mapping, or a "
+                            f"callback taking the adjacency; got {spec!r}")
         self._builder._check()
         for item in spec:
             item = Proxies._deref(item)
@@ -517,6 +520,31 @@ class _AdjacencyMember(_Unassignable):
                 continue
             self._store([referent] if self._members.one else [*held, referent])
         return self._builder
+
+    def _keyed(self, mapping: Mapping[Any, Any]) -> list[Any]:
+        """A mapping, as the peer shorthand: each item an entry, its key the value of the relation's one property, its
+        value given to the entry (FRAMEWORK.md, Resolved, Mappings for keyed adjacencies)."""
+        relation = self.as_schema().relation
+        if len(relation.entry.links) != 2 or len(relation.entry.properties) != 1:
+            raise TypeError(f"{self._members.name!r} takes a mapping only where its relation has two links and one property")
+        key, members = next(iter(relation.entry.properties)), self._members
+        builder_class = members.build() if members.build is not None else None
+        plain = self._builder._store._meta if self._builder._store is not None else _TEMPLATE
+        object_meta = getattr(plain, builder_class._meta) if builder_class is not None else None
+
+        def item(name: Any, value: Any) -> Any:
+            def write(them: _Them) -> None:
+                getattr(them, key)(name)
+                given = Proxies._deref(value)
+                takers = [] if object_meta is None or _is_function(given) else [
+                    (member_name, isinstance(member, _Members),
+                     member.links(given) if isinstance(member, _Members) else
+                     member_name in object_meta.properties and Proxies._holds(object_meta.properties[member_name].schema, given))
+                    for member_name, member in builder_class._members_.items() if member_name != key]
+                Proxies._given(them, given, members.link, not _is_function(given) and members.accepts(given), takers)
+            return write
+
+        return [item(name, value) for name, value in mapping.items()]
 
     def __repr__(self) -> str:
         return f"<adjacency {self._members.name!r}>"
@@ -1217,6 +1245,25 @@ class PatternBuilder(_KindBuilder[S.OfPattern.Data]):
     requires = _Members("constraint", accepts=_is_expression, build=lambda: ConstraintBuilder, owned=True,
                         **_in_order("requires"))
 
+    @property
+    def spec(self) -> Callable[[Any], PatternBuilder]:
+        """What must hold of a frame (docs/OBJECT_IDENTITY.md, Decided, 76, 95): each callback given, in order, is
+        handed the frame, whose members are the symbols declared so far, each the visitor of the object it binds, which
+        records what it is given; its record, a `Mutations.OfPattern` as plain data, is added to the pattern's."""
+
+        def write(specs: Any) -> PatternBuilder:
+            self._check()
+            if self._store is None:
+                raise TypeError("a spec is written in a store, whose schemas its symbols name")
+            from . import Transactions
+
+            items = [specs] if _is_function(specs) else list(specs)
+            recorded = [Transactions._recorded(self._store, self._working.symbols, item) for item in items]
+            self._working.spec = (*self._working.spec, *recorded)
+            return self
+
+        return write
+
 
 class ExpressionBuilder(_KindBuilder[S.OfExpression.Data]):
     """An expression: the pattern it ranges over, and the schema of its result; its terms are mbse-expressions'."""
@@ -1528,13 +1575,16 @@ class Store(Proxies._Store):
 
     def __init__(self) -> None:
         super().__init__()
-        self._objects: dict[int, Any] = {}  # the schema objects it holds, by id
-        self._linkers: dict[int, tuple[Any, _Members]] = {}  # what links each object with no name of its own, and how
+        self._objects: dict[int, Any] = {}  # the schema objects it holds with a name of their own, and its own, by id
+        # those with none, held while what links them is (docs/OBJECT_IDENTITY.md, Decided, 94): a term's pattern goes
+        # with its transaction
+        self._unnamed: weakref.WeakValueDictionary[int, Any] = weakref.WeakValueDictionary()
         from . import Mutations, Paths
 
         self._meta = _plain()  # its plain schemas of schemas and basic scalars, its own
         self._paths = Paths.schemas(self._meta.OfStr, self._meta.OfInt, self._meta.OfBool)
-        self._mutations = Mutations.schemas(self._meta.OfStr, self._meta.OfInt, self._paths.OfRoot)
+        self._mutations = Mutations.schemas(self._meta.OfStr, self._meta.OfInt, self._paths.OfRoot, self._meta.OfBool,
+                                            self._meta.OfPattern, self._meta.OfCollector, self._meta.OfExpression)
         framework = (*vars(self._meta).values(), *vars(self._mutations).values(), *vars(self._paths).values())
         for schema in framework:
             self._register(schema)
@@ -1545,7 +1595,7 @@ class Store(Proxies._Store):
                 self._objects[id(schema)] = schema
                 schema.__dict__["_held_by"] = self
                 for referent, members in self._referents(schema):
-                    self._linkers.setdefault(id(referent), (schema, members))
+                    referent.__dict__.setdefault("_linker", (weakref.ref(schema), members))
                     reached.append(referent)
         self._framework: set[int] = set(self._objects)
         self._added: dict[type, dict[str, Any]] = {}  # the members its extensions added to builders, by builder class
@@ -1608,10 +1658,11 @@ class Store(Proxies._Store):
 
     def _linker(self, data: Any) -> tuple[Any, _Members] | None:
         """What links an object with no name of its own, and through which adjacency, while it links it still."""
-        found = self._linkers.get(id(data))
-        if found is None or all(referent is not data for referent in found[1].referents(found[0])):
+        found = data.__dict__.get("_linker")
+        linker = found[0]() if found is not None else None  # weakly: what an object links never keeps it
+        if linker is None or all(referent is not data for referent in found[1].referents(linker)):
             return None
-        return found
+        return linker, found[1]
 
     def _link(self, data: Any) -> None:
         """Records what links each object with no name of its own that `data` links, refused where another links it
@@ -1623,11 +1674,11 @@ class Store(Proxies._Store):
             if linker is not None and linker[0] is not data:
                 raise ValueError(f"{_builder_for(referent)._noun} with no name of its own is linked by one schema object "
                                  "alone, and another links it already: name it to share it")
-            self._linkers[id(referent)] = (data, members)
+            referent.__dict__["_linker"] = (weakref.ref(data), members)
 
     def holds(self, data: Any) -> bool:
         """Whether the store holds the schema object `data`."""
-        return self._objects.get(id(data)) is data
+        return self._objects.get(id(data)) is data or self._unnamed.get(id(data)) is data
 
     def module(self, path: str = "") -> _ModuleData:
         """The module whose path is `path` (`crm.sales`), made with the modules it is in where there is none; the root
@@ -1647,7 +1698,7 @@ class Store(Proxies._Store):
         it neither has nor inherits, nor a refinement of it declares; anything else about it stays as it was. What `cb`
         builds is the store's own. Refused, a change to a schema raises before it is written, but what was written before
         it stays: a refused extension is a program error."""
-        held = set(self._objects)
+        held = {*self._objects, *self._unnamed.keys()}
         before = {id(meta): (set(meta.properties), set(meta.adjacencies)) for meta in vars(self._meta).values()
                   if isinstance(meta, S.OfObject.Data)}
         self._extending = held
@@ -1710,7 +1761,9 @@ class Store(Proxies._Store):
             raise TypeError("a store builds no scalar schema: its scalars are the basic scalars it was made holding, "
                             "store.Schemas.OfBool, OfInt, OfFloat, OfStr and OfBytes")
         self._link(data)
-        self._objects[id(data)] = data
+        named = _named(data)
+        (self._objects if named else self._unnamed)[id(data)] = data
+        (self._unnamed if named else self._objects).pop(id(data), None)  # renamed, or its name cleared
         data.__dict__["_held_by"] = self  # its store, which gives its path (`Paths.of`)
         if isinstance(data, S._DEFINED):
             for name in [name for name, schema in self._schemas.items() if schema is data and name != data.name]:
@@ -1724,6 +1777,20 @@ class Store(Proxies._Store):
         if isinstance(data, (*S._DEFINED, _ModuleData)) and data.name:
             self._place(data)
         return data
+
+    def _meta_builder(self, name: str, target: Any = None) -> Any:
+        """A builder of a schema object of the meta-schema registered as `name`, new or `target` updated, as a link
+        builds one (docs/OBJECT_IDENTITY.md, Decided, 97); None where `name` is not a meta-schema."""
+        local = name[len("Schemas."):] if name.startswith("Schemas.") else ""
+        kind, registered = _META_BUILDERS.get(local), self._schemas.get(name)
+        if kind is None or registered is None or registered is not getattr(self._meta, local, None):
+            return None
+        return kind()(target, True, self)
+
+    @staticmethod
+    def _meta_builder_class(target: Any) -> type:
+        """The builder of a schema object."""
+        return _builder_for(target)
 
     def _build(self, name: str, args: tuple[Any, ...]) -> Any:
         if len(args) == 1 and _is_function(args[0]):

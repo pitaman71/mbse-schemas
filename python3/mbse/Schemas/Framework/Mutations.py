@@ -22,14 +22,15 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
-from .Builders import AnyValueBuilder, ContainerBuilder, ObjectBuilder, UnionBuilder
+from .Builders import AdjacencyBuilder, AnyValueBuilder, ContainerBuilder, ObjectBuilder, RelationBuilder, UnionBuilder
 
 __all__ = ["schemas"]
 
 
-def schemas(Text: Any, Int: Any, Path: Any) -> SimpleNamespace:
-    """The mutation schemas, built anew for a store whose basic scalars `Text` (`Schemas.OfStr`) and `Int`
-    (`Schemas.OfInt`) and whose `Paths.OfRoot` (`Path`) they use: each store holds its own (docs/SCHEMA_EXTENSION.md,
+def schemas(Text: Any, Int: Any, Path: Any, Bool: Any, Pattern: Any, Collector: Any, Expression: Any) -> SimpleNamespace:
+    """The mutation schemas, built anew for a store whose basic scalars `Text` (`Schemas.OfStr`), `Int` (`Schemas.OfInt`)
+    and `Bool`, whose `Paths.OfRoot` (`Path`) and whose meta-schemas `Pattern`, `Collector` and `Expression`
+    (`Schemas.OfPattern`, ...) they use: each store holds its own (docs/SCHEMA_EXTENSION.md,
     Decided, 23)."""
     Payload = AnyValueBuilder().create()  # untyped: interpreted by the target's schema
 
@@ -52,9 +53,10 @@ def schemas(Text: Any, Int: Any, Path: Any) -> SimpleNamespace:
 
     # --- Nouns ---
 
-    Ref = _verb(  # an object by its path: a schema object's from the root module (docs/OBJECT_IDENTITY.md, Decided, 81)
-        "OfObject.Ref",
+    Ref = _verb(  # an object by its path, a schema object's from the root module (docs/OBJECT_IDENTITY.md, Decided, 81),
+        "OfObject.Ref",  # or, within a pattern's spec, by the symbol that binds it (95)
         lambda t: t.name("path").schema([Path]),
+        _text("symbol"),
     )
     Def = _verb(  # its path, but where it is linked; its schema's name (a schema object's kind's); its properties
         "OfObject.Def",
@@ -189,6 +191,58 @@ def schemas(Text: Any, Int: Any, Path: Any) -> SimpleNamespace:
         lambda t: t.name("as_link").schema([EntryAsLink]),
     ]).update()
     Log = ContainerBuilder().name("Mutations.Log").index([Int]).element([Reference]).create()
+
+    # --- Mutation expressions: a transaction and its terms, reference objects linked by relations (93) ---
+
+    def _term(name: str, *properties: Any) -> Any:
+        """A kind of term, `Mutations.<name>`: a reference object schema of `properties`."""
+        return ObjectBuilder().name(f"Mutations.{name}").ref(True).properties(list(properties)).create()
+
+    def _relation(name: str, first: str, second: str, schema: Any, one: bool = True) -> Any:
+        """A relation, `Mutations.<name>`, from `first` to `second`, whose schema is `schema`: an object of `first` holds
+        one entry of it at most where `one`, else a list."""
+        builder = RelationBuilder().name(f"Mutations.{name}").links([
+            lambda t: t.name(first), lambda t: t.name(second).schema([schema])])
+        return builder.uniques([[second]] if one else []).create()
+
+    def _bool(name: str) -> Any:
+        return lambda t: t.name(name).schema([Bool])
+
+    OfTerm = _union("OfTerm")  # a kind union (97): its branches, given below, are the kinds of term
+    OfTransaction = _term("OfTransaction", _text("uid"))  # the root: its uid, given by the program (42), and one term
+    OfMap = _term("OfMap")
+    OfReduce = _term("OfReduce")
+    OfPartition = _term("OfPartition", _bool("first"), _bool("last"))
+    OfBranch = _term("OfBranch")
+    OfUpdate = _term("OfUpdate")
+    OfUpsert = _term("OfUpsert", _text("key"))
+    HasRoot = _relation("HasRoot", "transaction", "term", OfTerm)
+    Then = _relation("Then", "term", "next", OfTerm)
+    MapsSymbols = _relation("MapsSymbols", "term", "pattern", Pattern)
+    MapsVariables = _relation("MapsVariables", "term", "pattern", Pattern)
+    ReducesSymbols = _relation("ReducesSymbols", "term", "collector", Collector)
+    ReducesVariables = _relation("ReducesVariables", "term", "collector", Collector)
+    Branching = _relation("Branching", "partition", "branch", OfBranch, one=False)
+    Otherwise = _relation("Otherwise", "partition", "next", OfTerm)
+    Requiring = _relation("Requiring", "branch", "constraint", Expression, one=False)
+    Applies = _relation("Applies", "term", "pattern", Pattern)
+    Existing = _relation("Exists", "term", "pattern", Pattern)  # not `Exists`, the verb's
+    UnionBuilder(OfTerm).branches([lambda t, n=n, k=k: t.name(n).schema([k]) for n, k in (
+        ("map", OfMap), ("reduce", OfReduce), ("partition", OfPartition), ("update", OfUpdate), ("upsert", OfUpsert))]).update()
+
+    def _adjacencies(kind: Any, *named: tuple[str, Any, str]) -> None:
+        """Gives `kind` its adjacencies: each a name, a relation, and the link `kind` fills."""
+        ObjectBuilder(kind).adjacencies([lambda t, n=n, r=r, m=m: t.name(n).adjacency(
+            AdjacencyBuilder().relation([r]).me(m).create()) for n, r, m in named]).update()
+
+    _adjacencies(OfTransaction, ("mutations", HasRoot, "transaction"))
+    _adjacencies(OfMap, ("symbols", MapsSymbols, "term"), ("variables", MapsVariables, "term"), ("then", Then, "term"))
+    _adjacencies(OfReduce, ("symbols", ReducesSymbols, "term"), ("variables", ReducesVariables, "term"),
+                 ("then", Then, "term"))
+    _adjacencies(OfPartition, ("branches", Branching, "partition"), ("none", Otherwise, "partition"), ("then", Then, "term"))
+    _adjacencies(OfBranch, ("requires", Requiring, "branch"), ("then", Then, "term"))
+    _adjacencies(OfUpdate, ("apply", Applies, "term"), ("then", Then, "term"))
+    _adjacencies(OfUpsert, ("exists", Existing, "term"), ("then", Then, "term"))
 
     return SimpleNamespace(**{name: schema for name, schema in locals().items()
                               if str(getattr(schema, "name", "") or "").startswith("Mutations.")})

@@ -303,8 +303,11 @@ export abstract class _Store extends Stores.Catalog implements Stores.Store {
     return read(instance, name);
   }
 
-  /** The name of the one object schema that declares an adjacency to `relation` via `link`. */
+  /** The name of the schema of what `link` links: the reference object schema the link declares, else the one object
+   * schema that declares an adjacency to `relation` via `link`. */
   _filled(relation: RelationSchema, link: string): string {
+    const declared = relation.entry.links.get(link)?.schema;
+    if (declared instanceof Schemas.OfObject.Data && declared.ref) return this.name_of(declared);
     const names = this._filling(relation, link);
     if (names.length !== 1) throw new TypeError(`expected exactly one object schema filling link ${repr(link)}, found ${repr(names)}`);
     return names[0] as string;
@@ -2256,6 +2259,86 @@ function isRecordBuilder(value: unknown): boolean {
 }
 
 /** A writable `Visitors.OfAdjacency` over one adjacency of an object's builder: iterated, its entries' builders. */
+/** Whether a link holds a builder, finalized when the entry is: a proxy's, or a schema object's (a meta-schema's). */
+function isBuilder(value: unknown): boolean {
+  const inner = innerOf(value);
+  return inner !== undefined && typeof inner.create === "function" && typeof inner.update === "function";
+}
+
+/** A builder of an object of the schema registered as `name`, new or `target` updated: a meta-schema's builder for a
+ * schema object (docs/OBJECT_IDENTITY.md, Decided, 97), else a proxy's. */
+function builderOf(store: any, name: string, target: unknown = undefined): any {
+  const built = store._meta_builder(name, target ?? null);
+  return built ?? makeObjectBuilder(store, store.schema(name), name, target as Instance | undefined);
+}
+
+/** The registered name of a linked object's schema: a proxy's, or a schema object's meta-schema's. */
+function schemaNameOf(store: any, target: unknown): string {
+  if (isObjectData(target)) return innerOf(target)._schemaName;
+  const builderClass = store._meta_builder_class(target);
+  return store.name_of(new builderClass(target, false, store).as_schema());
+}
+
+/** The kinds a link may link, by branch name, where its schema is a kind union. */
+export function _linkKinds(relation: RelationSchema, link: string): Map<string, ObjectSchema> | null {
+  return Schemas._kinds((relation.entry.links.get(link) as Schemas.OfSymbol.Data).schema);
+}
+
+/** The schema of what `value` is, where it is an object a link may link: a proxy's schema, a schema object's
+ * meta-schema, or the schema of the object a spec's visitor records; null for a value. */
+export function _schemaOf(store: any, value: unknown): any {
+  const inner = innerOf(value);
+  if (inner !== undefined && "_linkedSchema" in inner) return inner._linkedSchema; // a spec's visitor (Transactions)
+  value = _deref(value);
+  if (isObjectData(value)) return innerOf(value)._schema;
+  if (store.holds(value)) return new (store._meta_builder_class(value))(value, false, store).as_schema();
+  return null;
+}
+
+/** Whether `link` of `relation` may link `value`: an object of the link's schema, of a kind of its kind union, or of a
+ * schema declaring an adjacency that fills it. */
+export function _links(store: any, relation: RelationSchema, link: string, value: unknown): boolean {
+  const schema = _schemaOf(store, value);
+  if (schema === null) return false;
+  const declared = (relation.entry.links.get(link) as Schemas.OfSymbol.Data).schema;
+  const kinds = Schemas._kinds(declared);
+  if (kinds !== null) return [...kinds.values()].some((kind) => Schemas.is_a(schema, kind));
+  if (declared !== null) return Schemas.is_a(schema, declared);
+  return store._filling(relation, link).some((name: string) => Schemas.is_a(schema, store.registered(name)));
+}
+
+/** Whether an adjacency's entries may link `value` at their other link. */
+export function _linksThrough(store: any, adjacency: AdjacencySchema, value: unknown): boolean {
+  const relation = adjacency.relation as RelationSchema | null;
+  const others = relation !== null ? [...relation.entry.links.keys()].filter((link) => link !== adjacency.me) : [];
+  return others.length === 1 && _links(store, relation as RelationSchema, others[0] as string, value);
+}
+
+/** Whether a property of `schema` holds `value` as given: a scalar of its scalar's host type. */
+export function _holds(schema: unknown, value: unknown): boolean {
+  return schema instanceof Schemas.OfScalar.Data && schema.type !== null && Schemas.isScalarOf(schema.type, value);
+}
+
+/** Gives a keyed mapping's value to the peer shorthand's visitor of one entry, its key written (FRAMEWORK.md, Resolved,
+ * Mappings for keyed adjacencies): a callback is called with it; any other value goes to the one member that accepts
+ * it, the entry's link (`linkTakes`) or one of the linked object's properties and adjacencies (`members`, each a name,
+ * and whether it is an adjacency and takes the value). */
+export function _given(them: any, value: unknown, link: string, linkTakes: boolean,
+  members: [string, boolean, boolean][]): void {
+  if (isFunction(value)) {
+    visit(value, them);
+    return;
+  }
+  const takers: [string, boolean][] = linkTakes ? [[link, false]] : [];
+  for (const [name, adjacency, takes] of members) if (takes) takers.push([name, adjacency]);
+  if (takers.length !== 1) {
+    throw new TypeError(`${takers.length === 0 ? "no member" : "more than one member"} of the entry takes ${repr(value)}: `
+      + "give a callback");
+  }
+  const [name, adjacency] = takers[0] as [string, boolean];
+  them[name](adjacency ? [value] : value);
+}
+
 class _AdjacencyBuilder extends Shelled {
   readonly [TYPE_NAME] = "_AdjacencyBuilder";
   readonly _schema: AdjacencySchema;
@@ -2312,9 +2395,11 @@ class _AdjacencyBuilder extends Shelled {
       visit(spec, this._proxy);
       return this._builder;
     }
-    if (typeof spec === "string" || isBytes(spec) || spec instanceof Map || !isIterable(spec)) {
-      throw new TypeError(`adjacency ${repr(this._name)} takes an iterable of entries or of what it links, or a callback `
-        + `taking the adjacency; got ${repr(spec)}`);
+    const items = _mapping(spec);
+    if (items !== null) spec = this._keyed(items);
+    if (typeof spec === "string" || isBytes(spec) || !isIterable(spec)) {
+      throw new TypeError(`adjacency ${repr(this._name)} takes an iterable of entries or of what it links, a mapping, or a `
+        + `callback taking the adjacency; got ${repr(spec)}`);
     }
     const relation = this._schema.relation as RelationSchema;
     const others = [...relation.entry.links.keys()].filter((link) => link !== this._schema.me);
@@ -2339,10 +2424,40 @@ class _AdjacencyBuilder extends Shelled {
     return this._builder;
   }
 
+  /** A mapping, as the peer shorthand: each item an entry, its key the value of the relation's one property, its value
+   * given to the entry (FRAMEWORK.md, Resolved, Mappings for keyed adjacencies). */
+  _keyed(items: [unknown, unknown][]): unknown[] {
+    const relation = this._schema.relation as RelationSchema;
+    const store: any = innerOf(this._builder)._store;
+    const keys = [...relation.entry.properties.keys()];
+    if (relation.entry.links.size !== 2 || keys.length !== 1) {
+      throw new TypeError(`adjacency ${repr(this._name)} takes a mapping only where its relation has two links and one `
+        + "property");
+    }
+    const other = [...relation.entry.links.keys()].find((link) => link !== this._schema.me) as string;
+    return items.map(([key, value]) => (them: any) => {
+      them[keys[0] as string](key);
+      if (isFunction(value)) {
+        visit(value, them);
+        return;
+      }
+      const given = _deref(value);
+      const schema = _linkKinds(relation, other) !== null ? null : store.registered(store._filled(relation, other));
+      const members: [string, boolean, boolean][] = schema === null ? [] : [
+        ...[...schema.properties].map(([name, prop]: [string, any]): [string, boolean, boolean] => [name, false, _holds(prop.schema, given)]),
+        ...[...schema.adjacencies].map(([name, adjacency]: [string, any]): [string, boolean, boolean] =>
+          [name, true, _linksThrough(store, adjacency, given)]),
+      ];
+      _given(them, given, other, _links(store, relation, other, given), members);
+    });
+  }
+
   override _repr(): string {
     return `<adjacency builder ${this._name}>`;
   }
 }
+
+
 
 /** Whether an object holds one entry of `relation` at most from its link `me`: a `unique` clause makes `me` determine
  * every other link and property. */
@@ -2378,20 +2493,28 @@ class _Them extends Shelled {
       const entry: _EntryBuilder = innerOf(this._entry);
       const store = entry._store as _Store;
       const target = entry._links.get(this._other);
-      if (isObjectBuilder(target)) {
+      if (isBuilder(target)) {
         this._object = target;
       } else {
-        const name = target === undefined ? store._filled(entry._relation, this._other) : innerOf(target)._schemaName;
-        this._object = makeObjectBuilder(store, store.schema(name), name, target as Instance | undefined);
+        const kinds = _linkKinds(entry._relation, this._other);
+        if (kinds !== null && target === undefined) {
+          throw new TypeError(`link ${repr(this._other)} is a kind union: build through one of its kinds, `
+            + [...kinds.keys()].join(", "));
+        }
+        const name = target === undefined ? store._filled(entry._relation, this._other) : schemaNameOf(store, target);
+        this._object = builderOf(store, name, target);
       }
     }
     return this._object;
   }
 
   override _member(name: string): unknown {
-    if (name === this._other || (innerOf(this._entry) as _EntryBuilder)._relation.entry.properties.has(name)) {
+    const entry: _EntryBuilder = innerOf(this._entry);
+    if (name === this._other || entry._relation.entry.properties.has(name)) {
       return makeChained(this._entry[name], this, name === this._other);
     }
+    const kind = _linkKinds(entry._relation, this._other)?.get(name);
+    if (kind !== undefined) return makeChained(makeKindMember(entry, this._other, kind), this, true);
     return makeChained(this._builder()[name], this, false);
   }
 
@@ -2400,7 +2523,7 @@ class _Them extends Shelled {
     const entry: _EntryBuilder = innerOf(this._entry);
     const builder = this._object;
     const target = entry._links.get(this._other);
-    if (builder !== null && builder !== target) {
+    if (builder !== null && builder !== target && !isBuilder(target)) {
       if (target === undefined) entry._links.set(this._other, builder);
       else builder.update();
     }
@@ -2450,10 +2573,7 @@ class _LinkMember extends Shelled {
 
   _target(): any {
     const target = this._entry._links.get(this._name);
-    if (isObjectBuilder(target)) {
-      const state: _ObjectBuilder = innerOf(target);
-      return state._source ?? makeEmpty("not created yet");
-    }
+    if (isBuilder(target)) return makeEmpty("not created yet"); // what an entry builds through its link is created with it
     return target ?? makeEmpty(`link ${repr(this._name)} is not set`);
   }
 
@@ -2482,9 +2602,10 @@ class _LinkMember extends Shelled {
     const entry = this._entry;
     const name = this._name;
     if (isFunction(spec)) {
+      const kinds = _linkKinds(entry._relation, name);
+      if (kinds !== null) throw new TypeError(`link ${repr(name)} is a kind union: build through one of its kinds, ${[...kinds.keys()].join(", ")}`);
       const store = entry._store as _Store; // a link is a reference object's, built in a store
-      const schemaName = store._filled(entry._relation, name);
-      const builder = makeObjectBuilder(store, store.schema(schemaName), schemaName);
+      const builder = builderOf(store, store._filled(entry._relation, name));
       visit(spec, builder);
       entry._links.set(name, builder);
       return entry._proxy;
@@ -2508,6 +2629,35 @@ class _LinkMember extends Shelled {
 
 function makeLinkMember(entry: _EntryBuilder, name: string): any {
   const state = new _LinkMember(entry, name);
+  return shell(state, (spec) => state._call(spec));
+}
+
+/** A kind of a kind union, one of its branches, as an entry builder's member: called with a callback, it builds through
+ * the link an object of that kind's schema; called with an object of that kind, it links it. */
+class _KindMember extends Shelled {
+  readonly [TYPE_NAME] = "_KindMember";
+
+  constructor(readonly _entry: _EntryBuilder, readonly _link: string, readonly _schema: ObjectSchema) {
+    super();
+  }
+
+  _call(spec: unknown): unknown {
+    const entry = this._entry;
+    const store: any = entry._store;
+    if (!isFunction(spec)) return makeLinkMember(entry, this._link)(spec);
+    const builder = builderOf(store, store.name_of(this._schema));
+    visit(spec, builder);
+    entry._links.set(this._link, builder);
+    return entry._proxy;
+  }
+
+  override _repr(): string {
+    return `<kind of link ${repr(this._link)}>`;
+  }
+}
+
+function makeKindMember(entry: _EntryBuilder, link: string, schema: ObjectSchema): any {
+  const state = new _KindMember(entry, link, schema);
   return shell(state, (spec) => state._call(spec));
 }
 
@@ -2537,6 +2687,10 @@ class _EntryBuilder extends Shelled {
     if (this._relation.entry.links.has(name) && name !== this._me) return makeLinkMember(this, name);
     const prop = this._relation.entry.properties.get(name);
     if (prop !== undefined) return makeProperty(this._values, name, prop, this._store, this._proxy, true);
+    for (const link of this._relation.entry.links.keys()) { // a kind union's kind, built through its link
+      const kind = link !== this._me ? _linkKinds(this._relation, link)?.get(name) : undefined;
+      if (kind !== undefined) return makeKindMember(this, link, kind);
+    }
     return makeEmpty(`${repr(name)} is not a link this entry can set, nor a property of the relation`);
   }
 
@@ -2569,7 +2723,7 @@ class _EntryBuilder extends Shelled {
       if (name === this._me) continue;
       if (!this._links.has(name)) throw new ValueError(`link ${repr(name)} is not set`);
       const value = this._links.get(name);
-      links.set(name, isObjectBuilder(value) ? innerOf(value).create() : value);
+      links.set(name, isBuilder(value) ? innerOf(value).create() : value);
     }
     return makeEntry(this._relation, links, finalized(this._values));
   }
@@ -2712,10 +2866,6 @@ function noArguments(method: string, args: unknown[]): void {
   if (args.length > 0) throw new TypeError(`${method}() takes no arguments (${args.length} given)`);
 }
 
-function isObjectBuilder(value: unknown): boolean {
-  return innerOf(value) instanceof _ObjectBuilder;
-}
-
 function makeObjectBuilder(store: _Store, schema: ObjectSchema, schemaName: string, instance?: unknown): DynamicBuilder {
   if (!schema.ref) {
     throw new TypeError(`${repr(schemaName)} is a value object schema; build a value through its owner, or standalone `
@@ -2773,7 +2923,8 @@ export function _isVisitor(value: unknown): boolean {
 
 /** The shells visitors are made with, shared with `Builders`, as Python's `Builders` imports `_Dunders`, `_Empty`,
  * `_Properties` and `_Unassignable`. */
-export { shell as _shell, Shelled as _Shelled, Dunders as _Dunders, makeEmpty as _makeEmpty,
+export { shell as _shell, Shelled as _Shelled, Dunders as _Dunders, makeEmpty as _makeEmpty, makeProperty as _makeProperty,
+  isFunction as _isFunction, visit as _visit, noun as _noun, withArticle as _withArticle, isObjectData as _isObjectData,
   makeProperties as _makeProperties, innerOf as _innerOf, storeOf as _store_of, linking as _linking,
   addEntry as _add_entry, discard as _discard, makeEntry as _make_entry, adjacentOf as _adjacent_of };
 

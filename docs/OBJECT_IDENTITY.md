@@ -574,6 +574,16 @@ As the user decided (2026-10-20), on the questions put for step 4e:
 88. 4e in two stages ("yes"): 4e-1, the vocabulary, `store.transaction` and the executor, built beside the existing
     builders, with suites of their own; 4e-2, every write outside a transaction refused, and every caller migrated.
 
+89. Uncommitted changes, an overlay ("a overlay"): a transaction's writes are held in memory apart from the store's
+    objects, which stay as they were until it commits; every read within the transaction (matching a spec, an upsert's
+    search, a builder's callback, the store's own cascades and placement) reads through the overlay, so that every frame
+    sees what the frames before it wrote. An aborted transaction drops the overlay. (Offered against writing at once
+    with a log of changes undone on abort; the overlay is the transactional view STREAMING_QUERIES.md describes.)
+90. Decoders until 4f ("a"): `Plain.FromPlain` writes within a transaction of its own, which the store opens with no
+    terms, all or nothing; in 4f a snapshot is made of transactions, which the decoder executes. The store's own writes
+    (placing a schema in its module, making a singleton, refusing a shared unnamed schema object, deleting what a removed
+    owning entry owned) happen within the transaction whose write causes them, in its overlay.
+
 ## Open questions
 
 None at present.

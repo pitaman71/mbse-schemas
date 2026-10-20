@@ -93,6 +93,8 @@ PROPERTY [Expressions.Framework.Intrinsic] Expressions.Framework.HasNative(cb: C
 ## Injection
 
 Standardize the schema registration mechanism 
+- every schema definition must be written in a transaction passed to `install` defined at file scope
+
 
 ```python
 # Locators.py
@@ -101,7 +103,7 @@ def install(txn):
     """This module's schemas, defined in the store a transaction writes: `store.transaction(Locators.install)`."""
     return (txn
         .uid("mbse.Schemas.Locators/1")  # fixed, not random (Object identity, Decided, 42): installing again finds them
-        .mutations([lambda mu: mu        # OfUpsert, the root term, from the one empty frame (Object identity, 85)
+        .mutations([lambda mu: mu.upsert(lambda u: u
             .exists([lambda p: p         # each symbol found by its spec, else created and the spec written
                 .symbols([lambda s: s.name("OfSymbol").schema([txn.Schemas.OfObject])])
                 .spec([lambda _: _.OfSymbol
@@ -110,7 +112,7 @@ def install(txn):
                     .properties([lambda t: t.name("name").schema([txn.Schemas.OfStr])])
                 ])
             ])
-        ])
+        )])
     )
 ```
 

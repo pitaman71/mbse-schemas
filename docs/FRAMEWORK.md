@@ -737,12 +737,6 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Snapshots whose two ends disagree (F13) are accepted and restore the union of both ends' entries. Should
   deserialization reject them instead of leaving it to validation?
 
-- Versioning schema names: whether a version is part of a name or beside it. A name is a path (Object identity,
-  Decided, 80), and a module and a schema do not share one, so `crm.Contact.v2` beside `crm.Contact` is refused (the
-  module `crm.Contact` would be at the schema's path); 4g versions as `crm.v2.Contact`, a module per version, pending
-  the user's review (Object identity, Open questions). Snapshots refer to schemas by path, so a program that registers
-  a schema under another name than the writer's cannot read its snapshots (tutorial 9 reads old data in a store of its
-  own, under the writer's name).
 - Containers (Resolved, Containers): V5 is built with the choices listed there for the user's review (the names on
   the wire, the writer's option for several int indices, comparison and validation, `Visitors.OfIterator` as the one
   name where the draft in [Visitor pattern](VISITOR_PATTERN.md) also says `Visitors.OfPosition`), which await
@@ -767,6 +761,13 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 ### Resolved
 
+- **Versioning schema names** (0.21.0, step 4g of the store overhaul; [Object identity](OBJECT_IDENTITY.md), Decided,
+  83), as the user decided ("(a) is preferable"): a module and a schema do not share a path, so a version is part of a
+  name as a module of its own, `crm.v2.Contact` beside `crm.Contact`; `crm.Contact.v2` beside `crm.Contact`, whose
+  module `crm.Contact` would be at the schema's path, is refused. (Before 4g the module silently took the schema's
+  place in `crm`, and a snapshot lost the schema.) Snapshots refer to schemas by path, so a program that registers a
+  schema under another name than the writer's cannot read its snapshots (tutorial 9 reads old data in a store of its
+  own, under the writer's name).
 - **Patterns** (0.21.0, step 4d of the store overhaul; [Object identity](OBJECT_IDENTITY.md), Decided, 66, 67 and 76 to
   78; [Mutations as queries](STREAMING_QUERIES.md), Patterns and Value expressions and constraints), as the user
   decided: `Schemas.OfPattern` replaces `Schemas.OfPredicate`, which goes. A pattern declares its symbols

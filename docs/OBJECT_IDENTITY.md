@@ -536,14 +536,18 @@ nest, as mutations do):
     nesting of 81 needs no acyclicity: a named schema is referred to by its path, and an unnamed one that holds itself
     is linked by its own member, so that nothing else may link it.
 
+As the user decided (2026-10-20), offered (a) refusing a module and a schema at one path, a version in a module of its
+own, or (b) a path step saying whether it names a module or a schema, so that both may share a name:
+
+83. "(a) is preferable": a module and a schema do not share a path. 80 makes a name a path and `Schemas.Defines` is keyed
+    by name, so `crm.Contact.v2` beside `crm.Contact`, which would put the module `crm.Contact` at the schema's path, is
+    refused ("the path 'crm.Contact' names another schema object already: a module and a schema, or two schemas, do not
+    share a path"); a version goes in a module of its own, `crm.v2.Contact`. Before 4g the module silently replaced the
+    schema in its parent's map, and a snapshot lost the schema.
+
 ## Open questions
 
-Raised while building 4g, for the user's review:
-
-1. **A module and a schema at one path.** 80 makes a name a path and `Schemas.Defines` is keyed by name, so 4g refuses a
-   module and a schema at the same path: `crm.Contact.v2` beside `crm.Contact` would put the module `crm.Contact` at
-   the schema's path. Tutorial 9 and the skill now version as `crm.v2.Contact`, a module per version. To confirm, or
-   to choose another form (`crm.ContactV2`; a version beside the name, FRAMEWORK.md, Open questions).
+None at present.
 
 ---
 

@@ -228,7 +228,7 @@ so that main stays current and no branch waits on another.
        refusing a second ("... with no name of its own is linked by one schema object alone, and another links it
        already: name it to share it"); a clone has its own of each. A name is registered once, of any kind, and a module
        and a schema do not share a path ("the path 'crm.Contact' names another schema object already"), so tutorial 9
-       and the skill version as `crm.v2.Contact` (Object identity, Open questions);
+       and the skill version as `crm.v2.Contact` (Object identity, Decided, 83);
      - `validate()` refused a value schema that holds itself (72), which made the framework's own `Paths` and
        `Mutations` invalid; 72 was then removed (82), and a value schema may hold itself again;
      - a log refers to a schema object by its path and defines it by its path and its kind (`{"path": ..., "schema":

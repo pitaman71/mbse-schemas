@@ -183,7 +183,7 @@ so that main stays current and no branch waits on another.
      `OfSymbol` (its locator: a path from a singleton or from another symbol, through any adjacency, serializable),
      `OfVariable`, `OfExpression` and its boolean variant `OfConstraint` (placeholders mbse-expressions refines),
      `OfCollector` (rejected by validation where it declares neither `.commutative()` nor `.associative()`, 62); built,
-     validated and written as every schema is. `Schemas.OfPredicate` is set aside.
+     validated and written as every schema is. `Schemas.OfPredicate` stays for now, beside them (question 10).
    - **4e, mutation expressions and the in-memory executor** (38, 42, 44, 46, 50, 56 to 63): the mutation vocabulary as
      Decided 59 nests it, `Mutations.OfTransaction` → `Mutations.OfTerm` (`OfAll`, `OfMap`, `OfReduce`, `OfPartition`,
      `OfUpdate`, `OfUpsert`) → `Mutations.OfPattern` → `Mutations.OfObject` → `Mutations.OfAdjacency` (`OfEntry`) →
@@ -197,9 +197,10 @@ so that main stays current and no branch waits on another.
      the languages.
    - **4g, schema objects** (17, 29): their identities are their paths, derived identities go, their keys on the wire
      paths too.
-   - **4h, the release**, and the dependents: mbse-expressions refines `OfExpression` and `OfConstraint`; mbse-patterns
-     rebuilds its predicates, queries, generators and transforms on `OfPattern`; mbse-programs' corpora become Reachable
-     transactions.
+   - **4h, the last release**, and the dependents: mbse-expressions refines `OfExpression` and `OfConstraint`;
+     mbse-programs' corpora become Reachable transactions. What becomes of mbse-patterns is deferred (question 10).
+   Releases (question 8): 0.20.0 after 4c, 0.21.0 after 4f, 0.22.0 after 4g, each landing the branch on main. 4e builds
+   only the in-memory, sequential executor (question 11).
 
 ### Example: a transaction, as 4e would build it
 
@@ -365,13 +366,39 @@ Points settled while building, for the user's review:
 6. *Settled by Object identity, Decided, 58*: a mutation's builders are those a property call with a callback gives.
 7. *Settled by Object identity, Decided, 55 and 61*: a counted object is numbered within the document that writes it,
    or, created by an upsert, identified by its frame, key and symbol; nothing re-states a transaction's index.
-8. **Releases within step 4.** Proposed: 0.20.0 after 4c (the three modes), 0.21.0 after 4f (patterns, mutation
-   expressions, the wire), 0.22.0 after 4g (schema objects), each landing the branch on main. Or one release at 4h?
-9. **The store's builders inside a transaction.** May a program still write `store.crm.Contact(lambda c: ...)` within
-   `store.mutation`'s callback, recorded as the mutations it makes, or only mutation expressions? Proposed: both, the
-   builders a convenience recorded as `OfUpsert` and `OfUpdate` terms, so that the 1200 build calls in the tests move
-   into a transaction without being rewritten.
-10. **`Schemas.OfPredicate` in 4d.** Removed from mbse-schemas at once, mbse-patterns pinned to 0.19 until it migrates;
-    or kept, deprecated, until mbse-patterns has moved to `OfPattern`?
-11. **The executor's scope.** Proposed: 4e builds only the in-memory, sequential executor; distributed execution, and
-    with it shards, is later work, the design (56, 57, 62) keeping it possible.
+8. *Approved*: 0.20.0 after 4c, 0.21.0 after 4f, 0.22.0 after 4g, each landing the branch on main.
+9. **The store's builders inside a transaction.** Proposed: both mutation expressions and the store's builders, the
+   builders a convenience whose writes are recorded as the terms they amount to, so that the build calls in the tests
+   move into a transaction without being rewritten. For example, a definition and its title, written with the store's
+   builders inside the transaction:
+
+   ```python
+   store.mutation(lambda t: t
+       .uid("6f1c4e2a-0000-4000-8000-000000000002")
+       .build(lambda s: s.wts.Directory(s.Instances.wts.Features, lambda f: f
+           .dir(lambda a: a.insert(lambda e: e
+               .name("DEF-693")
+               .defn(lambda d: d.title("Has 88 keys")))))))
+   ```
+
+   is recorded as the mutation expression a program could have written instead:
+
+   ```python
+   store.mutation(lambda t: t
+       .uid("6f1c4e2a-0000-4000-8000-000000000002")
+       .then(lambda all_: all_
+           .over(lambda p: p.symbol(lambda y: y.name("features").path(FEATURES)))
+           .then(lambda up: up
+               .exists(lambda p: p.symbol(lambda y: y
+                   .name("defn")
+                   .schema(Definition)
+                   .path(lambda x: x.start("features").step("dir", {"name": "DEF-693"}))))
+               .then(lambda u: u
+                   .apply(lambda p: p.object("defn", lambda d: d.title("Has 88 keys")))))))
+   ```
+
+   `.build(...)` is a name to settle: the transaction's member that hands the callback the store, its writes recorded.
+10. *Deferred*: `Schemas.OfPredicate` stays until what becomes of mbse-patterns is known ("It is possible mbse-patterns
+    will vanish").
+11. *Agreed*: 4e builds only the in-memory, sequential executor; distributed execution, and with it shards, is later
+    work, the design (56, 57, 62) keeping it possible.

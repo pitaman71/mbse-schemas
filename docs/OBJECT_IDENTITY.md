@@ -595,6 +595,21 @@ As the user decided (2026-10-20):
 92. Fixtures ("yes"): a test builds the data a case needs in one transaction, one pattern's symbols and one spec, with
     the mappings for keyed adjacencies (FRAMEWORK.md, Resolved), rather than a transaction per object.
 
+As the user decided (2026-10-20), on how 4e-1 builds them:
+
+93. "expression terms of any kind, including mutation expressions, should be reference objects": a transaction and its
+    terms are reference objects of the Mutations schemas, linked by relations (`mutations` from a transaction to its root
+    term, `then` from a term to the next, `exists`, `apply`, `as_symbols` and `as_variables` from a term to its pattern);
+    the value verbs (`Set`, `AsAny`, ...) stay value objects. (79 made expression terms so.)
+94. Where they live ("agreed"): a transaction's terms are counted objects of the store, reachable from no singleton, so
+    that no snapshot writes them and they go when the program drops them; building a transaction's expression is the one
+    write allowed outside a transaction, the expression not being the store's data; and the store holds a schema object
+    with no name of its own weakly, so that a term's pattern goes with its transaction.
+95. A spec ("yes"): `Schemas.OfPattern` gains `spec`, a `Mutations.OfPattern` value giving, for each symbol, the
+    mutations of the object it binds (59), recorded by visitors of the symbols that write mutations rather than objects;
+    `Mutations.OfAdjacency` inserts and removes entries, each through `Mutations.OfEntry`; and a reference may name a
+    symbol, `{"symbol": "ada"}`, beside a path and a number. The log's verbs stay until 4f replaces the log.
+
 ## Open questions
 
 None at present.

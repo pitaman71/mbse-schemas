@@ -67,6 +67,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `27_Snapshots.ipynb` | SNP | 5 | as in Python; builders and the store's paths are `Proxy` objects typed loosely, so callbacks are annotated `(t: any)`; plain mappings are `Map`s, ints `bigint`s; a log written again is compared as its JSON text, `unique` clauses as sorted lists |
 | `28_Extensions.ipynb` | EXT | 5 | as in Python |
 | `29_Identity.ipynb` | IDN | 7 | as in Python |
+| `30_Patterns.ipynb` | PAT | 6 | as in Python; the locator shorthand is a `Proxy`, so a name starting with `_` reads its state rather than raising `AttributeError`, which PAT-02 checks in Python only; schema data compares by `.equals()` |
 
 Total: 221 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).

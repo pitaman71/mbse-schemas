@@ -220,7 +220,11 @@ at least one time to make schema objects references. all of them.").
 | HasProperty | owner (Object, Relation), property (Property); `name` | `OfObject.properties`, `OfRelation.properties` | keyed |
 | HasAdjacency | owner (Object), adjacency (Adjacency); `name` | `OfObject.adjacencies` | keyed |
 | HasBranch, HasPart | owner (Union / Intersection), schema (of values; `type` in 0.18.0); `name`, `description` (since 0.18.0; a Member object until then) | `OfUnion.branches`, `OfIntersection.parts` | named: `unique(owner, name)` |
-| HasSymbol, HasLink | owner (Predicate / Relation), symbol / link (Symbol); `name` | `OfPredicate.symbols`, `OfRelation.links` | keyed |
+| HasSymbol, HasLink | owner (Pattern / Relation), symbol / link (Symbol); `name` | `OfPattern.symbols`, `OfRelation.links` | keyed |
+| HasVariable | owner (Pattern), variable (Variable); `name` | `OfPattern.variables` | keyed |
+| Requiring | pattern, constraint (Expression) | `OfPattern.requires` | list |
+| Matching, Resulting, Computing | expression (Expression / Collector), pattern; expression, schema; collector, expression | `pattern`, `result`, `computes` | one |
+| Locating, Following, Traversing | symbol, locator; locator, hop; hop, relation | `OfSymbol.locator`, a locator's `next`, a hop's `schema` | one |
 | Defines | module (Module), schema (every kind); `name` | `OfModule.schemas` | keyed |
 
 Applications (`OfApply`, `Applying`, `HasArgument`, `Binding`, `ArgumentTerm`), terms (`Term`, `Form`, `Operands`),

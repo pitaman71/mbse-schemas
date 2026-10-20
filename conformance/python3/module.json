@@ -9479,7 +9479,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfPredicate/Lives",
+        "key": "Schemas.OfPattern/Lives",
         "properties": {
           "name": "Lives",
           "description": "Who lives where"
@@ -9490,7 +9490,7 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfParameter/Lives.since",
+        "key": "Schemas.OfParameter/Lives.era",
         "properties": {}
       }
     }
@@ -9555,6 +9555,194 @@
     }
   },
   {
+    "exists": {
+      "definition": {
+        "key": "Locators.OfSymbol/Lives.where.who",
+        "properties": {
+          "name": "who"
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Locators.OfRelation/Lives.where.who#next.0",
+        "properties": {
+          "adjacency": "addresses",
+          "link": "address",
+          "properties": {
+            "label": "home"
+          }
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.Traversing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "hop",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Locators.OfRelation/Lives.where.who#next.0"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "relation",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfRelation/ContactAddresses"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.Following"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "locator",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Locators.OfSymbol/Lives.where.who"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "hop",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Locators.OfRelation/Lives.where.who#next.0"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "member",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Locators.OfSymbol/Lives.where.who"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfObject/Contact"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.Locating"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "symbol",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfSymbol/Lives.where"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "locator",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Locators.OfSymbol/Lives.where.who"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
     "insert": {
       "relation": {
         "key": "Schemas.OfRelation/Schemas.HasSchema"
@@ -9596,6 +9784,200 @@
     }
   },
   {
+    "exists": {
+      "definition": {
+        "key": "Schemas.OfVariable/Lives.since",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.HasSchema"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "member",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfVariable/Lives.since"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfScalar/Schemas.OfStr"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.OfExpression/Lives#requires.0",
+        "properties": {
+          "description": "lived there since"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.Resulting"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "expression",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfExpression/Lives#requires.0"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfScalar/Schemas.OfBool"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.Requiring"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "pattern",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfPattern/Lives"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "constraint",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfExpression/Lives#requires.0"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.HasVariable"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfPattern/Lives"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "variable",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfVariable/Lives.since"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "since"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
     "insert": {
       "relation": {
         "key": "Schemas.OfRelation/Schemas.HasSymbol"
@@ -9610,7 +9992,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfPredicate/Lives"
+                        "key": "Schemas.OfPattern/Lives"
                       }
                     }
                   }
@@ -9654,7 +10036,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfPredicate/Lives"
+                        "key": "Schemas.OfPattern/Lives"
                       }
                     }
                   }
@@ -9707,7 +10089,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfPredicate/Lives"
+                        "key": "Schemas.OfPattern/Lives"
                       }
                     }
                   }
@@ -9721,7 +10103,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfParameter/Lives.since"
+                        "key": "Schemas.OfParameter/Lives.era"
                       }
                     }
                   }
@@ -9734,7 +10116,7 @@
                 "mutations": [
                   {
                     "set": {
-                      "value": "since"
+                      "value": "era"
                     }
                   }
                 ]
@@ -9774,7 +10156,7 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfPredicate/Lives"
+                        "key": "Schemas.OfPattern/Lives"
                       }
                     }
                   }
@@ -9788,6 +10170,250 @@
                   {
                     "set": {
                       "value": "Lives"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.OfCollector/Homes",
+        "properties": {
+          "name": "Homes",
+          "symbols": [
+            "where"
+          ],
+          "commutative": true,
+          "associative": true,
+          "suffixes": {
+            "current": "_here",
+            "next": "_there"
+          }
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.OfExpression/Homes#computes",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.Resulting"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "expression",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfExpression/Homes#computes"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfScalar/Schemas.OfInt"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.Matching"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "expression",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfExpression/Homes#computes"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "pattern",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfPattern/Lives"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.Computing"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "collector",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfCollector/Homes"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "expression",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfExpression/Homes#computes"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.Matching"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "expression",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfCollector/Homes"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "pattern",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfPattern/Lives"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.Defines"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "module",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfModule/."
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfCollector/Homes"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "Homes"
                     }
                   }
                 ]

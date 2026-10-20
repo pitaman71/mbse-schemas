@@ -80,7 +80,7 @@ export interface OfIntersection {
   readonly [member: string]: unknown;
 }
 
-export interface OfPredicate {
-  as_schema(): Schemas.OfPredicate.Data;
+export interface OfPattern {
+  as_schema(): Schemas.OfPattern.Data;
   readonly [member: string]: unknown;
 }

@@ -177,7 +177,8 @@ def _lists(s):
 
 
 def _module(s):
-    """The corpus's own schemas as data, with parametric schemas, whose parameters are names, and a predicate."""
+    """The corpus's own schemas as data, with parametric schemas, whose parameters are names, and a pattern, with a
+    locator, a variable and a constraint, an expression and a collector."""
     Bool, Int, Float, Str, Bytes = _basics(s)
     Contact, Address, _ = _address_book(s)
     _family(s)
@@ -192,9 +193,16 @@ def _module(s):
     s.Schemas.OfIntersection(lambda i: i.name("Marked").flat(True).parts([
         lambda t: t.name("when").schema([s.Schemas.OfObject(lambda o: o.properties([_text(s, "at", Int)]))]),
         lambda t: t.name("who").schema([s.Schemas.OfObject(lambda o: o.properties([_text(s, "by")]))])]))
-    s.Schemas.OfPredicate(lambda p: p.name("Lives").description("Who lives where").symbols([
-        lambda t: t.name("who").schema([Contact]), lambda t: t.name("where").schema([Address]).description("A home")])
-        .parameters([lambda t: t.name("since")]))
+    Lives = s.Schemas.OfPattern(lambda p: p.name("Lives").description("Who lives where").symbols([
+        lambda t: t.name("who").schema([Contact]),
+        lambda t: t.name("where").schema([Address]).description("A home")
+        .locator(lambda l: l.symbol("who", Contact).addresses({"label": "home"}))])
+        .variables([lambda t: t.name("since").schema([Str])])
+        .requires([lambda c: c.description("lived there since")])
+        .parameters([lambda t: t.name("era")]))
+    s.Schemas.OfCollector(lambda c: c.name("Homes").pattern([Lives]).symbols(["where"]).commutative(True).associative(True)
+                          .suffixes({"current": "_here", "next": "_there"})
+                          .computes([s.Schemas.OfExpression(lambda e: e.pattern([Lives]).result([Int]))]))
 
 
 # --- The cases ---

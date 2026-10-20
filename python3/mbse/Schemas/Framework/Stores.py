@@ -85,7 +85,7 @@ class Store(Protocol):
         """The object schema registered as `name`: `AttributeError` if none is, `TypeError` for a relation."""
         ...
 
-    def registered(self, name: str) -> Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data:
+    def registered(self, name: str) -> Any:
         """The object or relation schema registered as `name`; `LookupError` if none is."""
         ...
 
@@ -126,10 +126,10 @@ class Catalog:
     global name (`singleton`), which an implementation fills; and `extent`, the reference objects reachable from them."""
 
     def __init__(self) -> None:
-        self._schemas: dict[str, Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data] = {}
+        self._schemas: dict[str, Any] = {}
         self._singletons: dict[str, Readers.OfObject] = {}
 
-    def _register(self, schema: Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data) -> None:
+    def _register(self, schema: Any) -> None:
         """Registers a schema under its name: a store does as it builds a named schema."""
         name = schema.name
         if name in self._schemas:
@@ -141,11 +141,13 @@ class Catalog:
         if schema is None:
             raise AttributeError(f"no schema registered as {name!r}")
         if not isinstance(schema, Schemas.OfObject.Data):
-            kind = "relation" if isinstance(schema, Schemas.OfRelation.Data) else "predicate"
+            kind = {Schemas.OfRelation.Data: "relation", Schemas.OfPattern.Data: "pattern",
+                    Schemas.OfExpression.Data: "expression", Schemas.OfCollector.Data: "collector"}.get(type(schema),
+                                                                                                  "value schema")
             raise TypeError(f"{name!r} is a {kind}; no {kind} builder is exposed")
         return schema
 
-    def registered(self, name: str) -> Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data:
+    def registered(self, name: str) -> Any:
         if name not in self._schemas:
             raise LookupError(f"no schema registered as {name!r}")
         return self._schemas[name]
@@ -218,7 +220,7 @@ class Combined:
         """Whether one of the stores was made holding `schema`."""
         return any(store.framework(schema) for store in self.stores)
 
-    def registered(self, name: str) -> Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPredicate.Data:
+    def registered(self, name: str) -> Any:
         return self._owner(name, LookupError).registered(name)
 
     def name_of(self, schema: Any) -> str:

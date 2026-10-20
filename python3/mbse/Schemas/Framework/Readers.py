@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from . import Schemas
 
 __all__ = ["OfScalar", "OfAny", "OfProperty", "OfObject", "OfAdjacency", "OfEntry", "OfUnion", "OfIntersection", "OfContainer", "OfIterator",
-           "OfPredicate"]
+           "OfPattern"]
 
 T = TypeVar("T", int, float, str, bool, bytes)
 V = TypeVar("V")
@@ -140,7 +140,7 @@ class OfIntersection(Protocol):
     def __getattr__(self, name: str) -> Any: ...
 
 
-class OfPredicate(Protocol):
-    def as_schema(self) -> Schemas.OfPredicate.Data: ...
+class OfPattern(Protocol):
+    def as_schema(self) -> Schemas.OfPattern.Data: ...
 
     def __getattr__(self, name: str) -> Any: ...

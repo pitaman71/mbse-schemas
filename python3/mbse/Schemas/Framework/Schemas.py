@@ -10,11 +10,14 @@ Every kind of schema may have a `name`, set by its builder's `.name('crm.Contact
 part before the last dot the module it is in. A store registers a named schema under that name.
 
 Every kind of schema may declare `parameters` (`OfParameter`): names, each a symbol standing for a schema, bound
-where the schema is referred to (docs/proposals/store-overhaul, Decided, 12 and 20). Terms, applications, widths and a
-predicate's `requires` are mbse-expressions' and mbse-patterns' (docs/SCHEMA_EXTENSION.md, Decided, 5 to 7).
+where the schema is referred to (docs/proposals/store-overhaul, Decided, 12 and 20). Terms, applications and widths are
+mbse-expressions' (docs/SCHEMA_EXTENSION.md, Decided, 5 to 7).
 
-A predicate (`OfPredicate`) names its symbols (`OfSymbol`), each of a reference object schema. A relation holds the
-schema of its entries (`OfEntry`): their links, each a symbol, and their properties.
+A pattern (`OfPattern`) declares symbols (`OfSymbol`), each standing for a reference object and perhaps located by a
+locator (`Locators`), variables (`OfVariable`), each standing for a value, and the constraints a frame meets (its
+`requires`, each an `OfExpression` of boolean result); an expression (`OfExpression`) ranges over a pattern, and a
+collector (`OfCollector`) folds the frames of one (docs/STREAMING_QUERIES.md; docs/OBJECT_IDENTITY.md, Locators). A
+relation holds the schema of its entries (`OfEntry`): their links, each a symbol, and their properties.
 """
 
 from __future__ import annotations
@@ -41,7 +44,12 @@ __all__ = [
     "OfRelation",
     "OfEntry",
     "OfSymbol",
-    "OfPredicate",
+    "OfVariable",
+    "OfPattern",
+    "OfExpression",
+    "OfConstraint",
+    "OfCollector",
+    "Locators",
     "OfUnion",
     "OfIntersection",
     "OfParameter",
@@ -258,13 +266,14 @@ class OfProperty:
 
 @dataclass(eq=False)
 class _SymbolData:
-    """A name standing for an object: a predicate's symbol, which a match binds, or an entry's link. Its schema is a
-    reference object schema, which a predicate's symbols require and an entry's links may leave unset (None)."""
+    """A name standing for an object: a pattern's symbol, which a frame binds, or an entry's link. Its schema is a
+    reference object schema, which either may leave unset (None); a pattern's symbol may give a locator, the route by
+    which it finds its objects (`Locators`), and a link never does."""
 
     name: str = ""
     schema: Any = None  # OfAny.Data
     description: str | None = None
-
+    locator: Any = None  # Locators.OfSymbol.Data | Locators.OfSingleton.Data
 
 class OfSymbol:
     Data = _SymbolData
@@ -301,6 +310,8 @@ class _EntryData:
             problems.append(f"names used as both link and property: {sorted(clashes)}")
         for name, link in self.links.items():
             problems += [f"link {name!r}: {p}" for p in _symbol_problems(link)]
+            if link.locator is not None:
+                problems.append(f"link {name!r}: a relation's link has no locator; a pattern's symbol may")
         for name, prop in self.properties.items():
             problems += [f"property {name!r}: {p}" for p in _validate(prop.schema) + _embedded_problems(prop.schema)
                          + _description_problems(prop.description) + _pattern_problems(prop)]
@@ -763,36 +774,260 @@ class _AnyValueData:
         return problems
 
 
-# --- OfPredicate ---
+# --- Locators: how a pattern's symbol finds its objects ---
 
 
 @dataclass(eq=False)
-class _PredicateData:
-    """Symbols, each standing for an object of a reference object schema, and parameters: a match binds every symbol to
-    an object of its schema. What it requires of a match, and matching, are mbse-patterns'."""
+class _LocatorSymbolData:
+    """A locator's root at a symbol the pattern declares before: its name, and its schema, a reference object schema,
+    by which a hop from it finds its adjacencies."""
+
+    name: str = ""
+    schema: Any = None
+    next: Any = None  # the hop after it, a Locators.OfRelation.Data, or None
+
+
+@dataclass(eq=False)
+class _LocatorSingletonData:
+    """A locator's root at a singleton: its schema, a singleton's."""
+
+    schema: Any = None
+    next: Any = None
+
+
+@dataclass(eq=False)
+class _LocatorRelationData:
+    """A hop: through the named adjacency `adjacency` of the object before, to `relation`'s (`schema`'s) entries whose
+    properties hold `properties`, then through their link `link` to the next object (docs/OBJECT_IDENTITY.md, Locators)."""
+
+    schema: Any = None  # an OfRelation.Data
+    adjacency: str = ""
+    link: str = ""
+    properties: dict[str, Any] = field(default_factory=dict)
+    next: Any = None
+
+
+class Locators:
+    """The locator schemas: `Locators.OfSymbol` or `Locators.OfSingleton` at the root, `Locators.OfRelation` each hop."""
+
+    class OfSymbol:
+        Data = _LocatorSymbolData
+
+    class OfSingleton:
+        Data = _LocatorSingletonData
+
+    class OfRelation:
+        Data = _LocatorRelationData
+
+
+_ROOTS = (_LocatorSymbolData, _LocatorSingletonData)
+
+
+def _locator_problems(locator: Any, before: dict[str, _SymbolData]) -> list[str]:
+    """A symbol's locator: a root, a symbol among `before` or a singleton's schema, then hops, each through a named
+    adjacency of the schema the object before has, where it is known, to a link of its relation other than the one the
+    adjacency fills, matching properties the relation's entries have."""
+    if not isinstance(locator, _ROOTS):
+        return ["a locator starts at a symbol or a singleton: Locators.OfSymbol or Locators.OfSingleton"]
+    problems: list[str] = []
+    if isinstance(locator, _LocatorSymbolData):
+        if locator.name not in before:
+            problems.append(f"a locator starts at symbol {locator.name!r}, which the pattern does not declare before it")
+        if not (isinstance(locator.schema, _ObjectData) and locator.schema.ref):
+            problems.append("a locator's symbol has a reference object schema")
+        current = locator.schema
+    else:
+        if not (isinstance(locator.schema, _ObjectData) and locator.schema.singleton is not None):
+            problems.append("a locator's singleton is a singleton's schema")
+        current = locator.schema
+    hop, step = locator.next, 0
+    while hop is not None:
+        step += 1
+        where = f"hop {step}: "
+        if not isinstance(hop, _LocatorRelationData):
+            problems.append(f"{where}only a locator's root is a symbol or a singleton; each hop is a Locators.OfRelation")
+            break
+        relation = hop.schema
+        if not isinstance(relation, _RelationData):
+            problems.append(f"{where}a hop's schema is a relation")
+            break
+        adjacency = current.adjacencies.get(hop.adjacency) if isinstance(current, _ObjectData) else None
+        if isinstance(current, _ObjectData) and (adjacency is None or adjacency.relation is not relation):
+            problems.append(f"{where}{current.name!r} has no adjacency {hop.adjacency!r} to {relation.name!r}: a locator "
+                            "traverses named adjacencies")
+        if hop.link not in relation.entry.links or (adjacency is not None and hop.link == adjacency.me):
+            problems.append(f"{where}{hop.link!r} is not a link of {relation.name!r} to the next object")
+        unknown = sorted(set(hop.properties) - set(relation.entry.properties))
+        if unknown:
+            problems.append(f"{where}{relation.name!r} has no properties {unknown}")
+        current, hop = relation.entry.links.get(hop.link, _SymbolData()).schema, hop.next
+    return problems
+
+
+# --- OfVariable: a name standing for a value ---
+
+
+@dataclass(eq=False)
+class _VariableData:
+    """A name standing for a value: a pattern's variable, which a frame assigns a value of its schema."""
+
+    name: str = ""
+    schema: Any = None  # OfAny.Data
+    description: str | None = None
+
+
+class OfVariable:
+    Data = _VariableData
+
+
+def _variable_problems(variable: _VariableData) -> list[str]:
+    """A variable's schema, when it has one, is a value's: never a reference object schema."""
+    problems = _description_problems(variable.description)
+    if variable.schema is None:
+        return problems
+    return _validate(variable.schema) + _embedded_problems(variable.schema) + problems
+
+
+# --- OfExpression, OfConstraint ---
+
+
+@dataclass(eq=False)
+class _ExpressionData:
+    """An expression over a pattern's frames: its pattern, whose symbols and variables are free in it, and the schema of
+    the value it computes. Its terms are mbse-expressions' (docs/STREAMING_QUERIES.md, Value expressions and
+    constraints); a constraint is an expression whose result is `Schemas.OfBool`."""
+
+    pattern: Any = None  # an OfPattern.Data, or None where its owner gives it
+    result: Any = None  # OfAny.Data
+    name: str | None = None
+    description: str | None = None
+    parameters: dict[str, _ParameterData] = field(default_factory=dict)
+
+    def validate(self) -> list[str]:
+        problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
+        if self.pattern is not None and not isinstance(self.pattern, _PatternData):
+            problems.append("an expression's pattern is a pattern")
+        if self.result is None:
+            problems.append("an expression needs a result schema")
+        else:
+            problems += [f"result: {p}" for p in _validate(self.result) + _embedded_problems(self.result)]
+        return problems
+
+
+class OfExpression:
+    """An expression: mbse-expressions refines it with its terms."""
+
+    Data = _ExpressionData
+
+
+class OfConstraint:
+    """A constraint: an expression whose result is the store's `Schemas.OfBool` (its builder fixes it)."""
+
+    Data = _ExpressionData
+
+
+def _is_constraint(expression: Any) -> bool:
+    return isinstance(expression, _ExpressionData) and getattr(expression.result, "name", None) == "Schemas.OfBool"
+
+
+# --- OfPattern ---
+
+
+@dataclass(eq=False)
+class _PatternData:
+    """The shape of a frame: symbols, each bound to a reference object, variables, each assigned a value, and the
+    constraints a frame meets, in order (docs/STREAMING_QUERIES.md, Patterns)."""
 
     symbols: dict[str, _SymbolData] = field(default_factory=dict)
+    variables: dict[str, _VariableData] = field(default_factory=dict)
+    requires: tuple[_ExpressionData, ...] = ()
     name: str | None = None
     description: str | None = None
     parameters: dict[str, _ParameterData] = field(default_factory=dict)
 
     def validate(self) -> list[str]:
         problems = (_name_problems(self.name) + _description_problems(self.description)
-                    + _parameter_problems(self.parameters) + _reserved(self.symbols))
-        clashes = set(self.symbols) & set(self.parameters)
-        if clashes:
-            problems.append(f"names used as both symbol and parameter: {sorted(clashes)}")
+                    + _parameter_problems(self.parameters) + _reserved([*self.symbols, *self.variables]))
+        for first, second, plural in ((self.symbols, self.variables, "symbol and variable"),
+                                      (self.symbols, self.parameters, "symbol and parameter"),
+                                      (self.variables, self.parameters, "variable and parameter")):
+            clashes = set(first) & set(second)
+            if clashes:
+                problems.append(f"names used as both {plural}: {sorted(clashes)}")
+        before: dict[str, _SymbolData] = {}
         for name, symbol in self.symbols.items():
-            if symbol.schema is None:
-                problems.append(f"symbol {name!r} needs a schema")
             problems += [f"symbol {name!r}: {p}" for p in _symbol_problems(symbol)]
+            if symbol.locator is not None:
+                problems += [f"symbol {name!r}: {p}" for p in _locator_problems(symbol.locator, before)]
+            before[name] = symbol
+        for name, variable in self.variables.items():
+            problems += [f"variable {name!r}: {p}" for p in _variable_problems(variable)]
+        for index, constraint in enumerate(self.requires):
+            if not _is_constraint(constraint):
+                problems.append(f"requires[{index}] is a constraint: an expression whose result is Schemas.OfBool")
+                continue
+            if constraint.pattern is not None and constraint.pattern is not self:
+                problems.append(f"requires[{index}] is over this pattern's frames, not another's")
+            problems += [f"requires[{index}]: {p}" for p in constraint.validate()]
         return problems
 
 
-class OfPredicate:
-    """A named constraint over symbols, matched by the caller."""
+class OfPattern:
+    """The shape of a frame (docs/STREAMING_QUERIES.md, Patterns)."""
 
-    Data = _PredicateData
+    Data = _PatternData
+
+
+# --- OfCollector ---
+
+
+@dataclass(eq=False)
+class _CollectorData:
+    """A pattern used to fold frames (docs/STREAMING_QUERIES.md, Mutation expressions): the symbols and variables it
+    collects, each duplicated under its `suffixes`, `current` and `next`, and what it `computes`; `commutative` or
+    `associative`, so that the fold does not depend on the order frames arrive in (docs/OBJECT_IDENTITY.md, 62)."""
+
+    pattern: Any = None  # an OfPattern.Data
+    symbols: tuple[str, ...] = ()
+    variables: tuple[str, ...] = ()
+    commutative: bool | None = None
+    associative: bool | None = None
+    suffixes: dict[str, str] | None = None  # {"current": ..., "next": ...}
+    computes: Any = None  # an OfExpression.Data
+    name: str | None = None
+    description: str | None = None
+    parameters: dict[str, _ParameterData] = field(default_factory=dict)
+
+    def validate(self) -> list[str]:
+        problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
+        if not isinstance(self.pattern, _PatternData):
+            problems.append("a collector needs a pattern")
+        else:
+            for plural, names, held in (("symbols", self.symbols, self.pattern.symbols),
+                                        ("variables", self.variables, self.pattern.variables)):
+                missing = [name for name in names if name not in held]
+                if missing:
+                    problems.append(f"it collects {plural} {missing}, which its pattern does not declare")
+        if not self.commutative and not self.associative:
+            problems.append("a collector is commutative or associative, so that its result does not depend on the order "
+                            "frames arrive in")
+        if self.suffixes is not None:
+            if set(self.suffixes) != {"current", "next"}:
+                problems.append("a collector's suffixes are 'current' and 'next'")
+            elif self.suffixes["current"] == self.suffixes["next"]:
+                problems.append("a collector's 'current' and 'next' suffixes differ")
+        if self.computes is not None:
+            if not isinstance(self.computes, _ExpressionData):
+                problems.append("what a collector computes is an expression")
+            else:
+                problems += [f"computes: {p}" for p in self.computes.validate()]
+        return problems
+
+
+class OfCollector:
+    """A pattern used to fold frames."""
+
+    Data = _CollectorData
 
 
 # --- OfAny ---
@@ -915,6 +1150,10 @@ def _embedded_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[
         return []
     inner = seen | {id(schema)}
     return sorted({problem for member in _members_of(schema) for problem in _embedded_problems(member, inner)})
+
+
+_DEFINED = (*_KINDS, _RelationData, _PatternData, _ExpressionData, _CollectorData)
+"""The kinds of schema a module defines and a store registers by name."""
 
 
 class OfAny:

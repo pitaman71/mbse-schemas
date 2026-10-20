@@ -204,7 +204,19 @@ so that main stays current and no branch waits on another.
      store holds: `OfSymbol` or `OfSingleton` at the root, `OfRelation` hops through named adjacencies), `OfVariable`,
      `OfExpression` and its boolean variant `OfConstraint` (placeholders mbse-expressions refines), `OfCollector`
      (rejected by validation where it declares neither `.commutative()` nor `.associative()`, 62); built, validated
-     and written as every schema is. `Schemas.OfPredicate` goes (67).
+     and written as every schema is. `Schemas.OfPredicate` goes (67). Done, on the branch. As built (FRAMEWORK.md,
+     Resolved, Patterns, has the choices made for the user's review):
+     - the meta-schemas `Schemas.OfPattern`, `OfVariable`, `OfExpression` and `OfCollector`, and a second namespace,
+       `Locators.OfSymbol`, `OfSingleton` and `OfRelation`; the relations `Schemas.HasVariable`, `Requiring`,
+       `Matching`, `Resulting`, `Computing`, `Locating`, `Following` and `Traversing`, `HasSymbol` now a pattern's. A
+       kind's builder may name a kind outside `Schemas.` (`_kind_name`), and the builders a store builds by name, and a
+       log reads, are keyed by the kind's whole name;
+     - `store.Schemas.OfConstraint(...)` builds an expression of the store's `OfBool`; a pattern's `requires` builds
+       constraints, which it owns; a collector's names are text lists, its `suffixes` a map;
+     - the locator shorthand writes `Locators` data through their builders, in the store; it is the symbol's
+       `locator` adjacency too, so `insert`, `remove`, `as_iterable` and `as_schema` are the adjacency's;
+     - the corpus's `module` case has a pattern with a locator, a variable and a constraint, an expression and a
+       collector in place of its predicate; the suite PAT tests them, in both languages.
    - **4g, schema objects** (17, 29, 69, 70): a named schema's identity is its path, and its members' paths continue it;
      derived identities go; an unnamed schema has no identity, and is written nested in the one object that links it;
      validation refuses an unnamed schema linked from more than one place, and a cycle among value schemas; schema

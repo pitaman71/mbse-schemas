@@ -30,7 +30,7 @@ import type * as Readers from "./Readers.js";
 
 type ObjectSchema = Schemas.OfObject.Data;
 type RelationSchema = Schemas.OfRelation.Data;
-type PredicateSchema = Schemas.OfPredicate.Data;
+type DefinedSchema = Schemas.OfPattern.Data | Schemas.OfExpression.Data | Schemas.OfCollector.Data;
 
 /** A source of random bits, given to whatever draws from it. */
 export interface Random {
@@ -80,7 +80,7 @@ export interface Store {
   /** The object schema registered as `name`: `AttributeError` if none is, `TypeError` for a relation. */
   schema(name: string): ObjectSchema;
   /** The object or relation schema registered as `name`; `LookupError` if none is. */
-  registered(name: string): ObjectSchema | RelationSchema | PredicateSchema;
+  registered(name: string): ObjectSchema | RelationSchema | DefinedSchema;
   /** The name `schema` is registered under; `LookupError` if it is not. */
   name_of(schema: unknown): string;
   /** Every registered name, in registration order. */
@@ -104,11 +104,11 @@ export interface Store {
 /** Schemas by name: `register`, `schema`, `registered`, `name_of` and `names`, as every store has them; the roots, by
  * global name (`singleton`), which an implementation fills; and `extent`, the reference objects reachable from them. */
 export class Catalog {
-  readonly _schemas = new Map<string, ObjectSchema | RelationSchema | PredicateSchema>();
+  readonly _schemas = new Map<string, ObjectSchema | RelationSchema | DefinedSchema>();
   readonly _singletons = new Map<string, Readers.OfObject>();
 
   /** Registers a schema under its name. */
-  _register(schema: ObjectSchema | RelationSchema | PredicateSchema): void {
+  _register(schema: ObjectSchema | RelationSchema | DefinedSchema): void {
     const name = schema.name as string; // a store registers only a named schema, as it builds it
     if (this._schemas.has(name)) throw new ValueError(`schema ${repr(name)} is already registered`);
     this._schemas.set(name, schema);
@@ -118,13 +118,15 @@ export class Catalog {
     const found = this._schemas.get(name);
     if (found === undefined) throw new AttributeError(`no schema registered as ${repr(name)}`);
     if (!(found instanceof Schemas.OfObject.Data)) {
-      const kind = found instanceof Schemas.OfRelation.Data ? "relation" : "predicate";
+      const kinds = new Map<unknown, string>([[Schemas.OfRelation.Data, "relation"], [Schemas.OfPattern.Data, "pattern"],
+        [Schemas.OfExpression.Data, "expression"], [Schemas.OfCollector.Data, "collector"]]);
+      const kind = kinds.get(Object(found).constructor) ?? "value schema";
       throw new TypeError(`${repr(name)} is a ${kind}; no ${kind} builder is exposed`);
     }
     return found;
   }
 
-  registered(name: string): ObjectSchema | RelationSchema | PredicateSchema {
+  registered(name: string): ObjectSchema | RelationSchema | DefinedSchema {
     const found = this._schemas.get(name);
     if (found === undefined) throw new LookupError(`no schema registered as ${repr(name)}`);
     return found;
@@ -212,7 +214,7 @@ export class Combined implements Store {
     return this.owner(name, AttributeError).schema(name);
   }
 
-  registered(name: string): ObjectSchema | RelationSchema | PredicateSchema {
+  registered(name: string): ObjectSchema | RelationSchema | DefinedSchema {
     return this.owner(name, LookupError).registered(name);
   }
 

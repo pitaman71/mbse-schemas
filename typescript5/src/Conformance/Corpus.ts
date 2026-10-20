@@ -177,7 +177,8 @@ function lists(s: any): any {
     list(s, "cells", Int, Int, "sparse"), list(s, "attrs", Float, Str), list(s, "weights", Str, Float)]));
 }
 
-/** The corpus's own schemas as data, with parametric schemas, whose parameters are names, and a predicate. */
+/** The corpus's own schemas as data, with parametric schemas, whose parameters are names, and a pattern, with a locator,
+ * a variable and a constraint, an expression and a collector. */
 function module(s: any): void {
   const [Bool, Int, Float, Str, Bytes] = basics(s);
   const [Contact, Address] = addressBook(s);
@@ -193,9 +194,16 @@ function module(s: any): void {
   s.Schemas.OfIntersection((i: any) => i.name("Marked").flat(true).parts([
     (t: any) => t.name("when").schema([s.Schemas.OfObject((o: any) => o.properties([text(s, "at", Int)]))]),
     (t: any) => t.name("who").schema([s.Schemas.OfObject((o: any) => o.properties([text(s, "by")]))])]));
-  s.Schemas.OfPredicate((p: any) => p.name("Lives").description("Who lives where").symbols([
-    (t: any) => t.name("who").schema([Contact]), (t: any) => t.name("where").schema([Address]).description("A home")])
-    .parameters([(t: any) => t.name("since")]));
+  const Lives = s.Schemas.OfPattern((p: any) => p.name("Lives").description("Who lives where").symbols([
+    (t: any) => t.name("who").schema([Contact]),
+    (t: any) => t.name("where").schema([Address]).description("A home")
+      .locator((l: any) => l.symbol("who", Contact).addresses({ label: "home" }))])
+    .variables([(t: any) => t.name("since").schema([Str])])
+    .requires([(c: any) => c.description("lived there since")])
+    .parameters([(t: any) => t.name("era")]));
+  s.Schemas.OfCollector((c: any) => c.name("Homes").pattern([Lives]).symbols(["where"]).commutative(true).associative(true)
+    .suffixes({ current: "_here", next: "_there" })
+    .computes([s.Schemas.OfExpression((e: any) => e.pattern([Lives]).result([Int]))]));
 }
 
 // --- The cases ---

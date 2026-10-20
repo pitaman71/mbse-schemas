@@ -12,11 +12,14 @@
  * the part before the last dot the module it is in. A store registers a named schema under that name.
  *
  * Every kind of schema may declare `parameters` (`OfParameter`): names, each a symbol standing for a schema, bound
- * where the schema is referred to (docs/proposals/store-overhaul, Decided, 12 and 20). Terms, applications, widths and a
- * predicate's `requires` are mbse-expressions' and mbse-patterns' (docs/SCHEMA_EXTENSION.md, Decided, 5 to 7).
+ * where the schema is referred to (docs/proposals/store-overhaul, Decided, 12 and 20). Terms, applications and widths
+ * are mbse-expressions' (docs/SCHEMA_EXTENSION.md, Decided, 5 to 7).
  *
- * A predicate (`OfPredicate`) names its symbols (`OfSymbol`), each of a reference object schema. A relation holds the
- * schema of its entries (`OfEntry`): their links, each a symbol, and their properties.
+ * A pattern (`OfPattern`) declares symbols (`OfSymbol`), each standing for a reference object and perhaps located by a
+ * locator (`Locators`), variables (`OfVariable`), each standing for a value, and the constraints a frame meets (its
+ * `requires`, each an `OfExpression` of boolean result); an expression (`OfExpression`) ranges over a pattern, and a
+ * collector (`OfCollector`) folds the frames of one (docs/STREAMING_QUERIES.md; docs/OBJECT_IDENTITY.md, Locators). A
+ * relation holds the schema of its entries (`OfEntry`): their links, each a symbol, and their properties.
  */
 
 import { fromBase64, toBase64 } from "./Bytes.js";
@@ -286,17 +289,21 @@ export namespace OfProperty {
 
 // --- OfSymbol: a name standing for an object ---
 
-/** A name standing for an object: a predicate's symbol, which a match binds, or an entry's link. Its schema is a
- * reference object schema, which a predicate's symbols require and an entry's links may leave unset (null). */
+/** A name standing for an object: a pattern's symbol, which a frame binds, or an entry's link. Its schema is a
+ * reference object schema, which either may leave unset (null); a pattern's symbol may give a locator, the route by
+ * which it finds its objects (`Locators`), and a link never does. */
 class SymbolData {
   name: string;
   schema: AnyData | null;
   description: string | null;
+  locator: LocatorSymbolData | LocatorSingletonData | null;
 
-  constructor(fields: { name?: string; schema?: AnyData | null; description?: string | null } = {}) {
+  constructor(fields: { name?: string; schema?: AnyData | null; description?: string | null;
+    locator?: LocatorSymbolData | LocatorSingletonData | null } = {}) {
     this.name = fields.name ?? "";
     this.schema = fields.schema ?? null;
     this.description = fields.description ?? null;
+    this.locator = fields.locator ?? null;
   }
 }
 
@@ -340,7 +347,10 @@ class EntryData {
     }
     const clashes = [...this.links.keys()].filter((link) => this.properties.has(link));
     if (clashes.length > 0) problems.push(`names used as both link and property: ${repr(sortedStrings(new Set(clashes)))}`);
-    for (const [name, link] of this.links) problems.push(...symbolProblems(link).map((p) => `link ${repr(name)}: ${p}`));
+    for (const [name, link] of this.links) {
+      problems.push(...symbolProblems(link).map((p) => `link ${repr(name)}: ${p}`));
+      if (link.locator !== null) problems.push(`link ${repr(name)}: a relation's link has no locator; a pattern's symbol may`);
+    }
     for (const [name, prop] of this.properties) {
       problems.push(...[...validateSchema(prop.schema), ...embeddedProblems(prop.schema), ...descriptionProblems(prop.description), ...patternProblems(prop)]
         .map((p) => `property ${repr(name)}: ${p}`));
@@ -888,19 +898,226 @@ export namespace OfContainer {
   export type Builder = Builders.ContainerBuilder;
 }
 
-// --- OfPredicate ---
+// --- Locators: how a pattern's symbol finds its objects ---
 
-/** Symbols, each standing for an object of a reference object schema, and parameters: a match binds every symbol to
- * an object of its schema. What it requires of a match, and matching, are mbse-patterns'. */
-class PredicateData {
-  symbols: Map<string, SymbolData>;
+/** A locator's root at a symbol the pattern declares before: its name, and its schema, a reference object schema, by
+ * which a hop from it finds its adjacencies. */
+class LocatorSymbolData {
+  name: string;
+  schema: unknown;
+  /** The hop after it, a Locators.OfRelation.Data, or null. */
+  next: unknown;
+
+  constructor(fields: { name?: string; schema?: unknown; next?: unknown } = {}) {
+    this.name = fields.name ?? "";
+    this.schema = fields.schema ?? null;
+    this.next = fields.next ?? null;
+  }
+}
+
+/** A locator's root at a singleton: its schema, a singleton's. */
+class LocatorSingletonData {
+  schema: unknown;
+  next: unknown;
+
+  constructor(fields: { schema?: unknown; next?: unknown } = {}) {
+    this.schema = fields.schema ?? null;
+    this.next = fields.next ?? null;
+  }
+}
+
+/** A hop: through the named adjacency `adjacency` of the object before, to `relation`'s (`schema`'s) entries whose
+ * properties hold `properties`, then through their link `link` to the next object (docs/OBJECT_IDENTITY.md, Locators). */
+class LocatorRelationData {
+  schema: unknown;
+  adjacency: string;
+  link: string;
+  properties: Map<string, unknown>;
+  next: unknown;
+
+  constructor(fields: { schema?: unknown; adjacency?: string; link?: string; properties?: Map<string, unknown>;
+    next?: unknown } = {}) {
+    this.schema = fields.schema ?? null;
+    this.adjacency = fields.adjacency ?? "";
+    this.link = fields.link ?? "";
+    this.properties = fields.properties ?? new Map();
+    this.next = fields.next ?? null;
+  }
+}
+
+/** The locator schemas: `Locators.OfSymbol` or `Locators.OfSingleton` at the root, `Locators.OfRelation` each hop. */
+export namespace Locators {
+  export namespace OfSymbol {
+    export const Data = LocatorSymbolData;
+    export type Data = LocatorSymbolData;
+    /** Its builder, `Builders`': importing the package installs it here. */
+    export declare const Builder: typeof Builders.LocatorSymbolBuilder;
+    export type Builder = Builders.LocatorSymbolBuilder;
+  }
+  export namespace OfSingleton {
+    export const Data = LocatorSingletonData;
+    export type Data = LocatorSingletonData;
+    export declare const Builder: typeof Builders.LocatorSingletonBuilder;
+    export type Builder = Builders.LocatorSingletonBuilder;
+  }
+  export namespace OfRelation {
+    export const Data = LocatorRelationData;
+    export type Data = LocatorRelationData;
+    export declare const Builder: typeof Builders.LocatorRelationBuilder;
+    export type Builder = Builders.LocatorRelationBuilder;
+  }
+}
+
+/** A symbol's locator: a root, a symbol among `before` or a singleton's schema, then hops, each through a named
+ * adjacency of the schema the object before has, where it is known, to a link of its relation other than the one the
+ * adjacency fills, matching properties the relation's entries have. */
+function locatorProblems(locator: unknown, before: ReadonlyMap<string, SymbolData>): string[] {
+  if (!(locator instanceof LocatorSymbolData || locator instanceof LocatorSingletonData)) {
+    return ["a locator starts at a symbol or a singleton: Locators.OfSymbol or Locators.OfSingleton"];
+  }
+  const problems: string[] = [];
+  if (locator instanceof LocatorSymbolData) {
+    if (!before.has(locator.name)) {
+      problems.push(`a locator starts at symbol ${repr(locator.name)}, which the pattern does not declare before it`);
+    }
+    if (!(locator.schema instanceof ObjectData && locator.schema.ref)) problems.push("a locator's symbol has a reference object schema");
+  } else if (!(locator.schema instanceof ObjectData && locator.schema.singleton !== null)) {
+    problems.push("a locator's singleton is a singleton's schema");
+  }
+  let current: unknown = locator.schema;
+  let hop: unknown = locator.next;
+  let step = 0;
+  while (hop !== null) {
+    step += 1;
+    const where = `hop ${step}: `;
+    if (!(hop instanceof LocatorRelationData)) {
+      problems.push(`${where}only a locator's root is a symbol or a singleton; each hop is a Locators.OfRelation`);
+      break;
+    }
+    const relation = hop.schema;
+    if (!(relation instanceof RelationData)) {
+      problems.push(`${where}a hop's schema is a relation`);
+      break;
+    }
+    const adjacency = current instanceof ObjectData ? current.adjacencies.get(hop.adjacency) ?? null : null;
+    if (current instanceof ObjectData && (adjacency === null || adjacency.relation !== relation)) {
+      problems.push(`${where}${repr(current.name)} has no adjacency ${repr(hop.adjacency)} to ${repr(relation.name)}: a locator `
+        + "traverses named adjacencies");
+    }
+    if (!relation.entry.links.has(hop.link) || (adjacency !== null && hop.link === adjacency.me)) {
+      problems.push(`${where}${repr(hop.link)} is not a link of ${repr(relation.name)} to the next object`);
+    }
+    const unknown = sortedStrings(new Set([...hop.properties.keys()].filter((name) => !relation.entry.properties.has(name))));
+    if (unknown.length > 0) problems.push(`${where}${repr(relation.name)} has no properties ${repr(unknown)}`);
+    current = relation.entry.links.get(hop.link)?.schema ?? null;
+    hop = hop.next;
+  }
+  return problems;
+}
+
+// --- OfVariable: a name standing for a value ---
+
+/** A name standing for a value: a pattern's variable, which a frame assigns a value of its schema. */
+class VariableData {
+  name: string;
+  schema: AnyData | null;
+  description: string | null;
+
+  constructor(fields: { name?: string; schema?: AnyData | null; description?: string | null } = {}) {
+    this.name = fields.name ?? "";
+    this.schema = fields.schema ?? null;
+    this.description = fields.description ?? null;
+  }
+}
+
+export namespace OfVariable {
+  export const Data = VariableData;
+  export type Data = VariableData;
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.VariableBuilder;
+  export type Builder = Builders.VariableBuilder;
+}
+
+/** A variable's schema, when it has one, is a value's: never a reference object schema. */
+function variableProblems(variable: VariableData): string[] {
+  const problems = descriptionProblems(variable.description);
+  if (variable.schema === null) return problems;
+  return [...validateSchema(variable.schema), ...embeddedProblems(variable.schema), ...problems];
+}
+
+// --- OfExpression, OfConstraint ---
+
+/** An expression over a pattern's frames: its pattern, whose symbols and variables are free in it, and the schema of the
+ * value it computes. Its terms are mbse-expressions' (docs/STREAMING_QUERIES.md, Value expressions and constraints); a
+ * constraint is an expression whose result is `Schemas.OfBool`. */
+class ExpressionData {
+  /** An OfPattern.Data, or null where its owner gives it. */
+  pattern: unknown;
+  result: unknown;
   name: string | null;
   description: string | null;
   parameters: Map<string, ParameterData>;
 
-  constructor(fields: { symbols?: Map<string, SymbolData>; name?: string | null; description?: string | null;
+  constructor(fields: { pattern?: unknown; result?: unknown; name?: string | null; description?: string | null;
     parameters?: Map<string, ParameterData> } = {}) {
+    this.pattern = fields.pattern ?? null;
+    this.result = fields.result ?? null;
+    this.name = fields.name ?? null;
+    this.description = fields.description ?? null;
+    this.parameters = fields.parameters ?? new Map();
+  }
+
+  equals(other: unknown): boolean {
+    return other === this;
+  }
+
+  validate(): string[] {
+    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
+    if (this.pattern !== null && !(this.pattern instanceof PatternData)) problems.push("an expression's pattern is a pattern");
+    if (this.result === null) problems.push("an expression needs a result schema");
+    else problems.push(...[...validateSchema(this.result), ...embeddedProblems(this.result)].map((p) => `result: ${p}`));
+    return problems;
+  }
+}
+
+export namespace OfExpression {
+  /** An expression: mbse-expressions refines it with its terms. */
+  export const Data = ExpressionData;
+  export type Data = ExpressionData;
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.ExpressionBuilder;
+  export type Builder = Builders.ExpressionBuilder;
+}
+
+export namespace OfConstraint {
+  /** A constraint: an expression whose result is the store's `Schemas.OfBool` (its builder fixes it). */
+  export const Data = ExpressionData;
+  export type Data = ExpressionData;
+  export declare const Builder: typeof Builders.ConstraintBuilder;
+  export type Builder = Builders.ConstraintBuilder;
+}
+
+function isConstraint(expression: unknown): boolean {
+  return expression instanceof ExpressionData && Object(expression.result).name === "Schemas.OfBool";
+}
+
+// --- OfPattern ---
+
+/** The shape of a frame: symbols, each bound to a reference object, variables, each assigned a value, and the
+ * constraints a frame meets, in order (docs/STREAMING_QUERIES.md, Patterns). */
+class PatternData {
+  symbols: Map<string, SymbolData>;
+  variables: Map<string, VariableData>;
+  requires: ExpressionData[];
+  name: string | null;
+  description: string | null;
+  parameters: Map<string, ParameterData>;
+
+  constructor(fields: { symbols?: Map<string, SymbolData>; variables?: Map<string, VariableData>; requires?: ExpressionData[];
+    name?: string | null; description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
     this.symbols = fields.symbols ?? new Map();
+    this.variables = fields.variables ?? new Map();
+    this.requires = fields.requires ?? [];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
     this.parameters = fields.parameters ?? new Map();
@@ -912,24 +1129,119 @@ class PredicateData {
 
   validate(): string[] {
     const problems = [...nameProblems(this.name), ...descriptionProblems(this.description),
-      ...parameterProblems(this.parameters), ...reserved([...this.symbols.keys()])];
-    const clashes = [...this.symbols.keys()].filter((name) => this.parameters.has(name));
-    if (clashes.length > 0) problems.push(`names used as both symbol and parameter: ${repr(sortedStrings(new Set(clashes)))}`);
+      ...parameterProblems(this.parameters), ...reserved([...this.symbols.keys(), ...this.variables.keys()])];
+    for (const [first, second, plural] of [[this.symbols, this.variables, "symbol and variable"],
+      [this.symbols, this.parameters, "symbol and parameter"], [this.variables, this.parameters, "variable and parameter"]] as const) {
+      const clashes = [...first.keys()].filter((name) => second.has(name));
+      if (clashes.length > 0) problems.push(`names used as both ${plural}: ${repr(sortedStrings(new Set(clashes)))}`);
+    }
+    const before = new Map<string, SymbolData>();
     for (const [name, symbol] of this.symbols) {
-      if (symbol.schema === null) problems.push(`symbol ${repr(name)} needs a schema`);
       problems.push(...symbolProblems(symbol).map((p) => `symbol ${repr(name)}: ${p}`));
+      if (symbol.locator !== null) problems.push(...locatorProblems(symbol.locator, before).map((p) => `symbol ${repr(name)}: ${p}`));
+      before.set(name, symbol);
+    }
+    for (const [name, variable] of this.variables) {
+      problems.push(...variableProblems(variable).map((p) => `variable ${repr(name)}: ${p}`));
+    }
+    this.requires.forEach((constraint, index) => {
+      if (!isConstraint(constraint)) {
+        problems.push(`requires[${index}] is a constraint: an expression whose result is Schemas.OfBool`);
+        return;
+      }
+      if (constraint.pattern !== null && constraint.pattern !== this) {
+        problems.push(`requires[${index}] is over this pattern's frames, not another's`);
+      }
+      problems.push(...constraint.validate().map((p) => `requires[${index}]: ${p}`));
+    });
+    return problems;
+  }
+}
+
+export namespace OfPattern {
+  /** The shape of a frame (docs/STREAMING_QUERIES.md, Patterns). */
+  export const Data = PatternData;
+  export type Data = PatternData;
+  /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
+  export declare const Builder: typeof Builders.PatternBuilder;
+  export type Builder = Builders.PatternBuilder;
+}
+
+// --- OfCollector ---
+
+/** A pattern used to fold frames (docs/STREAMING_QUERIES.md, Mutation expressions): the symbols and variables it
+ * collects, each duplicated under its `suffixes`, `current` and `next`, and what it `computes`; `commutative` or
+ * `associative`, so that the fold does not depend on the order frames arrive in (docs/OBJECT_IDENTITY.md, 62). */
+class CollectorData {
+  pattern: unknown;
+  symbols: string[];
+  variables: string[];
+  commutative: boolean | null;
+  associative: boolean | null;
+  /** {current, next}, or null. */
+  suffixes: Map<string, string> | null;
+  /** An OfExpression.Data. */
+  computes: unknown;
+  name: string | null;
+  description: string | null;
+  parameters: Map<string, ParameterData>;
+
+  constructor(fields: { pattern?: unknown; symbols?: string[]; variables?: string[]; commutative?: boolean | null;
+    associative?: boolean | null; suffixes?: Map<string, string> | null; computes?: unknown; name?: string | null;
+    description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
+    this.pattern = fields.pattern ?? null;
+    this.symbols = fields.symbols ?? [];
+    this.variables = fields.variables ?? [];
+    this.commutative = fields.commutative ?? null;
+    this.associative = fields.associative ?? null;
+    this.suffixes = fields.suffixes ?? null;
+    this.computes = fields.computes ?? null;
+    this.name = fields.name ?? null;
+    this.description = fields.description ?? null;
+    this.parameters = fields.parameters ?? new Map();
+  }
+
+  equals(other: unknown): boolean {
+    return other === this;
+  }
+
+  validate(): string[] {
+    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
+    const pattern = this.pattern;
+    if (!(pattern instanceof PatternData)) {
+      problems.push("a collector needs a pattern");
+    } else {
+      for (const [plural, names, held] of [["symbols", this.symbols, pattern.symbols], ["variables", this.variables, pattern.variables]] as const) {
+        const missing = names.filter((name) => !held.has(name));
+        if (missing.length > 0) problems.push(`it collects ${plural} ${repr(missing)}, which its pattern does not declare`);
+      }
+    }
+    if (!this.commutative && !this.associative) {
+      problems.push("a collector is commutative or associative, so that its result does not depend on the order frames arrive in");
+    }
+    if (this.suffixes !== null) {
+      const keys = [...this.suffixes.keys()];
+      if (keys.length !== 2 || !this.suffixes.has("current") || !this.suffixes.has("next")) {
+        problems.push("a collector's suffixes are 'current' and 'next'");
+      } else if (this.suffixes.get("current") === this.suffixes.get("next")) {
+        problems.push("a collector's 'current' and 'next' suffixes differ");
+      }
+    }
+    if (this.computes !== null) {
+      if (!(this.computes instanceof ExpressionData)) problems.push("what a collector computes is an expression");
+      else problems.push(...this.computes.validate().map((p) => `computes: ${p}`));
     }
     return problems;
   }
 }
 
-export namespace OfPredicate {
-  /** A named constraint over symbols, matched by the caller. */
-  export const Data = PredicateData;
-  export type Data = PredicateData;
+export namespace OfCollector {
+  /** A pattern used to fold frames. */
+  export const Data = CollectorData;
+  export type Data = CollectorData;
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
-  export declare const Builder: typeof Builders.PredicateBuilder;
-  export type Builder = Builders.PredicateBuilder;
+  export declare const Builder: typeof Builders.CollectorBuilder;
+  export type Builder = Builders.CollectorBuilder;
 }
 
 // --- OfAny.Value: a value of any schema ---
@@ -1168,3 +1480,9 @@ export namespace OfAny {
 }
 
 export { nameFor as _name_for, numberOf as _number_of };
+
+/** Whether a schema is of a kind a module defines and a store registers by name. */
+export function _defined(schema: unknown): boolean {
+  return isAnyData(schema) || schema instanceof RelationData || schema instanceof PatternData
+    || schema instanceof ExpressionData || schema instanceof CollectorData;
+}

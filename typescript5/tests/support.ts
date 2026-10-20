@@ -220,7 +220,7 @@ export const PROTOCOLS: Record<string, Record<string, number>> = {
   OfIntersection: { as_schema: 0 },
   OfContainer: { as_schema: 0, at: 1, remove: 1, as_ordered: 1, as_dict: 1, as_entries: 1 },
   OfIterator: { first: 0, last: 0, next: 0, prev: 0, index: 0, as_item: 1, prepend: 1, append: 1 },
-  OfPredicate: { as_schema: 0 },
+  OfPattern: { as_schema: 0 },
 };
 
 /** Parameter counts of the store protocol's methods, from Python's `Stores.Store`. */

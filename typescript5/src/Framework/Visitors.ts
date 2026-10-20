@@ -185,10 +185,11 @@ export interface OfIntersection {
   readonly [member: string]: unknown;
 }
 
-/** A match of a predicate: its symbols are members, each a `Visitors.OfObject`, in the match's mode. Finding matches is
- * mbse-patterns'. */
-export interface OfPredicate {
-  as_schema(): Schemas.OfPredicate.Data;
+/** A frame of a pattern: its symbols are members, each a `Visitors.OfObject` of the object it binds, and its variables,
+ * each a `Visitors.OfAny` of the value it assigns (docs/STREAMING_QUERIES.md). Frames are made by the executor of
+ * mutation expressions. */
+export interface OfPattern {
+  as_schema(): Schemas.OfPattern.Data;
   readonly [member: string]: unknown;
 }
 
@@ -204,5 +205,5 @@ export const PROTOCOL_METHODS = {
   OfIntersection: ["as_schema"],
   OfContainer: ["as_schema", "at", "remove", "as_ordered", "as_dict", "as_entries"],
   OfIterator: ["first", "last", "next", "prev", "index", "as_item", "prepend", "append"],
-  OfPredicate: ["as_schema"],
+  OfPattern: ["as_schema"],
 } as const satisfies Record<string, readonly string[]>;

@@ -1172,8 +1172,7 @@ class _LogWriter:
         data = getattr(builder, "_original", None)
         if data is None:
             return False
-        named = isinstance(data, (*Schemas._KINDS, Schemas.OfRelation.Data, Schemas.OfPredicate.Data,
-                                  self._B._ModuleData)) and data.name
+        named = isinstance(data, (*Schemas._DEFINED, self._B._ModuleData)) and data.name
         return not named
 
     def _flush(self) -> None:
@@ -1328,7 +1327,7 @@ class _LogReader:
         if id(schema) in self._meta:
             if self._store.held(name, identity) is not None:
                 return
-            builder = self._B._META_BUILDERS[name.removeprefix("Schemas.")]()(None, True, self._store)
+            builder = self._B._META_BUILDERS[name]()(None, True, self._store)
             builder.as_identity(identity)
             properties = builder.as_schema().properties
         else:

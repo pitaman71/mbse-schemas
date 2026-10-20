@@ -48,7 +48,7 @@ __all__ = [
     "OfIntersection",
     "OfContainer",
     "OfIterator",
-    "OfPredicate",
+    "OfPattern",
 ]
 
 Scalar = int | float | str | bool | bytes
@@ -266,10 +266,11 @@ class OfIntersection(Protocol):
     def __getattr__(self, name: str) -> Any: ...
 
 
-class OfPredicate(Protocol):
-    """A match of a predicate: its symbols are members, each a `Visitors.OfObject`, in the match's mode. Finding
-    matches is mbse-patterns'."""
+class OfPattern(Protocol):
+    """A frame of a pattern: its symbols are members, each a `Visitors.OfObject` of the object it binds, and its
+    variables, each a `Visitors.OfAny` of the value it assigns (docs/STREAMING_QUERIES.md). Frames are made by the
+    executor of mutation expressions."""
 
-    def as_schema(self) -> Schemas.OfPredicate.Data: ...
+    def as_schema(self) -> Schemas.OfPattern.Data: ...
 
     def __getattr__(self, name: str) -> Any: ...

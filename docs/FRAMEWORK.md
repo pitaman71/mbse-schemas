@@ -601,9 +601,9 @@ snapshot refers to them by key (`Schemas.OfScalar/Schemas.OfInt`).
 
 ## Expressions
 
-Constraints are serializable expressions, kept beside the schemas in
-[mbse-patterns](https://github.com/pitaman71/mbse-patterns), which also validates data against them and queries stores
-by them. Expressions are a separate package, [mbse-expressions](https://github.com/pitaman71/mbse-expressions), which
+Constraints are serializable expressions: `Schemas.OfConstraint`, an `Schemas.OfExpression` of boolean result, over a
+pattern's frames (`Schemas.OfPattern`; Resolved, Patterns), whose terms are mbse-expressions'. Expressions are a
+separate package, [mbse-expressions](https://github.com/pitaman71/mbse-expressions), which
 depends on this one: its expressions are ordinary objects with registered meta-schemas, so this package serializes,
 validates and compares them like any others. See its `docs/EXPRESSIONS.md` for the expression kinds, the core vocabulary
 and evaluation.
@@ -652,7 +652,7 @@ resolving constraints.
   parameter compares by what it holds.
 - **Every kind of schema declares parameters**: `.parameters(spec, ...)`, held in declared order as `parameters`, by
   name, as properties are. A parameter's scope is its binder, inline schemas nested in it included. `validate()`
-  reports reserved names and bad descriptions, and a predicate's names used as both symbol and parameter.
+  reports reserved names and bad descriptions, and a pattern's names used as both a symbol, a variable or a parameter.
 - **A store's snapshot writes them** ([SERIALIZATION.md](SERIALIZATION.md)): a kind's `parameters`, each a schema
   object of the store, linked to its owner by `Schemas.HasParameter` and named by the entry.
 - **Validation evaluates nothing.** `Validators.Check(store)(schema, value)` reports problems and `unknowns`; its
@@ -761,6 +761,31 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 ### Resolved
 
+- **Patterns** (0.21.0, step 4d of the store overhaul; [Object identity](OBJECT_IDENTITY.md), Locators and Decided, 64
+  to 67; [Mutations as queries](STREAMING_QUERIES.md), Patterns and Value expressions and constraints), as the user
+  decided: `Schemas.OfPattern` replaces `Schemas.OfPredicate`, which goes. A pattern declares its symbols
+  (`Schemas.HasSymbol`), each with an optional reference object schema and an optional locator, its variables
+  (`Schemas.HasVariable`), each with an optional value schema, and its constraints, in order (`Schemas.Requiring`);
+  `Schemas.OfExpression` has a pattern (`Schemas.Matching`) and a result schema (`Schemas.Resulting`), its terms
+  mbse-expressions'; `Schemas.OfConstraint` builds an expression whose result is the store's `Schemas.OfBool`;
+  `Schemas.OfCollector` has a pattern, the names it collects, `commutative`, `associative`, `suffixes` and what it
+  `computes` (`Schemas.Computing`). A symbol's locator (`Schemas.Locating`) is a value of the `Locators` meta-schemas,
+  `Locators.OfSymbol` or `Locators.OfSingleton` at its root, each hop a `Locators.OfRelation` (`Schemas.Following`,
+  `Schemas.Traversing`). Each is a schema object, built, validated and written in a store's snapshot as every one is.
+  Choices made in building it, for the user's review:
+  - the locator shorthand, `.locator(lambda l: l.singleton(Directory).dir({"name": "DEF-693"}))`, is handed the
+    symbol's `locator` adjacency too, as every adjacency called with a callback is: `insert`, `remove`, `as_iterable`
+    and `as_schema` are the adjacency's, so an adjacency of one of those names is traversed only by
+    `.hop(adjacency, relation, link, properties)`, which also gives a hop through a relation of more than two links, or
+    after an object whose link no single schema fills; `l.symbol(name, schema)` takes the symbol's schema, as
+    `Locators.OfSymbol` holds it (Decided, 71);
+  - a flag is written `.commutative(True)`, as `.ref(True)` and `.owner(True)` are;
+  - a symbol's and a variable's schemas are optional, as the design has them ("may provide"); what a term requires of
+    them, and of a collector's `suffixes` and `computes`, is 4e's;
+  - validation refuses a hop's adjacency only where the schema of the object before is known: a root's, or a link's
+    own schema;
+  - `Catalog.schema` names the kind it refuses: "'X' is a pattern; no pattern builder is exposed", "a value schema"
+    for a union, an intersection or a container.
 - **Schema, never "type"** (0.19.0; [Store overhaul, Decided, 24](proposals/store-overhaul/README.md#decided-here);
   mbse-basis V-026), as the user decided: "the term "type" has no meaning in mbse-*". What has a schema names it
   `schema`: `.schema([X])` (a property, a symbol, a branch, a part), the data's `schema` field, `OfAny`'s `schemas`, and
@@ -1206,7 +1231,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     Containers, above, a value object has none: its lists are containers); "Paths go away";
   - `.ref()` declares a reference object schema, and an object schema without it is a value object schema ("drop the
     `.value()` for now");
-  - `Schemas.OfPredicate`, after mbse-patterns' predicate: its symbols, its parameters and its constraint as a
+  - `Schemas.OfPredicate` (superseded since 0.21.0 by `Schemas.OfPattern`; Resolved, Patterns), after mbse-patterns'
+    predicate: its symbols, its parameters and its constraint as a
     `Schemas.Form`, mbse-schemas knowing no dialect; finding matches and `Patterns.Stores.update`, which returns a
     certificate ("a compact record ... that can be used to track the effect of the write in a lazy distributed
     system"), are mbse-patterns'.

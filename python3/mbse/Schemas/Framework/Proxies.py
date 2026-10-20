@@ -133,7 +133,7 @@ class _Store(Stores.Catalog):
         self._keys[index] = max([self._keys.get(index, 0), *held]) + 1
         return prop.name_for(self._keys[index])
 
-    def _register(self, schema: ObjectSchema | RelationSchema | Schemas.OfPredicate.Data) -> None:
+    def _register(self, schema: Any) -> None:
         """Registers a schema under its name; a singleton schema's instance is created with it."""
         global_name = schema.singleton if isinstance(schema, ObjectSchema) else None
         if global_name is not None and global_name in self._singletons:

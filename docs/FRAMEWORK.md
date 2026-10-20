@@ -761,6 +761,18 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 ### Resolved
 
+- **Mappings for keyed adjacencies** (step 4e of the store overhaul; [Schema extension](SCHEMA_EXTENSION.md),
+  Injection), as the user proposed and decided ("I like your idea", "yes that seems sensible"): an adjacency whose
+  relation has exactly two links and one property may be given a mapping in place of the peer-shorthand list. For such
+  a relation the adjacency's visitor is "a flat union of the Entry visitor and the Object visitor": it "exposes and
+  delegates the properties of both the entry and the linked object as well as adjacencies of the linked object itself".
+  Each item, in order, is one entry: its key is the value of the entry's property, and its value is given to that flat
+  visitor, a callback called with it, the property already written, any other value given to the one member that
+  accepts it (the entry's other link, or one of the linked object's properties and adjacencies), refused where none
+  does or several do. `{"ada": Person}` and `{"ada": lambda s: s.schema([Person])}` are both `[lambda s:
+  s.name("ada").schema([Person])]`. It inserts entries, as the list form does; keys being distinct, entries sharing a
+  property value need the list form. In TypeScript a mapping is a `Map` or a record. Not a wrapper: one rule of the
+  builder protocol, for every builder and schema ("wrapping fluent builder syntax is forbidden").
 - **Versioning schema names** (0.21.0, step 4g of the store overhaul; [Object identity](OBJECT_IDENTITY.md), Decided,
   83), as the user decided ("(a) is preferable"): a module and a schema do not share a path, so a version is part of a
   name as a module of its own, `crm.v2.Contact` beside `crm.Contact`; `crm.Contact.v2` beside `crm.Contact`, whose

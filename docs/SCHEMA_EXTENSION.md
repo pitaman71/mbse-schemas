@@ -116,6 +116,17 @@ def install(txn):
     )
 ```
 
+**Mappings for keyed adjacencies** (FRAMEWORK.md, Resolved). An adjacency whose relation has exactly two links and one
+property may be given a mapping in place of the peer-shorthand list. Its visitor is then a flat union of the entry's
+visitor and the linked object's: it exposes and delegates the entry's property and the linked object's properties and
+adjacencies. Each item of the mapping, in order, is one entry: its key is the value of the entry's property, and its
+value is given to that flat visitor. A callback is called with it, the property already written; any other value goes
+to the one member that accepts it, the entry's other link or one of the linked object's properties and adjacencies, and
+is refused where none does or several do. So `{"ada": Person}` and `{"ada": lambda s: s.schema([Person])}` are both
+`[lambda s: s.name("ada").schema([Person])]`. As the list form does, it inserts entries; since keys are distinct,
+entries sharing a property value need the list form. In TypeScript a mapping is a `Map` or a record. The definition
+above may so be written `.symbols({"OfSymbol": txn.Schemas.OfObject})` and `.properties({"name": txn.Schemas.OfStr})`.
+
 *Fixed by the agent (2026-10-20), for review:*
 
 - **The terms** are written as in the transaction syntax settled for 4e (Object identity, Decided, 76 to 78):

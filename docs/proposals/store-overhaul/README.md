@@ -157,65 +157,62 @@ so that main stays current and no branch waits on another.
 3b. **Schema, never "type" (0.19.0).** The rename 24 lists, in both languages, messages and documents included.
    *Breaks*: every `.schema([...])` (1671 in 126 files), `OfAny`'s `types`, the wire's `Schemas.HasSchema` entries and the
    `HasBranch` and `HasPart` link, and every message that said type.
-4. **Object identity (0.20.0).** As [Object identity](../../OBJECT_IDENTITY.md) now describes it: three modes, a
-   singleton by its global name, an owned object by its path from a singleton through ownership entries (`owner()`, key
-   properties with patterns), a counted object by its transaction's uid and its creation index; every write in a
-   transaction; `Schema@` only in `Exists`; `as_identity` gone.
-   *Breaks*: every write outside `store.mutation` (about 1200 build calls in 214 cells of the Python notebooks alone,
-   and as many in TypeScript's, the tutorials, examples, skill and README included); the snapshot and Reachable
-   formats, so every corpus and hand-written snapshot; `.ref(pattern)`, `OfObject.pattern`; `as_identity`; and in the
-   dependents, mbse-expressions' and mbse-programs' corpora and their `Reachable` documents.
-   In stages, each committed with both gates at 100%, released only at the last:
-   - **4a, the vocabulary** (done): `owner()`, `.pattern(...)` on properties, the path schemas, a path on demand.
-   - **4b, data objects by path** (done, `1513108`): ownership filled at build, keys generated, lookup by keys, paths on
-     the wire. What Object identity, Decided, 37 to 51 reverse of it, 4c to 4e undo: `HasInstance`, `OfObject.pattern`,
-     `local-name-N` keys, the schema holding its objects, `as_identity`, and the Reachable list of objects.
-   - **4c, transactions in memory** (38, 42, 44, 46, 50): `Mutations.OfTransaction` (`uid`, `mutations`) and
-     `Visitors.OfMutation`; `store.mutation(mv)`; every write outside one refused, with a message naming
-     `store.mutation`; a transaction that raises undone entirely, from a journal of its writes; ownership settled when
-     it ends, an unsettled ownership aborting it (33). Objects keep 4b's identities for this stage, so that only the way
-     programs write changes: every test, tutorial, example and skill block moves into transactions here.
-   - **4d, counted objects** (37, 39, 40, 41, 43, 46, 47, 48): `HasInstance`, `OfObject.pattern`, the `local-name-N`
-     keys, the directories and `store.Instances.<schema>(keys)` go; an object whose schema declares no `owner()` is
-     counted, given its transaction's uid and creation index (a clone too), and held by nothing but what links it;
-     `as_identity` goes; validation refuses an `owner()` adjacency a counted schema can fill; removing an owning entry
-     deletes the owned object, cascading. The tests whose root-level objects must be found move them under a
-     singleton directory.
-   - **4e, the wire** (45, 49, 51): a store's snapshot is made of transactions; a counted object is referred to as
-     `{"$ref": {"tx": ..., "n": ...}}`, `{"$ref": {"n": ...}}` within its own transaction; a Reachable document is one
-     transaction under a uid its writer is given, owned objects and singletons referred to by path, a singleton's of no steps. The corpora
-     are regenerated, the JSON byte-identical between the languages.
-   - **4f, schema objects** (17, 29): their identities are their paths, derived identities go, and their keys on the
-     wire are paths too.
-   - **4g, the release**: the corpora as 4f leaves them; 0.20.0; the dependents (mbse-expressions, mbse-programs)
-     adapt, their corpora as Reachable transactions.
+4. **Object identity, patterns and mutation expressions.** As [Object identity](../../OBJECT_IDENTITY.md) (Decided, 1 to
+   63) and [Mutations as queries](../../STREAMING_QUERIES.md) now describe them: three modes of identity (a singleton by
+   its global name, an owned object by its path, a counted object by nothing beyond a document, or, created by an
+   upsert, by its frame, key and symbol); patterns (`Schemas.OfPattern`) replacing predicates; mutations as expressions
+   over streams of frames, every write in a transaction; `as_identity` gone. Worked on the branch `object-identity`,
+   landed on main when released.
+   *Breaks*: `HasInstance`, `OfObject.pattern`, `store.Instances.<schema>(keys)`, `as_identity`; every write outside
+   `store.mutation` (about 1200 build calls in 214 cells of the Python notebooks alone, and as many in TypeScript's, the
+   tutorials, examples, skill and README included); `Schemas.OfPredicate`; the mutation vocabulary (`Exists` and the
+   relation verbs go); the snapshot and Reachable formats, so every corpus; and in the dependents, mbse-patterns (built
+   on `OfPredicate`), mbse-expressions' and mbse-programs' corpora.
+   In stages, each committed with both gates at 100% and pushed to the branch:
+   - **4a, the vocabulary** (done, on main): `owner()`, `.pattern(...)` on key properties, the path schemas, a path on
+     demand.
+   - **4b, data objects by path** (done, `1513108`, on the branch): ownership filled at build, lookup by keys, paths on
+     the wire. Decided 37 to 63 reverse part of it, which 4c undoes.
+   - **4c, the three modes in memory** (37, 40, 41, 43, 47, 48, 55): `HasInstance`, `OfObject.pattern`, the
+     `local-name-N` keys, the directories and `store.Instances.<schema>(keys)` go; an object whose schema declares no
+     `owner()` is counted, held only by what links it, the language collecting it; `as_identity` goes; validation refuses
+     an `owner()` adjacency a counted schema can fill; removing an owning entry deletes the owned object, cascading. On
+     the wire, still 4b's format: a counted object is numbered within the document that writes it,
+     `{"$ref": {"n": ...}}`. Tests whose root-level objects must be found move them under a singleton directory.
+   - **4d, patterns** (STREAMING_QUERIES.md, Patterns; Value expressions and constraints): `Schemas.OfPattern`,
+     `OfSymbol` (its locator: a path from a singleton or from another symbol, through any adjacency, serializable),
+     `OfVariable`, `OfExpression` and its boolean variant `OfConstraint` (placeholders mbse-expressions refines),
+     `OfCollector` (rejected by validation where it declares neither `.commutative()` nor `.associative()`, 62); built,
+     validated and written as every schema is. `Schemas.OfPredicate` is set aside.
+   - **4e, mutation expressions and the in-memory executor** (38, 42, 44, 46, 50, 56 to 63): the mutation vocabulary as
+     Decided 59 nests it, `Mutations.OfTransaction` → `Mutations.OfTerm` (`OfAll`, `OfMap`, `OfReduce`, `OfPartition`,
+     `OfUpdate`, `OfUpsert`) → `Mutations.OfPattern` → `Mutations.OfObject` → `Mutations.OfAdjacency` (`OfEntry`) →
+     `Mutations.OfProperty`, `Exists` and the relation verbs gone; `store.mutation(cb)`, its builders those a property
+     call with a callback gives (58); a sequential executor over frames, upserts finding owned objects by path (60) and
+     counted ones by frame, key and symbol through a weak index (61, 63); a transaction that raises undone entirely; every
+     write outside one refused (44), so every caller moves into transactions here.
+   - **4f, the wire** (45, 51, 55, 56): a store's snapshot is made of transactions; a journal holds transactions as
+     submitted, replayed by executing them; a Reachable document is one transaction, its counted objects numbered within
+     it, owned objects and singletons referred to by path. The corpora are regenerated, the JSON byte-identical between
+     the languages.
+   - **4g, schema objects** (17, 29): their identities are their paths, derived identities go, their keys on the wire
+     paths too.
+   - **4h, the release**, and the dependents: mbse-expressions refines `OfExpression` and `OfConstraint`; mbse-patterns
+     rebuilds its predicates, queries, generators and transforms on `OfPattern`; mbse-programs' corpora become Reachable
+     transactions.
 
-### Transactions, as proposed for 4c
+### Example: a transaction, as 4e would build it
 
-A transaction is written as everything else is, through a builder given to a callback (mbse-basis P-004): the builder
-is the `Visitors.OfMutation` of a `Mutations.OfTransaction`, its `uid` set by the program, and the store's builders work
-inside the callback, the transaction open:
+The user's sketch, `store.transaction(lambda xact: xact.uid("6f1c4e2a-…").mutations([...]))`, in the structure Decided
+59 gives, its builders those a property call with a callback gives (58); the details are 4e's to settle:
 
 ```python
-ada = None
-
-def add_contact(t):
-    global ada
-    t.uid("6f1c4e2a-0000-4000-8000-000000000001")
-    ada = store.crm.Contact(lambda c: c.name("Ada"))  # within the transaction: allowed
-    return t
-
-store.mutation(add_contact)
-store.crm.Contact(lambda c: c.name("Bob"))  # outside one: refused, naming store.mutation
+store.mutation(lambda t: t
+    .uid("6f1c4e2a-0000-4000-8000-000000000001")
+    .then(lambda all_: all_.over(FEATURES)            # OfAll: the singleton wts.Features, as symbol `features`
+        .then(lambda up: up.exists(DEFINITION)        # OfUpsert: `defn`, located at features.dir({name: "DEF-693"})
+            .then(lambda u: u.apply(TITLE)))))        # OfUpdate: defn's title set through its property's builder
 ```
-
-- `store.mutation(mv)` takes the visitor itself too, as any `Spec` may be "an instance of the built object": a
-  transaction read from a log is applied as one, its mutations replayed through the store's builders.
-- A transaction without a uid raises before it applies anything; the uid is the program's, never drawn.
-- Undoing: each primitive write (a property's value, an entry added or removed, an object entered in the store)
-  records how to reverse it; a transaction that raises reverses them, last first, and re-raises. A transaction that
-  completes discards the journal: nothing is recorded beyond the transaction, as no history is kept.
-- In TypeScript the same, `store.mutation((t: any) => { t.uid("..."); ...; return t; })`.
 
 Then mbse-expressions redrafts its framework model on per-store extension (`Expressions.install(store)`, through
 `store.extend`), with domains, dialects and `DefinesDomains` as the user described.
@@ -364,15 +361,17 @@ Points settled while building, for the user's review:
 4. **A path given to a link.** Your `e.domain(Int32)` passed a path. With `as_instance`, a link is given the instance
    (`e.domain(store.Instances.Expressions.Dialects.Basic.as_instance('Int32'))`); should a link also accept a path to
    an instance?
-5. **The order.** Four releases, as above, or fewer, larger ones?
-6. **The transaction builder (4c).** As proposed above: a callback given the transaction's builder, the store's
-   builders working inside it, the uid set by `t.uid(...)`. Or should the mutations be written as data only
-   (`Mutations.OfTransaction` values), the builders being how a program makes them?
-7. **Re-stating a counted object in a snapshot (4e).** Objects 0 to 4 of a transaction may be gone when object 5 is
-   written, so a snapshot cannot give it its index by position, as a creation's `Exists` does (Object identity,
-   Decided, 49). Proposed: a snapshot is one transaction, under a uid its writer is given, holding the schemas, the
-   singletons' properties and the owned objects as creations, and each counted object as an `Exists` that names the
-   `{"tx", "n"}` it was created with; its entries follow. Or one transaction per original transaction, its `Exists`
-   naming their indexes?
-8. **Releases within step 4.** 4c alone changes every program that writes; should 0.20.0 be cut after 4e (data
-   identity whole), schema objects following as 0.21.0?
+5. *Superseded by 8.*
+6. *Settled by Object identity, Decided, 58*: a mutation's builders are those a property call with a callback gives.
+7. *Settled by Object identity, Decided, 55 and 61*: a counted object is numbered within the document that writes it,
+   or, created by an upsert, identified by its frame, key and symbol; nothing re-states a transaction's index.
+8. **Releases within step 4.** Proposed: 0.20.0 after 4c (the three modes), 0.21.0 after 4f (patterns, mutation
+   expressions, the wire), 0.22.0 after 4g (schema objects), each landing the branch on main. Or one release at 4h?
+9. **The store's builders inside a transaction.** May a program still write `store.crm.Contact(lambda c: ...)` within
+   `store.mutation`'s callback, recorded as the mutations it makes, or only mutation expressions? Proposed: both, the
+   builders a convenience recorded as `OfUpsert` and `OfUpdate` terms, so that the 1200 build calls in the tests move
+   into a transaction without being rewritten.
+10. **`Schemas.OfPredicate` in 4d.** Removed from mbse-schemas at once, mbse-patterns pinned to 0.19 until it migrates;
+    or kept, deprecated, until mbse-patterns has moved to `OfPattern`?
+11. **The executor's scope.** Proposed: 4e builds only the in-memory, sequential executor; distributed execution, and
+    with it shards, is later work, the design (56, 57, 62) keeping it possible.

@@ -104,6 +104,10 @@ transaction created objects (38, 39); a clone is a creation in the transaction t
 fixed when it is created and never changes, whatever links it later. It lives while anything holds it, an object that
 links it or the program, as the host language decides; the store does not keep it alive.
 
+A counted object may also be created through a symbol, by a `Mutations.OfUpsert` of a putative object in a mutation
+expression ([Mutations as queries](STREAMING_QUERIES.md)): it is then a creation of the transaction, named by its symbol
+(54). How an identity names the many objects one symbol creates, one per frame, is open (Open questions, 2).
+
 A program cannot find a counted object directly, only by visiting what links it (40). Its identity appears only on the
 wire, where later transactions and snapshots refer to it: a reference is `{"$ref": {"tx": <uid>, "n": <index>}}`, beside
 `{"$ref": <path>}`, by which an owned object and a singleton alike are referred to (a singleton's path has no steps),
@@ -132,6 +136,10 @@ singleton's, and so every schema built. `Mutations.OfTransaction` is the schema 
 mutations (38). It is strictly the root of what a program applies, so transactions cannot nest: the schema does not
 let one hold another (50). A program applies one by `store.mutation(mv)`, `mv` a `Visitors.OfMutation` whose `.uid()` gives the
 transaction's UUID; the program provides it, and nothing draws one at random (42).
+
+A transaction may be divided into shards: `Mutations.OfTransaction` [→ `Mutations.OfShard`] → `Mutations.OfTerm`, the
+terms of a mutation expression ([Mutations as queries](STREAMING_QUERIES.md)) (52). A shard's id is allocated by the
+query executor, not by the program (53).
 
 A transaction that aborts, for any reason, changes nothing in the store of any kind (46): its creations are never made,
 its index numbers are never used, and its other writes are undone.
@@ -326,10 +334,30 @@ As the user decided (2026-10-18), on the questions 41 to 47 left:
     the corpora of expression and syntax trees (mbse-expressions, mbse-programs), round trips in tests, and copying a
     component into another store.
 
+As the user decided (2026-10-19), with mutations as queries ([Mutations as queries](STREAMING_QUERIES.md)):
+
+52. A transaction's structure: "Mutations.OfTransaction [ -> Mutations.OfShard ] -> Mutations.OfTerm ...".
+53. "Shard id is allocated by the query executor".
+54. A putative counted object that a `Mutations.OfUpsert` names "becomes a creation of the transaction, named by its
+    symbol" ("10. yes"). An upsert's `key` clause, which labelled the identities of the objects it created, was tried
+    and dropped: "I am just removing 'key', not worth the trouble".
+
 ## Open questions
 
 1. **`Visitors.OfMutation`.** What a program writes to build within a transaction: a visitor over a
    `Mutations.OfTransaction` value, its `.uid()` and its mutations, and how the builders' callbacks run inside it.
+2. **A counted object's identity under shards and symbols.** Proposed: an identity object of four parts, the
+   transaction's uid, the shard's id, the symbol path (the injecting symbol through the terms that lead to it; for an
+   object a verb creates, its enclosing term's), and `seq`, counting creations within that shard and symbol path in the
+   shard's own order; replacing `{"tx", "n"}` (39, 49). Open within it: how a symbol path is serialized, and whether a
+   transaction without shards is one implicit shard.
+3. **Submitted and recorded transactions.** Since the executor allocates shards (53), a run's identities depend on its
+   sharding. Proposed: a program submits a transaction without shards; the executor records it with its shards and the
+   identities of what it created, and journals and snapshots (45) are made of such records, read back rather than
+   re-executed. The in-memory executor allocates shards deterministically, so that the corpora are repeatable.
+4. **What a shard covers**: a term chain of its own, or a slice of the frame stream through the transaction's one
+   chain; and where `Mutations.OfAll`, the root term of [Mutations as queries](STREAMING_QUERIES.md), sits under a
+   transaction or a shard.
 
 ---
 

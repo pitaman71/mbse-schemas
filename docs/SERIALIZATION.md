@@ -1,5 +1,5 @@
 <!-- nav -->
-[← Schema extension](SCHEMA_EXTENSION.md) · [Home](../README.md) · [Visitor pattern →](VISITOR_PATTERN.md)
+[← Schema extension](SCHEMA_EXTENSION.md) · [Home](../README.md) · [Mutations as Queries →](STREAMING_QUERIES.md)
 
 # Serialization 
 
@@ -107,4 +107,4 @@ In anticipation for journal formatting, a stateful instance of ToPlain may be re
 ---
 
 <!-- nav -->
-[← Schema extension](SCHEMA_EXTENSION.md) · [Home](../README.md) · [Visitor pattern →](VISITOR_PATTERN.md)
+[← Schema extension](SCHEMA_EXTENSION.md) · [Home](../README.md) · [Mutations as Queries →](STREAMING_QUERIES.md)

@@ -1,5 +1,5 @@
 <!-- nav -->
-[← Serialization](SERIALIZATION.md) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)
+[← Mutations as Queries](STREAMING_QUERIES.md) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)
 
 # Visitor pattern
 
@@ -316,4 +316,4 @@ Quite a few other convenience methods have been born like OfProperty.name, OfObj
 ---
 
 <!-- nav -->
-[← Serialization](SERIALIZATION.md) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)
+[← Mutations as Queries](STREAMING_QUERIES.md) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)

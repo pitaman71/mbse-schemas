@@ -545,6 +545,11 @@ own, or (b) a path step saying whether it names a module or a schema, so that bo
     share a path"); a version goes in a module of its own, `crm.v2.Contact`. Before 4g the module silently replaced the
     schema in its parent's map, and a snapshot lost the schema.
 
+As the user decided (2026-10-20), correcting STREAMING_QUERIES.md, which required a singleton's symbol in `over`:
+
+84. "OfAll does not need a singleton! Its symbols may refer to any kind of reference object": each symbol of an
+    `OfAll`'s pattern ranges over the extant objects of its schema, and a singleton's binds the singleton (77).
+
 ## Open questions
 
 None at present.

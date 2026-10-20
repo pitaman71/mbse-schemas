@@ -166,7 +166,7 @@ The vocabulary of `Mutations.OfX.Y` tracks the vocabulary of Schema kinds: that 
 
 The mutation vocabulary uses `Schemas.OfPattern` across its quantifier term vocabulary.
 
-`Mutations.OfAll` is a universal quantifier with optional fused selection. This is the only term that may be used as the root of a mutation expression. The `over` clause must be provided with at least one symbol, a singleton's or one its spec reaches from one. The query executor interprets this term as a select over all extant singleton/owned reference objects.
+`Mutations.OfAll` is a universal quantifier with optional fused selection. This is the only term that may be used as the root of a mutation expression. The `over` clause's symbols may refer to any kind of reference object ([Object identity](OBJECT_IDENTITY.md), Decided, 84): each ranges over the extant objects of its schema, a singleton's binding the singleton (77), and the frames are their cross product, filtered by the pattern's spec and constraints.
 
 ```python
 Mutations.OfAll.over(Schemas.OfPattern)

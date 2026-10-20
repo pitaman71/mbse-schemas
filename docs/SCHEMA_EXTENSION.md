@@ -102,9 +102,7 @@ def install(txn):
     return (txn
         .uid("mbse.Schemas.Locators/1")  # fixed, not random (Object identity, Decided, 42): installing again finds them
         .mutations([lambda mu: mu        # OfAll, the one root term
-            .over([lambda p: p
-                .symbols([lambda s: s.name("root").schema([txn.Schemas.OfModule])])  # the root module: see note 1
-            ])
+            .over([lambda p: p])         # no symbols: one empty frame (open point 1)
             .then(lambda up: up          # OfUpsert: each symbol found by its spec, else created and the spec written
                 .exists([lambda p: p
                     .symbols([lambda s: s.name("OfSymbol").schema([txn.Schemas.OfObject])])
@@ -139,10 +137,11 @@ def install(txn):
 
 Open points:
 
-1. **What `over` binds.** An `OfAll` needs a singleton (77), and the root module is not one: `Schemas.OfModule` has
-   many instances. Either the root module becomes the singleton of a schema of its own (`Schemas.OfRootModule`,
-   refining `Schemas.OfModule`, singleton `Schemas.Root`), or an `OfAll` over no symbol is allowed for a transaction
-   that only upserts by spec.
+1. **What `over` binds.** An `OfAll`'s symbols may be of any kind of reference object (Object identity, Decided, 84),
+   each ranging over its schema's extant objects. Installing needs no object to start from, and a symbol of
+   `txn.Schemas.OfModule` would range over every module, running the upsert once per module (finding, after the first,
+   the schema it made). Proposed: a pattern of no symbols has one frame, empty, the cross product of no extents, as an
+   mbse-patterns predicate without symbols has one match; so `.over([lambda p: p])` runs what follows once.
 2. **Locators are superseded** (76): this example would install a schema that no longer exists; the mechanism is the
    same for any module (mbse-expressions' `Expressions.Framework`, say).
 3. **Extending an existing schema** (`store.extend`) would be the same transaction, with the existing schema's spec

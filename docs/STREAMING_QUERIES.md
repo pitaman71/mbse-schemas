@@ -202,7 +202,7 @@ Mutations.OfMap.as_variables(pred: Schemas.OfPattern).then(Mutations.OfTerm)
     .pattern(Schemas.OfPattern)
     .symbols([name: str...])
     .variables([name: str...])
-    .commutative() # optional
+    .commutative() # optional; a collector declaring neither is rejected for now by validation
     .associative() # optional
     .suffixes({ current: str, next: str })
     .computes(Schemas.OfExpression)
@@ -286,8 +286,9 @@ Mutations.OfUpsert.then(Mutations.OfTerm)
 
 An owned object an upsert finds or creates is placed by its symbol's locator, which gives its whole path: owner, owning
 adjacency and the ownership entry's keys; its path is its identity, and `key` takes no part. A counted object an upsert
-creates is identified by the frame that reached the upsert and its `key`, so that running the expression again finds it
-rather than creating another ([Object identity](OBJECT_IDENTITY.md), Decided, 60 and 61).
+creates is identified by the frame that reached the upsert, its `key` and the symbol it is created for, so that running
+the expression again finds it rather than creating another ([Object identity](OBJECT_IDENTITY.md), Decided, 60, 61 and
+63).
 
 - `Mutations.OfTerm` a schema-governed union of the terms a child may be: `Mutations.OfMap`, `Mutations.OfReduce`, `Mutations.OfPartition`, `Mutations.OfUpdate`, `Mutations.OfUpsert` (`Mutations.OfAll` is the root only)
 

@@ -135,6 +135,32 @@ Reading a snapshot or a journal is the one way an object is given an identity it
 path appearing again is an update of the owned object or singleton that has it, through its builder, where update is
 allowed. A counted object read from a document is always a new one (55).
 
+## Locators
+
+A pattern's symbols ([Mutations as queries](STREAMING_QUERIES.md)) sometimes specify a locator expression. These
+expressions are represented by an ordinary schema over these kinds:
+- `Locators.OfSymbol` # name, next
+- `Locators.OfSingleton` # schema, next
+- `Locators.OfRelation` # schema, adjacency, link, properties, next
+
+Only `Locators.OfSymbol` or `Locators.OfSingleton` may be used as the root of a locator expression.
+
+```python
+Locators.OfRelation.schema: Schemas.OfRelation
+Locators.OfRelation.adjacency : str # denotes name of adjacency to current obj
+Locators.OfRelation.link : str # denotes name of link to next obj
+```
+
+Locators target reference objects, not value objects.
+Locators can only traverse named adjacencies.
+Builder shorthand makes locators a path language:
+`l.singleton(Directory).dir({"name": "DEF-693"}).clauses({"name": "C-1"})`.
+
+A locator is not an identity: it is a route a query follows, which may reach many objects, or a counted object, which
+has no path; "path" names identities only (64). A hop yields every object its entry's properties match, so a frame fans
+out where they leave the match open, and a frame whose locator reaches nothing yields no frame (65). An upsert of an
+owned object places it by a hop through its owning adjacency, which gives owner and keys (60).
+
 ## Transactions
 
 Every write to a store is part of a transaction (44): building, cloning and updating any object, owned, counted or a

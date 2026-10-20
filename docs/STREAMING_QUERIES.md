@@ -77,38 +77,19 @@ A mutation kind that adds a symbol is said to "inject" that symbol into the fram
 `Schemas.OfSymbol` declares one symbol:
 - must provide a symbol name
 - may provide `schema`: reference object schema for that symbol (`schema: Schemas.OfObject`)
-- may provide `locator`: a locator expression to locate it (below)
+- may provide `locator`: a locator expression to locate it ([Object identity, Locators](OBJECT_IDENTITY.md#locators))
 In some contexts, `locator` and/or `schema` may be optional or mandatory.
-
-## Locators
-
-Pattern symbols sometimes specify a locator expression. These expressions are represented by an ordinary schema over
-these kinds:
-- `Locators.OfSymbol` # name, next
-- `Locators.OfSingleton` # schema, next
-- `Locators.OfRelation` # schema, adjacency, link, properties, next
-
-Only `Locators.OfSymbol` or `Locators.OfSingleton` may be used as the root of a locator expression.
-
-```python
-Locators.OfRelation.schema: Schemas.OfRelation
-Locators.OfRelation.adjacency : str # denotes name of adjacency to current obj
-Locators.OfRelation.link : str # denotes name of link to next obj
-```
-
-Locators target reference objects, not value objects.
-Locators can only traverse named adjacencies.
-Builder shorthand makes locators a path language:
-`l.singleton(Directory).dir({"name": "DEF-693"}).clauses({"name": "C-1"})`.
-
-A locator is not an identity: it is a route a query follows, which may reach many objects, or a counted object, which
-has no path ([Object identity](OBJECT_IDENTITY.md), Decided, 64).
 
 `Schemas.OfVariable` declares one variable: 
 - must provide a variable name
 - may provide `schema` : value schema for that variable (`schema: Schemas.OfAny`)
 
 - `Schemas.OfPattern.requires`: constraint expressions (`Schemas.OfConstraint`) over a frame
+
+## Locators
+
+A pattern's symbol may locate its objects with a locator expression: a route from a singleton or another symbol through
+named adjacencies, which is not an identity. Its schema and rules are in [Object identity, Locators](OBJECT_IDENTITY.md#locators).
 
 ## Putative objects
 

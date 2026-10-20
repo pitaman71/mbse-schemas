@@ -367,21 +367,10 @@ Points settled while building, for the user's review:
 7. *Settled by Object identity, Decided, 55 and 61*: a counted object is numbered within the document that writes it,
    or, created by an upsert, identified by its frame, key and symbol; nothing re-states a transaction's index.
 8. *Approved*: 0.20.0 after 4c, 0.21.0 after 4f, 0.22.0 after 4g, each landing the branch on main.
-9. **The store's builders inside a transaction.** Proposed: both mutation expressions and the store's builders, the
-   builders a convenience whose writes are recorded as the terms they amount to, so that the build calls in the tests
-   move into a transaction without being rewritten. For example, a definition and its title, written with the store's
-   builders inside the transaction:
-
-   ```python
-   store.mutation(lambda t: t
-       .uid("6f1c4e2a-0000-4000-8000-000000000002")
-       .build(lambda s: s.wts.Directory(s.Instances.wts.Features, lambda f: f
-           .dir(lambda a: a.insert(lambda e: e
-               .name("DEF-693")
-               .defn(lambda d: d.title("Has 88 keys")))))))
-   ```
-
-   is recorded as the mutation expression a program could have written instead:
+9. *Settled*: a transaction is a mutation expression only. The store's builders do not write inside one on their own
+   (a `.build(...)` handing the callback the store was proposed and refused: it "circumvents the entire streaming query
+   language"); writes are made by the property builders a term's pattern gives (Object identity, Decided, 58), which are
+   the same fluent calls:
 
    ```python
    store.mutation(lambda t: t
@@ -397,8 +386,14 @@ Points settled while building, for the user's review:
                    .apply(lambda p: p.object("defn", lambda d: d.title("Has 88 keys")))))))
    ```
 
-   `.build(...)` is a name to settle: the transaction's member that hands the callback the store, its writes recorded.
+   (`.symbol`, `.path(... .start(...).step(...))` and `.object` are names for 4e to settle.) Every test, tutorial,
+   example and skill block that builds moves into such expressions in 4e.
 10. *Deferred*: `Schemas.OfPredicate` stays until what becomes of mbse-patterns is known ("It is possible mbse-patterns
     will vanish").
 11. *Agreed*: 4e builds only the in-memory, sequential executor; distributed execution, and with it shards, is later
     work, the design (56, 57, 62) keeping it possible.
+12. **What a test holds after a transaction.** A test today keeps what it builds (`ada = store.crm.Contact(...)`). Under
+    mutation expressions it finds an owned object by lookup afterwards, and a counted one only by visiting what links it
+    (Object identity, Decided, 40), one nothing links being collected. Does `store.mutation` give anything back (its
+    final frames, which bind what it made), or does a test always read its results back through lookups from a
+    singleton?

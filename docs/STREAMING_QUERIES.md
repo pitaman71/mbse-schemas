@@ -108,6 +108,31 @@ This refinement enables `Schemas.OfExpression` to represent value formulas, and 
 
 `Schemas.OfConstraint` is a variant of `Schemas.OfExpression` in which the result schema is `Schemas.OfBool`. It is used by Schemas.OfPattern to capture a fused (boolean) constraint over symbol/variable/property/value visitor expressions in a predicate-logic format. This constraint defines whether a particular frame matches or fails to match the pattern.
 
+## Mutation structure
+
+A mutation nests, roughly, as:
+
+```
+Mutations.OfTransaction [ -> Mutations.OfShard ] -> Mutations.OfTerm -> Mutations.OfPattern -> Mutations.OfObject -> Mutations.OfAdjacency -> Mutations.OfProperty
+```
+
+- `Mutations.OfTransaction` is the root: its uid and its one chain of terms, `Mutations.OfAll` first.
+- `Mutations.OfShard` is strictly optional: the query executor's division of the work, which it allocates; never in what
+  a program submits nor in what a journal records ([Object identity](OBJECT_IDENTITY.md), Decided, 53, 56).
+- `Mutations.OfTerm`: one term of the chain (`OfAll`, `OfMap`, `OfReduce`, `OfPartition`, `OfUpdate`, `OfUpsert`). Each
+  term has just one pattern; `Mutations.OfPartition` forks the chain where paths must diverge.
+- `Mutations.OfPattern`: the pattern's symbols, each the address of the mutations under it: a symbol names the object,
+  located once in the pattern, so no verb carries a `ref` of its own.
+- `Mutations.OfObject`: the mutations of the object one symbol binds.
+- `Mutations.OfAdjacency`: that object's adjacencies, their entries inserted, removed or edited, each entry's links and
+  properties through `Mutations.OfEntry` (`AsLink`, `AsProperty`).
+- `Mutations.OfProperty`: the value verbs (`Set`, `Clear`, `AsAny`, ...), nesting into value objects, unions,
+  intersections and containers as they do today.
+
+The verbs are what a program's builders write: a mutation builder is given whenever a property is called with a
+callback, `<object_path>.<propName>(cb)` or `<rel_entry_path>.<propName>(cb)` ([Object identity](OBJECT_IDENTITY.md),
+Decided, 58).
+
 ## Mutation Expressions
 
 Mutations are expressed as nested expressions, where each term expresses a streaming query using predicate logic. 
@@ -231,6 +256,13 @@ Mutations.OfPartition.none(Mutations.OfTerm)
 Mutations.OfBranch.requires([constraints: Schemas.OfConstraint])
 Mutations.OfBranch.then(Mutations.OfTerm)
 ```
+
+The 'fork' form above, which lacks `expect` and `then` clauses on `Mutations.OfPartition`, recursively executes every conditionally activated branch as executing in parallel. The end of the mutation expression term tree is treated as a terminal where frames are disposed. Alternatively, 
+`Mutations.OfPartition` can represent a fork-join pair where the final frame stream across all executed paths are joined and then passed to a follow-up mutation clause. The `none` `expect` `then` clauses must be provided.
+
+Mutations.OfPartition.expect(Schemas.OfPredicate) # optional join schema
+Mutations.OfBranch.then(Mutations.OfTerm)
+
 
 `Mutations.OfUpdate` is used to update properties and adjacencies for symbols already in the frame stream. Using this at the root is either a schema violation or a validation error. 
 

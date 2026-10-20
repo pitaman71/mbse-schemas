@@ -368,12 +368,18 @@ As the user decided (2026-10-19):
     <rel_entry_path>.<propName>(cb) are invoked". The mutation verbs therefore stay ("why would you think mutations go
     away?").
 
+59. A mutation's structure, "roughly": "Mutations.OfTransaction [ -> Mutations.OfShard ] -> Mutations.OfTerm ->
+    Mutations.OfPattern -> Mutations.OfObject -> Mutations.OfAdjacency -> Mutations.OfProperty"
+    ([Mutations as queries](STREAMING_QUERIES.md), Mutation structure). An adjacency's entries go through
+    `Mutations.OfEntry` to their links and properties ("yes"); the shard is "strictly optional", the executor's (56); a
+    term has "just one" pattern, "one can use Mutations.OfPartition to fork paths if needs be"; `Mutations.OfAll` is
+    the first term of a transaction's one chain.
+
 ## Open questions
 
 1. **Order independence (57), in detail.** The canonical order of frames for generating keys (by the identities and
    values each frame holds?), and `Mutations.OfReduce`'s fold: collectors required to be commutative and associative, as
    distributed reductions usually are, or the group given a canonical order in which "the first frame" is defined.
-2. **Where `Mutations.OfAll` sits under `Mutations.OfTransaction`**: the transaction's one term chain, or several.
 
 ---
 

@@ -133,7 +133,10 @@ Every write to a store is part of a transaction (44): building, cloning and upda
 singleton's, and so every schema built. `Mutations.OfTransaction` is the schema of one: its id and its list of
 mutations (38). It is strictly the root of what a program applies, so transactions cannot nest: the schema does not
 let one hold another (50). A program applies one by `store.mutation(mv)`, `mv` a `Visitors.OfMutation` whose `.uid()` gives the
-transaction's UUID; the program provides it, and nothing draws one at random (42).
+transaction's UUID; the program provides it, and nothing draws one at random (42). A mutation visitor is a builder like
+any other, of a `Mutations` value: it appears where a property visitor is called with a callback expecting it, as every
+builder does (mbse-basis P-004), the transaction's given to the callback `store.mutation` is called with, and each
+nested term's where its property (`then`, ...) is called with one (58).
 
 A transaction holds the terms of a mutation expression ([Mutations as queries](STREAMING_QUERIES.md)). The query
 executor may divide its execution into shards (52, 53), allocating their ids, but shards are the executor's alone: what
@@ -355,16 +358,19 @@ nothing beyond one document needs a counted object's identity ("yes, please"):
     journal holds transactions as submitted, replayed by executing them again.
 57. A transaction's effect does not depend on how it is sharded or in what order frames arrive: keys generated from a
     pattern are given in a canonical order of the frames that need them, and `Mutations.OfReduce`'s fold is made
-    independent of order (see Open questions, 2).
+    independent of order (see Open questions, 1).
+
+As the user decided (2026-10-19):
+
+58. `Visitors.OfMutation`: "Mutation visitors (builders) appear when a property visitor is called with a callback
+    expecting it."
 
 ## Open questions
 
-1. **`Visitors.OfMutation`.** What a program writes to build within a transaction: a visitor over a
-   `Mutations.OfTransaction` value, its `.uid()` and its mutations, and how the builders' callbacks run inside it.
-2. **Order independence (57), in detail.** The canonical order of frames for generating keys (by the identities and
+1. **Order independence (57), in detail.** The canonical order of frames for generating keys (by the identities and
    values each frame holds?), and `Mutations.OfReduce`'s fold: collectors required to be commutative and associative, as
    distributed reductions usually are, or the group given a canonical order in which "the first frame" is defined.
-3. **Where `Mutations.OfAll` sits under `Mutations.OfTransaction`**: the transaction's one term chain, or several.
+2. **Where `Mutations.OfAll` sits under `Mutations.OfTransaction`**: the transaction's one term chain, or several.
 
 ---
 

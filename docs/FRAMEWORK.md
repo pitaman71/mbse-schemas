@@ -591,10 +591,8 @@ written as a log of mutations ([SERIALIZATION.md](SERIALIZATION.md)); the old `M
 removed.
 
 - **A schema may hold itself**, as a node holds a list of nodes, or a container a container of itself. Validating it
-  reports each problem once, for every kind whose values hold others'. (Superseded in 4g of the store overhaul, as
-  built: a value schema that holds itself, through properties, branches, parts, a container's index or element or an
-  `OfAny`'s schemas, is refused by `validate()`, "a value schema cannot hold itself: value object schemas cannot have
-  cycles; reference object schemas can"; Object identity, Decided, 72. A cycle still reports each problem once.)
+  reports each problem once, for every kind whose values hold others'. (Object identity's Decided 72, which refused a
+  value schema that holds itself, was built in 4g and then removed: "let any term tree be recursive", Decided, 82.)
 
 ## A store's schemas as a module
 

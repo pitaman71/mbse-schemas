@@ -590,8 +590,8 @@ class ObjectData {
     return other === this;
   }
 
-  /** The schema's problems, reported once, where it is first reached. A value object schema cannot hold itself; a
-   * reference object schema may, through its relations' entries (docs/OBJECT_IDENTITY.md, Decided, 72). */
+  /** The schema's problems. A value object schema may hold itself, through a list: its problems are reported once,
+   * where it is first reached. */
   validate(): string[] {
     return once(this, () => this.problems());
   }
@@ -617,7 +617,7 @@ class ObjectData {
           + "which are never shared");
       }
     }
-    return [...problems, ...refinementProblems(this), ...cycleProblems(this)];
+    return [...problems, ...refinementProblems(this)];
   }
 }
 
@@ -739,8 +739,7 @@ class UnionData {
 
   private problems(): string[] {
     return [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters),
-      ...memberProblems("a union", "branch", "branches", this.branches), ...(this.flat ? flatUnionProblems(this.branches) : []),
-      ...cycleProblems(this)];
+      ...memberProblems("a union", "branch", "branches", this.branches), ...(this.flat ? flatUnionProblems(this.branches) : [])];
   }
 }
 
@@ -786,8 +785,7 @@ class IntersectionData {
 
   private problems(): string[] {
     return [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters),
-      ...memberProblems("an intersection", "part", "parts", this.parts), ...(this.flat ? flatIntersectionProblems(this.parts) : []),
-      ...cycleProblems(this)];
+      ...memberProblems("an intersection", "part", "parts", this.parts), ...(this.flat ? flatIntersectionProblems(this.parts) : [])];
   }
 }
 
@@ -881,7 +879,7 @@ class ContainerData {
       problems.push(`a ${this.layout} container's index has a total order: an int, float, str or bool, or a value `
         + "object of them");
     }
-    return [...problems, ...refinementProblems(this), ...cycleProblems(this)];
+    return [...problems, ...refinementProblems(this)];
   }
 }
 
@@ -1196,7 +1194,7 @@ class AnyValueData {
         }
       }
     });
-    return [...problems, ...cycleProblems(this)];
+    return problems;
   }
 }
 
@@ -1329,26 +1327,6 @@ function membersOf(schema: unknown): unknown[] {
   if (schema instanceof AnyValueData) return [...schema.schemas];
   return schema instanceof ObjectData || schema instanceof UnionData || schema instanceof IntersectionData
     ? [...schema.properties.values()].map((member) => member.schema) : [];
-}
-
-/** Refuses a value schema that holds itself, through a value object's properties, a union's branches, an intersection's
- * parts, a container's index or element or the schemas of a value of any schema, at any depth (docs/OBJECT_IDENTITY.md,
- * Decided, 72). A reference object schema holds nothing: an entry links it. */
-function cycleProblems(schema: unknown): string[] {
-  if (schema instanceof ObjectData && schema.ref) return [];
-  const seen = new Set<unknown>();
-  const reached = [...membersOf(schema)];
-  while (reached.length > 0) {
-    const held = reached.pop();
-    if (held === schema) {
-      return ["a value schema cannot hold itself: value object schemas cannot have cycles; reference object schemas can"];
-    }
-    if (!seen.has(held) && !(held instanceof ObjectData && held.ref)) {
-      seen.add(held);
-      reached.push(...membersOf(held));
-    }
-  }
-  return [];
 }
 
 /** Problems with a property's schema as a value: an object held by a property is a value object, so its schema is

@@ -134,8 +134,6 @@ check(Validators.Validate(store)(Customer, ada).length === 0);
   `Paths.of(schema)` gives its path, and `store.held(path)` the schema object at one.
 - **Name what you share.** A schema object with no name of its own (an unnamed value object, container or relation) has
   no path: one schema object alone may link it, and the store refuses a second ("name it to share it").
-- **A value schema cannot hold itself.** `validate()` refuses a value object, union, intersection or container that
-  holds itself; a reference object schema may, through its relations' entries (a person who knows persons).
 - **Extending changes the schema in place.** Objects of an extended schema gain the member, absent until written. To keep
   the old schema as it was, make a version.
 - **Validate when you are done.** Building never validates, so a schema may be incomplete between steps;

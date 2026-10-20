@@ -468,13 +468,13 @@ As the user decided (2026-10-20), on the order of step 4 and on schema objects:
     able to address a value symbolically, that is what I do not understand." It is written nested in the one object
     that links it, and numbered nowhere, since "Value schemas should never have cycles" and "If you build any instance
     of any schema, confer no identity, then share it, that's a usage error": validation refuses an unnamed schema
-    linked from more than one place, and a cycle among value schemas, named or not.
+    linked from more than one place, and a cycle among value schemas, named or not. (Its cycle clause superseded by 82.)
 71. `Locators.OfSymbol` has a name, the earlier symbol it starts from, and a schema, "Schemas.OfObject (must be ref)",
     by which a hop from it finds its adjacencies (amending 64).
 72. "Value object schemas cannot have cycles. Reference object schemas can." (amending 70): validation refuses a value
     object schema that holds itself, through its properties, a union's branches, an intersection's parts or a
     container's index or element, at any depth; reference object schemas may form cycles through relations (a person
-    who knows persons).
+    who knows persons). (Superseded by 82: built in 4g, then removed.)
 
 As the user decided (2026-10-20), on what needs a meta-schema:
 
@@ -508,7 +508,8 @@ As the user decided (2026-10-20), on how a pattern's symbols find their objects:
 As the user decided (2026-10-20), on expression terms and schema paths:
 
 79. Recursive expression terms ("yes"): a term is a counted reference object, linked to the terms it holds through
-    relations, so that recursion goes through links, which 72 allows; mbse-expressions adapts in 4h.
+    relations, so that recursion goes through links, which 72 allows; mbse-expressions adapts in 4h. (Amended by 82: a
+    term tree may be a recursive value.)
 80. A named schema's path is "root module, then nested modules by name, then schema by name": from the root module,
     through each module that `Schemas.Defines` its successor, keyed by name, to the schema; a member's path continues
     its owner's (69).
@@ -525,17 +526,21 @@ As the user decided (2026-10-20), on step 4g's design ("1,2,3 : confirmed; 4,5 :
     (`store.held(path)`), and until 4f replaces the log, a schema object's `exists` and references give its path, an
     unnamed one's definition written where it is linked.
 
+As the user decided (2026-10-20), on 72, which made the framework's own paths and mutations invalid (a path's steps
+nest, as mutations do):
+
+82. "let any term tree be recursive": 72 goes, and with it 70's cycle clause. A value schema may hold itself, through
+    its properties, a union's branches, an intersection's parts, a container's index or element or an `OfAny`'s schemas,
+    as before 4g: validation reports each of its problems once. A term tree, an expression's included, may be a
+    recursive value, or link its terms as counted reference objects (amending 79); mbse-expressions chooses in 4h. The
+    nesting of 81 needs no acyclicity: a named schema is referred to by its path, and an unnamed one that holds itself
+    is linked by its own member, so that nothing else may link it.
+
 ## Open questions
 
 Raised while building 4g, for the user's review:
 
-1. **The framework's own recursive value schemas.** 72 refuses a value schema that holds itself, and 4g's `validate()`
-   does, but a path's steps nest (`Paths.OfEntry`'s `next` is `Paths.Next`, whose branch `entry` is a `Paths.OfEntry`),
-   and so do mutations (`Mutations.OfAny` → `AsObject` → `AsProperty` → `OfProperty` → `AsAny` → `OfAny`; 4g's nested
-   definitions add `Def` → `inserts` → `Insert` → `Entry` → `Link.Set` → `Def`). Each reports the cycle as its only
-   problem (MUT-01, IDN-03). Built as it stands until 4f replaces the log; to decide: a path as a list of steps, and the
-   log's nesting through counted reference objects, as 79 made terms, or 72 relaxed for some kind of value.
-2. **A module and a schema at one path.** 80 makes a name a path and `Schemas.Defines` is keyed by name, so 4g refuses a
+1. **A module and a schema at one path.** 80 makes a name a path and `Schemas.Defines` is keyed by name, so 4g refuses a
    module and a schema at the same path: `crm.Contact.v2` beside `crm.Contact` would put the module `crm.Contact` at
    the schema's path. Tutorial 9 and the skill now version as `crm.v2.Contact`, a module per version. To confirm, or
    to choose another form (`crm.ContactV2`; a version beside the name, FRAMEWORK.md, Open questions).

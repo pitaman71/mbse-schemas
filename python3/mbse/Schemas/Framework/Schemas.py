@@ -490,8 +490,7 @@ class _ObjectData:
 
     @_once
     def validate(self) -> list[str]:
-        """The schema's problems. A value object schema cannot hold itself; a reference object schema may, through its
-        relations' entries (docs/OBJECT_IDENTITY.md, Decided, 72)."""
+        """The schema's problems. A value object schema may hold itself, through a property or an entry."""
         problems = (_name_problems(self.name) + _description_problems(self.description)
                     + _parameter_problems(self.parameters) + _reserved([*self.properties, *self.adjacencies])
                     + _visited([*self.properties, *self.adjacencies]))
@@ -509,7 +508,7 @@ class _ObjectData:
                 label = f"adjacency {adjacency.name!r}" if adjacency.name else "an anonymous adjacency"
                 problems.append(f"{label}: a value object schema has no adjacencies: entries never link value objects, "
                                 "which are never shared")
-        return problems + _refinement_problems(self) + _cycle_problems(self)
+        return problems + _refinement_problems(self)
 
 
 class OfObject:
@@ -601,7 +600,7 @@ class _UnionData:
     def validate(self) -> list[str]:
         return (_name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
                 + _member_problems("a union", "branch", "branches", self.branches)
-                + (_flat_union_problems(self.branches) if self.flat else []) + _cycle_problems(self))
+                + (_flat_union_problems(self.branches) if self.flat else []))
 
 
 class OfUnion:
@@ -627,7 +626,7 @@ class _IntersectionData:
     def validate(self) -> list[str]:
         return (_name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
                 + _member_problems("an intersection", "part", "parts", self.parts)
-                + (_flat_intersection_problems(self.parts) if self.flat else []) + _cycle_problems(self))
+                + (_flat_intersection_problems(self.parts) if self.flat else []))
 
 
 class OfIntersection:
@@ -701,7 +700,7 @@ class _ContainerData:
         elif self.layout is not None and isinstance(self.index, _KINDS) and _index_kind(self.index) != "ordered":
             problems.append(f"a {self.layout} container's index has a total order: an int, float, str or bool, or a "
                             "value object of them")
-        return problems + _refinement_problems(self) + _cycle_problems(self)
+        return problems + _refinement_problems(self)
 
 
 class OfContainer:
@@ -767,7 +766,7 @@ class _AnyValueData:
                 if plain_forms(a) & plain_forms(b):
                     problems.append(f"an OfAny's schemas {_shown_type(a)} and {_shown_type(b)} are not told apart on the "
                                     "wire")
-        return problems + _cycle_problems(self)
+        return problems
 
 
 # --- OfVariable: a name standing for a value ---
@@ -1040,25 +1039,6 @@ def _members_of(schema: Any) -> list[Any]:
     if isinstance(schema, _AnyValueData):
         return list(schema.schemas)
     return [m.schema for m in schema.properties.values()] if isinstance(schema, (_ObjectData, _UnionData, _IntersectionData)) else []
-
-
-def _cycle_problems(schema: Any) -> list[str]:
-    """Refuses a value schema that holds itself, through a value object's properties, a union's branches, an
-    intersection's parts, a container's index or element or the schemas of a value of any schema, at any depth
-    (docs/OBJECT_IDENTITY.md, Decided, 72). A reference object schema holds nothing: an entry links it."""
-    if isinstance(schema, _ObjectData) and schema.ref:
-        return []
-    seen: set[int] = set()
-    reached = list(_members_of(schema))
-    while reached:
-        held = reached.pop()
-        if held is schema:
-            return ["a value schema cannot hold itself: value object schemas cannot have cycles; reference object schemas "
-                    "can"]
-        if id(held) not in seen and not (isinstance(held, _ObjectData) and held.ref):
-            seen.add(id(held))
-            reached += _members_of(held)
-    return []
 
 
 def _embedded_problems(schema: Any, seen: frozenset[int] = frozenset()) -> list[str]:

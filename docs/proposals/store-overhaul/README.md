@@ -213,10 +213,10 @@ so that main stays current and no branch waits on another.
        constraints, which it owns; a collector's names are text lists, its `suffixes` a map;
      - the corpus's `module` case has a pattern with a variable and a constraint, an expression and a collector in
        place of its predicate; the suite PAT tests them, in both languages.
-   - **4g, schema objects** (17, 29, 69, 70, 72, 80, 81): a named schema's identity is its path, and its members' paths
+   - **4g, schema objects** (17, 29, 69, 70, 80, 81, 82): a named schema's identity is its path, and its members' paths
      continue it; derived identities go; an unnamed schema has no identity, and is written nested in the one object that
-     links it; an unnamed schema linked from more than one place is refused, and validation refuses a cycle among value
-     object schemas (72); schema objects' keys on the wire become paths. `as_identity` leaves the schema builders. Done,
+     links it; an unnamed schema linked from more than one place is refused; a value schema may hold itself (82,
+     superseding 72); schema objects' keys on the wire become paths. `as_identity` leaves the schema builders. Done,
      on the branch. As built:
      - a path is a `Paths.OfRoot` value from the root module, the singleton `"."`, through each module and then the
        schema by name (`{"i": "schemas", "o": "", "properties": {"name": ...}}`), then through the keyed adjacency that
@@ -229,10 +229,8 @@ so that main stays current and no branch waits on another.
        already: name it to share it"); a clone has its own of each. A name is registered once, of any kind, and a module
        and a schema do not share a path ("the path 'crm.Contact' names another schema object already"), so tutorial 9
        and the skill version as `crm.v2.Contact` (Object identity, Open questions);
-     - `validate()` refuses a value schema that holds itself, through properties, branches, parts, a container's index
-       or element or an `OfAny`'s schemas: "a value schema cannot hold itself: value object schemas cannot have cycles;
-       reference object schemas can". The framework's `Paths` and `Mutations` schemas are such cycles (Object identity,
-       Open questions); MUT-01 and IDN-03 assert theirs is their only problem;
+     - `validate()` refused a value schema that holds itself (72), which made the framework's own `Paths` and
+       `Mutations` invalid; 72 was then removed (82), and a value schema may hold itself again;
      - a log refers to a schema object by its path and defines it by its path and its kind (`{"path": ..., "schema":
        "Schemas.OfObject", "properties": ...}`); a member's `exists` places it in its owner at once, as an owned data
        object's does. One with no name of its own is defined where it is linked, `{"set": {"def": {"schema", "properties",

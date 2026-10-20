@@ -513,6 +513,18 @@ As the user decided (2026-10-20), on expression terms and schema paths:
     through each module that `Schemas.Defines` its successor, keyed by name, to the schema; a member's path continues
     its owner's (69).
 
+As the user decided (2026-10-20), on step 4g's design ("1,2,3 : confirmed; 4,5 : okay for now, revisit later"):
+
+81. A path reuses `Paths.OfRoot`: the root module as the singleton `"."`, each module and then the schema by name
+    (`{"i": "schemas", "o": "", "properties": {"name": ...}}`), a member continuing its owner's through the keyed
+    relation that owns it. An unnamed schema object (an unnamed schema, an anonymous adjacency, a pattern's constraint,
+    an unnamed expression) has no identity, and is written nested in the one object that links it; linking one that
+    another links already is refused when it is built ("name it to share it"), and `validate()` refuses a cycle among
+    value object schemas (72). For now, to revisit: `Paths.of(x)` gives a schema object's path as it gives a data
+    object's, `B.identity_of` and the schema builders' `as_identity` go, the store holds schema objects by path
+    (`store.held(path)`), and until 4f replaces the log, a schema object's `exists` and references give its path, an
+    unnamed one's definition written where it is linked.
+
 ## Open questions
 
 None at present.

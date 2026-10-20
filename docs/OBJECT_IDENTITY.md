@@ -584,6 +584,17 @@ As the user decided (2026-10-20), on the questions put for step 4e:
     (placing a schema in its module, making a singleton, refusing a shared unnamed schema object, deleting what a removed
     owning entry owned) happen within the transaction whose write causes them, in its overlay.
 
+As the user decided (2026-10-20):
+
+91. Terms are selected as a union's branches ("yes"): a transaction's `mutations` and a term's `then` take the
+    peer-shorthand list, each entry callback given the `Mutations.OfTerm` union, whose branch called selects the term:
+    `.mutations([lambda mu: mu.upsert(lambda u: u.exists([...]).then([lambda w: w.update(...)]))])`. Their relations hold
+    one entry each. The terms' members: `map` (`as_symbols`, `as_variables`, `then`), `reduce` (`as_symbols`,
+    `as_variables`, `then`), `partition` (`first`, `last`, `branches`, `none`), `update` (`apply`, `then`) and `upsert`
+    (`key`, `exists`, `then`).
+92. Fixtures ("yes"): a test builds the data a case needs in one transaction, one pattern's symbols and one spec, with
+    the mappings for keyed adjacencies (FRAMEWORK.md, Resolved), rather than a transaction per object.
+
 ## Open questions
 
 None at present.

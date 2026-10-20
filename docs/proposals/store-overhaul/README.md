@@ -173,12 +173,31 @@ so that main stays current and no branch waits on another.
      demand.
    - **4b, data objects by path** (done, `1513108`, on the branch): ownership filled at build, lookup by keys, paths on
      the wire. Decided 37 to 63 reverse part of it, which 4c undoes.
-   - **4c, the three modes in memory** (37, 40, 41, 43, 47, 48, 55): `HasInstance`, `OfObject.pattern`, the
-     `local-name-N` keys, the directories and `store.Instances.<schema>(keys)` go; an object whose schema declares no
-     `owner()` is counted, held only by what links it, the language collecting it; `as_identity` goes; validation refuses
-     an `owner()` adjacency a counted schema can fill; removing an owning entry deletes the owned object, cascading. On
-     the wire, still 4b's format: a counted object is numbered within the document that writes it,
-     `{"$ref": {"n": ...}}`. Tests whose root-level objects must be found move them under a singleton directory.
+   - **4c, the three modes in memory** (37, 40, 41, 43, 47, 48, 55; done, on the branch, released as 0.20.0):
+     `HasInstance`, `OfObject.pattern`, the `local-name-N` keys, the directories and `store.Instances.<schema>(keys)` go;
+     an object whose schema declares no `owner()` is counted, held only by what links it, the language collecting it;
+     `as_identity` goes; validation refuses an `owner()` adjacency a counted schema can fill; removing an owning entry
+     deletes the owned object, cascading. On the wire, still 4b's format: a counted object is numbered within the
+     document that writes it, `{"$ref": {"n": ...}}`. Tests whose root-level objects must be found move them under a
+     singleton directory. As built:
+     - an object is counted where its schema is no singleton and declares no `owner()` adjacency. `Paths.of` refuses
+       it ("a 'X' is counted: it has no path"), and `store.Instances.<name>` gives singletons only, refusing a call ("no
+       singleton named 'X': an owned object is found through its owners' adjacencies, a counted one only through what
+       links it");
+     - `as_identity` goes from data, value objects, their builders and link members, and `Stores.Store.restore` with
+       it; schema builders keep theirs until 4g. A proxy is told apart in memory by a serial number, never written;
+     - nothing is owned by a counted object: an entry that would make one an owner is refused when it is added, and
+       `Validators` reports a counted schema's adjacency that another schema's `owner()` adjacency makes an owner;
+     - removing an owning entry deletes the owned object when the outermost write ends, unless it is owned again by
+       then: every entry it is in is removed, so in turn what it owned. A refused write leaves nothing pending for the
+       next;
+     - a document numbers counted objects `{"n": k}` in the order it meets them from the root, which is 0, lists them
+       `{"n": k, "schema": ..., "properties": ...}` and refers to them `{"$ref": {"n": k}}`; reading always makes them
+       anew, even in the store that holds the originals. A log numbers them in the order it defines them, and writes
+       only the data its singletons reach; the conformance corpus holds each case's data under a singleton,
+       `Corpus.Root`, so. YAML quotes the key `'n'`, which a YAML 1.1 reader takes for false;
+     - the tutorials retell case study 6 with counted contacts and addresses, numbered, and point to owned objects for
+       lasting names; case study 8's audit log labels linked objects by their values.
    - **4d, patterns** (STREAMING_QUERIES.md, Patterns; Value expressions and constraints): `Schemas.OfPattern`,
      `OfSymbol` (its locator: a path from a singleton or from another symbol, through any adjacency, serializable),
      `OfVariable`, `OfExpression` and its boolean variant `OfConstraint` (placeholders mbse-expressions refines),

@@ -1,5 +1,5 @@
 /**
- * Paths: an object's identity, the route from a singleton to it through the relations that own it
+ * Paths: an owned object's identity, the route from a singleton to it through the relations that own it
  * (docs/OBJECT_IDENTITY.md).
  *
  * A path is a nested value object, never a string: `Paths.OfRoot` names the singleton it starts from and holds the
@@ -81,25 +81,9 @@ function hasOwnerAdjacency(schema: S.OfObject.Data): boolean {
 
 type Step = [string, string, Map<string, unknown>];
 
-/** The steps from the root module to a schema, through `Schemas.Defines` by name (Decided, 17); for a schema the store
- * has not placed, those its name, `name`, spells. */
-function schemaSteps(store: any, schema: unknown, name: string): Step[] {
-  if (!store._placed.has(schema)) return name.split(".").map((part) => ["schemas", "", new Map([["name", part]])]);
-  const steps: Step[] = [];
-  let current = schema;
-  while (store._placed.has(current)) {
-    const [module, local] = store._placed.get(current);
-    steps.push(["schemas", "", new Map([["name", local]])]);
-    current = module;
-  }
-  return steps.reverse();
-}
-
-/** The singleton a reference object's path starts from, and the ownership entries from it to the object: through the
- * adjacencies marked `owner()`, else, for an object whose schema declares none, through its schema's
- * `Schemas.HasInstance` entry, after the schema's own path from the root module (Decided, 31). */
+/** The singleton a reference object's path starts from, and the ownership entries from it to the object, through the
+ * adjacencies marked `owner()`. A counted object has no path (docs/OBJECT_IDENTITY.md, Decided, 55). */
 function stepsOf(obj: unknown): [string, Step[]] {
-  const store: any = Proxies._store_of(obj);
   const steps: Step[] = [];
   const seen = new Set<unknown>();
   let current = obj;
@@ -107,9 +91,8 @@ function stepsOf(obj: unknown): [string, Step[]] {
     const state = Proxies._innerOf(current);
     const schema = state._schema as S.OfObject.Data;
     if (schema.singleton !== null) return [schema.singleton, steps.reverse()];
-    if (!hasOwnerAdjacency(schema)) {
-      steps.push(["instances", "", new Map([["name", state._identity]])]);
-      return [".", [...schemaSteps(store, schema, state._schemaName), ...steps.reverse()]];
+    if (!hasOwnerAdjacency(schema)) { // only the object asked about: nothing is owned by a counted object (47)
+      throw new LookupError(`a ${repr(state._schemaName)} is counted: it has no path`);
     }
     if (seen.has(current)) throw new LookupError("an ownership cycle: no singleton owns the object");
     seen.add(current);

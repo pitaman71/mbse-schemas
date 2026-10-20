@@ -58,40 +58,32 @@ def value_of(read: Any) -> Any:
     return next((v for v in found if v.as_schema() is not None), None)  # a visitor of nothing has no schema
 
 
-def owned(name: str, key: str) -> dict:
-    """The path of an object its schema, registered as `name`, owns under `key` (`Schemas.HasInstance`): the root
-    module, its schema's path by name, then its key (docs/OBJECT_IDENTITY.md, Decided, 31)."""
-    step: dict = {"entry": {"i": "instances", "o": "", "properties": {"name": key}, "next": {"target": {}}}}
-    for part in reversed(name.split(".")):
-        step = {"entry": {"i": "schemas", "o": "", "properties": {"name": part}, "next": step}}
-    return {"singleton": ".", "next": step}
+def listed(name: str, number: int, properties: dict | None = None) -> dict:
+    """A counted object's entry in an object snapshot's list: its number in the document, its schema's name and its
+    members (docs/OBJECT_IDENTITY.md, Decided, 55)."""
+    return {"n": number, "schema": name, "properties": properties or {}}
 
 
-def listed(name: str, key: str, properties: dict | None = None) -> dict:
-    """An object's entry in an object snapshot's list: its path (`owned`), its schema's name and its members."""
-    return {"path": owned(name, key), "schema": name, "properties": properties or {}}
+def single(name: str, properties: dict | None = None) -> dict:
+    """The object snapshot of one counted object: rooted at it, listing it alone, numbered 0."""
+    return {"root": {"n": 0}, "objects": [listed(name, 0, properties)]}
 
 
-def single(name: str, key: str, properties: dict | None = None) -> dict:
-    """The object snapshot of one object its schema owns: rooted at it, listing it alone."""
-    return {"root": owned(name, key), "objects": [listed(name, key, properties)]}
-
-
-def ref(name: str, key: str) -> dict:
-    """A reference to an object its schema owns: its path."""
-    return {"$ref": owned(name, key)}
+def ref(number: int) -> dict:
+    """A reference to the counted object a document numbers `number`."""
+    return {"$ref": {"n": number}}
 
 
 def path_of(obj: Any) -> dict:
-    """An object's path (`as_identity()`), as plain data."""
-    from mbse.Schemas.Framework import Plain
+    """An owned object's or a singleton's path (`Paths.of`), as plain data."""
+    from mbse.Schemas.Framework import Paths, Plain
 
-    identity = obj.as_identity()
+    identity = Paths.of(obj)
     return Plain.ToPlain(None)(identity.as_schema(), identity)
 
 
 def key_of(obj: Any) -> Any:
-    """An object's key: the `name` of its path's last step, or a singleton's global name."""
+    """An owned object's key: the `name` of its path's last step, or a singleton's global name."""
     return key_in(path_of(obj))
 
 
@@ -104,20 +96,24 @@ def key_in(path: dict) -> Any:
     return key
 
 
+def called(listing: dict) -> dict:
+    """What an object snapshot calls one of the objects it lists: its path, or `{'n': number}`."""
+    return listing["path"] if "path" in listing else {"n": listing["n"]}
+
+
 def _symbol(path: Any) -> str:
     return json.dumps(path, sort_keys=True)
 
 
-def members(snapshot: dict, name: str, key: str) -> dict:
-    """The members of the object an object snapshot lists with the path `owned(name, key)`."""
-    wanted = _symbol(owned(name, key))
-    return next(o["properties"] for o in snapshot["objects"] if _symbol(o["path"]) == wanted)
+def members(snapshot: dict, call: Any) -> dict:
+    """The members of the object an object snapshot lists as `call`: a path, or a counted object's number."""
+    wanted = _symbol({"n": call} if isinstance(call, int) else call)
+    return next(o["properties"] for o in snapshot["objects"] if _symbol(called(o)) == wanted)
 
 
 def root_of(snapshot: dict) -> dict:
     """A snapshot's root object's members."""
-    root = _symbol(snapshot["root"])
-    return next(o["properties"] for o in snapshot["objects"] if _symbol(o["path"]) == root)
+    return members(snapshot, snapshot["root"])
 
 
 def is_adjacency(value: Any) -> bool:
@@ -141,7 +137,7 @@ def same_graph(a: dict, b: dict) -> bool:
         return value
 
     def canonical(graph: dict) -> tuple:
-        objects = {_symbol(o["path"]): o["properties"] for o in graph["objects"]}
+        objects = {_symbol(called(o)): o["properties"] for o in graph["objects"]}
         labels = {s: repr(content(o)) for s, o in objects.items()}
         assert len(set(labels.values())) == len(labels), "objects must have distinct property values"
         holders: list[tuple[str, dict]] = []  # every object and value object, by label

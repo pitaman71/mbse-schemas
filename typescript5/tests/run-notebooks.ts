@@ -99,8 +99,7 @@ let failed = 0;
 for (const [i, module] of modules.entries()) {
   const name = basename(notebooks[i] as string);
   const started = Date.now();
-  // --expose-gc: a suite may collect garbage, to see what a store holds weakly let go (STO-07).
-  const result = spawnSync("npx", ["tsx", "--expose-gc", "--import", join(build, "prelude.ts"), module], { encoding: "utf8" });
+  const result = spawnSync("npx", ["tsx", "--import", join(build, "prelude.ts"), module], { encoding: "utf8" });
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
   const printed = `${result.stdout}\n${result.stderr}`;
   if (result.status === 0 && STACK_FRAME.test(printed)) {

@@ -8,7 +8,7 @@ import math
 
 import yaml
 
-from mbse.Schemas.Framework import JSON, YAML, Builders, Paths, Plain, Schemas, Validators
+from mbse.Schemas.Framework import JSON, YAML, Builders, Plain, Schemas, Validators
 from mbse.Schemas.Framework.Errors import DecodeError
 from mbse.Schemas.Examples._support import raises, same_graph
 
@@ -115,17 +115,11 @@ assert from_yaml(Station, YAML.ToYAML(store)(Station, paris)).wmo_id.get() == '0
 
 # --- Hand-written YAML follows the YAML 1.2 core schema ---
 
-
-def at(key):
-    """The path of the reading its schema owns under `key`, as YAML: the root module, the schema, then the key."""
-    return ("{singleton: ., next: {entry: {i: schemas, o: '', properties: {name: Reading}, next: {entry: {i: instances, "
-            f"o: '', properties: {{name: {key}}}, next: {{target: {{}}}}}}}}}}}}}}")
-
-
-written = f"""
-root: {at('noon')}
+# A reading is counted: a document calls it by its number, the root's 0.
+written = """
+root: {n: 0}
 objects:
-  - path: {at('noon')}
+  - n: 0
     schema: Reading
     properties:
       observed: 2026-09-28T12:00:00Z   # unquoted, but stays a string
@@ -140,22 +134,22 @@ assert (reading.observed.get(), reading.quality.get(), reading.value.get(), read
 
 # 'yes' is a string in YAML 1.2, so it is not accepted for a bool.
 with raises(DecodeError):
-    from_yaml(Reading, f"root: {at('noon')}\nobjects:\n  - path: {at('noon')}\n    schema: Reading\n    properties:\n      valid: yes\n")
+    from_yaml(Reading, "root: {n: 0}\nobjects:\n  - n: 0\n    schema: Reading\n    properties:\n      valid: yes\n")
 
 # --- Malformed text is rejected ---
 
-a = json.dumps(Plain.ToPlain(store)(Reading, store.Reading(lambda r: r))['root'])  # a reading's path, as JSON
-for bad in [f'{{"root": {a}, "objects": [{{"path": {a}, "schema": "Reading", "properties": {{"value": NaN}}}}]}}',  # not JSON
+a = json.dumps(Plain.ToPlain(store)(Reading, store.Reading(lambda r: r))['root'])  # a reading's number, as JSON
+for bad in [f'{{"root": {a}, "objects": [{{"n": 0, "schema": "Reading", "properties": {{"value": NaN}}}}]}}',  # not JSON
             f'{{"root": {a}, "root": {a}, "objects": []}}',  # duplicate key
             f'{{"root": {a}, "objects": ',  # truncated
-            f'{{"root": {a}, "objects": [{{"path": {a}, "schema": "Reading", "properties": {{"value": "nan"}}}}]}}']:  # only 'NaN', 'Infinity', '-Infinity'
+            f'{{"root": {a}, "objects": [{{"n": 0, "schema": "Reading", "properties": {{"value": "nan"}}}}]}}']:  # only 'NaN', 'Infinity', '-Infinity'
     with raises(DecodeError):
         from_json(Reading, bad)
 
-for bad in [f"root: {at('a')}\nroot: {at('b')}\nobjects: []",  # duplicate key
-            f"root: {at('a')}\nobjects:\n  - path: {at('a')}\n    schema: Reading\n    properties:\n      raw: !!binary AAAA",  # tagged binary: not plain data
+for bad in ["root: {n: 0}\nroot: {n: 1}\nobjects: []",  # duplicate key
+            "root: {n: 0}\nobjects:\n  - n: 0\n    schema: Reading\n    properties:\n      raw: !!binary AAAA",  # tagged binary: not plain data
             '1: x',  # non-string key
-            f"---\nroot: {at('a')}\n---\nroot: {at('b')}",  # two documents
+            "---\nroot: {n: 0}\n---\nroot: {n: 1}",  # two documents
             'root: [unclosed']:
     with raises(DecodeError):
         from_yaml(Reading, bad)
@@ -172,10 +166,10 @@ lyon = store.Station(lambda s: (
 graph = Plain.ToPlain(store).Reachable(Station, lyon)
 for text, decoder in [(JSON.ToJSON(store).Reachable(Station, lyon), JSON.FromJSON),
                       (YAML.ToYAML(store).Reachable(Station, lyon), YAML.FromYAML)]:
-    elsewhere = Builders.Store()  # read into another store: objects of the same identities
+    elsewhere = Builders.Store()  # read into another store: new objects of the same graph
     Plain.FromPlain(elsewhere).Snapshot(Plain.ToPlain(store).Snapshot())  # the same schemas, its own: a store's snapshot writes them
     restored = decoder(elsewhere).Reachable(elsewhere.Station, text)
-    assert restored is not lyon and Paths.same(restored.as_identity(), lyon.as_identity())
+    assert restored is not lyon
     assert str(restored.name) == 'Lyon-Saint-Exupéry'
     assert same_graph(Plain.ToPlain(elsewhere).Reachable(elsewhere.Station, restored), graph)
     assert Validators.Validate(elsewhere).Reachable(elsewhere.Station, restored) == []

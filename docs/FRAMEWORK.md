@@ -380,20 +380,22 @@ Both in-memory objects and mutations (see `Mutations`) are serializable.
 Over the wire, object content carries no schema. Association of an object with a schema is done dynamically, starting
 from the expected root schema, which is why deserializers such as `Plain.FromPlain(store)(schema, ...)` take it as an
 argument, and continuing through property schemas and the branch written with each union value. Links are untyped, so
-each reference object a snapshot lists names its schema beside its content, `{"path": ..., "schema": "Card",
-"properties": {...}}`, and a reference to it is its path alone, `{"$ref": path}` (docs/OBJECT_IDENTITY.md, Decided, 36).
+each reference object a snapshot lists names its schema beside its content, `{"n": 0, "schema": "Card", "properties":
+{...}}`, and a reference to it is what the snapshot calls it by alone, `{"$ref": {"n": 0}}` or `{"$ref": path}`
+(docs/OBJECT_IDENTITY.md, Decided, 36 and 55).
 Consequently, a reference object written in a snapshot must have a named (registered) schema.
 
 A transaction is a flat sequence of mutations. Mutations may be nested; transactions are not.
 
-- Objects are identified over the wire by their paths (docs/OBJECT_IDENTITY.md): a data object's path runs from a
-  singleton through the entries that own it, each keyed by its relation's key properties; an object no `owner()`
-  adjacency owns is its schema's (`Schemas.HasInstance`), under a key given when it is created: the root module `.`,
-  the schema's path by name, then the key. A singleton's path is its global name alone. Paths are not local to a
-  transaction or a snapshot: a later one refers to the same object by the same path, and loading a path the store
-  already holds updates that object through its builder (Resolved, Reference identity, on update): what the snapshot
-  holds is written, and what it omits is kept. Schema objects are still referred to by `Module.Schema/ID` keys in a
-  log, until step 4c of the store overhaul gives them paths too.
+- A data object is a singleton, owned, or counted (docs/OBJECT_IDENTITY.md, Decided, 37). A singleton's path is its
+  global name alone; an owned object's runs from a singleton through the entries that own it, each through an
+  adjacency marked `owner()` and keyed by its relation's key properties. Paths are not local to a transaction or a
+  snapshot: a later one refers to the same object by the same path, and loading a path the store already holds
+  updates that object through its builder (Resolved, Reference identity, on update): what the snapshot holds is
+  written, and what it omits is kept. A counted object, which neither is, has no identity beyond the document that
+  writes it: the document numbers it, `{"n": k}`, in the order it meets objects from the root, which is 0, and
+  reading a document always builds its counted objects anew (55). Schema objects are still referred to by
+  `Module.Schema/ID` keys in a log, until step 4g of the store overhaul gives them paths too.
 - Paths name only reference objects, never values or entries.
 - A value object is written nested, as a mapping of its properties and its adjacencies, without a key. Union and intersection values are written the
   same way, keyed by branch or part name: a union value `{"phone": {"number": "1"}}` has exactly one key, and decoding
@@ -407,13 +409,14 @@ A transaction is a flat sequence of mutations. Mutations may be nested; transact
   objects written, and builds the objects read. `Schemas.OfScalar` converts scalars to forms plain
   data can hold (`bytes` as base64 text; non-finite floats as the strings `NaN`, `Infinity`, `-Infinity`), so text
   encodings never handle that themselves. An object's plain form includes its
-  adjacencies; linked objects appear as references by path, not nested content. Deserializing a snapshot
+  adjacencies; linked objects appear as references, not nested content. Deserializing a snapshot
   that references an object it does not contain is an error.
-  An object snapshot is `{"root": path, "objects": [{"path": path, "schema": name, "properties": {...}}, ...]}`, each
-  object listed once. Its properties map property names to plain values and adjacency names to lists of entries; an
-  entry maps the other links to references and the entry properties to plain values (the object's own link is
-  implied). A reference is `{"$ref": path}`, to a reference object. Objects are written in the order they are first
-  referenced, the root first; reading builds each owner before what it owns. `Plain.ToPlain(store).OfObject` includes only the root, so its references
+  An object snapshot is `{"root": call, "objects": [{"path": path or "n": number, "schema": name, "properties":
+  {...}}, ...]}`, each object listed once, called by its path or, a counted object, its number. Its properties map
+  property names to plain values and adjacency names to lists of entries; an entry maps the other links to references
+  and the entry properties to plain values (the object's own link is implied). A reference is `{"$ref": path}` or
+  `{"$ref": {"n": number}}`, to a reference object. Objects are written in the order they are first referenced, the
+  root first, and counted objects numbered in that order; reading builds each owner before what it owns. `Plain.ToPlain(store).OfObject` includes only the root, so its references
   are unresolved; `Plain.ToPlain(store).Reachable` includes every object reachable through adjacencies. An entry appears under
   each object it links, and reading counts it once: by value where the relation has a `unique` clause, and in an open
   relation the k-th entry equal to a given one in one list is the k-th in another. A container is written inside its
@@ -437,13 +440,13 @@ Mistakes in the calling program keep their usual classes, e.g. a root schema tha
 
 - `reason` is one line of text with no location in it.
 - The location is `line` and `column` for text (1-based, counted in code points), or `path` for plain data, e.g.
-  `$.objects["Contact/CON-001"].addresses[1].label`. Keys that are not identifiers, as an object's key never is, are
-  written in brackets, as JSON strings. A problem may have no location, e.g. undecodable bytes.
+  `$.objects[0].properties.addresses[1].label`. Keys that are not identifiers are written in brackets, as JSON
+  strings. A problem may have no location, e.g. undecodable bytes.
 - The message is `line 3, column 7: reason`, or `$.path: reason`, or just the reason.
 - If text has several problems, the first in the text is reported. A snapshot is checked in a fixed order that every
-  binding follows: its shape, then the references (inferring each object's schema), then, in snapshot order, each
-  object's key against its schema (qualified by its name, or a singleton's global name, and a name its naming pattern
-  gives) and its keys and values, and last any object nothing references.
+  binding follows: its shape, each listing's path or number, then the references, then, in snapshot order, each
+  object's schema, what it is called by against its schema (a singleton or an owned object by its path, a counted one
+  by its number), and its keys and values.
 - Nothing is built when a `DecodeError` is raised: a snapshot's shape, references and scalar values are all checked
   before any builder is called.
 - Reasons and locations are identical in every binding, with one exception. For YAML syntax errors (and for
@@ -461,11 +464,13 @@ schema's properties). Links target reference objects only (Resolved, The visitor
 referenced by entries"). The terms are to replace "value object" and "object" throughout the API's messages and these
 documents.
 
-- **A reference object has an identity** (Resolved, Reference identity), and can be linked by relations; a value
-  object has none (`as_identity()` is None), and is known by its owner and the property holding it. What distinguishes the two kinds is
+- **A reference object can be linked by relations** and has an identity if it is a singleton or owned
+  (docs/OBJECT_IDENTITY.md, Decided, 37); a value object has none, and is known by its owner and the property holding
+  it. What distinguishes the two kinds is
   ownership, and the schema says which kind it describes: `Schemas.OfObject.Builder().ref()` marks a *reference object
   schema*; an object schema without it is a *value object schema*. A singleton's schema is a reference object schema.
-- **A reference object** stands on its own: a snapshot writes it once among its `objects`, under its key. A
+- **A reference object** stands on its own: a snapshot writes it once among its `objects`, called by its path or
+  its number. A
   snapshot's root is a reference object, and a store's builders (`store.<Name>()`) make only reference objects. A reference
   object schema is never a property's schema, directly or as a union's branch or an intersection's part held by a
   property, nor an entry property's: `validate()` reports it ("a reference object schema cannot be a property's
@@ -695,7 +700,7 @@ it is fixed here:
 | Keyword arguments | `ToJSON(..., indent=2)` | options objects: `ToJSON(..., { indent: 2 })` |
 | Dynamic proxies | `__getattr__`, `__call__` | a `Proxy` with a function target, its `name` and `length` hidden; JavaScript protocol probes (`then`, `toJSON`, symbols) are not schema lookups |
 | Scalar sugar | dunders (`str(card.name)`, `int(...)`) | `[Symbol.toPrimitive]` and `valueOf` (`` `${card.name}` ``, `+card.age`) |
-| Lookup by keys | `adjacency({"name": "DEF-693"})`, `store.Instances.wts.Free({"name": "free-1"})`: any mapping | `adjacency({ name: "DEF-693" })`, `store.Instances.wts.Free({ name: "free-1" })`: an object literal |
+| Lookup by keys | `adjacency({"name": "DEF-693"})`: any mapping | `adjacency({ name: "DEF-693" })`: an object literal |
 | Incomparable (`Comparison`) | `None` | `null` |
 | JSON | `json` with strict options | own reader and writer reproducing Python's output; ints and floats kept distinct |
 | YAML | PyYAML (optional extra), YAML 1.2 core loader | `yaml` package loader, own block emitter; the same quoting |
@@ -931,7 +936,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     (`Basic.Operators.Add`). Built (STO-08): a builder's `as_identity(identity)` writes it, and `as_identity()` reads
     the one written, else the source's; `create()` and `clone()` give one only where none is written, and `update()`
     renames the object. An identity no other live object of its schema has, which its naming pattern gives where it
-    has one; a singleton's is its global name; data instances and value objects refuse a write.
+    has one; a singleton's is its global name; data instances and value objects refuse a write. (Superseded for data
+    since 0.20.0: a program writes no identity, and data has no `as_identity`; Object identity, Decided, 43. Schema
+    objects keep theirs until step 4g of the store overhaul.)
   - domains: "domains refine scalar schemas" (mbse-expressions' value domains). (Superseded: a domain is
     mbse-expressions' object, associated with a basic scalar, which has none of its own; Store overhaul, Decided, 9.)
   - relations: "mbse-schemas.Schemas.OfRelation is by default a all-directional link. Anonymous adjacencies allow for
@@ -1080,7 +1087,10 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   The visitor pattern's "global name, otherwise a UUID" (superseded since 0.20.0 by [Object identity](OBJECT_IDENTITY.md),
   Decided, 1 to 36: an identity is the object's path, read off its ownership; there are no UUIDs, an object its schema
   owns being keyed by its local name and a number where it has no naming pattern; `by_identity` gives way to lookup by
-  keys; a snapshot lists each object with its path and its schema's name, and a reference is its path alone):
+  keys; a snapshot lists each object with its path and its schema's name, and a reference is its path alone; and in
+  turn since 0.20.0 by its Decided, 37 to 55: an object is a singleton, owned, or counted, a counted object having no
+  identity beyond the document that numbers it; `Schemas.HasInstance`, naming patterns on object schemas, the
+  local-name-and-number keys, `as_identity` and `Stores.Store.restore` are gone):
   - a reference object with a global name (`.singleton("foo")`) uses it on the wire; a reference object schema may
     instead give a naming pattern to `.ref()` (`.ref(r'FEA-(\d+\d\d)')`, the number "extend[ing] on the left"); one
     declared with `.ref()` alone has a UUID given by `.create()` or `.clone()`; on the wire every identity is

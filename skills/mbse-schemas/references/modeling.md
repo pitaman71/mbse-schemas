@@ -35,13 +35,16 @@ How to express an interface or data model with the schema elements. The same mod
 by several owners, navigated back from, part of a cycle, or referred to by identity; it is reached through relations
 and never held by a property. Otherwise use a value object: a property holds it, it is copied by
 value and written nested. A value object has no identity and no adjacencies, though it may hold containers, and
-nothing links to it: a component's ports that connectors link are reference objects. A reference object has an identity, its path: from a
-singleton through the entries that own it, each through an adjacency marked `.owner(True)` and keyed by the entry's
-key properties; where its schema declares no owner, its schema owns it, by a key given when it is created: its
-schema's local name and a number (`feature-1`), or the next name its naming pattern gives in its store
-(`.pattern(r"FEA-(\d+\d\d)")` names features `FEA-001`, `FEA-002`, ...). Give a pattern where people read the names.
-A program never writes an identity: it reads it, `as_identity()`, and finds an object by its keys (`adjacency({"name":
-"DEF-693"})`).
+nothing links to it: a component's ports that connectors link are reference objects.
+
+**Singleton, owned or counted?** A reference object's identity takes one of three forms. A singleton's is its global
+name. An owned object's is its path: from a singleton through the entries that own it, each through an adjacency
+marked `.owner(True)` and keyed by the entry's key properties, whose naming pattern
+(`.pattern(r"FEA-(\d+\d\d)")` on the key property) gives the key where none is given: `FEA-001`, `FEA-002`, ... Any
+other object is counted: it has no identity beyond the document that writes it, which numbers it, and reading a
+document always builds it anew. Own an object by a singleton, through a keyed relation, where it must be found again
+or updated in place by loading. A program never writes an identity: it reads an owned object's path, `Paths.of(obj)`,
+and finds the object by its keys (`adjacency({"name": "DEF-693"})`).
 
 **A container is a list of values.** Its elements belong to their one owner (a contact's own phone numbers, a
 container of text), so it is a property, copied and written with it. Data that several objects share is an object,

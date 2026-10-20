@@ -558,8 +558,6 @@ class ObjectData {
   name: string | null;
   description: string | null;
   parameters: Map<string, ParameterData>;
-  /** A reference object schema's naming pattern, e.g. `FEA-(\d+\d\d)`. */
-  pattern: string | null;
   /** The links it may fill with no member. */
   anonymous: AdjacencyData[];
   /** The object schema it refines, whose members it inherits, or null. */
@@ -567,7 +565,7 @@ class ObjectData {
 
   constructor(fields: { properties?: Map<string, PropertyData>; adjacencies?: Map<string, AdjacencyData>; singleton?: string | null;
     ref?: boolean; name?: string | null; description?: string | null; parameters?: Map<string, ParameterData>;
-    pattern?: string | null; anonymous?: AdjacencyData[]; refines?: unknown } = {}) {
+    anonymous?: AdjacencyData[]; refines?: unknown } = {}) {
     this.properties = fields.properties ?? new Map();
     this.adjacencies = fields.adjacencies ?? new Map();
     this.singleton = fields.singleton ?? null;
@@ -575,7 +573,6 @@ class ObjectData {
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
     this.parameters = fields.parameters ?? new Map();
-    this.pattern = fields.pattern ?? null;
     this.anonymous = fields.anonymous ?? [];
     this.refines = fields.refines ?? null;
   }
@@ -583,16 +580,6 @@ class ObjectData {
   /** Whether an object of this schema may fill `link` of `relation`: an adjacency, named or anonymous, says so. */
   fills(relation: unknown, link: string): boolean {
     return [...this.adjacencies.values(), ...this.anonymous].some((a) => a.relation === relation && a.me === link);
-  }
-
-  /** The name the naming pattern gives the object numbered `number` (`nameFor`). */
-  name_for(number: number): string {
-    return nameFor(this.pattern as string, number);
-  }
-
-  /** The number of a name the naming pattern gives (`numberOf`); null for another name. */
-  number_of(name: string): number | null {
-    return numberOf(this.pattern, name);
   }
 
 
@@ -611,16 +598,6 @@ class ObjectData {
       ...parameterProblems(this.parameters), ...reserved([...this.properties.keys(), ...this.adjacencies.keys()]),
       ...visited([...this.properties.keys(), ...this.adjacencies.keys()])];
     if (this.singleton !== null && !this.ref) problems.push("a singleton's schema must be a reference object schema");
-    if (this.pattern !== null) {
-      if (!this.ref) problems.push("a naming pattern names reference objects; mark the schema .ref()");
-      if (this.singleton !== null) {
-        problems.push("a singleton's schema has no naming pattern: its one instance is named by its global name");
-      }
-      if (naming(this.pattern) === null) {
-        problems.push(`naming pattern ${repr(this.pattern)} is not literal text around one group of digits, `
-          + "e.g. 'FEA-(\\d+\\d\\d)'");
-      }
-    }
     const clashes = [...this.properties.keys()].filter((name) => this.adjacencies.has(name));
     if (clashes.length > 0) {
       problems.push(`names used as both property and adjacency: ${repr(sortedStrings(clashes))}`);

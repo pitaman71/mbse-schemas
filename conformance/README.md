@@ -5,9 +5,9 @@
 
 Each implementation builds the same corpus of schemas and objects, statement for statement
 (`python3/mbse/Schemas/Conformance/Corpus.py`, `typescript5/src/Conformance/Corpus.ts`), and commits its snapshots here as
-`<implementation>/<case>.json` (reachable snapshot, indent 2) and `<case>.yaml`. Its reference object schemas take
-naming patterns (`contact-(\d+)`), so that every implementation gives the same objects the same identities, and
-snapshots keyed by them are reproducible ([FRAMEWORK.md](../docs/FRAMEWORK.md), Resolved, Reference identity).
+`<implementation>/<case>.json` (the store's snapshot, indent 2) and `<case>.yaml`. A singleton, `Corpus.Root`, holds
+each case's objects, since a snapshot writes the data the singletons reach; they are counted, numbered in the order the
+log meets them, so that every implementation writes the same text ([Object identity](../docs/OBJECT_IDENTITY.md)).
 
 | Case | Covers |
 |---|---|

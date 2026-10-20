@@ -55,10 +55,11 @@ export function entries(_schema: unknown, obj: Instance, adjacency: string): Map
 /** Snapshot equality up to entry order, and the order objects are written in. Objects are written in first-reference
  * order, which depends on entry order, and entries form a set whose order depends on history. Each object is
  * identified here by its own property values, which the examples keep unique within a graph, rather than by its
- * path. */
+ * path or number. */
 export function same_graph(a: PlainData, b: PlainData): boolean {
   const canonical = (graph: PlainMap): string => {
-    const objects = new Map((graph.get("objects") as PlainMap[]).map((o) => [_symbol(o.get("path")), o.get("properties") as PlainMap]));
+    const called = (o: PlainMap) => (o.has("path") ? o.get("path") : new Map([["n", o.get("n")!]])); // a path, or a counted object's number
+    const objects = new Map((graph.get("objects") as PlainMap[]).map((o) => [_symbol(called(o)), o.get("properties") as PlainMap]));
     const labels = new Map<string, string>();
     for (const [symbol, obj] of objects) {
       const own = [...obj].filter(([, v]) => !Array.isArray(v)).sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0));

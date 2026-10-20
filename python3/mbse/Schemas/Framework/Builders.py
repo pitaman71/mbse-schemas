@@ -1135,7 +1135,6 @@ class ObjectBuilder(_KindBuilder[S.OfObject.Data]):
     _data, _meta, _noun = S.OfObject.Data, "OfObject", "an object schema"
 
     ref = _Prop()
-    pattern = _Prop()
     singleton = _Prop()
     refines = _refines()
     # A refinement's own members: those it inherits are the refined schema's, through `refines` (Resolved: "Modules
@@ -1364,7 +1363,7 @@ def _plain() -> _Plain:
 
     named = {"name": Text, "description": Text}  # what every kind of schema has: no base declares it for them
     meta.OfScalar = _object("OfScalar", named)
-    meta.OfObject = _object("OfObject", {**named, "ref": Bool, "pattern": Text, "singleton": Text})
+    meta.OfObject = _object("OfObject", {**named, "ref": Bool, "singleton": Text})
     meta.OfUnion = _object("OfUnion", {**named, "flat": Bool})
     meta.OfIntersection = _object("OfIntersection", {**named, "flat": Bool})
     meta.OfContainer = _object("OfContainer", {**named, "layout": Text})
@@ -1423,7 +1422,6 @@ def _plain() -> _Plain:
         ("HasSymbol", ("owner", (meta.OfPredicate,), "symbols"), ("symbol", (meta.OfSymbol,)), "keyed"),
         ("HasLink", ("owner", (meta.OfRelation,), "links"), ("link", (meta.OfSymbol,)), "keyed"),
         ("Defines", ("module", (meta.OfModule,), "schemas"), ("schema", schemas), "keyed"),
-        ("HasInstance", ("schema", (meta.OfObject,), "instances"), ("instance", ()), "keyed"),
     ]
     """Each relation between schema objects. A member belongs to one owner (`Has*`: the member determines its owner); a
     schema object has at most one schema, refined schema, index, element or relation (the first determines the second);
@@ -1626,9 +1624,8 @@ class Store(Proxies._Store):
 
     @property
     def Instances(self) -> _Instances:
-        """The store's reference objects by their paths (docs/OBJECT_IDENTITY.md, Decided, 26): `store.Instances.<a
-        singleton's global name>` is the singleton, whose adjacencies called with keys continue the path, and
-        `store.Instances.<a schema's name>({"name": key})` the object its schema owns under that key."""
+        """The store's owned objects by their paths (docs/OBJECT_IDENTITY.md, Decided, 26): `store.Instances.<a
+        singleton's global name>` is the singleton, whose adjacencies called with keys continue the path."""
         return _Instances(self, "")
 
     def __getattr__(self, name: str) -> Any:
@@ -1766,8 +1763,9 @@ def _clashes(schema: S.OfObject.Data, names: list[Any]) -> list[str]:
 
 
 class _Instances(_Unassignable):
-    """`store.Instances.<path>`: a dotted name, each part an attribute, until it names a singleton, which it gives; called
-    with keys, the object the schema it names owns under them (`Schemas.HasInstance`)."""
+    """`store.Instances.<path>`: a dotted name, each part an attribute, until it names a singleton, which it gives. An
+    owned object is found from it through its owners' adjacencies, called with keys; a counted object only by visiting
+    what links it (docs/OBJECT_IDENTITY.md, Decided, 40)."""
 
     def __init__(self, store: Store, name: str):
         self._store, self._name = store, name
@@ -1779,15 +1777,9 @@ class _Instances(_Unassignable):
         singletons = self._store._singletons
         return singletons[name] if name in singletons else _Instances(self._store, name)
 
-    def __call__(self, keys: Any) -> Any:
-        schema = self._store.registered(self._name)
-        if not isinstance(keys, Mapping) or set(keys) != {"name"}:
-            raise KeyError(f"an object its schema owns is found by its key, {{'name': ...}}; got {keys!r}")
-        found = self._store._directory(self._name).live.get(keys["name"])
-        owned = not any(a.owner for a in (*schema.adjacencies.values(), *schema.anonymous))
-        if found is None or not owned:
-            raise LookupError(f"no {self._name!r} has the key {keys['name']!r}")
-        return found
+    def __call__(self, *args: Any) -> Any:
+        raise LookupError(f"no singleton named {self._name!r}: an owned object is found through its owners' adjacencies, "
+                          "a counted one only through what links it")
 
     def __repr__(self) -> str:
         return f"<Instances.{self._name}>"

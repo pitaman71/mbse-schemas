@@ -55,7 +55,6 @@ export interface OfProperty extends Primitive {
 
 export interface OfObject {
   as_schema(): Schemas.OfObject.Data;
-  as_identity(): string | null;
   readonly as_properties: Iterable<OfProperty>;
   as_adjacencies(cb: Read<OfAdjacency>): this;
   readonly [member: string]: unknown;

@@ -10,11 +10,73 @@
   {
     "exists": {
       "definition": {
+        "key": "Schemas.OfModule/Corpus",
+        "properties": {
+          "name": "Corpus"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.Defines"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "module",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfModule/."
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfModule/Corpus"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "Corpus"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
         "key": "Schemas.OfObject/Contact",
         "properties": {
           "name": "Contact",
-          "ref": true,
-          "pattern": "contact-(\\d+)"
+          "ref": true
         }
       }
     }
@@ -483,8 +545,7 @@
         "key": "Schemas.OfObject/Address",
         "properties": {
           "name": "Address",
-          "ref": true,
-          "pattern": "address-(\\d+)"
+          "ref": true
         }
       }
     }
@@ -992,8 +1053,7 @@
         "key": "Schemas.OfObject/Phone",
         "properties": {
           "name": "Phone",
-          "ref": true,
-          "pattern": "phone-(\\d+)"
+          "ref": true
         }
       }
     }
@@ -1921,30 +1981,366 @@
   {
     "exists": {
       "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Address"
-              },
-              "next": {
-                "entry": {
-                  "i": "instances",
-                  "o": "",
-                  "properties": {
-                    "name": "address-1"
-                  },
-                  "next": {
-                    "target": {}
+        "key": "Schemas.OfRelation/Corpus.Holds",
+        "properties": {
+          "name": "Corpus.Holds"
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.OfSymbol/Corpus.Holds.corpus",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.OfSymbol/Corpus.Holds.item",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.HasLink"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfRelation/Corpus.Holds"
+                      }
+                    }
                   }
-                }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "link",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfSymbol/Corpus.Holds.corpus"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "corpus"
+                    }
+                  }
+                ]
               }
             }
+          ]
+        },
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfRelation/Corpus.Holds"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "link",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfSymbol/Corpus.Holds.item"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "item"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.Defines"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "module",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfModule/Corpus"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfRelation/Corpus.Holds"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "Holds"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.OfObject/Corpus.Root",
+        "properties": {
+          "name": "Corpus.Root",
+          "ref": true,
+          "singleton": "corpus"
+        }
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "key": "Schemas.OfAdjacency/Corpus.Root.holds",
+        "properties": {
+          "me": "corpus"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.Relating"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "adjacency",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfAdjacency/Corpus.Root.holds"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "relation",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfRelation/Corpus.Holds"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.HasAdjacency"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "owner",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfObject/Corpus.Root"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "adjacency",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfAdjacency/Corpus.Root.holds"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "holds"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Schemas.Defines"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "module",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfModule/Corpus"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "schema",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "key": "Schemas.OfObject/Corpus.Root"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "name",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "Root"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "path": {
+          "singleton": "corpus",
+          "next": {
+            "target": {}
           }
         },
+        "schema": "Corpus.Root",
+        "properties": {}
+      }
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "n": 0,
         "schema": "Address",
         "properties": {
           "street1": "10 Downing Street",
@@ -1958,30 +2354,7 @@
   {
     "exists": {
       "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Contact"
-              },
-              "next": {
-                "entry": {
-                  "i": "instances",
-                  "o": "",
-                  "properties": {
-                    "name": "contact-1"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
+        "n": 1,
         "schema": "Contact",
         "properties": {
           "given_name": "Alice",
@@ -1992,264 +2365,9 @@
     }
   },
   {
-    "insert": {
-      "relation": {
-        "key": "Schemas.OfRelation/ContactAddresses"
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "contact",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Contact"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "instances",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "contact-1"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "address",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Address"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "instances",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "address-1"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "label",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "home"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
     "exists": {
       "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Contact"
-              },
-              "next": {
-                "entry": {
-                  "i": "instances",
-                  "o": "",
-                  "properties": {
-                    "name": "contact-2"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Contact",
-        "properties": {
-          "given_name": "Bob"
-        }
-      }
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "key": "Schemas.OfRelation/ContactAddresses"
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "contact",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Contact"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "instances",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "contact-2"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "address",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Address"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "instances",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "address-1"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "label",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "home"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Phone"
-              },
-              "next": {
-                "entry": {
-                  "i": "instances",
-                  "o": "",
-                  "properties": {
-                    "name": "phone-1"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
+        "n": 3,
         "schema": "Phone",
         "properties": {
           "number": "+447700900123"
@@ -2258,131 +2376,9 @@
     }
   },
   {
-    "insert": {
-      "relation": {
-        "key": "Schemas.OfRelation/ContactPhones"
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "contact",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Contact"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "instances",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "contact-1"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "phone",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Phone"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "instances",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "phone-1"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "label",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "mobile"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
     "exists": {
       "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Phone"
-              },
-              "next": {
-                "entry": {
-                  "i": "instances",
-                  "o": "",
-                  "properties": {
-                    "name": "phone-2"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
+        "n": 4,
         "schema": "Phone",
         "properties": {
           "number": "+14155550100"
@@ -2405,30 +2401,7 @@
                   {
                     "set": {
                       "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Contact"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "instances",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "contact-1"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
+                        "n": 1
                       }
                     }
                   }
@@ -2442,30 +2415,51 @@
                   {
                     "set": {
                       "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Phone"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "instances",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "phone-2"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
+                        "n": 3
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "label",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "mobile"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "contact",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "n": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "phone",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "n": 4
                       }
                     }
                   }
@@ -2479,6 +2473,234 @@
                   {
                     "set": {
                       "value": "work"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "exists": {
+      "definition": {
+        "n": 2,
+        "schema": "Contact",
+        "properties": {
+          "given_name": "Bob"
+        }
+      }
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/ContactAddresses"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "contact",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "n": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "address",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "n": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "label",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "home"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "contact",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "n": 2
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "address",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "n": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_property": {
+                "name": "label",
+                "mutations": [
+                  {
+                    "set": {
+                      "value": "home"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "insert": {
+      "relation": {
+        "key": "Schemas.OfRelation/Corpus.Holds"
+      },
+      "entries": [
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "corpus",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "path": {
+                          "singleton": "corpus",
+                          "next": {
+                            "target": {}
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "item",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "n": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "corpus",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "path": {
+                          "singleton": "corpus",
+                          "next": {
+                            "target": {}
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "item",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "n": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "mutations": [
+            {
+              "as_link": {
+                "name": "corpus",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "path": {
+                          "singleton": "corpus",
+                          "next": {
+                            "target": {}
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "as_link": {
+                "name": "item",
+                "mutations": [
+                  {
+                    "set": {
+                      "ref": {
+                        "n": 2
+                      }
                     }
                   }
                 ]

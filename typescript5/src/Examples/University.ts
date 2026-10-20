@@ -4,7 +4,7 @@
 // values, an ambiguous link that refuses inline creation, the builder not validating scalar types, and round trips.
 
 import { ValueError } from "@mbse/schemas/Framework/Errors";
-import { Builders, Paths, Plain, Proxies, Reachable, Schemas, Validators } from "@mbse/schemas/Framework";
+import { Builders, Plain, Proxies, Reachable, Schemas, Validators } from "@mbse/schemas/Framework";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
 import { assert, entries, raises, same_graph } from "./_support.js";
@@ -177,12 +177,12 @@ const component = Reachable.of(fall);
 assert(component[0] === fall);
 assert(same(sortedStrings(new Set(component.map((o) => o.as_schema().name as string))), ["Course", "Room", "Staff", "Student", "Term"]));
 
-const archive: any = new Builders.Store(); // another store: a snapshot read into it builds objects of the same identities
+const archive: any = new Builders.Store(); // another store: a snapshot read into it builds new objects of the same graph
 Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot()); // the same schemas, its own: a store's snapshot writes them
 for (const [root, schema, its] of [[fall, Term, archive.Term], [mia, Student, archive.Student], [noah, Student, archive.Student]] as const) {
   graph = Plain.ToPlain(store).Reachable(schema, root);
   restored = Plain.FromPlain(archive).Reachable(its, graph) as Instance;
-  assert(restored !== root && Paths.same(restored.as_identity(), root.as_identity()));
+  assert(restored !== root);
   assert(same_graph(Plain.ToPlain(archive).Reachable(its, restored), graph));
 }
 

@@ -4,11 +4,37 @@
       properties: {}
 - exists:
     definition:
+      key: Schemas.OfModule/Corpus
+      properties:
+        name: Corpus
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfModule/.
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfModule/Corpus
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Corpus
+- exists:
+    definition:
       key: Schemas.OfObject/Bag
       properties:
         name: Bag
         ref: true
-        pattern: 'bag-(\d+)'
 - exists:
     definition:
       key: Schemas.OfAdjacency/Bag.items
@@ -107,7 +133,6 @@
       properties:
         name: Sample
         ref: true
-        pattern: 'sample-(\d+)'
 - exists:
     definition:
       key: Schemas.OfAdjacency/Sample.bags
@@ -509,43 +534,169 @@
               value: Holds
 - exists:
     definition:
+      key: Schemas.OfRelation/Corpus.Holds
+      properties:
+        name: Corpus.Holds
+- exists:
+    definition:
+      key: Schemas.OfSymbol/Corpus.Holds.corpus
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.OfSymbol/Corpus.Holds.item
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.HasLink
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfRelation/Corpus.Holds
+      - as_link:
+          name: link
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfSymbol/Corpus.Holds.corpus
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: corpus
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfRelation/Corpus.Holds
+      - as_link:
+          name: link
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfSymbol/Corpus.Holds.item
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: item
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfModule/Corpus
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfRelation/Corpus.Holds
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Holds
+- exists:
+    definition:
+      key: Schemas.OfObject/Corpus.Root
+      properties:
+        name: Corpus.Root
+        ref: true
+        singleton: corpus
+- exists:
+    definition:
+      key: Schemas.OfAdjacency/Corpus.Root.holds
+      properties:
+        me: corpus
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.Relating
+    entries:
+    - mutations:
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfAdjacency/Corpus.Root.holds
+      - as_link:
+          name: relation
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfRelation/Corpus.Holds
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.HasAdjacency
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfObject/Corpus.Root
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfAdjacency/Corpus.Root.holds
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: holds
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfModule/Corpus
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfObject/Corpus.Root
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Root
+- exists:
+    definition:
       path:
-        singleton: '.'
+        singleton: corpus
         next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Bag
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: bag-1
-                next:
-                  target: {}
+          target: {}
+      schema: Corpus.Root
+      properties: {}
+- exists:
+    definition:
+      'n': 0
       schema: Bag
       properties:
         name: edges
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: sample-1
-                next:
-                  target: {}
+      'n': 1
       schema: Sample
       properties:
         label: ''
@@ -553,76 +704,9 @@
         count: 0
         ratio: 0.0
         flag: false
-- insert:
-    relation:
-      key: Schemas.OfRelation/Holds
-    entries:
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: bag-1
-                          next:
-                            target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: sample-1
-                          next:
-                            target: {}
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 0
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: sample-2
-                next:
-                  target: {}
+      'n': 2
       schema: Sample
       properties:
         label: '日本語 🚀'
@@ -630,597 +714,61 @@
         count: 1267650600228229401496703205376
         ratio: -0.0
         flag: true
-- insert:
-    relation:
-      key: Schemas.OfRelation/Holds
-    entries:
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: bag-1
-                          next:
-                            target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: sample-2
-                          next:
-                            target: {}
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 1
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: sample-3
-                next:
-                  target: {}
+      'n': 3
       schema: Sample
       properties:
         label: "\0\x1F\x7F \"q\" \\ \n\t\r"
         payload: 'AA=='
         count: -1180591620717411303424
         ratio: 5.0e-324
-- insert:
-    relation:
-      key: Schemas.OfRelation/Holds
-    entries:
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: bag-1
-                          next:
-                            target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: sample-3
-                          next:
-                            target: {}
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 2
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: sample-4
-                next:
-                  target: {}
+      'n': 4
       schema: Sample
       properties:
         label: non-finite
         ratio: NaN
-- insert:
-    relation:
-      key: Schemas.OfRelation/Holds
-    entries:
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: bag-1
-                          next:
-                            target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: sample-4
-                          next:
-                            target: {}
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 3
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: sample-5
-                next:
-                  target: {}
+      'n': 5
       schema: Sample
       properties:
         label: '+inf'
         ratio: Infinity
-- insert:
-    relation:
-      key: Schemas.OfRelation/Holds
-    entries:
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: bag-1
-                          next:
-                            target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: sample-5
-                          next:
-                            target: {}
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 4
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: sample-6
-                next:
-                  target: {}
+      'n': 6
       schema: Sample
       properties:
         label: '-inf'
         ratio: '-Infinity'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Holds
-    entries:
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: bag-1
-                          next:
-                            target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: sample-6
-                          next:
-                            target: {}
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 5
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: sample-7
-                next:
-                  target: {}
+      'n': 7
       schema: Sample
       properties:
         label: big
         count: 9223372036854775808
         ratio: 1.0e+16
-- insert:
-    relation:
-      key: Schemas.OfRelation/Holds
-    entries:
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: bag-1
-                          next:
-                            target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: sample-7
-                          next:
-                            target: {}
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 6
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: sample-8
-                next:
-                  target: {}
+      'n': 8
       schema: Sample
       properties:
         label: small
         ratio: 0.1
-- insert:
-    relation:
-      key: Schemas.OfRelation/Holds
-    entries:
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: bag-1
-                          next:
-                            target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: sample-8
-                          next:
-                            target: {}
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 7
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: sample-9
-                next:
-                  target: {}
+      'n': 9
       schema: Sample
       properties:
         label: max
         ratio: 1.0e+308
-- insert:
-    relation:
-      key: Schemas.OfRelation/Holds
-    entries:
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: bag-1
-                          next:
-                            target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: sample-9
-                          next:
-                            target: {}
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 8
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: sample-10
-                next:
-                  target: {}
+      'n': 10
       schema: Sample
       properties:
         label: two
@@ -1235,45 +783,357 @@
           mutations:
           - set:
               ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: bag-1
-                          next:
-                            target: {}
+                'n': 0
       - as_link:
           name: item
           mutations:
           - set:
               ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: sample-10
-                          next:
-                            target: {}
+                'n': 1
+      - as_property:
+          name: slot
+          mutations:
+          - set:
+              value: 0
+    - mutations:
+      - as_link:
+          name: bag
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 2
+      - as_property:
+          name: slot
+          mutations:
+          - set:
+              value: 1
+    - mutations:
+      - as_link:
+          name: bag
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 3
+      - as_property:
+          name: slot
+          mutations:
+          - set:
+              value: 2
+    - mutations:
+      - as_link:
+          name: bag
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 4
+      - as_property:
+          name: slot
+          mutations:
+          - set:
+              value: 3
+    - mutations:
+      - as_link:
+          name: bag
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 5
+      - as_property:
+          name: slot
+          mutations:
+          - set:
+              value: 4
+    - mutations:
+      - as_link:
+          name: bag
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 6
+      - as_property:
+          name: slot
+          mutations:
+          - set:
+              value: 5
+    - mutations:
+      - as_link:
+          name: bag
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 7
+      - as_property:
+          name: slot
+          mutations:
+          - set:
+              value: 6
+    - mutations:
+      - as_link:
+          name: bag
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 8
+      - as_property:
+          name: slot
+          mutations:
+          - set:
+              value: 7
+    - mutations:
+      - as_link:
+          name: bag
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 9
+      - as_property:
+          name: slot
+          mutations:
+          - set:
+              value: 8
+    - mutations:
+      - as_link:
+          name: bag
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 10
       - as_property:
           name: slot
           mutations:
           - set:
               value: 9
+- insert:
+    relation:
+      key: Schemas.OfRelation/Corpus.Holds
+    entries:
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 0
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 1
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 2
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 3
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 4
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 5
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 6
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 7
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 8
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 9
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 10

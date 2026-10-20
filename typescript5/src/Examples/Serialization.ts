@@ -111,10 +111,9 @@ const back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty))
 assert(back.label.get() === "" && equal(back.payload.get(), bytes()) && back.count.get() === 0n && back.ratio.get() === 0);
 assert(back.flag.get() === null); // never set, so absent
 
-// An object with nothing set serializes to empty properties, listed with its path and its schema's name.
+// An object with nothing set serializes to empty properties, listed with its number and its schema's name.
 const blank = store.Sample((s: any) => s);
-const path = Plain.ToPlain(store)(store.Paths.OfRoot.as_schema(), blank.as_identity());
-assert(equal(Plain.ToPlain(store)(Sample, blank), map({ root: path, objects: [{ path, schema: "Sample", properties: {} }] })));
+assert(equal(Plain.ToPlain(store)(Sample, blank), map({ root: { n: 0n }, objects: [{ n: 0n, schema: "Sample", properties: {} }] })));
 
 // Per-kind entry points.
 const bytesSchema = store.Schemas.OfBytes.as_schema();
@@ -184,8 +183,9 @@ assert(validate(Currency, widget).length > 0);
 
 const good = Plain.ToPlain(store).Reachable(Product, widget);
 const root = good.get("root") as PlainMap;
-/** The object a snapshot lists at `path`. */
-const listed = (s: PlainMap, path: PlainData) => (s.get("objects") as PlainMap[]).find((o) => equal(o.get("path"), path)) as PlainMap;
+/** The object a snapshot lists as `call`: its path, or a counted object's number. */
+const listed = (s: PlainMap, call: PlainData) => (s.get("objects") as PlainMap[])
+  .find((o) => equal(o.has("path") ? o.get("path") : new Map([["n", o.get("n")!]]), call)) as PlainMap;
 const objectsIn = (s: PlainMap) => s.get("objects") as PlainMap[];
 const pricesOf = (s: PlainMap) => (listed(s, root).get("properties") as PlainMap).get("prices") as PlainMap[];
 const priceRef = (pricesOf(good)[0] as PlainMap).get("price") as PlainMap;
@@ -199,9 +199,9 @@ function mutated(change: (snapshot: PlainMap) => unknown): PlainMap {
 const badSnapshots: PlainData[] = [
   [], // not a snapshot
   map({ root }), // no objects
-  new Map<string, PlainData>([["root", map({ singleton: "nope", next: { target: {} } })], ["objects", good.get("objects") as PlainData]]), // root not in objects
+  new Map<string, PlainData>([["root", map({ n: 99n })], ["objects", good.get("objects") as PlainData]]), // root not in objects
   mutated((s) => objectsIn(s).splice(objectsIn(s).indexOf(listed(s, priceRef.get("$ref") as PlainData)), 1)), // unresolved reference
-  mutated((s) => listed(s, priceRef.get("$ref") as PlainData).set("schema", "Product")), // its path is not its schema's
+  mutated((s) => listed(s, priceRef.get("$ref") as PlainData).set("schema", "Product")), // its properties are not its schema's
   mutated((s) => objectsIn(s).push(listed(s, root))), // an object listed twice
   mutated((s) => (listed(s, root).get("properties") as PlainMap).set("colour", "red")), // not a property or adjacency
   mutated((s) => (pricesOf(s)[0] as PlainMap).set("discount", 5n)), // not a link or property

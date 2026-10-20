@@ -51,15 +51,30 @@ def _put(pairs):
     return lambda prop: prop.as_value(lambda a: a.as_container(_write(pairs)))
 
 
+def _rooted(s, objects):
+    """The case's root, a singleton holding its data: a store's snapshot holds what its singletons reach."""
+    Holds = s.Schemas.OfRelation(lambda r: r.name("Corpus.Holds").links([lambda t: t.name("corpus"), lambda t: t.name("item")]))
+    s.Schemas.OfObject(lambda o: o.name("Corpus.Root").ref(True).singleton("corpus").adjacencies([
+        lambda t: t.name("holds").relation([Holds]).me("corpus"),
+    ]))
+
+    def hold(adjacency):
+        for item in objects:
+            adjacency.insert(lambda e, item=item: e.item(item))
+        return adjacency
+
+    s.Corpus.Root(s.singleton("corpus"), lambda r: r.holds(hold))
+
+
 # --- Schemas, each group built in the store given ---
 
 
 def _address_book(s):
-    Contact = s.Schemas.OfObject(lambda o: o.name("Contact").ref(True).pattern(r"contact-(\d+)").properties([
+    Contact = s.Schemas.OfObject(lambda o: o.name("Contact").ref(True).properties([
         _text(s, "given_name"), _text(s, "family_name"), _text(s, "birth_date")]))
-    Address = s.Schemas.OfObject(lambda o: o.name("Address").ref(True).pattern(r"address-(\d+)").properties([
+    Address = s.Schemas.OfObject(lambda o: o.name("Address").ref(True).properties([
         _text(s, "street1"), _text(s, "locality"), _text(s, "postal_code"), _text(s, "country_code")]))
-    Phone = s.Schemas.OfObject(lambda o: o.name("Phone").ref(True).pattern(r"phone-(\d+)").properties([_text(s, "number")]))
+    Phone = s.Schemas.OfObject(lambda o: o.name("Phone").ref(True).properties([_text(s, "number")]))
     ContactAddresses = s.Schemas.OfRelation(lambda r: r.name("ContactAddresses").links([
         lambda t: t.name("contact"), lambda t: t.name("address")]).properties([_text(s, "label")]))
     ContactPhones = s.Schemas.OfRelation(lambda r: r.name("ContactPhones").links([
@@ -74,8 +89,8 @@ def _address_book(s):
 
 def _scalars(s):
     Bool, Int, Float, Str, Bytes = _basics(s)
-    Bag = s.Schemas.OfObject(lambda o: o.name("Bag").ref(True).pattern(r"bag-(\d+)").properties([_text(s, "name")]))
-    Sample = s.Schemas.OfObject(lambda o: o.name("Sample").ref(True).pattern(r"sample-(\d+)").properties([
+    Bag = s.Schemas.OfObject(lambda o: o.name("Bag").ref(True).properties([_text(s, "name")]))
+    Sample = s.Schemas.OfObject(lambda o: o.name("Sample").ref(True).properties([
         _text(s, "label"), _text(s, "payload", Bytes), _text(s, "count", Int), _text(s, "ratio", Float), _text(s, "flag", Bool)]))
     Holds = s.Schemas.OfRelation(lambda r: r.name("Holds").links([lambda t: t.name("bag"), lambda t: t.name("item")])
                                .properties([_text(s, "slot", Int)]).uniques(["bag", "slot"]))
@@ -84,7 +99,7 @@ def _scalars(s):
 
 
 def _family(s):
-    Person = s.Schemas.OfObject(lambda o: o.name("Person").ref(True).pattern(r"person-(\d+)").properties([
+    Person = s.Schemas.OfObject(lambda o: o.name("Person").ref(True).properties([
         _text(s, "given_name"), _text(s, "birth_date")]))
     Parentage = s.Schemas.OfRelation(lambda r: r.name("Parentage").links([lambda t: t.name("parent"), lambda t: t.name("child")])
                                    .properties([_text(s, "kind")]))
@@ -99,9 +114,9 @@ def _family(s):
 
 def _enrollment(s):
     Bool, Int, Float, Str, Bytes = _basics(s)
-    Student = s.Schemas.OfObject(lambda o: o.name("Student").ref(True).pattern(r"student-(\d+)").properties([_text(s, "name")]))
-    Course = s.Schemas.OfObject(lambda o: o.name("Course").ref(True).pattern(r"course-(\d+)").properties([_text(s, "code")]))
-    Term = s.Schemas.OfObject(lambda o: o.name("Term").ref(True).pattern(r"term-(\d+)").properties([
+    Student = s.Schemas.OfObject(lambda o: o.name("Student").ref(True).properties([_text(s, "name")]))
+    Course = s.Schemas.OfObject(lambda o: o.name("Course").ref(True).properties([_text(s, "code")]))
+    Term = s.Schemas.OfObject(lambda o: o.name("Term").ref(True).properties([
         _text(s, "code"), _text(s, "starts")]))
     Enrollment = s.Schemas.OfRelation(lambda r: r.name("Enrollment").links([
         lambda t: t.name("student"), lambda t: t.name("course"), lambda t: t.name("term")]).properties([
@@ -113,8 +128,8 @@ def _enrollment(s):
 
 def _yaml_strings(s):
     Bool, Int, Float, Str, Bytes = _basics(s)
-    Notebook = s.Schemas.OfObject(lambda o: o.name("Notebook").ref(True).pattern(r"notebook-(\d+)").properties([_text(s, "title")]))
-    Note = s.Schemas.OfObject(lambda o: o.name("Note").ref(True).pattern(r"note-(\d+)").properties([_text(s, "text")]))
+    Notebook = s.Schemas.OfObject(lambda o: o.name("Notebook").ref(True).properties([_text(s, "title")]))
+    Note = s.Schemas.OfObject(lambda o: o.name("Note").ref(True).properties([_text(s, "text")]))
     Pages = s.Schemas.OfRelation(lambda r: r.name("Pages").links([lambda t: t.name("notebook"), lambda t: t.name("note")])
                                .properties([_text(s, "page", Int)]))
     s.Schemas.OfObject(Notebook, lambda o: o.adjacencies([lambda t: t.name("notes").relation([Pages]).me("notebook")]))
@@ -135,11 +150,11 @@ def _embedded(s):
     CardAudit = s.Schemas.OfObject(lambda o: o.properties([_text(s, "by"), _text(s, "updated")]))
     CardMeta = s.Schemas.OfIntersection(lambda i: i.parts([lambda t: t.name("stamp").schema([CardStamp]),
                                                         lambda t: t.name("audit").schema([CardAudit])]))
-    Card = s.Schemas.OfObject(lambda o: o.name("Card").ref(True).pattern(r"card-(\d+)").properties([
+    Card = s.Schemas.OfObject(lambda o: o.name("Card").ref(True).properties([
         _text(s, "name"), lambda t: t.name("home").schema([CardPhone]), lambda t: t.name("reach").schema([Reach]),
         lambda t: t.name("ident").schema([Ident]), lambda t: t.name("meta").schema([CardMeta])]))
     Holding = s.Schemas.OfRelation(lambda r: r.name("Holding").links([lambda t: t.name("deck"), lambda t: t.name("card")]))
-    Deck = s.Schemas.OfObject(lambda o: o.name("Deck").ref(True).pattern(r"deck-(\d+)").properties([_text(s, "title")])
+    Deck = s.Schemas.OfObject(lambda o: o.name("Deck").ref(True).properties([_text(s, "title")])
                             .adjacencies([lambda t: t.name("cards").relation([Holding]).me("deck")]))
     s.Schemas.OfObject(Card, lambda o: o.adjacencies([lambda t: t.name("decks").relation([Holding]).me("card")]))
     return Card, Deck, Holding
@@ -155,7 +170,7 @@ def _lists(s):
                                                     lambda t: t.name("note").schema([Str])]))
     Row = s.Schemas.OfContainer(lambda c: c.index([Int]).element([Int]))
     Bank = s.Schemas.OfObject(lambda o: o.properties([_list(s, "sockets", Socket)]))
-    return s.Schemas.OfObject(lambda o: o.name("Board").ref(True).pattern(r"board-(\d+)").properties([
+    return s.Schemas.OfObject(lambda o: o.name("Board").ref(True).properties([
         _text(s, "name"), _list(s, "tags", Str), _list(s, "blobs", Bytes), _list(s, "grid", Row),
         _list(s, "readings", Reading), _list(s, "sockets", Socket), _list(s, "banks", Bank), _list(s, "matrix", Int, Coord),
         _list(s, "cells", Int, layout="sparse"), _list(s, "attrs", Float, Str), _list(s, "weights", Str, Float)]))
@@ -198,6 +213,7 @@ def build():
         .phones(lambda a: a.insert(lambda x: x.phone(lambda p: p.number("+447700900123")).label("mobile")))
         .phones(lambda a: a.insert(lambda x: x.phone(lambda p: p.number("+14155550100")).label("work")))))
     bob = s.Contact(lambda c: c.given_name("Bob").addresses(lambda a: a.insert(lambda x: x.address(home).label("home"))))
+    _rooted(s, [home, alice, bob])
     cases["address_book"] = (s, [home, alice, bob])
 
     s = B.Store()
@@ -220,6 +236,7 @@ def build():
         item = s.Sample(lambda b, values=values: [getattr(b, name)(value) for name, value in values.items()])
         items.append(item)
         s.Bag(bag, lambda b, item=item, slot=slot: b.items(lambda a: a.insert(lambda x: x.item(item).slot(slot))))
+    _rooted(s, [bag, *items])
     cases["scalars"] = (s, [bag, *items])
 
     s = B.Store()
@@ -231,6 +248,7 @@ def build():
     s.Person(ada, lambda p: p.mentees(lambda a: a.insert(lambda x: x.mentee(bob))))
     s.Person(carol, lambda p: p.mentees(lambda a: a.insert(lambda x: x.mentee(carol))))
     s.Person(bob, lambda p: p.mentees(lambda a: a.insert(lambda x: x.mentee(ada))))
+    _rooted(s, [ada, bob, carol])
     cases["family"] = (s, [ada, bob, carol])
 
     s = B.Store()
@@ -242,6 +260,7 @@ def build():
         .enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).credits(4).score(3.75).audit(False)))
         .enrollments(lambda a: a.insert(lambda x: x.course(lambda c: c.code("MA201")).term(fall).credits(3).score(-0.0)))))
     noah = s.Student(lambda st: st.name("Noah").enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).audit(True))))
+    _rooted(s, [fall, cs101, mia, noah])
     cases["enrollment"] = (s, [fall, cs101, mia, noah])
 
     s = B.Store()
@@ -257,6 +276,7 @@ def build():
         note = s.Note(lambda n, value=value: n.text(value))
         notes.append(note)
         s.Notebook(notebook, lambda n, note=note, page=page: n.notes(lambda a: a.insert(lambda x: x.note(note).page(page))))
+    _rooted(s, [notebook, *notes])
     cases["yaml_strings"] = (s, [notebook, *notes])
 
     s = B.Store()
@@ -274,6 +294,7 @@ def build():
     ]
     for card in cards:
         s.Deck(deck, lambda d, card=card: d.cards(lambda a: a.insert(lambda x: x.card(card))))
+    _rooted(s, [deck, *cards])
     cases["embedded"] = (s, [deck, *cards])
 
     s = B.Store()
@@ -292,9 +313,11 @@ def build():
         .cells(_put([(5, 6), (6, 7), (0, 0)]))
         .attrs(_put([("gain", 1.5), ("", -0.0)]))
         .weights(_put([(0.5, "half"), (-2.5, "neg")]))))
+    _rooted(s, [board])
     cases["lists"] = (s, [board])
 
     s = B.Store()
     _module(s)
+    _rooted(s, [])
     cases["module"] = (s, [])
     return cases

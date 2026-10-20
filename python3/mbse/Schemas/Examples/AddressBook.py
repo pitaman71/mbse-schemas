@@ -2,7 +2,7 @@
 #
 # Lines marked PROPOSED use syntax that FRAMEWORK.md does not define yet.
 
-from mbse.Schemas.Framework import Builders, Paths, Schemas, Plain, JSON
+from mbse.Schemas.Framework import Builders, Schemas, Plain, JSON
 
 
 # Schemas and objects are built in a store, `store.<schema name>(...)`; a named schema registers itself as it is built.
@@ -171,22 +171,23 @@ plain = Plain.ToPlain(store)(IntlAddress, addr1)
 # plain = Plain.ToPlain(store).OfObject(IntlAddress, addr1)
 
 # PROPOSED: a snapshot of addr1 and every object reachable through adjacencies (alice, her phone and email), so all
-# references resolve within the snapshot. Each object is listed with its path, its identity, and its schema's name.
+# references resolve within the snapshot. Each object is listed with its schema's name and, being counted (neither a
+# singleton nor owned), with its number in the snapshot, the root's 0.
 graph = Plain.ToPlain(store).Reachable(IntlAddress, addr1)
-assert graph['root'] == Plain.ToPlain(store)(store.Paths.OfRoot.as_schema(), addr1.as_identity())
+assert graph['root'] == {'n': 0}
 
-# Read into another store, the snapshot builds objects of the same identities there.
+# Read into another store, the snapshot builds new objects of the same graph there.
 backup = Builders.Store()
 Plain.FromPlain(backup).Snapshot(Plain.ToPlain(store).Snapshot())  # the same schemas, its own: a store's snapshot writes them
 roundtrip = Plain.FromPlain(backup).Reachable(backup.IntlAddress, graph)
-assert roundtrip is not addr1 and Paths.same(roundtrip.as_identity(), addr1.as_identity())
+assert roundtrip is not addr1
 assert Plain.ToPlain(backup).Reachable(backup.IntlAddress, roundtrip) == graph
 
-# Read into the store that holds them, it updates them through their builders: what it omits, they keep.
-assert Plain.FromPlain(store).Reachable(IntlAddress, graph) is addr1
+# Read into the store that holds them, it builds new ones too: a counted object has no identity beyond the snapshot.
+assert Plain.FromPlain(store).Reachable(IntlAddress, graph) is not addr1
 
 # The same snapshot as JSON text, and back.
 text = JSON.ToJSON(store).Reachable(IntlAddress, addr1, indent=2)
 from_json = JSON.FromJSON(backup).Reachable(backup.IntlAddress, text)
-assert from_json is roundtrip and str(from_json.street1) == str(addr1.street1)  # the backup's, updated
+assert from_json is not roundtrip and str(from_json.street1) == str(addr1.street1)  # another copy
 assert JSON.loads(text) == graph

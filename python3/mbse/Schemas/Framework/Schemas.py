@@ -475,21 +475,12 @@ class _ObjectData:
     name: str | None = None
     description: str | None = None
     parameters: dict[str, _ParameterData] = field(default_factory=dict)
-    pattern: str | None = None  # a reference object schema's naming pattern, e.g. r"FEA-(\d+\d\d)"
     anonymous: list[_AdjacencyData] = field(default_factory=list)  # the links it may fill with no member
     refines: Any = None  # the object schema it refines, whose members it inherits, or None
 
     def fills(self, relation: Any, link: str) -> bool:
         """Whether an object of this schema may fill `link` of `relation`: an adjacency, named or anonymous, says so."""
         return any(a.relation is relation and a.me == link for a in (*self.adjacencies.values(), *self.anonymous))
-
-    def name_for(self, number: int) -> str:
-        """The name the naming pattern gives the object numbered `number` (`_name_for`)."""
-        return _name_for(self.pattern, number)  # type: ignore[arg-type]  # a valid pattern
-
-    def number_of(self, name: str) -> int | None:
-        """The number of a name the naming pattern gives (`_number_of`); None for another name."""
-        return _number_of(self.pattern, name)
 
     @_once
     def validate(self) -> list[str]:
@@ -499,14 +490,6 @@ class _ObjectData:
                     + _visited([*self.properties, *self.adjacencies]))
         if self.singleton is not None and not self.ref:
             problems.append("a singleton's schema must be a reference object schema")
-        if self.pattern is not None:
-            if not self.ref:
-                problems.append("a naming pattern names reference objects; mark the schema .ref()")
-            if self.singleton is not None:
-                problems.append("a singleton's schema has no naming pattern: its one instance is named by its global name")
-            if _naming(self.pattern) is None:
-                problems.append(f"naming pattern {self.pattern!r} is not literal text around one group of digits, "
-                                "e.g. 'FEA-(\\d+\\d\\d)'")
         clashes = set(self.properties) & set(self.adjacencies)
         if clashes:
             problems.append(f"names used as both property and adjacency: {sorted(clashes)}")

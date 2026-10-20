@@ -42,7 +42,6 @@
 import { toHex } from "./Bytes.js";
 import { AttributeError, KeyError, LookupError, ReadOnlyError, ValueError } from "./Errors.js";
 import { compareStrings, REPR, repr, sortedStrings, Tuple, TYPE_NAME, typeName } from "./Repr.js";
-import * as Paths from "./Paths.js";
 import * as Schemas from "./Schemas.js";
 import * as Stores from "./Stores.js";
 import type * as Visitors from "./Visitors.js";
@@ -188,9 +187,9 @@ abstract class Shelled implements Shellable {
 /** A store of proxies: schemas by name, and the instance of each singleton schema registered, created with it.
  * `store.builder(name, instance)` gives a builder of an object of a registered schema. */
 export abstract class _Store extends Stores.Catalog implements Stores.Store {
-  readonly _directories = new Map<string, Directory>();
   _building = 0; // how deep in builders a write is: ownership is settled when the outermost one ends
   _unowned: Instance[] = []; // objects created since, whose schemas declare an owner
+  _orphaned: Instance[] = []; // owned objects an owning entry of which was removed since
   readonly _keys = new Map<string, number>(); // the last number a key's pattern gave, by relation, owner and key
 
   /** A builder's write: where it is the outermost, the objects it created are given their owners after it. */
@@ -199,10 +198,19 @@ export abstract class _Store extends Stores.Catalog implements Stores.Store {
     let written: T;
     try {
       written = write();
+    } catch (error) {
+      if (this._building === 1) { // a refused write: what it left pending is not the next one's to settle
+        this._unowned = [];
+        this._orphaned = [];
+      }
+      throw error;
     } finally {
       this._building -= 1;
     }
-    if (this._building === 0 && this._unowned.length > 0) this._settle_owners();
+    if (this._building === 0 && (this._unowned.length > 0 || this._orphaned.length > 0)) {
+      this._settle_owners();
+      this._delete_orphans();
+    }
     return written;
   }
 
@@ -239,6 +247,18 @@ export abstract class _Store extends Stores.Catalog implements Stores.Store {
     }
   }
 
+  /** Deletes each owned object whose owning entry was removed and not added again, and in cascade what it owns
+   * (docs/OBJECT_IDENTITY.md, Decided, 48): every entry linking it is removed, so that nothing reaches it. */
+  _delete_orphans(): void {
+    const deleted = new Set<unknown>();
+    while (this._orphaned.length > 0) {
+      const target = this._orphaned.pop();
+      if (deleted.has(target) || ownerEntries(target).length > 0) continue;
+      deleted.add(target);
+      for (const [relation, held] of [...adjacentOf(target)]) discard(relation, [...held.values()]);
+    }
+  }
+
   /** The next value a key's naming pattern gives among the entries of `relation` its owner holds: strictly
    * increasing, past every number held. */
   _next_key(relation: RelationSchema, owner: unknown, name: string, link: string, owned: string): string {
@@ -262,7 +282,7 @@ export abstract class _Store extends Stores.Catalog implements Stores.Store {
     super._register(schema);
     if (globalName !== null) {
       const name = schema.name as string;
-      this._singletons.set(globalName, this._enter(name, makeObjectData(this, schema as ObjectSchema, name, globalName)));
+      this._singletons.set(globalName, makeObjectData(this, schema as ObjectSchema, name));
     }
   }
 
@@ -278,42 +298,6 @@ export abstract class _Store extends Stores.Catalog implements Stores.Store {
   /** Whether the store was made holding `schema`: the store, `Builders.Store`, says. */
   abstract framework(schema: unknown): boolean;
 
-  /** For decoders: a builder whose `create()` gives the object the identity a snapshot names, whether or not the
-   * schema's naming pattern gives it (decoding checks that). A program writes no identity (docs/OBJECT_IDENTITY.md,
-   * Decided, 16). */
-  restore(name: string, identity: string): any {
-    const builder = makeObjectBuilder(this, this.schema(name), name);
-    innerOf(builder)._identity = identity;
-    return builder;
-  }
-
-  _directory(name: string): Directory {
-    let directory = this._directories.get(name);
-    if (directory === undefined) this._directories.set(name, (directory = { issued: 0, live: new Map() }));
-    return directory;
-  }
-
-  /** A new key for an object of `schema` among its schema's (`Schemas.HasInstance`): the next name its naming pattern
-   * gives in this store, else its local name lowercased, a dash and the next number, `contact-1`
-   * (docs/OBJECT_IDENTITY.md, Decided, 34). */
-  _issue(schema: ObjectSchema, name: string): string {
-    const directory = this._directory(name);
-    directory.issued += 1;
-    return Schemas._name_for(namingOf(schema, name), directory.issued);
-  }
-
-  /** Enters an object in its schema's directory, which a name its naming pattern gives advances. */
-  _enter(name: string, target: Instance): Instance {
-    const directory = this._directory(name);
-    const { _identity: identity, _schema: schema } = innerOf(target) as _ObjectData;
-    if (directory.live.has(identity)) {
-      throw new ValueError(`a ${repr(name)} with the identity ${repr(identity)} is already live; update it`);
-    }
-    directory.live.set(identity, target);
-    directory.issued = Math.max(directory.issued, Schemas._number_of(namingOf(schema, name), identity) ?? 0);
-    return target;
-  }
-
   /** The value an instance or value object holds in its property `name`. */
   member(instance: unknown, name: string): unknown {
     return read(instance, name);
@@ -327,20 +311,35 @@ export abstract class _Store extends Stores.Catalog implements Stores.Store {
   }
 }
 
-/** One schema's objects in a store, by their keys: the entries of `Schemas.HasInstance` that own them, so held as long
- * as the store is (docs/OBJECT_IDENTITY.md, Decided, 31); and the last number its naming pattern gave, which only
- * increases. */
-interface Directory {
-  issued: number;
-  live: Map<string, Instance>;
-}
-
-/** What tells a reference object apart within its schema: a proxy's key among its schema's objects, or a schema
- * object's identity. */
+/** What tells a reference object apart in memory: a proxy's serial number, or a schema object's identity. */
 export function _key_of(visitor: any): unknown {
   if (innerOf(visitor) instanceof _LinkMember) visitor = innerOf(visitor)._target();
   const inner = innerOf(visitor);
-  return inner instanceof _ObjectData ? inner._identity : visitor.as_identity();
+  return inner instanceof _ObjectData ? inner._id : visitor.as_identity();
+}
+
+/** A schema's adjacencies marked `owner()`: an object of it is owned; a non-singleton without them is counted. */
+function ownerAdjacencies(schema: ObjectSchema): AdjacencySchema[] {
+  return [...schema.adjacencies.values(), ...schema.anonymous].filter((a) => a.owner);
+}
+
+/** Whether a proxy is a counted object: neither a singleton nor owned (docs/OBJECT_IDENTITY.md, Decided, 37). */
+export function _counted(target: unknown): boolean {
+  const schema = (innerOf(target) as _ObjectData)._schema;
+  return schema.singleton === null && ownerAdjacencies(schema).length === 0;
+}
+
+/** The entries that own a proxy, through its schema's adjacencies marked `owner()`. */
+function ownerEntries(target: unknown): unknown[] {
+  return ownerAdjacencies((innerOf(target) as _ObjectData)._schema)
+    .flatMap((a) => linking(a.relation as RelationSchema, a.me, target));
+}
+
+/** The links of an entry whose objects it owns: each linked proxy whose schema's adjacency marked `owner()` is the
+ * entry's relation through that link. */
+function ownedLinks(state: _Entry): [string, unknown][] {
+  return [...state._links].filter(([link, target]) => isObjectData(target)
+    && ownerAdjacencies((innerOf(target) as _ObjectData)._schema).some((a) => a.relation === state._relation && a.me === link));
 }
 
 /** Whether a visitor is of data: a proxy, or a link read to one. */
@@ -355,18 +354,6 @@ function keyNames(relation: RelationSchema, owner: string, owned: string): strin
   const clause = relation.uniques.find((unique) => unique.has(owner) && !unique.has(owned)) as ReadonlySet<string>;
   return [...relation.entry.properties.keys()].filter((name) => clause.has(name));
 }
-
-/** The naming pattern of a schema's keys: its own, else its local name lowercased, a dash and a number. */
-export function _naming_of(schema: ObjectSchema, name: string): string {
-  return schema.pattern ?? `${escapeRegExp(name.slice(name.lastIndexOf(".") + 1).toLowerCase())}-(\\d+)`;
-}
-
-/** Text a regular expression matches literally, as Python's `re.escape` writes it: its special characters escaped. */
-function escapeRegExp(text: string): string {
-  return text.replace(/[()[\]{}?*+\-|^$\\.&~# \t\n\r\v\f]/g, (c) => `\\${c}`);
-}
-
-const namingOf = _naming_of;
 
 /** A version 4 UUID, from the platform's random source. */
 function uuid4(): string {
@@ -538,9 +525,19 @@ function entryStore(state: _Entry, store: unknown): unknown {
   return store ?? [...state._links.values()].map(storeOf).find((found) => found !== null);
 }
 
-/** Adds `entry` to every object it links, unless the relation holds a set and an equal entry is there already. */
+/** Adds `entry` to every object it links, unless the relation holds a set and an equal entry is there already. An
+ * entry that would make a counted object an owner is refused: nothing is owned by a counted object
+ * (docs/OBJECT_IDENTITY.md, Decided, 47). */
 function addEntry(relation: RelationSchema, entry: any, store: unknown = null): void {
   const state: _Entry = innerOf(entry);
+  for (const [link, owned] of ownedLinks(state)) {
+    for (const [other, owner] of state._links) {
+      if (other !== link && isObjectData(owner) && _counted(owner)) {
+        throw new ValueError(`a ${repr((innerOf(owned) as _ObjectData)._schemaName)} cannot be owned by a counted `
+          + `${repr((innerOf(owner) as _ObjectData)._schemaName)}: nothing is owned by a counted object`);
+      }
+    }
+  }
   const key = state._key();
   const held = entryStore(state, store);
   if (table(state._links.values().next().value, relation, held).has(key)) return;
@@ -552,12 +549,15 @@ function linking(relation: RelationSchema, link: string, target: unknown, store:
   return [...table(target, relation, store).values()].filter((entry) => innerOf(entry)._links.get(link) === target);
 }
 
+/** Removes entries from every object they link; an owned object an owning entry of which goes is noted, to be deleted
+ * when the outermost write ends unless it is owned again by then. */
 function discard(relation: RelationSchema, entries: readonly unknown[], store: unknown = null): void {
   for (const entry of entries) {
     const state: _Entry = innerOf(entry);
     const key = state._key();
     const held = entryStore(state, store);
     for (const target of state._links.values()) table(target, relation, held).delete(key);
+    for (const [, owned] of ownedLinks(state)) (innerOf(owned) as _ObjectData)._store._orphaned.push(owned as Instance);
   }
 }
 
@@ -725,11 +725,6 @@ class _Empty extends Dunders {
 
   as_schema(): null {
     return null; // it visits nothing: no value, so no schema
-  }
-
-  as_identity(identity: string | null = null): null {
-    if (identity !== null) throw new ReadOnlyError(this._reason);
-    return null;
   }
 
   get(): null {
@@ -1679,8 +1674,7 @@ class _ObjectData extends Shelled {
   /** The entries linking this object, by relation and key. */
   readonly _adjacent = new Map<RelationSchema, Map<string, unknown>>();
 
-  constructor(readonly _store: _Store, readonly _schema: ObjectSchema, readonly _schemaName: string,
-    public _identity: string) {
+  constructor(readonly _store: _Store, readonly _schema: ObjectSchema, readonly _schemaName: string) {
     super();
   }
 
@@ -1708,13 +1702,6 @@ class _ObjectData extends Shelled {
     return this._schema;
   }
 
-  /** Its identity: its path, a `Paths.OfRoot` value read off its ownership entries on demand (docs/OBJECT_IDENTITY.md,
-   * Decided, 32 and 35). */
-  as_identity(identity: unknown = null): unknown {
-    if (identity !== null) throw new ReadOnlyError("a data instance is read-only; write through a builder");
-    return Paths.of(this._proxy);
-  }
-
   get as_properties(): any {
     return propertiesOf(this._proxy, this._values, this._schema, this._store, false);
   }
@@ -1725,8 +1712,8 @@ class _ObjectData extends Shelled {
   }
 }
 
-function makeObjectData(store: _Store, schema: ObjectSchema, schemaName: string, identity: string): Instance {
-  const state = new _ObjectData(store, schema, schemaName, identity);
+function makeObjectData(store: _Store, schema: ObjectSchema, schemaName: string): Instance {
+  const state = new _ObjectData(store, schema, schemaName);
   return shell(state, (spec) => state._call(spec));
 }
 
@@ -1772,11 +1759,6 @@ class _RecordData extends Shelled {
 
   as_schema(): RecordSchema {
     return this._schema;
-  }
-
-  as_identity(identity: string | null = null): null {
-    if (identity !== null) throw new TypeError("a value object has no identity of its own");
-    return null;
   }
 
   get as_properties(): any {
@@ -2200,11 +2182,6 @@ class _RecordBuilder extends Shelled {
     return this._schema;
   }
 
-  as_identity(identity: string | null = null): null {
-    if (identity !== null) throw new TypeError("a value object has no identity of its own");
-    return null;
-  }
-
   get as_properties(): any {
     return propertiesOf(this._proxy, this._values, this._schema, this._store, true, () => this._touch());
   }
@@ -2481,10 +2458,6 @@ class _LinkMember extends Shelled {
     return this._target().as_schema();
   }
 
-  as_identity(identity: string | null = null): string | null {
-    return this._target().as_identity(identity);
-  }
-
   get as_properties(): unknown {
     return this._target().as_properties;
   }
@@ -2631,19 +2604,8 @@ class _ObjectBuilder extends Shelled {
     super();
   }
 
-  /** The identity written (`as_identity`), or a decoder restores. */
-  _identity: string | null = null;
-
   as_schema(): ObjectSchema {
     return this._schema;
-  }
-
-  /** Read, the identity of the object it builds from: its path; null for a new object, which has none until it is
-   * created and owned. An identity is not written: it is the object's path, read off its ownership
-   * (docs/OBJECT_IDENTITY.md, Decided, 16 and 32). */
-  as_identity(identity: unknown = null): any {
-    if (identity !== null) throw new ReadOnlyError("an identity is read-only: it is the object's path, read off its ownership");
-    return this._source === null ? null : this._source.as_identity();
   }
 
   get as_properties(): any {
@@ -2674,33 +2636,33 @@ class _ObjectBuilder extends Shelled {
     noArguments("create", args);
     if (this._source !== null) throw new ValueError("create() is only valid without a source instance; use clone() or update()");
     this._notSingleton("create");
-    return this._store._writing(() => this._write(this._new(this._identity ?? this._store._issue(this._schema, this._schemaName))));
+    return this._store._writing(() => this._write(this._new()));
   }
 
   clone(...args: unknown[]): Instance {
     noArguments("clone", args);
     if (this._source === null) throw new ValueError("clone() is only valid with a source instance");
     this._notSingleton("clone");
-    return this._store._writing(() => this._write(this._new(this._identity ?? this._store._issue(this._schema, this._schemaName))));
+    return this._store._writing(() => this._write(this._new()));
   }
 
-  /** A new object of the builder's schema, entered in its directory under `identity`; one whose schema declares an
-   * owner is given it when the outermost write ends, unless it has one by then. */
-  _new(identity: string): Instance {
-    const target = this._store._enter(this._schemaName, makeObjectData(this._store, this._schema, this._schemaName, identity));
-    if ([...this._schema.adjacencies.values(), ...this._schema.anonymous].some((a) => a.owner)) this._store._unowned.push(target);
+  /** A new object of the builder's schema; one whose schema declares an owner is given it when the outermost write
+   * ends, unless it has one by then. */
+  _new(): Instance {
+    const target = makeObjectData(this._store, this._schema, this._schemaName);
+    if (ownerAdjacencies(this._schema).length > 0) this._store._unowned.push(target);
     return target;
   }
 
   update(...args: unknown[]): Instance {
     noArguments("update", args);
     if (this._source === null) throw new ValueError("update() is only valid with a source instance");
-    const tables = orders(this._schema, this._source);
-    for (const adjacency of this._schema.adjacencies.values()) {
-      discardLinking(adjacency.relation as RelationSchema, adjacency.me, this._source);
-    }
     const rewritten = new Map<unknown, unknown>();
-    return this._store._writing(() => {
+    return this._store._writing(() => { // an owned object whose entry is written again is not orphaned
+      const tables = orders(this._schema, this._source);
+      for (const adjacency of this._schema.adjacencies.values()) {
+        discardLinking(adjacency.relation as RelationSchema, adjacency.me, this._source);
+      }
       const written = this._write(this._source!, rewritten);
       reorder(tables, rewritten);
       return written;

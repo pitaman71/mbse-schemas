@@ -1391,7 +1391,6 @@ export class ObjectBuilder extends KindBuilder {
   static override _noun = "an object schema";
   static override _table = extendTable(KindBuilder._table, {
     ref: new Prop(),
-    pattern: new Prop(),
     singleton: new Prop(),
     refines: refinesMembers(),
     // A refinement's own members: those it inherits are the refined schema's, through `refines` (Resolved: "Modules
@@ -1646,7 +1645,6 @@ export interface Plain {
   HasSchema: RelationData; Refines: RelationData; Indexing: RelationData; Containing: RelationData; AnyOf: RelationData;
   Relating: RelationData; HasParameter: RelationData; HasProperty: RelationData; HasAdjacency: RelationData;
   HasBranch: RelationData; HasPart: RelationData; HasSymbol: RelationData; HasLink: RelationData; Defines: RelationData;
-  HasInstance: RelationData;
 }
 
 /** Builds a store's plain schemas of schemas and its basic scalars, anew. */
@@ -1674,7 +1672,7 @@ function plainSchemas(): Plain {
 
   const named: [string, unknown][] = [["name", Text], ["description", Text]]; // every kind of schema's: no base declares it
   meta.OfScalar = metaObject("OfScalar", named);
-  meta.OfObject = metaObject("OfObject", [...named, ["ref", Bool], ["pattern", Text], ["singleton", Text]]);
+  meta.OfObject = metaObject("OfObject", [...named, ["ref", Bool], ["singleton", Text]]);
   meta.OfUnion = metaObject("OfUnion", [...named, ["flat", Bool]]);
   meta.OfIntersection = metaObject("OfIntersection", [...named, ["flat", Bool]]);
   meta.OfContainer = metaObject("OfContainer", [...named, ["layout", Text]]);
@@ -1736,7 +1734,6 @@ function plainSchemas(): Plain {
     ["HasSymbol", ["owner", [meta.OfPredicate], "symbols"], ["symbol", [meta.OfSymbol]], "keyed"],
     ["HasLink", ["owner", [meta.OfRelation], "links"], ["link", [meta.OfSymbol]], "keyed"],
     ["Defines", ["module", [meta.OfModule], "schemas"], ["schema", schemas], "keyed"],
-    ["HasInstance", ["schema", [meta.OfObject], "instances"], ["instance", []], "keyed"],
   ];
 
   /** The adjacencies each meta-schema declares: named ones by name, and anonymous ones. */
@@ -1956,9 +1953,8 @@ export class Store extends Proxies._Store {
     return identity !== null && this._objects.get(key(_kind(data), identity)) === data;
   }
 
-  /** The store's reference objects by their paths (docs/OBJECT_IDENTITY.md, Decided, 26): `store.Instances.<a
-   * singleton's global name>` is the singleton, whose adjacencies called with keys continue the path, and
-   * `store.Instances.<a schema's name>({ name: key })` the object its schema owns under that key. */
+  /** The store's owned objects by their paths (docs/OBJECT_IDENTITY.md, Decided, 26): `store.Instances.<a
+   * singleton's global name>` is the singleton, whose adjacencies called with keys continue the path. */
   get Instances(): any {
     return makeInstances(this, "");
   }
@@ -2137,20 +2133,13 @@ function key(kind: string, identity: string): string {
 
 /** `store.moduleName.[...moduleName].schemaName`: a schema's name, one part per member; called, it builds, and given
  * where an object is expected, it is the schema it names (`.schema([store.Schemas.OfInt])`); `as_schema()` gives it. */
-/** `store.Instances.<path>`: a dotted name, each part an attribute, until it names a singleton, which it gives; called
- * with keys, the object the schema it names owns under them (`Schemas.HasInstance`). */
+/** `store.Instances.<path>`: a dotted name, each part an attribute, until it names a singleton, which it gives. An
+ * owned object is found from it through its owners' adjacencies, called with keys; a counted object only by visiting
+ * what links it (docs/OBJECT_IDENTITY.md, Decided, 40). */
 function makeInstances(store: Store, name: string): any {
-  const find = (keys: unknown): unknown => {
-    const schema = store.registered(name) as S.OfObject.Data;
-    const plain = keys !== null && typeof keys === "object" && Object.getPrototypeOf(keys) === Object.prototype;
-    const held = plain ? new Map(Object.entries(keys as object)) : null;
-    if (held === null || held.size !== 1 || !held.has("name")) {
-      throw new KeyError(`an object its schema owns is found by its key, {'name': ...}; got ${repr(held ?? keys)}`);
-    }
-    const found = store._directory(name).live.get(held.get("name") as string);
-    const owned = ![...schema.adjacencies.values(), ...schema.anonymous].some((a) => a.owner);
-    if (found === undefined || !owned) throw new LookupError(`no ${repr(name)} has the key ${repr(held.get("name"))}`);
-    return found;
+  const find = (): unknown => {
+    throw new LookupError(`no singleton named ${repr(name)}: an owned object is found through its owners' adjacencies, `
+      + "a counted one only through what links it");
   };
   return new Proxy(find, {
     get: (_target, part) => {

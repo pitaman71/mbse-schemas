@@ -4,7 +4,7 @@
 // duplicate elision, entries that differ only by a property, entry removal, clone() copying entries, and round trips.
 
 import { ValueError } from "@mbse/schemas/Framework/Errors";
-import { Builders, Paths, Plain, Proxies, Reachable, Schemas, Validators } from "@mbse/schemas/Framework";
+import { Builders, Plain, Proxies, Reachable, Schemas, Validators } from "@mbse/schemas/Framework";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
 import { assert, entries, raises, same_graph } from "./_support.js";
@@ -153,17 +153,17 @@ assert(Validators.Validate(store).Reachable(Person, ada).length === 0);
 
 // --- Round trips, from any root ---
 
-// Read into another store, a snapshot builds objects of the same identities; read into the store that holds them, it
-// updates them through their builders, and reading it again changes nothing.
+// Read into any store, even the one that holds them, a snapshot builds new objects of the same graph: a counted object
+// has no identity beyond the snapshot.
 const archive: any = new Builders.Store();
 Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot()); // the same schemas, its own: a store's snapshot writes them
 for (const root of [ada, carol, loner]) {
   const graph = Plain.ToPlain(store).Reachable(Person, root);
   const restored = Plain.FromPlain(archive).Reachable(archive.Person, graph) as Instance;
-  assert(restored !== root && Paths.same(restored.as_identity(), root.as_identity()));
+  assert(restored !== root);
   assert(String(restored.given_name) === String(root.given_name));
   assert(same_graph(Plain.ToPlain(archive).Reachable(archive.Person, restored), graph));
-  assert(Plain.FromPlain(store).Reachable(Person, graph) === root);
+  assert(Plain.FromPlain(store).Reachable(Person, graph) !== root);
 }
 
 console.log("FamilyTree: all checks passed");

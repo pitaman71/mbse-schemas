@@ -333,15 +333,33 @@ class Held {
 
 // --- Snapshots ---
 
-/** Writes the included objects, in first-reference order, each listed with its path, its schema's name and its
- * members (docs/OBJECT_IDENTITY.md, Decided, 36). */
+/** Writes the included objects, in first-reference order, each listed with its schema's name and its members, and with
+ * its path, or, a counted object, its number in the document (docs/OBJECT_IDENTITY.md, Decided, 55). */
 class Snapshot {
   readonly ref: Ref;
+  /** Each counted object's number in the document. */
+  private readonly numbers = new Map<unknown, number>();
+  /** Each object the document calls, by what it is called. */
+  private readonly called = new Map<string, unknown>();
 
   constructor(private readonly store: Stores.Store, flat = false) {
     /** A reference to a linked object, which is a reference object: entries never reference value objects. */
-    this.ref = Object.assign((target: Readers.OfObject): PlainMap => new Map<string, PlainData>([[REF, pathOf(target)]]),
+    this.ref = Object.assign((target: Readers.OfObject): PlainMap => new Map<string, PlainData>([[REF, this.path(target)]]),
       { flat, store });
+  }
+
+  /** What a document calls an object: its path, a nested `Paths.OfRoot` value, or, a counted object, its number in the
+   * document, given in the order the document meets them. */
+  private path(value: unknown): PlainMap {
+    let called: PlainMap;
+    if (!Proxies._counted(value)) {
+      called = pathOf(value);
+    } else {
+      if (!this.numbers.has(value)) this.numbers.set(value, this.numbers.size);
+      called = new Map([["n", BigInt(this.numbers.get(value)!)]]);
+    }
+    this.called.set(symbolOf(called), value);
+    return called;
   }
 
   run(schema: Schemas.OfObject.Data, root: Readers.OfObject, include: Readers.OfObject[]): PlainMap {
@@ -351,14 +369,54 @@ class Snapshot {
     if (!schema.ref) {
       throw new TypeError(`a snapshot's root must be a reference object; ${repr(schema.name)} is a value object schema`);
     }
-    const objects: PlainMap[] = [];
+    const written = new Map<unknown, PlainMap>();
+    for (const value of [root, ...include]) this.path(value); // what the document lists is called before it is written
     for (const value of include) {
       const out = object(value, value.as_schema(), this.ref);
       sortEntries(value.as_schema(), out);
-      objects.push(new Map<string, PlainData>([["path", pathOf(value)], ["schema", this.store.name_of(value.as_schema())],
-        ["properties", out]]));
+      written.set(value, out);
     }
-    return new Map<string, PlainData>([["root", pathOf(root)], ["objects", objects]]);
+    // The order the document meets its objects, from the root through the references as written; counted objects are
+    // numbered in it, so that a document read and written again is the same. The references reach every object
+    // included, since `Reachable.of` follows the entries the document writes.
+    const order: unknown[] = [];
+    const met = new Set<unknown>();
+    const meet = (value: unknown): void => {
+      if (!met.has(value)) {
+        met.add(value);
+        order.push(value);
+      }
+    };
+    const follow = (plain: unknown): void => {
+      if (isRef(plain)) meet(this.called.get(symbolOf(plain.get(REF))));
+      else if (plain instanceof Map) for (const item of plain.values()) follow(item);
+      else if (Array.isArray(plain)) for (const item of plain) follow(item);
+    };
+    meet(root);
+    for (let position = 0; position < order.length; position++) {
+      const value = order[position];
+      if (written.has(value)) follow(written.get(value));
+    }
+    const renumbered = new Map(order.filter((value) => this.numbers.has(value))
+      .map((value, number) => [this.numbers.get(value)!, number] as const));
+    const number = (called: PlainMap): PlainMap =>
+      called.has("n") ? new Map([["n", BigInt(renumbered.get(Number(called.get("n")))!)]]) : called;
+    /** A written value, each reference to a counted object given its number in the document's order. */
+    const renumber = (plain: PlainData): PlainData => {
+      if (isRef(plain)) return new Map([[REF, number(plain.get(REF) as PlainMap)]]);
+      if (plain instanceof Map) return new Map([...plain].map(([key, item]) => [key, renumber(item)]));
+      if (Array.isArray(plain)) return plain.map(renumber);
+      return plain;
+    };
+    const objects: PlainMap[] = [];
+    for (const value of order) {
+      if (!written.has(value)) continue;
+      const called = number(this.path(value));
+      const listing: [string, PlainData] = called.has("n") ? ["n", called.get("n")!] : ["path", called];
+      objects.push(new Map<string, PlainData>([listing, ["schema", this.store.name_of((value as Readers.OfObject).as_schema())],
+        ["properties", renumber(written.get(value)!)]]));
+    }
+    return new Map<string, PlainData>([["root", number(this.path(root))], ["objects", objects]]);
   }
 }
 
@@ -397,9 +455,33 @@ function sortEntries(schema: Schemas.OfObject.Data, record: PlainMap): void {
   }
 }
 
-/** A reference: `{'$ref': path}`, the path of a reference object. */
+/** A reference: `{'$ref': path}`, or `{'$ref': {'n': number}}` to a counted object the document numbers. */
 function isRef(value: unknown): value is PlainMap {
   return value instanceof Map && value.size === 1 && value.get(REF) instanceof Map;
+}
+
+/** The number a document gives a counted object, where `called` is `{'n': number}`; -1 for one that is not an int, 0
+ * or more; null for a path. */
+function numberIn(called: unknown): number | null {
+  if (called instanceof Map && called.size === 1 && called.has("n")) {
+    const number = called.get("n");
+    return typeof number === "bigint" && number >= 0n ? Number(number) : -1;
+  }
+  return null;
+}
+
+/** What a reader tells objects apart by: a counted object's number in the document, or a path's canonical JSON. */
+function symbolOf(called: unknown): string {
+  const number = numberIn(called);
+  return number !== null ? `#${number}` : _symbol(called);
+}
+
+/** A reference's or a listing's target checked, as `symbolOf` gives it: a path, or a number of a counted object. */
+function calledSymbol(called: unknown, where: Where): string {
+  const number = numberIn(called);
+  if (number === null) stepsOf(called, where);
+  else if (number < 0) throw new DecodeError("a counted object's number in a document is an int, 0 or more", { path: path(...where) });
+  return symbolOf(called);
 }
 
 /** A path's text in a reader, which tells paths apart: its canonical JSON, keys sorted. A path holds no lists. */
@@ -678,7 +760,7 @@ function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: 
       if (name === adjacency.me) throw new DecodeError(`${repr(name)} is this object's own link, which is implied`, { path: at });
       if (relation.entry.links.has(name)) {
         if (!isRef(item)) throw new DecodeError("a link must be a reference", { path: at });
-        row.set(name, new Link(_symbol(item.get(REF))));
+        row.set(name, new Link(symbolOf(item.get(REF))));
       } else if (entryType !== undefined) {
         row.set(name, decode(entryType, item, [...where, key, i, name], store));
       } else {
@@ -696,7 +778,7 @@ function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: 
 function references(value: unknown, where: Where, found: (ref: PlainMap, where: Where) => void): void {
   if (value instanceof Map && value.has(REF)) {
     if (!isRef(value)) {
-      throw new DecodeError("a reference is {'$ref': path}", { path: path(...where) });
+      throw new DecodeError("a reference is {'$ref': path} or {'$ref': {'n': number}}", { path: path(...where) });
     }
     found(value, where);
   } else if (value instanceof Map) {
@@ -709,21 +791,34 @@ function references(value: unknown, where: Where, found: (ref: PlainMap, where: 
 /** Per reference object symbol: its decoded property values and its entries. */
 type Decoded = Map<string, [Map<string, unknown>, Rows]>;
 
-/** Where a path places an object: its key among its schema's objects (`Schemas.HasInstance`), a singleton's global name,
- * or, through an `owner()` adjacency, the path of its owner (its symbol, and as plain data), the adjacency's name and the
- * entry's keys. */
+/** Where a document places an object: a singleton's global name, through an `owner()` adjacency the path of its owner
+ * (its symbol, and as plain data), the adjacency's name and the entry's keys, or nowhere, a counted object, made anew. */
 interface Placed {
   key: string | null;
   owner: string | null;
   ownerPath: PlainMap | null;
   o: string;
   keys: PlainMap;
+  counted: boolean;
 }
 
-/** Where `plain`, a path, places an object of `schema`, registered as `name` (docs/OBJECT_IDENTITY.md, Decided, 31). */
-function placedOf(plain: unknown, name: string, schema: Schemas.OfObject.Data, where: Where): Placed {
-  const [singleton, steps] = stepsOf(plain, where);
-  const at = (key: string | null): Placed => ({ key, owner: null, ownerPath: null, o: "", keys: new Map() });
+/** Where `called`, a path or a number, places an object of `schema`, registered as `name` (docs/OBJECT_IDENTITY.md,
+ * Decided, 55): a counted object is called by its number in the document, an owned object or a singleton by its path. */
+function placedOf(called: unknown, name: string, schema: Schemas.OfObject.Data, where: Where): Placed {
+  const at = (key: string | null, counted = false): Placed => ({ key, owner: null, ownerPath: null, o: "", keys: new Map(), counted });
+  const counted = schema.singleton === null && ![...schema.adjacencies.values(), ...schema.anonymous].some((a) => a.owner);
+  if (numberIn(called) !== null) {
+    if (!counted) {
+      throw new DecodeError(`a ${repr(name)} is ${schema.singleton !== null ? "a singleton" : "owned"}: it is called by its `
+        + "path, not a number", { path: path(...where) });
+    }
+    return at(null, true);
+  }
+  if (counted) {
+    throw new DecodeError(`a ${repr(name)} is counted: it is called by its number in the document, {'n': number}, not a `
+      + "path", { path: path(...where) });
+  }
+  const [singleton, steps] = stepsOf(called, where);
   if (schema.singleton !== null) {
     if (steps.length > 0 || singleton !== schema.singleton) {
       throw new DecodeError(`the singleton ${repr(name)} is the path of its global name ${repr(schema.singleton)} alone`,
@@ -731,29 +826,12 @@ function placedOf(plain: unknown, name: string, schema: Schemas.OfObject.Data, w
     }
     return at(singleton);
   }
-  if (singleton === "." && steps.length > 0 && steps[steps.length - 1]![0] === "instances") {
-    const before = steps.slice(0, -1);
-    const last = steps[steps.length - 1]![2];
-    const spelled = before.filter(([i]) => i === "schemas").map(([, , keys]) => String(keys.get("name"))).join(".");
-    const key = last.get("name");
-    if (spelled !== name || before.some(([i]) => i !== "schemas") || last.size !== 1 || !last.has("name")
-      || typeof key !== "string" || key === "") {
-      throw new DecodeError(`a ${repr(name)} its schema owns has the path of ${repr(name)}, then its key: `
-        + "{'i': 'instances', 'properties': {'name': key}}", { path: path(...where) });
-    }
-    const naming = Proxies._naming_of(schema, name);
-    if (schema.pattern !== null && Schemas._number_of(naming, key) === null) {
-      throw new DecodeError(`${repr(key)} is not a name ${repr(name)}'s naming pattern ${repr(schema.pattern)} gives`,
-        { path: path(...where) });
-    }
-    return at(key);
-  }
   if (steps.length === 0) {
     throw new DecodeError(`a ${repr(name)} is not a singleton: its path goes through what owns it`, { path: path(...where) });
   }
   const ownerPath = pathFrom(singleton, steps.slice(0, -1)); // the owner's path: the same steps but the last
   const [, o, keys] = steps[steps.length - 1]!;
-  return { key: null, owner: _symbol(ownerPath), ownerPath, o, keys };
+  return { key: null, owner: _symbol(ownerPath), ownerPath, o, keys, counted: false };
 }
 
 /** Checks a snapshot against the schemas and decodes its values before anything is built. Returns the root's symbol,
@@ -765,31 +843,32 @@ function check(store: Stores.Store, schema: unknown, plain: unknown): [string, M
   }
   if (!schema.ref) throw new TypeError("the root schema must be a reference object schema");
   if (!(plain instanceof Map) || plain.size !== 2 || !plain.has("root") || !Array.isArray(plain.get("objects"))) {
-    throw new DecodeError("expected an object snapshot: {'root': path, 'objects': [{'path': path, 'schema': name, "
-      + "'properties': {...}}, ...]}", { path: "$" });
+    throw new DecodeError("expected an object snapshot: {'root': path or {'n': number}, 'objects': [{'path': path or "
+      + "'n': number, 'schema': name, 'properties': {...}}, ...]}", { path: "$" });
   }
   const objects = new Map<string, PlainMap>();
   const names = new Map<string, string>();
   const paths = new Map<string, PlainMap>();
   (plain.get("objects") as unknown[]).forEach((listed, index) => {
     const where: Where = ["objects", index];
-    if (!(listed instanceof Map) || listed.size !== 3 || !listed.has("path") || !listed.has("schema") || !listed.has("properties")) {
-      throw new DecodeError("an object is {'path': path, 'schema': name, 'properties': {...}}", { path: path(...where) });
+    const calls = ["path", "n"].filter((key) => listed instanceof Map && listed.has(key));
+    if (!(listed instanceof Map) || calls.length !== 1 || listed.size !== 3 || !listed.has("schema") || !listed.has("properties")) {
+      throw new DecodeError("an object is {'path': path or 'n': number, 'schema': name, 'properties': {...}}",
+        { path: path(...where) });
     }
     if (typeof listed.get("schema") !== "string" || !(listed.get("properties") instanceof Map)) {
       throw new DecodeError("an object's schema is a name, and its properties a mapping", { path: path(...where) });
     }
-    stepsOf(listed.get("path"), [...where, "path"]);
-    const symbol = _symbol(listed.get("path"));
+    const called = calls[0] === "path" ? listed.get("path") : new Map([["n", listed.get("n")]]);
+    const symbol = calledSymbol(called, [...where, calls[0]!]);
     if (objects.has(symbol)) {
-      throw new DecodeError("an object is listed once: another has the same path", { path: path(...where, "path") });
+      throw new DecodeError("an object is listed once: another has the same path or number", { path: path(...where, calls[0]!) });
     }
     objects.set(symbol, listed.get("properties"));
     names.set(symbol, listed.get("schema"));
-    paths.set(symbol, listed.get("path"));
+    paths.set(symbol, called);
   });
-  stepsOf(plain.get("root"), ["root"]);
-  const root = _symbol(plain.get("root"));
+  const root = calledSymbol(plain.get("root"), ["root"]);
   if (!objects.has(root)) throw new DecodeError("the root is not one of the snapshot's objects", { path: "$.root" });
   if (names.get(root) !== store.name_of(schema)) {
     throw new DecodeError(`the root is a ${repr(names.get(root))}, not a ${repr(store.name_of(schema))}`, { path: "$.root" });
@@ -797,8 +876,8 @@ function check(store: Stores.Store, schema: unknown, plain: unknown): [string, M
   const position = new Map([...objects.keys()].map((symbol, index) => [symbol, index]));
 
   const found = (ref: PlainMap, where: Where): void => {
-    if (!objects.has(_symbol(ref.get(REF)))) {
-      throw new DecodeError("unresolved reference: the snapshot does not contain its path", { path: path(...where) });
+    if (!objects.has(calledSymbol(ref.get(REF), [...where, REF]))) {
+      throw new DecodeError("unresolved reference: the snapshot does not contain what it calls", { path: path(...where) });
     }
   };
   for (const [symbol, obj] of objects) {
@@ -819,7 +898,7 @@ function check(store: Stores.Store, schema: unknown, plain: unknown): [string, M
       throw error;
     }
     if (!objectSchema.ref) throw new DecodeError(`${repr(name)} is not a reference object schema`, { path: path(...where, "schema") });
-    placed.set(symbol, placedOf(paths.get(symbol), name, objectSchema, [...where, "path"]));
+    placed.set(symbol, placedOf(paths.get(symbol), name, objectSchema, [...where, paths.get(symbol)!.has("n") ? "n" : "path"]));
     const properties = new Map<string, unknown>();
     const adjacencies: Rows = new Map();
     for (const [key, value] of obj) {
@@ -845,13 +924,11 @@ function sameKeys(properties: Map<string, unknown>, keys: PlainMap): boolean {
     && Proxies.scalarKey(properties.get(name)) === Proxies.scalarKey(value));
 }
 
-/** The object a path names, where the store holds it: by its key among its schema's objects, as a singleton, or
- * through its owner's adjacency named by the path's last step; null where it holds none. */
+/** The object a path names, where the store holds it: a singleton, or through its owner's adjacency named by the path's
+ * last step; null where it holds none, as for a counted object, always made anew (55). */
 function foundAt(store: any, name: string, placed: Placed, created: Map<string, unknown>): unknown {
-  if (placed.owner === null) {
-    if (store.registered(name).singleton !== null) return store.singleton(placed.key);
-    return store._directory(name).live.get(placed.key) ?? null;
-  }
+  if (placed.counted) return null;
+  if (placed.owner === null) return store.singleton(placed.key);
   const owner = created.get(placed.owner); // created first: a path names its owner by its own
   const adjacency = ownerAdjacency(store.registered(name), placed.o);
   const relation = adjacency.relation as Schemas.OfRelation.Data;
@@ -865,14 +942,10 @@ function foundAt(store: any, name: string, placed: Placed, created: Map<string, 
   return null;
 }
 
-/** The data object a path names in `store`, or null: by its key among its schema's objects, a singleton, or through its
- * owner's entries, the one whose keys the path's last step gives and whose other end's owner adjacency is `o`. */
+/** The data object a path names in `store`, or null: a singleton, or through its owner's entries, the one whose keys the
+ * path's last step gives and whose other end's owner adjacency is `o`. */
 function byPath(store: any, plain: unknown, where: Where): unknown {
   const [singleton, steps] = stepsOf(plain, where);
-  if (singleton === "." && steps.length > 0 && steps[steps.length - 1]![0] === "instances") {
-    const name = steps.slice(0, -1).map(([, , keys]) => String(keys.get("name"))).join(".");
-    return store.names().includes(name) ? store._directory(name).live.get(steps[steps.length - 1]![2].get("name")) ?? null : null;
-  }
   if (steps.length === 0) return store._singletons.get(singleton) ?? null;
   const owner = byPath(store, pathFrom(singleton, steps.slice(0, -1)), where);
   if (owner === null) return null;
@@ -962,8 +1035,7 @@ function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unkn
           throw new DecodeError("an object's owner is not in the snapshot", { path: "$.objects" });
         }
         const existing = foundAt(store, name, where, created);
-        const builder = existing !== null ? store.builder(name, existing)
-          : where.key !== null ? store.restore(name, where.key) : store.builder(name);
+        const builder = store.builder(name, existing ?? undefined); // a new object where the store holds none
         for (const [key, value] of properties) set(builder, key, value);
         created.set(symbol, existing === null ? builder.create() : builder.update());
         if (existing === null && where.owner !== null) owned.push([symbol, created.get(symbol)]);
@@ -1124,6 +1196,8 @@ class LogWriter {
   private readonly relations = new Map<unknown, number>();
   /** Each object's reference on the wire, by its key. */
   private readonly refs = new Map<string, PlainMap>();
+  /** The counted objects numbered so far, in the order the log meets them. */
+  private counted = 0;
 
   constructor(store: Stores.Store) {
     if (!(store instanceof Builders.Store)) {
@@ -1140,11 +1214,19 @@ class LogWriter {
   }
 
   /** What tells an object apart in the writer: `Module.Schema/ID`, the registered name of its schema and its key. On
-   * the wire, a schema object is referred to by it, and data by its path (`refs`). */
+   * the wire (`refs`), a schema object is referred to by it, an owned object or a singleton by its path, and a counted
+   * object by its number in the log, in the order the log meets them (docs/OBJECT_IDENTITY.md, 55). */
   private key(visitor: any): string {
     const key = `${this.store.name_of(visitor.as_schema())}/${Proxies._key_of(visitor)}`;
     if (!this.refs.has(key)) {
-      this.refs.set(key, Proxies._is_data(visitor) ? m([["path", pathOf(visitor)]]) : m([["key", key]]));
+      if (!Proxies._is_data(visitor)) { // a schema object, read through its builder
+        this.refs.set(key, m([["key", key]]));
+      } else if (Proxies._counted(visitor)) {
+        this.refs.set(key, m([["n", BigInt(this.counted)]]));
+        this.counted += 1;
+      } else {
+        this.refs.set(key, m([["path", pathOf(visitor)]]));
+      }
     }
     return key;
   }
@@ -1170,8 +1252,8 @@ class LogWriter {
     }
     const written = singleton ? new Map() : properties;
     const ref = this.refs.get(key)!;
-    const definition = ref.has("path") // data: its path, and its schema's name, as it is created
-      ? m([["path", ref.get("path")!], ["schema", this.store.name_of(visitor.as_schema())], ["properties", written]])
+    const definition = !ref.has("key") // data: its path or number, and its schema's name, as it is created
+      ? m([...ref, ["schema", this.store.name_of(visitor.as_schema())], ["properties", written]])
       : m([["key", key], ["properties", written]]);
     this.out.push(m([["exists", m([["definition", definition]])]]));
     if (singleton) {
@@ -1211,8 +1293,8 @@ class LogWriter {
         if (data !== null && this.store.framework(data)) {
           this.written.add(targetKey);
           this.complete.add(targetKey);
-        } else if (data !== null && !(Builders._namable(data) && data.name)) {
-          contained.push([target, targetKey]); // a schema object with no name of its own follows what links it
+        } else if (data === null || !(Builders._namable(data) && data.name)) {
+          contained.push([target, targetKey]); // data, or a schema object with no name of its own, follows what links it
         }
       }
       const properties: PlainMap = new Map();
@@ -1280,9 +1362,6 @@ class LogWriter {
       }
     }
     for (const singleton of store._singletons.values()) this.define(singleton, this.key(singleton), true);
-    for (const directory of [...store._directories.values()]) {
-      for (const value of [...directory.live.values()]) this.define(value, this.key(value));
-    }
     for (const held of [...store._objects.values()].filter((held) => store.framework(held))) {
       this.extended(this.reader(held));
     }
@@ -1324,8 +1403,10 @@ export interface Ignored {
 class LogReader {
   private readonly store: Builders.Store;
   private readonly meta: Set<unknown>;
-  /** The objects made, held: a store holds its data objects weakly. */
+  /** The objects made, held: a store holds its counted objects weakly. */
   private readonly made: unknown[] = [];
+  /** The counted objects the log made, by their numbers in it. */
+  private readonly numbered = new Map<number, unknown>();
 
   constructor(store: Stores.Store, private readonly ignored: Ignored[] | null = null) {
     if (!(store instanceof Builders.Store)) throw new TypeError("a snapshot is read into a Builders.Store");
@@ -1354,8 +1435,16 @@ class LogReader {
     return [key.slice(0, at), key.slice(at + 1)];
   }
 
-  /** The object a reference names: a schema object by its key, data by its path. */
+  /** The object a reference names: a schema object by its key, an owned object or a singleton by its path, and a
+   * counted object by its number in the log. */
   private resolve(ref: unknown, where: Where): any {
+    if (ref instanceof Map && ref.has("n")) {
+      const number = numberIn(new Map([["n", ref.get("n")]]))!;
+      if (!this.numbered.has(number)) {
+        throw new DecodeError(`no counted object the log made is numbered ${repr(ref.get("n"))}`, { path: path(...where, "n") });
+      }
+      return this.numbered.get(number);
+    }
     if (ref instanceof Map && ref.has("path")) {
       const found = byPath(this.store, ref.get("path"), [...where, "path"]);
       if (found === null) throw new DecodeError("no object of the store has the path referred to", { path: path(...where, "path") });
@@ -1364,7 +1453,7 @@ class LogReader {
     const key = ref instanceof Map ? ref.get("key") ?? null : null;
     const [name, identity] = this.split(key, [...where, "key"]);
     const schema = this.schema(name, where);
-    if (!this.meta.has(schema)) throw new DecodeError(`${repr(key)}: data is referred to by its path, not a key`, { path: path(...where) });
+    if (!this.meta.has(schema)) throw new DecodeError(`${repr(key)}: data is referred to by its path or number, not a key`, { path: path(...where) });
     const found = this.store.held(name, identity);
     if (found === null) throw new DecodeError(`${repr(key)} is not in the store`, { path: path(...where) });
     return found;
@@ -1394,7 +1483,7 @@ class LogReader {
   }
 
   private exists(definition: any, where: Where): void {
-    if (definition instanceof Map && definition.has("path")) {
+    if (definition instanceof Map && (definition.has("path") || definition.has("n"))) {
       this.data(definition, where);
       return;
     }
@@ -1410,7 +1499,8 @@ class LogReader {
       builder.as_identity(identity);
       properties = builder.as_schema().properties;
     } else {
-      throw new DecodeError(`${repr(key)}: data is created with its path and its schema, not a key`, { path: path(...where, "key") });
+      throw new DecodeError(`${repr(key)}: data is created with its path or number, and its schema, not a key`,
+        { path: path(...where, "key") });
     }
     for (const [propName, plain] of field(definition, "properties", new Map())) {
       if (!properties.has(propName)) { // an extension of a schema the store was made holding, which it lacks
@@ -1422,8 +1512,9 @@ class LogReader {
     this.made.push(builder.create());
   }
 
-  /** Creates a data object where its path places it, unless the store holds one there: by its key among its schema's
-   * objects, or through its owner, whose entry its path's last step gives. */
+  /** Creates a data object: an owned object or a singleton where its path places it, unless the store holds one there,
+   * through its owner, whose entry its path's last step gives; a counted object always anew, known by its number for the
+   * rest of the log. */
   private data(definition: PlainMap, where: Where): void {
     const name = definition.get("schema");
     if (typeof name !== "string") throw new DecodeError("a data object's definition names its schema", { path: path(...where, "schema") });
@@ -1431,20 +1522,30 @@ class LogReader {
     if (!(schema instanceof Schemas.OfObject.Data) || !schema.ref) {
       throw new DecodeError(`${repr(name)} is not a reference object schema`, { path: path(...where, "schema") });
     }
-    const placed = placedOf(definition.get("path"), name, schema, [...where, "path"]);
-    if (byPath(this.store, definition.get("path"), [...where, "path"]) !== null) return;
+    const called = definition.has("path") ? definition.get("path") : new Map([["n", definition.get("n")!]]);
+    const at: Where = [...where, definition.has("path") ? "path" : "n"];
+    const placed = placedOf(called, name, schema, at);
+    if (placed.counted) {
+      const number = numberIn(called);
+      if (number === null || number < 0 || this.numbered.has(number)) {
+        throw new DecodeError("a counted object's number in a log is an int, 0 or more, given once", { path: path(...at) });
+      }
+    } else if (byPath(this.store, called, at) !== null) {
+      return;
+    }
     let owner: unknown = null;
     if (placed.ownerPath !== null) {
       owner = byPath(this.store, placed.ownerPath, [...where, "path"]);
       if (owner === null) throw new DecodeError("the object's owner is not in the store", { path: path(...where, "path") });
     }
-    const builder = placed.key !== null ? this.store.restore(name, placed.key) : this.store.builder(name);
+    const builder = this.store.builder(name);
     for (const [propName, plain] of field(definition, "properties", new Map()) as PlainMap) {
       const prop = schema.properties.get(propName);
       if (prop === undefined) throw new DecodeError(`${name} has no property ${repr(propName)}`, { path: path(...where, propName) });
       set(builder, propName, decode(prop.schema as Schemas.OfAny.Data, plain, [...where, propName], this.store));
     }
     const made = builder.create();
+    if (placed.counted) this.numbered.set(numberIn(called)!, made);
     if (owner !== null) {
       const adjacency = ownerAdjacency(schema, placed.o);
       const relation = adjacency.relation as Schemas.OfRelation.Data;

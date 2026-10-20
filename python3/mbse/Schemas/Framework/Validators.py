@@ -12,6 +12,8 @@ The validator reads the value through the visitor protocol (`Readers.OfObject`),
 - the schemas involved pass `validate()`;
 - each property value has exactly its schema's scalar type (distinct scalars are never interchangeable);
 - each linked object's schema declares an adjacency to that relation via that link;
+- nothing is owned by a counted object: a schema neither a singleton nor owned declares no adjacency that another
+  schema's adjacency marked `owner()` makes an owner (docs/OBJECT_IDENTITY.md, Decided, 47);
 - `unique(S)` clauses hold over the entries seen: entries that agree on everything outside `S` agree on `S`.
   Uniqueness is checked only over the entries reachable from what was validated.
 - a value object's properties hold values of their schemas, recursively;
@@ -132,6 +134,25 @@ def _filling(relation: Schemas.OfRelation.Data, name: str, schema: Schemas.OfObj
             f"relation via {name!r}")
 
 
+def _counted_owners(store: Stores.Store, schema: Schemas.OfObject.Data) -> list[str]:
+    """The adjacencies of a counted schema, neither a singleton nor owned, through which it would own an object of a
+    schema whose adjacency marked `owner()` is the other end: nothing is owned by a counted object (docs/OBJECT_IDENTITY.md,
+    Decided, 47)."""
+    adjacencies = (*schema.adjacencies.values(), *schema.anonymous)
+    if schema.singleton is not None or any(a.owner for a in adjacencies):
+        return []
+    problems = []
+    for adjacency in adjacencies:
+        for name in store.names():
+            owned = store.registered(name)
+            if isinstance(owned, Schemas.OfObject.Data) and any(
+                    a.owner and a.relation is adjacency.relation and a.me != adjacency.me
+                    for a in (*owned.adjacencies.values(), *owned.anonymous)):
+                problems.append(f"adjacency {adjacency.name or adjacency.relation.name!r} would own a {name!r}, through its "
+                                f"adjacency marked owner(): nothing is owned by a counted object, which a {schema.name!r} is")
+    return problems
+
+
 _ABSENT = ("absent",)
 
 
@@ -186,6 +207,8 @@ class _Check:
             return
         self._schemas_checked.add(id(schema))
         self.problems += [f"schema {label}: {problem}" for problem in schema.validate()]
+        if isinstance(schema, Schemas.OfObject.Data):
+            self.problems += [f"schema {label}: {problem}" for problem in _counted_owners(self._store, schema)]
 
     def object(self, label: str, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> None:
         self._schema(repr(schema.name), schema)

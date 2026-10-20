@@ -36,10 +36,8 @@ from typing import Any
 import contextlib
 import itertools
 import math
-import re
 
 from . import Schemas, Stores
-from .Schemas import _name_for, _number_of
 from .Errors import ReadOnlyError
 from .Visitors import Scalar
 
@@ -52,6 +50,8 @@ VALUE_KINDS = (*RECORD_KINDS, Schemas.OfContainer.Data)
 SCALARS = (int, float, str, bool, bytes)
 
 
+_SERIALS = itertools.count(1)  # proxies' serial numbers, in the order made
+
 # --- Stores ---
 
 
@@ -62,9 +62,9 @@ class _Store(Stores.Catalog):
 
     def __init__(self) -> None:
         super().__init__()
-        self._directories: dict[str, _Directory] = {}
         self._building = 0  # how deep in builders a write is: ownership is settled when the outermost one ends
         self._unowned: list[_ObjectData] = []  # objects created since, whose schemas declare an owner
+        self._orphaned: list[_ObjectData] = []  # owned objects an owning entry of which was removed since
         self._keys: dict[tuple[int, int, str], int] = {}  # the last number a key's pattern gave, by relation, owner, key
 
     @contextlib.contextmanager
@@ -73,10 +73,16 @@ class _Store(Stores.Catalog):
         self._building += 1
         try:
             yield
+        except BaseException:
+            if self._building == 1:  # a refused write: what it left pending is not the next one's to settle
+                self._unowned.clear()
+                self._orphaned.clear()
+            raise
         finally:
             self._building -= 1
-        if self._building == 0 and self._unowned:
+        if self._building == 0 and (self._unowned or self._orphaned):
             self._settle_owners()
+            self._delete_orphans()
 
     def _settle_owners(self) -> None:
         """Gives each object created without an owner, whose schema declares one, the one owner possible: the singleton
@@ -103,6 +109,18 @@ class _Store(Stores.Catalog):
                     for name in _key_names(adjacency.relation, link, adjacency.me)}
             _add_entry(adjacency.relation, _Entry(adjacency.relation, {link: owner, adjacency.me: target}, keys))
 
+    def _delete_orphans(self) -> None:
+        """Deletes each owned object whose owning entry was removed and not added again, and in cascade what it owns
+        (docs/OBJECT_IDENTITY.md, Decided, 48): every entry linking it is removed, so that nothing reaches it."""
+        deleted: set[int] = set()
+        while self._orphaned:
+            target = self._orphaned.pop()
+            if id(target) in deleted or _owner_entries(target):
+                continue
+            deleted.add(id(target))
+            for relation_id, table in list(object.__getattribute__(target, "_adjacent").items()):
+                _discard(relation_id, list(table.values()))
+
     def _next_key(self, relation: RelationSchema, owner: Any, name: str, link: str, owned: str) -> str:
         """The next value a key's naming pattern gives among the entries of `relation` its owner holds: strictly
         increasing, past every number held."""
@@ -122,7 +140,7 @@ class _Store(Stores.Catalog):
             raise ValueError(f"singleton {global_name!r} is already registered")
         super()._register(schema)
         if global_name is not None:
-            self._singletons[global_name] = self._enter(schema.name, _ObjectData(self, schema, schema.name, global_name))
+            self._singletons[global_name] = _ObjectData(self, schema, schema.name)
 
     def builder(self, name: str, instance: Any = None) -> Any:
         """A builder of an object of the schema registered as `name`; for a value object, union, intersection or
@@ -131,34 +149,6 @@ class _Store(Stores.Catalog):
         if isinstance(registered, VALUE_KINDS) and not getattr(registered, "ref", False):
             return _standalone(registered, instance, self)
         return _ObjectBuilder(self, self.schema(name), name, instance)
-
-    def restore(self, name: str, identity: str) -> _ObjectBuilder:
-        """For decoders: a builder whose `create()` gives the object the identity a snapshot names, whether or not the
-        schema's naming pattern gives it (decoding checks that). A program writes no identity (docs/OBJECT_IDENTITY.md,
-        Decided, 16)."""
-        builder = _ObjectBuilder(self, self.schema(name), name)
-        builder._identity = identity
-        return builder
-
-    def _directory(self, name: str) -> _Directory:
-        return self._directories.setdefault(name, _Directory())
-
-    def _issue(self, schema: ObjectSchema, name: str) -> str:
-        """A new key for an object of `schema` among its schema's (`Schemas.HasInstance`): the next name its naming
-        pattern gives in this store, else its local name lowercased, a dash and the next number, `contact-1`
-        (docs/OBJECT_IDENTITY.md, Decided, 34)."""
-        directory = self._directory(name)
-        directory.issued += 1
-        return _name_for(_naming_of(schema, name), directory.issued)
-
-    def _enter(self, name: str, target: _ObjectData) -> _ObjectData:
-        """Enters an object in its schema's directory, which a name its naming pattern gives advances."""
-        directory = self._directory(name)
-        if target._identity in directory.live:
-            raise ValueError(f"a {name!r} with the identity {target._identity!r} is already live; update it")
-        directory.live[target._identity] = target
-        directory.issued = max(directory.issued, _number_of(_naming_of(target._schema, name), target._identity) or 0)
-        return target
 
     def member(self, instance: Any, name: str) -> Any:
         """The value an instance or value object holds in its property `name`."""
@@ -173,11 +163,35 @@ class _Store(Stores.Catalog):
 
 
 def _key_of(visitor: Any) -> Any:
-    """What tells a reference object apart within its schema, hashable: a proxy's key among its schema's objects, or a
-    schema object's identity."""
+    """What tells a reference object apart in memory, hashable: a proxy's serial number, or a schema object's identity."""
     if isinstance(visitor, _LinkMember):
         visitor = visitor._target()
-    return object.__getattribute__(visitor, "_identity") if isinstance(visitor, _ObjectData) else visitor.as_identity()
+    return object.__getattribute__(visitor, "_serial") if isinstance(visitor, _ObjectData) else visitor.as_identity()
+
+
+def _owner_adjacencies(schema: ObjectSchema) -> list[Schemas.OfAdjacency.Data]:
+    """A schema's adjacencies marked `owner()`: an object of it is owned; a non-singleton without them is counted."""
+    return [a for a in (*schema.adjacencies.values(), *schema.anonymous) if a.owner]
+
+
+def _counted(target: Any) -> bool:
+    """Whether a proxy is a counted object: neither a singleton nor owned (docs/OBJECT_IDENTITY.md, Decided, 37)."""
+    schema = object.__getattribute__(target, "_schema")
+    return schema.singleton is None and not _owner_adjacencies(schema)
+
+
+def _owner_entries(target: Any) -> list[_Entry]:
+    """The entries that own a proxy, through its schema's adjacencies marked `owner()`."""
+    return [entry for a in _owner_adjacencies(object.__getattribute__(target, "_schema"))
+            for entry in _linking(a.relation, a.me, target)]
+
+
+def _owned_links(entry: _Entry) -> list[tuple[str, Any]]:
+    """The links of an entry whose objects it owns: each linked proxy whose schema's adjacency marked `owner()` is the
+    entry's relation through that link."""
+    return [(link, target) for link, target in entry._links.items() if isinstance(target, _ObjectData)
+            and any(a.relation is entry._relation and a.me == link
+                    for a in _owner_adjacencies(object.__getattribute__(target, "_schema")))]
 
 
 def _key_names(relation: RelationSchema, owner: str, owned: str) -> list[str]:
@@ -185,21 +199,6 @@ def _key_names(relation: RelationSchema, owner: str, owned: str) -> list[str]:
     them, in declaration order."""
     clause = next(clause for clause in relation.uniques if owner in clause and owned not in clause)
     return [name for name in relation.entry.properties if name in clause]
-
-
-def _naming_of(schema: ObjectSchema, name: str) -> str:
-    """The naming pattern of a schema's keys: its own, else its local name lowercased, a dash and a number."""
-    return schema.pattern if schema.pattern is not None else re.escape(name.rsplit(".", 1)[-1].lower()) + r"-(\d+)"
-
-
-class _Directory:
-    """One schema's objects in a store, by their keys: the entries of `Schemas.HasInstance` that own them, so held as
-    long as the store is (docs/OBJECT_IDENTITY.md, Decided, 31); and the last number its naming pattern gave, which only
-    increases."""
-
-    def __init__(self) -> None:
-        self.issued = 0
-        self.live: dict[str, _ObjectData] = {}
 
 
 def _store_of(value: Any) -> _Store | None:
@@ -311,7 +310,14 @@ def _entry_store(entry: _Entry, store: Any = None) -> Any:
 
 
 def _add_entry(relation: RelationSchema, entry: _Entry, store: Any = None) -> None:
-    """Adds `entry` to every object it links, unless the relation holds a set and an equal entry is there already."""
+    """Adds `entry` to every object it links, unless the relation holds a set and an equal entry is there already. An
+    entry that would make a counted object an owner is refused: nothing is owned by a counted object
+    (docs/OBJECT_IDENTITY.md, Decided, 47)."""
+    for link, owned in _owned_links(entry):
+        for other, owner in entry._links.items():
+            if other != link and isinstance(owner, _ObjectData) and _counted(owner):
+                raise ValueError(f"a {owned._schema_name!r} cannot be owned by a counted {owner._schema_name!r}: "
+                                 "nothing is owned by a counted object")
     key, store = entry._key(), _entry_store(entry, store)
     if key in _table(next(iter(entry._links.values())), id(relation), store):
         return
@@ -325,10 +331,14 @@ def _linking(relation: RelationSchema, link: str, target: Any, store: Any = None
 
 
 def _discard(relation_id: int, entries: list[_Entry], store: Any = None) -> None:
+    """Removes entries from every object they link; an owned object an owning entry of which goes is noted, to be deleted
+    when the outermost write ends unless it is owned again by then."""
     for entry in entries:
         key, held = entry._key(), _entry_store(entry, store)
         for target in entry._links.values():
             _table(target, relation_id, held).pop(key, None)
+        for _, owned in _owned_links(entry):
+            object.__getattribute__(owned, "_store")._orphaned.append(owned)
 
 
 def _discard_linking(relation: RelationSchema, link: str, target: Any) -> None:
@@ -496,11 +506,6 @@ class _Empty(_Dunders):
 
     def as_schema(self) -> None:
         return None  # it visits nothing: no value, so no schema
-
-    def as_identity(self, identity: str | None = None) -> None:
-        if identity is not None:
-            self._refuse()
-        return None
 
     def get(self) -> None:
         return None
@@ -1251,10 +1256,10 @@ def _kind_visitor(values: dict[str, Any], name: str, schema: Any, store: _Store 
 class _ObjectData:
     """A proxy instance: a read-only `Visitors.OfObject`, whose properties and adjacencies are members."""
 
-    __slots__ = ("_store", "_schema", "_schema_name", "_identity", "_values", "_adjacent", "__weakref__")
+    __slots__ = ("_store", "_schema", "_schema_name", "_serial", "_values", "_adjacent", "__weakref__")
 
-    def __init__(self, store: _Store, schema: ObjectSchema, schema_name: str, identity: str):
-        object.__setattr__(self, "_identity", identity)
+    def __init__(self, store: _Store, schema: ObjectSchema, schema_name: str):
+        object.__setattr__(self, "_serial", next(_SERIALS))  # tells it apart in memory; never written
         object.__setattr__(self, "_adjacent", {})
         object.__setattr__(self, "_store", store)
         object.__setattr__(self, "_schema", schema)
@@ -1277,15 +1282,6 @@ class _ObjectData:
 
     def as_schema(self) -> ObjectSchema:
         return self._schema
-
-    def as_identity(self, identity: str | None = None) -> Any:
-        """Its identity: its path, a `Paths.OfRoot` value read off its ownership entries on demand (docs/OBJECT_IDENTITY.md,
-        Decided, 32 and 35)."""
-        if identity is not None:
-            raise ReadOnlyError("a data instance is read-only; write through a builder")
-        from . import Paths
-
-        return Paths.of(self)
 
     @property
     def as_properties(self) -> _Properties:
@@ -1326,11 +1322,6 @@ class _RecordData:
 
     def as_schema(self) -> Any:
         return self._schema
-
-    def as_identity(self, identity: str | None = None) -> None:
-        if identity is not None:
-            raise TypeError("a value object has no identity of its own")
-        return None
 
     @property
     def as_properties(self) -> _Properties:
@@ -1683,11 +1674,6 @@ class _RecordBuilder(_Unassignable):
     def as_schema(self) -> Any:
         return self._schema
 
-    def as_identity(self, identity: str | None = None) -> None:
-        if identity is not None:
-            raise TypeError("a value object has no identity of its own")
-        return None
-
     @property
     def as_properties(self) -> _Properties:
         return _properties_of(self, self._values, self._schema, self._store, True, self._touch)
@@ -1891,9 +1877,6 @@ class _LinkMember(_Unassignable):
     def as_schema(self) -> Any:
         return self._target().as_schema()
 
-    def as_identity(self, identity: str | None = None) -> str | None:
-        return self._target().as_identity(identity)
-
     @property
     def as_properties(self) -> Any:
         return self._target().as_properties
@@ -2009,7 +1992,6 @@ class _ObjectBuilder(_Unassignable):
             raise TypeError(f"{schema_name!r} is a value object schema; build a value through its owner, or standalone "
                             "through the store")
         self._store, self._schema, self._schema_name, self._source = store, schema, schema_name, instance
-        self._identity: str | None = None  # the identity written (`as_identity`), or a decoder restores
         self._values: dict[str, Any] = {}
         self._entries: dict[str, list[_EntryBuilder]] = {}
         if instance is not None:
@@ -2023,14 +2005,6 @@ class _ObjectBuilder(_Unassignable):
 
     def as_schema(self) -> ObjectSchema:
         return self._schema
-
-    def as_identity(self, identity: Any = None) -> Any:
-        """Read, the identity of the object it builds from: its path; None for a new object, which has none until it is
-        created and owned. An identity is not written: it is the object's path, read off its ownership
-        (docs/OBJECT_IDENTITY.md, Decided, 16 and 32)."""
-        if identity is not None:
-            raise ReadOnlyError("an identity is read-only: it is the object's path, read off its ownership")
-        return None if self._source is None else self._source.as_identity()
 
     @property
     def as_properties(self) -> _Properties:
@@ -2058,31 +2032,31 @@ class _ObjectBuilder(_Unassignable):
             raise ValueError("create() is only valid without a source instance; use clone() or update()")
         self._not_singleton("create")
         with self._store._writing():
-            return self._write(self._new(self._identity or self._store._issue(self._schema, self._schema_name)))
+            return self._write(self._new())
 
     def clone(self) -> _ObjectData:
         if self._source is None:
             raise ValueError("clone() is only valid with a source instance")
         self._not_singleton("clone")
         with self._store._writing():
-            return self._write(self._new(self._identity or self._store._issue(self._schema, self._schema_name)))
+            return self._write(self._new())
 
-    def _new(self, identity: str) -> _ObjectData:
-        """A new object of the builder's schema, entered in its directory under `identity`; one whose schema declares an
-        owner is given it when the outermost write ends, unless it has one by then."""
-        target = self._store._enter(self._schema_name, _ObjectData(self._store, self._schema, self._schema_name, identity))
-        if any(a.owner for a in (*self._schema.adjacencies.values(), *self._schema.anonymous)):
+    def _new(self) -> _ObjectData:
+        """A new object of the builder's schema; one whose schema declares an owner is given it when the outermost write
+        ends, unless it has one by then."""
+        target = _ObjectData(self._store, self._schema, self._schema_name)
+        if _owner_adjacencies(self._schema):
             self._store._unowned.append(target)
         return target
 
     def update(self) -> _ObjectData:
         if self._source is None:
             raise ValueError("update() is only valid with a source instance")
-        orders = _orders(self._schema, self._source)
-        for adjacency in self._schema.adjacencies.values():
-            _discard_linking(adjacency.relation, adjacency.me, self._source)
         rewritten: dict[int, _Entry] = {}
-        with self._store._writing():
+        with self._store._writing():  # an owned object whose entry is written again is not orphaned
+            orders = _orders(self._schema, self._source)
+            for adjacency in self._schema.adjacencies.values():
+                _discard_linking(adjacency.relation, adjacency.me, self._source)
             written = self._write(self._source, rewritten)
             _reorder(orders, rewritten)
         return written

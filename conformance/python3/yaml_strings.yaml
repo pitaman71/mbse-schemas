@@ -4,11 +4,37 @@
       properties: {}
 - exists:
     definition:
+      key: Schemas.OfModule/Corpus
+      properties:
+        name: Corpus
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfModule/.
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfModule/Corpus
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Corpus
+- exists:
+    definition:
       key: Schemas.OfObject/Notebook
       properties:
         name: Notebook
         ref: true
-        pattern: notebook-(\d+)
 - exists:
     definition:
       key: Schemas.OfAdjacency/Notebook.notes
@@ -107,7 +133,6 @@
       properties:
         name: Note
         ref: true
-        pattern: note-(\d+)
 - exists:
     definition:
       key: Schemas.OfAdjacency/Note.notebooks
@@ -350,3914 +375,489 @@
               value: Pages
 - exists:
     definition:
+      key: Schemas.OfRelation/Corpus.Holds
+      properties:
+        name: Corpus.Holds
+- exists:
+    definition:
+      key: Schemas.OfSymbol/Corpus.Holds.corpus
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.OfSymbol/Corpus.Holds.item
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.HasLink
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfRelation/Corpus.Holds
+      - as_link:
+          name: link
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfSymbol/Corpus.Holds.corpus
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: corpus
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfRelation/Corpus.Holds
+      - as_link:
+          name: link
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfSymbol/Corpus.Holds.item
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: item
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfModule/Corpus
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfRelation/Corpus.Holds
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Holds
+- exists:
+    definition:
+      key: Schemas.OfObject/Corpus.Root
+      properties:
+        name: Corpus.Root
+        ref: true
+        singleton: corpus
+- exists:
+    definition:
+      key: Schemas.OfAdjacency/Corpus.Root.holds
+      properties:
+        me: corpus
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.Relating
+    entries:
+    - mutations:
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfAdjacency/Corpus.Root.holds
+      - as_link:
+          name: relation
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfRelation/Corpus.Holds
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.HasAdjacency
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfObject/Corpus.Root
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfAdjacency/Corpus.Root.holds
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: holds
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfModule/Corpus
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfObject/Corpus.Root
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Root
+- exists:
+    definition:
       path:
-        singleton: '.'
+        singleton: corpus
         next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Notebook
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: notebook-1
-                next:
-                  target: {}
+          target: {}
+      schema: Corpus.Root
+      properties: {}
+- exists:
+    definition:
+      'n': 0
       schema: Notebook
       properties:
         title: tricky
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-1
-                next:
-                  target: {}
+      'n': 1
       schema: Note
       properties:
         text: 'yes'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-1
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 0
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-2
-                next:
-                  target: {}
+      'n': 2
       schema: Note
       properties:
         text: 'No'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-2
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 1
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-3
-                next:
-                  target: {}
+      'n': 3
       schema: Note
       properties:
         text: 'on'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-3
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 2
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-4
-                next:
-                  target: {}
+      'n': 4
       schema: Note
       properties:
         text: 'OFF'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-4
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 3
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-5
-                next:
-                  target: {}
+      'n': 5
       schema: Note
       properties:
         text: 'y'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-5
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 4
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-6
-                next:
-                  target: {}
+      'n': 6
       schema: Note
       properties:
         text: 'true'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-6
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 5
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-7
-                next:
-                  target: {}
+      'n': 7
       schema: Note
       properties:
         text: 'null'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-7
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 6
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-8
-                next:
-                  target: {}
+      'n': 8
       schema: Note
       properties:
         text: '~'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-8
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 7
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-9
-                next:
-                  target: {}
+      'n': 9
       schema: Note
       properties:
         text: ''
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-9
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 8
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-10
-                next:
-                  target: {}
+      'n': 10
       schema: Note
       properties:
         text: '010'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-10
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 9
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-11
-                next:
-                  target: {}
+      'n': 11
       schema: Note
       properties:
         text: '0o17'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-11
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 10
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-12
-                next:
-                  target: {}
+      'n': 12
       schema: Note
       properties:
         text: '0x1F'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-12
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 11
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-13
-                next:
-                  target: {}
+      'n': 13
       schema: Note
       properties:
         text: '1e3'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-13
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 12
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-14
-                next:
-                  target: {}
+      'n': 14
       schema: Note
       properties:
         text: '1_000'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-14
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 13
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-15
-                next:
-                  target: {}
+      'n': 15
       schema: Note
       properties:
         text: '1:30'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-15
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 14
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-16
-                next:
-                  target: {}
+      'n': 16
       schema: Note
       properties:
         text: '2026-09-01'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-16
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 15
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-17
-                next:
-                  target: {}
+      'n': 17
       schema: Note
       properties:
         text: '.inf'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-17
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 16
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-18
-                next:
-                  target: {}
+      'n': 18
       schema: Note
       properties:
         text: '.nan'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-18
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 17
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-19
-                next:
-                  target: {}
+      'n': 19
       schema: Note
       properties:
         text: NaN
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-19
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 18
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-20
-                next:
-                  target: {}
+      'n': 20
       schema: Note
       properties:
         text: Infinity
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-20
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 19
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-21
-                next:
-                  target: {}
+      'n': 21
       schema: Note
       properties:
         text: '-0.0'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-21
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 20
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-22
-                next:
-                  target: {}
+      'n': 22
       schema: Note
       properties:
         text: '+1'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-22
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 21
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-23
-                next:
-                  target: {}
+      'n': 23
       schema: Note
       properties:
         text: ' lead'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-23
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 22
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-24
-                next:
-                  target: {}
+      'n': 24
       schema: Note
       properties:
         text: 'trail '
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-24
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 23
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-25
-                next:
-                  target: {}
+      'n': 25
       schema: Note
       properties:
         text: 'a: b'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-25
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 24
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-26
-                next:
-                  target: {}
+      'n': 26
       schema: Note
       properties:
         text: '- dash'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-26
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 25
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-27
-                next:
-                  target: {}
+      'n': 27
       schema: Note
       properties:
         text: '#hash'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-27
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 26
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-28
-                next:
-                  target: {}
+      'n': 28
       schema: Note
       properties:
         text: 'x #y'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-28
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 27
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-29
-                next:
-                  target: {}
+      'n': 29
       schema: Note
       properties:
         text: '"dq"'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-29
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 28
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-30
-                next:
-                  target: {}
+      'n': 30
       schema: Note
       properties:
         text: '''sq'''
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-30
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 29
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-31
-                next:
-                  target: {}
+      'n': 31
       schema: Note
       properties:
         text: '@at'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-31
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 30
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-32
-                next:
-                  target: {}
+      'n': 32
       schema: Note
       properties:
         text: '`tick'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-32
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 31
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-33
-                next:
-                  target: {}
+      'n': 33
       schema: Note
       properties:
         text: '%pct'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-33
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 32
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-34
-                next:
-                  target: {}
+      'n': 34
       schema: Note
       properties:
         text: '!bang'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-34
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 33
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-35
-                next:
-                  target: {}
+      'n': 35
       schema: Note
       properties:
         text: '&amp'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-35
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 34
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-36
-                next:
-                  target: {}
+      'n': 36
       schema: Note
       properties:
         text: '*star'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-36
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 35
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-37
-                next:
-                  target: {}
+      'n': 37
       schema: Note
       properties:
         text: '|'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-37
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 36
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-38
-                next:
-                  target: {}
+      'n': 38
       schema: Note
       properties:
         text: '>'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-38
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 37
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-39
-                next:
-                  target: {}
+      'n': 39
       schema: Note
       properties:
         text: '{}'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-39
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 38
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-40
-                next:
-                  target: {}
+      'n': 40
       schema: Note
       properties:
         text: '[]'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-40
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 39
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-41
-                next:
-                  target: {}
+      'n': 41
       schema: Note
       properties:
         text: ','
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-41
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 40
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-42
-                next:
-                  target: {}
+      'n': 42
       schema: Note
       properties:
         text: '?'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-42
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 41
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-43
-                next:
-                  target: {}
+      'n': 43
       schema: Note
       properties:
         text: '<<'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-43
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 42
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-44
-                next:
-                  target: {}
+      'n': 44
       schema: Note
       properties:
         text: '---'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-44
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 43
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-45
-                next:
-                  target: {}
+      'n': 45
       schema: Note
       properties:
         text: '...'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-45
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 44
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-46
-                next:
-                  target: {}
+      'n': 46
       schema: Note
       properties:
         text: 'a
 
           b'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-46
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 45
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-47
-                next:
-                  target: {}
+      'n': 47
       schema: Note
       properties:
         text: "\t"
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-47
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 46
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-48
-                next:
-                  target: {}
+      'n': 48
       schema: Note
       properties:
         text: "\0"
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-48
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 47
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-49
-                next:
-                  target: {}
+      'n': 49
       schema: Note
       properties:
         text: "\a\x7F\x9B"
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-49
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 48
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-50
-                next:
-                  target: {}
+      'n': 50
       schema: Note
       properties:
         text: "\uFEFFbom"
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-50
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 49
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-51
-                next:
-                  target: {}
+      'n': 51
       schema: Note
       properties:
         text: "a\Nb"
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-51
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 50
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-52
-                next:
-                  target: {}
+      'n': 52
       schema: Note
       properties:
         text: a b
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-52
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 51
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-53
-                next:
-                  target: {}
+      'n': 53
       schema: Note
       properties:
         text: 日本語 🚀
-- insert:
-    relation:
-      key: Schemas.OfRelation/Pages
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-53
-                          next:
-                            target: {}
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 52
 - exists:
     definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: note-54
-                next:
-                  target: {}
+      'n': 54
       schema: Note
       properties:
         text: 'word word word word word word word word word word word word word word
@@ -4273,45 +873,1853 @@
           mutations:
           - set:
               ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: notebook-1
-                          next:
-                            target: {}
+                'n': 0
       - as_link:
           name: note
           mutations:
           - set:
               ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: instances
-                          o: ''
-                          properties:
-                            name: note-54
-                          next:
-                            target: {}
+                'n': 1
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 0
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 2
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 1
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 3
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 2
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 4
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 3
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 5
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 4
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 6
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 5
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 7
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 6
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 8
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 7
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 9
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 8
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 10
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 9
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 11
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 10
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 12
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 11
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 13
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 12
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 14
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 13
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 15
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 14
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 16
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 15
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 17
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 16
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 18
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 17
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 19
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 18
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 20
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 19
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 21
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 20
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 22
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 21
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 23
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 22
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 24
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 23
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 25
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 24
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 26
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 25
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 27
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 26
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 28
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 27
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 29
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 28
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 30
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 29
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 31
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 30
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 32
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 31
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 33
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 32
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 34
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 33
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 35
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 34
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 36
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 35
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 37
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 36
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 38
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 37
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 39
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 38
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 40
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 39
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 41
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 40
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 42
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 41
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 43
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 42
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 44
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 43
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 45
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 44
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 46
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 45
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 47
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 46
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 48
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 47
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 49
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 48
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 50
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 49
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 51
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 50
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 52
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 51
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 53
+      - as_property:
+          name: page
+          mutations:
+          - set:
+              value: 52
+    - mutations:
+      - as_link:
+          name: notebook
+          mutations:
+          - set:
+              ref:
+                'n': 0
+      - as_link:
+          name: note
+          mutations:
+          - set:
+              ref:
+                'n': 54
       - as_property:
           name: page
           mutations:
           - set:
               value: 53
+- insert:
+    relation:
+      key: Schemas.OfRelation/Corpus.Holds
+    entries:
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 0
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 1
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 2
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 3
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 4
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 5
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 6
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 7
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 8
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 9
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 10
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 11
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 12
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 13
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 14
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 15
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 16
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 17
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 18
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 19
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 20
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 21
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 22
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 23
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 24
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 25
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 26
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 27
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 28
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 29
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 30
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 31
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 32
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 33
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 34
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 35
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 36
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 37
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 38
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 39
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 40
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 41
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 42
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 43
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 44
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 45
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 46
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 47
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 48
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 49
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 50
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 51
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 52
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 53
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 54

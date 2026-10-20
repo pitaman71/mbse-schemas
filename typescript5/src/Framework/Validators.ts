@@ -13,6 +13,8 @@
  * - the schemas involved pass `validate()`;
  * - each property value has exactly its schema's scalar type (distinct scalars are never interchangeable);
  * - each linked object's schema declares an adjacency to that relation via that link;
+ * - nothing is owned by a counted object: a schema neither a singleton nor owned declares no adjacency that another
+ *   schema's adjacency marked `owner()` makes an owner (docs/OBJECT_IDENTITY.md, Decided, 47);
  * - `unique(S)` clauses hold over the entries seen: entries that agree on everything outside `S` agree on `S`.
  *   Uniqueness is checked only over the entries reachable from what was validated.
  * - a value object's properties hold values of their schemas, recursively;
@@ -142,6 +144,27 @@ function filling(relation: Schemas.OfRelation.Data, name: string, schema: Schema
   return `a ${repr(schema.name)} cannot fill link ${repr(name)}; its schema declares no adjacency, named or anonymous, to this relation via ${repr(name)}`;
 }
 
+/** The adjacencies of a counted schema, neither a singleton nor owned, through which it would own an object of a schema
+ * whose adjacency marked `owner()` is the other end: nothing is owned by a counted object (docs/OBJECT_IDENTITY.md,
+ * Decided, 47). */
+function countedOwners(store: Stores.Store, schema: Schemas.OfObject.Data): string[] {
+  const adjacencies = [...schema.adjacencies.values(), ...schema.anonymous];
+  if (schema.singleton !== null || adjacencies.some((a) => a.owner)) return [];
+  const problems: string[] = [];
+  for (const adjacency of adjacencies) {
+    for (const name of store.names()) {
+      const owned = store.registered(name);
+      if (owned instanceof Schemas.OfObject.Data && [...owned.adjacencies.values(), ...owned.anonymous]
+        .some((a) => a.owner && a.relation === adjacency.relation && a.me !== adjacency.me)) {
+        problems.push(`adjacency ${repr(adjacency.name || (adjacency.relation as Schemas.OfRelation.Data).name)} would own a `
+          + `${repr(name)}, through its adjacency marked owner(): nothing is owned by a counted object, which a `
+          + `${repr(schema.name)} is`);
+      }
+    }
+  }
+  return problems;
+}
+
 const ABSENT = "absent";
 
 /** Equality key per EQUALITY.md, of a value read as `propertyValue` reads it: distinct scalars never compare
@@ -199,6 +222,9 @@ class Checker {
     if (this.schemasChecked.has(schema)) return;
     this.schemasChecked.add(schema);
     this.problems.push(...schema.validate().map((problem) => `schema ${label}: ${problem}`));
+    if (schema instanceof Schemas.OfObject.Data) {
+      this.problems.push(...countedOwners(this.store, schema).map((problem) => `schema ${label}: ${problem}`));
+    }
   }
 
   object(label: string, schema: Schemas.OfObject.Data, value: Readers.OfObject): void {

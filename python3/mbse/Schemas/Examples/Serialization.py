@@ -107,10 +107,9 @@ back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty))
 assert (back.label.get(), back.payload.get(), back.count.get(), back.ratio.get()) == ('', b'', 0, 0.0)
 assert back.flag.get() is None  # never set, so absent
 
-# An object with nothing set serializes to empty properties, listed with its path and its schema's name.
+# An object with nothing set serializes to empty properties, listed with its number and its schema's name.
 blank = store.Sample(lambda s: s)
-path = Plain.ToPlain(store)(store.Paths.OfRoot.as_schema(), blank.as_identity())
-assert Plain.ToPlain(store)(Sample, blank) == {'root': path, 'objects': [{'path': path, 'schema': 'Sample', 'properties': {}}]}
+assert Plain.ToPlain(store)(Sample, blank) == {'root': {'n': 0}, 'objects': [{'n': 0, 'schema': 'Sample', 'properties': {}}]}
 
 # Per-kind entry points.
 assert Plain.ToPlain(store)(store.Schemas.OfBytes.as_schema(), b'\x01') == Plain.ToPlain(store).OfScalar(store.Schemas.OfBytes.as_schema(), b'\x01') == 'AQ=='
@@ -180,9 +179,9 @@ good = Plain.ToPlain(store).Reachable(Product, widget)
 root = good['root']
 
 
-def listed(snapshot, path):
-    """The object a snapshot lists at `path`."""
-    return next(o for o in snapshot['objects'] if o['path'] == path)
+def listed(snapshot, call):
+    """The object a snapshot lists as `call`: its path, or a counted object's number."""
+    return next(o for o in snapshot['objects'] if (o['path'] if 'path' in o else {'n': o['n']}) == call)
 
 
 price_ref = listed(good, root)['properties']['prices'][0]['price']
@@ -197,9 +196,9 @@ def mutated(change):
 bad_snapshots = [
     [],  # not a snapshot
     {'root': root},  # no objects
-    {'root': {'singleton': 'nope', 'next': {'target': {}}}, 'objects': good['objects']},  # root not in objects
+    {'root': {'n': 99}, 'objects': good['objects']},  # root not in objects
     mutated(lambda s: s['objects'].remove(listed(s, price_ref['$ref']))),  # unresolved reference
-    mutated(lambda s: listed(s, price_ref['$ref']).update(schema='Product')),  # its path is not its schema's
+    mutated(lambda s: listed(s, price_ref['$ref']).update(schema='Product')),  # its properties are not its schema's
     mutated(lambda s: s['objects'].append(listed(s, root))),  # an object listed twice
     mutated(lambda s: listed(s, root)['properties'].__setitem__('colour', 'red')),  # not a property or adjacency
     mutated(lambda s: listed(s, root)['properties']['prices'][0].__setitem__('discount', 5)),  # not a link or property

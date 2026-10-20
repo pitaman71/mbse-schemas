@@ -46,7 +46,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length`, the read-only views by the type checker; data instances are callable as a `Proxy` with a function target (`typeof` is `"function"`); the scalar sugar is `[Symbol.toPrimitive]` and `valueOf`; JavaScript's probes and `in` on a builder |
 | `03_Proxies.ipynb` | PRX | 21 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances, adjacencies, entry builders, link members and stores, `util.inspect` of instances, builders and members, the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel), and the reprs of builders of value objects and adjacencies |
 | `04_Reachable.ipynb` | RCH | 8 | as in Python |
-| `05_Plain.ipynb` | PLN | 18 | as in Python; the same 26 malformed snapshots with byte-identical `DecodeError` paths and reasons |
+| `05_Plain.ipynb` | PLN | 18 | as in Python; the same 32 malformed snapshots with byte-identical `DecodeError` paths and reasons |
 | `06_JSON.ipynb` | JSN | 11 | as in Python, including Python's exact output format; the 62-row JSN-09 table of `DecodeError`s is shared verbatim and matches exactly |
 | `07_YAML.ipynb` | YML | 14 | as in Python; the `yaml` package in YAML 1.1 mode is the "stock 1.1 reader"; the shared YML-06 table matches exactly, syntax errors (YML-06b) carry the `yaml` package's reasons |
 | `08_Validators.ipynb` | VAL | 16 | as in Python, with byte-identical problem messages |
@@ -57,7 +57,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `13_Comparison.ipynb` | CMP | 13 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
 | `14_Embedded.ipynb` | EMB | 12 | as in Python; the runtime's own probes (`then`, symbols) are not members, and `in` on a value object says what its schema declares, and on a property whose value has one kind its members |
 | `15_Skill.ipynb` | SKL | 3 | as in Python; the skill's complete TypeScript program is type-checked with `--strict` before it runs |
-| `20_Stores.ipynb` | STO | 8 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), STO-05 builds its unplaced value object through `Proxies._internals`, and STO-07 runs the garbage collector (`gc()`, the suites running with `--expose-gc`), then awaits the store's forgetting |
+| `20_Stores.ipynb` | STO | 8 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), and STO-05 builds its unplaced value object through `Proxies._internals` |
 | `21_Random.ipynb` | RND | 3 | as in Python; PCG32 computes on `bigint`s, and the UTF-8 bytes of keys are encoded without `TextEncoder` |
 | `22_Parametrics.ipynb` | PAR | 2 | as in Python |
 | `23_Containers.ipynb` | CNT | 7 | as in Python; an index of several ints is an array, `[1n, 2n]`, not a tuple; a container's size is `length`, not `len()`; the writer's option is `ToPlain(store, { flat: true })` |

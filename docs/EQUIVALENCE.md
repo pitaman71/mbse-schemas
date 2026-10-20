@@ -14,7 +14,7 @@
    Only the unavoidable language mechanics differ (see below).
 2. **Same behavior.** The same results, the same error classes, and byte-identical error and validation messages.
 3. **Same data on the wire.** For the same objects built the same way, JSON output is byte-identical: the same keys
-   (paths, their keys given by naming patterns, or by schemas' names and numbers, in either language), key order, float
+   (paths, their keys given by naming patterns, and counted objects' numbers, in either language), key order, float
    formatting, escapes and whitespace. YAML output may be formatted differently but reads
    back to the same values, in either implementation and under a YAML 1.1 reader.
 4. **Interchangeable data.** Each implementation reads the other's JSON and YAML back into the same graphs, which
@@ -114,7 +114,7 @@ noticed.
 | A random source | `Stores.PCG32(42)`; `next_u32()` gives an `int` | `new Stores.PCG32(42n)`; `next_u32()` gives a `bigint` | integers are `bigint`s | RND-01..03 |
 | Objects no singleton reaches (Stores) | STO-02 checks, once garbage is collected, that its schema still holds an object the program dropped | checked without collecting | JavaScript has no deterministic collection to observe; its schema holds it in both | STO-02 |
 | Name collisions (F2) | names starting with `_` and a builder's own methods (`create`, `clone`, `update`) are never members | the same, and a declared name wins over JavaScript's own members (`toString`, ...) | `Object.prototype` names every object | PRX-04 |
-| Lookup by keys | `adjacency({"name": ...})` and `store.Instances.<name>({"name": ...})` take any mapping | an object literal, `{ name: ... }` | an object literal is JavaScript's mapping literal | IDN-06 |
+| Lookup by keys | `adjacency({"name": ...})` takes any mapping | an object literal, `{ name: ... }` | an object literal is JavaScript's mapping literal | IDN-06 |
 | Lone surrogate encoded as UTF-8 | raises | replaced with U+FFFD | `TextEncoder` behavior | JSN-06 |
 | YAML formatting | PyYAML's layout | own block emitter; no line folding, no `...` after a top-level scalar | values are what must match | YML-04, YML-08, CONF-03 |
 | YAML dependency | optional extra, imported on first use | regular dependency | npm has no optional extras in the same sense | YML-11 |

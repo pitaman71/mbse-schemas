@@ -92,11 +92,6 @@ export interface Store {
   /** Whether the store was made holding `schema` (a `Builders.Store`'s plain schemas, basic scalars and mutation
    * schemas): a name each store holds its own schema under. */
   framework(schema: unknown): boolean;
-  /** For decoders: a builder for the object schema `name` whose `create()` gives the object the key among its
-   * schema's objects a snapshot's path names. A program writes no identity: it is the object's path
-   * (docs/OBJECT_IDENTITY.md, Decided, 16). */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  restore(name: string, identity: string): any;
   /** The value `instance` holds in its property `name`, e.g. a value object or a union's branch. */
   member(instance: unknown, name: string): unknown;
   /** The one instance of the singleton schema whose global name is `name`; `LookupError` if there is none. */
@@ -233,11 +228,6 @@ export class Combined implements Store {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   builder(name: string, instance?: unknown): any {
     return this.owner(name, AttributeError).builder(name, instance);
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  restore(name: string, identity: string): any {
-    return this.owner(name, AttributeError).restore(name, identity);
   }
 
   member(instance: unknown, name: string): unknown {

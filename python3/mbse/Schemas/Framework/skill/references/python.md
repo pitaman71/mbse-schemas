@@ -77,7 +77,7 @@ Board = store.Schemas.OfObject(lambda o: (
 # Data is built the same way: a callback creates, an object and a callback update, an object alone clones. Builders
 # and data instances implement the visitor protocol: members named after the schema's names.
 irq = store.Port(lambda p: p.name("irq").signal(lambda v: v.as_object(lambda s: s.width(1).unit("bit"))))
-pic_in = store.Port(lambda p: p.name("pic_in"))  # keyed by the store, port-2; its identity is its path, never written
+pic_in = store.Port(lambda p: p.name("pic_in"))  # counted: nothing owns it, so a document that writes it numbers it
 cpu = store.Component(lambda c: c.name("cpu").ports(lambda a: a.insert(lambda e: e.port(irq))))
 store.Port(irq, lambda p: p.fanout(lambda a: a.insert(lambda e: e.target(pic_in).label("interrupt"))))
 assert str(irq.name) == "irq" and [e.target for e in irq.fanout] == [pic_in]
@@ -102,7 +102,6 @@ store.Schemas.OfInt.as_schema()                             # the schema a path 
 # The five are the only scalar schemas: a store builds no other. A finer scalar (a date, an int32) is a domain,
 # mbse-expressions'; until then, give the property its basic scalar and say what it means in its description.
 store.Schemas.OfObject(lambda o: o.name("crm.Contact").ref(True).properties([...]))   # .ref(True): a reference object schema
-store.Schemas.OfObject(lambda o: o.name("pm.Feature").ref(True).pattern(r"FEA-(\d+\d\d)"))  # objects FEA-001, ...; else feature-1, ...
 store.Schemas.OfObject(lambda o: o.properties([lambda t: t.name("x").schema([Int])]))  # a value object schema, for a property's values
 # A schema's members are its entries, each named by its entry: t.name("x"). A reference to another schema object is
 # a list of what it links (.schema([T]), .relation([R]), .refines([T])), one item where only one is allowed, which
@@ -166,8 +165,8 @@ obj.likes.as_iterable(lambda entries: ...)                  # an iterator over a
 store.crm.Card(lambda c: c.reach(lambda p: p.phone(spec)))  # a branch: a property of one kind has its members
 obj.reach.phone.number.get()                                # read through them, as through as_value and as_union
 obj.as_properties; obj.as_adjacencies(lambda a: a)          # schema unaware: the properties set, every adjacency
-obj.as_schema(); obj.as_identity()                          # what every visitor has: its schema; an object's path, else None
-store.Instances.pm.Feature({"name": "FEA-001"})             # the object its schema owns under that key
+obj.as_schema()                                             # what every visitor has: its schema
+Paths.of(obj)                                               # a singleton's or an owned object's path; a counted one has none
 store.Instances.wts.Features.dir({"name": "DEF-693"})       # a singleton by its global name; a lookup by keys on any adjacency
 Proxies.owner_of(value_object)                              # the object a value object belongs to
 

@@ -26,12 +26,13 @@ def same_graph(a, b):
 
     Objects are written in first-reference order, which depends on entry order, and entries form a set whose order
     depends on history. Each object is identified here by its own property values, which the examples keep unique
-    within a graph, rather than by its path.
+    within a graph, rather than by its path or number.
     """
 
     def canonical(graph):
         symbol = lambda path: json.dumps(path, sort_keys=True)
-        objects = {symbol(obj['path']): obj['properties'] for obj in graph['objects']}
+        called = lambda obj: obj['path'] if 'path' in obj else {'n': obj['n']}  # a path, or a counted object's number
+        objects = {symbol(called(obj)): obj['properties'] for obj in graph['objects']}
         labels = {
             at: repr(sorted((k, v) for k, v in obj.items() if not isinstance(v, list)))
             for at, obj in objects.items()

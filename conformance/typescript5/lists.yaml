@@ -4,11 +4,37 @@
       properties: {}
 - exists:
     definition:
+      key: Schemas.OfModule/Corpus
+      properties:
+        name: Corpus
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfModule/.
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfModule/Corpus
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Corpus
+- exists:
+    definition:
       key: Schemas.OfObject/Board
       properties:
         name: Board
         ref: true
-        pattern: 'board-(\d+)'
 - exists:
     definition:
       key: Schemas.OfProperty/Board.name
@@ -1228,22 +1254,163 @@
               value: Board
 - exists:
     definition:
+      key: Schemas.OfRelation/Corpus.Holds
+      properties:
+        name: Corpus.Holds
+- exists:
+    definition:
+      key: Schemas.OfSymbol/Corpus.Holds.corpus
+      properties: {}
+- exists:
+    definition:
+      key: Schemas.OfSymbol/Corpus.Holds.item
+      properties: {}
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.HasLink
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfRelation/Corpus.Holds
+      - as_link:
+          name: link
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfSymbol/Corpus.Holds.corpus
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: corpus
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfRelation/Corpus.Holds
+      - as_link:
+          name: link
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfSymbol/Corpus.Holds.item
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: item
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfModule/Corpus
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfRelation/Corpus.Holds
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Holds
+- exists:
+    definition:
+      key: Schemas.OfObject/Corpus.Root
+      properties:
+        name: Corpus.Root
+        ref: true
+        singleton: corpus
+- exists:
+    definition:
+      key: Schemas.OfAdjacency/Corpus.Root.holds
+      properties:
+        me: corpus
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.Relating
+    entries:
+    - mutations:
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfAdjacency/Corpus.Root.holds
+      - as_link:
+          name: relation
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfRelation/Corpus.Holds
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.HasAdjacency
+    entries:
+    - mutations:
+      - as_link:
+          name: owner
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfObject/Corpus.Root
+      - as_link:
+          name: adjacency
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfAdjacency/Corpus.Root.holds
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: holds
+- insert:
+    relation:
+      key: Schemas.OfRelation/Schemas.Defines
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfModule/Corpus
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                key: Schemas.OfObject/Corpus.Root
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: Root
+- exists:
+    definition:
       path:
-        singleton: '.'
+        singleton: corpus
         next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Board
-            next:
-              entry:
-                i: instances
-                o: ''
-                properties:
-                  name: board-1
-                next:
-                  target: {}
+          target: {}
+      schema: Corpus.Root
+      properties: {}
+- exists:
+    definition:
+      'n': 0
       schema: Board
       properties:
         name: rack
@@ -1301,3 +1468,23 @@
           element: half
         - index: -2.5
           element: neg
+- insert:
+    relation:
+      key: Schemas.OfRelation/Corpus.Holds
+    entries:
+    - mutations:
+      - as_link:
+          name: corpus
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: corpus
+                  next:
+                    target: {}
+      - as_link:
+          name: item
+          mutations:
+          - set:
+              ref:
+                'n': 0

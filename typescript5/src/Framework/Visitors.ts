@@ -147,11 +147,6 @@ export interface Properties extends Iterable<OfProperty> {
  * callable; `osv.<adjName>`, a `Visitors.OfAdjacency`). */
 export interface OfObject {
   as_schema(): Schemas.OfObject.Data;
-  /** Read (no argument), the object's identity in its store, unqualified: its global name, a name its naming pattern
-   * gives, a UUID, or one written; null for a value object, or an object not created yet that none was written for.
-   * Written (in a builder), the identity the object takes: its store gives one only where none is set by the object it
-   * updates or by this. A data instance refuses a write. */
-  as_identity(identity?: string | null): any;
   /** The properties present, schema unaware. */
   readonly as_properties: Properties;
   /** Each adjacency, schema unaware; an adjacency is edited through what this hands over. */
@@ -202,7 +197,7 @@ export const PROTOCOL_METHODS = {
   OfScalar: ["as_schema", "get", "set", "clear"],
   OfAny: ["as_schema", "as_scalar", "as_object", "as_union", "as_intersection", "as_container", "clear"],
   OfProperty: ["as_schema", "as_value", "as_scalar", "as_object", "get"],
-  OfObject: ["as_schema", "as_identity", "as_properties", "as_adjacencies"],
+  OfObject: ["as_schema", "as_properties", "as_adjacencies"],
   OfAdjacency: ["as_schema", "as_iterable", "insert", "remove"],
   OfEntry: ["as_schema"],
   OfUnion: ["as_schema"],

@@ -1,4 +1,4 @@
-"""Paths: an object's identity, the route from a singleton to it through the relations that own it
+"""Paths: an owned object's identity, the route from a singleton to it through the relations that own it
 (docs/OBJECT_IDENTITY.md).
 
 A path is a nested value object, never a string: `Paths.OfRoot` names the singleton it starts from and holds the next
@@ -61,31 +61,16 @@ def _owner_adjacency(schema: Any) -> bool:
     return any(adjacency.owner for adjacency in (*schema.adjacencies.values(), *schema.anonymous))
 
 
-def _schema_steps(store: Any, schema: Any, name: str) -> list[tuple[str, str, dict[str, Any]]]:
-    """The steps from the root module to a schema, through `Schemas.Defines` by name (Decided, 17); for a schema the
-    store has not placed, those its name, `name`, spells."""
-    if id(schema) not in store._placed:
-        return [("schemas", "", {"name": part}) for part in name.split(".")]
-    steps, current = [], schema
-    while id(current) in store._placed:
-        module, local = store._placed[id(current)]
-        steps.append(("schemas", "", {"name": local}))
-        current = module
-    return steps[::-1]
-
-
 def _steps(obj: Any) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]:
-    """The singleton a reference object's path starts from, and the ownership entries from it to the object: through
-    the adjacencies marked `owner()`, else, for an object whose schema declares none, through its schema's
-    `Schemas.HasInstance` entry, after the schema's own path from the root module (Decided, 31)."""
-    store, steps, current, seen = Proxies.store_of(obj), [], obj, set()
+    """The singleton a reference object's path starts from, and the ownership entries from it to the object, through
+    the adjacencies marked `owner()`. A counted object has no path (docs/OBJECT_IDENTITY.md, Decided, 55)."""
+    steps, current, seen = [], obj, set()
     while True:
         schema = object.__getattribute__(current, "_schema")
         if schema.singleton is not None:
             return schema.singleton, steps[::-1]
-        if not _owner_adjacency(schema):
-            steps.append(("instances", "", {"name": object.__getattribute__(current, "_identity")}))
-            return ".", _schema_steps(store, schema, object.__getattribute__(current, "_schema_name")) + steps[::-1]
+        if not _owner_adjacency(schema):  # only the object asked about: nothing is owned by a counted object (47)
+            raise LookupError(f"a {object.__getattribute__(current, '_schema_name')!r} is counted: it has no path")
         if id(current) in seen:
             raise LookupError("an ownership cycle: no singleton owns the object")
         seen.add(id(current))

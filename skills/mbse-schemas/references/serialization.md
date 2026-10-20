@@ -6,27 +6,24 @@ and TypeScript write byte-identical JSON, and each reads the other's.
 ## The snapshot format
 
 ```text
-{"root": CMP, "objects": [
-  {"path": CMP, "schema": "Component", "properties": {"name": "cpu", "ports": [{"port": {"$ref": PRT}}]}},
-  {"path": PRT, "schema": "Port", "properties": {"name": "irq", "signal": {"width": 1, "unit": "bit"},
-                                                 "reach": {"phone": {"number": "1"}},
-                                                 "owner": [{"owner": {"$ref": CMP}}]}}]}
-
-CMP = {"singleton": ".", "next": {"entry": {"i": "schemas", "o": "", "properties": {"name": "Component"},
-       "next": {"entry": {"i": "instances", "o": "", "properties": {"name": "CMP-001"}, "next": {"target": {}}}}}}}
-PRT = the same, through "Port" and "PRT-001"
+{"root": {"n": 0}, "objects": [
+  {"n": 0, "schema": "Component", "properties": {"name": "cpu", "ports": [{"port": {"$ref": {"n": 1}}}]}},
+  {"n": 1, "schema": "Port", "properties": {"name": "irq", "signal": {"width": 1, "unit": "bit"},
+                                            "reach": {"phone": {"number": "1"}},
+                                            "owner": [{"owner": {"$ref": {"n": 0}}}]}}]}
 ```
 
-- Each object is listed once with its path, its identity, and its schema's registered name, however many objects
-  link to it; cycles need no special handling. A path is a nested value: the singleton it starts from, then each
-  ownership entry from it to the object (`i`, the adjacency into the entry; `o`, the owned object's adjacency marked
-  `owner`; `properties`, the entry's keys), then `target`. An object whose schema declares no owner is its schema's:
-  the root module `"."`, the schema's path by name, then its key, as above. A singleton's path is its global name
-  alone. Paths are kept across snapshots and stores: reading a snapshot into a store that holds an object at the same
-  path updates that object: what the snapshot holds is written, what it omits is kept, and reading it again changes
-  nothing.
+- Each object is listed once with its schema's registered name, however many objects link to it; cycles need no
+  special handling. It is called as its identity allows. A counted object, which nothing owns and which is not a
+  singleton, as above, by its number, `{"n": k}`, given in the order the document meets objects from the root, which
+  is 0. An owned object by its path, a nested value: the singleton it starts from, then each ownership entry from it to
+  the object (`i`, the adjacency into the entry; `o`, the owned object's adjacency marked `owner`; `properties`, the
+  entry's keys), then `target`. A singleton by the path of its global name alone. Reading a document builds its
+  counted objects anew; one at a path the store holds is updated: what the snapshot holds is written, what it omits is
+  kept, and reading it again changes nothing.
 - An object's properties map property names to values, and adjacency names to lists of entries. An entry holds the
-  other links as references `{"$ref": path}` and its own properties. The object's own link is implied.
+  other links as references, `{"$ref": {"n": k}}` or `{"$ref": path}`, and its own properties. The object's own link
+  is implied.
 - A value object is a nested mapping, with its containers nested in it, and no key: nothing links to it.
   Union and intersection values are nested mappings keyed by branch or part name: a union value has exactly one key,
   and an intersection value one per part. A list, a dict or a map is an adjacency's entries like any other,

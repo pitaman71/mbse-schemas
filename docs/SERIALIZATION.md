@@ -69,8 +69,8 @@ Nouns are used by verbs and appear nested in a verb:
 
 ```python
 Mutations.OfContainer.Slice # a section of a container
-Mutations.OfObject.Ref # identity only: a schema object's key, Module.Schema/ID; data's path (docs/OBJECT_IDENTITY.md)
-Mutations.OfObject.Def # includes props; and a schema object's key, or data's path and its schema's name (`Schema@`)
+Mutations.OfObject.Ref # identity only: a schema object's key, Module.Schema/ID; data's path, or a counted object's number in the log (docs/OBJECT_IDENTITY.md, 55)
+Mutations.OfObject.Def # includes props; and a schema object's key, or data's path or number and its schema's name (`Schema@`)
 ```
 
 - scalar payloads are untyped and interpreted according to their schema
@@ -84,8 +84,8 @@ For an initial snapshot, ToPlain writes in this order:
 
 - modules
 - schemas
-- other named singletons
-- any remaining reference objects
+- other named singletons, each followed by the data it reaches: data nothing reaches from a singleton is not written,
+  and a counted object is numbered in the order the log meets it (docs/OBJECT_IDENTITY.md, Decided, 55)
 
 ## Reading : Extensions the store lacks
 

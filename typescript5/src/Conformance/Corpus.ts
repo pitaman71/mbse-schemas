@@ -55,14 +55,27 @@ function enumerate(values: unknown[]): [bigint, unknown][] {
   return values.map((value, i) => [BigInt(i), value]);
 }
 
+/** The case's root, a singleton holding its data: a store's snapshot holds what its singletons reach. */
+function rooted(s: any, objects: unknown[]): void {
+  const Holds = s.Schemas.OfRelation((r: any) => r.name("Corpus.Holds").links([(t: any) => t.name("corpus"), (t: any) => t.name("item")]));
+  s.Schemas.OfObject((o: any) => o.name("Corpus.Root").ref(true).singleton("corpus").adjacencies([
+    (t: any) => t.name("holds").relation([Holds]).me("corpus"),
+  ]));
+  const hold = (adjacency: any): any => {
+    for (const item of objects) adjacency.insert((e: any) => e.item(item));
+    return adjacency;
+  };
+  s.Corpus.Root(s.singleton("corpus"), (r: any) => r.holds(hold));
+}
+
 // --- Schemas, each group built in the store given ---
 
 function addressBook(s: any): [any, any, any] {
-  const Contact = s.Schemas.OfObject((o: any) => o.name("Contact").ref(true).pattern(String.raw`contact-(\d+)`).properties([
+  const Contact = s.Schemas.OfObject((o: any) => o.name("Contact").ref(true).properties([
     text(s, "given_name"), text(s, "family_name"), text(s, "birth_date")]));
-  const Address = s.Schemas.OfObject((o: any) => o.name("Address").ref(true).pattern(String.raw`address-(\d+)`).properties([
+  const Address = s.Schemas.OfObject((o: any) => o.name("Address").ref(true).properties([
     text(s, "street1"), text(s, "locality"), text(s, "postal_code"), text(s, "country_code")]));
-  const Phone = s.Schemas.OfObject((o: any) => o.name("Phone").ref(true).pattern(String.raw`phone-(\d+)`).properties([text(s, "number")]));
+  const Phone = s.Schemas.OfObject((o: any) => o.name("Phone").ref(true).properties([text(s, "number")]));
   const ContactAddresses = s.Schemas.OfRelation((r: any) => r.name("ContactAddresses").links([
     (t: any) => t.name("contact"), (t: any) => t.name("address")]).properties([text(s, "label")]));
   const ContactPhones = s.Schemas.OfRelation((r: any) => r.name("ContactPhones").links([
@@ -77,8 +90,8 @@ function addressBook(s: any): [any, any, any] {
 
 function scalars(s: any): void {
   const [Bool, Int, Float, Str, Bytes] = basics(s);
-  const Bag = s.Schemas.OfObject((o: any) => o.name("Bag").ref(true).pattern(String.raw`bag-(\d+)`).properties([text(s, "name")]));
-  const Sample = s.Schemas.OfObject((o: any) => o.name("Sample").ref(true).pattern(String.raw`sample-(\d+)`).properties([
+  const Bag = s.Schemas.OfObject((o: any) => o.name("Bag").ref(true).properties([text(s, "name")]));
+  const Sample = s.Schemas.OfObject((o: any) => o.name("Sample").ref(true).properties([
     text(s, "label"), text(s, "payload", Bytes), text(s, "count", Int), text(s, "ratio", Float), text(s, "flag", Bool)]));
   const Holds = s.Schemas.OfRelation((r: any) => r.name("Holds").links([(t: any) => t.name("bag"), (t: any) => t.name("item")])
     .properties([text(s, "slot", Int)]).uniques(["bag", "slot"]));
@@ -87,7 +100,7 @@ function scalars(s: any): void {
 }
 
 function family(s: any): [any, any] {
-  const Person = s.Schemas.OfObject((o: any) => o.name("Person").ref(true).pattern(String.raw`person-(\d+)`).properties([
+  const Person = s.Schemas.OfObject((o: any) => o.name("Person").ref(true).properties([
     text(s, "given_name"), text(s, "birth_date")]));
   const Parentage = s.Schemas.OfRelation((r: any) => r.name("Parentage").links([(t: any) => t.name("parent"), (t: any) => t.name("child")])
     .properties([text(s, "kind")]));
@@ -102,9 +115,9 @@ function family(s: any): [any, any] {
 
 function enrollment(s: any): void {
   const [Bool, Int, Float, Str, Bytes] = basics(s);
-  const Student = s.Schemas.OfObject((o: any) => o.name("Student").ref(true).pattern(String.raw`student-(\d+)`).properties([text(s, "name")]));
-  const Course = s.Schemas.OfObject((o: any) => o.name("Course").ref(true).pattern(String.raw`course-(\d+)`).properties([text(s, "code")]));
-  const Term = s.Schemas.OfObject((o: any) => o.name("Term").ref(true).pattern(String.raw`term-(\d+)`).properties([
+  const Student = s.Schemas.OfObject((o: any) => o.name("Student").ref(true).properties([text(s, "name")]));
+  const Course = s.Schemas.OfObject((o: any) => o.name("Course").ref(true).properties([text(s, "code")]));
+  const Term = s.Schemas.OfObject((o: any) => o.name("Term").ref(true).properties([
     text(s, "code"), text(s, "starts")]));
   const Enrollment = s.Schemas.OfRelation((r: any) => r.name("Enrollment").links([
     (t: any) => t.name("student"), (t: any) => t.name("course"), (t: any) => t.name("term")]).properties([
@@ -116,8 +129,8 @@ function enrollment(s: any): void {
 
 function yamlStrings(s: any): void {
   const [Bool, Int, Float, Str, Bytes] = basics(s);
-  const Notebook = s.Schemas.OfObject((o: any) => o.name("Notebook").ref(true).pattern(String.raw`notebook-(\d+)`).properties([text(s, "title")]));
-  const Note = s.Schemas.OfObject((o: any) => o.name("Note").ref(true).pattern(String.raw`note-(\d+)`).properties([text(s, "text")]));
+  const Notebook = s.Schemas.OfObject((o: any) => o.name("Notebook").ref(true).properties([text(s, "title")]));
+  const Note = s.Schemas.OfObject((o: any) => o.name("Note").ref(true).properties([text(s, "text")]));
   const Pages = s.Schemas.OfRelation((r: any) => r.name("Pages").links([(t: any) => t.name("notebook"), (t: any) => t.name("note")])
     .properties([text(s, "page", Int)]));
   s.Schemas.OfObject(Notebook, (o: any) => o.adjacencies([(t: any) => t.name("notes").relation([Pages]).me("notebook")]));
@@ -138,11 +151,11 @@ function embedded(s: any): [any, any, any] {
   const CardAudit = s.Schemas.OfObject((o: any) => o.properties([text(s, "by"), text(s, "updated")]));
   const CardMeta = s.Schemas.OfIntersection((i: any) => i.parts([(t: any) => t.name("stamp").schema([CardStamp]),
     (t: any) => t.name("audit").schema([CardAudit])]));
-  const Card = s.Schemas.OfObject((o: any) => o.name("Card").ref(true).pattern(String.raw`card-(\d+)`).properties([
+  const Card = s.Schemas.OfObject((o: any) => o.name("Card").ref(true).properties([
     text(s, "name"), (t: any) => t.name("home").schema([CardPhone]), (t: any) => t.name("reach").schema([Reach]),
     (t: any) => t.name("ident").schema([Ident]), (t: any) => t.name("meta").schema([CardMeta])]));
   const Holding = s.Schemas.OfRelation((r: any) => r.name("Holding").links([(t: any) => t.name("deck"), (t: any) => t.name("card")]));
-  const Deck = s.Schemas.OfObject((o: any) => o.name("Deck").ref(true).pattern(String.raw`deck-(\d+)`).properties([text(s, "title")])
+  const Deck = s.Schemas.OfObject((o: any) => o.name("Deck").ref(true).properties([text(s, "title")])
     .adjacencies([(t: any) => t.name("cards").relation([Holding]).me("deck")]));
   s.Schemas.OfObject(Card, (o: any) => o.adjacencies([(t: any) => t.name("decks").relation([Holding]).me("card")]));
   return [Card, Deck, Holding];
@@ -158,7 +171,7 @@ function lists(s: any): any {
     (t: any) => t.name("note").schema([Str])]));
   const Row = s.Schemas.OfContainer((c: any) => c.index([Int]).element([Int]));
   const Bank = s.Schemas.OfObject((o: any) => o.properties([list(s, "sockets", Socket)]));
-  return s.Schemas.OfObject((o: any) => o.name("Board").ref(true).pattern(String.raw`board-(\d+)`).properties([
+  return s.Schemas.OfObject((o: any) => o.name("Board").ref(true).properties([
     text(s, "name"), list(s, "tags", Str), list(s, "blobs", Bytes), list(s, "grid", Row),
     list(s, "readings", Reading), list(s, "sockets", Socket), list(s, "banks", Bank), list(s, "matrix", Int, Coord),
     list(s, "cells", Int, Int, "sparse"), list(s, "attrs", Float, Str), list(s, "weights", Str, Float)]));
@@ -200,6 +213,7 @@ export function build(): Map<string, [B.Store, unknown[]]> {
       .phones((a: any) => a.insert((x: any) => x.phone((p: any) => p.number("+447700900123")).label("mobile")))
       .phones((a: any) => a.insert((x: any) => x.phone((p: any) => p.number("+14155550100")).label("work")))));
   let bob = s.Contact((c: any) => c.given_name("Bob").addresses((a: any) => a.insert((x: any) => x.address(home).label("home"))));
+  rooted(s, [home, alice, bob]);
   cases.set("address_book", [s, [home, alice, bob]]);
 
   s = new B.Store();
@@ -224,6 +238,7 @@ export function build(): Map<string, [B.Store, unknown[]]> {
     items.push(item);
     s.Bag(bag, (b: any) => b.items((a: any) => a.insert((x: any) => x.item(item).slot(BigInt(slot)))));
   });
+  rooted(s, [bag, ...items]);
   cases.set("scalars", [s, [bag, ...items]]);
 
   s = new B.Store();
@@ -235,6 +250,7 @@ export function build(): Map<string, [B.Store, unknown[]]> {
   s.Person(ada, (p: any) => p.mentees((a: any) => a.insert((x: any) => x.mentee(bob))));
   s.Person(carol, (p: any) => p.mentees((a: any) => a.insert((x: any) => x.mentee(carol))));
   s.Person(bob, (p: any) => p.mentees((a: any) => a.insert((x: any) => x.mentee(ada))));
+  rooted(s, [ada, bob, carol]);
   cases.set("family", [s, [ada, bob, carol]]);
 
   s = new B.Store();
@@ -246,6 +262,7 @@ export function build(): Map<string, [B.Store, unknown[]]> {
       .enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).credits(4n).score(3.75).audit(false)))
       .enrollments((a: any) => a.insert((x: any) => x.course((c: any) => c.code("MA201")).term(fall).credits(3n).score(-0.0)))));
   const noah = s.Student((st: any) => st.name("Noah").enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).audit(true))));
+  rooted(s, [fall, cs101, mia, noah]);
   cases.set("enrollment", [s, [fall, cs101, mia, noah]]);
 
   s = new B.Store();
@@ -262,6 +279,7 @@ export function build(): Map<string, [B.Store, unknown[]]> {
     notes.push(note);
     s.Notebook(notebook, (n: any) => n.notes((a: any) => a.insert((x: any) => x.note(note).page(BigInt(page)))));
   });
+  rooted(s, [notebook, ...notes]);
   cases.set("yaml_strings", [s, [notebook, ...notes]]);
 
   s = new B.Store();
@@ -278,6 +296,7 @@ export function build(): Map<string, [B.Store, unknown[]]> {
     s.Card((c: any) => c.name("Cy")),
   ];
   for (const card of cards) s.Deck(deck, (d: any) => d.cards((a: any) => a.insert((x: any) => x.card(card))));
+  rooted(s, [deck, ...cards]);
   cases.set("embedded", [s, [deck, ...cards]]);
 
   s = new B.Store();
@@ -295,10 +314,12 @@ export function build(): Map<string, [B.Store, unknown[]]> {
       .cells(put([[5n, 6n], [6n, 7n], [0n, 0n]]))
       .attrs(put([["gain", 1.5], ["", -0.0]]))
       .weights(put([[0.5, "half"], [-2.5, "neg"]]))));
+  rooted(s, [board]);
   cases.set("lists", [s, [board]]);
 
   s = new B.Store();
   module(s);
+  rooted(s, []);
   cases.set("module", [s, []]);
   return cases;
 }

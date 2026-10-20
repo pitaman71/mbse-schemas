@@ -562,6 +562,18 @@ order", on the three points that follow from it ("yes"):
     by validation, not by the schemas. This amends 59 ("`Mutations.OfAll` is the first term of a transaction's one
     chain") and STREAMING_QUERIES.md's rules on what may come at the root.
 
+As the user decided (2026-10-20), on the questions put for step 4e:
+
+86. "`store.extend` is basically replaced by this new `install` convention" (SCHEMA_EXTENSION.md, Injection): schemas
+    are defined, and existing ones extended, by transactions, each module's `install(txn)` giving one; a definition is a
+    symbol of a meta-schema (`txn.Schemas.OfObject`) that an upsert finds by its spec, which gives its name, or creates.
+    No schema is written outside a transaction (44).
+87. Expressions in 4e ("yes" to refusing them until 4h): the executor evaluates no `requires`, no `computes`, no
+    `OfMap.as_variables` and no collecting `OfReduce`, and refuses them; it matches and writes by specs only.
+    mbse-expressions provides their evaluation in 4h.
+88. 4e in two stages ("yes"): 4e-1, the vocabulary, `store.transaction` and the executor, built beside the existing
+    builders, with suites of their own; 4e-2, every write outside a transaction refused, and every caller migrated.
+
 ## Open questions
 
 None at present.

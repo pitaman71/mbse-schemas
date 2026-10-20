@@ -619,6 +619,15 @@ As the user decided (2026-10-20), on how 4e-1 builds them:
     writes no object with it, a second one does. (Offered against writing a schema object at once with an undo record,
     and against an overlay of every schema field read, which would intercept each read of a schema object.)
 
+97. A kind union ("yes, a kind union"): a relation's link may have as its schema a union of reference object schemas,
+    whose branches name the kinds (`Mutations.OfTerm`: `map`, `reduce`, `partition`, `update`, `upsert`). An entry's
+    builder has a member per branch, and calling one (`w.update(cb)`) builds through the link an object of that
+    branch's schema; validation accepts such a union as a link's schema and still refuses it as a property's; a linked
+    object is of one of its branches' schemas. A generic rule, for any relation. With it, a data builder that builds a
+    schema object through a link (a term's pattern) builds it with that meta-schema's builder, and
+    `Schemas.OfPattern.spec` holds the recorded `Mutations.OfPattern` values, its builder member giving each callback the
+    frame visitor (95).
+
 ## Open questions
 
 None at present.

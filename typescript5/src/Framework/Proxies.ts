@@ -311,11 +311,21 @@ export abstract class _Store extends Stores.Catalog implements Stores.Store {
   }
 }
 
-/** What tells a reference object apart in memory: a proxy's serial number, or a schema object's identity. */
+/** What tells a reference object apart in memory: a proxy's serial number, or a number for the schema object a builder
+ * reads. */
 export function _key_of(visitor: any): unknown {
   if (innerOf(visitor) instanceof _LinkMember) visitor = innerOf(visitor)._target();
   const inner = innerOf(visitor);
-  return inner instanceof _ObjectData ? inner._id : visitor.as_identity();
+  return inner instanceof _ObjectData ? inner._id : _numberOf(inner._original);
+}
+
+const NUMBERS = new WeakMap<object, number>();
+let numbered = 0;
+
+/** A number for each object, as Python's `id()` of it: what tells a schema object apart in memory. */
+export function _numberOf(value: object): number {
+  if (!NUMBERS.has(value)) NUMBERS.set(value, ++numbered);
+  return NUMBERS.get(value) as number;
 }
 
 /** A schema's adjacencies marked `owner()`: an object of it is owned; a non-singleton without them is counted. */
@@ -355,14 +365,6 @@ function keyNames(relation: RelationSchema, owner: string, owned: string): strin
   return [...relation.entry.properties.keys()].filter((name) => clause.has(name));
 }
 
-/** A version 4 UUID, from the platform's random source. */
-function uuid4(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
-  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
-  const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
 
 /** The store a proxy belongs to; a value object's is its owner's, and one not yet placed has none. */
 function storeOf(value: unknown): _Store | null {
@@ -2115,7 +2117,8 @@ function firstCopy(relation: RelationSchema, builder: _EntryBuilder, target: unk
   const source = builder._source;
   if (source === null || !relation.open) return true;
   const links = new Map<string, unknown>([...builder._links, [builder._me, target]]);
-  const identities = [...links].map(([name, linked]) => [name, innerOf(linked)._id] as const).sort(byName);
+  const identities = [...links].map(([name, linked]) => [name, innerOf(linked)?._id ?? `schema ${_numberOf(linked as object)}`] as const)
+    .sort(byName); // a schema object an extension's relation links is not a proxy
   const key = `entry:${innerOf(source)._id}:${JSON.stringify(identities)}`;
   if (mapping.has(key)) return false;
   mapping.set(key, source);
@@ -2771,7 +2774,7 @@ export function _isVisitor(value: unknown): boolean {
 /** The shells visitors are made with, shared with `Builders`, as Python's `Builders` imports `_Dunders`, `_Empty`,
  * `_Properties` and `_Unassignable`. */
 export { shell as _shell, Shelled as _Shelled, Dunders as _Dunders, makeEmpty as _makeEmpty,
-  makeProperties as _makeProperties, innerOf as _innerOf, uuid4 as _uuid4, storeOf as _store_of, linking as _linking,
+  makeProperties as _makeProperties, innerOf as _innerOf, storeOf as _store_of, linking as _linking,
   addEntry as _add_entry, discard as _discard, makeEntry as _make_entry, adjacentOf as _adjacent_of };
 
 /** Internal classes, exposed for protocol conformance tests. */

@@ -71,6 +71,7 @@ const Money = store.Schemas.OfObject((o: any) => (
 ));
 const Prices = store.Schemas.OfRelation((r: any) => (
   r
+    .name("Prices") // each end's adjacency links it: a schema shared is named
     .links([
       (t: any) => t.name("product"),
       (t: any) => t.name("price"),
@@ -93,7 +94,7 @@ function parent_child(r: any): any {
 }
 
 // Pure ownership and a directory keyed within its parent, written as in FRAMEWORK.md.
-const Ownership = store.Schemas.OfRelation((r: any) => parent_child(r).uniques("parent"));
+const Ownership = store.Schemas.OfRelation((r: any) => parent_child(r.name("Ownership")).uniques("parent"));
 const Directory = store.Schemas.OfRelation((r: any) => (
   parent_child(r)
     .properties([(t: any) => t.name("key").schema([Text])])
@@ -167,8 +168,8 @@ assert(Registry.singleton === "iso3166.Registry" && Registry.validate().length =
 // A union's branches and an intersection's parts are named: a union value holds exactly one branch, by name, and an
 // intersection value every part.
 
-const Phone = store.Schemas.OfObject((o: any) => o.properties([(t: any) => t.name("number").schema([Text])]));
-const Email = store.Schemas.OfObject((o: any) => o.properties([(t: any) => t.name("address").schema([Text])]));
+const Phone = store.Schemas.OfObject((o: any) => o.name("Phone").properties([(t: any) => t.name("number").schema([Text])]));
+const Email = store.Schemas.OfObject((o: any) => o.name("Email").properties([(t: any) => t.name("address").schema([Text])]));
 
 const ContactMethod = store.Schemas.OfUnion((u: any) => u.branches([
   (t: any) => t.name("phone").schema([Phone]),
@@ -199,7 +200,7 @@ assert(SingleBranch.validate().some((p: string) => p.includes("at least two")));
 
 // Intersections combine same-kind schemas as named parts. Each part keeps its own properties, so two parts may
 // declare the same property, even with different types.
-const Timestamped = store.Schemas.OfObject((o: any) => o.properties([(t: any) => t.name("updated").schema([Text])]));
+const Timestamped = store.Schemas.OfObject((o: any) => o.name("Timestamped").properties([(t: any) => t.name("updated").schema([Text])]));
 const EpochStamped = store.Schemas.OfObject((o: any) => o.properties([
   (t: any) => t.name("updated").schema([store.Schemas.OfInt]),
 ]));

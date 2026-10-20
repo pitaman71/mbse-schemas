@@ -141,7 +141,7 @@ function yamlStrings(s: any): void {
  * value. */
 function embedded(s: any): [any, any, any] {
   const [Bool, Int, Float, Str, Bytes] = basics(s);
-  const CardPhone = s.Schemas.OfObject((o: any) => o.properties([text(s, "number"), text(s, "label"), list(s, "extensions", Str)]));
+  const CardPhone = s.Schemas.OfObject((o: any) => o.name("CardPhone").properties([text(s, "number"), text(s, "label"), list(s, "extensions", Str)]));
   const CardEmail = s.Schemas.OfObject((o: any) => o.properties([text(s, "address")]));
   const Reach = s.Schemas.OfUnion((u: any) => u.branches([(t: any) => t.name("phone").schema([CardPhone]),
     (t: any) => t.name("email").schema([CardEmail])]));
@@ -165,7 +165,7 @@ function embedded(s: any): [any, any, any] {
  * containers of their own; a tensor by a pair of ints, sparse by an int, a dict by text, and entries by a float. */
 function lists(s: any): any {
   const [Bool, Int, Float, Str, Bytes] = basics(s);
-  const Socket = s.Schemas.OfObject((o: any) => o.properties([text(s, "name"), list(s, "pins", Str)]));
+  const Socket = s.Schemas.OfObject((o: any) => o.name("Socket").properties([text(s, "name"), list(s, "pins", Str)]));
   const Coord = s.Schemas.OfObject((o: any) => o.properties([text(s, "r", Int), text(s, "c", Int)]));
   const Reading = s.Schemas.OfUnion((u: any) => u.branches([(t: any) => t.name("value").schema([Float]),
     (t: any) => t.name("note").schema([Str])]));

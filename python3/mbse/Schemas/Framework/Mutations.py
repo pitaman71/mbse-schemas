@@ -52,15 +52,13 @@ def schemas(Text: Any, Int: Any, Path: Any) -> SimpleNamespace:
 
     # --- Nouns ---
 
-    Ref = _verb(  # a schema object by its key, "Module.Schema/ID"; data by its path (docs/OBJECT_IDENTITY.md, Decided, 8)
+    Ref = _verb(  # an object by its path: a schema object's from the root module (docs/OBJECT_IDENTITY.md, Decided, 81)
         "OfObject.Ref",
-        _text("key"),
         lambda t: t.name("path").schema([Path]),
     )
-    Def = _verb(
+    Def = _verb(  # its path, but where it is linked; its schema's name (a schema object's kind's); its properties
         "OfObject.Def",
-        _text("key"),  # a schema object's: "Module.Schema/ID", the schema reference and the identity
-        lambda t: t.name("path").schema([Path]),  # data's: its path, and its schema's name, `Schema@`
+        lambda t: t.name("path").schema([Path]),
         _text("schema"),
         lambda t: t.name("properties").schema([ContainerBuilder().index([Text]).element([Payload]).create()]),
     )
@@ -105,7 +103,11 @@ def schemas(Text: Any, Int: Any, Path: Any) -> SimpleNamespace:
     AsPart = _verb("OfIntersection.AsPart", _text("name"), _mutations(OfProperty))
     AsUnion = _verb("OfAny.AsUnion", _mutations(AsBranch))
     AsIntersection = _verb("OfAny.AsIntersection", _mutations(AsPart))
-    LinkSet = _verb("OfLink.Set", lambda t: t.name("ref").schema([Ref]))
+    LinkSet = _verb(  # a reference, or the definition of a schema object with no path, nested where it is linked
+        "OfLink.Set",
+        lambda t: t.name("ref").schema([Ref]),
+        lambda t: t.name("def").schema([Def]),
+    )
     LinkClear = _verb("OfLink.Clear")
 
     # --- Reference verbs, and what an object's or an entry's mutations are ---
@@ -126,6 +128,9 @@ def schemas(Text: Any, Int: Any, Path: Any) -> SimpleNamespace:
         lambda t: t.name("relation").schema([Ref]),  # the relation schema
         lambda t: t.name("entries").schema([_list(Entry)]),
     )
+    ObjectBuilder(Def).properties([  # nested in a definition, each entry leaves out the link the defined object fills
+        lambda t: t.name("inserts").schema([_list(RelationInsert)]),
+    ]).update()
     RelationRemove = _verb(
         "OfRelation.Remove",
         lambda t: t.name("relation").schema([Ref]),

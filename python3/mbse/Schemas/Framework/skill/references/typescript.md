@@ -218,8 +218,9 @@ The traps of [Python](python.md#traps) hold here too, in TypeScript's terms:
 - A reference to another schema object is an array of what it links, even where only one is allowed: `.schema([Text])`,
   never `.schema(Text)`. A store links only what it holds: its basic scalars are `store.Schemas.OfInt` and so on, never
   `new S.OfScalar.Data(BigInt)` nor another store's.
-- In its store, a named schema's identity is its name: `store.Schemas.OfObject(Contact)` cannot clone it. Clone it under
-  a new name with a builder in the store: `new Builders.OfObject.Builder(Contact, true, store).name("crm.Contact.v2").clone()`.
+- In its store, a named schema's path is its name: `store.Schemas.OfObject(Contact)` cannot clone it. Clone it under a
+  new name with a builder in the store: `new Builders.OfObject.Builder(Contact, true, store).name("crm.v2.Contact").clone()`.
+  A schema with no name of its own is linked by one schema object alone: name it to share it.
 
 ## Go deeper
 

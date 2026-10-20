@@ -203,9 +203,10 @@ ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromD
 - A reference to another schema object is a list of what it links, even where only one is allowed: `.schema([Text])`,
   never `.schema(Text)`. It links schemas that exist, so build a container or value object schema before the property
   that holds its values.
-- In its store, a named schema's identity is its name, and the store refuses a second schema object with an identity
-  it holds: `store.Schemas.OfObject(Contact)` cannot clone a named schema. Clone it under a new name with a builder in
-  the store: `Builders.OfObject.Builder(Contact, store=store).name("crm.Contact.v2").clone()`.
+- In its store, a named schema's path is its name, and the store refuses a second schema of a name it holds:
+  `store.Schemas.OfObject(Contact)` cannot clone a named schema. Clone it under a new name with a builder in the store:
+  `Builders.OfObject.Builder(Contact, store=store).name("crm.v2.Contact").clone()`. A schema with no name of its own is
+  linked by one schema object alone: name it to share it.
 - A store links only the schema objects it holds: build schemas, forms and members in the store that links them, and
   link the store's basic scalars as `store.Schemas.OfInt` and so on, never `S.OfScalar.Data(int)` nor another store's.
   An object of one store cannot be linked from another: each store has its own basic scalars and plain schemas.

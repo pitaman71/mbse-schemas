@@ -213,10 +213,34 @@ so that main stays current and no branch waits on another.
        constraints, which it owns; a collector's names are text lists, its `suffixes` a map;
      - the corpus's `module` case has a pattern with a variable and a constraint, an expression and a collector in
        place of its predicate; the suite PAT tests them, in both languages.
-   - **4g, schema objects** (17, 29, 69, 70, 72, 80): a named schema's identity is its path, and its members' paths continue it;
-     derived identities go; an unnamed schema has no identity, and is written nested in the one object that links it;
-     validation refuses an unnamed schema linked from more than one place, and a cycle among value object schemas (72); schema
-     objects' keys on the wire become paths. `as_identity` leaves the schema builders.
+   - **4g, schema objects** (17, 29, 69, 70, 72, 80, 81): a named schema's identity is its path, and its members' paths
+     continue it; derived identities go; an unnamed schema has no identity, and is written nested in the one object that
+     links it; an unnamed schema linked from more than one place is refused, and validation refuses a cycle among value
+     object schemas (72); schema objects' keys on the wire become paths. `as_identity` leaves the schema builders. Done,
+     on the branch. As built:
+     - a path is a `Paths.OfRoot` value from the root module, the singleton `"."`, through each module and then the
+       schema by name (`{"i": "schemas", "o": "", "properties": {"name": ...}}`), then through the keyed adjacency that
+       owns each member (`properties`, `adjacencies`, `parameters`, `symbols`, `variables`, `links`). `Paths.of(x)` gives
+       a schema object's as a data object's; one with no name of its own, or what it holds, or one no store holds, has
+       none (`LookupError`). `store.held(path)` takes the value or its plain form; `B.identity_of`, the schema builders'
+       `as_identity` and the store's identity table go;
+     - the store records, as it holds a schema object, what links each object it links that has no name of its own,
+       refusing a second ("... with no name of its own is linked by one schema object alone, and another links it
+       already: name it to share it"); a clone has its own of each. A name is registered once, of any kind, and a module
+       and a schema do not share a path ("the path 'crm.Contact' names another schema object already"), so tutorial 9
+       and the skill version as `crm.v2.Contact` (Object identity, Open questions);
+     - `validate()` refuses a value schema that holds itself, through properties, branches, parts, a container's index
+       or element or an `OfAny`'s schemas: "a value schema cannot hold itself: value object schemas cannot have cycles;
+       reference object schemas can". The framework's `Paths` and `Mutations` schemas are such cycles (Object identity,
+       Open questions); MUT-01 and IDN-03 assert theirs is their only problem;
+     - a log refers to a schema object by its path and defines it by its path and its kind (`{"path": ..., "schema":
+       "Schemas.OfObject", "properties": ...}`); a member's `exists` places it in its owner at once, as an owned data
+       object's does. One with no name of its own is defined where it is linked, `{"set": {"def": {"schema", "properties",
+       "inserts"}}}`, its own entries nested in it, each leaving out the link it fills. Read again, a log makes nothing: a
+       nested definition is made where the object it is written with is new, or held no such entry before. The
+       corpora grow about threefold, every reference to a schema object now a path, until 4f replaces the log;
+     - tests, examples and the corpus name the schemas they share, and SNP-02, BLD-03 and BLD-10 test paths in
+       place of identities.
    - **4e, mutation expressions and the in-memory executor** (38, 42, 44, 46, 50, 56 to 63): the mutation vocabulary as
      Decided 59 nests it, `Mutations.OfTransaction` → `Mutations.OfTerm` (`OfAll`, `OfMap`, `OfReduce`, `OfPartition`,
      `OfUpdate`, `OfUpsert`) → `Mutations.OfPattern` → `Mutations.OfObject` → `Mutations.OfAdjacency` (`OfEntry`) →

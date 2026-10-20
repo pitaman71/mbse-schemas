@@ -394,8 +394,10 @@ A transaction is a flat sequence of mutations. Mutations may be nested; transact
   updates that object through its builder (Resolved, Reference identity, on update): what the snapshot holds is
   written, and what it omits is kept. A counted object, which neither is, has no identity beyond the document that
   writes it: the document numbers it, `{"n": k}`, in the order it meets objects from the root, which is 0, and
-  reading a document always builds its counted objects anew (55). Schema objects are still referred to by
-  `Module.Schema/ID` keys in a log, until step 4g of the store overhaul gives them paths too.
+  reading a document always builds its counted objects anew (55). A schema object is referred to by its path too, from
+  the root module, the singleton `"."` (Object identity, Decided, 80 and 81); one with no name of its own has none, and
+  its definition is written where the one object that links it links it (`{"set": {"def": ...}}`, its entries nested in
+  it, each leaving out the link it fills), until 4f replaces the log.
 - Paths name only reference objects, never values or entries.
 - A value object is written nested, as a mapping of its properties and its adjacencies, without a key. Union and intersection values are written the
   same way, keyed by branch or part name: a union value `{"phone": {"number": "1"}}` has exactly one key, and decoding
@@ -589,8 +591,10 @@ written as a log of mutations ([SERIALIZATION.md](SERIALIZATION.md)); the old `M
 removed.
 
 - **A schema may hold itself**, as a node holds a list of nodes, or a container a container of itself. Validating it
-  reports each problem once, for every kind whose values hold others'. (Superseded in 4g of the store overhaul for
-  value object schemas, which "cannot have cycles"; reference object schemas can: Object identity, Decided, 72.)
+  reports each problem once, for every kind whose values hold others'. (Superseded in 4g of the store overhaul, as
+  built: a value schema that holds itself, through properties, branches, parts, a container's index or element or an
+  `OfAny`'s schemas, is refused by `validate()`, "a value schema cannot hold itself: value object schemas cannot have
+  cycles; reference object schemas can"; Object identity, Decided, 72. A cycle still reports each problem once.)
 
 ## A store's schemas as a module
 
@@ -735,9 +739,12 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - Snapshots whose two ends disagree (F13) are accepted and restore the union of both ends' entries. Should
   deserialization reject them instead of leaving it to validation?
 
-- Versioning schema names: whether a version is part of a name (`crm.Contact.v2`) or beside it. Snapshot keys are
-  qualified by the registered name, so a program that registers a schema under another name than the writer's cannot
-  read its snapshots (tutorial 9 reads old data in a store of its own, under the writer's name).
+- Versioning schema names: whether a version is part of a name or beside it. A name is a path (Object identity,
+  Decided, 80), and a module and a schema do not share one, so `crm.Contact.v2` beside `crm.Contact` is refused (the
+  module `crm.Contact` would be at the schema's path); 4g versions as `crm.v2.Contact`, a module per version, pending
+  the user's review (Object identity, Open questions). Snapshots refer to schemas by path, so a program that registers
+  a schema under another name than the writer's cannot read its snapshots (tutorial 9 reads old data in a store of its
+  own, under the writer's name).
 - Containers (Resolved, Containers): V5 is built with the choices listed there for the user's review (the names on
   the wire, the writer's option for several int indices, comparison and validation, `Visitors.OfIterator` as the one
   name where the draft in [Visitor pattern](VISITOR_PATTERN.md) also says `Visitors.OfPosition`), which await

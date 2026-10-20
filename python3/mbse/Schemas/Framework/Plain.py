@@ -833,10 +833,24 @@ def _found(store: Any, symbol: str, name: str, placed: _Placed, created: dict[st
     return None
 
 
-def _by_path(store: Any, path_plain: PlainData, where: tuple) -> Any:
-    """The data object a path names in `store`, or None: a singleton, or through its owner's entries, the one whose keys
-    the path's last step gives and whose other end's owner adjacency is `o`."""
+def _schema_steps(path_plain: PlainData, where: tuple) -> list[tuple[str, str]]:
+    """A schema object's path as plain data: each step's adjacency and the name its entry gives (docs/OBJECT_IDENTITY.md,
+    Decided, 81). `DecodeError` where it is not one."""
     singleton, steps = _steps(path_plain, where)
+    if singleton != "." or any(o != "" or set(keys) != {"name"} or not isinstance(keys["name"], str)
+                               for _, o, keys in steps):
+        raise DecodeError("a schema object's path starts from the root module, '.', and each step names an entry, "
+                          "{'i': adjacency, 'o': '', 'properties': {'name': name}}", path=path(*where))
+    return [(i, keys["name"]) for i, _, keys in steps]
+
+
+def _by_path(store: Any, path_plain: PlainData, where: tuple) -> Any:
+    """The object a path names in `store`, or None: a schema object from the root module (`Builders.Store.held`), a
+    singleton, or through its owner's entries, the one whose keys the path's last step gives and whose other end's owner
+    adjacency is `o`."""
+    singleton, steps = _steps(path_plain, where)
+    if singleton == ".":
+        return store._at(_schema_steps(path_plain, where))
     if not steps:
         return store._singletons.get(singleton)
     nested: PlainData = {"target": {}}
@@ -1048,9 +1062,11 @@ class _Names:
 class _LogWriter:
     """Writes a store as a log of mutations, its initial snapshot: modules, then the schemas each defines, then the
     other named singletons, each followed by the data it reaches. Each object is read through its visitor (a schema
-    object through its builder, read-only) and written once, in definition form (`exists`); the objects a schema object
-    holds or links that have no name of their own follow it. An entry is written (`insert`) once every object it links
-    is; a link to one of the framework's schemas, which every store holds, is a reference only."""
+    object through its builder, read-only) and written once, in definition form (`exists`), by its path or its number;
+    the members of a schema object and the data it links follow it. A schema object with no name of its own has no
+    path: its definition is written where the one object that links it links it (docs/OBJECT_IDENTITY.md, Decided, 81).
+    An entry is written (`insert`) once every object it links is; a link to one of the framework's schemas, which every
+    store holds, is a reference only."""
 
     def __init__(self, store: Any) -> None:
         from . import Builders
@@ -1061,9 +1077,11 @@ class _LogWriter:
         self._out: list[PlainData] = []
         self._written: set[str] = set()
         self._complete: set[str] = set()  # written, with every object it holds or links that follows it
-        self._pending: dict[Hashable, list[Any]] = {}  # an entry: [relation, links, properties, count, keys, scan]
+        self._pending: dict[Hashable, list[Any]] = {}  # an entry: [relation, links, properties, count, needs, scan]
         self._scans = 0  # each object's adjacencies are scanned once: an inner object's later than its owner's
         self._refs: dict[str, dict[str, PlainData]] = {}  # each object's reference on the wire, by its key
+        self._nested: dict[str, tuple[dict[str, PlainData], set[str]]] = {}  # each object with no path: its definition
+        self._shown: dict[str, str] = {}  # each object in a message: a schema object's path, dotted, else its kind; data's key
         self._counted = 0  # the counted objects numbered so far, in the order the log meets them
 
     def _reader(self, value: Any) -> Any:
@@ -1073,19 +1091,19 @@ class _LogWriter:
 
     def _framework(self, visitor: Any) -> bool:
         held = getattr(visitor, "_original", None)
-        target = getattr(visitor, "_target", None)
-        if held is None and callable(target):  # a link, read: its referent's builder
-            held = getattr(target(), "_original", None)
         return held is not None and self._store.framework(held)
 
     def _key(self, visitor: Any) -> str:
-        """What tells an object apart in the writer: `Module.Schema/ID`, the registered name of its schema and its key.
-        On the wire (`_refs`), a schema object is referred to by it, an owned object or a singleton by its path, and a
-        counted object by its number in the log, in the order the log meets them (docs/OBJECT_IDENTITY.md, 55)."""
+        """What tells an object apart in the writer: the registered name of its schema and its key. On the wire
+        (`_refs`), a schema object or an owned object or a singleton is referred to by its path, and a counted object by
+        its number in the log, in the order the log meets them (docs/OBJECT_IDENTITY.md, 55); a schema object with no
+        path is not referred to (`_nested`)."""
         key = f"{self._store.name_of(visitor.as_schema())}/{Proxies._key_of(visitor)}"
         if key not in self._refs:
             if not isinstance(visitor, Proxies._ObjectData):  # a schema object, read through its builder
-                self._refs[key] = {"key": key}
+                steps = self._store._path(visitor._original)
+                self._refs[key] = {} if steps is None else {"path": _schema_path(steps)}
+                self._shown[key] = visitor._noun if steps is None else ".".join(name for _, name in steps) or "."
             elif Proxies._counted(visitor):
                 self._refs[key] = {"n": self._counted}
                 self._counted += 1
@@ -1096,14 +1114,16 @@ class _LogWriter:
     def _held(self, visitor: Any, where: str) -> None:
         """Refuses a schema object the store does not hold, saying where it is linked: there are no foreign schemas."""
         held = getattr(visitor, "_original", None)
-        target = getattr(visitor, "_target", None)
-        if held is None and callable(target):
-            held = getattr(target(), "_original", None)
         if held is None:
             return  # data
         if not self._store.holds(held):
             shown = getattr(held, "name", None) or type(held).__name__
             raise ValueError(f"{where} links {shown}, a schema the store does not hold: there are no foreign schemas")
+
+    def _properties(self, visitor: Any) -> dict[str, PlainData]:
+        """The properties of an object that are set, by name."""
+        return {prop.as_schema().name: _value(prop, prop.as_schema().schema, self._names)[1]
+                for prop in visitor.as_properties}
 
     def define(self, visitor: Any, key: str, singleton: bool = False) -> None:
         """Writes an object in definition form, then what follows it. A singleton exists in every store that registers
@@ -1111,15 +1131,9 @@ class _LogWriter:
         if key in self._written:
             return
         self._written.add(key)
-        properties: dict[str, PlainData] = {}
-        for prop in visitor.as_properties:  # the properties that are set
-            properties[prop.as_schema().name] = _value(prop, prop.as_schema().schema, self._names)[1]
-        written = {} if singleton else properties
+        properties = self._properties(visitor)
         ref = self._refs[key]
-        if "key" not in ref:  # data: its path or number, and its schema's name, as it is created
-            definition = {**ref, "schema": self._store.name_of(visitor.as_schema()), "properties": written}
-        else:
-            definition = {"key": key, "properties": written}
+        definition = {**ref, "schema": self._store.name_of(visitor.as_schema()), "properties": {} if singleton else properties}
         self._out.append({"exists": {"definition": definition}})
         if singleton:
             self._out.extend({"as_property": {"ref": ref, "name": name, "mutations": [{"set": {"value": value}}]}}
@@ -1131,6 +1145,80 @@ class _LogWriter:
         self._complete.add(key)
         self._flush()
 
+    def _target(self, entry: Any, link: str, where: str) -> Any:
+        """The object an entry links at `link`, as a visitor: a schema object's builder, or data's proxy."""
+        target = getattr(entry, link)
+        if self._B._builder_for(target) is not None:  # a schema object a proxy's entry links (an extension's)
+            target = self._reader(target)
+        elif isinstance(target, self._B._Link):  # a schema object's entry: what it links, read
+            target = target._target()
+        self._held(target, where)
+        return target
+
+    def _where(self, key: str, schema: Any) -> str:
+        """Where an entry is, in a message: the object whose adjacency holds it, and the adjacency."""
+        return f"{self._shown.get(key, key)}, {schema.name},"
+
+    def _linked(self, target: Any, needs: set[str], contained: list[tuple[Any, str]]) -> str:
+        """The key of an object an entry links, noting what must be written before the entry (`needs`) and what follows
+        the object being written (`contained`): a schema object with no path is defined where it is linked."""
+        key = self._key(target)
+        if self._framework(target):
+            self._written.add(key)
+            self._complete.add(key)
+        elif not self._refs[key]:
+            needs |= self._define_nested(target, key, contained)
+            return key
+        elif isinstance(target, Proxies._ObjectData) or not self._B._named(target._original):
+            contained.append((target, key))  # a member follows its owner, and data what reaches it
+        needs.add(key)
+        return key
+
+    def _define_nested(self, visitor: Any, key: str, contained: list[tuple[Any, str]]) -> set[str]:
+        """The definition of a schema object with no path, its entries nested in it, each without its own link; what it
+        needs written before it."""
+        inserts: list[PlainData] = []
+        needs: set[str] = set()
+
+        def scan(adjacency: Any) -> Any:
+            schema = adjacency.as_schema()
+            relation, me = schema.relation, schema.me
+            entries = []
+            for entry in adjacency:
+                links = {link: self._linked(self._target(entry, link, self._where(key, schema)), needs, contained)
+                         for link in relation.entry.links if link != me}
+                entries.append(self._entry(links, self._entry_properties(entry, relation)))
+            if entries:
+                relation_key = self._linked(self._reader(relation), needs, contained)
+                inserts.append({"relation": self._refs[relation_key], "entries": entries})
+            return adjacency
+
+        visitor.as_adjacencies(scan)
+        definition: dict[str, PlainData] = {"schema": self._store.name_of(visitor.as_schema()),
+                                            "properties": self._properties(visitor)}
+        if inserts:
+            definition["inserts"] = inserts
+        self._nested[key] = (definition, needs)
+        return needs
+
+    def _entry_properties(self, entry: Any, relation: Any) -> dict[str, PlainData]:
+        properties: dict[str, PlainData] = {}
+        for name, prop in relation.entry.properties.items():
+            present, plain = _value(getattr(entry, name), prop.schema, self._names)
+            if present:
+                properties[name] = plain
+        return properties
+
+    def _entry(self, links: dict[str, str], properties: dict[str, PlainData]) -> PlainData:
+        """An entry's mutations: each link set to a reference, or to a definition where what it links has no path."""
+        return {"mutations": [
+            *({"as_link": {"name": name, "mutations": [{"set": {"def": self._nested[target][0]} if target in self._nested
+                                                                 else {"ref": self._refs[target]}}]}}
+              for name, target in links.items()),
+            *({"as_property": {"name": name, "mutations": [{"set": {"value": value}}]}}
+              for name, value in properties.items()),
+        ]}
+
     def _entries(self, adjacency: Any, key: str, contained: list[tuple[Any, str]]) -> Any:
         self._scans += 1
         schema = adjacency.as_schema()
@@ -1138,42 +1226,19 @@ class _LogWriter:
         counts: dict[Hashable, int] = {}
         for entry in adjacency:
             links: dict[str, str] = {}
+            needs: set[str] = set()
             for link in relation.entry.links:
                 if link == me:
                     links[link] = key
+                    needs.add(key)
                     continue
-                target = getattr(entry, link)
-                if self._B._builder_for(target) is not None:  # a schema object a proxy's entry links (an extension's)
-                    target = self._reader(target)
-                elif isinstance(target, self._B._Link) and isinstance(target._target(), Proxies._ObjectData):
-                    target = target._target()  # data a schema object's entry links (an extension's): the proxy
-                self._held(target, f"{key}, {schema.name},")
-                links[link] = self._key(target)
-                if self._framework(target):
-                    self._written.add(links[link])
-                    self._complete.add(links[link])
-                elif self._contained(target) or isinstance(target, Proxies._ObjectData):
-                    contained.append((target, links[link]))  # data follows what reaches it, as unnamed schemas do
-            properties: dict[str, PlainData] = {}
-            for name, prop in relation.entry.properties.items():
-                present, plain = _value(getattr(entry, name), prop.schema, self._names)
-                if present:
-                    properties[name] = plain
+                links[link] = self._linked(self._target(entry, link, self._where(key, schema)), needs, contained)
+            properties = self._entry_properties(entry, relation)
             identity = (id(relation), tuple(sorted(links.items())), repr(sorted(properties.items())))
             counts[identity] = counts.get(identity, 0) + 1
-            pending = self._pending.setdefault(identity, [relation, links, properties, 0, set(links.values()), self._scans])
+            pending = self._pending.setdefault(identity, [relation, links, properties, 0, needs, self._scans])
             pending[3] = max(pending[3], counts[identity])
         return adjacency
-
-    def _contained(self, target: Any) -> bool:
-        """Whether a linked object follows the one that links it: a schema object with no name of its own."""
-        held = getattr(target, "_target", None)
-        builder = held() if callable(held) else None
-        data = getattr(builder, "_original", None)
-        if data is None:
-            return False
-        named = isinstance(data, (*Schemas._DEFINED, self._B._ModuleData)) and data.name
-        return not named
 
     def _flush(self) -> None:
         """Writes the entries whose objects are all written: an inner object's (scanned later) before its owner's, so
@@ -1183,18 +1248,13 @@ class _LogWriter:
                         if pending[4] <= self._complete), key=lambda item: (-item[0], item[1]))
         for _, _, identity in ready:
             relation, links, properties, count, _, _ = self._pending.pop(identity)
-            relation_key = self._key(self._reader(relation))
-            entry = {"mutations": [
-                *({"as_link": {"name": name, "mutations": [{"set": {"ref": self._refs[target]}}]}}
-                  for name, target in links.items()),
-                *({"as_property": {"name": name, "mutations": [{"set": {"value": value}}]}}
-                  for name, value in properties.items()),
-            ]}
+            relation_ref = self._refs[self._key(self._reader(relation))]
+            entry = self._entry(links, properties)
             last = self._out[-1] if self._out else None
-            if isinstance(last, dict) and last.get("insert", {}).get("relation", {}).get("key") == relation_key:
+            if isinstance(last, dict) and last.get("insert", {}).get("relation") == relation_ref:
                 last["insert"]["entries"].extend([entry] * count)
             else:
-                self._out.append({"insert": {"relation": {"key": relation_key}, "entries": [entry] * count}})
+                self._out.append({"insert": {"relation": relation_ref, "entries": [entry] * count}})
 
     def run(self) -> list[PlainData]:
         store = self._store
@@ -1213,7 +1273,7 @@ class _LogWriter:
                     self.define(reader, self._key(reader))
         for singleton in store._singletons.values():
             self.define(singleton, self._key(singleton), singleton=True)
-        for held in [held for held in store._objects.values() if store.framework(held)]:
+        for held in [held for held in store._objects.values() if store.framework(held) and self._B._named(held)]:
             self._extended(self._reader(held))
         return self._out  # every entry is written: it links objects of the store, each written
 
@@ -1235,10 +1295,20 @@ class _LogWriter:
         self._flush()
 
 
+def _schema_path(steps: list[tuple[str, str]]) -> PlainData:
+    """A schema object's path as plain data (docs/OBJECT_IDENTITY.md, Decided, 81): from the root module, the singleton
+    `"."`, each step through a keyed adjacency, by name."""
+    nested: PlainData = {"target": {}}
+    for i, name in reversed(steps):
+        nested = {"entry": {"i": i, "o": "", "properties": {"name": name}, "next": nested}}
+    return {"singleton": ".", "next": nested}
+
+
 class _LogReader:
     """Applies a log of mutations to a store, each through the store's builders: `exists` creates an object only where
-    its identity is new, its properties read by their schema; `insert` adds entries, through an adjacency of an object
-    each links. A sub-clause whose meaning needs an extension of a schema the store was made holding, which the store
+    its path is new, its properties read by their schema; `insert` adds entries, through an adjacency of an object each
+    links, and creates a schema object with no path where an entry defines it (`def`), nested where it is linked, when
+    the object that links it is new (docs/OBJECT_IDENTITY.md, Decided, 81). A sub-clause whose meaning needs an extension of a schema the store was made holding, which the store
     lacks, is ignored, and kept in `ignored` where it is given (docs/proposals/store-overhaul, Decided, 19): a property
     such a schema lacks, and an entry no linked object can hold where one of them is of such a schema."""
 
@@ -1251,6 +1321,8 @@ class _LogReader:
         self._meta = {id(schema) for schema in vars(store._meta).values() if hasattr(schema, "validate")}  # its own
         self._made: list[Any] = []  # the objects made, held: a store holds its counted objects weakly
         self._numbered: dict[int, Any] = {}  # the counted objects the log made, by their numbers in it
+        self._new: set[int] = set()  # the objects the log made, by id
+        self._held_before: dict[tuple[int, int, tuple[str, ...]], bool] = {}  # see `_defines`
         self._ignored = ignored
 
     def _ignore(self, where: tuple, reason: str) -> None:
@@ -1264,33 +1336,19 @@ class _LogReader:
         except LookupError:
             raise DecodeError(f"no schema registered as {name!r}: there are no foreign schemas", path=path(*where)) from None
 
-    def _split(self, key: Any, where: tuple) -> tuple[str, str]:
-        if not isinstance(key, str) or "/" not in key:
-            raise DecodeError(f"a key is 'Module.Schema/ID', got {key!r}", path=path(*where))
-        name, _, identity = key.partition("/")
-        return name, identity
-
     def _resolve(self, ref: Any, where: tuple) -> Any:
-        """The object a reference names: a schema object by its key, an owned object or a singleton by its path, and a
-        counted object by its number in the log."""
+        """The object a reference names: a schema object, an owned object or a singleton by its path, and a counted
+        object by its number in the log."""
         if isinstance(ref, dict) and "n" in ref:
             number = _number({"n": ref["n"]})
             if number not in self._numbered:
                 raise DecodeError(f"no counted object the log made is numbered {ref['n']!r}", path=path(*where, "n"))
             return self._numbered[number]
-        if isinstance(ref, dict) and "path" in ref:
-            found = _by_path(self._store, ref["path"], (*where, "path"))
-            if found is None:
-                raise DecodeError("no object of the store has the path referred to", path=path(*where, "path"))
-            return found
-        key = ref.get("key") if isinstance(ref, dict) else None
-        name, identity = self._split(key, (*where, "key"))
-        schema = self._schema(name, where)
-        if id(schema) not in self._meta:
-            raise DecodeError(f"{key!r}: data is referred to by its path or number, not a key", path=path(*where))
-        found = self._store.held(name, identity)
+        if not isinstance(ref, dict) or "path" not in ref:
+            raise DecodeError("a reference is {'path': path} or {'n': number}", path=path(*where))
+        found = _by_path(self._store, ref["path"], (*where, "path"))
         if found is None:
-            raise DecodeError(f"{key!r} is not in the store", path=path(*where))
+            raise DecodeError("no object of the store has the path referred to", path=path(*where, "path"))
         return found
 
     def _one(self, item: Any, where: tuple) -> tuple[str, Any]:
@@ -1318,27 +1376,59 @@ class _LogReader:
         return self._made
 
     def _exists(self, definition: dict[str, Any], where: tuple) -> None:
-        if "path" in definition or "n" in definition:
+        called = definition.get("path")
+        if not (isinstance(called, dict) and called.get("singleton") == "."):
             self._data(definition, where)
             return
-        key = definition.get("key")
-        name, identity = self._split(key, (*where, "key"))
-        schema = self._schema(name, (*where, "key"))
-        if id(schema) in self._meta:
-            if self._store.held(name, identity) is not None:
-                return
-            builder = self._B._META_BUILDERS[name.removeprefix("Schemas.")]()(None, True, self._store)
-            builder.as_identity(identity)
-            properties = builder.as_schema().properties
-        else:
-            raise DecodeError(f"{key!r}: data is created with its path or number, and its schema, not a key",
-                              path=path(*where, "key"))
+        steps = _schema_steps(called, (*where, "path"))
+        if self._store._at(steps) is not None:
+            return
+        made = self._schema_object(definition, where)
+        i, name = steps[-1]  # the root module's, which every store holds, has none
+        if i != "schemas":  # a member: its owner, at the path's other steps, holds it by the name the last gives
+            owner = self._store._at(steps[:-1])
+            if owner is None:
+                raise DecodeError("the schema object's owner is not in the store", path=path(*where, "path"))
+            builder = self._B._builder_for(owner)(owner, True, self._store)
+            link = builder._members_[i].link
+
+            def fill(entry: Any) -> Any:
+                getattr(entry, link)(made)
+                _set(entry, "name", name)
+                return entry
+
+            getattr(builder, i)(lambda adjacency: adjacency.insert(fill))
+            builder.update()
+
+    def _schema_object(self, definition: dict[str, Any], where: tuple) -> Any:
+        """Creates a schema object from its definition: its kind, by its meta-schema's name, and its properties."""
+        name = definition.get("schema")
+        if not isinstance(name, str):
+            raise DecodeError("a schema object's definition names its kind", path=path(*where, "schema"))
+        schema = self._schema(name, (*where, "schema"))
+        if id(schema) not in self._meta:
+            raise DecodeError(f"{name!r} is not a kind of schema object: a path from the root module ('.') is a schema "
+                              "object's", path=path(*where, "schema"))
+        builder = self._B._META_BUILDERS[name.removeprefix("Schemas.")]()(None, True, self._store)
+        properties = builder.as_schema().properties
         for prop_name, plain in definition.get("properties", {}).items():
             if prop_name not in properties:  # an extension of a schema the store was made holding, which it lacks
                 self._ignore((*where, prop_name), f"{name} has no property {prop_name!r}")
                 continue
             _set(builder, prop_name, _decode(properties[prop_name].schema, plain, (*where, prop_name), self._store))
-        self._made.append(builder.create())
+        made = builder.create()
+        self._made.append(made)
+        self._new.add(id(made))
+        return made
+
+    def _defined(self, definition: Any, where: tuple) -> Any:
+        """A schema object with no path, created from its definition where it is linked, with its entries."""
+        if not isinstance(definition, dict):
+            raise DecodeError("a definition is a mapping", path=path(*where))
+        made = self._schema_object(definition, where)
+        for number, body in enumerate(definition.get("inserts", [])):
+            self._insert(body, (*where, "inserts", number), made)
+        return made
 
     def _data(self, definition: dict[str, Any], where: tuple) -> None:
         """Creates a data object: an owned object or a singleton where its path places it, unless the store holds one
@@ -1370,6 +1460,7 @@ class _LogReader:
                 raise DecodeError(f"{name} has no property {prop_name!r}", path=path(*where, prop_name))
             _set(builder, prop_name, _decode(schema.properties[prop_name].schema, plain, (*where, prop_name), self._store))
         made = builder.create()
+        self._new.add(id(made))
         if placed.counted:
             self._numbered[_number(called)] = made
         if owner is not None:
@@ -1395,17 +1486,21 @@ class _LogReader:
                 getattr(builder, name).as_value(lambda value: value.clear())
         builder.update()
 
-    def _insert(self, body: dict[str, Any], where: tuple) -> None:
+    def _insert(self, body: dict[str, Any], where: tuple, defined: Any = None) -> None:
+        """Adds entries of a relation; nested in the definition of `defined`, each leaves out the link it fills."""
         relation = self._resolve(body.get("relation", {}), (*where, "relation"))
         for number, entry in enumerate(body.get("entries", [])):
             at = (*where, "entries", number)
             links: dict[str, Any] = {}
             values: dict[str, Any] = {}
+            definitions: dict[str, Any] = {}  # what the entry links that it defines, by link
             for item in entry.get("mutations", []):
                 kind, member = self._one(item, at)
                 for change in member.get("mutations", []):
                     _, payload = self._one(change, at)  # an entry's links and properties are set
-                    if kind == "as_link":
+                    if kind == "as_link" and "def" in payload:
+                        definitions[member["name"]] = payload["def"]
+                    elif kind == "as_link":
                         links[member["name"]] = self._resolve(payload.get("ref", {}), at)
                     else:
                         prop = relation.entry.properties.get(member["name"])
@@ -1415,7 +1510,54 @@ class _LogReader:
                         if prop is None:
                             raise DecodeError(f"the relation has no property {member['name']!r}", path=path(*at))
                         values[member["name"]] = _decode(prop.schema, payload.get("value"), at, self._store)
-            self._link(relation, links, values, at)
+            if definitions and defined is None and not self._defines(relation, links, tuple(sorted(definitions))):
+                continue  # it defines what an object the store held already links: that object was written with it
+            for link, definition in definitions.items():
+                links[link] = self._defined(definition, (*at, link))
+            if defined is not None:
+                left = [link for link in relation.entry.links if link not in links]
+                if len(left) != 1:
+                    raise DecodeError("an entry nested in a definition leaves out one link, the one the defined object "
+                                      "fills", path=path(*at))
+                links[left[0]] = defined
+            self._link(relation, {link: links[link] for link in relation.entry.links if link in links}, values, at)
+
+    def _defines(self, relation: Any, links: dict[str, Any], defined: tuple[str, ...]) -> bool:
+        """Whether an entry that defines, at `defined`, objects with no path is new: an object it refers to is new, or,
+        before the log was read, none held such an entry, as an object made with the store (its basic scalar) did not.
+        Read again, a log so makes nothing."""
+        if any(id(target) in self._new for target in links.values()):
+            return True
+        for target in links.values():
+            key = (id(relation), id(target), defined)
+            if key not in self._held_before:  # first asked before the log adds any: only a definition adds one
+                me = next(link for link, linked in links.items() if linked is target)
+                self._held_before[key] = self._links_unnamed(target, me, relation, defined)
+            if self._held_before[key]:
+                return False
+        return True
+
+    def _links_unnamed(self, target: Any, me: str, relation: Any, defined: tuple[str, ...]) -> bool:
+        """Whether `target`, at `me`, holds an entry of `relation` linking, at one of `defined`, a schema object with no
+        name of its own: data's entries are the store's, a schema object's read through its builder."""
+        builder_class = self._B._builder_for(target)
+        if builder_class is None:
+            return any(self._B._builder_for(entry._links.get(link)) is not None and not self._B._named(entry._links[link])
+                       for entry in Proxies._linking(relation, me, target, self._store) for link in defined)
+        found: list[bool] = []
+
+        def scan(adjacency: Any) -> Any:
+            if adjacency.as_schema().relation is relation:
+                for entry in adjacency:
+                    for link in defined:
+                        linked = getattr(entry, link)
+                        linked = linked._target() if isinstance(linked, self._B._Link) else linked
+                        held = getattr(linked, "_original", None)
+                        found.append(held is not None and not self._B._named(held))
+            return adjacency
+
+        builder_class(target, False, self._store).as_adjacencies(scan)
+        return any(found)
 
     def _link(self, relation: Any, links: dict[str, Any], values: dict[str, Any], where: tuple) -> None:
         schemas = []  # the schema of each object linked

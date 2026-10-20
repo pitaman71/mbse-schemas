@@ -140,7 +140,7 @@ def _embedded(s):
     Bool, Int, Float, Str, Bytes = _basics(s)
     """Value objects (one with a container of its own), union values of objects and of scalars, and an intersection
     value."""
-    CardPhone = s.Schemas.OfObject(lambda o: o.properties([_text(s, "number"), _text(s, "label"), _list(s, "extensions", Str)]))
+    CardPhone = s.Schemas.OfObject(lambda o: o.name("CardPhone").properties([_text(s, "number"), _text(s, "label"), _list(s, "extensions", Str)]))
     CardEmail = s.Schemas.OfObject(lambda o: o.properties([_text(s, "address")]))
     Reach = s.Schemas.OfUnion(lambda u: u.branches([lambda t: t.name("phone").schema([CardPhone]),
                                                   lambda t: t.name("email").schema([CardEmail])]))
@@ -164,7 +164,7 @@ def _lists(s):
     Bool, Int, Float, Str, Bytes = _basics(s)
     """Containers, dense by position: of scalars, of containers, of union values and of value objects, which hold
     containers of their own; a tensor by a pair of ints, sparse by an int, a dict by text, and entries by a float."""
-    Socket = s.Schemas.OfObject(lambda o: o.properties([_text(s, "name"), _list(s, "pins", Str)]))
+    Socket = s.Schemas.OfObject(lambda o: o.name("Socket").properties([_text(s, "name"), _list(s, "pins", Str)]))
     Coord = s.Schemas.OfObject(lambda o: o.properties([_text(s, "r", Int), _text(s, "c", Int)]))
     Reading = s.Schemas.OfUnion(lambda u: u.branches([lambda t: t.name("value").schema([Float]),
                                                     lambda t: t.name("note").schema([Str])]))

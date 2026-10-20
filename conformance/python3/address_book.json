@@ -2,7 +2,13 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfModule/.",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "target": {}
+          }
+        },
+        "schema": "Schemas.OfModule",
         "properties": {}
       }
     }
@@ -10,7 +16,22 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfModule/Corpus",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Corpus"
+              },
+              "next": {
+                "target": {}
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfModule",
         "properties": {
           "name": "Corpus"
         }
@@ -20,7 +41,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Defines"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Defines"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -32,7 +76,12 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfModule/."
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "target": {}
+                          }
+                        }
                       }
                     }
                   }
@@ -46,7 +95,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfModule/Corpus"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -73,7 +136,22 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfObject/Contact",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Contact"
+              },
+              "next": {
+                "target": {}
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfObject",
         "properties": {
           "name": "Contact",
           "ref": true
@@ -84,7 +162,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfAdjacency/Contact.addresses",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Contact"
+              },
+              "next": {
+                "entry": {
+                  "i": "adjacencies",
+                  "o": "",
+                  "properties": {
+                    "name": "addresses"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfAdjacency",
         "properties": {
           "me": "contact"
         }
@@ -94,7 +196,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfAdjacency/Contact.phones",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Contact"
+              },
+              "next": {
+                "entry": {
+                  "i": "adjacencies",
+                  "o": "",
+                  "properties": {
+                    "name": "phones"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfAdjacency",
         "properties": {
           "me": "contact"
         }
@@ -104,7 +230,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Contact.given_name",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Contact"
+              },
+              "next": {
+                "entry": {
+                  "i": "properties",
+                  "o": "",
+                  "properties": {
+                    "name": "given_name"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfProperty",
         "properties": {}
       }
     }
@@ -112,7 +262,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasSchema"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasSchema"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -124,7 +297,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Contact.given_name"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Contact"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "given_name"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -138,7 +334,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfStr"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Schemas"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "OfStr"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -153,7 +372,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Contact.family_name",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Contact"
+              },
+              "next": {
+                "entry": {
+                  "i": "properties",
+                  "o": "",
+                  "properties": {
+                    "name": "family_name"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfProperty",
         "properties": {}
       }
     }
@@ -161,7 +404,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasSchema"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasSchema"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -173,7 +439,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Contact.family_name"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Contact"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "family_name"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -187,7 +476,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfStr"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Schemas"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "OfStr"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -202,7 +514,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Contact.birth_date",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Contact"
+              },
+              "next": {
+                "entry": {
+                  "i": "properties",
+                  "o": "",
+                  "properties": {
+                    "name": "birth_date"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfProperty",
         "properties": {}
       }
     }
@@ -210,7 +546,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasSchema"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasSchema"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -222,7 +581,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Contact.birth_date"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Contact"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "birth_date"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -236,7 +618,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfStr"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Schemas"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "OfStr"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -251,7 +656,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasProperty"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasProperty"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -263,7 +691,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Contact"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Contact"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -277,7 +719,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Contact.given_name"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Contact"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "given_name"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -307,7 +772,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Contact"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Contact"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -321,7 +800,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Contact.family_name"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Contact"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "family_name"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -351,7 +853,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Contact"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Contact"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -365,7 +881,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Contact.birth_date"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Contact"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "birth_date"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -392,7 +931,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasAdjacency"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasAdjacency"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -404,7 +966,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Contact"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Contact"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -418,7 +994,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Contact.addresses"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Contact"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "adjacencies",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "addresses"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -448,7 +1047,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Contact"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Contact"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -462,7 +1075,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Contact.phones"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Contact"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "adjacencies",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "phones"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -489,7 +1125,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Defines"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Defines"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -501,7 +1160,12 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfModule/."
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "target": {}
+                          }
+                        }
                       }
                     }
                   }
@@ -515,7 +1179,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Contact"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Contact"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -542,7 +1220,22 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfObject/Address",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Address"
+              },
+              "next": {
+                "target": {}
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfObject",
         "properties": {
           "name": "Address",
           "ref": true
@@ -553,7 +1246,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfAdjacency/Address.contacts",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Address"
+              },
+              "next": {
+                "entry": {
+                  "i": "adjacencies",
+                  "o": "",
+                  "properties": {
+                    "name": "contacts"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfAdjacency",
         "properties": {
           "me": "address"
         }
@@ -563,7 +1280,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Address.street1",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Address"
+              },
+              "next": {
+                "entry": {
+                  "i": "properties",
+                  "o": "",
+                  "properties": {
+                    "name": "street1"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfProperty",
         "properties": {}
       }
     }
@@ -571,7 +1312,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasSchema"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasSchema"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -583,7 +1347,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Address.street1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Address"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "street1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -597,7 +1384,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfStr"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Schemas"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "OfStr"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -612,7 +1422,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Address.locality",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Address"
+              },
+              "next": {
+                "entry": {
+                  "i": "properties",
+                  "o": "",
+                  "properties": {
+                    "name": "locality"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfProperty",
         "properties": {}
       }
     }
@@ -620,7 +1454,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasSchema"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasSchema"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -632,7 +1489,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Address.locality"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Address"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "locality"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -646,7 +1526,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfStr"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Schemas"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "OfStr"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -661,7 +1564,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Address.postal_code",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Address"
+              },
+              "next": {
+                "entry": {
+                  "i": "properties",
+                  "o": "",
+                  "properties": {
+                    "name": "postal_code"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfProperty",
         "properties": {}
       }
     }
@@ -669,7 +1596,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasSchema"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasSchema"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -681,7 +1631,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Address.postal_code"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Address"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "postal_code"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -695,7 +1668,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfStr"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Schemas"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "OfStr"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -710,7 +1706,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Address.country_code",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Address"
+              },
+              "next": {
+                "entry": {
+                  "i": "properties",
+                  "o": "",
+                  "properties": {
+                    "name": "country_code"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfProperty",
         "properties": {}
       }
     }
@@ -718,7 +1738,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasSchema"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasSchema"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -730,7 +1773,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Address.country_code"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Address"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "country_code"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -744,7 +1810,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfStr"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Schemas"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "OfStr"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -759,7 +1848,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasProperty"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasProperty"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -771,7 +1883,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Address"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Address"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -785,7 +1911,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Address.street1"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Address"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "street1"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -815,7 +1964,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Address"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Address"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -829,7 +1992,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Address.locality"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Address"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "locality"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -859,7 +2045,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Address"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Address"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -873,7 +2073,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Address.postal_code"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Address"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "postal_code"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -903,7 +2126,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Address"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Address"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -917,7 +2154,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Address.country_code"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Address"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "country_code"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -944,7 +2204,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasAdjacency"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasAdjacency"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -956,7 +2239,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Address"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Address"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -970,7 +2267,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Address.contacts"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Address"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "adjacencies",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "contacts"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -997,7 +2317,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Defines"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Defines"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1009,7 +2352,12 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfModule/."
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "target": {}
+                          }
+                        }
                       }
                     }
                   }
@@ -1023,7 +2371,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Address"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Address"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1050,7 +2412,22 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfObject/Phone",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Phone"
+              },
+              "next": {
+                "target": {}
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfObject",
         "properties": {
           "name": "Phone",
           "ref": true
@@ -1061,7 +2438,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfAdjacency/Phone.contacts",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Phone"
+              },
+              "next": {
+                "entry": {
+                  "i": "adjacencies",
+                  "o": "",
+                  "properties": {
+                    "name": "contacts"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfAdjacency",
         "properties": {
           "me": "phone"
         }
@@ -1071,7 +2472,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Phone.number",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Phone"
+              },
+              "next": {
+                "entry": {
+                  "i": "properties",
+                  "o": "",
+                  "properties": {
+                    "name": "number"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfProperty",
         "properties": {}
       }
     }
@@ -1079,7 +2504,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasSchema"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasSchema"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1091,7 +2539,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Phone.number"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Phone"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "number"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1105,7 +2576,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfStr"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Schemas"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "OfStr"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1120,7 +2614,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasProperty"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasProperty"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1132,7 +2649,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Phone"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Phone"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1146,7 +2677,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Phone.number"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Phone"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "number"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1173,7 +2727,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasAdjacency"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasAdjacency"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1185,7 +2762,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Phone"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Phone"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1199,7 +2790,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Phone.contacts"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Phone"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "adjacencies",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "contacts"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1226,7 +2840,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Defines"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Defines"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1238,7 +2875,12 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfModule/."
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "target": {}
+                          }
+                        }
                       }
                     }
                   }
@@ -1252,7 +2894,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Phone"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Phone"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1279,7 +2935,22 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfRelation/ContactAddresses",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "ContactAddresses"
+              },
+              "next": {
+                "target": {}
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfRelation",
         "properties": {
           "name": "ContactAddresses"
         }
@@ -1289,7 +2960,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfSymbol/ContactAddresses.contact",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "ContactAddresses"
+              },
+              "next": {
+                "entry": {
+                  "i": "links",
+                  "o": "",
+                  "properties": {
+                    "name": "contact"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfSymbol",
         "properties": {}
       }
     }
@@ -1297,7 +2992,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfSymbol/ContactAddresses.address",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "ContactAddresses"
+              },
+              "next": {
+                "entry": {
+                  "i": "links",
+                  "o": "",
+                  "properties": {
+                    "name": "address"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfSymbol",
         "properties": {}
       }
     }
@@ -1305,7 +3024,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/ContactAddresses.label",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "ContactAddresses"
+              },
+              "next": {
+                "entry": {
+                  "i": "properties",
+                  "o": "",
+                  "properties": {
+                    "name": "label"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfProperty",
         "properties": {}
       }
     }
@@ -1313,7 +3056,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasSchema"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasSchema"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1325,7 +3091,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/ContactAddresses.label"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactAddresses"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "label"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1339,7 +3128,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfStr"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Schemas"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "OfStr"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1354,7 +3166,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasProperty"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasProperty"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1366,7 +3201,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/ContactAddresses"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactAddresses"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1380,7 +3229,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/ContactAddresses.label"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactAddresses"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "label"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1407,7 +3279,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasLink"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasLink"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1419,7 +3314,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/ContactAddresses"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactAddresses"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1433,7 +3342,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfSymbol/ContactAddresses.contact"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactAddresses"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "links",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "contact"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1463,7 +3395,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/ContactAddresses"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactAddresses"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1477,7 +3423,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfSymbol/ContactAddresses.address"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactAddresses"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "links",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "address"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1504,7 +3473,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Relating"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Relating"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1516,7 +3508,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Address.contacts"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Address"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "adjacencies",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "contacts"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1530,7 +3545,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/ContactAddresses"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactAddresses"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1548,7 +3577,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Contact.addresses"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Contact"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "adjacencies",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "addresses"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1562,7 +3614,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/ContactAddresses"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactAddresses"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1577,7 +3643,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Defines"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Defines"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1589,7 +3678,12 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfModule/."
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "target": {}
+                          }
+                        }
                       }
                     }
                   }
@@ -1603,7 +3697,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/ContactAddresses"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactAddresses"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1630,7 +3738,22 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfRelation/ContactPhones",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "ContactPhones"
+              },
+              "next": {
+                "target": {}
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfRelation",
         "properties": {
           "name": "ContactPhones"
         }
@@ -1640,7 +3763,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfSymbol/ContactPhones.contact",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "ContactPhones"
+              },
+              "next": {
+                "entry": {
+                  "i": "links",
+                  "o": "",
+                  "properties": {
+                    "name": "contact"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfSymbol",
         "properties": {}
       }
     }
@@ -1648,7 +3795,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfSymbol/ContactPhones.phone",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "ContactPhones"
+              },
+              "next": {
+                "entry": {
+                  "i": "links",
+                  "o": "",
+                  "properties": {
+                    "name": "phone"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfSymbol",
         "properties": {}
       }
     }
@@ -1656,7 +3827,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/ContactPhones.label",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "ContactPhones"
+              },
+              "next": {
+                "entry": {
+                  "i": "properties",
+                  "o": "",
+                  "properties": {
+                    "name": "label"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfProperty",
         "properties": {}
       }
     }
@@ -1664,7 +3859,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasSchema"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasSchema"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1676,7 +3894,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/ContactPhones.label"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactPhones"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "label"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1690,7 +3931,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfStr"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Schemas"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "OfStr"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1705,7 +3969,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasProperty"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasProperty"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1717,7 +4004,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/ContactPhones"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactPhones"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1731,7 +4032,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/ContactPhones.label"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactPhones"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "label"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1758,7 +4082,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasLink"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasLink"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1770,7 +4117,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/ContactPhones"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactPhones"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1784,7 +4145,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfSymbol/ContactPhones.contact"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactPhones"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "links",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "contact"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1814,7 +4198,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/ContactPhones"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactPhones"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1828,7 +4226,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfSymbol/ContactPhones.phone"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactPhones"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "links",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "phone"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1855,7 +4276,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Relating"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Relating"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1867,7 +4311,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Phone.contacts"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Phone"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "adjacencies",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "contacts"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1881,7 +4348,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/ContactPhones"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactPhones"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1899,7 +4380,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Contact.phones"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Contact"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "adjacencies",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "phones"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1913,7 +4417,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/ContactPhones"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactPhones"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1928,7 +4446,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Defines"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Defines"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1940,7 +4481,12 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfModule/."
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "target": {}
+                          }
+                        }
                       }
                     }
                   }
@@ -1954,7 +4500,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/ContactPhones"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "ContactPhones"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1981,7 +4541,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfRelation/Corpus.Holds",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Corpus"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Holds"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfRelation",
         "properties": {
           "name": "Corpus.Holds"
         }
@@ -1991,7 +4575,40 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfSymbol/Corpus.Holds.corpus",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Corpus"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Holds"
+                  },
+                  "next": {
+                    "entry": {
+                      "i": "links",
+                      "o": "",
+                      "properties": {
+                        "name": "corpus"
+                      },
+                      "next": {
+                        "target": {}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfSymbol",
         "properties": {}
       }
     }
@@ -1999,7 +4616,40 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfSymbol/Corpus.Holds.item",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Corpus"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Holds"
+                  },
+                  "next": {
+                    "entry": {
+                      "i": "links",
+                      "o": "",
+                      "properties": {
+                        "name": "item"
+                      },
+                      "next": {
+                        "target": {}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfSymbol",
         "properties": {}
       }
     }
@@ -2007,7 +4657,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasLink"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasLink"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -2019,7 +4692,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Corpus.Holds"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Holds"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2033,7 +4729,39 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfSymbol/Corpus.Holds.corpus"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Holds"
+                                  },
+                                  "next": {
+                                    "entry": {
+                                      "i": "links",
+                                      "o": "",
+                                      "properties": {
+                                        "name": "corpus"
+                                      },
+                                      "next": {
+                                        "target": {}
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2063,7 +4791,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Corpus.Holds"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Holds"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2077,7 +4828,39 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfSymbol/Corpus.Holds.item"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Holds"
+                                  },
+                                  "next": {
+                                    "entry": {
+                                      "i": "links",
+                                      "o": "",
+                                      "properties": {
+                                        "name": "item"
+                                      },
+                                      "next": {
+                                        "target": {}
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2104,7 +4887,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Defines"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Defines"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -2116,7 +4922,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfModule/Corpus"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2130,7 +4950,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Corpus.Holds"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Holds"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2157,7 +5000,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfObject/Corpus.Root",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Corpus"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Root"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfObject",
         "properties": {
           "name": "Corpus.Root",
           "ref": true,
@@ -2169,7 +5036,40 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfAdjacency/Corpus.Root.holds",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Corpus"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Root"
+                  },
+                  "next": {
+                    "entry": {
+                      "i": "adjacencies",
+                      "o": "",
+                      "properties": {
+                        "name": "holds"
+                      },
+                      "next": {
+                        "target": {}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfAdjacency",
         "properties": {
           "me": "corpus"
         }
@@ -2179,7 +5079,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Relating"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Relating"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -2191,7 +5114,39 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Corpus.Root.holds"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Root"
+                                  },
+                                  "next": {
+                                    "entry": {
+                                      "i": "adjacencies",
+                                      "o": "",
+                                      "properties": {
+                                        "name": "holds"
+                                      },
+                                      "next": {
+                                        "target": {}
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2205,7 +5160,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Corpus.Holds"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Holds"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2220,7 +5198,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasAdjacency"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasAdjacency"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -2232,7 +5233,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Corpus.Root"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Root"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2246,7 +5270,39 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Corpus.Root.holds"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Root"
+                                  },
+                                  "next": {
+                                    "entry": {
+                                      "i": "adjacencies",
+                                      "o": "",
+                                      "properties": {
+                                        "name": "holds"
+                                      },
+                                      "next": {
+                                        "target": {}
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2273,7 +5329,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Defines"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Defines"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -2285,7 +5364,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfModule/Corpus"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2299,7 +5392,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Corpus.Root"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Root"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -2389,7 +5505,21 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/ContactPhones"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "ContactPhones"
+              },
+              "next": {
+                "target": {}
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -2497,7 +5627,21 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/ContactAddresses"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "ContactAddresses"
+              },
+              "next": {
+                "target": {}
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -2594,7 +5738,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Corpus.Holds"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Corpus"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Holds"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {

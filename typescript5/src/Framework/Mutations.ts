@@ -73,18 +73,16 @@ function branches(of: UnionData, members: [string, unknown][]): void {
  * `Mutations.<name>`'s local name (`Log`, `Ref`, ...). */
 export function schemas(builders: Kit): Record<string, ObjectData | UnionData | S.OfContainer.Data> {
   kit = builders;
-  const { AnyValueBuilder, ContainerBuilder, Int, Path, Text } = builders;
+  const { AnyValueBuilder, ContainerBuilder, Int, ObjectBuilder, Path, Text } = builders;
   const Payload = new AnyValueBuilder().create();
 
-  const Ref = verb( // a schema object by its key, "Module.Schema/ID"; data by its path (docs/OBJECT_IDENTITY.md, Decided, 8)
+  const Ref = verb( // an object by its path: a schema object's from the root module (docs/OBJECT_IDENTITY.md, Decided, 81)
     "OfObject.Ref",
-    text("key"),
     (t) => t.name("path").schema([Path]),
   );
-  const Def = verb(
+  const Def = verb( // its path, but where it is linked; its schema's name (a schema object's kind's); its properties
     "OfObject.Def",
-    text("key"), // a schema object's: "Module.Schema/ID", the schema reference and the identity
-    (t) => t.name("path").schema([Path]), // data's: its path, and its schema's name, `Schema@`
+    (t) => t.name("path").schema([Path]),
     text("schema"),
     (t) => t.name("properties").schema([new ContainerBuilder().index([Text]).element([Payload]).create()]),
   );
@@ -125,7 +123,11 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
   const AsPart = verb("OfIntersection.AsPart", text("name"), mutations(OfProperty));
   const AsUnion = verb("OfAny.AsUnion", mutations(AsBranch));
   const AsIntersection = verb("OfAny.AsIntersection", mutations(AsPart));
-  const LinkSet = verb("OfLink.Set", (t) => t.name("ref").schema([Ref]));
+  const LinkSet = verb( // a reference, or the definition of a schema object with no path, nested where it is linked
+    "OfLink.Set",
+    (t) => t.name("ref").schema([Ref]),
+    (t) => t.name("def").schema([Def]),
+  );
   const LinkClear = verb("OfLink.Clear");
 
   const Exists = verb("OfObject.Exists", (t) => t.name("definition").schema([Def])); // as Python, which cannot spell `def`
@@ -144,6 +146,9 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
     (t) => t.name("relation").schema([Ref]), // the relation schema
     (t) => t.name("entries").schema([list(Entry)]),
   );
+  new ObjectBuilder(Def).properties([ // nested in a definition, each entry leaves out the link the defined object fills
+    (t: any) => t.name("inserts").schema([list(RelationInsert)]),
+  ]).update();
   const RelationRemove = verb(
     "OfRelation.Remove",
     (t) => t.name("relation").schema([Ref]),

@@ -1,15 +1,44 @@
 - exists:
     definition:
-      key: Schemas.OfModule/.
+      path:
+        singleton: '.'
+        next:
+          target: {}
+      schema: Schemas.OfModule
       properties: {}
 - exists:
     definition:
-      key: Schemas.OfModule/Corpus
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Corpus
+            next:
+              target: {}
+      schema: Schemas.OfModule
       properties:
         name: Corpus
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Defines
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Defines
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -17,13 +46,25 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfModule/.
+                path:
+                  singleton: '.'
+                  next:
+                    target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfModule/Corpus
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        target: {}
       - as_property:
           name: name
           mutations:
@@ -31,22 +72,79 @@
               value: Corpus
 - exists:
     definition:
-      key: Schemas.OfObject/Student
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Student
+            next:
+              target: {}
+      schema: Schemas.OfObject
       properties:
         name: Student
         ref: true
 - exists:
     definition:
-      key: Schemas.OfAdjacency/Student.enrollments
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Student
+            next:
+              entry:
+                i: adjacencies
+                o: ''
+                properties:
+                  name: enrollments
+                next:
+                  target: {}
+      schema: Schemas.OfAdjacency
       properties:
         me: student
 - exists:
     definition:
-      key: Schemas.OfProperty/Student.name
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Student
+            next:
+              entry:
+                i: properties
+                o: ''
+                properties:
+                  name: name
+                next:
+                  target: {}
+      schema: Schemas.OfProperty
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasSchema
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -54,16 +152,61 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Student.name
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Student
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: name
+                          next:
+                            target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfScalar/Schemas.OfStr
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Schemas
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: OfStr
+                          next:
+                            target: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasProperty
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasProperty
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -71,13 +214,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Student
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Student
+                      next:
+                        target: {}
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Student.name
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Student
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: name
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -85,7 +252,22 @@
               value: name
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasAdjacency
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasAdjacency
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -93,13 +275,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Student
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Student
+                      next:
+                        target: {}
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.OfAdjacency/Student.enrollments
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Student
+                      next:
+                        entry:
+                          i: adjacencies
+                          o: ''
+                          properties:
+                            name: enrollments
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -107,7 +313,22 @@
               value: enrollments
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Defines
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Defines
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -115,13 +336,25 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfModule/.
+                path:
+                  singleton: '.'
+                  next:
+                    target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Student
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Student
+                      next:
+                        target: {}
       - as_property:
           name: name
           mutations:
@@ -129,22 +362,79 @@
               value: Student
 - exists:
     definition:
-      key: Schemas.OfObject/Course
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Course
+            next:
+              target: {}
+      schema: Schemas.OfObject
       properties:
         name: Course
         ref: true
 - exists:
     definition:
-      key: Schemas.OfAdjacency/Course.enrollments
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Course
+            next:
+              entry:
+                i: adjacencies
+                o: ''
+                properties:
+                  name: enrollments
+                next:
+                  target: {}
+      schema: Schemas.OfAdjacency
       properties:
         me: course
 - exists:
     definition:
-      key: Schemas.OfProperty/Course.code
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Course
+            next:
+              entry:
+                i: properties
+                o: ''
+                properties:
+                  name: code
+                next:
+                  target: {}
+      schema: Schemas.OfProperty
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasSchema
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -152,16 +442,61 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Course.code
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Course
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: code
+                          next:
+                            target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfScalar/Schemas.OfStr
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Schemas
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: OfStr
+                          next:
+                            target: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasProperty
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasProperty
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -169,13 +504,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Course
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Course
+                      next:
+                        target: {}
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Course.code
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Course
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: code
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -183,7 +542,22 @@
               value: code
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasAdjacency
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasAdjacency
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -191,13 +565,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Course
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Course
+                      next:
+                        target: {}
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.OfAdjacency/Course.enrollments
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Course
+                      next:
+                        entry:
+                          i: adjacencies
+                          o: ''
+                          properties:
+                            name: enrollments
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -205,7 +603,22 @@
               value: enrollments
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Defines
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Defines
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -213,13 +626,25 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfModule/.
+                path:
+                  singleton: '.'
+                  next:
+                    target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Course
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Course
+                      next:
+                        target: {}
       - as_property:
           name: name
           mutations:
@@ -227,22 +652,79 @@
               value: Course
 - exists:
     definition:
-      key: Schemas.OfObject/Term
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Term
+            next:
+              target: {}
+      schema: Schemas.OfObject
       properties:
         name: Term
         ref: true
 - exists:
     definition:
-      key: Schemas.OfAdjacency/Term.enrollments
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Term
+            next:
+              entry:
+                i: adjacencies
+                o: ''
+                properties:
+                  name: enrollments
+                next:
+                  target: {}
+      schema: Schemas.OfAdjacency
       properties:
         me: term
 - exists:
     definition:
-      key: Schemas.OfProperty/Term.code
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Term
+            next:
+              entry:
+                i: properties
+                o: ''
+                properties:
+                  name: code
+                next:
+                  target: {}
+      schema: Schemas.OfProperty
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasSchema
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -250,20 +732,81 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Term.code
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Term
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: code
+                          next:
+                            target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfScalar/Schemas.OfStr
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Schemas
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: OfStr
+                          next:
+                            target: {}
 - exists:
     definition:
-      key: Schemas.OfProperty/Term.starts
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Term
+            next:
+              entry:
+                i: properties
+                o: ''
+                properties:
+                  name: starts
+                next:
+                  target: {}
+      schema: Schemas.OfProperty
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasSchema
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -271,16 +814,61 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Term.starts
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Term
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: starts
+                          next:
+                            target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfScalar/Schemas.OfStr
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Schemas
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: OfStr
+                          next:
+                            target: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasProperty
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasProperty
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -288,13 +876,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Term
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Term
+                      next:
+                        target: {}
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Term.code
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Term
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: code
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -306,13 +918,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Term
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Term
+                      next:
+                        target: {}
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Term.starts
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Term
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: starts
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -320,7 +956,22 @@
               value: starts
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasAdjacency
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasAdjacency
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -328,13 +979,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Term
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Term
+                      next:
+                        target: {}
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.OfAdjacency/Term.enrollments
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Term
+                      next:
+                        entry:
+                          i: adjacencies
+                          o: ''
+                          properties:
+                            name: enrollments
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -342,7 +1017,22 @@
               value: enrollments
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Defines
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Defines
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -350,13 +1040,25 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfModule/.
+                path:
+                  singleton: '.'
+                  next:
+                    target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Term
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Term
+                      next:
+                        target: {}
       - as_property:
           name: name
           mutations:
@@ -364,28 +1066,117 @@
               value: Term
 - exists:
     definition:
-      key: Schemas.OfRelation/Enrollment
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Enrollment
+            next:
+              target: {}
+      schema: Schemas.OfRelation
       properties:
         name: Enrollment
 - exists:
     definition:
-      key: Schemas.OfSymbol/Enrollment.student
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Enrollment
+            next:
+              entry:
+                i: links
+                o: ''
+                properties:
+                  name: student
+                next:
+                  target: {}
+      schema: Schemas.OfSymbol
       properties: {}
 - exists:
     definition:
-      key: Schemas.OfSymbol/Enrollment.course
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Enrollment
+            next:
+              entry:
+                i: links
+                o: ''
+                properties:
+                  name: course
+                next:
+                  target: {}
+      schema: Schemas.OfSymbol
       properties: {}
 - exists:
     definition:
-      key: Schemas.OfSymbol/Enrollment.term
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Enrollment
+            next:
+              entry:
+                i: links
+                o: ''
+                properties:
+                  name: term
+                next:
+                  target: {}
+      schema: Schemas.OfSymbol
       properties: {}
 - exists:
     definition:
-      key: Schemas.OfProperty/Enrollment.credits
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Enrollment
+            next:
+              entry:
+                i: properties
+                o: ''
+                properties:
+                  name: credits
+                next:
+                  target: {}
+      schema: Schemas.OfProperty
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasSchema
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -393,20 +1184,81 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Enrollment.credits
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: credits
+                          next:
+                            target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfScalar/Schemas.OfInt
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Schemas
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: OfInt
+                          next:
+                            target: {}
 - exists:
     definition:
-      key: Schemas.OfProperty/Enrollment.score
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Enrollment
+            next:
+              entry:
+                i: properties
+                o: ''
+                properties:
+                  name: score
+                next:
+                  target: {}
+      schema: Schemas.OfProperty
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasSchema
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -414,20 +1266,81 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Enrollment.score
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: score
+                          next:
+                            target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfScalar/Schemas.OfFloat
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Schemas
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: OfFloat
+                          next:
+                            target: {}
 - exists:
     definition:
-      key: Schemas.OfProperty/Enrollment.audit
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Enrollment
+            next:
+              entry:
+                i: properties
+                o: ''
+                properties:
+                  name: audit
+                next:
+                  target: {}
+      schema: Schemas.OfProperty
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasSchema
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -435,16 +1348,61 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Enrollment.audit
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: audit
+                          next:
+                            target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfScalar/Schemas.OfBool
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Schemas
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: OfBool
+                          next:
+                            target: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasProperty
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasProperty
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -452,13 +1410,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Enrollment
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        target: {}
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Enrollment.credits
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: credits
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -470,13 +1452,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Enrollment
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        target: {}
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Enrollment.score
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: score
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -488,13 +1494,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Enrollment
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        target: {}
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Enrollment.audit
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: audit
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -502,7 +1532,22 @@
               value: audit
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasLink
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasLink
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -510,13 +1555,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Enrollment
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        target: {}
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.OfSymbol/Enrollment.student
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        entry:
+                          i: links
+                          o: ''
+                          properties:
+                            name: student
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -528,13 +1597,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Enrollment
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        target: {}
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.OfSymbol/Enrollment.course
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        entry:
+                          i: links
+                          o: ''
+                          properties:
+                            name: course
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -546,13 +1639,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Enrollment
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        target: {}
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.OfSymbol/Enrollment.term
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        entry:
+                          i: links
+                          o: ''
+                          properties:
+                            name: term
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -560,7 +1677,22 @@
               value: term
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Relating
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Relating
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -568,42 +1700,129 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfAdjacency/Term.enrollments
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Term
+                      next:
+                        entry:
+                          i: adjacencies
+                          o: ''
+                          properties:
+                            name: enrollments
+                          next:
+                            target: {}
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Enrollment
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        target: {}
     - mutations:
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.OfAdjacency/Course.enrollments
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Course
+                      next:
+                        entry:
+                          i: adjacencies
+                          o: ''
+                          properties:
+                            name: enrollments
+                          next:
+                            target: {}
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Enrollment
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        target: {}
     - mutations:
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.OfAdjacency/Student.enrollments
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Student
+                      next:
+                        entry:
+                          i: adjacencies
+                          o: ''
+                          properties:
+                            name: enrollments
+                          next:
+                            target: {}
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Enrollment
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        target: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Defines
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Defines
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -611,13 +1830,25 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfModule/.
+                path:
+                  singleton: '.'
+                  next:
+                    target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Enrollment
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Enrollment
+                      next:
+                        target: {}
       - as_property:
           name: name
           mutations:
@@ -625,20 +1856,95 @@
               value: Enrollment
 - exists:
     definition:
-      key: Schemas.OfRelation/Corpus.Holds
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Corpus
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Holds
+                next:
+                  target: {}
+      schema: Schemas.OfRelation
       properties:
         name: Corpus.Holds
 - exists:
     definition:
-      key: Schemas.OfSymbol/Corpus.Holds.corpus
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Corpus
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Holds
+                next:
+                  entry:
+                    i: links
+                    o: ''
+                    properties:
+                      name: corpus
+                    next:
+                      target: {}
+      schema: Schemas.OfSymbol
       properties: {}
 - exists:
     definition:
-      key: Schemas.OfSymbol/Corpus.Holds.item
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Corpus
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Holds
+                next:
+                  entry:
+                    i: links
+                    o: ''
+                    properties:
+                      name: item
+                    next:
+                      target: {}
+      schema: Schemas.OfSymbol
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasLink
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasLink
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -646,13 +1952,49 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Corpus.Holds
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Holds
+                          next:
+                            target: {}
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.OfSymbol/Corpus.Holds.corpus
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Holds
+                          next:
+                            entry:
+                              i: links
+                              o: ''
+                              properties:
+                                name: corpus
+                              next:
+                                target: {}
       - as_property:
           name: name
           mutations:
@@ -664,13 +2006,49 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Corpus.Holds
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Holds
+                          next:
+                            target: {}
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.OfSymbol/Corpus.Holds.item
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Holds
+                          next:
+                            entry:
+                              i: links
+                              o: ''
+                              properties:
+                                name: item
+                              next:
+                                target: {}
       - as_property:
           name: name
           mutations:
@@ -678,7 +2056,22 @@
               value: item
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Defines
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Defines
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -686,13 +2079,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfModule/Corpus
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Corpus.Holds
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Holds
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -700,19 +2117,72 @@
               value: Holds
 - exists:
     definition:
-      key: Schemas.OfObject/Corpus.Root
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Corpus
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Root
+                next:
+                  target: {}
+      schema: Schemas.OfObject
       properties:
         name: Corpus.Root
         ref: true
         singleton: corpus
 - exists:
     definition:
-      key: Schemas.OfAdjacency/Corpus.Root.holds
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Corpus
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Root
+                next:
+                  entry:
+                    i: adjacencies
+                    o: ''
+                    properties:
+                      name: holds
+                    next:
+                      target: {}
+      schema: Schemas.OfAdjacency
       properties:
         me: corpus
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Relating
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Relating
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -720,16 +2190,67 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfAdjacency/Corpus.Root.holds
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Root
+                          next:
+                            entry:
+                              i: adjacencies
+                              o: ''
+                              properties:
+                                name: holds
+                              next:
+                                target: {}
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Corpus.Holds
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Holds
+                          next:
+                            target: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasAdjacency
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasAdjacency
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -737,13 +2258,49 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Corpus.Root
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Root
+                          next:
+                            target: {}
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.OfAdjacency/Corpus.Root.holds
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Root
+                          next:
+                            entry:
+                              i: adjacencies
+                              o: ''
+                              properties:
+                                name: holds
+                              next:
+                                target: {}
       - as_property:
           name: name
           mutations:
@@ -751,7 +2308,22 @@
               value: holds
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Defines
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Defines
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -759,13 +2331,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfModule/Corpus
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Corpus.Root
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Root
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -812,7 +2408,16 @@
         code: MA201
 - insert:
     relation:
-      key: Schemas.OfRelation/Enrollment
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Enrollment
+            next:
+              target: {}
     entries:
     - mutations:
       - as_link:
@@ -903,7 +2508,22 @@
               value: true
 - insert:
     relation:
-      key: Schemas.OfRelation/Corpus.Holds
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Corpus
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Holds
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:

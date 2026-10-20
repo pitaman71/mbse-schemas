@@ -6,7 +6,10 @@ element, `Paths.OfEntry` one ownership entry transited (`i`, the adjacency to it
 adjacency to it from the object after, the one marked `owner()`; `properties`, the entry's keys), and `Paths.OfTarget`
 ends it. `next` is a union of the two, its branches `entry` and `target`. Every store holds these schemas, its own.
 
-An identity is computed on demand (Decided, 32): `of(obj)` reads an object's path off its ownership entries.
+An identity is computed on demand (Decided, 32): `of(obj)` reads an object's path off its ownership entries. A schema
+object's path starts from the root module, the singleton `"."`, and goes through each module, then the schema, by name,
+then each member by the keyed adjacency that owns it and its name (Decided, 80 and 81); one with no name of its own has
+none.
 """
 
 from __future__ import annotations
@@ -15,7 +18,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from . import Proxies
-from .Builders import AnyValueBuilder, ContainerBuilder, ObjectBuilder, UnionBuilder
+from .Builders import AnyValueBuilder, ContainerBuilder, ObjectBuilder, UnionBuilder, _builder_for, _named
 
 __all__ = ["schemas", "of", "same"]
 
@@ -83,10 +86,30 @@ def _steps(obj: Any) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]:
         current = owner
 
 
+def _schema_steps(obj: Any) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]:
+    """A schema object's path (Decided, 80 and 81): from the root module, the singleton `"."`, through each module and
+    then the schema by name, then through the keyed adjacency that owns each member. `LookupError` where it has none."""
+    store = obj.__dict__.get("_held_by")
+    if store is None:
+        raise LookupError(f"{_builder_for(obj)._noun} no store holds has no path: a schema object's path is in its store")
+    steps = store._path(obj)
+    if steps is None and _named(obj):
+        raise LookupError(f"the name {obj.name!r} is not a path: its parts are names, joined by dots")
+    if steps is None:
+        raise LookupError(f"{_builder_for(obj)._noun} with no name of its own, nor a member of one that has a name, has "
+                          "no path: it is written nested in the one object that links it")
+    return ".", [(i, "", {"name": name}) for i, name in steps]
+
+
 def of(obj: Any) -> Any:
-    """The path of a reference object, read off its ownership entries (Decided, 32): a `Paths.OfRoot` value,
-    standalone, of the object's store."""
-    singleton, steps = _steps(obj)
+    """The path of a reference object, read off its ownership entries (Decided, 32), or of a schema object, off its
+    name and its owners' (81): a `Paths.OfRoot` value, standalone, of the object's store."""
+    if _builder_for(obj) is not None:
+        singleton, steps = _schema_steps(obj)
+        store = obj.__dict__["_held_by"]
+    else:
+        singleton, steps = _steps(obj)
+        store = Proxies.store_of(obj)
 
     def step(rest: list[tuple[str, str, dict[str, Any]]]) -> Any:
         if not rest:
@@ -94,7 +117,7 @@ def of(obj: Any) -> Any:
         i, o, keys = rest[0]
         return lambda n: n.entry(lambda e: e.i(i).o(o).properties(keys).next(step(rest[1:])))
 
-    return Proxies.store_of(obj).Paths.OfRoot(lambda r: r.singleton(singleton).next(step(steps)))
+    return store.Paths.OfRoot(lambda r: r.singleton(singleton).next(step(steps)))
 
 
 def same(a: Any, b: Any) -> bool:

@@ -30,8 +30,9 @@ assert list(Contact.properties) == ["given_name", "age"]
 store.Schemas.OfObject(Contact, lambda o: o.properties(lambda adv: adv.remove(lambda e: e.name("age"))))
 assert list(Contact.properties) == ["given_name"]
 
-# A new version beside the old: a named schema's identity is its name, so clone it under another, in the store.
-V2 = Builders.OfObject.Builder(Contact, store=store).name("crm.Contact.v2").clone()
+# A new version beside the old: a named schema's path is its name, so clone it under another, in the store; a
+# version's module beside the schema's, as a module and a schema do not share a path.
+V2 = Builders.OfObject.Builder(Contact, store=store).name("crm.v2.Contact").clone()
 store.Schemas.OfObject(V2, lambda o: o.properties([lambda t: t.name("email").schema([Text])]))
 assert list(V2.properties) == ["given_name", "email"] and list(Contact.properties) == ["given_name"]
 
@@ -54,7 +55,7 @@ Address = store.Schemas.OfObject(lambda o: o.name("crm.Address").properties([
 # Read a schema through its builder, read-only: its members are its plain schema's, the store's Schemas.OfX.
 reader = Builders.OfObject.Builder(Contact, False)
 assert (reader.name.get(), reader.ref.get(), [e.name.get() for e in reader.properties]) == ("crm.Contact", True, ["given_name"])
-assert store.registered("crm.Customer") is Customer and list(store.module("crm").schemas) == ["Contact", "Customer", "Address"]
+assert store.registered("crm.Customer") is Customer and list(store.module("crm").schemas) == ["Contact", "v2", "Customer", "Address"]
 assert all(schema.validate() == [] for schema in (Contact, V2, Customer, Address))
 
 ada = store.crm.Customer(lambda c: c.given_name("Ada").account("A-1"))
@@ -84,8 +85,9 @@ check([...Contact.properties.keys()].join() === "given_name,age");
 store.Schemas.OfObject(Contact, (o: any) => o.properties((adv: any) => adv.remove((e: any) => e.name("age"))));
 check([...Contact.properties.keys()].join() === "given_name");
 
-// A new version beside the old: a named schema's identity is its name, so clone it under another, in the store.
-const V2 = new Builders.OfObject.Builder(Contact, true, store).name("crm.Contact.v2").clone();
+// A new version beside the old: a named schema's path is its name, so clone it under another, in the store; a
+// version's module beside the schema's, as a module and a schema do not share a path.
+const V2 = new Builders.OfObject.Builder(Contact, true, store).name("crm.v2.Contact").clone();
 store.Schemas.OfObject(V2, (o: any) => o.properties([(t: any) => t.name("email").schema([Text])]));
 check([...V2.properties.keys()].join() === "given_name,email" && Contact.properties.size === 1);
 
@@ -110,7 +112,7 @@ const reader: any = new Builders.OfObject.Builder(Contact, false);
 check(reader.name.get() === "crm.Contact" && reader.ref.get() === true
   && [...reader.properties].map((e: any) => e.name.get()).join() === "given_name");
 check(store.registered("crm.Customer") === Customer
-  && [...store.module("crm").schemas.keys()].join() === "Contact,Customer,Address");
+  && [...store.module("crm").schemas.keys()].join() === "Contact,v2,Customer,Address");
 check([Contact, V2, Customer, Address].every((schema) => schema.validate().length === 0));
 
 const ada = store.crm.Customer((c: any) => c.given_name("Ada").account("A-1"));
@@ -126,9 +128,14 @@ check(Validators.Validate(store)(Customer, ada).length === 0);
 - **A schema exists before what holds its values.** Build a value object or container schema, then the property that
   holds its values.
   Two schemas that refer to each other are built in two steps: the first, then the second, then the first updated.
-- **A named schema's identity is its name.** `store.Schemas.OfObject(Contact)` cannot clone it into the same store; a
-  version beside it is a builder's clone under a new name. Renaming one (`.name(...)` in an update) moves it to the
-  module its new name gives.
+- **A named schema's path is its name.** `store.Schemas.OfObject(Contact)` cannot clone it into the same store; a
+  version beside it is a builder's clone under a new name, in a module of its own (`crm.v2.Contact`): a module and a
+  schema do not share a path. Renaming one (`.name(...)` in an update) moves it to the module its new name gives.
+  `Paths.of(schema)` gives its path, and `store.held(path)` the schema object at one.
+- **Name what you share.** A schema object with no name of its own (an unnamed value object, container or relation) has
+  no path: one schema object alone may link it, and the store refuses a second ("name it to share it").
+- **A value schema cannot hold itself.** `validate()` refuses a value object, union, intersection or container that
+  holds itself; a reference object schema may, through its relations' entries (a person who knows persons).
 - **Extending changes the schema in place.** Objects of an extended schema gain the member, absent until written. To keep
   the old schema as it was, make a version.
 - **Validate when you are done.** Building never validates, so a schema may be incomplete between steps;

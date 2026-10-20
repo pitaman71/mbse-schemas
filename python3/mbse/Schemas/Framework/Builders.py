@@ -22,7 +22,7 @@ finalized by `create()` (no data given), `clone()` (new data) or `update()` (wri
 from __future__ import annotations
 
 import dataclasses
-import uuid
+import itertools
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar
@@ -51,7 +51,6 @@ __all__ = [
     "OfVariable",
     "Store",
     "extend",
-    "identity_of",
 ]
 
 D = TypeVar("D")
@@ -67,14 +66,10 @@ def _visit(cb: Any, visitor: Any) -> None:
     cb(visitor)
 
 
-def identity_of(data: Any) -> str | None:
-    """A schema object's identity, which its builder gives it on creation; None for data no builder created."""
-    return getattr(data, "__dict__", {}).get("_identity")
-
-
-def _identify(data: Any, identity: str) -> Any:
-    object.__setattr__(data, "_identity", identity)  # a form is frozen; its identity is not one of its fields
-    return data
+def _named(data: Any) -> bool:
+    """Whether a schema object has a name of its own, which gives its path: a module or a named schema. Anything else
+    has a path only as a member of an object that has one (docs/OBJECT_IDENTITY.md, Decided, 81)."""
+    return isinstance(data, (*S._DEFINED, _ModuleData)) and bool(data.name)
 
 
 def _same(a: Any, b: Any) -> bool:
@@ -761,9 +756,6 @@ class _Link(_Unassignable):
     def as_schema(self) -> Any:
         return self._target().as_schema()
 
-    def as_identity(self, identity: str | None = None) -> Any:
-        return self._target().as_identity(identity)
-
     @property
     def as_properties(self) -> Any:
         return self._target().as_properties
@@ -840,7 +832,6 @@ class _Builder(_Unassignable, Generic[D]):
         if added:  # the members its store's extensions added to its plain schema: the store's own
             self._members_ = {**type(self)._members_, **added}
         self._written: list[Any] = []  # the members written, in order
-        self._identity: str | None = None  # the identity written (`as_identity`)
         self._working = self._make()
         if original is not None:
             self._update(self._working, original)
@@ -870,14 +861,14 @@ class _Builder(_Unassignable, Generic[D]):
         """Returns new data. Only valid without data given."""
         if self._original is not None:
             raise ValueError("create() is only valid without a source instance; use clone() or update()")
-        return self._detached(self._identified(self._finalize(self._working), self._identity))
+        return self._detached(self._held(self._finalize(self._working)))
 
     def clone(self) -> D:
         """Returns new data, leaving the data given as it is. Only valid with data given."""
         if self._original is None:
             raise ValueError("clone() is only valid with a source instance")
         self._clone_members()
-        return self._detached(self._identified(self._finalize(self._working), self._identity))
+        return self._detached(self._held(self._finalize(self._working)))
 
     def _detached(self, data: D) -> D:
         """`data`, finalized, which the builder no longer writes: it goes on working on a copy, so that finalizing it again
@@ -887,14 +878,26 @@ class _Builder(_Unassignable, Generic[D]):
         return data
 
     def _clone_members(self) -> None:
-        """A member has one owner: a clone has its own members, each cloned, with an identity of its own; those it
-        shares by other means (an object schema's inherited ones) stay shared."""
+        """A member has one owner, and a schema object with no name of its own is linked by one object alone: a clone
+        has its own of each, cloned; those it shares by other means (an object schema's inherited members) stay shared,
+        and so does what has a name of its own."""
         for members in self._members_.values():
-            if isinstance(members, _Members) and members.owned and members.build is not None:
-                shared, builder_class = self._shared(members), members.build()
-                members.store(self._working, [referent if id(referent) in shared else
-                                              builder_class(referent, True, self._store).clone()
-                                              for referent in members.items(self._working)])
+            if not isinstance(members, _Members) or members.extension is not None:
+                continue
+            shared = self._shared(members)
+
+            def cloned(referent: Any, members: _Members = members) -> Any:
+                builder_class = _builder_for(referent)
+                if (id(referent) in shared or builder_class is None or _named(referent)
+                        or (self._store is not None and self._store.framework(referent))):
+                    return referent
+                return builder_class(referent, True, self._store).clone()
+
+            if isinstance(members, _Records):
+                members.store(self._working, [dataclasses.replace(record, schema=cloned(record.schema))
+                                              for record in members.items(self._working)])
+            else:
+                members.store(self._working, [cloned(referent) for referent in members.items(self._working)])
 
     def _shared(self, members: _Members) -> set[int]:
         """The referents of `members` a clone shares with the original rather than owns."""
@@ -907,18 +910,12 @@ class _Builder(_Unassignable, Generic[D]):
         if self._store is not None:
             self._store._permit(self)
         self._update(self._original, self._working)
-        return self._identified(self._finalize(self._original), self._identity or identity_of(self._original))
+        return self._held(self._finalize(self._original))
 
-    def _identified(self, data: D, identity: str | None) -> D:
-        """`data`, given `identity`, else one allocated: by its store, which refuses one another of its schema objects
-        has, where it is built in one."""
-        held = (self._store._hold(data, identity or self._allocate()) if self._store is not None
-                else _identify(data, identity or self._allocate()))
-        return _settle_extended(held, self._store)
-
-    def _allocate(self) -> str:
-        """The identity a schema object is given on creation, where none is written: a UUID."""
-        return str(uuid.uuid4())
+    def _held(self, data: D) -> D:
+        """`data`, held by its store where it is built in one, which refuses it where it would share an object with no
+        name of its own."""
+        return _settle_extended(self._store._hold(data) if self._store is not None else data, self._store)
 
     def _edited(self) -> D:
         """A referent edited through its link: updated, as a reference object is."""
@@ -937,18 +934,6 @@ class _Builder(_Unassignable, Generic[D]):
     def as_schema(self) -> Any:
         """Its plain schema (`Schemas.OfObject`, ...): its store's, or, outside a store, the template's."""
         return getattr(self._store._meta if self._store is not None else _TEMPLATE, self._meta, None)
-
-    def as_identity(self, identity: str | None = None) -> Any:
-        """Read, the identity written, else the one of the data given; None for a schema object not created yet that
-        none is written for. Written, the identity the object takes, and the builder: created or cloned, it is given one
-        only where none is written; updated, it keeps its own unless one is written, which renames it."""
-        if identity is None:
-            return self._identity or identity_of(self._original)
-        if not isinstance(identity, str) or not identity:
-            raise TypeError(f"an identity is non-empty text, got {identity!r}")
-        self._check()
-        self._identity = identity
-        return self
 
     def _ordered(self, kind: type, declared: str) -> list[str]:
         """The names of the members of `kind`, in the order the meta-schema declares them (its `declared` dict)."""
@@ -1062,19 +1047,6 @@ class _KindBuilder(_Builder[D]):
     description = _Prop()
     parameters = _Members("parameter", keyed=True, accepts=lambda v: isinstance(v, S.OfParameter.Data),
                           build=lambda: ParameterBuilder, **_by_name("parameters"))
-
-    def _allocate(self) -> str:
-        """A named schema's identity is its name, a global one; an unnamed one's, a UUID."""
-        return self._working.name or super()._allocate()
-
-    def _identified(self, data: D, identity: str | None) -> D:
-        """A named schema's identity is its name, so it follows a rename, unless one is written."""
-        name = getattr(data, "name", None)
-        renamed = name is not None and name != getattr(self._original, "__dict__", {}).get("_named", name)
-        if self._identity is None and renamed:
-            identity = name
-        data.__dict__["_named"] = name
-        return super()._identified(data, identity)
 
 
 # --- Builders of members ---
@@ -1358,9 +1330,6 @@ class ModuleBuilder(_KindBuilder[_ModuleData]):
                        accepts=lambda v: isinstance(v, (*S._DEFINED, _ModuleData)),
                        items=lambda data: list(data.schemas.values()), store=_store_defined)
 
-    def _allocate(self) -> str:
-        return self._working.name or "."
-
 
 _BUILDERS: dict[type, type] = {
     S.OfScalar.Data: ScalarBuilder, S.OfObject.Data: ObjectBuilder, S.OfUnion.Data: UnionBuilder,
@@ -1371,12 +1340,6 @@ _BUILDERS: dict[type, type] = {
     S.OfExpression.Data: ExpressionBuilder, S.OfCollector.Data: CollectorBuilder,
     _ModuleData: ModuleBuilder,
 }
-
-
-def _kind(data: Any) -> str:
-    """The name of a schema object's meta-schema, `Schemas.OfObject`: the kind its identity is unique within."""
-    builder = _builder_for(data)
-    return f"Schemas.{builder._meta}" if builder is not None else type(data).__name__
 
 
 def _builder_for(referent: Any) -> type | None:
@@ -1555,8 +1518,9 @@ class Store(Proxies._Store):
     an attribute: `store.Schemas.OfObject(...)` builds an object schema, `store.crm.Contact(...)` a contact. Called with
     a `Specs.Callback[Visitors.OfX]`, it creates an object; with an object and a callback, it updates the object; with
     an object alone, it clones it. It returns the object. A schema object built here, and each member built with it, is
-    given its identity by the store, which refuses one it holds another with; a named schema is registered under its
-    name, so that the store builds its objects next.
+    held by the store: a named schema is registered under its name, so that the store builds its objects next, and is
+    found by its path, as each member of it is (docs/OBJECT_IDENTITY.md, Decided, 80 and 81); a schema object with no
+    name of its own has no path, and is linked by one object alone.
 
     A store is made holding its own plain schemas of schemas (`Schemas.OfObject`, ...), basic scalars (`Schemas.OfInt`,
     ...) and mutation schemas, which no other store shares (docs/SCHEMA_EXTENSION.md, Decided, 23); it changes them, as
@@ -1564,33 +1528,106 @@ class Store(Proxies._Store):
 
     def __init__(self) -> None:
         super().__init__()
-        self._objects: dict[tuple[str, str], Any] = {}  # the schema objects, by their kind and their identity
+        self._objects: dict[int, Any] = {}  # the schema objects it holds, by id
+        self._linkers: dict[int, tuple[Any, _Members]] = {}  # what links each object with no name of its own, and how
         from . import Mutations, Paths
 
         self._meta = _plain()  # its plain schemas of schemas and basic scalars, its own
         self._paths = Paths.schemas(self._meta.OfStr, self._meta.OfInt, self._meta.OfBool)
         self._mutations = Mutations.schemas(self._meta.OfStr, self._meta.OfInt, self._paths.OfRoot)
-        for schema in (*vars(self._meta).values(), *vars(self._mutations).values(), *vars(self._paths).values()):
-            self._objects[(_kind(schema), identity_of(schema))] = schema
+        framework = (*vars(self._meta).values(), *vars(self._mutations).values(), *vars(self._paths).values())
+        for schema in framework:
             self._register(schema)
-        self._framework: set[int] = {id(schema) for schema in self._objects.values()}
+        reached = list(framework)
+        while reached:  # each with what it holds: framework schemas share their unnamed ones, never written
+            schema = reached.pop()
+            if id(schema) not in self._objects:
+                self._objects[id(schema)] = schema
+                schema.__dict__["_held_by"] = self
+                for referent, members in self._referents(schema):
+                    self._linkers.setdefault(id(referent), (schema, members))
+                    reached.append(referent)
+        self._framework: set[int] = set(self._objects)
         self._added: dict[type, dict[str, Any]] = {}  # the members its extensions added to builders, by builder class
         self._extending: set[int] | None = None  # the schema objects held when an extension began, while it runs
         self._modules: dict[str, _ModuleData] = {}  # by path; the root module's is ""
         self._placed: dict[int, tuple[_ModuleData, str]] = {}  # each schema's module, and its name there
-        self._linked: dict[int, Any] = {}  # the unnamed schema objects given an identity by the first object to link them
         self._root = ModuleBuilder(None, True, self).create()
 
-    def held(self, kind: str, identity: str) -> Any:
-        """The schema object of `kind` (its meta-schema's name, `Schemas.OfObject`) whose identity is `identity`; None where
-        the store holds none. Schema objects of different kinds may share an identity: a module and a schema its path
-        names (`crm.Contact` and `crm.Contact.v2`'s module)."""
-        return self._objects.get((kind, identity))
+    def held(self, path: Any) -> Any:
+        """The schema object whose path is `path`, a `Paths.OfRoot` value (`Paths.of`) or its plain form; None where the
+        store holds none (docs/OBJECT_IDENTITY.md, Decided, 81)."""
+        from . import Plain
+
+        if not isinstance(path, dict):
+            path = Plain.ToPlain(None)(path.as_schema(), path)
+        try:
+            return self._at(Plain._schema_steps(path, ()))
+        except Plain.DecodeError:
+            return None
+
+    def _at(self, steps: list[tuple[str, str]]) -> Any:
+        """The schema object at `steps` from the root module: through modules and then a schema, by name, then through
+        the keyed adjacencies that own its members."""
+        names = [name for i, name in itertools.takewhile(lambda step: step[0] == "schemas", steps)]
+        dotted = ".".join(names)
+        current = self._modules.get(dotted) or self._schemas.get(dotted)
+        for i, name in steps[len(names):]:
+            builder_class = _builder_for(current)
+            members = builder_class._members_.get(i) if builder_class is not None else None
+            if not isinstance(members, _Members) or not (members.keyed and members.owned):
+                return None
+            current = next((referent for referent in members.referents(current)
+                            if members.name_of(current, referent) == name), None)
+        return current
+
+    def _path(self, data: Any) -> list[tuple[str, str]] | None:
+        """The steps of a schema object's path from the root module, each the adjacency it goes through and the entry's
+        name: a module's and a named schema's, its name's parts, through each module that defines the next; a member's,
+        its owner's, then the adjacency that owns it and its name there. None where it has none: an object with no name
+        of its own, and what such an object holds (Decided, 80 and 81)."""
+        if isinstance(data, _ModuleData) and data.name is None:
+            return []
+        if _named(data):
+            placed = self._modules.get(data.name) is data or self._schemas.get(data.name) is data
+            return [("schemas", part) for part in data.name.split(".")] if placed and S._DOTTED.match(data.name) else None
+        linker = self._linker(data)
+        if linker is None or not (linker[1].keyed and linker[1].owned):
+            return None
+        owner, members = linker
+        name, steps = members.name_of(owner, data), self._path(owner)
+        return None if steps is None or not name else [*steps, (members.name, name)]
+
+    def _referents(self, data: Any) -> Iterator[tuple[Any, _Members]]:
+        """Each schema object `data` links through an adjacency of its kind's own, with that adjacency's member."""
+        for members in _builder_for(data)._members_.values():
+            if isinstance(members, _Members):
+                for referent in members.referents(data):
+                    if _builder_for(referent) is not None:
+                        yield referent, members
+
+    def _linker(self, data: Any) -> tuple[Any, _Members] | None:
+        """What links an object with no name of its own, and through which adjacency, while it links it still."""
+        found = self._linkers.get(id(data))
+        if found is None or all(referent is not data for referent in found[1].referents(found[0])):
+            return None
+        return found
+
+    def _link(self, data: Any) -> None:
+        """Records what links each object with no name of its own that `data` links, refused where another links it
+        already: it is written nested in the one object that links it (Decided, 81)."""
+        for referent, members in self._referents(data):
+            if _named(referent) or self.framework(referent):
+                continue
+            linker = self._linker(referent)
+            if linker is not None and linker[0] is not data:
+                raise ValueError(f"{_builder_for(referent)._noun} with no name of its own is linked by one schema object "
+                                 "alone, and another links it already: name it to share it")
+            self._linkers[id(referent)] = (data, members)
 
     def holds(self, data: Any) -> bool:
         """Whether the store holds the schema object `data`."""
-        identity = identity_of(data)
-        return identity is not None and self._objects.get((_kind(data), identity)) is data
+        return self._objects.get(id(data)) is data
 
     def module(self, path: str = "") -> _ModuleData:
         """The module whose path is `path` (`crm.sales`), made with the modules it is in where there is none; the root
@@ -1610,7 +1647,7 @@ class Store(Proxies._Store):
         it neither has nor inherits, nor a refinement of it declares; anything else about it stays as it was. What `cb`
         builds is the store's own. Refused, a change to a schema raises before it is written, but what was written before
         it stays: a refused extension is a program error."""
-        held = {id(schema) for schema in self._objects.values()}
+        held = set(self._objects)
         before = {id(meta): (set(meta.properties), set(meta.adjacencies)) for meta in vars(self._meta).values()
                   if isinstance(meta, S.OfObject.Data)}
         self._extending = held
@@ -1645,56 +1682,12 @@ class Store(Proxies._Store):
             if previous == (parent, local):
                 return
             ModuleBuilder(previous[0], True, self).schemas(lambda adv: adv.remove(lambda entry: entry.schema(data))).update()
+        taken = parent.schemas.get(local)
+        if taken is not None and taken is not data:
+            raise ValueError(f"the path {data.name!r} names another schema object already: a module and a schema, or two "
+                             "schemas, do not share a path")
         self._placed[id(data)] = (parent, local)
         ModuleBuilder(parent, True, self).schemas([lambda t: t.name(local).schema(data)]).update()
-
-    def _derive(self, owner: Any, identity: str) -> None:
-        """Gives the schema objects `owner` holds or links that have no name of their own the identities their path from
-        it derives: a member its owner's and its name (`crm.Person.age`); another, the first object's to link it and the
-        adjacency (`crm.Person.tags#schema`)."""
-        builder_class = _builder_for(owner)
-        for name, members in {**builder_class._members_, **self._added.get(builder_class, {})}.items():
-            if not isinstance(members, _Members):
-                continue
-            for index, referent in enumerate(members.referents(owner)):
-                if not self._derivable(referent):
-                    continue
-                if members.owned:
-                    local = members.name_of(owner, referent)
-                    if local:
-                        derived = f"{identity}.{local}"
-                        clash = self._objects.get((_kind(referent), derived))
-                        if clash is not None and clash is not referent:  # another member of that name (invalid)
-                            derived = f"{identity}#{name}.{local}"
-                    elif isinstance(referent, S.OfAdjacency.Data):  # anonymous: named by its relation and link
-                        if referent.relation is None:
-                            continue  # not linked yet (a log being read): it keeps the identity it was given
-                        derived = f"{identity}#({referent.relation.name}.{referent.me})"
-                    else:
-                        derived = f"{identity}#{name}.{index}"
-                elif self._linked.get(id(referent)) is referent:  # by identity: an id is reused once its object is gone
-                    continue
-                else:
-                    derived = f"{identity}#{name}" if members.one else f"{identity}#{name}.{index}"
-                    self._linked[id(referent)] = referent
-                self._rehold(referent, derived)
-                self._derive(referent, derived)
-
-    def _derivable(self, referent: Any) -> bool:
-        """Whether a referent takes an identity from its path: a schema object this store holds, the framework's aside,
-        with no name of its own (a named schema's identity is its name)."""
-        named = isinstance(referent, (*S._DEFINED, _ModuleData)) and referent.name
-        return not named and self.holds(referent) and not self.framework(referent)
-
-    def _rehold(self, referent: Any, identity: str) -> None:
-        kind = _kind(referent)
-        held = self._objects.get((kind, identity))
-        if held is referent:
-            return
-        if held is not None:
-            raise ValueError(f"a schema object with the identity {identity!r} is already in this store")
-        del self._objects[(kind, identity_of(referent))]
-        self._objects[(kind, identity)] = _identify(referent, identity)
 
     @property
     def Instances(self) -> _Instances:
@@ -1707,22 +1700,18 @@ class Store(Proxies._Store):
             raise AttributeError(name)
         return _Path(self, name)
 
-    def _hold(self, data: Any, identity: str) -> Any:
-        """Gives a schema object built here `identity`, refused where another holds it; registers a named schema. A framework
-        schema, which every store holds as it is, is left so: a builder of one writes only its store's entries."""
+    def _hold(self, data: Any) -> Any:
+        """Holds a schema object built here, refused where it would share an object with no name of its own; registers a
+        named schema and places it in its module. A framework schema, which every store holds as it is, is left so: a
+        builder of one writes only its store's entries."""
         if self.framework(data):
             return data
         if isinstance(data, S.OfScalar.Data):
             raise TypeError("a store builds no scalar schema: its scalars are the basic scalars it was made holding, "
                             "store.Schemas.OfBool, OfInt, OfFloat, OfStr and OfBytes")
-        kind = _kind(data)
-        held = self._objects.get((kind, identity))
-        if held is not None and held is not data:
-            raise ValueError(f"a schema object with the identity {identity!r} is already in this store")
-        previous = identity_of(data)
-        if previous is not None and self._objects.get((kind, previous)) is data:
-            del self._objects[(kind, previous)]
-        self._objects[(kind, identity)] = _identify(data, identity)
+        self._link(data)
+        self._objects[id(data)] = data
+        data.__dict__["_held_by"] = self  # its store, which gives its path (`Paths.of`)
         if isinstance(data, S._DEFINED):
             for name in [name for name, schema in self._schemas.items() if schema is data and name != data.name]:
                 del self._schemas[name]  # renamed
@@ -1734,7 +1723,6 @@ class Store(Proxies._Store):
             self._modules[data.name or ""] = data
         if isinstance(data, (*S._DEFINED, _ModuleData)) and data.name:
             self._place(data)
-            self._derive(data, identity)
         return data
 
     def _build(self, name: str, args: tuple[Any, ...]) -> Any:
@@ -1762,8 +1750,8 @@ class Store(Proxies._Store):
 
 
 def _shown(schema: Any) -> str:
-    """A schema object in a message: its name, else its identity."""
-    return repr(getattr(schema, "name", None) or identity_of(schema))
+    """A schema object in a message: its name, else its kind."""
+    return repr(getattr(schema, "name", None)) if getattr(schema, "name", None) else _builder_for(schema)._noun
 
 
 def _extension_problems(builder: _Builder[Any]) -> list[str]:

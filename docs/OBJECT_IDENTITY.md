@@ -527,7 +527,18 @@ As the user decided (2026-10-20), on step 4g's design ("1,2,3 : confirmed; 4,5 :
 
 ## Open questions
 
-None at present.
+Raised while building 4g, for the user's review:
+
+1. **The framework's own recursive value schemas.** 72 refuses a value schema that holds itself, and 4g's `validate()`
+   does, but a path's steps nest (`Paths.OfEntry`'s `next` is `Paths.Next`, whose branch `entry` is a `Paths.OfEntry`),
+   and so do mutations (`Mutations.OfAny` → `AsObject` → `AsProperty` → `OfProperty` → `AsAny` → `OfAny`; 4g's nested
+   definitions add `Def` → `inserts` → `Insert` → `Entry` → `Link.Set` → `Def`). Each reports the cycle as its only
+   problem (MUT-01, IDN-03). Built as it stands until 4f replaces the log; to decide: a path as a list of steps, and the
+   log's nesting through counted reference objects, as 79 made terms, or 72 relaxed for some kind of value.
+2. **A module and a schema at one path.** 80 makes a name a path and `Schemas.Defines` is keyed by name, so 4g refuses a
+   module and a schema at the same path: `crm.Contact.v2` beside `crm.Contact` would put the module `crm.Contact` at
+   the schema's path. Tutorial 9 and the skill now version as `crm.v2.Contact`, a module per version. To confirm, or
+   to choose another form (`crm.ContactV2`; a version beside the name, FRAMEWORK.md, Open questions).
 
 ---
 

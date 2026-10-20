@@ -75,6 +75,7 @@ Money = store.Schemas.OfObject(lambda o: (
 ))
 Prices = store.Schemas.OfRelation(lambda r: (
     r
+    .name('Prices')  # each end's adjacency links it: a schema shared is named
     .links([
         lambda t: t.name('product'),
         lambda t: t.name('price'),
@@ -99,7 +100,7 @@ def parent_child(r):
 
 
 # Pure ownership and a directory keyed within its parent, written as in FRAMEWORK.md.
-Ownership = store.Schemas.OfRelation(lambda r: parent_child(r).uniques('parent'))
+Ownership = store.Schemas.OfRelation(lambda r: parent_child(r.name('Ownership')).uniques('parent'))
 Directory = store.Schemas.OfRelation(lambda r: (
     parent_child(r)
     .properties([lambda t: t.name('key').schema([Text])])
@@ -173,8 +174,8 @@ assert Registry.singleton == 'iso3166.Registry' and Registry.validate() == []
 # A union's branches and an intersection's parts are named: a union value holds exactly one branch, by name, and an
 # intersection value every part.
 
-Phone = store.Schemas.OfObject(lambda o: o.properties([lambda t: t.name('number').schema([Text])]))
-Email = store.Schemas.OfObject(lambda o: o.properties([lambda t: t.name('address').schema([Text])]))
+Phone = store.Schemas.OfObject(lambda o: o.name('Phone').properties([lambda t: t.name('number').schema([Text])]))
+Email = store.Schemas.OfObject(lambda o: o.name('Email').properties([lambda t: t.name('address').schema([Text])]))
 
 ContactMethod = store.Schemas.OfUnion(lambda u: u.branches([
     lambda t: t.name('phone').schema([Phone]),
@@ -205,7 +206,7 @@ assert any('at least two' in p for p in SingleBranch.validate())
 
 # Intersections combine same-kind schemas as named parts. Each part keeps its own properties, so two parts may
 # declare the same property, even with different types.
-Timestamped = store.Schemas.OfObject(lambda o: o.properties([lambda t: t.name('updated').schema([Text])]))
+Timestamped = store.Schemas.OfObject(lambda o: o.name('Timestamped').properties([lambda t: t.name('updated').schema([Text])]))
 EpochStamped = store.Schemas.OfObject(lambda o: o.properties([
     lambda t: t.name('updated').schema([store.Schemas.OfInt]),
 ]))

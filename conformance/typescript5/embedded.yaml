@@ -1,15 +1,44 @@
 - exists:
     definition:
-      key: Schemas.OfModule/.
+      path:
+        singleton: '.'
+        next:
+          target: {}
+      schema: Schemas.OfModule
       properties: {}
 - exists:
     definition:
-      key: Schemas.OfModule/Corpus
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Corpus
+            next:
+              target: {}
+      schema: Schemas.OfModule
       properties:
         name: Corpus
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Defines
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Defines
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -17,13 +46,25 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfModule/.
+                path:
+                  singleton: '.'
+                  next:
+                    target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfModule/Corpus
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        target: {}
       - as_property:
           name: name
           mutations:
@@ -31,52 +72,58 @@
               value: Corpus
 - exists:
     definition:
-      key: Schemas.OfObject/Card
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: CardPhone
+            next:
+              target: {}
+      schema: Schemas.OfObject
       properties:
-        name: Card
-        ref: true
-- exists:
-    definition:
-      key: Schemas.OfAdjacency/Card.decks
-      properties:
-        me: card
-- exists:
-    definition:
-      key: Schemas.OfProperty/Card.name
-      properties: {}
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfProperty/Card.name
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Schemas.OfStr
-- exists:
-    definition:
-      key: Schemas.OfProperty/Card.home
-      properties: {}
-- exists:
-    definition:
-      key: 'Schemas.OfObject/Card.home#schema'
-      properties:
+        name: CardPhone
         ref: false
 - exists:
     definition:
-      key: 'Schemas.OfProperty/Card.home#schema.number'
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: CardPhone
+            next:
+              entry:
+                i: properties
+                o: ''
+                properties:
+                  name: number
+                next:
+                  target: {}
+      schema: Schemas.OfProperty
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasSchema
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -84,20 +131,81 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Card.home#schema.number'
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: CardPhone
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: number
+                          next:
+                            target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfScalar/Schemas.OfStr
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Schemas
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: OfStr
+                          next:
+                            target: {}
 - exists:
     definition:
-      key: 'Schemas.OfProperty/Card.home#schema.label'
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: CardPhone
+            next:
+              entry:
+                i: properties
+                o: ''
+                properties:
+                  name: label
+                next:
+                  target: {}
+      schema: Schemas.OfProperty
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasSchema
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -105,58 +213,81 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Card.home#schema.label'
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: CardPhone
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: label
+                          next:
+                            target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfScalar/Schemas.OfStr
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Schemas
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: OfStr
+                          next:
+                            target: {}
 - exists:
     definition:
-      key: 'Schemas.OfProperty/Card.home#schema.extensions'
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: CardPhone
+            next:
+              entry:
+                i: properties
+                o: ''
+                properties:
+                  name: extensions
+                next:
+                  target: {}
+      schema: Schemas.OfProperty
       properties: {}
-- exists:
-    definition:
-      key: 'Schemas.OfContainer/Card.home#schema.extensions#schema'
-      properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Containing
-    entries:
-    - mutations:
-      - as_link:
-          name: container
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfContainer/Card.home#schema.extensions#schema'
-      - as_link:
-          name: element
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Schemas.OfStr
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.Indexing
-    entries:
-    - mutations:
-      - as_link:
-          name: container
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfContainer/Card.home#schema.extensions#schema'
-      - as_link:
-          name: index
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Schemas.OfInt
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasSchema
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -164,16 +295,128 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Card.home#schema.extensions'
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: CardPhone
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: extensions
+                          next:
+                            target: {}
       - as_link:
           name: schema
           mutations:
           - set:
-              ref:
-                key: 'Schemas.OfContainer/Card.home#schema.extensions#schema'
+              def:
+                schema: Schemas.OfContainer
+                properties: {}
+                inserts:
+                - relation:
+                    path:
+                      singleton: '.'
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Schemas
+                          next:
+                            entry:
+                              i: schemas
+                              o: ''
+                              properties:
+                                name: Indexing
+                              next:
+                                target: {}
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: index
+                        mutations:
+                        - set:
+                            ref:
+                              path:
+                                singleton: '.'
+                                next:
+                                  entry:
+                                    i: schemas
+                                    o: ''
+                                    properties:
+                                      name: Schemas
+                                    next:
+                                      entry:
+                                        i: schemas
+                                        o: ''
+                                        properties:
+                                          name: OfInt
+                                        next:
+                                          target: {}
+                - relation:
+                    path:
+                      singleton: '.'
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Schemas
+                          next:
+                            entry:
+                              i: schemas
+                              o: ''
+                              properties:
+                                name: Containing
+                              next:
+                                target: {}
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: element
+                        mutations:
+                        - set:
+                            ref:
+                              path:
+                                singleton: '.'
+                                next:
+                                  entry:
+                                    i: schemas
+                                    o: ''
+                                    properties:
+                                      name: Schemas
+                                    next:
+                                      entry:
+                                        i: schemas
+                                        o: ''
+                                        properties:
+                                          name: OfStr
+                                        next:
+                                          target: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasProperty
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasProperty
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -181,13 +424,37 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfObject/Card.home#schema'
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: CardPhone
+                      next:
+                        target: {}
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Card.home#schema.number'
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: CardPhone
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: number
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -199,13 +466,37 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfObject/Card.home#schema'
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: CardPhone
+                      next:
+                        target: {}
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Card.home#schema.label'
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: CardPhone
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: label
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -217,13 +508,37 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfObject/Card.home#schema'
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: CardPhone
+                      next:
+                        target: {}
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Card.home#schema.extensions'
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: CardPhone
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: extensions
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -231,7 +546,128 @@
               value: extensions
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Defines
+                next:
+                  target: {}
+    entries:
+    - mutations:
+      - as_link:
+          name: module
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: '.'
+                  next:
+                    target: {}
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: CardPhone
+                      next:
+                        target: {}
+      - as_property:
+          name: name
+          mutations:
+          - set:
+              value: CardPhone
+- exists:
+    definition:
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Card
+            next:
+              target: {}
+      schema: Schemas.OfObject
+      properties:
+        name: Card
+        ref: true
+- exists:
+    definition:
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Card
+            next:
+              entry:
+                i: adjacencies
+                o: ''
+                properties:
+                  name: decks
+                next:
+                  target: {}
+      schema: Schemas.OfAdjacency
+      properties:
+        me: card
+- exists:
+    definition:
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Card
+            next:
+              entry:
+                i: properties
+                o: ''
+                properties:
+                  name: name
+                next:
+                  target: {}
+      schema: Schemas.OfProperty
+      properties: {}
+- insert:
+    relation:
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasSchema
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -239,34 +675,81 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Card.home
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: name
+                          next:
+                            target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfObject/Card.home#schema'
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Schemas
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: OfStr
+                          next:
+                            target: {}
 - exists:
     definition:
-      key: Schemas.OfProperty/Card.reach
-      properties: {}
-- exists:
-    definition:
-      key: 'Schemas.OfUnion/Card.reach#schema'
-      properties:
-        flat: false
-- exists:
-    definition:
-      key: 'Schemas.OfObject/Card.reach#schema#branches.1'
-      properties:
-        ref: false
-- exists:
-    definition:
-      key: 'Schemas.OfProperty/Card.reach#schema#branches.1.address'
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Card
+            next:
+              entry:
+                i: properties
+                o: ''
+                properties:
+                  name: home
+                next:
+                  target: {}
+      schema: Schemas.OfProperty
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasSchema
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -274,16 +757,709 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Card.reach#schema#branches.1.address'
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: home
+                          next:
+                            target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfScalar/Schemas.OfStr
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: CardPhone
+                      next:
+                        target: {}
+- exists:
+    definition:
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Card
+            next:
+              entry:
+                i: properties
+                o: ''
+                properties:
+                  name: reach
+                next:
+                  target: {}
+      schema: Schemas.OfProperty
+      properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasProperty
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasSchema
+                next:
+                  target: {}
+    entries:
+    - mutations:
+      - as_link:
+          name: member
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: reach
+                          next:
+                            target: {}
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              def:
+                schema: Schemas.OfUnion
+                properties:
+                  flat: false
+                inserts:
+                - relation:
+                    path:
+                      singleton: '.'
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Schemas
+                          next:
+                            entry:
+                              i: schemas
+                              o: ''
+                              properties:
+                                name: HasBranch
+                              next:
+                                target: {}
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: schema
+                        mutations:
+                        - set:
+                            ref:
+                              path:
+                                singleton: '.'
+                                next:
+                                  entry:
+                                    i: schemas
+                                    o: ''
+                                    properties:
+                                      name: CardPhone
+                                    next:
+                                      target: {}
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: phone
+                  - mutations:
+                    - as_link:
+                        name: schema
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfObject
+                              properties:
+                                ref: false
+                              inserts:
+                              - relation:
+                                  path:
+                                    singleton: '.'
+                                    next:
+                                      entry:
+                                        i: schemas
+                                        o: ''
+                                        properties:
+                                          name: Schemas
+                                        next:
+                                          entry:
+                                            i: schemas
+                                            o: ''
+                                            properties:
+                                              name: HasProperty
+                                            next:
+                                              target: {}
+                                entries:
+                                - mutations:
+                                  - as_link:
+                                      name: property
+                                      mutations:
+                                      - set:
+                                          def:
+                                            schema: Schemas.OfProperty
+                                            properties: {}
+                                            inserts:
+                                            - relation:
+                                                path:
+                                                  singleton: '.'
+                                                  next:
+                                                    entry:
+                                                      i: schemas
+                                                      o: ''
+                                                      properties:
+                                                        name: Schemas
+                                                      next:
+                                                        entry:
+                                                          i: schemas
+                                                          o: ''
+                                                          properties:
+                                                            name: HasSchema
+                                                          next:
+                                                            target: {}
+                                              entries:
+                                              - mutations:
+                                                - as_link:
+                                                    name: schema
+                                                    mutations:
+                                                    - set:
+                                                        ref:
+                                                          path:
+                                                            singleton: '.'
+                                                            next:
+                                                              entry:
+                                                                i: schemas
+                                                                o: ''
+                                                                properties:
+                                                                  name: Schemas
+                                                                next:
+                                                                  entry:
+                                                                    i: schemas
+                                                                    o: ''
+                                                                    properties:
+                                                                      name: OfStr
+                                                                    next:
+                                                                      target: {}
+                                  - as_property:
+                                      name: name
+                                      mutations:
+                                      - set:
+                                          value: address
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: email
+- exists:
+    definition:
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Card
+            next:
+              entry:
+                i: properties
+                o: ''
+                properties:
+                  name: ident
+                next:
+                  target: {}
+      schema: Schemas.OfProperty
+      properties: {}
+- insert:
+    relation:
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasSchema
+                next:
+                  target: {}
+    entries:
+    - mutations:
+      - as_link:
+          name: member
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: ident
+                          next:
+                            target: {}
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              def:
+                schema: Schemas.OfUnion
+                properties:
+                  flat: false
+                inserts:
+                - relation:
+                    path:
+                      singleton: '.'
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Schemas
+                          next:
+                            entry:
+                              i: schemas
+                              o: ''
+                              properties:
+                                name: HasBranch
+                              next:
+                                target: {}
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: schema
+                        mutations:
+                        - set:
+                            ref:
+                              path:
+                                singleton: '.'
+                                next:
+                                  entry:
+                                    i: schemas
+                                    o: ''
+                                    properties:
+                                      name: Schemas
+                                    next:
+                                      entry:
+                                        i: schemas
+                                        o: ''
+                                        properties:
+                                          name: OfInt
+                                        next:
+                                          target: {}
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: number
+                  - mutations:
+                    - as_link:
+                        name: schema
+                        mutations:
+                        - set:
+                            ref:
+                              path:
+                                singleton: '.'
+                                next:
+                                  entry:
+                                    i: schemas
+                                    o: ''
+                                    properties:
+                                      name: Schemas
+                                    next:
+                                      entry:
+                                        i: schemas
+                                        o: ''
+                                        properties:
+                                          name: OfStr
+                                        next:
+                                          target: {}
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: code
+- exists:
+    definition:
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Card
+            next:
+              entry:
+                i: properties
+                o: ''
+                properties:
+                  name: meta
+                next:
+                  target: {}
+      schema: Schemas.OfProperty
+      properties: {}
+- insert:
+    relation:
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasSchema
+                next:
+                  target: {}
+    entries:
+    - mutations:
+      - as_link:
+          name: member
+          mutations:
+          - set:
+              ref:
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: meta
+                          next:
+                            target: {}
+      - as_link:
+          name: schema
+          mutations:
+          - set:
+              def:
+                schema: Schemas.OfIntersection
+                properties:
+                  flat: false
+                inserts:
+                - relation:
+                    path:
+                      singleton: '.'
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Schemas
+                          next:
+                            entry:
+                              i: schemas
+                              o: ''
+                              properties:
+                                name: HasPart
+                              next:
+                                target: {}
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: schema
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfObject
+                              properties:
+                                ref: false
+                              inserts:
+                              - relation:
+                                  path:
+                                    singleton: '.'
+                                    next:
+                                      entry:
+                                        i: schemas
+                                        o: ''
+                                        properties:
+                                          name: Schemas
+                                        next:
+                                          entry:
+                                            i: schemas
+                                            o: ''
+                                            properties:
+                                              name: HasProperty
+                                            next:
+                                              target: {}
+                                entries:
+                                - mutations:
+                                  - as_link:
+                                      name: property
+                                      mutations:
+                                      - set:
+                                          def:
+                                            schema: Schemas.OfProperty
+                                            properties: {}
+                                            inserts:
+                                            - relation:
+                                                path:
+                                                  singleton: '.'
+                                                  next:
+                                                    entry:
+                                                      i: schemas
+                                                      o: ''
+                                                      properties:
+                                                        name: Schemas
+                                                      next:
+                                                        entry:
+                                                          i: schemas
+                                                          o: ''
+                                                          properties:
+                                                            name: HasSchema
+                                                          next:
+                                                            target: {}
+                                              entries:
+                                              - mutations:
+                                                - as_link:
+                                                    name: schema
+                                                    mutations:
+                                                    - set:
+                                                        ref:
+                                                          path:
+                                                            singleton: '.'
+                                                            next:
+                                                              entry:
+                                                                i: schemas
+                                                                o: ''
+                                                                properties:
+                                                                  name: Schemas
+                                                                next:
+                                                                  entry:
+                                                                    i: schemas
+                                                                    o: ''
+                                                                    properties:
+                                                                      name: OfStr
+                                                                    next:
+                                                                      target: {}
+                                  - as_property:
+                                      name: name
+                                      mutations:
+                                      - set:
+                                          value: updated
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: stamp
+                  - mutations:
+                    - as_link:
+                        name: schema
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfObject
+                              properties:
+                                ref: false
+                              inserts:
+                              - relation:
+                                  path:
+                                    singleton: '.'
+                                    next:
+                                      entry:
+                                        i: schemas
+                                        o: ''
+                                        properties:
+                                          name: Schemas
+                                        next:
+                                          entry:
+                                            i: schemas
+                                            o: ''
+                                            properties:
+                                              name: HasProperty
+                                            next:
+                                              target: {}
+                                entries:
+                                - mutations:
+                                  - as_link:
+                                      name: property
+                                      mutations:
+                                      - set:
+                                          def:
+                                            schema: Schemas.OfProperty
+                                            properties: {}
+                                            inserts:
+                                            - relation:
+                                                path:
+                                                  singleton: '.'
+                                                  next:
+                                                    entry:
+                                                      i: schemas
+                                                      o: ''
+                                                      properties:
+                                                        name: Schemas
+                                                      next:
+                                                        entry:
+                                                          i: schemas
+                                                          o: ''
+                                                          properties:
+                                                            name: HasSchema
+                                                          next:
+                                                            target: {}
+                                              entries:
+                                              - mutations:
+                                                - as_link:
+                                                    name: schema
+                                                    mutations:
+                                                    - set:
+                                                        ref:
+                                                          path:
+                                                            singleton: '.'
+                                                            next:
+                                                              entry:
+                                                                i: schemas
+                                                                o: ''
+                                                                properties:
+                                                                  name: Schemas
+                                                                next:
+                                                                  entry:
+                                                                    i: schemas
+                                                                    o: ''
+                                                                    properties:
+                                                                      name: OfStr
+                                                                    next:
+                                                                      target: {}
+                                  - as_property:
+                                      name: name
+                                      mutations:
+                                      - set:
+                                          value: by
+                                - mutations:
+                                  - as_link:
+                                      name: property
+                                      mutations:
+                                      - set:
+                                          def:
+                                            schema: Schemas.OfProperty
+                                            properties: {}
+                                            inserts:
+                                            - relation:
+                                                path:
+                                                  singleton: '.'
+                                                  next:
+                                                    entry:
+                                                      i: schemas
+                                                      o: ''
+                                                      properties:
+                                                        name: Schemas
+                                                      next:
+                                                        entry:
+                                                          i: schemas
+                                                          o: ''
+                                                          properties:
+                                                            name: HasSchema
+                                                          next:
+                                                            target: {}
+                                              entries:
+                                              - mutations:
+                                                - as_link:
+                                                    name: schema
+                                                    mutations:
+                                                    - set:
+                                                        ref:
+                                                          path:
+                                                            singleton: '.'
+                                                            next:
+                                                              entry:
+                                                                i: schemas
+                                                                o: ''
+                                                                properties:
+                                                                  name: Schemas
+                                                                next:
+                                                                  entry:
+                                                                    i: schemas
+                                                                    o: ''
+                                                                    properties:
+                                                                      name: OfStr
+                                                                    next:
+                                                                      target: {}
+                                  - as_property:
+                                      name: name
+                                      mutations:
+                                      - set:
+                                          value: updated
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: audit
+- insert:
+    relation:
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasProperty
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -291,359 +1467,37 @@
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfObject/Card.reach#schema#branches.1'
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        target: {}
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: 'Schemas.OfProperty/Card.reach#schema#branches.1.address'
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: address
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.HasBranch
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfUnion/Card.reach#schema'
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfObject/Card.home#schema'
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: phone
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfUnion/Card.reach#schema'
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfObject/Card.reach#schema#branches.1'
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: email
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfProperty/Card.reach
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfUnion/Card.reach#schema'
-- exists:
-    definition:
-      key: Schemas.OfProperty/Card.ident
-      properties: {}
-- exists:
-    definition:
-      key: 'Schemas.OfUnion/Card.ident#schema'
-      properties:
-        flat: false
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.HasBranch
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfUnion/Card.ident#schema'
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Schemas.OfInt
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: number
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfUnion/Card.ident#schema'
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Schemas.OfStr
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: code
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfProperty/Card.ident
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfUnion/Card.ident#schema'
-- exists:
-    definition:
-      key: Schemas.OfProperty/Card.meta
-      properties: {}
-- exists:
-    definition:
-      key: 'Schemas.OfIntersection/Card.meta#schema'
-      properties:
-        flat: false
-- exists:
-    definition:
-      key: 'Schemas.OfObject/Card.meta#schema#parts.0'
-      properties:
-        ref: false
-- exists:
-    definition:
-      key: 'Schemas.OfProperty/Card.meta#schema#parts.0.updated'
-      properties: {}
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfProperty/Card.meta#schema#parts.0.updated'
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Schemas.OfStr
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.HasProperty
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfObject/Card.meta#schema#parts.0'
-      - as_link:
-          name: property
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfProperty/Card.meta#schema#parts.0.updated'
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: updated
-- exists:
-    definition:
-      key: 'Schemas.OfObject/Card.meta#schema#parts.1'
-      properties:
-        ref: false
-- exists:
-    definition:
-      key: 'Schemas.OfProperty/Card.meta#schema#parts.1.by'
-      properties: {}
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfProperty/Card.meta#schema#parts.1.by'
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Schemas.OfStr
-- exists:
-    definition:
-      key: 'Schemas.OfProperty/Card.meta#schema#parts.1.updated'
-      properties: {}
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfProperty/Card.meta#schema#parts.1.updated'
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfScalar/Schemas.OfStr
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.HasProperty
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfObject/Card.meta#schema#parts.1'
-      - as_link:
-          name: property
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfProperty/Card.meta#schema#parts.1.by'
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: by
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfObject/Card.meta#schema#parts.1'
-      - as_link:
-          name: property
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfProperty/Card.meta#schema#parts.1.updated'
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: updated
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.HasPart
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfIntersection/Card.meta#schema'
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfObject/Card.meta#schema#parts.0'
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: stamp
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfIntersection/Card.meta#schema'
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfObject/Card.meta#schema#parts.1'
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: audit
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfProperty/Card.meta
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                key: 'Schemas.OfIntersection/Card.meta#schema'
-- insert:
-    relation:
-      key: Schemas.OfRelation/Schemas.HasProperty
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfObject/Card
-      - as_link:
-          name: property
-          mutations:
-          - set:
-              ref:
-                key: Schemas.OfProperty/Card.name
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: name
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -655,13 +1509,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Card
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        target: {}
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Card.home
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: home
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -673,13 +1551,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Card
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        target: {}
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Card.reach
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: reach
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -691,13 +1593,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Card
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        target: {}
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Card.ident
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: ident
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -709,13 +1635,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Card
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        target: {}
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Card.meta
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: meta
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -723,7 +1673,22 @@
               value: meta
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasAdjacency
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasAdjacency
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -731,13 +1696,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Card
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        target: {}
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.OfAdjacency/Card.decks
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        entry:
+                          i: adjacencies
+                          o: ''
+                          properties:
+                            name: decks
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -745,7 +1734,22 @@
               value: decks
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Defines
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Defines
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -753,13 +1757,25 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfModule/.
+                path:
+                  singleton: '.'
+                  next:
+                    target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Card
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        target: {}
       - as_property:
           name: name
           mutations:
@@ -767,20 +1783,77 @@
               value: Card
 - exists:
     definition:
-      key: Schemas.OfRelation/Holding
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Holding
+            next:
+              target: {}
+      schema: Schemas.OfRelation
       properties:
         name: Holding
 - exists:
     definition:
-      key: Schemas.OfSymbol/Holding.deck
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Holding
+            next:
+              entry:
+                i: links
+                o: ''
+                properties:
+                  name: deck
+                next:
+                  target: {}
+      schema: Schemas.OfSymbol
       properties: {}
 - exists:
     definition:
-      key: Schemas.OfSymbol/Holding.card
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Holding
+            next:
+              entry:
+                i: links
+                o: ''
+                properties:
+                  name: card
+                next:
+                  target: {}
+      schema: Schemas.OfSymbol
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasLink
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasLink
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -788,13 +1861,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Holding
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Holding
+                      next:
+                        target: {}
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.OfSymbol/Holding.deck
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Holding
+                      next:
+                        entry:
+                          i: links
+                          o: ''
+                          properties:
+                            name: deck
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -806,13 +1903,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Holding
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Holding
+                      next:
+                        target: {}
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.OfSymbol/Holding.card
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Holding
+                      next:
+                        entry:
+                          i: links
+                          o: ''
+                          properties:
+                            name: card
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -820,7 +1941,22 @@
               value: card
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Relating
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Relating
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -828,16 +1964,55 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfAdjacency/Card.decks
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Card
+                      next:
+                        entry:
+                          i: adjacencies
+                          o: ''
+                          properties:
+                            name: decks
+                          next:
+                            target: {}
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Holding
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Holding
+                      next:
+                        target: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Defines
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Defines
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -845,13 +2020,25 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfModule/.
+                path:
+                  singleton: '.'
+                  next:
+                    target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Holding
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Holding
+                      next:
+                        target: {}
       - as_property:
           name: name
           mutations:
@@ -859,18 +2046,59 @@
               value: Holding
 - exists:
     definition:
-      key: Schemas.OfObject/Deck
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Deck
+            next:
+              target: {}
+      schema: Schemas.OfObject
       properties:
         name: Deck
         ref: true
 - exists:
     definition:
-      key: Schemas.OfAdjacency/Deck.cards
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Deck
+            next:
+              entry:
+                i: adjacencies
+                o: ''
+                properties:
+                  name: cards
+                next:
+                  target: {}
+      schema: Schemas.OfAdjacency
       properties:
         me: deck
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Relating
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Relating
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -878,20 +2106,75 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfAdjacency/Deck.cards
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Deck
+                      next:
+                        entry:
+                          i: adjacencies
+                          o: ''
+                          properties:
+                            name: cards
+                          next:
+                            target: {}
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Holding
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Holding
+                      next:
+                        target: {}
 - exists:
     definition:
-      key: Schemas.OfProperty/Deck.title
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Deck
+            next:
+              entry:
+                i: properties
+                o: ''
+                properties:
+                  name: title
+                next:
+                  target: {}
+      schema: Schemas.OfProperty
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasSchema
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasSchema
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -899,16 +2182,61 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Deck.title
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Deck
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: title
+                          next:
+                            target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfScalar/Schemas.OfStr
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Schemas
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: OfStr
+                          next:
+                            target: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasProperty
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasProperty
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -916,13 +2244,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Deck
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Deck
+                      next:
+                        target: {}
       - as_link:
           name: property
           mutations:
           - set:
               ref:
-                key: Schemas.OfProperty/Deck.title
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Deck
+                      next:
+                        entry:
+                          i: properties
+                          o: ''
+                          properties:
+                            name: title
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -930,7 +2282,22 @@
               value: title
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasAdjacency
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasAdjacency
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -938,13 +2305,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Deck
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Deck
+                      next:
+                        target: {}
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.OfAdjacency/Deck.cards
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Deck
+                      next:
+                        entry:
+                          i: adjacencies
+                          o: ''
+                          properties:
+                            name: cards
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -952,7 +2343,22 @@
               value: cards
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Defines
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Defines
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -960,13 +2366,25 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfModule/.
+                path:
+                  singleton: '.'
+                  next:
+                    target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Deck
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Deck
+                      next:
+                        target: {}
       - as_property:
           name: name
           mutations:
@@ -974,20 +2392,95 @@
               value: Deck
 - exists:
     definition:
-      key: Schemas.OfRelation/Corpus.Holds
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Corpus
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Holds
+                next:
+                  target: {}
+      schema: Schemas.OfRelation
       properties:
         name: Corpus.Holds
 - exists:
     definition:
-      key: Schemas.OfSymbol/Corpus.Holds.corpus
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Corpus
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Holds
+                next:
+                  entry:
+                    i: links
+                    o: ''
+                    properties:
+                      name: corpus
+                    next:
+                      target: {}
+      schema: Schemas.OfSymbol
       properties: {}
 - exists:
     definition:
-      key: Schemas.OfSymbol/Corpus.Holds.item
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Corpus
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Holds
+                next:
+                  entry:
+                    i: links
+                    o: ''
+                    properties:
+                      name: item
+                    next:
+                      target: {}
+      schema: Schemas.OfSymbol
       properties: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasLink
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasLink
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -995,13 +2488,49 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Corpus.Holds
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Holds
+                          next:
+                            target: {}
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.OfSymbol/Corpus.Holds.corpus
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Holds
+                          next:
+                            entry:
+                              i: links
+                              o: ''
+                              properties:
+                                name: corpus
+                              next:
+                                target: {}
       - as_property:
           name: name
           mutations:
@@ -1013,13 +2542,49 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Corpus.Holds
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Holds
+                          next:
+                            target: {}
       - as_link:
           name: link
           mutations:
           - set:
               ref:
-                key: Schemas.OfSymbol/Corpus.Holds.item
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Holds
+                          next:
+                            entry:
+                              i: links
+                              o: ''
+                              properties:
+                                name: item
+                              next:
+                                target: {}
       - as_property:
           name: name
           mutations:
@@ -1027,7 +2592,22 @@
               value: item
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Defines
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Defines
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -1035,13 +2615,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfModule/Corpus
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Corpus.Holds
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Holds
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -1049,19 +2653,72 @@
               value: Holds
 - exists:
     definition:
-      key: Schemas.OfObject/Corpus.Root
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Corpus
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Root
+                next:
+                  target: {}
+      schema: Schemas.OfObject
       properties:
         name: Corpus.Root
         ref: true
         singleton: corpus
 - exists:
     definition:
-      key: Schemas.OfAdjacency/Corpus.Root.holds
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Corpus
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Root
+                next:
+                  entry:
+                    i: adjacencies
+                    o: ''
+                    properties:
+                      name: holds
+                    next:
+                      target: {}
+      schema: Schemas.OfAdjacency
       properties:
         me: corpus
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Relating
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Relating
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -1069,16 +2726,67 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfAdjacency/Corpus.Root.holds
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Root
+                          next:
+                            entry:
+                              i: adjacencies
+                              o: ''
+                              properties:
+                                name: holds
+                              next:
+                                target: {}
       - as_link:
           name: relation
           mutations:
           - set:
               ref:
-                key: Schemas.OfRelation/Corpus.Holds
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Holds
+                          next:
+                            target: {}
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.HasAdjacency
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: HasAdjacency
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -1086,13 +2794,49 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Corpus.Root
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Root
+                          next:
+                            target: {}
       - as_link:
           name: adjacency
           mutations:
           - set:
               ref:
-                key: Schemas.OfAdjacency/Corpus.Root.holds
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Root
+                          next:
+                            entry:
+                              i: adjacencies
+                              o: ''
+                              properties:
+                                name: holds
+                              next:
+                                target: {}
       - as_property:
           name: name
           mutations:
@@ -1100,7 +2844,22 @@
               value: holds
 - insert:
     relation:
-      key: Schemas.OfRelation/Schemas.Defines
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Schemas
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Defines
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:
@@ -1108,13 +2867,37 @@
           mutations:
           - set:
               ref:
-                key: Schemas.OfModule/Corpus
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        target: {}
       - as_link:
           name: schema
           mutations:
           - set:
               ref:
-                key: Schemas.OfObject/Corpus.Root
+                path:
+                  singleton: '.'
+                  next:
+                    entry:
+                      i: schemas
+                      o: ''
+                      properties:
+                        name: Corpus
+                      next:
+                        entry:
+                          i: schemas
+                          o: ''
+                          properties:
+                            name: Root
+                          next:
+                            target: {}
       - as_property:
           name: name
           mutations:
@@ -1175,7 +2958,16 @@
         name: Cy
 - insert:
     relation:
-      key: Schemas.OfRelation/Holding
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Holding
+            next:
+              target: {}
     entries:
     - mutations:
       - as_link:
@@ -1218,7 +3010,22 @@
                 'n': 3
 - insert:
     relation:
-      key: Schemas.OfRelation/Corpus.Holds
+      path:
+        singleton: '.'
+        next:
+          entry:
+            i: schemas
+            o: ''
+            properties:
+              name: Corpus
+            next:
+              entry:
+                i: schemas
+                o: ''
+                properties:
+                  name: Holds
+                next:
+                  target: {}
     entries:
     - mutations:
       - as_link:

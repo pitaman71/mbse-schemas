@@ -2,7 +2,13 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfModule/.",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "target": {}
+          }
+        },
+        "schema": "Schemas.OfModule",
         "properties": {}
       }
     }
@@ -10,7 +16,22 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfModule/Corpus",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Corpus"
+              },
+              "next": {
+                "target": {}
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfModule",
         "properties": {
           "name": "Corpus"
         }
@@ -20,7 +41,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Defines"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Defines"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -32,7 +76,12 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfModule/."
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "target": {}
+                          }
+                        }
                       }
                     }
                   }
@@ -46,7 +95,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfModule/Corpus"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -73,7 +136,22 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfObject/Person",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Person"
+              },
+              "next": {
+                "target": {}
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfObject",
         "properties": {
           "name": "Person",
           "ref": true
@@ -84,7 +162,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfAdjacency/Person.children",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Person"
+              },
+              "next": {
+                "entry": {
+                  "i": "adjacencies",
+                  "o": "",
+                  "properties": {
+                    "name": "children"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfAdjacency",
         "properties": {
           "me": "parent"
         }
@@ -94,7 +196,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfAdjacency/Person.parents",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Person"
+              },
+              "next": {
+                "entry": {
+                  "i": "adjacencies",
+                  "o": "",
+                  "properties": {
+                    "name": "parents"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfAdjacency",
         "properties": {
           "me": "child"
         }
@@ -104,7 +230,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfAdjacency/Person.mentees",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Person"
+              },
+              "next": {
+                "entry": {
+                  "i": "adjacencies",
+                  "o": "",
+                  "properties": {
+                    "name": "mentees"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfAdjacency",
         "properties": {
           "me": "mentor"
         }
@@ -114,7 +264,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfAdjacency/Person.mentors",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Person"
+              },
+              "next": {
+                "entry": {
+                  "i": "adjacencies",
+                  "o": "",
+                  "properties": {
+                    "name": "mentors"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfAdjacency",
         "properties": {
           "me": "mentee"
         }
@@ -124,7 +298,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Person.given_name",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Person"
+              },
+              "next": {
+                "entry": {
+                  "i": "properties",
+                  "o": "",
+                  "properties": {
+                    "name": "given_name"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfProperty",
         "properties": {}
       }
     }
@@ -132,7 +330,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasSchema"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasSchema"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -144,7 +365,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Person.given_name"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "given_name"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -158,7 +402,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfStr"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Schemas"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "OfStr"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -173,7 +440,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Person.birth_date",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Person"
+              },
+              "next": {
+                "entry": {
+                  "i": "properties",
+                  "o": "",
+                  "properties": {
+                    "name": "birth_date"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfProperty",
         "properties": {}
       }
     }
@@ -181,7 +472,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasSchema"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasSchema"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -193,7 +507,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Person.birth_date"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "birth_date"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -207,7 +544,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfStr"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Schemas"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "OfStr"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -222,7 +582,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasProperty"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasProperty"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -234,7 +617,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Person"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -248,7 +645,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Person.given_name"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "given_name"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -278,7 +698,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Person"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -292,7 +726,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Person.birth_date"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "birth_date"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -319,7 +776,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasAdjacency"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasAdjacency"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -331,7 +811,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Person"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -345,7 +839,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Person.children"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "adjacencies",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "children"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -375,7 +892,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Person"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -389,7 +920,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Person.parents"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "adjacencies",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "parents"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -419,7 +973,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Person"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -433,7 +1001,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Person.mentees"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "adjacencies",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "mentees"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -463,7 +1054,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Person"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -477,7 +1082,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Person.mentors"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "adjacencies",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "mentors"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -504,7 +1132,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Defines"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Defines"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -516,7 +1167,12 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfModule/."
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "target": {}
+                          }
+                        }
                       }
                     }
                   }
@@ -530,7 +1186,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Person"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -557,7 +1227,22 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfRelation/Parentage",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Parentage"
+              },
+              "next": {
+                "target": {}
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfRelation",
         "properties": {
           "name": "Parentage"
         }
@@ -567,7 +1252,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfSymbol/Parentage.parent",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Parentage"
+              },
+              "next": {
+                "entry": {
+                  "i": "links",
+                  "o": "",
+                  "properties": {
+                    "name": "parent"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfSymbol",
         "properties": {}
       }
     }
@@ -575,7 +1284,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfSymbol/Parentage.child",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Parentage"
+              },
+              "next": {
+                "entry": {
+                  "i": "links",
+                  "o": "",
+                  "properties": {
+                    "name": "child"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfSymbol",
         "properties": {}
       }
     }
@@ -583,7 +1316,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfProperty/Parentage.kind",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Parentage"
+              },
+              "next": {
+                "entry": {
+                  "i": "properties",
+                  "o": "",
+                  "properties": {
+                    "name": "kind"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfProperty",
         "properties": {}
       }
     }
@@ -591,7 +1348,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasSchema"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasSchema"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -603,7 +1383,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Parentage.kind"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Parentage"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "kind"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -617,7 +1420,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfScalar/Schemas.OfStr"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Schemas"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "OfStr"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -632,7 +1458,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasProperty"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasProperty"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -644,7 +1493,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Parentage"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Parentage"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -658,7 +1521,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfProperty/Parentage.kind"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Parentage"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "properties",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "kind"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -685,7 +1571,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasLink"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasLink"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -697,7 +1606,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Parentage"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Parentage"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -711,7 +1634,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfSymbol/Parentage.parent"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Parentage"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "links",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "parent"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -741,7 +1687,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Parentage"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Parentage"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -755,7 +1715,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfSymbol/Parentage.child"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Parentage"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "links",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "child"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -782,7 +1765,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Relating"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Relating"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -794,7 +1800,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Person.parents"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "adjacencies",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "parents"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -808,7 +1837,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Parentage"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Parentage"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -826,7 +1869,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Person.children"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "adjacencies",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "children"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -840,7 +1906,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Parentage"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Parentage"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -855,7 +1935,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Defines"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Defines"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -867,7 +1970,12 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfModule/."
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "target": {}
+                          }
+                        }
                       }
                     }
                   }
@@ -881,7 +1989,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Parentage"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Parentage"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -908,7 +2030,22 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfRelation/Mentorship",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Mentorship"
+              },
+              "next": {
+                "target": {}
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfRelation",
         "properties": {
           "name": "Mentorship"
         }
@@ -918,7 +2055,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfSymbol/Mentorship.mentor",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Mentorship"
+              },
+              "next": {
+                "entry": {
+                  "i": "links",
+                  "o": "",
+                  "properties": {
+                    "name": "mentor"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfSymbol",
         "properties": {}
       }
     }
@@ -926,7 +2087,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfSymbol/Mentorship.mentee",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Mentorship"
+              },
+              "next": {
+                "entry": {
+                  "i": "links",
+                  "o": "",
+                  "properties": {
+                    "name": "mentee"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfSymbol",
         "properties": {}
       }
     }
@@ -934,7 +2119,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasLink"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasLink"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -946,7 +2154,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Mentorship"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Mentorship"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -960,7 +2182,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfSymbol/Mentorship.mentor"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Mentorship"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "links",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "mentor"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -990,7 +2235,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Mentorship"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Mentorship"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1004,7 +2263,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfSymbol/Mentorship.mentee"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Mentorship"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "links",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "mentee"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1031,7 +2313,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Relating"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Relating"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1043,7 +2348,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Person.mentors"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "adjacencies",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "mentors"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1057,7 +2385,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Mentorship"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Mentorship"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1075,7 +2417,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Person.mentees"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Person"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "adjacencies",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "mentees"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1089,7 +2454,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Mentorship"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Mentorship"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1104,7 +2483,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Defines"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Defines"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1116,7 +2518,12 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfModule/."
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "target": {}
+                          }
+                        }
                       }
                     }
                   }
@@ -1130,7 +2537,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Mentorship"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Mentorship"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1157,7 +2578,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfRelation/Corpus.Holds",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Corpus"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Holds"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfRelation",
         "properties": {
           "name": "Corpus.Holds"
         }
@@ -1167,7 +2612,40 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfSymbol/Corpus.Holds.corpus",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Corpus"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Holds"
+                  },
+                  "next": {
+                    "entry": {
+                      "i": "links",
+                      "o": "",
+                      "properties": {
+                        "name": "corpus"
+                      },
+                      "next": {
+                        "target": {}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfSymbol",
         "properties": {}
       }
     }
@@ -1175,7 +2653,40 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfSymbol/Corpus.Holds.item",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Corpus"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Holds"
+                  },
+                  "next": {
+                    "entry": {
+                      "i": "links",
+                      "o": "",
+                      "properties": {
+                        "name": "item"
+                      },
+                      "next": {
+                        "target": {}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfSymbol",
         "properties": {}
       }
     }
@@ -1183,7 +2694,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasLink"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasLink"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1195,7 +2729,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Corpus.Holds"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Holds"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1209,7 +2766,39 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfSymbol/Corpus.Holds.corpus"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Holds"
+                                  },
+                                  "next": {
+                                    "entry": {
+                                      "i": "links",
+                                      "o": "",
+                                      "properties": {
+                                        "name": "corpus"
+                                      },
+                                      "next": {
+                                        "target": {}
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1239,7 +2828,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Corpus.Holds"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Holds"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1253,7 +2865,39 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfSymbol/Corpus.Holds.item"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Holds"
+                                  },
+                                  "next": {
+                                    "entry": {
+                                      "i": "links",
+                                      "o": "",
+                                      "properties": {
+                                        "name": "item"
+                                      },
+                                      "next": {
+                                        "target": {}
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1280,7 +2924,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Defines"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Defines"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1292,7 +2959,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfModule/Corpus"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1306,7 +2987,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Corpus.Holds"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Holds"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1333,7 +3037,31 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfObject/Corpus.Root",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Corpus"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Root"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfObject",
         "properties": {
           "name": "Corpus.Root",
           "ref": true,
@@ -1345,7 +3073,40 @@
   {
     "exists": {
       "definition": {
-        "key": "Schemas.OfAdjacency/Corpus.Root.holds",
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Corpus"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Root"
+                  },
+                  "next": {
+                    "entry": {
+                      "i": "adjacencies",
+                      "o": "",
+                      "properties": {
+                        "name": "holds"
+                      },
+                      "next": {
+                        "target": {}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schema": "Schemas.OfAdjacency",
         "properties": {
           "me": "corpus"
         }
@@ -1355,7 +3116,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Relating"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Relating"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1367,7 +3151,39 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Corpus.Root.holds"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Root"
+                                  },
+                                  "next": {
+                                    "entry": {
+                                      "i": "adjacencies",
+                                      "o": "",
+                                      "properties": {
+                                        "name": "holds"
+                                      },
+                                      "next": {
+                                        "target": {}
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1381,7 +3197,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfRelation/Corpus.Holds"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Holds"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1396,7 +3235,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.HasAdjacency"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "HasAdjacency"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1408,7 +3270,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Corpus.Root"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Root"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1422,7 +3307,39 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfAdjacency/Corpus.Root.holds"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Root"
+                                  },
+                                  "next": {
+                                    "entry": {
+                                      "i": "adjacencies",
+                                      "o": "",
+                                      "properties": {
+                                        "name": "holds"
+                                      },
+                                      "next": {
+                                        "target": {}
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1449,7 +3366,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Schemas.Defines"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Schemas"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Defines"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1461,7 +3401,21 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfModule/Corpus"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "target": {}
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1475,7 +3429,30 @@
                   {
                     "set": {
                       "ref": {
-                        "key": "Schemas.OfObject/Corpus.Root"
+                        "path": {
+                          "singleton": ".",
+                          "next": {
+                            "entry": {
+                              "i": "schemas",
+                              "o": "",
+                              "properties": {
+                                "name": "Corpus"
+                              },
+                              "next": {
+                                "entry": {
+                                  "i": "schemas",
+                                  "o": "",
+                                  "properties": {
+                                    "name": "Root"
+                                  },
+                                  "next": {
+                                    "target": {}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -1539,7 +3516,21 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Mentorship"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Mentorship"
+              },
+              "next": {
+                "target": {}
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1612,7 +3603,21 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Parentage"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Parentage"
+              },
+              "next": {
+                "target": {}
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1688,7 +3693,21 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Mentorship"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Mentorship"
+              },
+              "next": {
+                "target": {}
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1729,7 +3748,21 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Parentage"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Parentage"
+              },
+              "next": {
+                "target": {}
+              }
+            }
+          }
+        }
       },
       "entries": [
         {
@@ -1782,7 +3815,30 @@
   {
     "insert": {
       "relation": {
-        "key": "Schemas.OfRelation/Corpus.Holds"
+        "path": {
+          "singleton": ".",
+          "next": {
+            "entry": {
+              "i": "schemas",
+              "o": "",
+              "properties": {
+                "name": "Corpus"
+              },
+              "next": {
+                "entry": {
+                  "i": "schemas",
+                  "o": "",
+                  "properties": {
+                    "name": "Holds"
+                  },
+                  "next": {
+                    "target": {}
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "entries": [
         {

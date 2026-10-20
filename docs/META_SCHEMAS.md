@@ -256,8 +256,8 @@ every write.
   members (`t.schema([T])`). Where a relation allows one entry, the shorthand replaces it, and `insert` raises until it
   is removed; an entry linking a referent held is elided.
 - **`as_*`.** `as_schema()` is `Meta.X`, and a member's `as_schema()` its property or adjacency in `Meta.X`;
-  `as_properties` and `as_adjacencies` follow the meta-schema's order; `as_identity()` reads the identity and
-  `as_identity(x)` writes it, `update()` keeping the object's own unless one is written, which renames it.
+  `as_properties` and `as_adjacencies` follow the meta-schema's order. (`as_identity` went in 4g of the store overhaul:
+  a schema object's path is read by `Paths.of`, Object identity, Decided, 81.)
 - **The data stores members its own way** (Resolved: "the Data class can store `Schemas.OfObject.Data.properties` any
   way it wants"), and the builder adapts each adjacency to it: a dict of members by name, or a tuple in order; a field
   holding the referent. A keyed member's name is written to the member's data.
@@ -282,9 +282,10 @@ any other registered name builds data, through the proxy builder.
 - **A store links only what it holds.** A builder in a store refuses a link to a schema object the store does not
   hold, built outside any store or in another (FRAMEWORK.md, Stores); a store's basic scalars are its own, linked by its
   paths, `store.Schemas.OfInt` and so on.
-- **Identities.** Every schema object gets one on creation (Resolved: "all schema objects are reference objects and all
-  reference objects get an ID on creation"): the one written, else a named schema's name, else a UUID; members built
-  with a schema get theirs too. The store refuses an identity another of its schema objects holds.
+- **Identities.** Superseded in 4g of the store overhaul (Object identity, Decided, 80 and 81): a schema object is
+  held by its store and found by its path, a named schema's its name's parts from the root module, a member's its
+  owner's then its name; one with no name of its own has none, and one schema object alone links it. A name is
+  registered once, of any kind, and a module and a schema do not share a path.
 - **Registration.** A named schema is registered under its name as it is created, so `store.crm.Person(...)` builds
   data right after `store.Schemas.OfObject(lambda o: o.name("crm.Person") ...)`; a renamed schema is registered again
   under its new name.
@@ -317,10 +318,10 @@ with a question, for review. The schema builders answer most of them; each point
 4. **Anonymous adjacencies.** Answered and built, for any relation (Resolved, "Refinement, identities and relations";
    VAL-15); the meta-schemas declare one at every end referred to. A snapshot writing an entry under its named ends
    only, and `Reachable` following named adjacencies, wait for the wire format (point 7).
-5. **Identities.** Superseded in part: a schema object's identity is the one written, else a named schema's name, else
-   a UUID (Building in a store, above), so a named schema's name is its identity, as the draft did not propose.  A module's identity
-   is its dotted path; an unnamed schema object's derives from its owner's (FRAMEWORK.md, Resolved, the initial
-   snapshot), so a store's snapshot is reproducible without naming patterns.
+5. **Identities.** Superseded: since 4g of the store overhaul a schema object's identity is its path (Building in a
+   store, above), a named schema's its name's parts from the root module, a module's its dotted name's; an unnamed
+   schema object has none, and is written nested where it is linked, so a store's snapshot is reproducible without
+   naming patterns.
 6. **Modules and names.** The meta-relation is built, `Defines(module, name, schema)` (Resolved: "a module is an object
    in a store, alongside schemas and data"); modules in the store and their nesting are built too;
    `root_module()` and qualified names are not. Still open: Open questions, "Resolving qualified names".

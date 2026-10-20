@@ -69,8 +69,8 @@ Nouns are used by verbs and appear nested in a verb:
 
 ```python
 Mutations.OfContainer.Slice # a section of a container
-Mutations.OfObject.Ref # identity only: a schema object's key, Module.Schema/ID; data's path, or a counted object's number in the log (docs/OBJECT_IDENTITY.md, 55)
-Mutations.OfObject.Def # includes props; and a schema object's key, or data's path or number and its schema's name (`Schema@`)
+Mutations.OfObject.Ref # identity only: an object's path (a schema object's from the root module, "."), or a counted object's number in the log (docs/OBJECT_IDENTITY.md, 55, 81)
+Mutations.OfObject.Def # includes props; its path or number, and its schema's name (a schema object's kind's, `Schemas.OfObject`); where it is linked, no path, its entries nested (`inserts`)
 ```
 
 - scalar payloads are untyped and interpreted according to their schema

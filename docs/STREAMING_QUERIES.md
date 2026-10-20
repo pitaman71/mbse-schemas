@@ -279,9 +279,15 @@ Mutations.OfUpdate.then(Mutations.OfTerm)
 
 ```python
 Mutations.OfUpsert # upsert, only used below root
+Mutations.OfUpsert.key(key: str) # optional: tells apart the counted objects one upsert creates from one frame
 Mutations.OfUpsert.exists(Schemas.OfPattern)
 Mutations.OfUpsert.then(Mutations.OfTerm)
 ```
+
+An owned object an upsert finds or creates is placed by its symbol's locator, which gives its whole path: owner, owning
+adjacency and the ownership entry's keys; its path is its identity, and `key` takes no part. A counted object an upsert
+creates is identified by the frame that reached the upsert and its `key`, so that running the expression again finds it
+rather than creating another ([Object identity](OBJECT_IDENTITY.md), Decided, 60 and 61).
 
 - `Mutations.OfTerm` a schema-governed union of the terms a child may be: `Mutations.OfMap`, `Mutations.OfReduce`, `Mutations.OfPartition`, `Mutations.OfUpdate`, `Mutations.OfUpsert` (`Mutations.OfAll` is the root only)
 

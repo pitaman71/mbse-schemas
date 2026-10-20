@@ -107,6 +107,14 @@ one object and cycles close: a reference is `{"$ref": {"n": <index>}}`, beside `
 object and a singleton alike are referred to (a singleton's path has no steps). Reading the document gives each its own
 new object; the numbers mean nothing after.
 
+A counted object an upsert creates in a mutation expression has an identity, though: the frame that reached the upsert,
+an instance of the upsert's pattern, and the upsert's `key`, which tells apart the objects one upsert creates from one
+frame (61). Running the expression again yields the same frame and key, so the upsert finds the object rather than
+creating another. The query executor finds such an object by them, through an index it holds weakly, so that it keeps
+no counted object alive; a program still cannot (40). On the wire the frame is written as any instance of its pattern
+is, each symbol a reference and each variable its value, so a reference to such an object is
+`{"$ref": {"frame": <frame>, "key": <key>}}`, recursively where the frame binds another.
+
 A counted object is created by a transaction, by a verb or through a symbol (a `Mutations.OfUpsert` of a putative
 object in a mutation expression, [Mutations as queries](STREAMING_QUERIES.md)); a clone is a creation in the transaction
 that clones (46, 54). It lives while anything holds it, an object that links it or the program, as the host language
@@ -376,11 +384,24 @@ As the user decided (2026-10-19):
     the first term of a transaction's one chain. "Keep adjacency verbs, lose relation verbs for now": entries change
     only through an object's adjacency.
 
+As the user decided (2026-10-19), on what names an object an upsert creates, the order frames arrive in mattering only
+to sequential numbering:
+
+60. An owned object an upsert finds or creates is placed by its symbol's locator, which gives its whole path, the owning
+    entry's keys included: "For owned objects, Upsert key is unnecessary and does not participate". No key is generated
+    from a pattern in an upsert, so nothing is numbered in the order frames arrive.
+61. "For unowned reference objects, the frame and key should be sufficient to disambiguate": a counted object an upsert
+    creates is identified by the frame that reached the upsert and the upsert's `key`, with no nesting path, symbol
+    name, sequence number or transaction id. "instances of Schemas.OfPattern are frames", so a frame is written as any
+    instance is. This narrows 55: a counted object a verb creates still has no identity beyond a document.
+
 ## Open questions
 
 1. **Order independence (57), in detail.** A collector declares whether it is `.commutative()` and `.associative()`
-   ([Mutations as queries](STREAMING_QUERIES.md)); what the executor does with one that is not, and how keys generated
-   from a pattern avoid depending on the order frames arrive in, are open.
+   ([Mutations as queries](STREAMING_QUERIES.md)); what the executor does with one that is not is open. (Generated keys
+   no longer depend on arrival: 60.)
+2. **An upsert creating several counted objects from one frame.** One `key` per upsert tells its creations apart from
+   those of other upserts; where its `exists` declares several counted symbols, does each take a key of its own?
 
 ---
 

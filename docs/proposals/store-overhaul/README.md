@@ -392,8 +392,7 @@ Points settled while building, for the user's review:
     will vanish").
 11. *Agreed*: 4e builds only the in-memory, sequential executor; distributed execution, and with it shards, is later
     work, the design (56, 57, 62) keeping it possible.
-12. **What a test holds after a transaction.** A test today keeps what it builds (`ada = store.crm.Contact(...)`). Under
-    mutation expressions it finds an owned object by lookup afterwards, and a counted one only by visiting what links it
-    (Object identity, Decided, 40), one nothing links being collected. Does `store.mutation` give anything back (its
-    final frames, which bind what it made), or does a test always read its results back through lookups from a
-    singleton?
+12. *Settled*: "if returning something is useful for testing purposes, do it. Regular programs probably will not."
+    `store.mutation` returns the frames that reached the end of its chain, each binding the transaction's symbols to
+    the objects they found or made; a test reads what it built from them (holding them keeps their counted objects
+    alive), and a program may ignore them.

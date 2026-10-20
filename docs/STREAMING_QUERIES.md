@@ -256,7 +256,7 @@ We cannot abandon mutation verbs as they are already essential for creating or m
 
 It's possible mutation verbs are no longer needed in the specific case of counted reference objects, because we can now name every object that needs to be created or updated with a symbol. However, I am concerned about syntax bloat, particularly in cases such as nested expression terms.
 
-Objects created through a symbol are named by their symbol, and counted objects created inside a mutator verb by a creation index; how these combine with the transaction's uid and its shards into a counted object's identity is set out in [Object identity](OBJECT_IDENTITY.md) (Decided, 52 to 54, and its open questions).
+Within a mutation expression, objects created through a symbol are named by their symbol. A counted object has no identity beyond the document that writes it, and sharding is the executor's, never recorded; see [Object identity](OBJECT_IDENTITY.md) (Decided, 55 to 57).
 
 Symbol locator expressions subsume visitor paths. Such locator expressions must be serializable.
 

@@ -9,11 +9,11 @@ A reference object is identified in one of three ways, which its schema's declar
 |---|---|---|---|
 | Singleton | `.singleton(name)` | its path of no steps: its global name, the root of every path | the store's |
 | Owned | an adjacency marked `owner()` | its path: the route from a singleton to it through the entries that own it | its owning entry's |
-| Counted | neither | the id of the transaction that created it, and its index among the objects that transaction created | the host language's: reference counted, collected once nothing holds it |
+| Counted | neither | none of its own: within a document that writes it, its index in the order the document meets counted objects | the host language's: reference counted, collected once nothing holds it |
 
-Value objects have no identity (9). Nothing is drawn at random: a path is computed from the model, and a transaction's
-id is given by the program (42), so the same model built twice, or in another language, gives the same identities and
-the same snapshots.
+Value objects have no identity (9). Nothing is drawn at random: a path is computed from the model, a transaction's id
+is given by the program (42), and a counted object is numbered by the document that writes it (55), so the same model
+built twice, or in another language, gives the same identities and the same snapshots.
 
 ## What takes which mode
 
@@ -99,21 +99,18 @@ counted object it linked lives on while anything else holds it (48).
 
 ## Counted objects
 
-A counted object is identified by the id of the transaction that created it and its index in the order that
-transaction created objects (38, 39); a clone is a creation in the transaction that clones (46). Its identity is
-fixed when it is created and never changes, whatever links it later. It lives while anything holds it, an object that
-links it or the program, as the host language decides; the store does not keep it alive.
+A counted object has no identity outside the document that writes it (55). Nothing finds it except by visiting what
+links it (40), and a later transaction reaches it the same way, through a symbol whose locator starts at an owned object
+or a singleton and follows links, so no later transaction refers to it by a name. Within one document, a snapshot or a
+Reachable transaction, it is numbered in the order the document meets counted objects, so that two links to it stay
+one object and cycles close: a reference is `{"$ref": {"n": <index>}}`, beside `{"$ref": <path>}`, by which an owned
+object and a singleton alike are referred to (a singleton's path has no steps). Reading the document gives each its own
+new object; the numbers mean nothing after.
 
-A counted object may also be created through a symbol, by a `Mutations.OfUpsert` of a putative object in a mutation
-expression ([Mutations as queries](STREAMING_QUERIES.md)): it is then a creation of the transaction, named by its symbol
-(54). How an identity names the many objects one symbol creates, one per frame, is open (Open questions, 2).
-
-A program cannot find a counted object directly, only by visiting what links it (40). Its identity appears only on the
-wire, where later transactions and snapshots refer to it: a reference is `{"$ref": {"tx": <uid>, "n": <index>}}`, beside
-`{"$ref": <path>}`, by which an owned object and a singleton alike are referred to (a singleton's path has no steps),
-and its `Exists` carries no id, its position among the transaction's
-creations being its index (49). Within one transaction, a reference to its own creation may give the index alone,
-`{"$ref": {"n": <index>}}` (51).
+A counted object is created by a transaction, by a verb or through a symbol (a `Mutations.OfUpsert` of a putative
+object in a mutation expression, [Mutations as queries](STREAMING_QUERIES.md)); a clone is a creation in the transaction
+that clones (46, 54). It lives while anything holds it, an object that links it or the program, as the host language
+decides; the store does not keep it alive.
 
 ## Reading and finding
 
@@ -127,7 +124,8 @@ read off its ownership entries on demand, as a `Paths.OfRoot` value, by `Paths.o
 - a counted object only by visiting what links it (40).
 
 Reading a snapshot or a journal is the one way an object is given an identity it did not get by being built: the same
-identity appearing again is an update of the object that has it, through its builder, where update is allowed.
+path appearing again is an update of the owned object or singleton that has it, through its builder, where update is
+allowed. A counted object read from a document is always a new one (55).
 
 ## Transactions
 
@@ -137,19 +135,21 @@ mutations (38). It is strictly the root of what a program applies, so transactio
 let one hold another (50). A program applies one by `store.mutation(mv)`, `mv` a `Visitors.OfMutation` whose `.uid()` gives the
 transaction's UUID; the program provides it, and nothing draws one at random (42).
 
-A transaction may be divided into shards: `Mutations.OfTransaction` [→ `Mutations.OfShard`] → `Mutations.OfTerm`, the
-terms of a mutation expression ([Mutations as queries](STREAMING_QUERIES.md)) (52). A shard's id is allocated by the
-query executor, not by the program (53).
+A transaction holds the terms of a mutation expression ([Mutations as queries](STREAMING_QUERIES.md)). The query
+executor may divide its execution into shards (52, 53), allocating their ids, but shards are the executor's alone: what
+a transaction does does not depend on how it is sharded, so nothing records them, and a journal holds the transactions
+as submitted, replayed by executing them again (56). Where execution would otherwise depend on the order in which
+frames arrive, it is made independent of it (57).
 
 A transaction that aborts, for any reason, changes nothing in the store of any kind (46): its creations are never made,
-its index numbers are never used, and its other writes are undone.
+and its other writes are undone.
 
-Snapshots are made of transactions (45): reading one replays them, and a counted object it re-states keeps the
-transaction id and index it was created with, so that later transactions still find it.
+Snapshots are made of transactions (45): reading one replays them. The counted objects a snapshot holds are numbered
+within it (55), and later transactions reach them through what links them.
 
 A Reachable document, the one graph a program sends without its store (an expression tree, a syntax tree), is one
-transaction (51): its creations are the counted objects reachable from the root, the root first, in first-reference
-order, under a uid the caller gives; the owned objects and singletons the graph links are referred to by path, not
+transaction (51): its creations are the counted objects reachable from the root, the root first, numbered in
+first-reference order (55), under a uid the caller gives; the owned objects and singletons the graph links are referred to by path, not
 included, and resolved in the reader's store, reading aborting where one is missing. Reading the
 document applies it as a transaction. A document that must carry owned objects too is a store's snapshot.
 
@@ -299,7 +299,7 @@ relation":
 38. "add a 'transaction' layer to the wire format that holds a list of mutations, require a UUID for every transaction,
     name objects in the order created within the transaction". Transactions are explicit: "Mutations.OfTransaction has a
     schema and store has a method".
-39. A counted object's name within its transaction is its "creation order index within the transaction".
+39. A counted object's name within its transaction is its "creation order index within the transaction". (Superseded by 55.)
 40. "counted objects cannot be directly found programmatically only via visitor".
 
 As the user decided (2026-10-18), on the questions 37 to 40 left:
@@ -323,6 +323,7 @@ As the user decided (2026-10-18), on the questions 41 to 47 left:
     within the transaction; a counted object it linked lives on while anything else holds it.
 49. A counted object on the wire ("fine"): a reference `{"$ref": {"tx": <uid>, "n": <index>}}` beside `{"$ref": <path>}`
     and a global name, its `Exists` carrying no id, its position among the transaction's creations being its index.
+    (Superseded by 55: a counted object is numbered only within the document that writes it.)
     (A singleton needs no form of its own: "why do singletons need a separate syntax?" Its reference is its path, of
     no steps, `{"singleton": "crm.Book", "next": {"target": {}}}`.)
 50. Nested transactions are "prevented by schema. Mutation.OfTransaction is strictly the root".
@@ -336,28 +337,34 @@ As the user decided (2026-10-18), on the questions 41 to 47 left:
 
 As the user decided (2026-10-19), with mutations as queries ([Mutations as queries](STREAMING_QUERIES.md)):
 
-52. A transaction's structure: "Mutations.OfTransaction [ -> Mutations.OfShard ] -> Mutations.OfTerm ...".
+52. A transaction's structure: "Mutations.OfTransaction [ -> Mutations.OfShard ] -> Mutations.OfTerm ...". (The
+    shard is the executor's, not on the wire: 56.)
 53. "Shard id is allocated by the query executor".
 54. A putative counted object that a `Mutations.OfUpsert` names "becomes a creation of the transaction, named by its
     symbol" ("10. yes"). An upsert's `key` clause, which labelled the identities of the objects it created, was tried
     and dropped: "I am just removing 'key', not worth the trouble".
 
+As the user decided (2026-10-19), asked "Do we really need to record the outcome of sharding?", on the answer that
+nothing beyond one document needs a counted object's identity ("yes, please"):
+
+55. A counted object has no identity beyond the document that writes it: within a snapshot or a Reachable transaction it
+    is numbered in the order the document meets counted objects, a reference `{"$ref": {"n": <index>}}`, and reading
+    gives each a new object. No later transaction names one; it reaches it through what links it (40). This supersedes
+    39 and 49, and 54's naming by symbol, which is a mutation expression's, not an identity.
+56. Sharding is not recorded: `Mutations.OfShard` (52) is the executor's, not part of the transaction on the wire, and a
+    journal holds transactions as submitted, replayed by executing them again.
+57. A transaction's effect does not depend on how it is sharded or in what order frames arrive: keys generated from a
+    pattern are given in a canonical order of the frames that need them, and `Mutations.OfReduce`'s fold is made
+    independent of order (see Open questions, 2).
+
 ## Open questions
 
 1. **`Visitors.OfMutation`.** What a program writes to build within a transaction: a visitor over a
    `Mutations.OfTransaction` value, its `.uid()` and its mutations, and how the builders' callbacks run inside it.
-2. **A counted object's identity under shards and symbols.** Proposed: an identity object of four parts, the
-   transaction's uid, the shard's id, the symbol path (the injecting symbol through the terms that lead to it; for an
-   object a verb creates, its enclosing term's), and `seq`, counting creations within that shard and symbol path in the
-   shard's own order; replacing `{"tx", "n"}` (39, 49). Open within it: how a symbol path is serialized, and whether a
-   transaction without shards is one implicit shard.
-3. **Submitted and recorded transactions.** Since the executor allocates shards (53), a run's identities depend on its
-   sharding. Proposed: a program submits a transaction without shards; the executor records it with its shards and the
-   identities of what it created, and journals and snapshots (45) are made of such records, read back rather than
-   re-executed. The in-memory executor allocates shards deterministically, so that the corpora are repeatable.
-4. **What a shard covers**: a term chain of its own, or a slice of the frame stream through the transaction's one
-   chain; and where `Mutations.OfAll`, the root term of [Mutations as queries](STREAMING_QUERIES.md), sits under a
-   transaction or a shard.
+2. **Order independence (57), in detail.** The canonical order of frames for generating keys (by the identities and
+   values each frame holds?), and `Mutations.OfReduce`'s fold: collectors required to be commutative and associative, as
+   distributed reductions usually are, or the group given a canonical order in which "the first frame" is defined.
+3. **Where `Mutations.OfAll` sits under `Mutations.OfTransaction`**: the transaction's one term chain, or several.
 
 ---
 

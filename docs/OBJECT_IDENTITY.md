@@ -505,13 +505,17 @@ As the user decided (2026-10-20), on how a pattern's symbols find their objects:
     a transaction's root term are relations (`.exists([...])`, `.mutations([...])`, peer shorthand), a transaction having
     one root.
 
+As the user decided (2026-10-20), on expression terms and schema paths:
+
+79. Recursive expression terms ("yes"): a term is a counted reference object, linked to the terms it holds through
+    relations, so that recursion goes through links, which 72 allows; mbse-expressions adapts in 4h.
+80. A named schema's path is "root module, then nested modules by name, then schema by name": from the root module,
+    through each module that `Schemas.Defines` its successor, keyed by name, to the schema; a member's path continues
+    its owner's (69).
+
 ## Open questions
 
-1. **Recursive expression terms.** mbse-expressions' terms are value objects (FRAMEWORK.md, Resolved: "2 = Y"), and a
-   term holds terms (an application's arguments): a cycle among value object schemas, which 72 refuses. 37 has
-   "expression terms : should be reference counted", which would make terms counted reference objects linked through
-   relations, recursion going through links, a cycle 72 allows; mbse-expressions would adapt in 4h. Is that the
-   resolution?
+None at present.
 
 ---
 

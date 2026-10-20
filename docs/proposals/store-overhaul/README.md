@@ -204,7 +204,8 @@ so that main stays current and no branch waits on another.
      (placeholders mbse-expressions refines), `OfCollector` (rejected by validation where it declares neither
      `.commutative()` nor `.associative()`, 62); built, validated and written as every schema is. `Schemas.OfPredicate`
      goes (67). A symbol is found as a singleton by its schema, or through its pattern's `spec` (76, 77), which
-     replaced the locators a first build made (64 to 75, superseded). Done, on the branch, but for `spec`. As built
+     replaced the locators a first build made (64 to 75, superseded). Done, on the branch; `spec` is built in 4e, with the
+     mutation builders that record it. As built
      (FRAMEWORK.md, Resolved, Patterns, has the choices made for the user's review):
      - the meta-schemas `Schemas.OfPattern`, `OfVariable`, `OfExpression` and `OfCollector`; the relations
        `Schemas.HasVariable`, `Requiring`, `Matching`, `Resulting` and `Computing`, `HasSymbol` now a pattern's;
@@ -212,7 +213,7 @@ so that main stays current and no branch waits on another.
        constraints, which it owns; a collector's names are text lists, its `suffixes` a map;
      - the corpus's `module` case has a pattern with a variable and a constraint, an expression and a collector in
        place of its predicate; the suite PAT tests them, in both languages.
-   - **4g, schema objects** (17, 29, 69, 70): a named schema's identity is its path, and its members' paths continue it;
+   - **4g, schema objects** (17, 29, 69, 70, 72, 80): a named schema's identity is its path, and its members' paths continue it;
      derived identities go; an unnamed schema has no identity, and is written nested in the one object that links it;
      validation refuses an unnamed schema linked from more than one place, and a cycle among value object schemas (72); schema
      objects' keys on the wire become paths. `as_identity` leaves the schema builders.

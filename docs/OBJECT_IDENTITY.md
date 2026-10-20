@@ -139,13 +139,14 @@ allowed. A counted object read from a document is always a new one (55).
 
 A pattern's symbols ([Mutations as queries](STREAMING_QUERIES.md)) sometimes specify a locator expression. These
 expressions are represented by an ordinary schema over these kinds:
-- `Locators.OfSymbol` # name, next
+- `Locators.OfSymbol` # name, schema, next
 - `Locators.OfSingleton` # schema, next
 - `Locators.OfRelation` # schema, adjacency, link, properties, next
 
 Only `Locators.OfSymbol` or `Locators.OfSingleton` may be used as the root of a locator expression.
 
 ```python
+Locators.OfSymbol.schema: Schemas.OfObject (must be ref)
 Locators.OfRelation.schema: Schemas.OfRelation
 Locators.OfRelation.adjacency : str # denotes name of adjacency to current obj
 Locators.OfRelation.link : str # denotes name of link to next obj
@@ -450,9 +451,27 @@ As the user decided (2026-10-20), on how a pattern's symbol finds its objects, a
     (an `OfExpression`), validation refusing a name the pattern lacks and equal suffixes, and what a reduce requires of
     them left to 4e. 4d is schema-level only: frames, matching and the executor are 4e's.
 
+As the user decided (2026-10-20), on the order of step 4 and on schema objects:
+
+67. `Schemas.OfPredicate` goes ("OfPredicate goes away, consider that decided"), in 4d: `OfPattern` replaces it.
+68. "finish 4d then do 4g to stabilize Schemas early without complicating 4e and 4f": step 4 is done in the order 4d,
+    4g, 4e, 4f, 4h.
+69. Derived identities ("yes, they go"): no schema object takes an identity from what owns or links it
+    (`crm.Person.tags#schema`); a named schema's is its path, and its members' paths continue it.
+70. An unnamed schema has no identity: "The existence of unnamed schemas is not the question. The necessity of being
+    able to address a value symbolically, that is what I do not understand." It is written nested in the one object
+    that links it, and numbered nowhere, since "Value schemas should never have cycles" and "If you build any instance
+    of any schema, confer no identity, then share it, that's a usage error": validation refuses an unnamed schema
+    linked from more than one place, and a cycle among value schemas, named or not.
+71. `Locators.OfSymbol` has a name, the earlier symbol it starts from, and a schema, "Schemas.OfObject (must be ref)",
+    by which a hop from it finds its adjacencies (amending 64).
+
 ## Open questions
 
-None at present.
+1. **Recursive expression terms.** mbse-expressions' terms are value objects (FRAMEWORK.md, Resolved: "2 = Y"), and a
+   term holds terms (an application's arguments): a cycle among value schemas, which 70 refuses. 37 has "expression
+   terms : should be reference counted", which would make terms counted reference objects linked through relations,
+   recursion going through links; mbse-expressions would adapt in 4h. Is that the resolution?
 
 ---
 

@@ -198,11 +198,17 @@ so that main stays current and no branch waits on another.
        `Corpus.Root`, so. YAML quotes the key `'n'`, which a YAML 1.1 reader takes for false;
      - the tutorials retell case study 6 with counted contacts and addresses, numbered, and point to owned objects for
        lasting names; case study 8's audit log labels linked objects by their values.
-   - **4d, patterns** (STREAMING_QUERIES.md, Patterns; Locators; Value expressions and constraints; Object identity,
-     Decided, 64 to 66): `Schemas.OfPattern`, `OfSymbol` (its `locator`, a value of the `Locators` schemas each store
-     holds: `OfSymbol` or `OfSingleton` at the root, `OfRelation` hops through named adjacencies), `OfVariable`, `OfExpression` and its boolean variant `OfConstraint` (placeholders mbse-expressions refines),
-     `OfCollector` (rejected by validation where it declares neither `.commutative()` nor `.associative()`, 62); built,
-     validated and written as every schema is. `Schemas.OfPredicate` stays for now, beside them (question 10).
+   Done in this order, so that `Schemas` is stable early (Object identity, Decided, 68): 4d, 4g, then 4e and 4f.
+   - **4d, patterns** (STREAMING_QUERIES.md, Patterns; Value expressions and constraints; Object identity, Locators,
+     and Decided, 64 to 67, 71): `Schemas.OfPattern`, `OfSymbol` (its `locator`, a value of the `Locators` schemas each
+     store holds: `OfSymbol` or `OfSingleton` at the root, `OfRelation` hops through named adjacencies), `OfVariable`,
+     `OfExpression` and its boolean variant `OfConstraint` (placeholders mbse-expressions refines), `OfCollector`
+     (rejected by validation where it declares neither `.commutative()` nor `.associative()`, 62); built, validated
+     and written as every schema is. `Schemas.OfPredicate` goes (67).
+   - **4g, schema objects** (17, 29, 69, 70): a named schema's identity is its path, and its members' paths continue it;
+     derived identities go; an unnamed schema has no identity, and is written nested in the one object that links it;
+     validation refuses an unnamed schema linked from more than one place, and a cycle among value schemas; schema
+     objects' keys on the wire become paths. `as_identity` leaves the schema builders.
    - **4e, mutation expressions and the in-memory executor** (38, 42, 44, 46, 50, 56 to 63): the mutation vocabulary as
      Decided 59 nests it, `Mutations.OfTransaction` → `Mutations.OfTerm` (`OfAll`, `OfMap`, `OfReduce`, `OfPartition`,
      `OfUpdate`, `OfUpsert`) → `Mutations.OfPattern` → `Mutations.OfObject` → `Mutations.OfAdjacency` (`OfEntry`) →
@@ -214,12 +220,11 @@ so that main stays current and no branch waits on another.
      submitted, replayed by executing them; a Reachable document is one transaction, its counted objects numbered within
      it, owned objects and singletons referred to by path. The corpora are regenerated, the JSON byte-identical between
      the languages.
-   - **4g, schema objects** (17, 29): their identities are their paths, derived identities go, their keys on the wire
-     paths too.
    - **4h, the last release**, and the dependents: mbse-expressions refines `OfExpression` and `OfConstraint`;
-     mbse-programs' corpora become Reachable transactions. What becomes of mbse-patterns is deferred (question 10).
-   Releases (question 8): 0.20.0 after 4c, 0.21.0 after 4f, 0.22.0 after 4g, each landing the branch on main. 4e builds
-   only the in-memory, sequential executor (question 11).
+     mbse-programs' corpora become Reachable transactions; mbse-patterns, built on `OfPredicate`, is left without it.
+   Releases (question 8, renumbered by the reorder, proposed for the user's review): 0.20.0 after 4c, 0.21.0 after 4d
+   and 4g, 0.22.0 after 4e and 4f, each landing the branch on main. 4e builds only the in-memory, sequential executor
+   (question 11).
 
 ### Example: a transaction, as 4e would build it
 
@@ -407,8 +412,8 @@ Points settled while building, for the user's review:
 
    (`.symbol`, `.path(... .start(...).step(...))` and `.object` are names for 4e to settle.) Every test, tutorial,
    example and skill block that builds moves into such expressions in 4e.
-10. *Deferred*: `Schemas.OfPredicate` stays until what becomes of mbse-patterns is known ("It is possible mbse-patterns
-    will vanish").
+10. *Settled*: `Schemas.OfPredicate` goes, in 4d ("OfPredicate goes away, consider that decided"; Object identity,
+    Decided, 67).
 11. *Agreed*: 4e builds only the in-memory, sequential executor; distributed execution, and with it shards, is later
     work, the design (56, 57, 62) keeping it possible.
 12. *Settled*: "if returning something is useful for testing purposes, do it. Regular programs probably will not."

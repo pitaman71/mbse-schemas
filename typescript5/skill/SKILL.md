@@ -48,14 +48,17 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
    `store.crm.Contact(obj, lambda c: c.name("Ada"))` updates `obj`, `store.crm.Contact(lambda c: ...)` creates and
    `store.crm.Contact(obj)` clones. Entries are inserted and removed through an adjacency's visitor
    (`.phones(lambda a: a.insert(...))`).
-8. **Everything is built in a store.** `store = Builders.Store()` builds schemas,
-   `store.Schemas.OfObject(lambda o: o.name("crm.Contact").ref(True).properties([...]))`, registering each named one
-   under its name, and data, `store.crm.Contact(lambda c: ...)`, an attribute per part of the name; it keeps as data
-   what its singletons reach. A schema's members are its entries, each named by its entry
-   (`lambda t: t.name("given_name").schema([Text])`), and a reference to another schema object is a list of what it
-   links (`.schema([Text])`). In TypeScript the store, `new Builders.Store()`, is declared `any`, and callbacks given to
-   it are annotated: `store.Schemas.OfObject((o: any) => ...)`. Serializers and validators take the store
-   (`JSON.ToJSON(store)`, `Validators.Validate(store)`). Stores are isolated; objects move between them as snapshots.
+8. **Everything is built in a store, and a module installs its schemas.** `store = Builders.Store()` holds schemas and
+   data. A module defines its schemas in a module-scope `install(txn)`, which `store.transaction(install)` runs: one
+   upsert whose symbols are its schemas, each of its kind (`txn.Schemas.OfObject`), and whose spec writes each one with
+   the builder calls, `_.Contact.name("crm.Contact").ref(True).properties({"given_name": S.OfStr})`; run again, it
+   finds them by name and writes nothing; another install adds to them. A schema with no name of its own is defined
+   where it is linked, `S.OfContainer(lambda c: ...)`. Data is built with `store.crm.Contact(lambda c: ...)`, an
+   attribute per part of the name; the store keeps as data what its singletons reach. A reference to another schema
+   object is a list of what it links (`.schema([Text])`). In TypeScript the store, `new Builders.Store()`, is declared
+   `any`, and callbacks given to it are annotated: `(o: any) => ...`. Serializers and validators take the store
+   (`JSON.ToJSON(store)`, `Validators.Validate(store)`). Stores are isolated; objects move between them as snapshots, and
+   a schema the store was made holding only gains members.
 9. **Every write is made within a transaction.** `with store.transaction(): ...` (TypeScript:
    `store.transaction(() => ...)`, which gives back what the function returns) makes what is written within it take
    effect when it ends, all of it, or, where it raises, none of it; a write outside one is refused. A schema that

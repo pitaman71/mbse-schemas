@@ -10,77 +10,48 @@ Components own ports, wires connect ports and carry a label, and each port descr
 It writes the same JSON as the Python version, byte for byte.
 
 ```typescript
-import { Builders, JSON, Proxies, Schemas as S, Validators } from "@mbse/schemas/Framework";
+import { Builders, JSON, Proxies, Validators } from "@mbse/schemas/Framework";
+
+/** A module's schemas, defined in the store a transaction writes: each found by its name, else made. */
+function install(txn: any): any {
+  const S = txn.Schemas; // a store's own schemas by name: its meta-schemas and basic scalars, and what it holds
+  return txn.uid("components/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    // Each schema the module defines is a symbol of its kind; its spec, below, says what it is.
+    .symbols({ Component: S.OfObject, Port: S.OfObject, Board: S.OfObject, Ownership: S.OfRelation, Wire: S.OfRelation })
+    .spec([
+      // Things with identity: reference object schemas, each registered under its name. A port's signal is a value with
+      // no identity, a value object, defined where it is linked.
+      (_: any) => _.Component.name("Component").ref(true).properties({ name: S.OfStr }).adjacencies({
+        ports: (a: any) => a.relation([_.Ownership]).me("owner"), // an adjacency: a relation seen through a link
+      }),
+      (_: any) => _.Port.name("Port").ref(true).properties({
+        name: S.OfStr,
+        signal: S.OfObject((o: any) => o.properties({ width: S.OfInt, unit: S.OfStr })),
+      }).adjacencies({
+        owner: (a: any) => a.relation([_.Ownership]).me("port"),
+        fanout: (a: any) => a.relation([_.Wire]).me("source"),
+        fanin: (a: any) => a.relation([_.Wire]).me("target"),
+      }),
+      // A refinement has the members of the schema it refines, and its own; its objects are that schema's too.
+      (_: any) => _.Board.name("Board").refines([_.Component]).properties({ revision: S.OfInt }),
+      // Every collection of reference objects is a relation. uniques("owner"): entries that agree on the port agree on
+      // the owner. Within a schema, links and properties are named by string.
+      (_: any) => _.Ownership.name("Ownership").links([
+        (t: any) => t.name("owner"),
+        (t: any) => t.name("port"),
+      ]).uniques("owner"),
+      (_: any) => _.Wire.name("Wire").links([
+        (t: any) => t.name("source"),
+        (t: any) => t.name("target"),
+      ]).properties({ label: S.OfStr }),
+    ])]))]);
+}
 
 // Schemas and data are built in a store. Its members come from the schemas at runtime, so it is typed loosely: declare
 // it `any`, and annotate the callbacks given to it `(x: any)`.
 const store: any = new Builders.Store();
-const [Int, Text] = [store.Schemas.OfInt, store.Schemas.OfStr]; // its basic scalars, its own, named by its paths
-
-const { Component, Port } = store.transaction(() => { // every write to a store is made within a transaction
-  // A value with no identity: a value object.
-  const Signal = store.Schemas.OfObject((o: any) => o.properties([
-    (t: any) => t.name("width").schema([Int]),
-    (t: any) => t.name("unit").schema([Text]),
-  ]));
-
-  // Things with identity: reference object schemas, each registered under its name as it is built.
-  const Component = store.Schemas.OfObject((o: any) => (
-    o
-      .name("Component")
-      .ref(true)
-      .properties([(t: any) => t.name("name").schema([Text])])
-  ));
-  const Port = store.Schemas.OfObject((o: any) => (
-    o
-      .name("Port")
-      .ref(true)
-      .properties([
-        (t: any) => t.name("name").schema([Text]),
-        (t: any) => t.name("signal").schema([Signal]),
-      ])
-  ));
-
-  // Every collection of reference objects is a relation. uniques("owner"): entries that agree on the port agree on the
-  // owner. Within a schema, links and properties are named by string.
-  const Ownership = store.Schemas.OfRelation((r: any) => (
-    r
-      .name("Ownership")
-      .links([
-        (t: any) => t.name("owner"),
-        (t: any) => t.name("port"),
-      ])
-      .uniques("owner")
-  ));
-  const Wire = store.Schemas.OfRelation((r: any) => (
-    r
-      .name("Wire")
-      .links([
-        (t: any) => t.name("source"),
-        (t: any) => t.name("target"),
-      ])
-      .properties([(t: any) => t.name("label").schema([Text])])
-  ));
-
-  // Each object sees a relation through one of its links (an adjacency); an object and a callback update its schema.
-  store.Schemas.OfObject(Component, (o: any) => o.adjacencies([
-    (t: any) => t.name("ports").relation([Ownership]).me("owner"),
-  ]));
-  store.Schemas.OfObject(Port, (o: any) => o.adjacencies([
-    (t: any) => t.name("owner").relation([Ownership]).me("port"),
-    (t: any) => t.name("fanout").relation([Wire]).me("source"),
-    (t: any) => t.name("fanin").relation([Wire]).me("target"),
-  ]));
-  // An object may fill a link its schema declares with no name (an anonymous adjacency): no member, but still checked.
-  // A refinement has the members of the schema it refines, and its own; its objects are that schema's objects too.
-  const Board = store.Schemas.OfObject((o: any) => (
-    o
-      .name("Board")
-      .refines([Component])
-      .properties([(t: any) => t.name("revision").schema([Int])])
-  ));
-  return { Component, Port };
-});
+store.transaction(install); // run again, it finds what it defined and writes nothing
+const Component = store.registered("Component");
 
 const { irq, picIn, cpu } = store.transaction(() => { // every write within a transaction: all of it, or none
   // Data is built the same way: a callback creates, an object and a callback update, an object alone clones. Builders
@@ -123,10 +94,14 @@ if (Validators.Validate(store).Reachable(Component, copy).length > 0) throw new 
 ## Cheat sheet
 
 ```typescript fragment
-// Everything is built in a store: schemas with store.Schemas.<Kind>(...), data with store.<dotted name>(...). Called
+// Everything is built in a store. A module defines its schemas in a module-scope install(txn), as the complete program
+// does: one upsert, each schema a symbol of its kind (txn.Schemas.OfObject), its spec the builder calls below, made on the
+// symbol (_.Person.name(...)); txn.Schemas.OfContainer(cb) there defines one with no name where it is linked. Data is
+// built with store.<dotted name>(...); the builders build schemas the same way, store.Schemas.<Kind>(...). Called
 // with a callback (a Spec taking the builder), it creates; with an object and a callback, it updates the object; with
 // an object alone, it clones it. It returns the object. A named schema is registered under its name as it is built.
 const store: any = new Builders.Store();                    // holds its own plain schemas of schemas; shares nothing
+store.transaction(install);                                // a module's schemas; run again, it writes nothing
 store.transaction(() => { ... });                          // every write within one, all or nothing; outside one, refused
 store.transaction((t: any) => t.mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p.symbols({ P: Person })
   .spec([(_: any) => _.P.name("Ada")])]))]));               // a transaction's expression: find by spec, else create

@@ -15,7 +15,7 @@ How to express an interface or data model with the schema elements. The same mod
 | Multiplicity upper bound (0..1) | a `unique` clause, given with `.uniques(...)` |
 | Multiplicity lower bound (1, 1..*) | not expressible yet: constraints are planned |
 | Qualified association, map, dictionary | relation with a key property: `.uniques(["owner", "key"])` |
-| Ordered list of values or parts (tags, a component's ports) | a property holding a container by an int index: `t.name("tags").schema([Tags])`, where `Tags = store.Schemas.OfContainer(lambda c: c.index([Int]).element([Text]))`, its elements scalars, value objects or containers |
+| Ordered list of values or parts (tags, a component's ports) | a property holding a container by an int index: `{"tags": S.OfContainer(lambda c: c.index([S.OfInt]).element([S.OfStr]))}`, its elements scalars, value objects or containers |
 | Dictionary, associative array (values by key) | a container by a hashable index: `c.index([Text]).element([...])`, written as a mapping where the index is text |
 | Dense tensor, matrix | a container by a value object of ints (`{row, col}`), dense: every cell of the box its indices span; written nested or, configured on the writer, flat with its shape |
 | Sparse array or tensor | `.layout("sparse")` on the container: blocks of consecutive elements, each where it starts |
@@ -63,9 +63,10 @@ holds exactly one branch (`{"phone": {"number": "1"}}`), and setting one clears 
 data, so nothing evaluates predicates. An intersection value holds every part (`{"stamp": {...}, "audit": {...}}`).
 Parts do not merge: each keeps its own properties, so two parts may declare the same name.
 
-**Define in phases.** Objects and relations refer to each other, so first create the objects, then the relations,
-then add each object's adjacencies by updating its schema in the store,
-`store.Schemas.OfObject(existing, lambda o: o.adjacencies([...]))`.
+**Define them in an install.** Objects and relations refer to each other: a module's `install(txn)` gives each schema
+as a symbol of one upsert, so its spec writes each object with its adjacencies, `_.Person.adjacencies({"knows": lambda
+a: a.relation([_.Knows]).me("a")})`, whatever order the relations come in. A pattern whose spec names schemas goes in
+an install run after the one that defines them.
 
 **Evolving a schema.** Add properties freely, since old data lacks them and nothing is mandatory. Never reuse a name
 with a new schema.

@@ -137,4 +137,8 @@ As the user decided (2026-10-21), on the questions above:
   - the examples: AddressBook, FamilyTree, Serialization, TextEncodings and University define their schemas in a
     module-scope `install`, their schema helpers (University's `text`) gone; SchemaBuilders, whose subject is the
     builders, keeps them (Decided, 6).
+  - the README's example and the TypeScript package's, and the skill: each complete program defines its schemas in an
+    install, the cheat sheets add the install beside the builder calls a spec makes, and the guidance (SKILL.md, 8;
+    modeling.md, schemas.md) teaches installs; removing a member and cloning a version stay the builders', since an
+    install only adds (4j) and does not clone.
 

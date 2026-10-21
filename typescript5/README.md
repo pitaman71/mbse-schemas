@@ -20,17 +20,30 @@ npm run conformance                     # regenerate ../conformance/typescript5
 The same program in both languages:
 
 ```python
+def install(txn):
+    S = txn.Schemas
+    return txn.uid('addresses/1').mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
+        .symbols({'IntlAddress': S.OfObject})
+        .spec([lambda _: _.IntlAddress.name('IntlAddress').ref(True).properties({'street1': S.OfStr})])]))])
+
+
 store = Builders.Store()
-IntlAddress = store.Schemas.OfObject(lambda o: o.name('IntlAddress').ref(True).properties([
-    lambda t: t.name('street1').schema([store.Schemas.OfStr])]))
-addr = store.IntlAddress(lambda a: a.street1('10 Downing Street'))
+store.transaction(install)
+with store.transaction():
+    addr = store.IntlAddress(lambda a: a.street1('10 Downing Street'))
 ```
 
 ```ts
+function install(txn: any): any {
+  const S = txn.Schemas;
+  return txn.uid("addresses/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({ IntlAddress: S.OfObject })
+    .spec([(_: any) => _.IntlAddress.name("IntlAddress").ref(true).properties({ street1: S.OfStr })])]))]);
+}
+
 const store: any = new Builders.Store();
-const IntlAddress = store.Schemas.OfObject((o: any) => o.name("IntlAddress").ref(true).properties([
-  (t: any) => t.name("street1").schema([store.Schemas.OfStr])]));
-const addr = store.IntlAddress((a: any) => a.street1("10 Downing Street"));
+store.transaction(install);
+const addr = store.transaction(() => store.IntlAddress((a: any) => a.street1("10 Downing Street")));
 ```
 
 ---

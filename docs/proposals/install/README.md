@@ -6,12 +6,14 @@ basically replaced by this new `install` convention". Every module that defines 
 created, and its spec written where it does not hold. Run again, an install finds what it defined and writes nothing;
 given more, it extends it.
 
-The two drafts beside this file show the framework's own modules in that form:
+The two drafts beside this file show the framework's own modules in that form, each schema written out in the
+builders' fluent syntax (mbse-basis P-019: "Do not invent another DSL by wrapping builder syntax"), with no helper that
+builds part of the model and no table that generates it:
 
 - [Schemas.py](Schemas.py): the plain schemas of schemas (level 2) and the basic scalars, which `Builders._plain()`
   builds today, defined by `Schemas.install`. Level 3, the dataclasses, is unchanged.
-- [Mutations.py](Mutations.py): `Mutations.schemas(Text, Int, Path, ...)` becomes `Mutations.install`, the same 62
-  schemas by the same names, naming what it uses from the transaction (`txn.Schemas.OfStr`, `txn.Paths.OfRoot`, 78).
+- [Mutations.py](Mutations.py): `Mutations.schemas(Text, Int, Path, ...)` becomes `Mutations.install`, the same
+  schemas by the same names, each symbol named as today's variable is (`Ref`, `PropertySet`), naming what it uses from the transaction (`txn.Schemas.OfStr`, `txn.Paths.OfRoot`, 78).
 
 `Paths.py` follows `Mutations.py`, four schemas. TypeScript mirrors all three.
 
@@ -57,6 +59,4 @@ Considered and not proposed:
    the examples, every extension (EXT's, and mbse-expressions' and mbse-programs'), and the README and skill; the test
    notebooks and tutorials keep building schemas within `store.transaction()` where a case is about building them, and
    use an install where a case needs a fixture of schemas. Or does every notebook move to installs too?
-3. **Symbol names with dots.** The Mutations draft names each symbol as its schema's local name (`OfObject.Ref`), read
-   with `getattr`. Allow dots in a symbol's name, or name the symbols otherwise (`Ref`, `OfEntryMember`)?
-4. **A definition where it is linked**: `S.OfContainer(lambda c: ...)` inside a spec, as drafted?
+3. **A definition where it is linked**: `S.OfContainer(lambda c: ...)` inside a spec, as drafted?

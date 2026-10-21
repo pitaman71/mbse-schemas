@@ -2,45 +2,14 @@
 README.md beside it).
 
 What changes: `schemas(Text, Int, Path, Bool, Pattern, Collector, Expression)`, which builds them with the builders and
-is handed what it uses, becomes `install(txn)`, which defines them in the store a transaction writes and names what it
-uses from the transaction (`txn.Schemas.OfStr`, `txn.Paths.OfRoot`, 78). The schemas are the same 62, by the same names.
+is handed what it uses, becomes `install(txn)`, which defines them in the store a transaction writes, in the builders'
+fluent syntax (P-019), and names what it uses from the transaction (`txn.Schemas.OfStr`, `txn.Paths.OfRoot`, 78). The
+schemas are the same, by the same names, and `Mutations.Payload` is named (README.md).
 """
 
 from __future__ import annotations
 
 from typing import Any
-
-UNIONS = ("OfProperty", "OfContainer", "OfAny", "OfScalar", "OfLink", "OfEntry.Member", "OfObject", "OfAdjacency",
-          "OfTerm")
-"""The unions of verbs, and of terms: each symbol's name is its schema's, `Mutations.<name>`."""
-
-TERMS = {"OfTransaction": {"uid": "OfStr"}, "OfMap": {}, "OfReduce": {}, "OfPartition": {"first": "OfBool", "last": "OfBool"},
-         "OfBranch": {}, "OfUpdate": {}, "OfUpsert": {"key": "OfStr"}}
-"""Each kind of term, a reference object schema (93), and its properties."""
-
-RELATIONS = [  # (relation, first link, second link, the second's schema, a symbol here or a path from txn, one at most)
-    ("HasRoot", "transaction", "term", "OfTerm", True),
-    ("Then", "term", "next", "OfTerm", True),
-    ("MapsSymbols", "term", "pattern", "Schemas.OfPattern", True),
-    ("MapsVariables", "term", "pattern", "Schemas.OfPattern", True),
-    ("ReducesSymbols", "term", "collector", "Schemas.OfCollector", True),
-    ("ReducesVariables", "term", "collector", "Schemas.OfCollector", True),
-    ("Branching", "partition", "branch", "OfBranch", False),
-    ("Otherwise", "partition", "next", "OfTerm", True),
-    ("Requiring", "branch", "constraint", "Schemas.OfExpression", False),
-    ("Applies", "term", "pattern", "Schemas.OfPattern", True),
-    ("Exists", "term", "pattern", "Schemas.OfPattern", True),
-]
-
-ADJACENCIES = {  # each kind of term's adjacencies: (name, relation, the link it fills)
-    "OfTransaction": [("mutations", "HasRoot", "transaction")],
-    "OfMap": [("symbols", "MapsSymbols", "term"), ("variables", "MapsVariables", "term"), ("then", "Then", "term")],
-    "OfReduce": [("symbols", "ReducesSymbols", "term"), ("variables", "ReducesVariables", "term"), ("then", "Then", "term")],
-    "OfPartition": [("branches", "Branching", "partition"), ("none", "Otherwise", "partition"), ("then", "Then", "term")],
-    "OfBranch": [("requires", "Requiring", "branch"), ("then", "Then", "term")],
-    "OfUpdate": [("apply", "Applies", "term"), ("then", "Then", "term")],
-    "OfUpsert": [("exists", "Exists", "term"), ("then", "Then", "term")],
-}
 
 
 def install(txn: Any) -> Any:
@@ -48,96 +17,183 @@ def install(txn: Any) -> Any:
     is made by it, after `Schemas.install` and `Paths.install`, read by the bootstrap (README.md, The bootstrap); run
     again in a store, it finds each by its name and writes nothing."""
     S = txn.Schemas  # the store's meta-schemas and basic scalars (78)
-
-    def mutations(_: Any, of: str) -> dict[str, Any]:
-        """A verb's nested mutations: a list of `of`, defined where it is linked."""
-        return {"mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([getattr(_, of)]))}
-
-    def payloads(_: Any) -> Any:
-        return S.OfContainer(lambda c: c.index([S.OfInt]).element([_.Payload]))
-
-    verbs: dict[str, Any] = {  # each verb and noun, a value object schema: `Mutations.<name>`, by its symbol
-        # --- Nouns ---
-        "OfObject.Ref": lambda _: {"path": txn.Paths.OfRoot, "symbol": S.OfStr},  # by its path, or a symbol (81, 95)
-        "OfObject.Def": lambda _: {"schema": S.OfStr, **mutations(_, "OfObject")},  # no path: defined where linked
-        "OfContainer.Slice": lambda _: {"index": _.Payload, "items": payloads(_)},
-        # --- Value verbs ---
-        "OfProperty.Set": lambda _: {"value": _.Payload},
-        "OfProperty.Clear": lambda _: {},
-        "OfProperty.AsAny": lambda _: mutations(_, "OfAny"),
-        "OfContainer.Insert": lambda _: {"slice": getattr(_, "OfContainer.Slice")},
-        "OfContainer.Remove": lambda _: {"index": _.Payload, "count": S.OfInt},  # a section, by its start and length
-        "OfContainer.Append": lambda _: {"items": payloads(_)},
-        "OfContainer.Prepend": lambda _: {"items": payloads(_)},
-        "OfContainer.Clear": lambda _: {},
-        "OfContainer.AsItems": lambda _: mutations(_, "OfAny"),  # applied in modulo order
-        "OfAny.Set": lambda _: {"value": _.Payload},
-        "OfAny.Clear": lambda _: {},
-        "OfAny.AsScalar": lambda _: mutations(_, "OfScalar"),
-        "OfAny.AsContainer": lambda _: mutations(_, "OfContainer"),
-        "OfScalar.Set": lambda _: {"value": _.Payload},
-        "OfScalar.Clear": lambda _: {},
-        "OfUnion.AsBranch": lambda _: {"name": S.OfStr, **mutations(_, "OfProperty")},
-        "OfIntersection.AsPart": lambda _: {"name": S.OfStr, **mutations(_, "OfProperty")},
-        "OfAny.AsUnion": lambda _: mutations(_, "OfUnion.AsBranch"),
-        "OfAny.AsIntersection": lambda _: mutations(_, "OfIntersection.AsPart"),
-        "OfLink.Set": lambda _: {"ref": getattr(_, "OfObject.Ref"), "def": getattr(_, "OfObject.Def")},
-        "OfLink.Clear": lambda _: {},
-        # --- An object's, an entry's and an adjacency's verbs ---
-        "OfObject.AsProperty": lambda _: {"name": S.OfStr, **mutations(_, "OfProperty")},
-        "OfAny.AsObject": lambda _: mutations(_, "OfObject.AsProperty"),
-        "OfEntry.AsProperty": lambda _: {"name": S.OfStr, **mutations(_, "OfProperty")},
-        "OfEntry.AsLink": lambda _: {"name": S.OfStr, **mutations(_, "OfLink")},
-        "OfEntry": lambda _: mutations(_, "OfEntry.Member"),  # its links' and its properties' mutations
-        "OfObject.AsAdjacency": lambda _: {"name": S.OfStr, **mutations(_, "OfAdjacency")},
-        "OfAdjacency.Insert": lambda _: {"entries": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfEntry]))},
-        "OfAdjacency.Remove": lambda _: {"entries": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfEntry]))},
-        "OfAdjacency.Clear": lambda _: {},  # every entry the adjacency holds removed
-        "OfObject.Spec": lambda _: {"items": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfPattern]))},
-    }
-
-    branches: dict[str, dict[str, str]] = {  # each union's branches: a verb's name as a visitor's member, its schema
-        "OfProperty": {"set": "OfProperty.Set", "clear": "OfProperty.Clear", "as_any": "OfProperty.AsAny"},
-        "OfContainer": {"insert": "OfContainer.Insert", "remove": "OfContainer.Remove", "append": "OfContainer.Append",
-                        "prepend": "OfContainer.Prepend", "clear": "OfContainer.Clear", "as_items": "OfContainer.AsItems"},
-        "OfAny": {"set": "OfAny.Set", "clear": "OfAny.Clear", "as_scalar": "OfAny.AsScalar",
-                  "as_container": "OfAny.AsContainer", "as_object": "OfAny.AsObject", "as_union": "OfAny.AsUnion",
-                  "as_intersection": "OfAny.AsIntersection"},
-        "OfScalar": {"set": "OfScalar.Set", "clear": "OfScalar.Clear"},
-        "OfLink": {"set": "OfLink.Set", "clear": "OfLink.Clear"},
-        "OfEntry.Member": {"as_property": "OfEntry.AsProperty", "as_link": "OfEntry.AsLink"},
-        "OfObject": {"as_property": "OfObject.AsProperty", "as_adjacency": "OfObject.AsAdjacency",
-                     "spec": "OfObject.Spec"},
-        "OfAdjacency": {"insert": "OfAdjacency.Insert", "remove": "OfAdjacency.Remove", "clear": "OfAdjacency.Clear"},
-        "OfTerm": {"map": "OfMap", "reduce": "OfReduce", "partition": "OfPartition", "update": "OfUpdate",
-                   "upsert": "OfUpsert"},  # a kind union (97)
-    }
-
-    def schema(_: Any, name: str) -> Any:
-        """A schema a relation links: one of this module's, by its symbol, or a meta-schema, from the transaction (78)."""
-        return getattr(S, name.removeprefix("Schemas.")) if name.startswith("Schemas.") else getattr(_, name)
-
     return txn.uid("mbse.Schemas.Mutations/1").mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
-        .symbols({"Payload": S.OfAny,  # untyped: interpreted by the target's schema
-                  **{n: S.OfObject for n in verbs},
-                  **{n: S.OfUnion for n in UNIONS},
-                  "OfPattern": S.OfContainer,  # a spec: for each symbol, the mutations of the object it binds (95)
-                  **{n: S.OfObject for n in TERMS},
-                  **{n: S.OfRelation for n, *_ in RELATIONS}})
+        .symbols({
+            "Payload": S.OfAny,
+            "Ref": S.OfObject, "Def": S.OfObject, "Slice": S.OfObject,
+            "OfProperty": S.OfUnion, "OfContainer": S.OfUnion, "OfAny": S.OfUnion, "OfScalar": S.OfUnion,
+            "OfLink": S.OfUnion, "OfEntryMember": S.OfUnion, "OfObject": S.OfUnion, "OfAdjacency": S.OfUnion,
+            "PropertySet": S.OfObject, "PropertyClear": S.OfObject, "PropertyAsAny": S.OfObject,
+            "ContainerInsert": S.OfObject, "ContainerRemove": S.OfObject, "ContainerAppend": S.OfObject,
+            "ContainerPrepend": S.OfObject, "ContainerClear": S.OfObject, "AsItems": S.OfObject,
+            "AnySet": S.OfObject, "AnyClear": S.OfObject, "AsScalar": S.OfObject, "AsContainer": S.OfObject,
+            "ScalarSet": S.OfObject, "ScalarClear": S.OfObject, "AsBranch": S.OfObject, "AsPart": S.OfObject,
+            "AsUnion": S.OfObject, "AsIntersection": S.OfObject, "LinkSet": S.OfObject, "LinkClear": S.OfObject,
+            "AsProperty": S.OfObject, "AsObject": S.OfObject, "EntryAsProperty": S.OfObject, "EntryAsLink": S.OfObject,
+            "Entry": S.OfObject, "AsAdjacency": S.OfObject, "AdjacencyInsert": S.OfObject,
+            "AdjacencyRemove": S.OfObject, "AdjacencyClear": S.OfObject, "OfPattern": S.OfContainer, "Spec": S.OfObject,
+            "OfTerm": S.OfUnion, "OfTransaction": S.OfObject, "OfMap": S.OfObject, "OfReduce": S.OfObject,
+            "OfPartition": S.OfObject, "OfBranch": S.OfObject, "OfUpdate": S.OfObject, "OfUpsert": S.OfObject,
+            "HasRoot": S.OfRelation, "Then": S.OfRelation, "MapsSymbols": S.OfRelation, "MapsVariables": S.OfRelation,
+            "ReducesSymbols": S.OfRelation, "ReducesVariables": S.OfRelation, "Branching": S.OfRelation,
+            "Otherwise": S.OfRelation, "Requiring": S.OfRelation, "Applies": S.OfRelation, "Exists": S.OfRelation,
+        })
         .spec([
-            lambda _: _.Payload.name("Mutations.Payload"),
-            *(lambda _, n=n, v=v: getattr(_, n).name(f"Mutations.{n}").properties(v(_)) for n, v in verbs.items()),
-            *(lambda _, n=n, b=b: getattr(_, n).name(f"Mutations.{n}").branches({k: getattr(_, s) for k, s in b.items()})
-              for n, b in branches.items()),
-            lambda _: _.OfPattern.name("Mutations.OfPattern").index([S.OfStr]).element([
+            lambda _: _.Payload.name("Mutations.Payload"),  # untyped: interpreted by the target's schema
+
+            # --- Nouns ---
+            lambda _: _.Ref.name("Mutations.OfObject.Ref").properties({  # by its path (81), or a symbol (95)
+                "path": txn.Paths.OfRoot, "symbol": S.OfStr}),
+            lambda _: _.Def.name("Mutations.OfObject.Def").properties({  # no path: defined where it is linked
+                "schema": S.OfStr,
+                "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfObject]))}),
+            lambda _: _.Slice.name("Mutations.OfContainer.Slice").properties({
+                "index": _.Payload,  # where the section starts, by the container's index
+                "items": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.Payload]))}),
+
+            # --- Value verbs ---
+            lambda _: _.PropertySet.name("Mutations.OfProperty.Set").properties({"value": _.Payload}),
+            lambda _: _.PropertyClear.name("Mutations.OfProperty.Clear"),
+            lambda _: _.PropertyAsAny.name("Mutations.OfProperty.AsAny").properties({
+                "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfAny]))}),
+            lambda _: _.ContainerInsert.name("Mutations.OfContainer.Insert").properties({"slice": _.Slice}),
+            lambda _: _.ContainerRemove.name("Mutations.OfContainer.Remove").properties({  # by its start and length
+                "index": _.Payload, "count": S.OfInt}),
+            lambda _: _.ContainerAppend.name("Mutations.OfContainer.Append").properties({
+                "items": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.Payload]))}),
+            lambda _: _.ContainerPrepend.name("Mutations.OfContainer.Prepend").properties({
+                "items": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.Payload]))}),
+            lambda _: _.ContainerClear.name("Mutations.OfContainer.Clear"),
+            lambda _: _.AsItems.name("Mutations.OfContainer.AsItems").properties({  # applied in modulo order
+                "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfAny]))}),
+            lambda _: _.AnySet.name("Mutations.OfAny.Set").properties({"value": _.Payload}),
+            lambda _: _.AnyClear.name("Mutations.OfAny.Clear"),
+            lambda _: _.AsScalar.name("Mutations.OfAny.AsScalar").properties({
+                "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfScalar]))}),
+            lambda _: _.AsContainer.name("Mutations.OfAny.AsContainer").properties({
+                "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfContainer]))}),
+            lambda _: _.ScalarSet.name("Mutations.OfScalar.Set").properties({"value": _.Payload}),
+            lambda _: _.ScalarClear.name("Mutations.OfScalar.Clear"),
+            lambda _: _.AsBranch.name("Mutations.OfUnion.AsBranch").properties({
+                "name": S.OfStr,
+                "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfProperty]))}),
+            lambda _: _.AsPart.name("Mutations.OfIntersection.AsPart").properties({
+                "name": S.OfStr,
+                "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfProperty]))}),
+            lambda _: _.AsUnion.name("Mutations.OfAny.AsUnion").properties({
+                "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.AsBranch]))}),
+            lambda _: _.AsIntersection.name("Mutations.OfAny.AsIntersection").properties({
+                "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.AsPart]))}),
+            lambda _: _.LinkSet.name("Mutations.OfLink.Set").properties({"ref": _.Ref, "def": _.Def}),
+            lambda _: _.LinkClear.name("Mutations.OfLink.Clear"),
+
+            # --- An object's, an entry's and an adjacency's verbs ---
+            lambda _: _.AsProperty.name("Mutations.OfObject.AsProperty").properties({
+                "name": S.OfStr,
+                "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfProperty]))}),
+            lambda _: _.AsObject.name("Mutations.OfAny.AsObject").properties({
+                "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.AsProperty]))}),
+            lambda _: _.EntryAsProperty.name("Mutations.OfEntry.AsProperty").properties({
+                "name": S.OfStr,
+                "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfProperty]))}),
+            lambda _: _.EntryAsLink.name("Mutations.OfEntry.AsLink").properties({
+                "name": S.OfStr,
+                "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfLink]))}),
+            lambda _: _.Entry.name("Mutations.OfEntry").properties({  # its links' and its properties' mutations
+                "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfEntryMember]))}),
+            lambda _: _.AsAdjacency.name("Mutations.OfObject.AsAdjacency").properties({
+                "name": S.OfStr,
+                "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfAdjacency]))}),
+            lambda _: _.AdjacencyInsert.name("Mutations.OfAdjacency.Insert").properties({
+                "entries": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.Entry]))}),
+            lambda _: _.AdjacencyRemove.name("Mutations.OfAdjacency.Remove").properties({
+                "entries": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.Entry]))}),
+            lambda _: _.AdjacencyClear.name("Mutations.OfAdjacency.Clear"),  # every entry it holds removed
+            lambda _: _.OfPattern.name("Mutations.OfPattern").index([S.OfStr]).element([  # a spec, by symbol (95)
                 S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfObject]))]),
-            *(lambda _, n=n, t=t: getattr(_, n).name(f"Mutations.{n}").ref(True).properties({
-                k: getattr(S, s) for k, s in t.items()}) for n, t in TERMS.items()),
-            *(lambda _, n=n, a=a, b=b, s=s, one=one: getattr(_, n)
-              .name(f"Mutations.{n}")
-              .links([lambda t: t.name(a), lambda t: t.name(b).schema([schema(_, s)])])
-              .uniques([[b]] if one else []) for n, a, b, s, one in RELATIONS),
-            *(lambda _, k=k, a=a: getattr(_, k).adjacencies({
-                name: lambda j, r=r, m=m: j.relation([getattr(_, r)]).me(m) for name, r, m in a})
-              for k, a in ADJACENCIES.items()),
+            lambda _: _.Spec.name("Mutations.OfObject.Spec").properties({  # a pattern's spec, as recorded
+                "items": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfPattern]))}),
+
+            # --- The unions' branches, each a verb named as a visitor's member is ---
+            lambda _: _.OfProperty.name("Mutations.OfProperty").branches({
+                "set": _.PropertySet, "clear": _.PropertyClear, "as_any": _.PropertyAsAny}),
+            lambda _: _.OfContainer.name("Mutations.OfContainer").branches({
+                "insert": _.ContainerInsert, "remove": _.ContainerRemove, "append": _.ContainerAppend,
+                "prepend": _.ContainerPrepend, "clear": _.ContainerClear, "as_items": _.AsItems}),
+            lambda _: _.OfAny.name("Mutations.OfAny").branches({
+                "set": _.AnySet, "clear": _.AnyClear, "as_scalar": _.AsScalar, "as_container": _.AsContainer,
+                "as_object": _.AsObject, "as_union": _.AsUnion, "as_intersection": _.AsIntersection}),
+            lambda _: _.OfScalar.name("Mutations.OfScalar").branches({"set": _.ScalarSet, "clear": _.ScalarClear}),
+            lambda _: _.OfLink.name("Mutations.OfLink").branches({"set": _.LinkSet, "clear": _.LinkClear}),
+            lambda _: _.OfEntryMember.name("Mutations.OfEntry.Member").branches({
+                "as_property": _.EntryAsProperty, "as_link": _.EntryAsLink}),
+            lambda _: _.OfObject.name("Mutations.OfObject").branches({
+                "as_property": _.AsProperty, "as_adjacency": _.AsAdjacency, "spec": _.Spec}),
+            lambda _: _.OfAdjacency.name("Mutations.OfAdjacency").branches({
+                "insert": _.AdjacencyInsert, "remove": _.AdjacencyRemove, "clear": _.AdjacencyClear}),
+
+            # --- Mutation expressions: a transaction and its terms, reference objects linked by relations (93) ---
+            lambda _: _.OfTerm.name("Mutations.OfTerm").branches({  # a kind union (97)
+                "map": _.OfMap, "reduce": _.OfReduce, "partition": _.OfPartition, "update": _.OfUpdate,
+                "upsert": _.OfUpsert}),
+            lambda _: _.HasRoot.name("Mutations.HasRoot").links([
+                lambda t: t.name("transaction"), lambda t: t.name("term").schema([_.OfTerm])]).uniques([["term"]]),
+            lambda _: _.Then.name("Mutations.Then").links([
+                lambda t: t.name("term"), lambda t: t.name("next").schema([_.OfTerm])]).uniques([["next"]]),
+            lambda _: _.MapsSymbols.name("Mutations.MapsSymbols").links([
+                lambda t: t.name("term"), lambda t: t.name("pattern").schema([S.OfPattern])]).uniques([["pattern"]]),
+            lambda _: _.MapsVariables.name("Mutations.MapsVariables").links([
+                lambda t: t.name("term"), lambda t: t.name("pattern").schema([S.OfPattern])]).uniques([["pattern"]]),
+            lambda _: _.ReducesSymbols.name("Mutations.ReducesSymbols").links([
+                lambda t: t.name("term"), lambda t: t.name("collector").schema([S.OfCollector])]).uniques([
+                ["collector"]]),
+            lambda _: _.ReducesVariables.name("Mutations.ReducesVariables").links([
+                lambda t: t.name("term"), lambda t: t.name("collector").schema([S.OfCollector])]).uniques([
+                ["collector"]]),
+            lambda _: _.Branching.name("Mutations.Branching").links([
+                lambda t: t.name("partition"), lambda t: t.name("branch").schema([_.OfBranch])]),
+            lambda _: _.Otherwise.name("Mutations.Otherwise").links([
+                lambda t: t.name("partition"), lambda t: t.name("next").schema([_.OfTerm])]).uniques([["next"]]),
+            lambda _: _.Requiring.name("Mutations.Requiring").links([
+                lambda t: t.name("branch"), lambda t: t.name("constraint").schema([S.OfExpression])]),
+            lambda _: _.Applies.name("Mutations.Applies").links([
+                lambda t: t.name("term"), lambda t: t.name("pattern").schema([S.OfPattern])]).uniques([["pattern"]]),
+            lambda _: _.Exists.name("Mutations.Exists").links([
+                lambda t: t.name("term"), lambda t: t.name("pattern").schema([S.OfPattern])]).uniques([["pattern"]]),
+            lambda _: _.OfTransaction.name("Mutations.OfTransaction").ref(True).properties({
+                "uid": S.OfStr,  # given by the program (42)
+            }).adjacencies({
+                "mutations": lambda a: a.relation([_.HasRoot]).me("transaction"),  # its one root term
+            }),
+            lambda _: _.OfMap.name("Mutations.OfMap").ref(True).adjacencies({
+                "symbols": lambda a: a.relation([_.MapsSymbols]).me("term"),
+                "variables": lambda a: a.relation([_.MapsVariables]).me("term"),
+                "then": lambda a: a.relation([_.Then]).me("term"),
+            }),
+            lambda _: _.OfReduce.name("Mutations.OfReduce").ref(True).adjacencies({
+                "symbols": lambda a: a.relation([_.ReducesSymbols]).me("term"),
+                "variables": lambda a: a.relation([_.ReducesVariables]).me("term"),
+                "then": lambda a: a.relation([_.Then]).me("term"),
+            }),
+            lambda _: _.OfPartition.name("Mutations.OfPartition").ref(True).properties({
+                "first": S.OfBool, "last": S.OfBool,
+            }).adjacencies({
+                "branches": lambda a: a.relation([_.Branching]).me("partition"),
+                "none": lambda a: a.relation([_.Otherwise]).me("partition"),
+                "then": lambda a: a.relation([_.Then]).me("term"),
+            }),
+            lambda _: _.OfBranch.name("Mutations.OfBranch").ref(True).adjacencies({
+                "requires": lambda a: a.relation([_.Requiring]).me("branch"),
+                "then": lambda a: a.relation([_.Then]).me("term"),
+            }),
+            lambda _: _.OfUpdate.name("Mutations.OfUpdate").ref(True).adjacencies({
+                "apply": lambda a: a.relation([_.Applies]).me("term"),
+                "then": lambda a: a.relation([_.Then]).me("term"),
+            }),
+            lambda _: _.OfUpsert.name("Mutations.OfUpsert").ref(True).properties({
+                "key": S.OfStr,
+            }).adjacencies({
+                "exists": lambda a: a.relation([_.Exists]).me("term"),
+                "then": lambda a: a.relation([_.Then]).me("term"),
+            }),
         ])]))])

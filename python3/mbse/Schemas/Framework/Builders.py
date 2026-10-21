@@ -1848,6 +1848,13 @@ class Store(Proxies.OfStore):
             return None
         return kind()(target, True, self)
 
+    def _meta_builder_class_of(self, schema: Any) -> type | None:
+        """The builder of the schema objects of `schema`, where it is one of the store's meta-schemas
+        (`Schemas.OfRelation`); None otherwise."""
+        local = next((name for name, meta in vars(self._meta).items() if meta is schema), "")
+        kind = _META_BUILDERS.get(local)
+        return kind() if kind is not None else None
+
     @staticmethod
     def _meta_builder_class(target: Any) -> type:
         """The builder of a schema object."""

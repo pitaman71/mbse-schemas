@@ -158,6 +158,8 @@ class _RecordedProperty(Proxies._Unassignable):
             state.written.append(("property", self._name))
 
     def __call__(self, spec: Any) -> _Recorder:
+        if not Proxies._is_function(spec):
+            spec = _shorthand(self._recorder._state, self._name)(spec)
         self._visitor()(spec)
         self._note()
         return self._recorder
@@ -166,6 +168,16 @@ class _RecordedProperty(Proxies._Unassignable):
         if name.startswith("_"):
             raise AttributeError(name)
         return getattr(self._visitor(), name)
+
+
+def _shorthand(state: _State, name: str) -> Any:
+    """What a schema object's builder makes of a value given whole to its property `name` (`_Prop.shorthand`), so that
+    a spec takes what the builder does (`uniques("schema")`); a value as it is, for data's."""
+    from . import Builders
+
+    builder = state.store._meta_builder_class_of(state.schema)
+    member = builder._members_.get(name) if builder is not None else None
+    return member.shorthand if isinstance(member, Builders._Prop) else (lambda value: value)
 
 
 class _RecordedAdjacency(Proxies._Unassignable):

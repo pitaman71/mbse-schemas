@@ -532,6 +532,10 @@ so that main stays current and no branch waits on another.
        pointed to a `TODO.md` that does not exist: 4l, after 4k;
      - evaluating expressions, a pattern's `requires` and variables, a branch's `requires`, a collecting reduce, which
        the executor refuses (87): 4h, in mbse-expressions, as 87 says;
+     - helpers that build models through the builders, which P-019 forbids ("Do not invent another DSL by wrapping
+       builder syntax"), beyond the schema helpers 4i-4 removes with installs: the corpus's data helpers (`_put`,
+       `_write`), and test helpers that build mutations or data (MUT's `entry` and `spec`, and their kin): written out in
+       fluent syntax, in 4i-4, beside the installs;
      - a journal, settled: a list of transactions on the wire, replayed by executing each, with no call of its own, is
        the journal, built as designed (the user: "journal as a transaction list: yes that is built as designed");
      - subsequent snapshots (SERIALIZATION.md, step 3; META_SCHEMAS.md, "not built yet"): after step 4, as the user

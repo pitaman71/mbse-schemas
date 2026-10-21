@@ -181,6 +181,7 @@ class RecordedProperty extends Shelled {
   }
 
   _call(spec: unknown): unknown {
+    if (!Proxies._isFunction(spec)) spec = shorthand(this._recorder._state, this._name)(spec);
     this._visitor()(spec);
     this._note();
     return this._recorder._proxy;
@@ -189,6 +190,14 @@ class RecordedProperty extends Shelled {
   override _member(name: string): unknown {
     return this._visitor()[name];
   }
+}
+
+/** What a schema object's builder makes of a value given whole to its property `name` (`Prop.shorthand`), so that a spec
+ * takes what the builder does (`uniques("schema")`); a value as it is, for data's. */
+function shorthand(state: State, name: string): (value: unknown) => unknown {
+  const builder = state.store._meta_builder_class_of(state.schema);
+  const member = builder !== null ? builder._table.get(name) : undefined;
+  return member instanceof Builders._Prop ? member.shorthand : (value: unknown) => value;
 }
 
 function makeRecordedProperty(recorder: Recorder, name: string): any {

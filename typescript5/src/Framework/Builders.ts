@@ -2289,6 +2289,13 @@ export class Store extends Proxies.OfStore {
   }
 
   /** The builder of a schema object. */
+  /** The builder of the schema objects of `schema`, where it is one of the store's meta-schemas (`Schemas.OfRelation`);
+   * null otherwise. */
+  _meta_builder_class_of(schema: unknown): any {
+    const local = Object.entries(this._meta).find(([, meta]) => meta === schema)?.[0] ?? "";
+    return _META_BUILDERS.get(local) ?? null;
+  }
+
   _meta_builder_class(target: unknown): any {
     return builderFor(target);
   }
@@ -2489,7 +2496,7 @@ export namespace OfAny {
 
 // --- For Plain, which writes and reads schema objects through their builders ---
 
-export { builderFor as _builder_for, ModuleData as _ModuleData };
+export { builderFor as _builder_for, ModuleData as _ModuleData, Prop as _Prop };
 
 /** The schema object a visitor reads: a link's referent, where a builder builds it, or a builder's own; null for any other visitor. */
 export function _linked(visitor: unknown): unknown {

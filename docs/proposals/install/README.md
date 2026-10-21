@@ -83,6 +83,11 @@ As the user decided (2026-10-21), on the questions above:
    Chosen over the check `store.extend` made, on every schema the store held before an install began, which would have
    kept one module's schemas from another's install but stopped a snapshot read from changing an existing schema.
 
+6. The suites whose subject is the imperative schema builders (BLD, SCH, parts of STO) keep building schemas with them,
+   since that API stays (the bootstrap and data use it); their shared fixtures move into installs. Every other suite,
+   the tutorials, the examples, the corpus, the skill and the README define their schemas in installs: "that's an
+   acceptable compromise".
+
 ## Stages
 
 - **4i-1, defining schemas by transaction**: the executor and the spec recorders cover every kind and member the drafts

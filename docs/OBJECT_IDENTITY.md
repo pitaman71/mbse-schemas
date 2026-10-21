@@ -659,6 +659,21 @@ and answering the three questions put:
      field, for the time being: "that is acceptable for the time being. Retain as tech debt"; their updates within a
      transaction are a `Proposals`' still (96).
 
+As the user decided (2026-10-21), on step 4f's proposal (Store overhaul, 4f), each the option recommended:
+
+101. A store's snapshot is two transactions, "Schemas, then data": the first upserts its modules and schemas, the
+     second its data, so that a schema the store held before is extended when the first commits (96), before the data
+     uses it. (Offered against one transaction, in which data could not use such an extension, and against one per
+     module.)
+102. A counted object an upsert names is found "Only by what made it": the frame, the upsert's key and the symbol it
+     was created for (61, 63), never by its spec. A document's upsert is keyed by its uid, so reading one gives new
+     counted objects (55), and replaying the same transaction while they are held finds them again. This changes 4e,
+     which found one by its spec where nothing had made it. (Offered against keeping the spec match, with a term that
+     always creates for documents.)
+103. Imperative-scope transactions (98) are "Not on the wire": only a transaction's expression is journaled; what an
+     imperative scope writes reaches the wire through a later snapshot. (Offered against a transaction derived from
+     its writes at commit.)
+
 ## Open questions
 
 None at present.

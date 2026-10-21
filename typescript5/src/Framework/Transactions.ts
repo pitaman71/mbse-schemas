@@ -599,7 +599,7 @@ function run(store: any, term: any, frames: Frame[]): Frame[] {
 /** The frames binding a pattern's symbols that `frame` does not, each to every object of its schema whose members its
  * spec gives hold: a singleton's to the singleton (77). An upsert creates, where none is found, the object of a symbol,
  * and writes its spec where it does not hold; a counted object it created before from the same frame, for the same
- * symbol and key, it finds again (63). */
+ * symbol and key, it finds again (63), and finds none otherwise (102). */
 function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unknown = null): Frame[] {
   const members = membersOf(pattern);
   let frames: Frame[] = [new Map(frame)];
@@ -614,11 +614,13 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
       }
       const index = JSON.stringify([key, name, sortedStrings([...frame.keys()])
         .map((bound) => [bound, Proxies._key_of(reader(store, frame.get(bound)))])]);
-      const counted = Proxies._counted_schema(schema) && !meta(store, schema);
-      const held = upsert && counted ? store._upserted.get(index) : undefined;
-      const created = held?.deref();
-      if (created !== undefined) {
-        grown.push(new Map([...partial, [name, created]]));
+      if (upsert && Proxies._counted_schema(schema) && !meta(store, schema)) { // found only by what made it (102)
+        let made = store._upserted.get(index)?.deref();
+        if (made === undefined) {
+          made = writer(store, schema).create();
+          store._upserted.set(index, new WeakRef(made));
+        }
+        grown.push(new Map([...partial, [name, made]]));
         continue;
       }
       const own = members.get(name) ?? [];
@@ -629,9 +631,7 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
         for (const target of found) grown.push(new Map([...partial, [name, target]]));
         continue;
       }
-      const made = writer(store, schema).create();
-      if (counted) store._upserted.set(index, new WeakRef(made));
-      grown.push(new Map([...partial, [name, made]]));
+      grown.push(new Map([...partial, [name, writer(store, schema).create()]]));
     }
     frames = grown;
   }

@@ -15,6 +15,11 @@ their lists in modulo order.
 
 Payloads (a property's value, an object's properties) are values of whatever schema the target gives: their schema here is
 a value of any schema, and ToPlain writes them untagged, interpreted by the target's schema.
+
+A pattern's spec (docs/OBJECT_IDENTITY.md, Decided, 95) is written in the same verbs: a `Mutations.OfPattern` gives, for
+each symbol, the mutations of the object it binds (`OfObject`: a property's, `as_property`, and an adjacency's,
+`as_adjacency`, whose `OfAdjacency` verbs insert and remove entries), a link referring to an object by its symbol or its
+path (`Ref`), or defining one where it is linked (`Def`'s `schema` and `mutations`).
 """
 
 from __future__ import annotations
@@ -79,6 +84,8 @@ def schemas(Text: Any, Int: Any, Path: Any, Bool: Any, Pattern: Any, Collector: 
     OfScalar = _union("OfScalar")
     OfLink = _union("OfLink")
     OfEntryMember = _union("OfEntry.Member")  # an entry's mutations: its properties' and its links'
+    OfObject = _union("OfObject")  # an object's mutations in a spec: its properties' and its adjacencies' (95)
+    OfAdjacency = _union("OfAdjacency")  # an adjacency's mutations in a spec
 
     # --- Value verbs ---
 
@@ -130,8 +137,12 @@ def schemas(Text: Any, Int: Any, Path: Any, Bool: Any, Pattern: Any, Collector: 
         lambda t: t.name("relation").schema([Ref]),  # the relation schema
         lambda t: t.name("entries").schema([_list(Entry)]),
     )
+    AsAdjacency = _verb("OfObject.AsAdjacency", _text("name"), _mutations(OfAdjacency))
+    AdjacencyInsert = _verb("OfAdjacency.Insert", lambda t: t.name("entries").schema([_list(Entry)]))
+    AdjacencyRemove = _verb("OfAdjacency.Remove", lambda t: t.name("entries").schema([_list(Entry)]))
     ObjectBuilder(Def).properties([  # nested in a definition, each entry leaves out the link the defined object fills
         lambda t: t.name("inserts").schema([_list(RelationInsert)]),
+        _mutations(OfObject),  # in a spec, the defined object's own mutations
     ]).update()
     RelationRemove = _verb(
         "OfRelation.Remove",
@@ -190,6 +201,16 @@ def schemas(Text: Any, Int: Any, Path: Any, Bool: Any, Pattern: Any, Collector: 
         lambda t: t.name("as_property").schema([EntryAsProperty]),
         lambda t: t.name("as_link").schema([EntryAsLink]),
     ]).update()
+    UnionBuilder(OfObject).branches([
+        lambda t: t.name("as_property").schema([AsProperty]),
+        lambda t: t.name("as_adjacency").schema([AsAdjacency]),
+    ]).update()
+    UnionBuilder(OfAdjacency).branches([
+        lambda t: t.name("insert").schema([AdjacencyInsert]),
+        lambda t: t.name("remove").schema([AdjacencyRemove]),
+    ]).update()
+    # a spec (Schemas.OfPattern.spec): for each symbol, the mutations of the object it binds (Object identity, 95)
+    OfPattern = ContainerBuilder().name("Mutations.OfPattern").index([Text]).element([_list(OfObject)]).create()
     Log = ContainerBuilder().name("Mutations.Log").index([Int]).element([Reference]).create()
 
     # --- Mutation expressions: a transaction and its terms, reference objects linked by relations (93) ---

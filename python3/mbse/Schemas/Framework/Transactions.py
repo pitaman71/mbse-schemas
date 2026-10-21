@@ -545,7 +545,7 @@ def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None 
     """The frames binding a pattern's symbols that `frame` does not, each to every object of its schema whose members
     its spec gives hold: a singleton's to the singleton (77). An upsert creates, where none is found, the object of a
     symbol, and writes its spec where it does not hold; a counted object it created before from the same frame, for
-    the same symbol and key, it finds again (63)."""
+    the same symbol and key, it finds again (63), and finds none otherwise (102)."""
     members = _members(pattern)
     frames = [dict(frame)]
     for name, symbol in pattern.symbols.items():
@@ -559,11 +559,13 @@ def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None 
                 continue
             index = (key, name, tuple((bound, Proxies._key_of(_reader(store, target)))
                                       for bound, target in sorted(frame.items())))
-            counted = Proxies._counted_schema(schema) and not _meta(store, schema)
-            held = store._upserted.get(index) if upsert and counted else None
-            created = held() if held is not None else None
-            if created is not None:
-                grown.append({**partial, name: created})
+            if upsert and Proxies._counted_schema(schema) and not _meta(store, schema):  # found only by what made it (102)
+                held = store._upserted.get(index)
+                made = held() if held is not None else None
+                if made is None:
+                    made = _writer(store, schema).create()
+                    store._upserted[index] = weakref.ref(made)
+                grown.append({**partial, name: made})
                 continue
             own = members.get(name, [])
             finding = [member for member in own if _identifies(store, schema, member)] or own
@@ -572,10 +574,7 @@ def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None 
             if found or not upsert:
                 grown.extend({**partial, name: target} for target in found)
                 continue
-            made = _writer(store, schema).create()
-            if counted:
-                store._upserted[index] = weakref.ref(made)
-            grown.append({**partial, name: made})
+            grown.append({**partial, name: _writer(store, schema).create()})
         frames = grown
     if upsert:
         for bound in frames:

@@ -366,6 +366,65 @@ so that main stays current and no branch waits on another.
      submitted, replayed by executing them; a Reachable document is one transaction, its counted objects numbered within
      it, owned objects and singletons referred to by path. The corpora are regenerated, the JSON byte-identical between
      the languages.
+
+     Proposed and approved (Object identity, Decided, 101 to 103):
+     - **A transaction on the wire is its expression, nested.** A document is read by executing it, so its own form
+       cannot be a transaction: each term is written where the one before links it (`mutations`, `then`, `branches`,
+       `none`), a relation of one other link written as that link's object, the peer shorthand the builders take; each
+       pattern where its term links it, its symbols' schemas by path and its spec as recorded (Transactions):
+
+       ```json
+       {"uid": "6f1c4e2a-…", "mutations": [{"upsert": {"exists": [{
+         "symbols": {"book": {"path": <crm.Book's path>}, "ada": {"path": <crm.Person's path>}},
+         "spec": [{"book": [{"as_adjacency": {"name": "contacts", "mutations": [{"insert": {"entries": [{"mutations": [
+                     {"as_link": {"name": "contact", "mutations": [{"set": {"ref": {"symbol": "ada"}}}]}},
+                     {"as_property": {"name": "key", "mutations": [{"set": {"value": "ada"}}]}}]}]}}]}}]},
+                  {"ada": [{"as_property": {"name": "name", "mutations": [{"set": {"value": "Ada"}}]}}]}]}]}}]}
+       ```
+
+       `ToPlain(store).Transaction(tx)` writes one, `FromPlain(store).Transaction(plain)` builds its expression, which
+       `store.transaction(...)` executes. A journal is a list of them, replayed by executing each in order.
+     - **The spec's verbs become the mutation schemas** (P-018: "ToPlain writes a log as it writes any value"): an
+       object's `as_property` and `as_adjacency`; an adjacency's `insert`, `remove` and `clear`; an entry's `as_link`
+       and `as_property`; a link's `set` (a `ref` by symbol or path, or a `def`) and `clear`; and the value verbs as
+       they are. The log's top-level verbs go (`exists`, `as_property` with its `ref`, a relation's `insert`, `remove`,
+       `clear` and `as_entries`, `Mutations.Log` and `Mutations.Reference`): what they wrote, a spec writes.
+     - **A store's snapshot is two transactions** (101): the first upserts its modules and schemas, each a symbol of
+       its meta-schema, found by name (86), a schema object with no name of its own defined where it is linked
+       (`{"def": ...}`); the second its data, each object a singleton reaches a symbol: a singleton's binds the
+       singleton, an owned object's is placed by its owner's entry (60), a counted object's created. Schemas come first
+       so that a schema the store held before is extended when the first commits (96), before data uses it.
+       `FromPlain(store).Snapshot(transactions, ignored)` executes them in order, each a transaction of its own, or a
+       savepoint of the one open; what an extension the store lacks gives is ignored and reported, as now (19).
+     - **A Reachable document is one transaction** (51): one upsert whose symbols are the counted objects reachable
+       from the root, the root first; owned objects and singletons it links are refs by path, not written, and reading
+       aborts where one is missing. `ToPlain(...).OfObject` is the same with the root alone. Reading gives the root.
+     - **A document's symbols are its numbering** (55): the objects it writes are symbols named by their number in the
+       order it meets them, `"0"` the root, `{"ref": {"symbol": "3"}}` a reference to one.
+     - **A counted object an upsert names is found only by what made it** (102): by the frame, key and symbol it was
+       created for (61, 63), never by its spec, which 4e still does; a document's upsert is keyed by its uid, so reading
+       one gives new counted objects (55), and replaying the same transaction while they are held finds them again.
+     - **Imperative-scope transactions** (98) have no expression, so they have no form on the wire (103).
+     - The corpora are regenerated, byte-identical between the languages; `ToPlain`/`FromPlain`'s entry points keep
+       their names, and the decoders their savepoints.
+
+     Built in stages: 4f-1, a counted object found only by what made it, and the spec's verbs as schemas; 4f-2, a
+     transaction on the wire; 4f-3, Reachable documents; 4f-4, snapshots, the log's verbs removed and the corpora
+     regenerated.
+     - **4f-1, as built**: an upsert finds a counted object only in what it made before, for the same frame, key and
+       symbol (102), and otherwise creates one; TXN-06 shows a second note made beside one with its text. The spec's
+       verbs are schemas beside the log's, which 4f-4 removes: `Mutations.OfObject` (`as_property`, and
+       `as_adjacency`, `Mutations.OfObject.AsAdjacency`), `Mutations.OfAdjacency` (`insert` and `remove`, each a list of
+       `Mutations.OfEntry`), `Mutations.OfObject.Def`'s `mutations`, and `Mutations.OfPattern`, a spec item, mapping
+       each symbol to its object's mutations; there are 67 mutation schemas. MUT-06 builds a spec through them, reads
+       and writes it as any value, and finds a pattern's record the same.
+
+       Found while building it, for the user's review: a payload (a property's value) is written bare on the wire, in
+       a spec as in the log, where its target's schema interprets it; its schema here is a value of any schema, which
+       `Plain` writes tagged (`{"str": "Ada"}`). So a spec, like a log, is described by its schemas but not read
+       through them as any value is; MUT-06 pins the difference. Reading a payload bare would need a value schema
+       interpreted by another's, which no kind has. A pattern's `spec` is not yet a property of `Schemas.OfPattern`,
+       so today's snapshot leaves it out; 4f-4 writes it.
    - **4h, the last release**, and the dependents: mbse-expressions refines `OfExpression` and `OfConstraint`;
      mbse-programs' corpora become Reachable transactions; mbse-patterns, built on `OfPredicate`, is left without it.
    Releases (question 8, renumbered by the reorder, proposed for the user's review): 0.20.0 after 4c, 0.21.0 after 4d

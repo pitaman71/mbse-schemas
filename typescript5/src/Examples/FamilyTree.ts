@@ -7,7 +7,7 @@ import { ValueError } from "@mbse/schemas/Framework/Errors";
 import { Builders, Plain, Proxies, Reachable, Schemas, Validators } from "@mbse/schemas/Framework";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
-import { assert, entries, raises, same_graph } from "./_support.js";
+import { assert, entries, equal, raises } from "./_support.js";
 
 
 const store: any = new Builders.Store();
@@ -159,8 +159,8 @@ assert(Validators.Validate(store).Reachable(Person, ada).length === 0);
 
 // --- Round trips, from any root ---
 
-// Read into any store, even the one that holds them, a snapshot builds new objects of the same graph: a counted object
-// has no identity beyond the snapshot.
+// Read into any store, even the one that holds them, a document builds new objects of the same graph: a counted object
+// has no identity beyond the document.
 const archive: any = new Builders.Store();
 Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot()); // the same schemas, its own: a store's snapshot writes them
 for (const root of [ada, carol, loner]) {
@@ -168,7 +168,7 @@ for (const root of [ada, carol, loner]) {
   const restored = Plain.FromPlain(archive).Reachable(archive.Person, graph) as Instance;
   assert(restored !== root);
   assert(String(restored.given_name) === String(root.given_name));
-  assert(same_graph(Plain.ToPlain(archive).Reachable(archive.Person, restored), graph));
+  assert(equal(Plain.ToPlain(archive).Reachable(archive.Person, restored), graph));
   assert(Plain.FromPlain(store).Reachable(Person, graph) !== root);
 }
 

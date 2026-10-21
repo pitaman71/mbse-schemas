@@ -36,32 +36,38 @@ from mbse.Schemas.Framework import JSON, Builders, Plain, Validators
 store = Builders.Store()  # schemas and the objects built with them belong to a store
 Text = store.Schemas.OfStr  # its basic scalars are its own
 
-# Reference objects stand on their own; one that nothing owns is counted, numbered in each document that writes it.
-Contact = store.Schemas.OfObject(lambda o: o.name('Contact').ref(True).properties([
-    lambda t: t.name('name').schema([Text])]))
-Address = store.Schemas.OfObject(lambda o: o.name('Address').ref(True).properties([
-    lambda t: t.name('street').schema([Text])]))
+with store.transaction():  # a store is written within transactions, all or nothing
+    # Reference objects stand on their own; one that nothing owns is counted, numbered in each document that writes it.
+    Contact = store.Schemas.OfObject(lambda o: o.name('Contact').ref(True).properties([
+        lambda t: t.name('name').schema([Text])]))
+    Address = store.Schemas.OfObject(lambda o: o.name('Address').ref(True).properties([
+        lambda t: t.name('street').schema([Text])]))
 
-# Collections are relations: entries link objects and carry their own properties.
-ContactAddresses = store.Schemas.OfRelation(lambda r: r.name('ContactAddresses').links([
-    lambda t: t.name('contact'), lambda t: t.name('address')]).properties([lambda t: t.name('label').schema([Text])]))
-store.Schemas.OfObject(Contact, lambda o: o.adjacencies([lambda t: t.name('addresses').relation([ContactAddresses]).me('contact')]))
-store.Schemas.OfObject(Address, lambda o: o.adjacencies([lambda t: t.name('residents').relation([ContactAddresses]).me('address')]))
+    # Collections are relations: entries link objects and carry their own properties.
+    ContactAddresses = store.Schemas.OfRelation(lambda r: r.name('ContactAddresses').links([
+        lambda t: t.name('contact'), lambda t: t.name('address')]).properties([lambda t: t.name('label').schema([Text])]))
+    store.Schemas.OfObject(Contact, lambda o: o.adjacencies([lambda t: t.name('addresses').relation([ContactAddresses]).me('contact')]))
+    store.Schemas.OfObject(Address, lambda o: o.adjacencies([lambda t: t.name('residents').relation([ContactAddresses]).me('address')]))
 
-alice = store.Contact(lambda c: c.name('Alice').addresses(lambda a: a.insert(
-    lambda e: e.address(lambda x: x.street('10 Downing Street')).label('home'))))
+with store.transaction():
+    alice = store.Contact(lambda c: c.name('Alice').addresses(lambda a: a.insert(
+        lambda e: e.address(lambda x: x.street('10 Downing Street')).label('home'))))
 
-text = JSON.ToJSON(store).Reachable(Contact, alice)  # the whole graph, shared objects written once
+text = JSON.ToJSON(store).Reachable(Contact, alice)  # a document: the whole graph, one transaction, each object once
 other = Builders.Store()  # another store, with the same schemas, its own: a store's snapshot writes them
 Plain.FromPlain(other).Snapshot(Plain.ToPlain(store).Snapshot())
-copy = JSON.FromJSON(other).Reachable(other.Contact, text)  # the same graph, built anew in it
+copy = JSON.FromJSON(other).Reachable(other.Contact, text)  # read by executing it: the same graph, built anew in it
 assert JSON.ToJSON(other).Reachable(other.Contact, copy) == text and Validators.Validate(other).Reachable(other.Contact, copy) == []
 ```
 
 ```text
-{"root": {"n": 0},
- "objects": [{"n": 0, "schema": "Contact", "properties": {"name": "Alice", "addresses": [{"address": {"$ref": {"n": 1}}, "label": "home"}]}},
-             {"n": 1, "schema": "Address", "properties": {"street": "10 Downing Street", "residents": [{"contact": {"$ref": {"n": 0}}, "label": "home"}]}}]}
+{"mutations": [{"upsert": {"exists": [{
+  "symbols": {"0": {"schema": [{"$ref": <Contact's path>}]}, "1": {"schema": [{"$ref": <Address's path>}]}},
+  "spec": [{"0": [{"as_property": {"name": "name", "mutations": [{"set": {"value": "Alice"}}]}},
+                  {"as_adjacency": {"name": "addresses", "mutations": [{"insert": {"entries": [{"mutations": [
+                    {"as_link": {"name": "address", "mutations": [{"set": {"ref": {"symbol": "1"}}}]}},
+                    {"as_property": {"name": "label", "mutations": [{"set": {"value": "home"}}]}}]}]}}]}}]},
+           {"1": [{"as_property": {"name": "street", "mutations": [{"set": {"value": "10 Downing Street"}}]}}]}]}]}}]}
 ```
 
 ## Why another schema language?

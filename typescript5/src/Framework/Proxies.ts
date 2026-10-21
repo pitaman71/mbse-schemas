@@ -415,7 +415,6 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
 /** What tells a reference object apart in memory: a proxy's serial number, or a number for the schema object a builder
  * reads. */
 export function _key_of(visitor: any): unknown {
-  if (innerOf(visitor) instanceof _LinkMember) visitor = innerOf(visitor)._target();
   const inner = innerOf(visitor);
   return inner instanceof _ObjectData ? inner._id : _numberOf(inner._original);
 }

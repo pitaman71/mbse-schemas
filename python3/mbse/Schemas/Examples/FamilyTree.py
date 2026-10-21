@@ -4,7 +4,7 @@
 # duplicate elision, entries that differ only by a property, entry removal, clone() copying entries, and round trips.
 
 from mbse.Schemas.Framework import Builders, Schemas, Plain, Reachable, Validators
-from mbse.Schemas.Examples._support import entries, raises, same_graph
+from mbse.Schemas.Examples._support import entries, raises
 
 
 store = Builders.Store()
@@ -155,8 +155,8 @@ assert Validators.Validate(store).Reachable(Person, ada) == []
 
 # --- Round trips, from any root ---
 
-# Read into any store, even the one that holds them, a snapshot builds new objects of the same graph: a counted object
-# has no identity beyond the snapshot.
+# Read into any store, even the one that holds them, a document builds new objects of the same graph: a counted object
+# has no identity beyond the document.
 archive = Builders.Store()
 Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot())  # the same schemas, its own: a store's snapshot writes them
 for root in (ada, carol, loner):
@@ -164,7 +164,7 @@ for root in (ada, carol, loner):
     restored = Plain.FromPlain(archive).Reachable(archive.Person, graph)
     assert restored is not root
     assert str(restored.given_name) == str(root.given_name)
-    assert same_graph(Plain.ToPlain(archive).Reachable(archive.Person, restored), graph)
+    assert Plain.ToPlain(archive).Reachable(archive.Person, restored) == graph
     assert Plain.FromPlain(store).Reachable(Person, graph) is not root
 
 print('FamilyTree: all checks passed')

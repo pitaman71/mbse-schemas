@@ -1,4 +1,4 @@
-# Serialization example: scalar values at their edges, strict scalar types, malformed snapshots, and a store.
+# Serialization example: scalar values at their edges, strict scalar types, malformed documents, and a store.
 #
 # Uses ISO 4217 currencies: a price list maps a product -> [currency] -> money.
 
@@ -7,7 +7,7 @@ import math
 
 from mbse.Schemas.Framework import Builders, Schemas, Plain, Validators
 from mbse.Schemas.Framework.Errors import DecodeError
-from mbse.Schemas.Examples._support import entries, raises
+from mbse.Schemas.Examples._support import entries, members, raises, schema_names
 
 
 store = Builders.Store()
@@ -93,7 +93,7 @@ with store.transaction():
         .flag(False)  # a present False is not an absent property
 ))
 plain = Plain.ToPlain(store)(Sample, edge)
-fields = plain['objects'][0]['properties']  # the root, listed first
+fields = members(plain)['0']  # the root's members: a document's objects are symbols, the root's '0'
 assert fields['payload'] == 'AP8QAP8QAP8Q'  # bytes become base64 text
 assert fields['flag'] is False and fields['count'] == 2**100
 
@@ -110,10 +110,10 @@ back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty))
 assert (back.label.get(), back.payload.get(), back.count.get(), back.ratio.get()) == ('', b'', 0, 0.0)
 assert back.flag.get() is None  # never set, so absent
 
-# An object with nothing set serializes to empty properties, listed with its number and its schema's name.
+# An object with nothing set is a symbol of its schema with no members.
 with store.transaction():
     blank = store.Sample(lambda s: s)
-assert Plain.ToPlain(store)(Sample, blank) == {'root': {'n': 0}, 'objects': [{'n': 0, 'schema': 'Sample', 'properties': {}}]}
+assert members(Plain.ToPlain(store)(Sample, blank)) == {'0': {}} and schema_names(Plain.ToPlain(store)(Sample, blank)) == {'0': 'Sample'}
 
 # Per-kind entry points.
 assert Plain.ToPlain(store)(store.Schemas.OfBytes.as_schema(), b'\x01') == Plain.ToPlain(store).OfScalar(store.Schemas.OfBytes.as_schema(), b'\x01') == 'AQ=='
@@ -160,8 +160,8 @@ by_currency = {e['currency']: int(e['price'].amount) for e in entries(Product, w
 assert by_currency == {'JPY': 1500, 'EUR': 1299}
 
 graph = Plain.ToPlain(store).Reachable(Product, widget)
-assert sorted(o['properties'].get('code') for o in graph['objects'] if 'code' in o['properties']) == ['EUR', 'JPY']
-assert {o['schema'] for o in graph['objects']} == {'Product', 'Money', 'iso4217.Currency'}  # each listed with its schema
+assert sorted(m['code'] for m in members(graph).values() if 'code' in m) == ['EUR', 'JPY']
+assert set(schema_names(graph).values()) == {'Product', 'Money', 'iso4217.Currency'}  # each symbol of its schema
 again = from_plain.Reachable(Product, json.loads(json.dumps(graph)))
 assert {e['currency']: int(e['price'].amount) for e in entries(Product, again, 'prices')} == by_currency
 
@@ -180,43 +180,35 @@ assert validate(Product, gadget) == ['unique(price) violated: entries agreeing o
 # The root must be an instance of the schema given.
 assert validate(Currency, widget) != []
 
-# --- Malformed snapshots are rejected ---
+# --- Malformed documents are rejected ---
 
 good = Plain.ToPlain(store).Reachable(Product, widget)
-root = good['root']
-
-
-def listed(snapshot, call):
-    """The object a snapshot lists as `call`: its path, or a counted object's number."""
-    return next(o for o in snapshot['objects'] if (o['path'] if 'path' in o else {'n': o['n']}) == call)
-
-
-price_ref = listed(good, root)['properties']['prices'][0]['price']
 
 
 def mutated(change):
-    snapshot = json.loads(json.dumps(good))
-    change(snapshot)
-    return snapshot
+    document = json.loads(json.dumps(good))
+    change(document)
+    return document
 
 
-bad_snapshots = [
-    [],  # not a snapshot
-    {'root': root},  # no objects
-    {'root': {'n': 99}, 'objects': good['objects']},  # root not in objects
-    mutated(lambda s: s['objects'].remove(listed(s, price_ref['$ref']))),  # unresolved reference
-    mutated(lambda s: listed(s, price_ref['$ref']).update(schema='Product')),  # its properties are not its schema's
-    mutated(lambda s: s['objects'].append(listed(s, root))),  # an object listed twice
-    mutated(lambda s: listed(s, root)['properties'].__setitem__('colour', 'red')),  # not a property or adjacency
-    mutated(lambda s: listed(s, root)['properties']['prices'][0].__setitem__('discount', 5)),  # not a link or property
+def spec(document):
+    return document['mutations'][0]['upsert']['exists'][0]['spec']
+
+
+bad_documents = [
+    [],  # not a document
+    {'mutations': []},  # it binds no root
+    mutated(lambda d: spec(d).append({'99': []})),  # not a symbol of its pattern
+    mutated(lambda d: spec(d)[0]['0'].append({'as_property': {'name': 'colour', 'mutations': [{'set': {'value': 'red'}}]}})),
+    mutated(lambda d: spec(d)[0]['0'][0]['as_property']['mutations'][0]['set'].__setitem__('value', 5)),  # sku: text
 ]
-for snapshot in bad_snapshots:
+for document in bad_documents:
     with raises(DecodeError):
-        from_plain.Reachable(Product, snapshot)
+        from_plain.Reachable(Product, document)
 
-# A single-object snapshot leaves references unresolved, so it cannot be deserialized on its own.
-with raises(DecodeError):
-    from_plain(Product, Plain.ToPlain(store)(Product, widget))
+# An object's document holds it alone: widget's, which links counted prices, is refused.
+with raises(ValueError):
+    Plain.ToPlain(store)(Product, widget)
 
 # The root must be an instance of the schema given.
 with raises(TypeError):

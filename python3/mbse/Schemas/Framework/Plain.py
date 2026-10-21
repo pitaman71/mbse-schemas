@@ -203,16 +203,9 @@ def _record(read: Any, schema: Any, ref: Ref) -> dict[str, PlainData]:
 
 
 def _object(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref) -> dict[str, PlainData]:
-    """An object, a reference object or a value object nested in its owner, as a mapping: its properties, in the
-    schema's order, then its adjacencies' entries. A value object has no symbol: entries never reference value
-    objects."""
-    out: dict[str, PlainData] = {prop.as_schema().name: _value(prop, prop.as_schema().schema, ref)[1]
-                                 for prop in read.as_properties}  # the properties that are set
-    for name, adjacency in schema.adjacencies.items():
-        entries = [_entry(entry, adjacency, ref) for entry in getattr(read, name)]
-        if entries:
-            out[name] = entries
-    return out
+    """A value object, nested in what holds it, as a mapping of its properties that are set, in the schema's order; it
+    has no adjacencies, and nothing links it."""
+    return {prop.as_schema().name: _value(prop, prop.as_schema().schema, ref)[1] for prop in read.as_properties}
 
 
 def _entry(read: Readers.OfEntry, adjacency: Schemas.OfAdjacency.Data, ref: Ref) -> dict[str, PlainData]:
@@ -280,31 +273,15 @@ class _Held:
 # --- Snapshots ---
 
 
-class _Snapshot:
-    """Writes the included objects, in first-reference order, each listed with its schema's name and its members, and
-    with its path, or, a counted object, its number in the document (docs/OBJECT_IDENTITY.md, Decided, 55)."""
+class _Values:
+    """What `_value` needs to write values: the names their schemas are tagged with, and how a dense container of several
+    int indices is written (`flat`). A value holds no reference: references are links, written as entries."""
 
     def __init__(self, store: Visitors.OfStore, flat: bool = False) -> None:
-        self.store, self.flat = store, flat  # flat: how a dense container of several int indices is written
-        self._numbers: dict[int, int] = {}  # each counted object's number in the document, by id
-        self._held: list[Any] = []  # the counted objects numbered, held while the document is written
-        self._called: dict[str, Any] = {}  # each object the document calls, by what it is called
+        self.store, self.flat = store, flat
 
-    def __call__(self, target: Readers.OfObject) -> dict[str, PlainData]:  # the snapshot is the writers' `Ref`
-        return self._ref(target)
-
-    def _path(self, value: Readers.OfObject) -> PlainData:
-        """What a document calls an object: its path, a nested `Paths.OfRoot` value, or, a counted object, its number in
-        the document, given in the order the document meets them."""
-        if not Proxies._counted(value):
-            called = _path_of(value)
-        else:
-            if id(value) not in self._numbers:
-                self._numbers[id(value)] = len(self._numbers)
-                self._held.append(value)
-            called = {"n": self._numbers[id(value)]}
-        self._called[_symbol(called)] = value
-        return called
+    def __call__(self, target: Any) -> PlainData:  # pragma: no cover - values hold no references
+        raise TypeError("a value holds no reference to an object")
 
     def name_of(self, schema: Any) -> str:
         """The name a value of any schema is tagged with: its schema's registered name."""
@@ -314,100 +291,21 @@ class _Snapshot:
         except LookupError:
             raise TypeError(f"a value of any schema is of a registered schema; {schema.name!r} is not registered") from None
 
-    def _ref(self, target: Readers.OfObject) -> dict[str, PlainData]:
-        """A reference to a linked object, which is a reference object: entries never reference value objects."""
-        return {REF: self._path(target)}
-
-    def run(
-        self, schema: Schemas.OfObject.Data, root: Readers.OfObject, include: list[Readers.OfObject]
-    ) -> dict[str, PlainData]:
-        schema = Proxies._deref(schema)  # a path names its schema
-        if root.as_schema() is not schema:
-            raise TypeError(f"value is a {root.as_schema().name!r}, not an instance of the given schema")
-        if not schema.ref:
-            raise TypeError(f"a snapshot's root must be a reference object; {schema.name!r} is a value object schema")
-        written: dict[int, PlainData] = {}
-        for value in (root, *include):  # what the document lists is called before it is written
-            self._path(value)
-        for value in include:
-            out = _object(value, value.as_schema(), self)
-            _sort_entries(value.as_schema(), out)
-            written[id(value)] = out
-        # The order the document meets its objects, from the root through the references as written; counted objects
-        # are numbered in it, so that a document read and written again is the same. The references reach every object
-        # included, since `Reachable.of` follows the entries the document writes.
-        order: list[Any] = []
-        met: set[int] = set()
-
-        def meet(value: Any) -> None:
-            if id(value) not in met:
-                met.add(id(value))
-                order.append(value)
-
-        def follow(plain: PlainData) -> None:
-            if _is_ref(plain):
-                meet(self._called[_symbol(plain[REF])])
-            elif isinstance(plain, dict):
-                for item in plain.values():
-                    follow(item)
-            elif isinstance(plain, list):
-                for item in plain:
-                    follow(item)
-
-        meet(root)
-        position = 0
-        while position < len(order):
-            value = order[position]
-            position += 1
-            if id(value) in written:
-                follow(written[id(value)])
-        renumbered = {self._numbers[id(value)]: number for number, value in
-                      enumerate(v for v in order if id(v) in self._numbers)}
-
-        def number(called: PlainData) -> PlainData:
-            return {"n": renumbered[called["n"]]} if "n" in called else called
-
-        def renumber(plain: PlainData) -> PlainData:
-            """A written value, each reference to a counted object given its number in the document's order."""
-            if _is_ref(plain):
-                return {REF: number(plain[REF])}
-            if isinstance(plain, dict):
-                return {key: renumber(item) for key, item in plain.items()}
-            if isinstance(plain, list):
-                return [renumber(item) for item in plain]
-            return plain
-
-        objects: list[PlainData] = []
-        for value in order:
-            if id(value) not in written:
-                continue
-            called = number(self._path(value))
-            listing = {"n": called["n"]} if "n" in called else {"path": called}
-            objects.append({**listing, "schema": self.store.name_of(value.as_schema()),
-                            "properties": renumber(written[id(value)])})
-        return {"root": number(self._path(root)), "objects": objects}
-
 
 _ORDERED = (bool, int, float, str)
 
 
-def _sort_entries(schema: Schemas.OfObject.Data, plain: dict[str, PlainData]) -> None:
-    """Sorts the entries of each adjacency written in `plain`, an object of `schema`, by the key their relation
-    declares from the adjacency's end (`Schemas.OfRelation.Data.key`): where every entry has each of its values, and
-    each holds values of one ordered scalar (booleans false first, numbers by value, strings by code point). Otherwise, as
-    where a key holds a link, entries keep the order they were written in."""
-    for name, adjacency in schema.adjacencies.items():
-        entries, names = plain.get(name), adjacency.relation.key(adjacency.me)
-        if entries is None or names is None:
-            continue
-        keys = [tuple(entry.get(n) for n in names) for entry in entries]
-        if all(len({type(key[i]) for key in keys}) == 1 and type(keys[0][i]) in _ORDERED for i in range(len(names))):
-            entries.sort(key=lambda entry: tuple(entry[n] for n in names))
-
-
-def _is_ref(value: PlainData) -> bool:
-    """A reference: `{'$ref': path}`, or `{'$ref': {'n': number}}` to a counted object the document numbers."""
-    return isinstance(value, dict) and set(value) == {REF} and isinstance(value[REF], dict)
+def _sorted(adjacency: Schemas.OfAdjacency.Data, entries: list[Any], rows: list[dict[str, PlainData]]) -> list[Any]:
+    """An adjacency's entries in the order they are written: sorted by the key its relation declares from its end,
+    read from their `rows` as `_entry` writes them, where every entry has each of its values and each holds values of
+    one ordered scalar; else as they are."""
+    names = adjacency.relation.key(adjacency.me)
+    if names is None:
+        return entries
+    keys = [tuple(row.get(n) for n in names) for row in rows]
+    if all(len({type(key[i]) for key in keys}) == 1 and type(keys[0][i]) in _ORDERED for i in range(len(names))):
+        return [entries[i] for i in sorted(range(len(keys)), key=lambda i: keys[i])]
+    return entries
 
 
 def _number(called: PlainData) -> int | None:
@@ -419,21 +317,8 @@ def _number(called: PlainData) -> int | None:
 
 
 def _symbol(called: PlainData) -> str:
-    """What a reader tells objects apart by: a counted object's number in the document, or a path's canonical JSON."""
-    number = _number(called)
-    if number is not None:
-        return f"#{number}"
+    """What a reader tells an owner apart by: its path's canonical JSON."""
     return json.dumps(called, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-
-
-def _called(called: PlainData, where: tuple) -> str:
-    """A reference's or a listing's target checked, as `_symbol` gives it: a path, or a number of a counted object."""
-    number = _number(called)
-    if number is None:
-        _steps(called, where)
-    elif number < 0:
-        raise DecodeError("a counted object's number in a document is an int, 0 or more", path=path(*where))
-    return _symbol(called)
 
 
 def _path_of(value: Any) -> PlainData:
@@ -645,65 +530,12 @@ def _decode_container(schema: Schemas.OfContainer.Data, plain: PlainData, where:
     return _Elements(schema, items)
 
 
-def _decoded_key(value: Any) -> Hashable:
-    """Equality key of a decoded value, per EQUALITY.md."""
-    if isinstance(value, _Assigned):
-        return ("assigned", value.name, _decoded_key(value.value))
-    if isinstance(value, _Elements):
-        return ("container", frozenset((index, _decoded_key(v)) for index, v in value.items))
-    if isinstance(value, _Record):
-        return ("record", tuple((name, _decoded_key(v)) for name, v in sorted(value.values.items())))
-    return (type(value).__name__, value.hex() if isinstance(value, float) else value)
-
-
 # For messages, per record kind: a value of it, its schema, and what its properties are.
 _RECORDS = {
     Schemas.OfObject.Data: ("a value object", "the value object", "property"),
     Schemas.OfUnion.Data: ("a union value", "the union", "branch"),
     Schemas.OfIntersection.Data: ("an intersection value", "the intersection", "part"),
 }
-
-
-def _decode_rows(adjacency: Schemas.OfAdjacency.Data, value: PlainData, where: tuple, key: str,
-                 store: Any = None) -> list[dict[str, Any]]:
-    """The entries of one adjacency, at `where` + `key`."""
-    if not isinstance(value, list):
-        raise DecodeError("an adjacency must be a list of entries", path=path(*where, key))
-    relation = adjacency.relation
-    rows = []
-    for i, entry in enumerate(value):
-        if not isinstance(entry, dict):
-            raise DecodeError(f"an entry must be a mapping, got {type(entry).__name__}", path=path(*where, key, i))
-        row: dict[str, Any] = {}
-        for name, item in entry.items():
-            at = path(*where, key, i, name)
-            if name == adjacency.me:
-                raise DecodeError(f"{name!r} is this object's own link, which is implied", path=at)
-            if name in relation.entry.links:
-                if not _is_ref(item):
-                    raise DecodeError("a link must be a reference", path=at)
-                row[name] = _Link(_symbol(item[REF]))
-            elif name in relation.entry.properties:
-                row[name] = _decode(relation.entry.properties[name].schema, item, (*where, key, i, name), store)
-            else:
-                raise DecodeError(f"the relation has no link or property {name!r}", path=at)
-        missing = [n for n in relation.entry.links if n != adjacency.me and n not in entry]
-        if missing:
-            raise DecodeError(f"links {missing} are not set", path=path(*where, key, i))
-        rows.append(row)
-    return rows
-
-
-def _references(value: PlainData, where: tuple, found: Callable[[dict[str, Any], tuple], None]) -> None:
-    """Finds the references among the values of an object, at any depth: in its entries, and in the value objects and
-    lists nested in it. A mapping with a `$ref` key is a reference; nothing else is."""
-    if isinstance(value, dict) and REF in value:
-        if not _is_ref(value):
-            raise DecodeError("a reference is {'$ref': path} or {'$ref': {'n': number}}", path=path(*where))
-        found(value, where)
-    elif isinstance(value, (dict, list)):
-        for key, item in value.items() if isinstance(value, dict) else enumerate(value):
-            _references(item, (*where, key), found)
 
 
 # Per reference object symbol: its decoded property values and its entries.
@@ -748,89 +580,6 @@ def _placed(called: PlainData, name: str, schema: Schemas.OfObject.Data, where: 
         nested = {"entry": {"i": i, "o": o, "properties": keys, "next": nested}}
     _, o, keys = steps[-1]
     return _Placed(None, _symbol({"singleton": singleton, "next": nested}), o, keys)
-
-
-def _check(store: Visitors.OfStore, schema: Schemas.OfObject.Data, plain: PlainData
-           ) -> tuple[str, dict[str, str], _Decoded, dict[str, _Placed]]:
-    """Checks a snapshot against the schemas and decodes its values before anything is built. Returns the root's
-    symbol, each object's schema name, the decoded objects and where each path places its object. Problems in the
-    snapshot raise `DecodeError`."""
-    if not isinstance(schema, Schemas.OfObject.Data):
-        raise TypeError(f"the root schema must be an object schema, got {type(schema).__name__}")
-    if not schema.ref:
-        raise TypeError("the root schema must be a reference object schema")
-    if not isinstance(plain, dict) or set(plain) != {"root", "objects"} or not isinstance(plain["objects"], list):
-        raise DecodeError("expected an object snapshot: {'root': path or {'n': number}, 'objects': [{'path': path or "
-                          "'n': number, 'schema': name, 'properties': {...}}, ...]}", path="$")
-    objects: dict[str, dict[str, Any]] = {}
-    names: dict[str, str] = {}
-    paths: dict[str, PlainData] = {}
-    for index, listed in enumerate(plain["objects"]):
-        where = ("objects", index)
-        calls = [key for key in ("path", "n") if isinstance(listed, dict) and key in listed]
-        if not isinstance(listed, dict) or len(calls) != 1 or set(listed) != {calls[0], "schema", "properties"}:
-            raise DecodeError("an object is {'path': path or 'n': number, 'schema': name, 'properties': {...}}",
-                              path=path(*where))
-        if not isinstance(listed["schema"], str) or not isinstance(listed["properties"], dict):
-            raise DecodeError("an object's schema is a name, and its properties a mapping", path=path(*where))
-        called = listed["path"] if calls[0] == "path" else {"n": listed["n"]}
-        symbol = _called(called, (*where, calls[0]))
-        if symbol in objects:
-            raise DecodeError("an object is listed once: another has the same path or number", path=path(*where, calls[0]))
-        objects[symbol], names[symbol], paths[symbol] = listed["properties"], listed["schema"], called
-    root = _called(plain["root"], ("root",))
-    if root not in objects:
-        raise DecodeError("the root is not one of the snapshot's objects", path="$.root")
-    if names[root] != store.name_of(schema):
-        raise DecodeError(f"the root is a {names[root]!r}, not a {store.name_of(schema)!r}", path="$.root")
-    position = {symbol: index for index, symbol in enumerate(objects)}
-
-    def found(ref: dict[str, Any], where: tuple) -> None:
-        if _called(ref[REF], (*where, REF)) not in objects:
-            raise DecodeError("unresolved reference: the snapshot does not contain what it calls", path=path(*where))
-
-    for symbol, obj in objects.items():
-        for key, value in obj.items():
-            _references(value, ("objects", position[symbol], "properties", key), found)
-    decoded: _Decoded = {}
-    placed: dict[str, _Placed] = {}
-    for symbol, obj in objects.items():
-        where = ("objects", position[symbol])
-        try:
-            object_schema = store.schema(names[symbol])
-        except (AttributeError, LookupError, TypeError):
-            raise DecodeError(f"no object schema registered as {names[symbol]!r}", path=path(*where, "schema")) from None
-        if not object_schema.ref:
-            raise DecodeError(f"{names[symbol]!r} is not a reference object schema", path=path(*where, "schema"))
-        placed[symbol] = _placed(paths[symbol], names[symbol], object_schema, (*where, "n" if "n" in paths[symbol] else "path"))
-        properties: dict[str, Any] = {}
-        adjacencies: Rows = {}
-        for key, value in obj.items():
-            at = (*where, "properties")
-            if key in object_schema.adjacencies:
-                adjacencies[key] = _decode_rows(object_schema.adjacencies[key], value, at, key, store)
-            elif key in object_schema.properties:
-                properties[key] = _decode(object_schema.properties[key].schema, value, (*at, key), store)
-            else:
-                raise DecodeError(f"{names[symbol]!r} has no property or adjacency {key!r}", path=path(*at, key))
-        decoded[symbol] = (properties, adjacencies)
-    return root, names, decoded, placed
-
-
-def _found(store: Any, symbol: str, name: str, placed: _Placed, created: dict[str, Any]) -> Any:
-    """The object a path names, where the store holds it: a singleton, or through its owner's adjacency named by the
-    path's last step; None where it holds none, as for a counted object, always made anew (55)."""
-    if placed.counted:
-        return None
-    if placed.owner is None:
-        return store.singleton(placed.key)
-    owner = created[placed.owner]  # created first: a path names its owner by its own
-    adjacency = _owner_adjacency(store.registered(name), placed.o)
-    link = next(other for other in adjacency.relation.entry.links if other != adjacency.me)
-    for entry in Proxies._linking(adjacency.relation, link, owner):
-        if all(entry._properties.get(key) == value for key, value in placed.keys.items()):
-            return entry._links[adjacency.me]
-    return None
 
 
 def _schema_steps(path_plain: PlainData, where: tuple) -> list[tuple[str, str]]:
@@ -881,106 +630,6 @@ def _owner_adjacency(schema: Schemas.OfObject.Data, o: str) -> Schemas.OfAdjacen
     return found[0]
 
 
-def _restore(store: Visitors.OfStore, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
-    """Rebuilds objects from an object snapshot in `store`. Every reference must resolve within the snapshot:
-    reference objects are built first, with the values they hold, then the entries are added."""
-    root, names, decoded, placed = _check(store, schema, plain)
-
-    seen: dict[Hashable, int] = {}
-
-    def kept(schema: Any, owner: Hashable, key: str, rows: list[dict[str, Any]]) -> list[tuple[int, dict[str, Any], int]]:
-        """The entries of an adjacency not already added through another, each with its position in the snapshot's
-        list and which of the equal entries in it it is: entries written under each object they link are one, by value
-        where the relation has a `unique` clause, and, in an open relation, the k-th equal entry in one list is the
-        k-th in another."""
-        adjacency = schema.adjacencies[key]
-        relation, counts, kept_rows = adjacency.relation, {}, []
-        for position, row in enumerate(rows):
-            row_key = _row_key(relation, adjacency.me, owner, row)
-            occurrence = counts[row_key] = counts.get(row_key, -1) + 1
-            index = occurrence if relation.open else 0
-            if index >= seen.get(row_key, 0):
-                seen[row_key] = index + 1
-                kept_rows.append((position, row, index))
-        return kept_rows
-
-    # An update writes through the builders of what the object already holds: a property's value object and a container
-    # are edited in place. A relation's entries have no order to visit by: a row is the entry agreeing with its links
-    # and properties, the k-th equal row the k-th such entry, and added where none agrees.
-    ref = _Snapshot(store)
-
-    def write(adjacency: Any, rows: list[tuple[int, dict[str, Any], int]], resolve: Callable[[str], Any]) -> None:
-        """Writes `rows` into the adjacency builder `adjacency`."""
-        for _, row, occurrence in rows:
-            found: list[Any] = []
-            adjacency.as_iterable(lambda entries, r=row: found.extend(e for e in entries if _agrees(e, r, resolve, ref)))
-            if occurrence < len(found):
-                _fill(found[occurrence], row, resolve)
-            else:
-                adjacency.insert(lambda x, r=row: _fill(x, r, resolve))
-
-    created: dict[str, Any] = {}
-    owned: list[tuple[str, Any]] = []  # objects placed through an owner, given their ownership entries once all exist
-    with store._joined():  # a transaction of its own, or the one open, until 4f (docs/OBJECT_IDENTITY.md, Decided, 90)
-        pending = list(decoded)
-        while pending:  # an owner before what it owns: its path is the owned's but the last step, so never a cycle
-            progress = [symbol for symbol in pending
-                        if placed[symbol].owner is None or placed[symbol].owner in created
-                        or placed[symbol].owner not in decoded]
-            for symbol in progress:
-                pending.remove(symbol)
-                properties, _ = decoded[symbol]
-                where = placed[symbol]
-                if where.owner is not None and where.owner not in created:
-                    raise DecodeError("an object's owner is not in the snapshot", path="$.objects")
-                existing = _found(store, symbol, names[symbol], where, created)
-                builder = store.builder(names[symbol], existing)  # a new object where the store holds none
-                for key, value in properties.items():
-                    _set(builder, key, value)
-                created[symbol] = builder.create() if existing is None else builder.update()
-                if existing is None and where.owner is not None:
-                    owned.append((symbol, created[symbol]))
-        for symbol, target in owned:  # its ownership entry, from the path's last step
-            where = placed[symbol]
-            adjacency = _owner_adjacency(store.registered(names[symbol]), where.o)
-            link = next(other for other in adjacency.relation.entry.links if other != adjacency.me)
-            Proxies._add_entry(adjacency.relation, Proxies._Entry(
-                adjacency.relation, {link: created[where.owner], adjacency.me: target}, where.keys))
-        for symbol, (_, adjacencies) in decoded.items():
-            object_schema = store.schema(names[symbol])
-            builder = store.builder(names[symbol], created[symbol])
-            for key, rows in adjacencies.items():
-                write(getattr(builder, key), kept(object_schema, symbol, key, rows), created.__getitem__)
-            builder.update()
-    return created[root]
-
-
-def _agrees(entry: Any, row: dict[str, Any], resolve: Callable[[str], Any], ref: Ref) -> bool:
-    """Whether an entry's visitor agrees with a decoded row: it links the objects the row names, and holds each value the
-    row holds, equal by value, and no other. A value is compared as it reads back once written (`ref` writes the
-    references it would hold, though an entry's values hold none)."""
-    schema = entry.as_schema()
-    for name in schema.links:
-        if name in row:
-            linked, target = getattr(entry, name), resolve(row[name].symbol)
-            if Proxies._key_of(linked) != Proxies._key_of(target) or linked.as_schema() is not target.as_schema():
-                return False
-    for name, prop in schema.properties.items():
-        present, plain = _value(getattr(entry, name), prop.schema, ref)
-        if present != (name in row) or present and _decoded_key(_decode(prop.schema, plain, (), ref.store)) != _decoded_key(
-                row[name]):
-            return False
-    return True
-
-
-
-def _row_key(relation: Any, me: str, owner: Hashable, row: dict[str, Any]) -> Hashable:
-    """An entry's value, read from one end: its links' symbols, the owner's included, and its properties' values."""
-    links = {me: owner, **{name: value.symbol for name, value in row.items() if isinstance(value, _Link)}}
-    values = sorted((name, _decoded_key(value)) for name, value in row.items() if not isinstance(value, _Link))
-    return id(relation), tuple(sorted(links.items(), key=lambda item: item[0])), tuple(values)
-
-
 _SELECT = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
            Schemas.OfIntersection.Data: "as_intersection"}
 
@@ -1029,15 +678,6 @@ def _put(element: Any, value: Any) -> None:
         getattr(element, _SELECT[type(value.schema)])(lambda held: _build(held, value))
     else:
         element.as_scalar(value)
-
-
-def _fill(visitor: Visitors.OfEntry, row: dict[str, Any], resolve: Callable[[str], Any]) -> Visitors.OfEntry:
-    for key, value in row.items():  # links map to target symbols; properties to decoded values
-        if isinstance(value, _Link):
-            getattr(visitor, key)(resolve(value.symbol))
-        else:
-            _set(visitor, key, value)
-    return visitor
 
 
 # --- Logs: a store as a log of mutations (docs/SERIALIZATION.md) ---
@@ -1594,6 +1234,144 @@ class _LogReader:
 # --- Entry points ---
 
 
+class _Document:
+    """A Reachable document, or an object's: one transaction (docs/OBJECT_IDENTITY.md, Decided, 51, 55; Store overhaul,
+    4f), one upsert whose symbols are the objects the document holds, named by their number in the order it meets them,
+    the root `"0"`: the root, and, for Reachable, the counted objects reachable from it through the objects the document
+    holds. Its spec gives each object's properties and its named adjacencies' entries, each entry once, from the first
+    object that holds it; an object it does not hold, an owned object, a singleton or a schema object, is referred to by
+    its path. Under the caller's uid, which keys its upsert, so that reading it again while its counted objects are held
+    finds them (102)."""
+
+    def __init__(self, store: Any, flat: bool) -> None:
+        self.store, self.flat = store, flat
+        self._numbers: dict[int, int] = {}  # each object the document holds, by id: its number
+        self._order: list[Any] = []
+        self._keying = False  # reading entries' keys: what they link is not yet referred to
+
+    def name_of(self, schema: Any) -> str:  # the values' `Ref`: a value of any schema is tagged with its schema's name
+        return _Values(self.store).name_of(schema)
+
+    def __call__(self, target: Any) -> dict[str, PlainData]:  # what an entry links, as a spec refers to it
+        if self._keying:
+            return {}
+        number = self._numbers.get(id(target))
+        if number is not None:
+            return {"symbol": str(number)}
+        if isinstance(target, Proxies._ObjectData):
+            if Proxies._counted(target):
+                raise ValueError(f"a document refers to a counted {self.store.name_of(target.as_schema())!r} it does "
+                                 "not hold: a counted object has no identity beyond the document that writes it")
+            return {"path": _path_of(target)}
+        return {"path": _schema_path(self.store._path(target))}  # a schema object, which an extension's relation links
+
+    def _hold(self, value: Any) -> None:
+        if id(value) not in self._numbers:
+            self._numbers[id(value)] = len(self._order)
+            self._order.append(value)
+
+    def _entries(self, value: Any) -> list[tuple[str, Any, list[Any]]]:
+        """Each named adjacency of `value` that holds entries, with them, in the order they are written."""
+        schema, out = value.as_schema(), []
+        for name, adjacency in schema.adjacencies.items():
+            entries = list(getattr(value, name))
+            if entries:
+                self._keying = True
+                rows = [_entry(entry, adjacency, self) for entry in entries]
+                self._keying = False
+                out.append((name, adjacency, _sorted(adjacency, entries, rows)))
+        return out
+
+    def run(self, schema: Schemas.OfObject.Data, root: Readers.OfObject, reachable: bool, uid: str | None) -> PlainData:
+        schema = Proxies._deref(schema)  # a path names its schema
+        if root.as_schema() is not schema:
+            raise TypeError(f"value is a {root.as_schema().name!r}, not an instance of the given schema")
+        if not schema.ref:
+            raise TypeError(f"a snapshot's root must be a reference object; {schema.name!r} is a value object schema")
+        if any(adjacency.owner for adjacency in schema.anonymous) and not any(
+                adjacency.owner for adjacency in schema.adjacencies.values()):
+            raise ValueError(f"a {self.store.name_of(schema)!r} is owned through an adjacency with no name: a document "
+                             "cannot give the entry that owns it; name the adjacency")
+        self._hold(root)
+        position = 0
+        while reachable and position < len(self._order):  # what it holds, in the order it meets them
+            value = self._order[position]
+            position += 1
+            for _, adjacency, entries in self._entries(value):
+                for entry in entries:
+                    for link in adjacency.relation.entry.links:
+                        target = getattr(entry, link)
+                        if link != adjacency.me and isinstance(target, Proxies._ObjectData) and Proxies._counted(target):
+                            self._hold(target)
+        written: set[int] = set()
+        items: list[dict[str, PlainData]] = []
+        for number, value in enumerate(self._order):
+            members: list[PlainData] = [
+                {"as_property": {"name": prop.as_schema().name, "mutations": [
+                    {"set": {"value": _value(prop, prop.as_schema().schema, self)[1]}}]}}
+                for prop in value.as_properties]
+            for name, adjacency, entries in self._entries(value):
+                fresh = [entry for entry in entries if id(entry) not in written]
+                written.update(id(entry) for entry in fresh)
+                rows = [_entry(entry, adjacency, self) for entry in fresh]
+                if rows:
+                    members.append({"as_adjacency": {"name": name, "mutations": [{"insert": {"entries": [
+                        self._spec_entry(row, adjacency) for row in rows]}}]}})
+            if members:
+                items.append({str(number): members})
+        symbols = {str(number): value.as_schema() for number, value in enumerate(self._order)}
+        for schema_ in symbols.values():
+            if not self.store.holds(schema_):
+                raise ValueError(f"a document refers to its objects' schemas by their paths; {schema_.name!r} is a schema "
+                                 "the store does not hold")
+        store = self.store
+        transaction = store.Mutations.OfTransaction(lambda t: (t if uid is None else t.uid(uid)).mutations([
+            lambda mu: mu.upsert(lambda u: (u if uid is None else u.key(uid)).exists([
+                lambda p: p.symbols(symbols).spec(items)]))]))
+        return _Expression(store).object(transaction)
+
+    @staticmethod
+    def _spec_entry(row: dict[str, PlainData], adjacency: Any) -> PlainData:
+        """An entry as a spec inserts it: its links set to what they refer to, then its properties."""
+        links = [link for link in adjacency.relation.entry.links if link != adjacency.me]
+        return {"mutations": [
+            *({"as_link": {"name": link, "mutations": [{"set": {"ref": row[link]}}]}} for link in links),
+            *({"as_property": {"name": name, "mutations": [{"set": {"value": row[name]}}]}}
+              for name in adjacency.relation.entry.properties if name in row),
+        ]}
+
+
+_READS = itertools.count(1)  # documents read with no uid of their own, each keyed afresh
+
+
+def _read_document(store: Any, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
+    """Reads a document (`_Document`): executes its transaction, within the store's open one as a savepoint, else as a
+    transaction of its own, and gives its root, the object its symbol `"0"` binds. A document with no uid is keyed afresh
+    by each read, so that reading it gives new counted objects (Decided, 55)."""
+    from . import Transactions
+
+    schema = Proxies._deref(schema)  # a path names its schema
+    if not isinstance(schema, Schemas.OfObject.Data):
+        raise TypeError(f"the root schema must be an object schema, got {type(schema).__name__}")
+    if not schema.ref:
+        raise TypeError("the root schema must be a reference object schema")
+    if not isinstance(plain, dict):
+        raise DecodeError("expected a document, a transaction's expression", path="$")
+    if "uid" not in plain and isinstance(plain.get("mutations"), list) and len(plain["mutations"]) == 1 \
+            and isinstance(plain["mutations"][0], dict) and isinstance(plain["mutations"][0].get("upsert"), dict):
+        plain = {**plain, "mutations": [{"upsert": {**plain["mutations"][0]["upsert"], "key": f"\0{next(_READS)}"}}]}
+    transaction = FromPlain(store).Transaction(plain)
+    with store._joined():  # what it writes, kept only where its root is what is asked for
+        frames = Transactions._execute(store, transaction, joined=True)
+        if len(frames) != 1 or "0" not in frames[0]:
+            raise DecodeError("a document binds its root, the symbol '0', in one frame", path="$")
+        root = frames[0]["0"]
+        if not Schemas.is_a(root.as_schema(), schema):
+            raise TypeError(f"the document's root is a {store.name_of(root.as_schema())!r}, not an instance of the given "
+                            "schema")
+    return root
+
+
 class _Expression:
     """A transaction's expression as the wire carries it, nested (docs/OBJECT_IDENTITY.md, Decided, 56; Store overhaul,
     4f): an object as a mapping of its properties and its named adjacencies' entries. An entry of a relation of one
@@ -1677,10 +1455,84 @@ def _built(store: Any, visitor: Any, schema: Any, body: PlainData, where: tuple)
         elif name in schema.adjacencies:
             getattr(visitor, name)(_given(store, schema.adjacencies[name], value, at))
         elif name == "spec" and schema is store.registered("Schemas.OfPattern"):
-            visitor.spec(value)  # as recorded
+            continue  # checked against its symbols' schemas, once they are read
         else:
             raise DecodeError(f"{name!r} is not a member of {schema.name}", path=path(*at))
+    if "spec" in body and schema is store.registered("Schemas.OfPattern"):
+        _checked_spec(store, visitor._working.symbols, body["spec"], (*where, "spec"))
+        visitor.spec(body["spec"])  # as recorded
     return visitor
+
+
+_SPEC = "expected a spec's mutations: as_property {name, mutations}, as_adjacency {name, mutations}, an entry {mutations}"
+
+
+def _checked_spec(store: Any, symbols: dict[str, Any], spec: PlainData, where: tuple) -> None:
+    """Checks a spec read from the wire before anything is written, so that a document refused writes nothing and says
+    where: each symbol the pattern's, each member its object's schema's, each value decoded against its schema."""
+    if not isinstance(spec, list):
+        raise DecodeError("expected a list of what holds of a frame, by symbol", path=path(*where))
+    for i, item in enumerate(spec):
+        if not isinstance(item, dict):
+            raise DecodeError("expected a mapping of symbols to their objects' mutations", path=path(*where, i))
+        for symbol, members in item.items():
+            held = symbols.get(symbol)
+            if held is None:
+                raise DecodeError(f"{symbol!r} is not a symbol of the pattern", path=path(*where, i, symbol))
+            _checked_members(store, held.schema, members, (*where, i, symbol), symbols)
+
+
+def _checked_members(store: Any, schema: Any, members: PlainData, where: tuple, symbols: dict[str, Any]) -> None:
+    """Checks what a spec gives of an object of `schema` (`_checked_spec`): a fault in its shape is reported where it is
+    found, as what a spec's mutations are."""
+    for j, member in enumerate(members if isinstance(members, list) else [None]):
+        at = (*where, j)
+        if not isinstance(member, dict) or len(member) != 1:
+            raise DecodeError(_SPEC, path=path(*at))
+        ((kind, body),) = member.items()
+        try:
+            name, verbs = body["name"], body["mutations"]
+            if kind == "as_property" and name in schema.properties:
+                _checked_values(store, schema.properties[name].schema, verbs, (*at, kind, "mutations"))
+            elif kind == "as_adjacency" and name in schema.adjacencies:
+                relation = schema.adjacencies[name].relation
+                for k, verb in enumerate(verbs):
+                    ((verb_kind, verb_body),) = verb.items()
+                    for e, entry in enumerate(verb_body["entries"]):
+                        for m, item in enumerate(entry["mutations"]):
+                            _checked_entry(store, name, relation, item, (*at, kind, "mutations", k, verb_kind, "entries",
+                                                                         e, "mutations", m), symbols)
+            else:
+                raise DecodeError(f"{schema.name} has no {kind[3:]} {name!r}", path=path(*at, kind))
+        except (AttributeError, KeyError, TypeError):
+            raise DecodeError(_SPEC, path=path(*at)) from None
+
+
+def _checked_values(store: Any, schema: Any, verbs: list[Any], where: tuple) -> None:
+    for k, verb in enumerate(verbs):
+        if "set" in verb:
+            _decode(schema, verb["set"]["value"], (*where, k, "set", "value"), store)
+
+
+def _checked_entry(store: Any, adjacency: str, relation: Any, member: Any, where: tuple, symbols: dict[str, Any]) -> None:
+    """Checks one of an entry's mutations: its property's value, or what its link refers to or defines."""
+    ((kind, body),) = member.items()
+    at = (*where, kind)
+    if kind == "as_property" and body["name"] in relation.entry.properties:
+        _checked_values(store, relation.entry.properties[body["name"]].schema, body["mutations"], (*at, "mutations"))
+    elif kind == "as_link" and body["name"] in relation.entry.links:
+        given = body["mutations"][0].get("set", {})
+        if "def" in given:
+            definition = given["def"]
+            _checked_members(store, store.registered(definition["schema"]), definition["mutations"],
+                             (*at, "mutations", 0, "set", "def", "mutations"), symbols)
+        elif "symbol" in given.get("ref", {}) and given["ref"]["symbol"] not in symbols:
+            raise DecodeError(f"{given['ref']['symbol']!r} is not a symbol of the pattern",
+                              path=path(*at, "mutations", 0, "set", "ref", "symbol"))
+        elif "path" in given.get("ref", {}):
+            _steps(given["ref"]["path"], (*at, "mutations", 0, "set", "ref", "path"))
+    else:
+        raise DecodeError(f"an entry of {adjacency!r} has no {kind[3:]} {body['name']!r}", path=path(*at))
 
 
 def _given(store: Any, adjacency: Any, plain: PlainData, where: tuple) -> Any:
@@ -1778,15 +1630,14 @@ class ToPlain:
         schema = Proxies._deref(schema)  # a path names its schema
         return schema.to_plain(value)
 
-    def OfObject(self, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> PlainData:
-        """Snapshot of `value` alone; its references to other objects are left unresolved."""
-        schema = Proxies._deref(schema)  # a path names its schema
-        return _Snapshot(self._store, self._flat).run(schema, value, [value])
+    def OfObject(self, schema: Schemas.OfObject.Data, value: Readers.OfObject, uid: str | None = None) -> PlainData:
+        """A document of `value` alone (`_Document`): what it links, by path; a counted object it links is refused."""
+        return _Document(self._store, self._flat).run(schema, value, False, uid)
 
-    def Reachable(self, schema: Schemas.OfObject.Data, value: Readers.OfObject) -> PlainData:
-        """Snapshot of `value` and every object reachable from it through adjacencies (see `Reachable`)."""
-        schema = Proxies._deref(schema)  # a path names its schema
-        return _Snapshot(self._store, self._flat).run(schema, value, Reachable.of(value))
+    def Reachable(self, schema: Schemas.OfObject.Data, value: Readers.OfObject, uid: str | None = None) -> PlainData:
+        """A document of `value` and the counted objects reachable from it (`_Document`; Object identity, Decided, 51):
+        one transaction, under `uid` where given."""
+        return _Document(self._store, self._flat).run(schema, value, True, uid)
 
     def Snapshot(self) -> list[PlainData]:
         """The store as a log of mutations, its initial snapshot (docs/SERIALIZATION.md): modules, then schemas, then the
@@ -1807,7 +1658,7 @@ class ToPlain:
             own = value.as_schema()
             if own is not held:
                 raise TypeError(f"value is a {own.name!r}, not an instance of the given schema")
-        return _any(_Held(value), schema, _Snapshot(self._store, self._flat))[1]
+        return _any(_Held(value), schema, _Values(self._store, self._flat))[1]
 
 
 class FromPlain:
@@ -1836,12 +1687,11 @@ class FromPlain:
             raise error.at("$") from None
 
     def OfObject(self, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
-        schema = Proxies._deref(schema)  # a path names its schema
-        return _restore(self._store, schema, plain)
+        """Reads a document, executing its transaction, and gives its root (`_read_document`)."""
+        return _read_document(self._store, schema, plain)
 
     def Reachable(self, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
-        schema = Proxies._deref(schema)  # a path names its schema
-        return _restore(self._store, schema, plain)
+        return _read_document(self._store, schema, plain)
 
     def Snapshot(self, log: PlainData, ignored: list[dict[str, str]] | None = None) -> list[Any]:
         """Applies a log of mutations, an initial snapshot, to the store, through its builders; returns the objects it

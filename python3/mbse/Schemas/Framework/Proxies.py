@@ -312,8 +312,6 @@ class OfStore(Stores.Catalog):
 def _key_of(visitor: Any) -> Any:
     """What tells a reference object apart in memory, hashable: a proxy's serial number, or the schema object a builder
     reads."""
-    if isinstance(visitor, _LinkMember):
-        visitor = visitor._target()
     return object.__getattribute__(visitor, "_serial") if isinstance(visitor, _ObjectData) else id(visitor._original)
 
 

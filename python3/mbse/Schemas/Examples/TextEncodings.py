@@ -10,7 +10,7 @@ import yaml
 
 from mbse.Schemas.Framework import JSON, YAML, Builders, Plain, Schemas, Validators
 from mbse.Schemas.Framework.Errors import DecodeError
-from mbse.Schemas.Examples._support import raises, same_graph
+from mbse.Schemas.Examples._support import raises
 
 
 store = Builders.Store()
@@ -121,43 +121,47 @@ assert from_yaml(Station, YAML.ToYAML(store)(Station, paris)).wmo_id.get() == '0
 
 # --- Hand-written YAML follows the YAML 1.2 core schema ---
 
-# A reading is counted: a document calls it by its number, the root's 0.
-written = """
-root: {n: 0}
-objects:
-  - n: 0
-    schema: Reading
-    properties:
-      observed: 2026-09-28T12:00:00Z   # unquoted, but stays a string
-      quality: 010                     # ten, not eight
-      value: .inf
-      valid: true
-      note: 1:30                       # a string, not ninety
-"""
-reading = from_yaml(Reading, written)
+
+def written(*members):
+    """A hand-written YAML document of one reading, counted: the symbol '0', each member a property set, its value given
+    as YAML text."""
+    reading = "{singleton: ., next: {entry: {i: schemas, o: '', properties: {name: Reading}, next: {target: {}}}}}"
+    return ("mutations:\n- upsert:\n    exists:\n    - symbols:\n        '0':\n          schema:\n          - $ref: " + reading
+            + "\n      spec:\n      - '0':\n" + "".join(f"        - as_property:\n            name: {name}\n            mutations:\n"
+                                                         f"            - set:\n                value: {value}\n"
+                                                         for name, value in members))
+
+
+reading = from_yaml(Reading, written(
+    ('observed', '2026-09-28T12:00:00Z   # unquoted, but stays a string'),
+    ('quality', '010                     # ten, not eight'),
+    ('value', '.inf'),
+    ('valid', 'true'),
+    ('note', '1:30                       # a string, not ninety'),
+))
 assert (reading.observed.get(), reading.quality.get(), reading.value.get(), reading.valid.get(), reading.note.get()) == (
     '2026-09-28T12:00:00Z', 10, math.inf, True, '1:30')
 
 # 'yes' is a string in YAML 1.2, so it is not accepted for a bool.
 with raises(DecodeError):
-    from_yaml(Reading, "root: {n: 0}\nobjects:\n  - n: 0\n    schema: Reading\n    properties:\n      valid: yes\n")
+    from_yaml(Reading, written(('valid', 'yes')))
 
 # --- Malformed text is rejected ---
 
 with store.transaction():
-    a = json.dumps(Plain.ToPlain(store)(Reading, store.Reading(lambda r: r))['root'])  # a reading's number, as JSON
-for bad in [f'{{"root": {a}, "objects": [{{"n": 0, "schema": "Reading", "properties": {{"value": NaN}}}}]}}',  # not JSON
-            f'{{"root": {a}, "root": {a}, "objects": []}}',  # duplicate key
-            f'{{"root": {a}, "objects": ',  # truncated
-            f'{{"root": {a}, "objects": [{{"n": 0, "schema": "Reading", "properties": {{"value": "nan"}}}}]}}']:  # only 'NaN', 'Infinity', '-Infinity'
+    good = JSON.ToJSON(store)(Reading, store.Reading(lambda r: r.value(1.5)))
+for bad in [good.replace('1.5', 'NaN', 1),  # not JSON
+            '{"mutations": [], "mutations": []}',  # duplicate key
+            good[:40],  # truncated
+            good.replace('1.5', '"nan"', 1)]:  # only 'NaN', 'Infinity', '-Infinity'
     with raises(DecodeError):
         from_json(Reading, bad)
 
-for bad in ["root: {n: 0}\nroot: {n: 1}\nobjects: []",  # duplicate key
-            "root: {n: 0}\nobjects:\n  - n: 0\n    schema: Reading\n    properties:\n      raw: !!binary AAAA",  # tagged binary: not plain data
+for bad in ["mutations: []\nmutations: []",  # duplicate key
+            written(('raw', '!!binary AAAA')),  # tagged binary: not plain data
             '1: x',  # non-string key
-            "---\nroot: {n: 0}\n---\nroot: {n: 1}",  # two documents
-            'root: [unclosed']:
+            "---\nmutations: []\n---\nmutations: []",  # two documents
+            'mutations: [unclosed']:
     with raises(DecodeError):
         from_yaml(Reading, bad)
 
@@ -179,13 +183,13 @@ for text, decoder in [(JSON.ToJSON(store).Reachable(Station, lyon), JSON.FromJSO
     restored = decoder(elsewhere).Reachable(elsewhere.Station, text)
     assert restored is not lyon
     assert str(restored.name) == 'Lyon-Saint-Exupéry'
-    assert same_graph(Plain.ToPlain(elsewhere).Reachable(elsewhere.Station, restored), graph)
+    assert Plain.ToPlain(elsewhere).Reachable(elsewhere.Station, restored) == graph
     assert Validators.Validate(elsewhere).Reachable(elsewhere.Station, restored) == []
 
-# A single-object snapshot leaves references unresolved, in any encoding.
-with raises(DecodeError):
-    from_json(Station, JSON.ToJSON(store)(Station, lyon))
-with raises(DecodeError):
-    from_yaml(Station, YAML.ToYAML(store)(Station, lyon))
+# An object's document holds it alone, in any encoding: lyon's, which links counted readings, is refused.
+with raises(ValueError):
+    JSON.ToJSON(store)(Station, lyon)
+with raises(ValueError):
+    YAML.ToYAML(store)(Station, lyon)
 
 print('TextEncodings: all checks passed')

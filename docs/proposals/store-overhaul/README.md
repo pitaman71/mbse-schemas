@@ -434,6 +434,34 @@ so that main stays current and no branch waits on another.
        the same and executed from what was read, with every case passing. The executor refuses, before it runs, a spec
        that removes entries or clears an entry's link or property, which only one read from the wire can give; a term
        linked from two places is refused when written. TXN-13 covers it.
+     - **4f-3, as built**: `Plain.ToPlain(store).Reachable(schema, root, uid)` and `.OfObject` write a document, one
+       transaction (SERIALIZATION.md, Documents), built as an expression and written as a transaction on the wire; the
+       old `{"root", "objects"}` form and its decoder are gone. `FromPlain(store).Reachable` and `.OfObject` read it
+       through `FromPlain(store).Transaction` and execute it with `Transactions._execute(store, tx, joined=True)`,
+       within the open transaction as a savepoint, the root's schema checked within it. The reader checks a pattern's
+       spec against its symbols' schemas before anything runs: each symbol the pattern's, each member's shape and name,
+       each value decoded at its path, each reference to a symbol of the pattern, each path's shape; so a refused
+       document writes nothing, and no builder is asked for before every value is checked (PLN-14). The executor
+       matches equal entries one to one, the k-th a spec gives the k-th held, where it took any match. Tests read a
+       document through `view` (and write one through `document`), test helpers; the examples through `members`. The
+       README's example, which still wrote outside a transaction, writes within them. Findings F6 and F13 are resolved
+       and PLN-11b, which pinned F13, goes.
+
+       Settled while building it, for the user's review:
+       - A document with no uid is keyed afresh by each read, so that reading it gives new counted objects (55), and
+         two documents cannot share a counted object through the symbol `"0"`; one under a uid is keyed by it (102).
+       - An object's document refuses a root linked to a counted object, which it could neither hold nor refer to; it
+         was written with a dangling reference before. Its link to a singleton, an owned object or a schema object is
+         a path.
+       - A document holds what is reachable through the objects it holds: a counted object linked only through an
+         owned object it refers to is not written, with that owned object's entries.
+       - An owned root whose owning adjacency has no name is refused (`wts.Clause`): its document could not give the
+         entry that owns it. A document of a schema the store does not hold, as the dataclass adapter's, is refused:
+         it names schemas by path. DC-03 pins that until the adapter builds through a store.
+       - Reading a Reachable document into a store without the owned objects it refers to refuses: a document carrying
+         owned objects is a store's snapshot (51), which 4f-4 makes of transactions.
+       - The read-time messages for an entry name the adjacency (`an entry of 'out' has no link 'colour'`), which an
+         unnamed relation lacks.
    - **4h, the last release**, and the dependents: mbse-expressions refines `OfExpression` and `OfConstraint`;
      mbse-programs' corpora become Reachable transactions; mbse-patterns, built on `OfPredicate`, is left without it.
    Releases (question 8, renumbered by the reorder, proposed for the user's review): 0.20.0 after 4c, 0.21.0 after 4d

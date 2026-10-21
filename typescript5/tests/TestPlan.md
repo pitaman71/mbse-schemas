@@ -46,7 +46,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length`, the read-only views by the type checker; data instances are callable as a `Proxy` with a function target (`typeof` is `"function"`); the scalar sugar is `[Symbol.toPrimitive]` and `valueOf`; JavaScript's probes and `in` on a builder |
 | `03_Proxies.ipynb` | PRX | 21 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances, adjacencies, entry builders, link members and stores, `util.inspect` of instances, builders and members, the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel), and the reprs of builders of value objects and adjacencies |
 | `04_Reachable.ipynb` | RCH | 8 | as in Python |
-| `05_Plain.ipynb` | PLN | 18 | as in Python; the same 32 malformed snapshots with byte-identical `DecodeError` paths and reasons |
+| `05_Plain.ipynb` | PLN | 17 | as in Python; the same malformed documents with byte-identical `DecodeError` paths and reasons |
 | `06_JSON.ipynb` | JSN | 11 | as in Python, including Python's exact output format; the 62-row JSN-09 table of `DecodeError`s is shared verbatim and matches exactly |
 | `07_YAML.ipynb` | YML | 14 | as in Python; the `yaml` package in YAML 1.1 mode is the "stock 1.1 reader"; the shared YML-06 table matches exactly, syntax errors (YML-06b) carry the `yaml` package's reasons |
 | `08_Validators.ipynb` | VAL | 16 | as in Python, with byte-identical problem messages |
@@ -70,7 +70,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `30_Patterns.ipynb` | PAT | 4 | as in Python; schema data compares by `.equals()` |
 | `31_Transactions.ipynb` | TXN | 13 | as in Python; a mapping is a `Map` or a record, ints `bigint`s; TXN-03 checks that the store holds a term's pattern, but not that it goes with its transaction, since a test cannot force a collection (the store holds such objects in a `WeakSet`) |
 
-Total: 231 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
+Total: 230 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

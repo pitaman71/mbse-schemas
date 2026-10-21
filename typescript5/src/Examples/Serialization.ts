@@ -1,4 +1,4 @@
-// Serialization example: scalar values at their edges, strict scalar types, malformed snapshots, and a store.
+// Serialization example: scalar values at their edges, strict scalar types, malformed documents, and a store.
 //
 // Uses ISO 4217 currencies: a price list maps a product -> [currency] -> money.
 
@@ -7,7 +7,7 @@ import { Builders, JSON, Plain, Schemas, Validators } from "@mbse/schemas/Framew
 import type { PlainData, PlainMap } from "@mbse/schemas/Framework/Plain";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
-import { assert, entries, equal, map, raises } from "./_support.js";
+import { assert, entries, equal, map, members, raises, schema_names } from "./_support.js";
 
 
 const store: any = new Builders.Store();
@@ -101,7 +101,7 @@ const { edge } = store.transaction(() => {
   return { edge };
 });
 const plain = Plain.ToPlain(store)(Sample, edge) as PlainMap;
-const fields = (plain.get("objects") as PlainMap[])[0]!.get("properties") as PlainMap; // the root, listed first
+const fields = members(plain).get("0")!; // the root's members: a document's objects are symbols, the root's "0"
 assert(fields.get("payload") === "AP8QAP8QAP8Q"); // bytes become base64 text
 assert(fields.get("flag") === false && fields.get("count") === 2n ** 100n);
 
@@ -125,7 +125,8 @@ const { blank } = store.transaction(() => {
   const blank = store.Sample((s: any) => s);
   return { blank };
 });
-assert(equal(Plain.ToPlain(store)(Sample, blank), map({ root: { n: 0n }, objects: [{ n: 0n, schema: "Sample", properties: {} }] })));
+assert(equal(members(Plain.ToPlain(store)(Sample, blank)), new Map([["0", new Map()]]))
+  && equal(schema_names(Plain.ToPlain(store)(Sample, blank)), new Map([["0", "Sample"]])));
 
 // Per-kind entry points.
 const bytesSchema = store.Schemas.OfBytes.as_schema();
@@ -176,9 +177,8 @@ const byCurrency = (obj: Instance) =>
 assert(equal(byCurrency(widget), map({ JPY: 1500n, EUR: 1299n })));
 
 const graph = Plain.ToPlain(store).Reachable(Product, widget);
-const objectsOf = (g: PlainMap) => (g.get("objects") as PlainMap[]).map((o) => o.get("properties") as PlainMap);
-assert(equal(sortedStrings(objectsOf(graph).filter((o) => o.has("code")).map((o) => o.get("code") as string)), ["EUR", "JPY"]));
-const schemasNamed = new Set((graph.get("objects") as PlainMap[]).map((o) => o.get("schema") as string)); // each listed with its schema
+assert(equal(sortedStrings([...members(graph).values()].filter((m) => m.has("code")).map((m) => m.get("code") as string)), ["EUR", "JPY"]));
+const schemasNamed = new Set(schema_names(graph).values()); // each symbol of its schema
 assert(equal(sortedStrings(schemasNamed), ["Money", "Product", "iso4217.Currency"]));
 const again = from_plain.Reachable(Product, JSON.loads(JSON.dumps(graph))) as Instance;
 assert(equal(byCurrency(again), byCurrency(widget)));
@@ -200,37 +200,28 @@ assert(equal(validate(Product, gadget), ["unique(price) violated: entries agreei
 // The root must be an instance of the schema given.
 assert(validate(Currency, widget).length > 0);
 
-// --- Malformed snapshots are rejected ---
+// --- Malformed documents are rejected ---
 
 const good = Plain.ToPlain(store).Reachable(Product, widget);
-const root = good.get("root") as PlainMap;
-/** The object a snapshot lists as `call`: its path, or a counted object's number. */
-const listed = (s: PlainMap, call: PlainData) => (s.get("objects") as PlainMap[])
-  .find((o) => equal(o.has("path") ? o.get("path") : new Map([["n", o.get("n")!]]), call)) as PlainMap;
-const objectsIn = (s: PlainMap) => s.get("objects") as PlainMap[];
-const pricesOf = (s: PlainMap) => (listed(s, root).get("properties") as PlainMap).get("prices") as PlainMap[];
-const priceRef = (pricesOf(good)[0] as PlainMap).get("price") as PlainMap;
 
-function mutated(change: (snapshot: PlainMap) => unknown): PlainMap {
-  const snapshot = JSON.loads(JSON.dumps(good)) as PlainMap;
-  change(snapshot);
-  return snapshot;
+function mutated(change: (document: any) => unknown): PlainMap {
+  const document = JSON.loads(JSON.dumps(good)) as PlainMap;
+  change(document);
+  return document;
 }
+const spec = (document: any): any[] => document.get("mutations")[0].get("upsert").get("exists")[0].get("spec");
 
-const badSnapshots: PlainData[] = [
-  [], // not a snapshot
-  map({ root }), // no objects
-  new Map<string, PlainData>([["root", map({ n: 99n })], ["objects", good.get("objects") as PlainData]]), // root not in objects
-  mutated((s) => objectsIn(s).splice(objectsIn(s).indexOf(listed(s, priceRef.get("$ref") as PlainData)), 1)), // unresolved reference
-  mutated((s) => listed(s, priceRef.get("$ref") as PlainData).set("schema", "Product")), // its properties are not its schema's
-  mutated((s) => objectsIn(s).push(listed(s, root))), // an object listed twice
-  mutated((s) => (listed(s, root).get("properties") as PlainMap).set("colour", "red")), // not a property or adjacency
-  mutated((s) => (pricesOf(s)[0] as PlainMap).set("discount", 5n)), // not a link or property
+const badDocuments: PlainData[] = [
+  [], // not a document
+  map({ mutations: [] }), // it binds no root
+  mutated((d) => spec(d).push(map({ 99: [] }))), // not a symbol of its pattern
+  mutated((d) => spec(d)[0].get("0").push(map({ as_property: { name: "colour", mutations: [{ set: { value: "red" } }] } }))),
+  mutated((d) => spec(d)[0].get("0")[0].get("as_property").get("mutations")[0].get("set").set("value", 5n)), // sku: text
 ];
-for (const snapshot of badSnapshots) raises(DecodeError, () => from_plain.Reachable(Product, snapshot));
+for (const document of badDocuments) raises(DecodeError, () => from_plain.Reachable(Product, document));
 
-// A single-object snapshot leaves references unresolved, so it cannot be deserialized on its own.
-raises(DecodeError, () => from_plain(Product, Plain.ToPlain(store)(Product, widget)));
+// An object's document holds it alone: widget's, which links counted prices, is refused.
+raises(ValueError, () => Plain.ToPlain(store)(Product, widget));
 
 // The root must be an instance of the schema given.
 raises(TypeError, () => Plain.ToPlain(store)(Currency, widget));

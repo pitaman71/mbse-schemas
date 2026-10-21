@@ -1,6 +1,5 @@
 # Helpers shared by the examples.
 
-import json
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -21,33 +20,35 @@ def entries(schema, obj, adjacency):
     return rows
 
 
-def same_graph(a, b):
-    """Snapshot equality up to entry order, and the order objects are written in.
+def members(document):
+    """A document's objects, by symbol (its number, the root's '0'): each one's properties, as its spec sets them, and
+    its entries, as its spec inserts them, each its links' references and its properties' values."""
+    pattern = document['mutations'][0]['upsert']['exists'][0]
+    out = {symbol: {} for symbol in pattern['symbols']}
+    for item in pattern.get('spec', []):
+        for symbol, given in item.items():
+            for member in given:
+                (kind, body), = member.items()
+                if kind == 'as_property':
+                    out[symbol][body['name']] = body['mutations'][0]['set']['value']
+                    continue
+                out[symbol][body['name']] = [
+                    {part['name']: part['mutations'][0]['set'].get('value', part['mutations'][0]['set'].get('ref'))
+                     for verb in entry['mutations'] for part in verb.values()}
+                    for entry in body['mutations'][0]['insert']['entries']]
+    return out
 
-    Objects are written in first-reference order, which depends on entry order, and entries form a set whose order
-    depends on history. Each object is identified here by its own property values, which the examples keep unique
-    within a graph, rather than by its path or number.
-    """
 
-    def canonical(graph):
-        symbol = lambda path: json.dumps(path, sort_keys=True)
-        called = lambda obj: obj['path'] if 'path' in obj else {'n': obj['n']}  # a path, or a counted object's number
-        objects = {symbol(called(obj)): obj['properties'] for obj in graph['objects']}
-        labels = {
-            at: repr(sorted((k, v) for k, v in obj.items() if not isinstance(v, list)))
-            for at, obj in objects.items()
-        }
-        assert len(set(labels.values())) == len(labels), 'objects must have distinct property values'
-
-        def entry(e):
-            return repr(sorted((k, labels[symbol(v['$ref'])] if isinstance(v, dict) else v) for k, v in e.items()))
-
-        return labels[symbol(graph['root'])], {
-            labels[at]: {k: sorted(map(entry, v)) for k, v in obj.items() if isinstance(v, list)}
-            for at, obj in objects.items()
-        }
-
-    return canonical(a) == canonical(b)
+def schema_names(document):
+    """The registered names of the schemas of a document's objects, by symbol: each read off its path."""
+    names = {}
+    for symbol, held in document['mutations'][0]['upsert']['exists'][0]['symbols'].items():
+        step, parts = held['schema'][0]['$ref']['next'], []
+        while 'entry' in step:
+            parts.append(step['entry']['properties']['name'])
+            step = step['entry']['next']
+        names[symbol] = '.'.join(parts)
+    return names
 
 
 @contextmanager

@@ -381,10 +381,10 @@ Both in-memory objects and mutations (see `Mutations`) are serializable.
 Over the wire, object content carries no schema. Association of an object with a schema is done dynamically, starting
 from the expected root schema, which is why deserializers such as `Plain.FromPlain(store)(schema, ...)` take it as an
 argument, and continuing through property schemas and the branch written with each union value. Links are untyped, so
-each reference object a snapshot lists names its schema beside its content, `{"n": 0, "schema": "Card", "properties":
-{...}}`, and a reference to it is what the snapshot calls it by alone, `{"$ref": {"n": 0}}` or `{"$ref": path}`
-(docs/OBJECT_IDENTITY.md, Decided, 36 and 55).
-Consequently, a reference object written in a snapshot must have a named (registered) schema.
+each object a document holds is a symbol naming its schema, by the schema's path, beside what its spec gives of it, and
+a reference to it is its symbol, `{"ref": {"symbol": "0"}}`, or, to an object the document does not hold, its path,
+`{"ref": {"path": ...}}` (docs/OBJECT_IDENTITY.md, Decided, 51 and 55).
+Consequently, a reference object written in a document must have a schema the store holds.
 
 A transaction is a flat sequence of mutations. Mutations may be nested; transactions are not.
 
@@ -411,19 +411,19 @@ A transaction is a flat sequence of mutations. Mutations may be nested; transact
   value)` and `Plain.FromPlain(store)(schema, plain)` dispatch on the schema's kind; the store names the schemas of the
   objects written, and builds the objects read. `Schemas.OfScalar` converts scalars to forms plain
   data can hold (`bytes` as base64 text; non-finite floats as the strings `NaN`, `Infinity`, `-Infinity`), so text
-  encodings never handle that themselves. An object's plain form includes its
-  adjacencies; linked objects appear as references, not nested content. Deserializing a snapshot
-  that references an object it does not contain is an error.
-  An object snapshot is `{"root": call, "objects": [{"path": path or "n": number, "schema": name, "properties":
-  {...}}, ...]}`, each object listed once, called by its path or, a counted object, its number. Its properties map
-  property names to plain values and adjacency names to lists of entries; an entry maps the other links to references
-  and the entry properties to plain values (the object's own link is implied). A reference is `{"$ref": path}` or
-  `{"$ref": {"n": number}}`, to a reference object. Objects are written in the order they are first referenced, the
-  root first, and counted objects numbered in that order; reading builds each owner before what it owns. `Plain.ToPlain(store).OfObject` includes only the root, so its references
-  are unresolved; `Plain.ToPlain(store).Reachable` includes every object reachable through adjacencies. An entry appears under
-  each object it links, and reading counts it once: by value where the relation has a `unique` clause, and in an open
-  relation the k-th entry equal to a given one in one list is the k-th in another. A container is written inside its
-  owner, as its arrangement writes it (Resolved, Containers).
+  encodings never handle that themselves. A reference object is written in a document, one transaction
+  (docs/OBJECT_IDENTITY.md, Decided, 51; docs/SERIALIZATION.md, Documents): one upsert whose symbols are the objects
+  the document holds, numbered in the order it meets them from the root, `"0"`, each naming its schema by path, and
+  whose spec gives each one's properties (`as_property`) and its named adjacencies' entries (`as_adjacency`, `insert`),
+  each entry once, from the first object the document holds that holds it, sorted by the key its relation declares
+  where its values are ordered; an entry's links refer to a symbol or a path, the object's own implied.
+  `Plain.ToPlain(store).OfObject` holds the root alone, and refuses a root that links a counted object;
+  `Plain.ToPlain(store).Reachable` holds the root and the counted objects reachable from it, through the objects it
+  holds. Either takes a uid, which keys the upsert. Reading a document executes it, within the store's open transaction
+  as a savepoint: a singleton's symbol binds the singleton, an owned object's the object its owning entry names, a
+  counted object's a new one (or, under a uid read again while held, the one it made), each written where the document
+  does not hold, the k-th entry equal to a given one the k-th such entry held. A container is written inside its owner,
+  as its arrangement writes it (Resolved, Containers).
 - `JSON` : `JSON.ToJSON(store)(schema, value)` returns JSON text and `JSON.FromJSON(store)(schema, text)` rebuilds values;
   both mirror `Plain` (`.OfScalar`, `.OfObject`, `.Reachable`). Output is strict JSON (RFC 8259) with key order kept;
   input with NaN / Infinity literals or duplicate keys is rejected.
@@ -443,15 +443,14 @@ Mistakes in the calling program keep their usual classes, e.g. a root schema tha
 
 - `reason` is one line of text with no location in it.
 - The location is `line` and `column` for text (1-based, counted in code points), or `path` for plain data, e.g.
-  `$.objects[0].properties.addresses[1].label`. Keys that are not identifiers are written in brackets, as JSON
+  `$.mutations[0].upsert.exists[0].spec[0]["0"][1].as_property.mutations[0].set.value`. Keys that are not identifiers are written in brackets, as JSON
   strings. A problem may have no location, e.g. undecodable bytes.
 - The message is `line 3, column 7: reason`, or `$.path: reason`, or just the reason.
-- If text has several problems, the first in the text is reported. A snapshot is checked in a fixed order that every
-  binding follows: its shape, each listing's path or number, then the references, then, in snapshot order, each
-  object's schema, what it is called by against its schema (a singleton or an owned object by its path, a counted one
-  by its number), and its keys and values.
-- Nothing is built when a `DecodeError` is raised: a snapshot's shape, references and scalar values are all checked
-  before any builder is called.
+- If text has several problems, the first in the text is reported. A document is checked in a fixed order that every
+  binding follows: its expression as it is read, member by member, then, for each pattern, its spec, symbol by symbol:
+  each member's shape and name, each value against its schema, each reference to a symbol or a path's shape.
+- Nothing is written when a `DecodeError` is raised: a document is checked before its transaction runs, and what only
+  running finds (a path to nothing) undoes what it wrote.
 - Reasons and locations are identical in every binding, with one exception. For YAML syntax errors (and for
   constructs that one parser accepts and another rejects), the reason text and location come from each binding's
   parser. The framework's own YAML profile is identical: one document, string keys, no duplicate keys, no tags except
@@ -472,9 +471,9 @@ documents.
   it. What distinguishes the two kinds is
   ownership, and the schema says which kind it describes: `Schemas.OfObject.Builder().ref()` marks a *reference object
   schema*; an object schema without it is a *value object schema*. A singleton's schema is a reference object schema.
-- **A reference object** stands on its own: a snapshot writes it once among its `objects`, called by its path or
-  its number. A
-  snapshot's root is a reference object, and a store's builders (`store.<Name>()`) make only reference objects. A reference
+- **A reference object** stands on its own: a document writes it once, as a symbol, and refers to it by its symbol or
+  its path. A
+  document's root is a reference object, and a store's builders (`store.<Name>()`) make only reference objects. A reference
   object schema is never a property's schema, directly or as a union's branch or an intersection's part held by a
   property, nor an entry property's: `validate()` reports it ("a reference object schema cannot be a property's
   type"). Reference objects are reached through relations only.

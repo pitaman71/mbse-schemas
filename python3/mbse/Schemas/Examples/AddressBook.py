@@ -166,29 +166,32 @@ with store.transaction():  # the data, as the schemas: written within a transact
 
 # --- Serialization ---
 
-# A single-object snapshot includes addr1's adjacencies, so it references alice by her path without containing her.
-# Deserializing it on its own is an error: the reference cannot be resolved.
-plain = Plain.ToPlain(store)(IntlAddress, addr1)
-# equivalent to
-# plain = Plain.ToPlain(store).OfObject(IntlAddress, addr1)
+# A document is one transaction (docs/OBJECT_IDENTITY.md, Decided, 51): the objects it holds are the symbols of one
+# upsert, numbered in the order it meets them, the root's "0", and its spec gives each one's properties and entries.
+# An object's document holds it alone, so addr1's is refused: alice, whom it links, is counted (neither a singleton nor
+# owned), and has no identity beyond the document that writes her.
+try:
+    Plain.ToPlain(store)(IntlAddress, addr1)  # equivalent to Plain.ToPlain(store).OfObject(IntlAddress, addr1)
+    raise AssertionError('a document of addr1 alone would refer to alice, whom it does not hold')
+except ValueError:
+    pass
 
-# PROPOSED: a snapshot of addr1 and every object reachable through adjacencies (alice, her phone and email), so all
-# references resolve within the snapshot. Each object is listed with its schema's name and, being counted (neither a
-# singleton nor owned), with its number in the snapshot, the root's 0.
+# A document of addr1 and every counted object reachable from it (alice, her phone and email), so that every reference
+# is to a symbol of the document.
 graph = Plain.ToPlain(store).Reachable(IntlAddress, addr1)
-assert graph['root'] == {'n': 0}
+assert list(graph['mutations'][0]['upsert']['exists'][0]['symbols'])[0] == '0'  # the root
 
-# Read into another store, the snapshot builds new objects of the same graph there.
+# Read into another store, the document builds new objects of the same graph there.
 backup = Builders.Store()
 Plain.FromPlain(backup).Snapshot(Plain.ToPlain(store).Snapshot())  # the same schemas, its own: a store's snapshot writes them
 roundtrip = Plain.FromPlain(backup).Reachable(backup.IntlAddress, graph)
 assert roundtrip is not addr1
 assert Plain.ToPlain(backup).Reachable(backup.IntlAddress, roundtrip) == graph
 
-# Read into the store that holds them, it builds new ones too: a counted object has no identity beyond the snapshot.
+# Read into the store that holds them, it builds new ones too: a counted object has no identity beyond the document.
 assert Plain.FromPlain(store).Reachable(IntlAddress, graph) is not addr1
 
-# The same snapshot as JSON text, and back.
+# The same document as JSON text, and back.
 text = JSON.ToJSON(store).Reachable(IntlAddress, addr1, indent=2)
 from_json = JSON.FromJSON(backup).Reachable(backup.IntlAddress, text)
 assert from_json is not roundtrip and str(from_json.street1) == str(addr1.street1)  # another copy

@@ -3,7 +3,8 @@
 // Lines marked PROPOSED use syntax that FRAMEWORK.md does not define yet.
 
 import { Builders, JSON, Plain, Proxies, Schemas } from "@mbse/schemas/Framework";
-import { assert, equal, map } from "./_support.js";
+import { ValueError } from "@mbse/schemas/Framework/Errors";
+import { assert, equal, raises } from "./_support.js";
 
 
 // Schemas and objects are built in a store, `store.<schema name>(...)`; a named schema registers itself as it is built.
@@ -173,30 +174,28 @@ export { IntlAddress, addr1 };
 
 // --- Serialization ---
 
-// A single-object snapshot includes addr1's adjacencies, so it references alice by her path without containing her.
-// Deserializing it on its own is an error: the reference cannot be resolved.
-const plain = Plain.ToPlain(store)(IntlAddress, addr1);
-// equivalent to
-// const plain = Plain.ToPlain(store).OfObject(IntlAddress, addr1)
-void plain;
+// A document is one transaction (docs/OBJECT_IDENTITY.md, Decided, 51): the objects it holds are the symbols of one
+// upsert, numbered in the order it meets them, the root's "0", and its spec gives each one's properties and entries.
+// An object's document holds it alone, so addr1's is refused: alice, whom it links, is counted (neither a singleton nor
+// owned), and has no identity beyond the document that writes her.
+raises(ValueError, () => Plain.ToPlain(store)(IntlAddress, addr1)); // equivalent to Plain.ToPlain(store).OfObject(IntlAddress, addr1)
 
-// PROPOSED: a snapshot of addr1 and every object reachable through adjacencies (alice, her phone and email), so all
-// references resolve within the snapshot. Each object is listed with its schema's name and, being counted (neither a
-// singleton nor owned), with its number in the snapshot, the root's 0.
-const graph = Plain.ToPlain(store).Reachable(IntlAddress, addr1);
-assert(equal(graph.get("root"), map({ n: 0n })));
+// A document of addr1 and every counted object reachable from it (alice, her phone and email), so that every reference
+// is to a symbol of the document.
+const graph: any = Plain.ToPlain(store).Reachable(IntlAddress, addr1);
+assert([...graph.get("mutations")[0].get("upsert").get("exists")[0].get("symbols").keys()][0] === "0"); // the root
 
-// Read into another store, the snapshot builds new objects of the same graph there.
+// Read into another store, the document builds new objects of the same graph there.
 const backup: any = new Builders.Store();
 Plain.FromPlain(backup).Snapshot(Plain.ToPlain(store).Snapshot()); // the same schemas, its own: a store's snapshot writes them
 const roundtrip = Plain.FromPlain(backup).Reachable(backup.IntlAddress, graph) as Proxies.Instance;
 assert(roundtrip !== addr1);
 assert(equal(Plain.ToPlain(backup).Reachable(backup.IntlAddress, roundtrip), graph));
 
-// Read into the store that holds them, it builds new ones too: a counted object has no identity beyond the snapshot.
+// Read into the store that holds them, it builds new ones too: a counted object has no identity beyond the document.
 assert(Plain.FromPlain(store).Reachable(IntlAddress, graph) !== addr1);
 
-// The same snapshot as JSON text, and back.
+// The same document as JSON text, and back.
 const text = JSON.ToJSON(store).Reachable(IntlAddress, addr1, { indent: 2 });
 const fromJson = JSON.FromJSON(backup).Reachable(backup.IntlAddress, text) as Proxies.Instance;
 assert(fromJson !== roundtrip && String(fromJson.street1) === String(addr1.street1)); // another copy

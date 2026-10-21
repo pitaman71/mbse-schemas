@@ -109,6 +109,87 @@ export function key(value: unknown): string {
   });
 }
 
+/** The registered name a schema object's path, as plain data, gives: its modules' names and its own, dotted. */
+export function schema_name(path: PlainMap): string {
+  const names: string[] = [];
+  let step = path.get("next") as PlainMap;
+  while (step.has("entry")) {
+    const entry = step.get("entry") as PlainMap;
+    names.push((entry.get("properties") as PlainMap).get("name") as string);
+    step = entry.get("next") as PlainMap;
+  }
+  return names.join(".");
+}
+
+/** A document (`Plain.ToPlain(store).Reachable`: one transaction, one upsert) as the objects it holds, each listed by its
+ * number (its symbol), its schema's name and its members: the properties its spec sets, then the entries it inserts,
+ * each a mapping of its links, `{'$ref': {'n': number}}` or `{'$ref': path}`, and its properties. */
+export function view(document: any): PlainMap {
+  const pattern = document.get("mutations")[0].get("upsert").get("exists")[0];
+  const specs = new Map<string, any[]>();
+  for (const item of pattern.get("spec") ?? []) {
+    for (const [symbol, given] of item) specs.set(symbol, [...(specs.get(symbol) ?? []), ...given]);
+  }
+  const row = (entry: any): PlainMap => new Map([...entry.get("mutations")].map((member: any) => {
+    const [kind, body] = [...member][0];
+    const set = body.get("mutations")[0].get("set");
+    if (kind === "as_property") return [body.get("name"), set.get("value")];
+    const ref = set.get("ref");
+    const target = ref.has("symbol") ? new Map([["n", BigInt(ref.get("symbol"))]]) : ref.get("path");
+    return [body.get("name"), new Map([["$ref", target]])];
+  }));
+  const objects = [...pattern.get("symbols")].map(([symbol, held]: [string, any]) => {
+    const properties = new Map<string, PlainData>();
+    for (const member of specs.get(symbol) ?? []) {
+      const [kind, body] = [...member][0];
+      properties.set(body.get("name"), kind === "as_property" ? body.get("mutations")[0].get("set").get("value")
+        : body.get("mutations")[0].get("insert").get("entries").map(row));
+    }
+    return listed(schema_name(held.get("schema")[0].get("$ref")), Number(symbol), properties);
+  });
+  return new Map<string, PlainData>([["root", new Map([["n", 0n]])], ["objects", objects]]);
+}
+
+/** A document as `view` gives it; an object listing as it is. */
+export function listing(snapshot: any): any {
+  return snapshot.has("mutations") ? view(snapshot) : snapshot;
+}
+
+/** A registered schema's path, as plain data: from the root module, through its modules, to it by name. */
+export function schema_path(name: string): PlainMap {
+  let step: PlainMap = new Map([["target", new Map()]]);
+  for (const part of name.split(".").reverse()) {
+    step = map({ entry: { i: "schemas", o: "", properties: { name: part }, next: step } });
+  }
+  return new Map<string, PlainData>([["singleton", "."], ["next", step]]);
+}
+
+/** The document `view` lists: one transaction, each object a symbol, its number, of the schema its name gives, its
+ * properties set and its entries inserted, a reference by number to the symbol, else by path. */
+export function document(listedObjects: any, uid?: string): PlainMap {
+  const given = (name: string, value: unknown) => map({ as_property: { name, mutations: [{ set: { value } }] } });
+  const entry = (row: PlainMap) => map({ mutations: [...row].map(([name, value]) => {
+    if (value instanceof Map && value.has("$ref")) {
+      const target = value.get("$ref") as PlainMap;
+      const ref = target.has("n") ? new Map([["symbol", String(target.get("n"))]]) : new Map([["path", target]]);
+      return map({ as_link: { name, mutations: [{ set: { ref } }] } });
+    }
+    return given(name, value);
+  }) });
+  const symbols = new Map<string, PlainData>();
+  const spec: PlainMap[] = [];
+  for (const listing_ of listedObjects.get("objects")) {
+    const symbol = String(listing_.get("n"));
+    symbols.set(symbol, map({ schema: [{ $ref: schema_path(listing_.get("schema")) }] }));
+    const members = [...listing_.get("properties")].map(([name, value]: [string, any]) => is_adjacency(value)
+      ? map({ as_adjacency: { name, mutations: [{ insert: { entries: value.map(entry) } }] } }) : given(name, value));
+    if (members.length > 0) spec.push(new Map([[symbol, members]]));
+  }
+  const pattern = new Map<string, PlainData>([["symbols", symbols], ...(spec.length > 0 ? [["spec", spec]] as [string, PlainData][] : [])]);
+  const upsert = new Map<string, PlainData>([...(uid === undefined ? [] : [["key", uid]] as [string, PlainData][]), ["exists", [pattern]]]);
+  return new Map<string, PlainData>([...(uid === undefined ? [] : [["uid", uid]] as [string, PlainData][]), ["mutations", [new Map([["upsert", upsert]])]]]);
+}
+
 /** A counted object's entry in an object snapshot's list: its number in the document, its schema's name and its
  * members (docs/OBJECT_IDENTITY.md, Decided, 55). */
 export function listed(name: string, number: number, properties: unknown = {}): PlainMap {
@@ -156,12 +237,12 @@ export function called(listing: PlainMap): PlainMap {
 /** The members of the object an object snapshot lists as `call`: a path, or a counted object's number. */
 export function members(snapshot: any, call: number | PlainMap): any {
   const wanted = _symbol(typeof call === "number" ? new Map([["n", BigInt(call)]]) : call);
-  return snapshot.get("objects").find((o: PlainMap) => _symbol(called(o)) === wanted).get("properties");
+  return listing(snapshot).get("objects").find((o: PlainMap) => _symbol(called(o)) === wanted).get("properties");
 }
 
 /** A snapshot's root object's members. */
 export function root_of(snapshot: any): any {
-  return members(snapshot, snapshot.get("root"));
+  return members(snapshot, listing(snapshot).get("root"));
 }
 
 /** Whether a snapshot's list is an adjacency: each of its entries links something, while a list a property holds never
@@ -205,7 +286,7 @@ export function same_graph(a: PlainData, b: PlainData): boolean {
     ]));
     return key([labels.get(_symbol(graph.get("root"))), lists.sort()]);
   };
-  return canonical(a as PlainMap) === canonical(b as PlainMap);
+  return canonical(listing(a)) === canonical(listing(b));
 }
 
 /** Parameter counts of every protocol method, from Python's signatures (TypeScript interfaces vanish at runtime);

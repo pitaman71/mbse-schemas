@@ -122,6 +122,28 @@ submitted, replayed by executing each in order; a transaction's imperative scope
   several schemas fill the link (`{"Schemas.OfUnion": ...}`); anything else is `{"$ref": path}`.
 - A pattern's spec is written as recorded: for each symbol, the mutations of the object it binds (`Mutations.OfPattern`).
 
+## Documents
+
+A document of objects, `Plain.ToPlain(store).Reachable(schema, root, uid)` or `.OfObject`, is one transaction
+(docs/OBJECT_IDENTITY.md, Decided, 51 and 55; Store overhaul, 4f-3), written as a transaction on the wire is: one
+upsert, keyed by the uid where the caller gives one, whose symbols are the objects the document holds and whose spec
+gives what holds of each.
+
+- The objects it holds: the root, `"0"`, and, for Reachable, the counted objects reachable from it through the objects
+  it holds, each named by its number in the order the document meets them, through each object's named adjacencies in
+  its schema's order and their entries in the order written. Each symbol names its schema by the schema's path; the
+  schema must be one the store holds.
+- Its spec: each object's properties that are set (`as_property`), then its named adjacencies' entries (`as_adjacency`,
+  `insert`), each entry once, from the first object the document holds that holds it, sorted by the key its relation
+  declares where every entry has each of the key's values and they are ordered. An entry's links refer to a symbol,
+  `{"ref": {"symbol": "1"}}`, or, for an object the document does not hold (an owned object, a singleton, a schema
+  object), its path, `{"ref": {"path": ...}}`. A counted object it does not hold cannot be referred to: writing such a
+  document is refused. An owned root is written with the entry that owns it, so its owning adjacency must be named.
+- Reading executes it, within the store's open transaction as a savepoint, else as a transaction of its own, and gives
+  the object `"0"` binds; the root schema given must be one it is of. A document with no uid is keyed afresh by each
+  read, so that each read makes new counted objects; one under a uid, read again while what it made is held, finds
+  those (Decided, 102). Its spec is checked against its symbols' schemas before it runs.
+
 ## Order : Subsequent Snapshots
 
 In anticipation for journal formatting, a stateful instance of ToPlain may be retainable. Subsequent snapshots can be sent as mutation logs without having to re-send modules and schemas.

@@ -369,14 +369,14 @@ Frame = dict[str, Any]
 """A frame: the objects its symbols bind, by symbol."""
 
 
-def _execute(store: Any, transaction: Any) -> list[Frame]:
+def _execute(store: Any, transaction: Any, joined: bool = False) -> list[Frame]:
     """Executes a transaction's expression over the store, sequentially (docs/OBJECT_IDENTITY.md, Decided, 85 to 89): its
     stream starts as one frame, empty, which its root term transforms and passes on through `then`. Its writes are held
     in its proposals and written when it ends, or dropped where it raises. Gives the frames its chain ends with."""
     root = _next(transaction, "mutations")
     if root is not None:
         _check(store, root, set())
-    with store._transacting():
+    with store._joined() if joined else store._transacting():  # a decoder's: a savepoint of the one open
         return [{}] if root is None else _run(store, root, [{}])
 
 
@@ -642,11 +642,12 @@ def _holds(store: Any, target: Any, schema: Any, members: list[Any], frame: Fram
                 return False
             continue
         relation = schema.adjacencies[name].relation
+        held = list(getattr(visitor, name))
         for entry in body["mutations"][0]["insert"]["entries"]:
             if partial is not None and any(target_ref.get("symbol") not in partial
                                            for target_ref in _symbol_refs(entry)):
                 continue
-            if not any(_matches(store, relation, held, entry, frame) for held in getattr(visitor, name)):
+            if _match(store, relation, held, entry, frame) is None:
                 return False
     return True
 
@@ -733,11 +734,19 @@ def _write(store: Any, target: Any, schema: Any, members: list[Any], frame: Fram
             builder.update()
             continue
         adjacency = schema.adjacencies[name]
+        held = list(getattr(_reader(store, target), name))
         for entry in body["mutations"][0]["insert"]["entries"]:
-            if any(_matches(store, adjacency.relation, held, entry, frame)
-                   for held in getattr(_reader(store, target), name)):
-                continue
-            _insert(store, target, schema, name, adjacency, entry, frame)
+            if _match(store, adjacency.relation, held, entry, frame) is None:
+                _insert(store, target, schema, name, adjacency, entry, frame)
+
+
+def _match(store: Any, relation: Any, held: list[Any], entry: Any, frame: Frame) -> Any:
+    """The first of the entries `held` that agrees with an entry a spec gives, taken from them, so that the k-th equal
+    entry a spec gives is the k-th such entry held; None where none agrees."""
+    for index, candidate in enumerate(held):
+        if _matches(store, relation, candidate, entry, frame):
+            return held.pop(index)
+    return None
 
 
 def _insert(store: Any, target: Any, schema: Any, name: str, adjacency: Any, entry: Any, frame: Frame) -> None:

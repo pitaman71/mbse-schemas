@@ -434,10 +434,11 @@ type Members = Map<string, any>[];
 /** Executes a transaction's expression over the store, sequentially (docs/OBJECT_IDENTITY.md, Decided, 85 to 89): its
  * stream starts as one frame, empty, which its root term transforms and passes on through `then`. Its writes are held
  * in its proposals and written when it ends, or dropped where it throws. Gives the frames its chain ends with. */
-export function _execute(store: any, transaction: any): Frame[] {
+export function _execute(store: any, transaction: any, joined = false): Frame[] {
   const root = next(transaction, "mutations");
   if (root !== null) check(store, root, new Set());
-  return store._transacting(() => (root === null ? [new Map()] : run(store, root, [new Map()])));
+  const write = (): Frame[] => (root === null ? [new Map()] : run(store, root, [new Map()]));
+  return joined ? store._joined(write) : store._transacting(write); // a decoder's: a savepoint of the one open
 }
 
 /** The term a term's adjacency of one entry links (91): a transaction's root, a term's next; null where it holds none. */
@@ -710,9 +711,10 @@ function holds(store: any, target: any, schema: any, members: Members, frame: Fr
       continue;
     }
     const relation = schema.adjacencies.get(name).relation;
+    const held = [...visitor[name]];
     for (const entry of body.get("mutations")[0].get("insert").get("entries")) {
       if (partial !== null && symbolRefs(entry).some((ref) => !partial.has(ref.get("symbol")))) continue;
-      if (![...visitor[name]].some((held: any) => matches(store, relation, held, entry, frame))) return false;
+      if (match(store, relation, held, entry, frame) === null) return false;
     }
   }
   return true;
@@ -806,11 +808,18 @@ function write(store: any, target: any, schema: any, members: Members, frame: Fr
       continue;
     }
     const adjacency = schema.adjacencies.get(name);
+    const held = [...reader(store, target)[name]];
     for (const entry of body.get("mutations")[0].get("insert").get("entries")) {
-      if ([...reader(store, target)[name]].some((held: any) => matches(store, adjacency.relation, held, entry, frame))) continue;
-      insert(store, target, schema, name, adjacency, entry, frame);
+      if (match(store, adjacency.relation, held, entry, frame) === null) insert(store, target, schema, name, adjacency, entry, frame);
     }
   }
+}
+
+/** The first of the entries `held` that agrees with an entry a spec gives, taken from them, so that the k-th equal entry a
+ * spec gives is the k-th such entry held; null where none agrees. */
+function match(store: any, relation: any, held: any[], entry: Map<string, any>, frame: Frame): unknown {
+  const index = held.findIndex((candidate) => matches(store, relation, candidate, entry, frame));
+  return index < 0 ? null : held.splice(index, 1)[0];
 }
 
 /** Adds an entry a spec gives to an object's adjacency, replacing the one it holds where it holds one at most. */

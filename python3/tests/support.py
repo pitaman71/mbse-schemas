@@ -58,6 +58,94 @@ def value_of(read: Any) -> Any:
     return next((v for v in found if v.as_schema() is not None), None)  # a visitor of nothing has no schema
 
 
+def schema_name(path: dict) -> str:
+    """The registered name a schema object's path, as plain data, gives: its modules' names and its own, dotted."""
+    names, step = [], path["next"]
+    while "entry" in step:
+        names.append(step["entry"]["properties"]["name"])
+        step = step["entry"]["next"]
+    return ".".join(names)
+
+
+def view(document: dict) -> dict:
+    """A document (`Plain.ToPlain(store).Reachable`: one transaction, one upsert) as the objects it holds, each listed by
+    its number (its symbol), its schema's name and its members: the properties its spec sets, then the entries it
+    inserts, each a mapping of its links, `{'$ref': {'n': number}}` or `{'$ref': path}`, and its properties."""
+    pattern = document["mutations"][0]["upsert"]["exists"][0]
+    specs: dict = {}
+    for item in pattern.get("spec", []):
+        for symbol, members in item.items():
+            specs.setdefault(symbol, []).extend(members)
+
+    def row(entry: dict) -> dict:
+        out = {}
+        for member in entry["mutations"]:
+            (kind, body), = member.items()
+            given = body["mutations"][0]["set"]
+            if kind == "as_property":
+                out[body["name"]] = given["value"]
+            else:
+                ref = given["ref"]
+                out[body["name"]] = {"$ref": {"n": int(ref["symbol"])} if "symbol" in ref else ref["path"]}
+        return out
+
+    objects = []
+    for symbol, held in pattern["symbols"].items():
+        properties: dict = {}
+        for member in specs.get(symbol, []):
+            (kind, body), = member.items()
+            if kind == "as_property":
+                properties[body["name"]] = body["mutations"][0]["set"]["value"]
+            else:
+                properties[body["name"]] = [row(entry) for entry in body["mutations"][0]["insert"]["entries"]]
+        objects.append(listed(schema_name(held["schema"][0]["$ref"]), int(symbol), properties))
+    return {"root": {"n": 0}, "objects": objects}
+
+
+def schema_path(name: str) -> dict:
+    """A registered schema's path, as plain data: from the root module, through its modules, to it by name."""
+    step: dict = {"target": {}}
+    for part in reversed(name.split(".")):
+        step = {"entry": {"i": "schemas", "o": "", "properties": {"name": part}, "next": step}}
+    return {"singleton": ".", "next": step}
+
+
+def document(listed_objects: dict, uid: str | None = None) -> dict:
+    """The document `view` lists: one transaction, each object a symbol, its number, of the schema its name gives, its
+    properties set and its entries inserted, a reference by number to the symbol, else by path."""
+
+    def given(name: str, value: Any) -> dict:
+        return {"as_property": {"name": name, "mutations": [{"set": {"value": value}}]}}
+
+    def entry(row: dict) -> dict:
+        mutations = []
+        for name, value in row.items():
+            if isinstance(value, dict) and "$ref" in value:
+                ref = value["$ref"]
+                ref = {"symbol": str(ref["n"])} if "n" in ref else {"path": ref}
+                mutations.append({"as_link": {"name": name, "mutations": [{"set": {"ref": ref}}]}})
+            else:
+                mutations.append(given(name, value))
+        return {"mutations": mutations}
+
+    symbols, spec = {}, []
+    for listing_ in listed_objects["objects"]:
+        symbol = str(listing_["n"])
+        symbols[symbol] = {"schema": [{"$ref": schema_path(listing_["schema"])}]}
+        members = [{"as_adjacency": {"name": name, "mutations": [{"insert": {"entries": [entry(row) for row in value]}}]}}
+                   if is_adjacency(value) else given(name, value) for name, value in listing_["properties"].items()]
+        if members:
+            spec.append({symbol: members})
+    pattern = {"symbols": symbols, **({"spec": spec} if spec else {})}
+    upsert = {**({} if uid is None else {"key": uid}), "exists": [pattern]}
+    return {**({} if uid is None else {"uid": uid}), "mutations": [{"upsert": upsert}]}
+
+
+def listing(snapshot: dict) -> dict:
+    """A document as `view` gives it; an object listing as it is."""
+    return view(snapshot) if "mutations" in snapshot else snapshot
+
+
 def listed(name: str, number: int, properties: dict | None = None) -> dict:
     """A counted object's entry in an object snapshot's list: its number in the document, its schema's name and its
     members (docs/OBJECT_IDENTITY.md, Decided, 55)."""
@@ -108,12 +196,12 @@ def _symbol(path: Any) -> str:
 def members(snapshot: dict, call: Any) -> dict:
     """The members of the object an object snapshot lists as `call`: a path, or a counted object's number."""
     wanted = _symbol({"n": call} if isinstance(call, int) else call)
-    return next(o["properties"] for o in snapshot["objects"] if _symbol(called(o)) == wanted)
+    return next(o["properties"] for o in listing(snapshot)["objects"] if _symbol(called(o)) == wanted)
 
 
 def root_of(snapshot: dict) -> dict:
     """A snapshot's root object's members."""
-    return members(snapshot, snapshot["root"])
+    return members(snapshot, listing(snapshot)["root"])
 
 
 def is_adjacency(value: Any) -> bool:
@@ -165,7 +253,7 @@ def same_graph(a: dict, b: dict) -> bool:
             label: {k: sorted(map(entry, v)) for k, v in mapping.items() if is_adjacency(v)} for label, mapping in holders
         }
 
-    return canonical(a) == canonical(b)
+    return canonical(listing(a)) == canonical(listing(b))
 
 
 def protocol_methods(protocol: type) -> dict[str, inspect.Signature]:

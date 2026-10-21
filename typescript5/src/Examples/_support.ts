@@ -2,9 +2,8 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { _symbol } from "@mbse/schemas/Framework/Plain";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
-import type { PlainData, PlainMap } from "@mbse/schemas/Framework/Plain";
+import type { PlainData } from "@mbse/schemas/Framework/Plain";
 
 /** Python's `assert`. */
 export function assert(condition: unknown, message = "assertion failed"): asserts condition {
@@ -52,40 +51,43 @@ export function entries(_schema: unknown, obj: Instance, adjacency: string): Map
   });
 }
 
-/** Snapshot equality up to entry order, and the order objects are written in. Objects are written in first-reference
- * order, which depends on entry order, and entries form a set whose order depends on history. Each object is
- * identified here by its own property values, which the examples keep unique within a graph, rather than by its
- * path or number. */
-export function same_graph(a: PlainData, b: PlainData): boolean {
-  const canonical = (graph: PlainMap): string => {
-    const called = (o: PlainMap) => (o.has("path") ? o.get("path") : new Map([["n", o.get("n")!]])); // a path, or a counted object's number
-    const objects = new Map((graph.get("objects") as PlainMap[]).map((o) => [_symbol(called(o)), o.get("properties") as PlainMap]));
-    const labels = new Map<string, string>();
-    for (const [symbol, obj] of objects) {
-      const own = [...obj].filter(([, v]) => !Array.isArray(v)).sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0));
-      labels.set(symbol, key(own));
+/** A document's objects, by symbol (its number, the root's "0"): each one's properties, as its spec sets them, and its
+ * entries, as its spec inserts them, each its links' references and its properties' values. */
+export function members(document: any): Map<string, Map<string, unknown>> {
+  const pattern = document.get("mutations")[0].get("upsert").get("exists")[0];
+  const out = new Map<string, Map<string, unknown>>([...pattern.get("symbols").keys()].map((symbol: string) => [symbol, new Map()]));
+  for (const item of pattern.get("spec") ?? []) {
+    for (const [symbol, given] of item) {
+      for (const member of given) {
+        const [kind, body] = [...member][0];
+        if (kind === "as_property") {
+          out.get(symbol)!.set(body.get("name"), body.get("mutations")[0].get("set").get("value"));
+          continue;
+        }
+        out.get(symbol)!.set(body.get("name"), body.get("mutations")[0].get("insert").get("entries").map((entry: any) => new Map(
+          entry.get("mutations").flatMap((verb: any) => [...verb.values()]).map((part: any) => {
+            const set = part.get("mutations")[0].get("set");
+            return [part.get("name"), set.has("value") ? set.get("value") : set.get("ref")];
+          }))));
+      }
     }
-    assert(new Set(labels.values()).size === labels.size, "objects must have distinct property values");
-    const entry = (e: PlainMap): string =>
-      key([...e].map(([k, v]) => [k, v instanceof Map ? labels.get(_symbol(v.get("$ref"))) : v] as [string, unknown])
-        .sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0)));
-    const lists = [...objects].map(([symbol, obj]) => [
-      labels.get(symbol),
-      [...obj].filter(([, v]) => Array.isArray(v)).map(([k, v]) => [k, (v as PlainMap[]).map(entry).sort()]).sort(),
-    ]);
-    return key([labels.get(_symbol(graph.get("root"))), lists.sort()]);
-  };
-  return canonical(a as PlainMap) === canonical(b as PlainMap);
+  }
+  return out;
 }
 
-/** A stable text key for plain values (bigint, -0.0 and NaN included). */
-export function key(value: unknown): string {
-  return JSON.stringify(value, (_k, v: unknown) => {
-    if (typeof v === "bigint") return `int:${v}`;
-    if (typeof v === "number") return Object.is(v, -0) ? "float:-0" : Number.isNaN(v) ? "float:nan" : `float:${v}`;
-    if (v instanceof Uint8Array) return `bytes:${Buffer.from(v).toString("hex")}`;
-    return v;
-  });
+/** The registered names of the schemas of a document's objects, by symbol: each read off its path. */
+export function schema_names(document: any): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const [symbol, held] of document.get("mutations")[0].get("upsert").get("exists")[0].get("symbols")) {
+    let step = held.get("schema")[0].get("$ref").get("next");
+    const parts: string[] = [];
+    while (step.has("entry")) {
+      parts.push(step.get("entry").get("properties").get("name"));
+      step = step.get("entry").get("next");
+    }
+    names.set(symbol, parts.join("."));
+  }
+  return names;
 }
 
 /** Asserts that `block` throws one of `errors`, optionally with `match` in the message. */

@@ -7,7 +7,7 @@ import { ValueError } from "@mbse/schemas/Framework/Errors";
 import { Builders, Plain, Proxies, Reachable, Schemas, Validators } from "@mbse/schemas/Framework";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
-import { assert, entries, raises, same_graph } from "./_support.js";
+import { assert, entries, equal, raises } from "./_support.js";
 
 
 const store: any = new Builders.Store();
@@ -183,13 +183,13 @@ const component = Reachable.of(fall);
 assert(component[0] === fall);
 assert(same(sortedStrings(new Set(component.map((o) => o.as_schema().name as string))), ["Course", "Room", "Staff", "Student", "Term"]));
 
-const archive: any = new Builders.Store(); // another store: a snapshot read into it builds new objects of the same graph
+const archive: any = new Builders.Store(); // another store: a document read into it builds new objects of the same graph
 Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot()); // the same schemas, its own: a store's snapshot writes them
 for (const [root, schema, its] of [[fall, Term, archive.Term], [mia, Student, archive.Student], [noah, Student, archive.Student]] as const) {
   const graph = Plain.ToPlain(store).Reachable(schema, root);
   const restored = Plain.FromPlain(archive).Reachable(its, graph) as Instance;
   assert(restored !== root);
-  assert(same_graph(Plain.ToPlain(archive).Reachable(its, restored), graph));
+  assert(equal(Plain.ToPlain(archive).Reachable(its, restored), graph));
 }
 
 // Apart from Noah's duplicate enrollments, the whole component is valid.

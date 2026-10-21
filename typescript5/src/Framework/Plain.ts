@@ -977,8 +977,8 @@ class StoreSnapshot {
     return m([["def", m([["schema", this.store.name_of(target.as_schema())], ["mutations", this.members(target, null)]])]]);
   }
 
-  /** What a spec gives of an object: its properties set, then its named adjacencies' entries not yet written; `wanted`
-   * chooses the entries an extension's relations add (a schema the store was made holding). */
+  /** What a spec gives of an object: its properties set, then its named adjacencies' entries not yet written, then, a
+   * pattern's, its spec; `wanted` chooses the entries an extension's relations add (a schema the store was made holding). */
   private members(visitor: any, wanted: Wanted): PlainData[] {
     const framework = this.isSchema(visitor) && this.store.framework(this.original(visitor));
     const members: PlainData[] = [...visitor.as_properties]
@@ -1003,6 +1003,10 @@ class StoreSnapshot {
       if (written.length > 0) {
         members.push(m([["as_adjacency", m([["name", name], ["mutations", [m([["insert", m([["entries", written]])]])]]])]]));
       }
+    }
+    const original: any = this.isSchema(visitor) ? this.original(visitor) : null;
+    if (original instanceof Schemas.OfPattern.Data && visitor._working.spec.length > 0) { // as recorded
+      members.push(m([["spec", m([["items", visitor._working.spec.map((item: PlainMap) => new Map(item))]])]]));
     }
     return members;
   }
@@ -1212,7 +1216,9 @@ function built(store: any, visitor: any, schema: any, body: unknown, where: Wher
   return visitor;
 }
 
-const SPEC = "expected a spec's mutations: as_property {name, mutations}, as_adjacency {name, mutations}, an entry {mutations}";
+const SPEC = "expected a spec's mutations: as_property {name, mutations}, as_adjacency {name, mutations}, spec {items}, an "
+  + "entry {mutations}";
+const ITEMS = "expected a pattern's spec: items, a list of mappings of symbols to their objects' mutations";
 
 /** Checks a spec read from the wire before anything is written, so that a document refused writes nothing and says where:
  * each symbol the pattern's, each member its object's schema's, each value decoded against its schema. */
@@ -1240,6 +1246,10 @@ function checkedMembers(store: any, schema: any, members: unknown, where: Where,
     const at = [...where, j];
     if (!(member instanceof Map) || member.size !== 1) throw new DecodeError(SPEC, { path: path(...at) });
     const [kind, body] = [...(member as Map<string, any>)][0]!;
+    if (kind === "spec") {
+      checkedItems(store, schema, body, [...at, kind]);
+      return;
+    }
     try {
       const [name, verbs] = [body.get("name"), body.get("mutations")];
       if (verbs === undefined) throw new TypeError(SPEC);
@@ -1266,6 +1276,16 @@ function checkedMembers(store: any, schema: any, members: unknown, where: Where,
     }
   });
   for (const j of dropped.reverse()) (members as unknown[]).splice(j, 1);
+}
+
+/** Checks a pattern's spec given in a spec (`Mutations.OfObject.Spec`): its shape, a list of mappings of symbols to lists
+ * of mutations, which it holds as recorded; what they say is checked when the pattern is executed. */
+function checkedItems(store: any, schema: any, body: unknown, where: Where): void {
+  if (schema !== store.registered("Schemas.OfPattern")) throw new DecodeError(`${schema.name} has no spec`, { path: path(...where) });
+  const items = body instanceof Map ? body.get("items") : undefined;
+  if (!Array.isArray(items) || !items.every((item) => item instanceof Map && [...item.values()].every((members) => Array.isArray(members)))) {
+    throw new DecodeError(ITEMS, { path: path(...where, "items") });
+  }
 }
 
 function checkedValues(store: any, schema: any, verbs: Map<string, any>[], where: Where): void {

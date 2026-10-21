@@ -673,7 +673,7 @@ def _identifies(store: Any, schema: Any, member: Any) -> bool:
     (kind, body), = member.items()
     if kind == "as_property":
         return body["name"] == "name" and _meta(store, schema)
-    return schema.adjacencies[body["name"]].owner
+    return kind == "as_adjacency" and schema.adjacencies[body["name"]].owner
 
 
 def _members(pattern: Any) -> dict[str, list[Any]]:
@@ -692,6 +692,10 @@ def _holds(store: Any, target: Any, schema: Any, members: list[Any], frame: Fram
     visitor = _reader(store, target)
     for member in members:
         (kind, body), = member.items()
+        if kind == "spec":
+            if [dict(item) for item in visitor._working.spec] != body["items"]:
+                return False
+            continue
         name = body["name"]
         if kind == "as_property":
             if _plain(store, getattr(visitor, name), schema.properties[name]) != _given(body["mutations"][0]):
@@ -775,10 +779,16 @@ def _write_spec(store: Any, pattern: Any, frame: Frame) -> None:
 
 
 def _write(store: Any, target: Any, schema: Any, members: list[Any], frame: Frame) -> None:
-    """Writes what a spec gives of an object where it does not hold: a property's value, and an entry, its links
-    resolved and the objects it defines made."""
+    """Writes what a spec gives of an object where it does not hold: a property's value, an entry, its links resolved and
+    the objects it defines made, and a pattern's spec, as recorded."""
     for member in members:
         (kind, body), = member.items()
+        if kind == "spec":
+            if not _holds(store, target, schema, [member], frame, None):
+                builder = _writer(store, schema, target)
+                builder._working.spec = tuple(dict(item) for item in body["items"])  # its spec, in place of what it held
+                builder.update()
+            continue
         name = body["name"]
         if kind == "as_property":
             prop = schema.properties[name]

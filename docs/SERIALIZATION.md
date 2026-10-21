@@ -22,9 +22,14 @@ A pattern's spec (docs/OBJECT_IDENTITY.md, Decided, 95), a `Mutations.OfPattern`
 of the object it binds, *object verbs*:
 
 ```python
-Mutations.OfObject.{AsProperty, AsAdjacency}
+Mutations.OfObject.{AsProperty, AsAdjacency, Spec}
 Mutations.OfAdjacency.{Insert, Remove}
 ```
+
+`Mutations.OfObject.Spec`, `{"spec": {"items": [...]}}`, is a pattern's own spec, written as recorded: a list of
+`Mutations.OfPattern`, whose payloads are bare. Where a pattern is a symbol or a definition, it gives the spec the
+pattern holds, in place of any it held before; its shape is checked when it is read, and what it says when the pattern
+is executed.
 
 `Mutations.OfAdjacency.{Insert, Remove}` carry a list of `Mutations.OfEntry`, each leaving out the link the object
 fills, which carries `Mutations.OfProperty.*` and `Mutations.OfLink.*`, through `Mutations.OfEntry.{AsProperty, AsLink}`:
@@ -93,7 +98,7 @@ A store's snapshot, `Plain.ToPlain(store).Snapshot()`, is two transactions (docs
   nothing reaches is not written.
 
 Each symbol's spec gives its properties, then its named adjacencies' entries, each entry once, from the first symbol
-that holds it; an object neither transaction holds, a schema the store was made holding, is referred to by its path.
+that holds it, then, a pattern's, its own spec (`spec`), so that a pattern is carried whole; an object neither transaction holds, a schema the store was made holding, is referred to by its path.
 `Plain.FromPlain(store).Snapshot(snapshot)` executes them in order, each a transaction of its own, or a savepoint of the
 one open, and gives the data the last binds, which the caller holds. Read again, a snapshot finds its schemas and its
 singletons and owned objects, and makes its counted objects anew.

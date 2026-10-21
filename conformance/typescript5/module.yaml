@@ -4069,6 +4069,32 @@
                                                               name: OfBool
                                                             next:
                                                               target: {}
+          - spec:
+              items:
+              - who:
+                - as_adjacency:
+                    name: addresses
+                    mutations:
+                    - insert:
+                        entries:
+                        - mutations:
+                          - as_link:
+                              name: address
+                              mutations:
+                              - set:
+                                  ref:
+                                    symbol: where
+                          - as_property:
+                              name: label
+                              mutations:
+                              - set:
+                                  value: home
+              - where:
+                - as_property:
+                    name: locality
+                    mutations:
+                    - set:
+                        value: London
         - '19':
           - as_property:
               name: name

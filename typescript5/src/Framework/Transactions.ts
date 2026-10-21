@@ -32,6 +32,7 @@
 
 import * as Builders from "./Builders.js";
 import { LookupError, ValueError } from "./Errors.js";
+import * as Json from "./JSON.js";
 import * as Paths from "./Paths.js";
 import * as Plain from "./Plain.js";
 import * as Proxies from "./Proxies.js";
@@ -741,7 +742,7 @@ function locate(store: any, pattern: any, members: Map<string, Members>, name: s
 function identifies(store: any, schema: any, member: Map<string, any>): boolean {
   const [kind, body] = only(member);
   if (kind === "as_property") return body.get("name") === "name" && meta(store, schema);
-  return schema.adjacencies.get(body.get("name")).owner;
+  return kind === "as_adjacency" && schema.adjacencies.get(body.get("name")).owner;
 }
 
 /** A pattern's spec, by symbol: the members of each, its items in order. */
@@ -768,6 +769,10 @@ function holds(store: any, target: any, schema: any, members: Members, frame: Fr
   const visitor = reader(store, target);
   for (const member of members) {
     const [kind, body] = only(member);
+    if (kind === "spec") {
+      if (Json.dumps(visitor._working.spec) !== Json.dumps(body.get("items"))) return false;
+      continue;
+    }
     const name = body.get("name");
     if (kind === "as_property") {
       if (!agree(plainOf(store, visitor[name], schema.properties.get(name)), given(body.get("mutations")[0]))) return false;
@@ -855,11 +860,19 @@ function writeSpec(store: any, pattern: any, frame: Frame): void {
   for (const [name, members] of membersOf(pattern)) write(store, frame.get(name), pattern.symbols.get(name).schema, members, frame);
 }
 
-/** Writes what a spec gives of an object where it does not hold: a property's value, and an entry, its links resolved and
- * the objects it defines made. */
+/** Writes what a spec gives of an object where it does not hold: a property's value, an entry, its links resolved and the
+ * objects it defines made, and a pattern's spec, as recorded. */
 function write(store: any, target: any, schema: any, members: Members, frame: Frame): void {
   for (const member of members) {
     const [kind, body] = only(member);
+    if (kind === "spec") {
+      if (!holds(store, target, schema, [member], frame, null)) {
+        const builder = writer(store, schema, target);
+        builder._working.spec = body.get("items").map((item: Map<string, any>) => new Map(item)); // in place of what it held
+        builder.update();
+      }
+      continue;
+    }
     const name = body.get("name");
     if (kind === "as_property") {
       const prop = schema.properties.get(name);

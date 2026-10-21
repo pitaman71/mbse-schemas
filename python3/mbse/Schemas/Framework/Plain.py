@@ -864,8 +864,9 @@ class _StoreSnapshot:
         return {"def": {"schema": self.store.name_of(target.as_schema()), "mutations": self._members(target, None)}}
 
     def _members(self, visitor: Any, wanted: Any) -> list[PlainData]:
-        """What a spec gives of an object: its properties set, then its named adjacencies' entries not yet written;
-        `wanted` chooses the entries an extension's relations add (a schema the store was made holding)."""
+        """What a spec gives of an object: its properties set, then its named adjacencies' entries not yet written, then,
+        a pattern's, its spec; `wanted` chooses the entries an extension's relations add (a schema the store was made
+        holding)."""
         framework = self._schema(visitor) and self.store.framework(visitor._original)
         members: list[PlainData] = [
             {"as_property": {"name": prop.as_schema().name, "mutations": [
@@ -890,6 +891,8 @@ class _StoreSnapshot:
                 written.append({"mutations": parts})
             if written:
                 members.append({"as_adjacency": {"name": name, "mutations": [{"insert": {"entries": written}}]}})
+        if self._schema(visitor) and isinstance(visitor._original, Schemas.OfPattern.Data) and visitor._working.spec:
+            members.append({"spec": {"items": [dict(item) for item in visitor._working.spec]}})  # as recorded
         return members
 
     def _transaction(self, symbols: list[tuple[Any, Any]]) -> PlainData:
@@ -1076,7 +1079,9 @@ def _built(store: Any, visitor: Any, schema: Any, body: PlainData, where: tuple,
     return visitor
 
 
-_SPEC = "expected a spec's mutations: as_property {name, mutations}, as_adjacency {name, mutations}, an entry {mutations}"
+_SPEC = ("expected a spec's mutations: as_property {name, mutations}, as_adjacency {name, mutations}, spec {items}, an "
+         "entry {mutations}")
+_ITEMS = "expected a pattern's spec: items, a list of mappings of symbols to their objects' mutations"
 
 
 def _checked_spec(store: Any, symbols: dict[str, Any], spec: PlainData, where: tuple,
@@ -1106,6 +1111,9 @@ def _checked_members(store: Any, schema: Any, members: PlainData, where: tuple, 
         if not isinstance(member, dict) or len(member) != 1:
             raise DecodeError(_SPEC, path=path(*at))
         ((kind, body),) = member.items()
+        if kind == "spec":
+            _checked_items(store, schema, body, (*at, kind))
+            continue
         try:
             name, verbs = body["name"], body["mutations"]
             if kind == "as_property" and name in schema.properties:
@@ -1127,6 +1135,17 @@ def _checked_members(store: Any, schema: Any, members: PlainData, where: tuple, 
             raise DecodeError(_SPEC, path=path(*at)) from None
     for j in reversed(dropped):
         del members[j]
+
+
+def _checked_items(store: Any, schema: Any, body: Any, where: tuple) -> None:
+    """Checks a pattern's spec given in a spec (`Mutations.OfObject.Spec`): its shape, a list of mappings of symbols to
+    lists of mutations, which it holds as recorded; what they say is checked when the pattern is executed."""
+    if schema is not store.registered("Schemas.OfPattern"):
+        raise DecodeError(f"{schema.name} has no spec", path=path(*where))
+    items = body.get("items") if isinstance(body, dict) else None
+    if not isinstance(items, list) or not all(isinstance(item, dict) and all(isinstance(members, list)
+                                                                              for members in item.values()) for item in items):
+        raise DecodeError(_ITEMS, path=path(*where, "items"))
 
 
 def _checked_values(store: Any, schema: Any, verbs: list[Any], where: tuple) -> None:

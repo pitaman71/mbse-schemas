@@ -424,7 +424,7 @@ so that main stays current and no branch waits on another.
        `Plain` writes tagged (`{"str": "Ada"}`). So a spec, like a log, is described by its schemas but not read
        through them as any value is; MUT-06 pins the difference. Reading a payload bare would need a value schema
        interpreted by another's, which no kind has. A pattern's `spec` is not yet a property of `Schemas.OfPattern`,
-       so today's snapshot leaves it out; 4f-4 did not change that (below).
+       so a snapshot left it out until 4f-5, which writes it.
      - **4f-2, as built**: `Plain.ToPlain(store).Transaction(tx)` writes a transaction's expression nested
        (SERIALIZATION.md, Transactions on the wire), generically from the schemas of its terms and of the schema
        objects they link; `Plain.FromPlain(store).Transaction(plain)` builds it through the store's builders, each
@@ -490,15 +490,28 @@ so that main stays current and no branch waits on another.
          which to add it" is gone.
        - What a snapshot read gives is its data, the singletons first: CONF-04 and the portability check validate the
          data but the corpus's root, which holds each case's objects through a relation no case's schema declares.
-       - Still not written: a pattern's `spec`, which is not a property of `Schemas.OfPattern` (4f-1).
+       - Not written: a pattern's `spec`, which is not a property of `Schemas.OfPattern` (4f-1); 4f-5 writes it.
    - **4f-5, pattern specs on the wire**: a pattern's `spec` is written and read wherever the pattern is, in a store's
      snapshot, a document and a transaction's expression (by now only the last, as recorded), so that a snapshot
      carries every pattern whole. It is not a property of `Schemas.OfPattern` (4f-1), which is to be settled when it
      starts. Required by the user: "plan must include writing pattern specs". Built before 0.22.0, completing 4f.
+     As built: a verb of its own, `Mutations.OfObject.Spec` (`{"spec": {"items": [...]}}`), the third branch of an
+     object's mutations, holding a list of `Mutations.OfPattern` as recorded, payloads bare; 61 mutation schemas. A
+     store's snapshot gives it after a pattern's members, where the pattern is a symbol or defined where it is linked; a
+     transaction's expression writes a pattern's spec as before, nested. The executor writes it where the pattern holds
+     another, in place of it, and leaves it where it holds; the reader checks its shape (a list of mappings of symbols
+     to lists), refusing it on any schema but `Schemas.OfPattern`, and leaves what it says to be checked when the
+     pattern is executed. The corpus's `module` case gives its pattern a spec, so the corpora carry one, byte-identical
+     between the languages; SNP-04 and SNP-05 cover it.
+
+     Settled while building it, for the user's review: a verb, not a property of `Schemas.OfPattern`, since a pattern's
+     builder's `spec` is a call that records callbacks, and a property's value would be written tagged, where a spec's
+     payloads are bare (4f-1); and its values are not decoded when read, since its symbols are the pattern's, which the
+     same transaction defines.
    - **Every deferral has a stage.** The user, on finding pattern specs noted but unscheduled: "It feels like we are
      leaking details from the plan." Whatever a stage leaves undone is entered here, with the stage that does it,
      never only in an as-built note. Proposed placements, for the user's review:
-     - pattern specs on the wire (4f-1, 4f-4): 4f-5;
+     - pattern specs on the wire (4f-1, 4f-4): 4f-5, built;
      - a symbol's schema given as `txn.Schemas.OfObject`, not the store's (78; 4e-1): 4i, whose `install(txn)` needs it;
      - removing through a spec: an adjacency's `remove`, and clearing an entry's link or property, which the executor
        refuses before it runs (4f-2); and deleting an object no entry owns (designed, not built; tutorial 9): 4j, after

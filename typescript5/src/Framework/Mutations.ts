@@ -11,10 +11,10 @@
  * `Slice`) is a value object nested in a verb. `OfContainer.AsItems` applies its list in modulo order.
  *
  * A pattern's spec (docs/OBJECT_IDENTITY.md, Decided, 95) is a `Mutations.OfPattern`: for each symbol, the mutations of
- * the object it binds (`OfObject`: a property's, `as_property`, and an adjacency's, `as_adjacency`, whose `OfAdjacency`
- * verbs insert and remove entries), a link referring to an object by its symbol or its path (`Ref`), or defining one
- * where it is linked (`Def`'s `schema` and `mutations`). Value verbs are nested in them, following the property they
- * name.
+ * the object it binds (`OfObject`: a property's, `as_property`, an adjacency's, `as_adjacency`, whose `OfAdjacency`
+ * verbs insert and remove entries, and, a pattern's, its own spec as recorded, `spec`), a link referring to an object
+ * by its symbol or its path (`Ref`), or defining one where it is linked (`Def`'s `schema` and `mutations`). Value verbs
+ * are nested in them, following the property they name.
  *
  * Payloads (a property's value) are values of whatever schema the target gives: their schema here is a value of any
  * schema, and a spec records them untagged, interpreted by the target's schema.
@@ -157,10 +157,11 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
   branches(OfScalar, [["set", ScalarSet], ["clear", ScalarClear]]);
   branches(OfLink, [["set", LinkSet], ["clear", LinkClear]]);
   branches(OfEntryMember, [["as_property", EntryAsProperty], ["as_link", EntryAsLink]]);
-  branches(OfObject, [["as_property", AsProperty], ["as_adjacency", AsAdjacency]]);
-  branches(OfAdjacency, [["insert", AdjacencyInsert], ["remove", AdjacencyRemove]]);
   // a spec (Schemas.OfPattern.spec): for each symbol, the mutations of the object it binds (Object identity, 95)
   const OfPattern = new ContainerBuilder().name("Mutations.OfPattern").index([Text]).element([list(OfObject)]).create();
+  const Spec = verb("OfObject.Spec", (t) => t.name("items").schema([list(OfPattern)])); // a pattern's spec, as recorded
+  branches(OfObject, [["as_property", AsProperty], ["as_adjacency", AsAdjacency], ["spec", Spec]]);
+  branches(OfAdjacency, [["insert", AdjacencyInsert], ["remove", AdjacencyRemove]]);
 
   // --- Mutation expressions: a transaction and its terms, reference objects linked by relations (93) ---
 
@@ -249,6 +250,7 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
     AdjacencyInsert,
     AdjacencyRemove,
     OfPattern,
+    Spec,
     OfTerm,
     OfTransaction,
     OfMap,

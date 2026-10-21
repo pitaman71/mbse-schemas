@@ -10,8 +10,8 @@ branch (`{"set": {...}}`), and a list of verbs is a container of that union. A n
 object nested in a verb. `OfContainer.AsItems` applies its list in modulo order.
 
 A pattern's spec (docs/OBJECT_IDENTITY.md, Decided, 95) is a `Mutations.OfPattern`: for each symbol, the mutations of the
-object it binds (`OfObject`: a property's, `as_property`, and an adjacency's, `as_adjacency`, whose `OfAdjacency` verbs
-insert and remove entries), a link referring to an object by its symbol or its path (`Ref`), or defining one where it is
+object it binds (`OfObject`: a property's, `as_property`, an adjacency's, `as_adjacency`, whose `OfAdjacency` verbs
+insert and remove entries, and, a pattern's, its own spec as recorded, `spec`), a link referring to an object by its symbol or its path (`Ref`), or defining one where it is
 linked (`Def`'s `schema` and `mutations`). Value verbs are nested in them, following the property they name.
 
 Payloads (a property's value) are values of whatever schema the target gives: their schema here is a value of any schema,
@@ -158,16 +158,18 @@ def schemas(Text: Any, Int: Any, Path: Any, Bool: Any, Pattern: Any, Collector: 
         lambda t: t.name("as_property").schema([EntryAsProperty]),
         lambda t: t.name("as_link").schema([EntryAsLink]),
     ]).update()
+    # a spec (Schemas.OfPattern.spec): for each symbol, the mutations of the object it binds (Object identity, 95)
+    OfPattern = ContainerBuilder().name("Mutations.OfPattern").index([Text]).element([_list(OfObject)]).create()
+    Spec = _verb("OfObject.Spec", lambda t: t.name("items").schema([_list(OfPattern)]))  # a pattern's spec, as recorded
     UnionBuilder(OfObject).branches([
         lambda t: t.name("as_property").schema([AsProperty]),
         lambda t: t.name("as_adjacency").schema([AsAdjacency]),
+        lambda t: t.name("spec").schema([Spec]),
     ]).update()
     UnionBuilder(OfAdjacency).branches([
         lambda t: t.name("insert").schema([AdjacencyInsert]),
         lambda t: t.name("remove").schema([AdjacencyRemove]),
     ]).update()
-    # a spec (Schemas.OfPattern.spec): for each symbol, the mutations of the object it binds (Object identity, 95)
-    OfPattern = ContainerBuilder().name("Mutations.OfPattern").index([Text]).element([_list(OfObject)]).create()
 
     # --- Mutation expressions: a transaction and its terms, reference objects linked by relations (93) ---
 

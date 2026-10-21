@@ -199,7 +199,8 @@ function module(s: any): void {
     (t: any) => t.name("where").schema([Address]).description("A home")])
     .variables([(t: any) => t.name("since").schema([Str])])
     .requires([(c: any) => c.description("lived there since")])
-    .parameters([(t: any) => t.name("era")]));
+    .parameters([(t: any) => t.name("era")])
+    .spec([(_: any) => _.who.addresses({ home: _.where }), (_: any) => _.where.locality("London")]));
   s.Schemas.OfCollector((c: any) => c.name("Homes").pattern([Lives]).symbols(["where"]).commutative(true).associative(true)
     .suffixes({ current: "_here", next: "_there" })
     .computes([s.Schemas.OfExpression((e: any) => e.pattern([Lives]).result([Int]))]));

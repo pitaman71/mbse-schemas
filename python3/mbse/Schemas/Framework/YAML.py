@@ -17,7 +17,7 @@ import re
 from functools import cache
 from typing import Any
 
-from . import JSON, Plain, Readers, Schemas, Stores
+from . import JSON, Plain, Readers, Schemas, Visitors
 from .Errors import DecodeError
 from .Plain import PlainData
 
@@ -217,7 +217,7 @@ class ToYAML:
     """Encodes values, naming the schemas of objects in `store`: `ToYAML(store)(schema, value)` dispatches on the
     schema's kind."""
 
-    def __init__(self, store: Stores.Store, flat: bool = False):
+    def __init__(self, store: Visitors.OfStore, flat: bool = False):
         self._plain = Plain.ToPlain(store, flat)  # flat: see Plain.ToPlain
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> str:
@@ -240,7 +240,7 @@ class ToYAML:
 class FromYAML:
     """Decodes YAML, building objects in `store`: `FromYAML(store)(schema, text)`."""
 
-    def __init__(self, store: Stores.Store):
+    def __init__(self, store: Visitors.OfStore):
         self._plain = Plain.FromPlain(store)
 
     def __call__(self, schema: Schemas.OfAny.Data, text: str | bytes) -> Any:

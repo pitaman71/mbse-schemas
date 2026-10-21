@@ -46,7 +46,7 @@ import * as Reachable from "./Reachable.js";
 import type * as Readers from "./Readers.js";
 import { compareStrings, repr, sortedStrings, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
-import type * as Stores from "./Stores.js";
+import type * as Visitors from "./Visitors.js";
 import type { Scalar } from "./Visitors.js";
 
 export type PlainData = null | boolean | bigint | number | string | PlainData[] | PlainMap;
@@ -67,7 +67,7 @@ export function schemaTypeName(schema: unknown): string {
 // --- Writing: plain data read through the visitor protocol ---
 
 /** How the writers reference a linked object; `flat` says how a dense container of several int indices is written. */
-type Ref = ((target: Readers.OfObject) => PlainMap) & { flat?: boolean; store?: Stores.Store };
+type Ref = ((target: Readers.OfObject) => PlainMap) & { flat?: boolean; store?: Visitors.OfStore };
 
 /** The schema of a record: a value object's, or a union's or intersection's, whose properties are its branches or
  * parts. */
@@ -80,7 +80,7 @@ function present(visitor: any): boolean {
 
 /** A property's value as plain data, read through its visitor, and whether it has one. */
 /** What `value` needs to write a value, for a store: the names of the schemas of the values it holds. */
-export function _names(store: Stores.Store): Ref {
+export function _names(store: Visitors.OfStore): Ref {
   return new Snapshot(store).ref;
 }
 
@@ -158,7 +158,7 @@ function anyOfAny(read: any, schema: Schemas.OfAny.Value, ref: Ref): [boolean, P
   if (restricted.length > 0) return [true, anyValue(read, own, ref)[1]];
   let name: string;
   try {
-    name = (ref.store as Stores.Store).name_of(own);
+    name = (ref.store as Visitors.OfStore).name_of(own);
   } catch { // a store's name_of refuses an unregistered schema
     throw new TypeError(`a value of any schema is of a registered schema; ${repr(own.name)} is not registered`);
   }
@@ -351,7 +351,7 @@ class Snapshot {
   /** Each object the document calls, by what it is called. */
   private readonly called = new Map<string, unknown>();
 
-  constructor(private readonly store: Stores.Store, flat = false) {
+  constructor(private readonly store: Visitors.OfStore, flat = false) {
     /** A reference to a linked object, which is a reference object: entries never reference value objects. */
     this.ref = Object.assign((target: Readers.OfObject): PlainMap => new Map<string, PlainData>([[REF, this.path(target)]]),
       { flat, store });
@@ -555,7 +555,7 @@ class DecodedRecord {
 /** A decoded value of an unrestricted `OfAny`'s registered schema, `name`: built standalone, through the store's
  * builder, and assigned as a value. */
 class Assigned {
-  constructor(readonly name: string, readonly value: unknown, readonly store: Stores.Store) {}
+  constructor(readonly name: string, readonly value: unknown, readonly store: Visitors.OfStore) {}
 
   make(): any {
     const builder = this.store.builder(this.name);
@@ -581,7 +581,7 @@ type Where = (string | number)[];
 type Rows = Map<string, Map<string, unknown>[]>;
 /** The value `plain` holds under `schema`, located at the path `where`: a scalar, a `DecodedRecord` or
  * `DecodedElements`. */
-function decode(schema: Schemas.OfAny.Data, plain: unknown, where: Where, store: Stores.Store | null = null): unknown {
+function decode(schema: Schemas.OfAny.Data, plain: unknown, where: Where, store: Visitors.OfStore | null = null): unknown {
   const held = schema as Schemas.OfAny.Data;
   if (held instanceof Schemas.OfAny.Value) return decodeAny(held, plain, where, store);
   if (held instanceof Schemas.OfScalar.Data) {
@@ -619,7 +619,7 @@ function formOf(plain: unknown): string | null {
 
 /** A value of any schema: restricted, of the one schema whose plain form it takes; unrestricted, a mapping of its schema, a
  * basic scalar's tag or a schema's registered name, to its value. */
-function decodeAny(schema: Schemas.OfAny.Value, plain: unknown, where: Where, store: Stores.Store | null): unknown {
+function decodeAny(schema: Schemas.OfAny.Value, plain: unknown, where: Where, store: Visitors.OfStore | null): unknown {
   if (schema.schemas.length > 0) {
     const form = formOf(plain);
     const fits = schema.schemas.filter((t) => form !== null && Schemas.plain_forms(t).has(form));
@@ -638,14 +638,14 @@ function decodeAny(schema: Schemas.OfAny.Value, plain: unknown, where: Where, st
   if (scalar !== undefined) return decode(new Schemas.OfScalar.Data(scalar), value, [...where, tag as string], store);
   let registered: unknown;
   try {
-    registered = (store as Stores.Store).registered(tag as string);
+    registered = (store as Visitors.OfStore).registered(tag as string);
   } catch { // a store's registered refuses a name it does not hold
     throw new DecodeError(`no schema registered as ${repr(tag)}`, { path: path(...where, tag as string) });
   }
   const valueKind = (registered instanceof Schemas.OfObject.Data && !registered.ref) || registered instanceof Schemas.OfUnion.Data
     || registered instanceof Schemas.OfIntersection.Data || registered instanceof Schemas.OfContainer.Data;
   if (!valueKind) throw new DecodeError(`${repr(tag)} is not a value's schema`, { path: path(...where, tag as string) });
-  return new Assigned(tag as string, decode(registered as Schemas.OfAny.Data, value, [...where, tag as string], store), store as Stores.Store);
+  return new Assigned(tag as string, decode(registered as Schemas.OfAny.Data, value, [...where, tag as string], store), store as Visitors.OfStore);
 }
 
 /** An index read from its plain form: a scalar, or a value object index as the array of its properties. */
@@ -667,7 +667,7 @@ function decodeIndex(schema: Schemas.OfContainer.Data, plain: unknown, where: Wh
 /** A container read from the plain form its arrangement writes (see `container`); a dense one of several int indices
  * nested or flat, whichever it is. */
 function decodeContainer(schema: Schemas.OfContainer.Data, plain: unknown, where: Where,
-  store: Stores.Store | null = null): DecodedElements {
+  store: Visitors.OfStore | null = null): DecodedElements {
   const items: [unknown, unknown][] = [];
   const element = (index: unknown, value: unknown, at: Where): void => {
     if (value !== null) items.push([index, decode(schema.element as Schemas.OfAny.Data, value, at, store)]);
@@ -755,7 +755,7 @@ function recordNames(schema: RecordSchema): [string, string, string] {
 
 /** The entries of one adjacency, at `where` + `key`. */
 function decodeRows(adjacency: Schemas.OfAdjacency.Data, value: unknown, where: Where, key: string,
-  store: Stores.Store | null = null): Map<string, unknown>[] {
+  store: Visitors.OfStore | null = null): Map<string, unknown>[] {
   if (!Array.isArray(value)) throw new DecodeError("an adjacency must be a list of entries", { path: path(...where, key) });
   const relation = adjacency.relation as Schemas.OfRelation.Data;
   return value.map((entry, i) => {
@@ -846,7 +846,7 @@ function placedOf(called: unknown, name: string, schema: Schemas.OfObject.Data, 
 /** Checks a snapshot against the schemas and decodes its values before anything is built. Returns the root's symbol,
  * each object's schema name, the decoded objects and where each path places its object. Problems in the snapshot
  * throw `DecodeError`. */
-function check(store: Stores.Store, schema: unknown, plain: unknown): [string, Map<string, string>, Decoded, Map<string, Placed>] {
+function check(store: Visitors.OfStore, schema: unknown, plain: unknown): [string, Map<string, string>, Decoded, Map<string, Placed>] {
   if (!(schema instanceof Schemas.OfObject.Data)) {
     throw new TypeError(`the root schema must be an object schema, got ${schemaTypeName(schema)}`);
   }
@@ -998,7 +998,7 @@ function ownerAdjacency(schema: Schemas.OfObject.Data, o: string): Schemas.OfAdj
 
 /** Rebuilds objects from an object snapshot in `store`. Every reference must resolve within the snapshot:
  * reference objects are built first, with the value objects they hold, then the entries are added. */
-function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unknown): unknown {
+function restore(store: Visitors.OfStore, schema: Schemas.OfObject.Data, plain: unknown): unknown {
   const [root, names, decoded, placed] = check(store, schema, plain);
   const seen = new Map<string, number>();
 
@@ -1118,7 +1118,7 @@ function agrees(entry: any, row: Map<string, unknown>, resolve: (symbol: string)
   for (const [name, prop] of schema.properties) {
     const [has, plain] = value(entry[name], prop.schema, ref);
     if (has !== row.has(name)) return false;
-    if (has && decodedKey(decode(prop.schema as Schemas.OfAny.Data, plain, [], ref.store as Stores.Store)) !== decodedKey(row.get(name))) {
+    if (has && decodedKey(decode(prop.schema as Schemas.OfAny.Data, plain, [], ref.store as Visitors.OfStore)) !== decodedKey(row.get(name))) {
       return false;
     }
   }
@@ -1225,7 +1225,7 @@ class LogWriter {
   /** The counted objects numbered so far, in the order the log meets them. */
   private counted = 0;
 
-  constructor(store: Stores.Store) {
+  constructor(store: Visitors.OfStore) {
     if (!(store instanceof Builders.Store)) {
       throw new TypeError("a snapshot is of a Builders.Store, which holds its schemas and its modules");
     }
@@ -1514,7 +1514,7 @@ class LogReader {
   /** Whether an object held, before the log was read, an entry defining what it links (`defines`). */
   private readonly heldBefore = new Map<string, boolean>();
 
-  constructor(store: Stores.Store, private readonly ignored: Ignored[] | null = null) {
+  constructor(store: Visitors.OfStore, private readonly ignored: Ignored[] | null = null) {
     if (!(store instanceof Builders.Store)) throw new TypeError("a snapshot is read into a Builders.Store");
     this.store = store;
     this.meta = new Set(Object.values(store._meta)); // its own
@@ -1839,7 +1839,7 @@ export interface ToPlainCall {
 /** Serializes values to plain data, naming the schemas of objects in `store`: `ToPlain(store)(schema, value)`
  * dispatches on the schema's kind. `{ flat: true }` writes a dense container of several int indices flat, with its
  * shape, rather than as nested arrays; reading takes either. */
-export function ToPlain(store: Stores.Store, options: { flat?: boolean } = {}): ToPlainCall {
+export function ToPlain(store: Visitors.OfStore, options: { flat?: boolean } = {}): ToPlainCall {
   const flat = options.flat ?? false;
   const OfObject = (schema: Schemas.OfObject.Data, value: Readers.OfObject): PlainMap => new Snapshot(store, flat).run(schema, value, [value]);
   const Value = (schema: unknown, value: any): PlainData => {
@@ -1883,7 +1883,7 @@ export interface FromPlainCall {
 
 /** Deserializes plain data, building objects in `store`: `FromPlain(store)(schema, plain)` dispatches on the schema's
  * kind. */
-export function FromPlain(store: Stores.Store): FromPlainCall {
+export function FromPlain(store: Visitors.OfStore): FromPlainCall {
   const OfScalar = (schema: Schemas.OfScalar.Data, plain: unknown): Scalar => {
     try {
       return schema.from_plain(plain);

@@ -27,6 +27,7 @@
  * EQUIVALENCE.md).
  */
 
+import type * as Readers from "./Readers.js";
 import type * as Schemas from "./Schemas.js";
 import type { Callback } from "./Specs.js";
 
@@ -207,3 +208,30 @@ export const PROTOCOL_METHODS = {
   OfIterator: ["first", "last", "next", "prev", "index", "as_item", "prepend", "append"],
   OfPattern: ["as_schema"],
 } as const satisfies Record<string, readonly string[]>;
+
+/** A store: schemas by name, builders, and the objects it holds (docs/OBJECT_IDENTITY.md, Decided, 100). */
+export interface OfStore {
+  /** The object schema registered as `name`: `AttributeError` if none is, `TypeError` for a relation. */
+  schema(name: string): Schemas.OfObject.Data;
+  /** The object or relation schema registered as `name`; `LookupError` if none is. */
+  registered(name: string): Schemas.OfObject.Data | Schemas.OfRelation.Data | Schemas.OfPattern.Data | Schemas.OfExpression.Data
+    | Schemas.OfCollector.Data;
+  /** The name `schema` is registered under; `LookupError` if it is not. */
+  name_of(schema: unknown): string;
+  /** Every registered name, in registration order. */
+  names(): readonly string[];
+  /** A builder for the object schema `name`, a `Visitors.OfObject` finalized by `create()`, or by `clone()` and
+   * `update()` of `instance`. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  builder(name: string, instance?: unknown): any;
+  /** Whether the store was made holding `schema` (a `Builders.Store`'s plain schemas, basic scalars and mutation
+   * schemas): a name each store holds its own schema under. */
+  framework(schema: unknown): boolean;
+  /** The value `instance` holds in its property `name`, e.g. a value object or a union's branch. */
+  member(instance: unknown, name: string): unknown;
+  /** The one instance of the singleton schema whose global name is `name`; `LookupError` if there is none. */
+  singleton(name: string): Readers.OfObject;
+  /** The store's reference objects of the schema `name`: those reachable from its singletons, in first-reference
+   * order. */
+  extent(name: string): readonly Readers.OfObject[];
+}

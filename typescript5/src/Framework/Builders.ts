@@ -1977,7 +1977,7 @@ function clashes(schema: S.OfObject.Data, names: (string | null)[]): string[] {
  * A store is made holding its own plain schemas of schemas (`Schemas.OfObject`, ...), basic scalars (`Schemas.OfInt`,
  * ...) and mutation schemas, which no other store shares (docs/SCHEMA_EXTENSION.md, Decided, 23); it changes them, as
  * any schema it holds before an extension begins, only through `extend`, which only adds members. */
-export class Store extends Proxies._Store {
+export class Store extends Proxies.OfStore {
   /** `store.moduleName.[...moduleName].schemaName(...)`, each a path (`_Path`); dynamic by design. */
   [name: string]: any;
   /** The schema objects it holds. */

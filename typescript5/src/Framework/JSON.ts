@@ -19,7 +19,7 @@ import * as Plain from "./Plain.js";
 import type { PlainData, PlainMap } from "./Plain.js";
 import { pyFloat, repr, typeName } from "./Repr.js";
 import type * as Schemas from "./Schemas.js";
-import type * as Stores from "./Stores.js";
+import type * as Visitors from "./Visitors.js";
 import type * as Readers from "./Readers.js";
 import type { Scalar } from "./Visitors.js";
 
@@ -282,7 +282,7 @@ export interface ToJSONCall {
 
 /** Encodes values, naming the schemas of objects in `store`: `ToJSON(store)(schema, value)` dispatches on the schema's
  * kind. */
-export function ToJSON(store: Stores.Store, options: { flat?: boolean } = {}): ToJSONCall {
+export function ToJSON(store: Visitors.OfStore, options: { flat?: boolean } = {}): ToJSONCall {
   const plain = Plain.ToPlain(store, options);
   const call = (schema: unknown, value: unknown, options: DumpOptions = {}): string => dumps(plain(schema, value), options);
   return Object.assign(call, {
@@ -303,7 +303,7 @@ export interface FromJSONCall {
 }
 
 /** Decodes JSON, building objects in `store`: `FromJSON(store)(schema, text)`. */
-export function FromJSON(store: Stores.Store): FromJSONCall {
+export function FromJSON(store: Visitors.OfStore): FromJSONCall {
   const plain = Plain.FromPlain(store);
   const call = (schema: unknown, text: string | Uint8Array): unknown => plain(schema, loads(text));
   return Object.assign(call, {

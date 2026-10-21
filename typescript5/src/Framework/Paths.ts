@@ -20,7 +20,7 @@ import * as Plain from "./Plain.js";
 import * as Proxies from "./Proxies.js";
 import { repr } from "./Repr.js";
 import type * as S from "./Schemas.js";
-import type * as Stores from "./Stores.js";
+import type * as Visitors from "./Visitors.js";
 
 /** What `schemas` builds with: the builders, and the store's basic scalars `Text`, `Int` and `Bool`. */
 interface Kit {
@@ -142,6 +142,6 @@ export function of(obj: unknown): unknown {
  * null. */
 export function same(a: any, b: any): boolean {
   if (a === null || b === null) return a === b;
-  const plain = Plain.ToPlain(null as unknown as Stores.Store);
+  const plain = Plain.ToPlain(null as unknown as Visitors.OfStore);
   return Plain._symbol(plain(a.as_schema(), a)) === Plain._symbol(plain(b.as_schema(), b)); // keys written bare: no names
 }

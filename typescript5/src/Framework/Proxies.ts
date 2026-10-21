@@ -2,7 +2,7 @@
  * Proxies: the dynamic implementation of the visitor protocol.
  *
  * Programs using proxies skip code generation. The store, `new Builders.Store()`, holds schemas and the proxies built
- * with them (see `Stores`); `_Store` here is its implementation of proxies. A named schema is registered as it is built,
+ * with them (see `Stores`); `OfStore` here is its implementation of proxies. A named schema is registered as it is built,
  * and `store.builder(name, instance)` returns a builder for it; a store builds through `store.<Name>(callback)`, its
  * canonical form.
  * Data instances (`Proxies.OfObject.Data`)
@@ -186,7 +186,7 @@ abstract class Shelled implements Shellable {
 
 /** A store of proxies: schemas by name, and the instance of each singleton schema registered, created with it.
  * `store.builder(name, instance)` gives a builder of an object of a registered schema. */
-export abstract class _Store extends Stores.Catalog implements Stores.Store {
+export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore {
   _building = 0; // how deep in builders a write is: ownership is settled when the outermost one ends
   _unowned: Instance[] = []; // objects created since, whose schemas declare an owner
   _orphaned: Instance[] = []; // owned objects an owning entry of which was removed since
@@ -458,13 +458,13 @@ function keyNames(relation: RelationSchema, owner: string, owned: string): strin
 
 
 /** The store a proxy belongs to; a value object's is its owner's, and one not yet placed has none. */
-function storeOf(value: unknown): _Store | null {
+function storeOf(value: unknown): OfStore | null {
   while (isRecordData(value)) value = innerOf(value)._owner;
   return isObjectData(value) ? innerOf(value)._store : null;
 }
 
 /** The store a proxy, or a value object placed in one, belongs to. */
-export function store_of(value: unknown): _Store {
+export function store_of(value: unknown): OfStore {
   const store = storeOf(value);
   if (store === null) throw new TypeError("the value does not belong to a store");
   return store;
@@ -475,7 +475,7 @@ export function owner_of(value: unknown): unknown {
   return isRecordData(value) ? innerOf(value)._owner : null;
 }
 
-function sameStore(store: _Store | null, value: unknown): void {
+function sameStore(store: OfStore | null, value: unknown): void {
   const held = storeOf(value);
   if (store !== null && held !== null && held !== store) throw new TypeError("the object belongs to another store");
 }
@@ -1060,7 +1060,7 @@ class _Any {
   /** Why a Spec has nothing to build: where the value is of any schema and its schema unknown. */
   _unbuilt = "";
 
-  constructor(readonly _values: Values, readonly _name: string, readonly _schema: unknown, readonly _store: _Store | null,
+  constructor(readonly _values: Values, readonly _name: string, readonly _schema: unknown, readonly _store: OfStore | null,
     readonly _writable: boolean, readonly _label: string, readonly _onWrite: (() => void) | null = null) {
     this._type = _schema;
     this._any = this._type instanceof Schemas.OfAny.Value ? this._type : null;
@@ -1386,7 +1386,7 @@ abstract class _Containing extends Shelled {
   _parent: unknown = null;
 
   constructor(readonly _schema: Schemas.OfContainer.Data, readonly _items: Values, readonly _indices: Map<string, unknown>,
-    readonly _store: _Store | null, readonly _label: string) {
+    readonly _store: OfStore | null, readonly _label: string) {
     super();
   }
 
@@ -1547,7 +1547,7 @@ class _ContainerBuilder extends _Containing {
   override _writable = true;
   _attached = false;
 
-  constructor(schema: Schemas.OfContainer.Data, source: unknown, store: _Store | null,
+  constructor(schema: Schemas.OfContainer.Data, source: unknown, store: OfStore | null,
     readonly _attach: (builder: unknown) => void, label: string, parent: unknown = null) {
     super(schema, new Map(source === null ? [] : innerOf(source)._items), new Map(source === null ? [] : innerOf(source)._indices),
       store, label);
@@ -1566,7 +1566,7 @@ class _ContainerBuilder extends _Containing {
     return makeContainerData(this._schema, items, new Map([...items.keys()].map((key) => [key, this._indices.get(key)])));
   }
 
-  /** A standalone container's value, to assign (see `_Store.builder`). */
+  /** A standalone container's value, to assign (see `OfStore.builder`). */
   create(): unknown {
     return this.build();
   }
@@ -1586,14 +1586,14 @@ function isValueSchema(schema: unknown): schema is RecordSchema | Schemas.OfCont
 
 /** A builder of a standalone value of a value object, union, intersection or container schema, starting from `source`
  * if given: its `create()` gives a value, held by nothing until assigned. */
-function standalone(schema: RecordSchema | Schemas.OfContainer.Data, source: unknown, store: _Store): any {
+function standalone(schema: RecordSchema | Schemas.OfContainer.Data, source: unknown, store: OfStore): any {
   if (schema instanceof Schemas.OfContainer.Data) {
     return makeContainerBuilder(schema, source, store, () => undefined, `a ${repr(schema.name)}`);
   }
   return makeRecordBuilder(schema, source, store);
 }
 
-function makeContainerBuilder(schema: Schemas.OfContainer.Data, source: unknown, store: _Store | null,
+function makeContainerBuilder(schema: Schemas.OfContainer.Data, source: unknown, store: OfStore | null,
   attach: (builder: unknown) => void, label: string, parent: unknown = null): any {
   const state = new _ContainerBuilder(schema, source, store, attach, label, parent);
   return shell(state, (spec) => state._call(spec));
@@ -1708,7 +1708,7 @@ class _Property extends Dunders {
   readonly [TYPE_NAME] = "_Property";
 
   constructor(readonly _values: Values, readonly _name: string, readonly _schema: Schemas.OfProperty.Data | Schemas.OfUnion.Branch,
-    readonly _store: _Store | null, public _parent: unknown, readonly _writable: boolean,
+    readonly _store: OfStore | null, public _parent: unknown, readonly _writable: boolean,
     readonly _onWrite: (() => void) | null = null) {
     super();
   }
@@ -1772,7 +1772,7 @@ class _Property extends Dunders {
   }
 }
 
-function makeProperty(values: Values, name: string, schema: Schemas.OfProperty.Data | Schemas.OfUnion.Branch, store: _Store | null,
+function makeProperty(values: Values, name: string, schema: Schemas.OfProperty.Data | Schemas.OfUnion.Branch, store: OfStore | null,
   parent: unknown, writable: boolean, onWrite: (() => void) | null = null): any {
   const state = new _Property(values, name, schema, store, parent, writable, onWrite);
   return shell(state, (spec) => state._call(spec));
@@ -1810,7 +1810,7 @@ function makeProperties(owner: unknown, properties: readonly unknown[]): any {
 }
 
 /** The properties of an object present in `values`, in the schema's declared order. */
-function propertiesOf(owner: unknown, values: Values, schema: RecordSchema, store: _Store | null, writable: boolean,
+function propertiesOf(owner: unknown, values: Values, schema: RecordSchema, store: OfStore | null, writable: boolean,
   onWrite: (() => void) | null = null): any {
   return makeProperties(owner, [...schema.properties].filter(([name]) => values.has(name))
     .map(([name, prop]) => makeProperty(values, name, prop, store, owner, writable, onWrite)));
@@ -1818,7 +1818,7 @@ function propertiesOf(owner: unknown, values: Values, schema: RecordSchema, stor
 
 /** The visitor of a union's branch or an intersection's part: of its own schema's kind, the value itself for a value
  * object held, or an empty one. */
-function kindVisitor(values: Values, name: string, schema: unknown, store: _Store | null, parent: unknown,
+function kindVisitor(values: Values, name: string, schema: unknown, store: OfStore | null, parent: unknown,
   writable: boolean, label: string, onWrite: (() => void) | null = null): any {
   const held = schema;
   const value = values.get(name);
@@ -1854,7 +1854,7 @@ class _ObjectData extends Shelled {
     return valuesOf(this);
   }
 
-  constructor(readonly _store: _Store, readonly _schema: ObjectSchema, readonly _schemaName: string) {
+  constructor(readonly _store: OfStore, readonly _schema: ObjectSchema, readonly _schemaName: string) {
     super();
   }
 
@@ -1892,7 +1892,7 @@ class _ObjectData extends Shelled {
   }
 }
 
-function makeObjectData(store: _Store, schema: ObjectSchema, schemaName: string): Instance {
+function makeObjectData(store: OfStore, schema: ObjectSchema, schemaName: string): Instance {
   const state = new _ObjectData(store, schema, schemaName);
   return shell(state, (spec) => state._call(spec));
 }
@@ -2140,7 +2140,7 @@ function sameKeys(a: Map<string, unknown>, b: Map<string, unknown>): boolean {
 
 /** Whether an entry agrees with a query Spec: equal to its value form (an entry), or agreeing with every link and
  * property its function form, a template, sets. */
-function agrees(entry: unknown, spec: unknown, adjacency: AdjacencySchema, store: _Store | null): boolean {
+function agrees(entry: unknown, spec: unknown, adjacency: AdjacencySchema, store: OfStore | null): boolean {
   const [links, values] = entryParts(entry, adjacency.me);
   let wantedLinks: Map<string, unknown>;
   let wantedValues: Values;
@@ -2342,7 +2342,7 @@ class _RecordBuilder extends Shelled {
   _values: Values;
   _copyOf: unknown = null;
 
-  constructor(readonly _schema: RecordSchema, readonly _source: unknown = null, readonly _store: _Store | null = null,
+  constructor(readonly _schema: RecordSchema, readonly _source: unknown = null, readonly _store: OfStore | null = null,
     public _attach: ((builder: unknown) => void) | null = null, readonly _parent: unknown = null) {
     super();
     this._values = new Map(_source === null ? [] : innerOf(_source)._values);
@@ -2425,13 +2425,13 @@ class _RecordBuilder extends Shelled {
     return makeRecordData(this._schema, finalized(this._values), this._source, this._copyOf);
   }
 
-  /** A standalone value's value, to assign (see `_Store.builder`). */
+  /** A standalone value's value, to assign (see `OfStore.builder`). */
   create(): ValueObject {
     return this.build();
   }
 }
 
-function makeRecordBuilder(schema: RecordSchema, source: unknown = null, store: _Store | null = null,
+function makeRecordBuilder(schema: RecordSchema, source: unknown = null, store: OfStore | null = null,
   attach: ((builder: unknown) => void) | null = null, parent: unknown = null): any {
   const state = new _RecordBuilder(schema, source, store, attach, parent);
   return shell(state, (spec) => state._call(spec));
@@ -2674,7 +2674,7 @@ class _Them extends Shelled {
   _builder(): any {
     if (this._object === null) {
       const entry: _EntryBuilder = innerOf(this._entry);
-      const store = entry._store as _Store;
+      const store = entry._store as OfStore;
       const target = entry._links.get(this._other);
       if (isBuilder(target)) {
         this._object = target;
@@ -2787,7 +2787,7 @@ class _LinkMember extends Shelled {
     if (isFunction(spec)) {
       const kinds = _linkKinds(entry._relation, name);
       if (kinds !== null) throw new TypeError(`link ${repr(name)} is a kind union: build through one of its kinds, ${[...kinds.keys()].join(", ")}`);
-      const store = entry._store as _Store; // a link is a reference object's, built in a store
+      const store = entry._store as OfStore; // a link is a reference object's, built in a store
       const builder = builderOf(store, store._filled(entry._relation, name));
       visit(spec, builder);
       entry._links.set(name, builder);
@@ -2854,7 +2854,7 @@ class _EntryBuilder extends Shelled {
   /** The entry this one rewrites, when copied or loaded from one. */
   _source: unknown = null;
 
-  constructor(readonly _relation: RelationSchema, readonly _me: string, readonly _store: _Store | null = null) {
+  constructor(readonly _relation: RelationSchema, readonly _me: string, readonly _store: OfStore | null = null) {
     super();
   }
 
@@ -2912,7 +2912,7 @@ class _EntryBuilder extends Shelled {
   }
 }
 
-function makeEntryBuilder(relation: RelationSchema, me: string, store: _Store | null = null): any {
+function makeEntryBuilder(relation: RelationSchema, me: string, store: OfStore | null = null): any {
   return shell(new _EntryBuilder(relation, me, store));
 }
 
@@ -2939,7 +2939,7 @@ class _ObjectBuilder extends Shelled {
   readonly _values: Values = new Map();
   readonly _entries = new Map<string, any[]>();
 
-  constructor(readonly _store: _Store, readonly _schema: ObjectSchema, readonly _schemaName: string,
+  constructor(readonly _store: OfStore, readonly _schema: ObjectSchema, readonly _schemaName: string,
     readonly _source: Instance | null = null) {
     super();
   }
@@ -3050,7 +3050,7 @@ function noArguments(method: string, args: unknown[]): void {
   if (args.length > 0) throw new TypeError(`${method}() takes no arguments (${args.length} given)`);
 }
 
-function makeObjectBuilder(store: _Store, schema: ObjectSchema, schemaName: string, instance?: unknown): DynamicBuilder {
+function makeObjectBuilder(store: OfStore, schema: ObjectSchema, schemaName: string, instance?: unknown): DynamicBuilder {
   if (!schema.ref) {
     throw new TypeError(`${repr(schemaName)} is a value object schema; build a value through its owner, or standalone `
       + "through the store");
@@ -3081,7 +3081,7 @@ export namespace OfObject {
   export type Record = ValueObject;
   export type Builder = DynamicBuilder;
   /** A builder in `store` for `schema` registered as `schemaName`, as `store[schemaName](instance)` returns. */
-  export function Builder(store: _Store, schema: ObjectSchema, schemaName: string, instance?: Instance): DynamicBuilder {
+  export function Builder(store: OfStore, schema: ObjectSchema, schemaName: string, instance?: Instance): DynamicBuilder {
     return makeObjectBuilder(store, schema, schemaName, instance);
   }
 }

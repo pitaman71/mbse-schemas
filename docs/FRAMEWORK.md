@@ -230,8 +230,8 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   or the value forbids (`Errors.ReadOnlyError`). `Readers.OfX` is the read-only view, a type for code that must not
   write; `Specs.Callback` is what members and `as_*` methods take.
 - `Schemas` : for each schema element `OfX`, `Schemas.OfX.Data` is used to capture a schema. Schemas may be named (registered by a name in a store) or appear inline without a name.
-- `Stores` : `Stores.Store` is the protocol of a store, the root object through which schemas, builders and objects
-  are located (see Stores). Everything that looks a schema up by name takes a store.
+- `Stores` : the catalog every store has, and stores combined; `Visitors.OfStore` is the protocol of a store, the root
+  object through which schemas, builders and objects are located (see Stores). Everything that looks a schema up by name takes a store.
 
 - `Mutations` : for each schema element `OfX`, `Mutations.OfX` is used to represent incremental changes to anything that has a schema,
   including schemas themselves (via their meta-schemas). Mutation schemas scale with the number of schema elements, not with the number of user schemas.
@@ -281,7 +281,8 @@ locates schemas, builders and objects through a store, never through a global. I
 envisioned also for generated (language-optimized) data structures, SQL and noSQL databases, and in-memory cache
 slices.
 
-- **`Stores.Store` is the protocol**, which every implementation of the framework meets:
+- **`Visitors.OfStore` is the protocol** (Object identity, Decided, 100; `Stores.Store` before), which every
+  implementation of the framework meets:
   - `schema(name)`: the object schema registered as `name` (`AttributeError` if none is; `TypeError` for a relation);
     `registered(name)`: the object or relation schema (`LookupError` if none is); `name_of(schema)`: the name a schema
     is registered under (`LookupError` if it is not); `names()`: every registered name, in registration order.
@@ -1457,7 +1458,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - A schema's name is its own, set by its builder (`.name('crm.Contact')`), on any kind of schema: identifiers separated
   by dots, the part before the last dot its namespace. A store registers a schema under its name (`register(schema)`),
   so a schema has one name in every store, and a reference to a named schema is written by that name with no store.
-- Stores replace the `Factories` design and every registry: a store (`Stores.Store`) locates schemas, builders,
+- Stores replace the `Factories` design and every registry: a store (`Visitors.OfStore`) locates schemas, builders,
   members, singletons and extents; its data is what its singletons reach, and everything else is transient; it is
   isolated from other stores (see Stores). There is no global registry.
   Queries are mbse-patterns' (`Queries.QueryableStore`, and `Queries.Scan` over any store).

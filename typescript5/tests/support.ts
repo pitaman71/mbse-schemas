@@ -1,6 +1,7 @@
 /** Shared helpers for the test notebooks. Each notebook runs in its own process and makes its own stores. */
 
 import * as Paths from "@mbse/schemas/Framework/Paths";
+import type * as Visitors from "@mbse/schemas/Framework/Visitors";
 import { _symbol, ToPlain } from "@mbse/schemas/Framework/Plain";
 import type { PlainData, PlainMap } from "@mbse/schemas/Framework/Plain";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
@@ -223,7 +224,7 @@ export const PROTOCOLS: Record<string, Record<string, number>> = {
   OfPattern: { as_schema: 0 },
 };
 
-/** Parameter counts of the store protocol's methods, from Python's `Stores.Store`. */
+/** Parameter counts of the store protocol's methods, from Python's `Visitors.OfStore`. */
 export const STORE_PROTOCOLS: Record<string, Record<string, number>> = {
   Store: { schema: 1, registered: 1, name_of: 1, names: 0, builder: 2, member: 2, singleton: 1, extent: 1 },
 };

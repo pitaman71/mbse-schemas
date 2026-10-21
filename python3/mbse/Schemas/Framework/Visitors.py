@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING, Any, Generic, Protocol, Self, TypeVar
 from .Specs import Callback
 
 if TYPE_CHECKING:
-    from . import Schemas
+    from . import Readers, Schemas
 
 __all__ = [
     "Scalar",
@@ -49,6 +49,7 @@ __all__ = [
     "OfContainer",
     "OfIterator",
     "OfPattern",
+    "OfStore",
 ]
 
 Scalar = int | float | str | bool | bytes
@@ -274,3 +275,46 @@ class OfPattern(Protocol):
     def as_schema(self) -> Schemas.OfPattern.Data: ...
 
     def __getattr__(self, name: str) -> Any: ...
+
+
+class OfStore(Protocol):
+    """A store: schemas by name, builders, and the objects it holds (docs/OBJECT_IDENTITY.md, Decided, 100)."""
+
+    def schema(self, name: str) -> Schemas.OfObject.Data:
+        """The object schema registered as `name`: `AttributeError` if none is, `TypeError` for a relation."""
+        ...
+
+    def registered(self, name: str) -> Any:
+        """The object or relation schema registered as `name`; `LookupError` if none is."""
+        ...
+
+    def name_of(self, schema: Any) -> str:
+        """The name `schema` is registered under; `LookupError` if it is not."""
+        ...
+
+    def names(self) -> Iterable[str]:
+        """Every registered name, in registration order."""
+        ...
+
+    def builder(self, name: str, instance: Any = None) -> Any:
+        """A builder for the object schema `name`, a `Visitors.OfObject` finalized by `create()`, or by `clone()` and
+        `update()` of `instance`."""
+        ...
+
+    def framework(self, schema: Any) -> bool:
+        """Whether the store was made holding `schema` (a `Builders.Store`'s plain schemas, basic scalars and mutation
+        schemas): a name each store holds its own schema under."""
+        ...
+
+    def member(self, instance: Any, name: str) -> Any:
+        """The value `instance` holds in its property `name`, e.g. a value object or a union's branch."""
+        ...
+
+    def singleton(self, name: str) -> Readers.OfObject:
+        """The one instance of the singleton schema whose global name is `name`; `LookupError` if there is none."""
+        ...
+
+    def extent(self, name: str) -> Iterable[Readers.OfObject]:
+        """The store's reference objects of the schema `name`, or of a schema refining it: those reachable from its
+        singletons, in first-reference order."""
+        ...

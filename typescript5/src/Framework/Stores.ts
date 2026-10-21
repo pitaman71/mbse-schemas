@@ -27,6 +27,7 @@ import * as Reachable from "./Reachable.js";
 import { repr } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type * as Readers from "./Readers.js";
+import type * as Visitors from "./Visitors.js";
 
 type ObjectSchema = Schemas.OfObject.Data;
 type RelationSchema = Schemas.OfRelation.Data;
@@ -73,32 +74,6 @@ export class PCG32 implements Random {
     for (const byte of utf8(key)) hashed = ((hashed ^ BigInt(byte)) * FNV_PRIME) & MASK64;
     return new PCG32(hashed, this.sequence);
   }
-}
-
-/** A store: schemas by name, builders, and the objects it holds. */
-export interface Store {
-  /** The object schema registered as `name`: `AttributeError` if none is, `TypeError` for a relation. */
-  schema(name: string): ObjectSchema;
-  /** The object or relation schema registered as `name`; `LookupError` if none is. */
-  registered(name: string): ObjectSchema | RelationSchema | DefinedSchema;
-  /** The name `schema` is registered under; `LookupError` if it is not. */
-  name_of(schema: unknown): string;
-  /** Every registered name, in registration order. */
-  names(): readonly string[];
-  /** A builder for the object schema `name`, a `Visitors.OfObject` finalized by `create()`, or by `clone()` and
-   * `update()` of `instance`. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  builder(name: string, instance?: unknown): any;
-  /** Whether the store was made holding `schema` (a `Builders.Store`'s plain schemas, basic scalars and mutation
-   * schemas): a name each store holds its own schema under. */
-  framework(schema: unknown): boolean;
-  /** The value `instance` holds in its property `name`, e.g. a value object or a union's branch. */
-  member(instance: unknown, name: string): unknown;
-  /** The one instance of the singleton schema whose global name is `name`; `LookupError` if there is none. */
-  singleton(name: string): Readers.OfObject;
-  /** The store's reference objects of the schema `name`: those reachable from its singletons, in first-reference
-   * order. */
-  extent(name: string): readonly Readers.OfObject[];
 }
 
 /** Schemas by name: `register`, `schema`, `registered`, `name_of` and `names`, as every store has them; the roots, by
@@ -171,7 +146,7 @@ export class Catalog {
 }
 
 /** Whether `store` registers `name` for a schema it was made holding (a `Builders.Store`'s own built-ins). */
-function builtIn(store: Store, name: string): boolean {
+function builtIn(store: Visitors.OfStore, name: string): boolean {
   return store.framework(store.registered(name));
 }
 
@@ -181,11 +156,11 @@ function builtIn(store: Store, name: string): boolean {
  * objects and reads their members; the singletons are all of theirs, and an extent is the owning store's and what
  * every store's singletons reach. A name that two of the stores register for different schemas is refused; one they
  * register for the same schema, or each for a schema it was made holding (its `Schemas.OfInt`, ...), is the first's. */
-export class Combined implements Store {
-  readonly stores: readonly Store[];
-  readonly #owners = new Map<string, Store>();
+export class Combined implements Visitors.OfStore {
+  readonly stores: readonly Visitors.OfStore[];
+  readonly #owners = new Map<string, Visitors.OfStore>();
 
-  constructor(...stores: Store[]) {
+  constructor(...stores: Visitors.OfStore[]) {
     this.stores = stores;
     for (const store of stores) {
       for (const name of store.names()) {
@@ -204,7 +179,7 @@ export class Combined implements Store {
     return this.stores.some((store) => store.framework(schema));
   }
 
-  private owner(name: string, error: new (message: string) => Error): Store {
+  private owner(name: string, error: new (message: string) => Error): Visitors.OfStore {
     const store = this.#owners.get(name);
     if (store === undefined) throw new error(`no schema registered as ${repr(name)}`);
     return store;
@@ -265,7 +240,7 @@ export class Combined implements Store {
 }
 
 /** A store's singletons, by global name: a catalog's or a combined store's, or none. */
-function roots(store: Store): ReadonlyMap<string, Readers.OfObject> {
+function roots(store: Visitors.OfStore): ReadonlyMap<string, Readers.OfObject> {
   return (store as { _singletons?: ReadonlyMap<string, Readers.OfObject> })._singletons ?? new Map();
 }
 

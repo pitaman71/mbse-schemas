@@ -1,7 +1,7 @@
 """Plain: conversion between values and plain data (dicts, lists, strings, numbers, booleans, null).
 
 `ToPlain(store)(schema, value)` and `FromPlain(store)(schema, plain)` dispatch on the schema's kind;
-`ToPlain(store).OfObject(...)` etc. are the per-kind forms. The store (see `Stores`) names the schemas of the objects
+`ToPlain(store).OfObject(...)` etc. are the per-kind forms. The store (see `Visitors.OfStore`) names the schemas of the objects
 written, and builds the objects read. JSON and YAML are thin text encodings of plain data.
 
 An object snapshot has the shape `{"root": key, "objects": {key: object}}`. An object's key is its identity qualified
@@ -37,7 +37,7 @@ import math
 from collections.abc import Callable, Hashable
 from typing import Any, NamedTuple, Protocol
 
-from . import Proxies, Reachable, Readers, Schemas, Stores, Visitors
+from . import Proxies, Reachable, Readers, Schemas, Visitors
 from .Errors import DecodeError, path
 from .Visitors import Scalar
 
@@ -284,7 +284,7 @@ class _Snapshot:
     """Writes the included objects, in first-reference order, each listed with its schema's name and its members, and
     with its path, or, a counted object, its number in the document (docs/OBJECT_IDENTITY.md, Decided, 55)."""
 
-    def __init__(self, store: Stores.Store, flat: bool = False) -> None:
+    def __init__(self, store: Visitors.OfStore, flat: bool = False) -> None:
         self.store, self.flat = store, flat  # flat: how a dense container of several int indices is written
         self._numbers: dict[int, int] = {}  # each counted object's number in the document, by id
         self._held: list[Any] = []  # the counted objects numbered, held while the document is written
@@ -750,7 +750,7 @@ def _placed(called: PlainData, name: str, schema: Schemas.OfObject.Data, where: 
     return _Placed(None, _symbol({"singleton": singleton, "next": nested}), o, keys)
 
 
-def _check(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData
+def _check(store: Visitors.OfStore, schema: Schemas.OfObject.Data, plain: PlainData
            ) -> tuple[str, dict[str, str], _Decoded, dict[str, _Placed]]:
     """Checks a snapshot against the schemas and decodes its values before anything is built. Returns the root's
     symbol, each object's schema name, the decoded objects and where each path places its object. Problems in the
@@ -881,7 +881,7 @@ def _owner_adjacency(schema: Schemas.OfObject.Data, o: str) -> Schemas.OfAdjacen
     return found[0]
 
 
-def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
+def _restore(store: Visitors.OfStore, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
     """Rebuilds objects from an object snapshot in `store`. Every reference must resolve within the snapshot:
     reference objects are built first, with the values they hold, then the entries are added."""
     root, names, decoded, placed = _check(store, schema, plain)
@@ -1599,7 +1599,7 @@ class ToPlain:
     dispatches on the schema's kind. `flat=True` writes a dense container of several int indices flat, with its
     shape, rather than as nested arrays; reading takes either."""
 
-    def __init__(self, store: Stores.Store, flat: bool = False):
+    def __init__(self, store: Visitors.OfStore, flat: bool = False):
         self._store, self._flat = store, flat
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> PlainData:
@@ -1649,7 +1649,7 @@ class FromPlain:
     """Deserializes plain data, building objects in `store`: `FromPlain(store)(schema, plain)` dispatches on the
     schema's kind."""
 
-    def __init__(self, store: Stores.Store):
+    def __init__(self, store: Visitors.OfStore):
         self._store = store
 
     def __call__(self, schema: Schemas.OfAny.Data, plain: PlainData) -> Any:

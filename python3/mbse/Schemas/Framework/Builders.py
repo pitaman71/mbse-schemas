@@ -1561,7 +1561,7 @@ _META_BUILDERS: dict[str, Callable[[], type]] = {
 """The schema objects a store builds as `store.Schemas.OfX(...)`, each through its builder."""
 
 
-class Store(Proxies._Store):
+class Store(Proxies.OfStore):
     """A store of schema objects and data. No reference object is built outside a store, a schema object included.
 
     The canonical form of building is `store.moduleName.[...moduleName].schemaName(...)`, each part of a schema's name

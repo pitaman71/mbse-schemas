@@ -269,7 +269,7 @@ every write.
 
 ### Building in a store
 
-`Builders.Store` is the store, a store of proxies (`Proxies._Store`) that also holds schema objects, and the canonical
+`Builders.Store` is the store, a store of proxies (`Proxies.OfStore`) that also holds schema objects, and the canonical
 form of building is
 `store.moduleName.[...moduleName].schemaName(cb)` (Resolved: "This is the new canonical form for store-centric
 building"): a callback creates, an object and a callback update, an object alone clones, and the call returns the

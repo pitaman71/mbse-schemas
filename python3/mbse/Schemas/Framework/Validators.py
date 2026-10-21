@@ -1,7 +1,7 @@
 """Validators: check data against its schema, only when the caller asks.
 
 `Validate(store)(schema, value)` returns a list of problems (empty when valid). It is constructed with the store that
-looks schemas up by name (see `Stores`). `Validate(store).Reachable(schema, root)` checks the root and every object
+looks schemas up by name (see `Visitors.OfStore`). `Validate(store).Reachable(schema, root)` checks the root and every object
 reachable from it.
 
 `Check(store)(schema, value)` checks the same, and also reports what it cannot decide: an `Outcome` of `problems` and
@@ -26,7 +26,7 @@ from collections.abc import Hashable
 from dataclasses import dataclass
 from typing import Any
 
-from . import Builders, Proxies, Reachable, Readers, Schemas, Stores
+from . import Builders, Proxies, Reachable, Readers, Schemas, Visitors
 from .Visitors import Scalar
 
 __all__ = ["Validate", "Check", "Outcome"]
@@ -134,7 +134,7 @@ def _filling(relation: Schemas.OfRelation.Data, name: str, schema: Schemas.OfObj
             f"relation via {name!r}")
 
 
-def _counted_owners(store: Stores.Store, schema: Schemas.OfObject.Data) -> list[str]:
+def _counted_owners(store: Visitors.OfStore, schema: Schemas.OfObject.Data) -> list[str]:
     """The adjacencies of a counted schema, neither a singleton nor owned, through which it would own an object of a
     schema whose adjacency marked `owner()` is the other end: nothing is owned by a counted object (docs/OBJECT_IDENTITY.md,
     Decided, 47)."""
@@ -195,7 +195,7 @@ class _Entry:
 
 
 class _Check:
-    def __init__(self, store: Stores.Store):
+    def __init__(self, store: Visitors.OfStore):
         self._store = store
         self.problems: list[str] = []
         self.unknowns: list[str] = []
@@ -330,7 +330,7 @@ class Check:
     """Checks data against its schema: `Check(store)(schema, value)` gives an `Outcome`, dispatching on the schema's
     kind."""
 
-    def __init__(self, store: Stores.Store):
+    def __init__(self, store: Visitors.OfStore):
         self._store = store
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> Outcome:
@@ -371,7 +371,7 @@ class Validate:
     """Validates data against its schema: `Validate(store)(schema, value)` gives the problems `Check` finds, so what
     is unknown is not a problem."""
 
-    def __init__(self, store: Stores.Store):
+    def __init__(self, store: Visitors.OfStore):
         self._check = Check(store)
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any) -> list[str]:

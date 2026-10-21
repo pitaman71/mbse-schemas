@@ -18,7 +18,7 @@ import json
 import re
 from typing import Any, NoReturn
 
-from . import Plain, Readers, Schemas, Stores
+from . import Plain, Readers, Schemas, Visitors
 from .Errors import DecodeError
 from .Plain import PlainData
 
@@ -233,7 +233,7 @@ class ToJSON:
     """Encodes values, naming the schemas of objects in `store`: `ToJSON(store)(schema, value)` dispatches on the
     schema's kind."""
 
-    def __init__(self, store: Stores.Store, flat: bool = False):
+    def __init__(self, store: Visitors.OfStore, flat: bool = False):
         self._plain = Plain.ToPlain(store, flat)  # flat: see Plain.ToPlain
 
     def __call__(self, schema: Schemas.OfAny.Data, value: Any, *, indent: int | None = None) -> str:
@@ -256,7 +256,7 @@ class ToJSON:
 class FromJSON:
     """Decodes JSON, building objects in `store`: `FromJSON(store)(schema, text)`."""
 
-    def __init__(self, store: Stores.Store):
+    def __init__(self, store: Visitors.OfStore):
         self._plain = Plain.FromPlain(store)
 
     def __call__(self, schema: Schemas.OfAny.Data, text: str | bytes) -> Any:

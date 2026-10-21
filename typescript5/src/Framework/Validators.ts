@@ -31,7 +31,7 @@ import * as Reachable from "./Reachable.js";
 import type * as Readers from "./Readers.js";
 import { repr, sortedStrings, tokenName, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
-import type * as Stores from "./Stores.js";
+import type * as Visitors from "./Visitors.js";
 
 // --- Reading values through their visitors ---
 
@@ -147,7 +147,7 @@ function filling(relation: Schemas.OfRelation.Data, name: string, schema: Schema
 /** The adjacencies of a counted schema, neither a singleton nor owned, through which it would own an object of a schema
  * whose adjacency marked `owner()` is the other end: nothing is owned by a counted object (docs/OBJECT_IDENTITY.md,
  * Decided, 47). */
-function countedOwners(store: Stores.Store, schema: Schemas.OfObject.Data): string[] {
+function countedOwners(store: Visitors.OfStore, schema: Schemas.OfObject.Data): string[] {
   const adjacencies = [...schema.adjacencies.values(), ...schema.anonymous];
   if (schema.singleton !== null || adjacencies.some((a) => a.owner)) return [];
   const problems: string[] = [];
@@ -216,7 +216,7 @@ class Checker {
   private readonly schemasChecked = new Set<unknown>();
   private readonly entries = new Map<Schemas.OfRelation.Data, Map<string, Entry>>();
 
-  constructor(private readonly store: Stores.Store) {}
+  constructor(private readonly store: Visitors.OfStore) {}
 
   private schema(label: string, schema: { validate(): string[] }): void {
     if (this.schemasChecked.has(schema)) return;
@@ -368,7 +368,7 @@ export interface CheckCall {
 }
 
 /** Checks data against its schema: `Check(store)(schema, value)` gives an `Outcome`, dispatching on the schema's kind. */
-export function Check(store: Stores.Store): CheckCall {
+export function Check(store: Visitors.OfStore): CheckCall {
   const run = (schema: Schemas.OfObject.Data, values: Readers.OfObject[]): Outcome => {
     const root = values[0] as Readers.OfObject;
     if (root.as_schema() !== schema) {
@@ -405,7 +405,7 @@ export interface ValidateCall {
 
 /** Validates data against its schema: `Validate(store)(schema, value)` gives the problems `Check` finds, so what is
  * unknown is not a problem. */
-export function Validate(store: Stores.Store): ValidateCall {
+export function Validate(store: Visitors.OfStore): ValidateCall {
   const check = Check(store);
   const call = (schema: unknown, value: unknown): string[] => check(schema, value).problems;
   return Object.assign(call, {

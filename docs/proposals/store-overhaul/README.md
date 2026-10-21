@@ -340,6 +340,11 @@ so that main stays current and no branch waits on another.
      decode there leaves what it wrote before the refusal to the transaction, which the caller may let raise. One
      transaction was first open at a time across every store; each store has its own now (Decided, 99), its overlay
      kept on the store.
+   - **4e-3, `Visitors.OfStore` and `Proposals`** (Object identity, Decided, 100): `Stores.Store` renamed
+     `Visitors.OfStore` and `Proxies._Store` `Proxies.OfStore`; every data access through the protocol; the overlay
+     refactored into `Proposals`, which implements it over a store or over another `Proposals` (a savepoint), the
+     decoders writing within a savepoint of the transaction open. Tech debt, retained: schema objects are read field by
+     field, outside the protocol.
    - **4f, the wire** (45, 51, 55, 56): a store's snapshot is made of transactions; a journal holds transactions as
      submitted, replayed by executing them; a Reachable document is one transaction, its counted objects numbered within
      it, owned objects and singletons referred to by path. The corpora are regenerated, the JSON byte-identical between

@@ -646,6 +646,19 @@ agreeing ("yes") that it had no reason beyond the implementation:
     or aborts on its own; a write to a store with no transaction open is refused still (44), whatever another store has
     open.
 
+As the user decided (2026-10-21), asking for "Visitors.OfStore — a clean API surface through which all data accesses
+must go", the overlay refactored "into a new Proposals.py/ts component. Proposals.py/ts implements Visitors.OfStore",
+and answering the three questions put:
+
+100. `Visitors.OfStore` is the store's protocol, and every access to data goes through it: an object's property values,
+     a value object's, and the entries that link an object; `Stores.Store` is renamed `Visitors.OfStore`, and the
+     proxies' store, `Proxies.OfStore`. A transaction's writes are a `Proposals`, which implements `Visitors.OfStore`
+     over the store it proposes changes to, reading through to it what it does not hold; committed, it writes into it,
+     and aborted, it is dropped. A `Proposals` may be made over another ("3. yes"): a savepoint, so that a decoder
+     within a transaction writes all or nothing within it. Schema objects are read outside the protocol, field by
+     field, for the time being: "that is acceptable for the time being. Retain as tech debt"; their updates within a
+     transaction are a `Proposals`' still (96).
+
 ## Open questions
 
 None at present.

@@ -22,6 +22,9 @@ reachable from the store's singletons, whose spec holds; an upsert binds what it
 does not, writing its spec where it does not hold; an update writes its spec; a reduce drops symbols; a partition runs
 its branches and joins what they end with. It gives the frames its chain ends with, each the objects its symbols bind,
 by symbol.
+
+A symbol of a meta-schema (`store.Schemas.OfObject`, ...) binds schema objects: a module's `install(txn)` upserts its
+schemas, each found by its name, so that a transaction defines and extends schemas (Decided, 86).
 """
 
 from __future__ import annotations
@@ -460,15 +463,48 @@ def _unbound(symbols: Iterable[str], bound: set[str], kind: str) -> None:
 
 
 def _symbols(store: Any, pattern: Any) -> None:
-    """Refuses a symbol a transaction cannot bind yet: one of a schema object, or of a kind union."""
+    """Refuses a symbol a transaction cannot bind: one of a kind union, or of no reference object schema."""
     for name, symbol in pattern.symbols.items():
         schema = symbol.schema
         if not isinstance(schema, S.OfObject.Data) or not schema.ref:
-            raise ValueError(f"symbol {name!r} binds no reference object of one schema: transactions bind data objects "
-                             "of an object schema")
-        if store._meta_builder(store.name_of(schema)) is not None:
-            raise ValueError(f"symbol {name!r} binds a schema object: transactions bind data objects until schemas are "
-                             "written by transactions")
+            raise ValueError(f"symbol {name!r} binds no reference object of one schema: transactions bind objects of an "
+                             "object schema")
+
+
+def _meta(store: Any, schema: Any) -> bool:
+    """Whether `schema` is a meta-schema: its objects are schema objects (`Schemas.OfObject`, ...), written by their
+    builders (Decided, 86)."""
+    return store._meta_builder(store.name_of(schema)) is not None
+
+
+def _reader(store: Any, target: Any) -> Any:
+    """A visitor of an object, to read: a schema object's builder, read-only, which sees what the transaction open has
+    made of it, or data's proxy."""
+    kind = store._meta_builder_class(target)
+    return target if kind is None else kind(target, False, store)
+
+
+def _writer(store: Any, schema: Any, target: Any = None) -> Any:
+    """A builder of an object of `schema`, new or `target`: a schema object's by its meta-schema, data's by its
+    schema."""
+    name = store.name_of(schema)
+    return store._meta_builder(name, target) if _meta(store, schema) else store.builder(name, target)
+
+
+def _linked(value: Any) -> Any:
+    """The object an entry links, as read: a schema object's entry gives a link, read through its builder."""
+    from . import Builders
+
+    return value._target()._original if isinstance(value, Builders._Link) else value
+
+
+def _extent(store: Any, schema: Any) -> list[Any]:
+    """The objects a symbol of `schema` ranges over: a meta-schema's, the named schema objects of its kind the store
+    holds, the framework's left out; data's, those the store reaches from its singletons."""
+    if not _meta(store, schema):
+        return list(store.extent(store.name_of(schema)))
+    return [held for held in store._objects.values()
+            if not store.framework(held) and _reader(store, held).as_schema() is schema]
 
 
 def _run(store: Any, term: Any, frames: list[Frame]) -> list[Frame]:
@@ -490,7 +526,7 @@ def _run(store: Any, term: Any, frames: list[Frame]) -> list[Frame]:
         unique: dict[tuple[Any, ...], Frame] = {}
         for frame in frames:
             kept = {name: target for name, target in frame.items() if name not in dropped}
-            unique.setdefault(tuple((name, Proxies._key_of(target)) for name, target in kept.items()), kept)
+            unique.setdefault(tuple((name, Proxies._key_of(_reader(store, target))) for name, target in kept.items()), kept)
         frames = list(unique.values())
     elif kind == "partition":
         arms = [entry.branch for entry in term.branches]
@@ -521,22 +557,23 @@ def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None 
             if schema.singleton is not None:
                 grown.append({**partial, name: store.singleton(schema.singleton)})
                 continue
-            index = (key, name, tuple((bound, Proxies._key_of(target)) for bound, target in sorted(frame.items())))
-            held = store._upserted.get(index) if upsert and Proxies._counted_schema(schema) else None
+            index = (key, name, tuple((bound, Proxies._key_of(_reader(store, target)))
+                                      for bound, target in sorted(frame.items())))
+            counted = Proxies._counted_schema(schema) and not _meta(store, schema)
+            held = store._upserted.get(index) if upsert and counted else None
             created = held() if held is not None else None
             if created is not None:
                 grown.append({**partial, name: created})
                 continue
-            owning = [m for m in members.get(name, []) if "as_adjacency" in m
-                      and schema.adjacencies[m["as_adjacency"]["name"]].owner]
-            finding = owning or members.get(name, [])
-            found = [target for target in store.extent(store.name_of(schema))
+            own = members.get(name, [])
+            finding = [member for member in own if _identifies(store, schema, member)] or own
+            found = [target for target in _extent(store, schema)
                      if _holds(store, target, schema, finding, partial, partial)]
             if found or not upsert:
                 grown.extend({**partial, name: target} for target in found)
                 continue
-            made = store.builder(store.name_of(schema)).create()
-            if Proxies._counted_schema(schema):
+            made = _writer(store, schema).create()
+            if counted:
                 store._upserted[index] = weakref.ref(made)
             grown.append({**partial, name: made})
         frames = grown
@@ -547,6 +584,15 @@ def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None 
     return [bound for bound in frames
             if all(_holds(store, bound[name], pattern.symbols[name].schema, items, bound, None)
                    for name, items in members.items())]
+
+
+def _identifies(store: Any, schema: Any, member: Any) -> bool:
+    """Whether a spec's member gives its object's identity, by which an upsert finds it: a schema object's name (86),
+    an owned object's owning entry (60)."""
+    (kind, body), = member.items()
+    if kind == "as_property":
+        return body["name"] == "name" and _meta(store, schema)
+    return schema.adjacencies[body["name"]].owner
 
 
 def _members(pattern: Any) -> dict[str, list[Any]]:
@@ -562,21 +608,20 @@ def _holds(store: Any, target: Any, schema: Any, members: list[Any], frame: Fram
     """Whether what a spec gives of an object holds of `target`: its properties' values, and its adjacencies' entries.
     Finding the object of a symbol (`partial`, the frame as bound so far), an entry linking a symbol not yet bound is
     left out."""
-    values = target._values
+    visitor = _reader(store, target)
     for member in members:
         (kind, body), = member.items()
+        name = body["name"]
         if kind == "as_property":
-            name = body["name"]
-            if _plain(store, values, name, schema.properties[name]) != _given(body["mutations"][0]):
+            if _plain(store, getattr(visitor, name), schema.properties[name]) != _given(body["mutations"][0]):
                 return False
             continue
-        adjacency = schema.adjacencies[body["name"]]
+        relation = schema.adjacencies[name].relation
         for entry in body["mutations"][0]["insert"]["entries"]:
             if partial is not None and any(target_ref.get("symbol") not in partial
                                            for target_ref in _symbol_refs(entry)):
                 continue
-            if not any(_matches(store, held, entry, frame) for held in
-                       Proxies._linking(adjacency.relation, adjacency.me, target, store)):
+            if not any(_matches(store, relation, held, entry, frame) for held in getattr(visitor, name)):
                 return False
     return True
 
@@ -599,9 +644,9 @@ def _symbol_refs(entry: Any) -> list[dict[str, Any]]:
     return found
 
 
-def _plain(store: Any, values: dict[str, Any], name: str, prop: Any) -> Any:
-    """A property's value as a spec gives it: `(present, plain)`."""
-    return Plain._value(Proxies._Property(values, name, prop, store, None, False), prop.schema, Plain._Names(store))
+def _plain(store: Any, read: Any, prop: Any) -> Any:
+    """A property's value, read, as a spec gives it: `(present, plain)`."""
+    return Plain._value(read, prop.schema, Plain._Names(store))
 
 
 def _given(verb: Any) -> Any:
@@ -609,22 +654,21 @@ def _given(verb: Any) -> Any:
     return (True, verb["set"]["value"]) if "set" in verb else (False, None)
 
 
-def _matches(store: Any, held: Any, entry: Any, frame: Frame) -> bool:
-    """Whether an entry held is one a spec gives: the objects it links, and its properties' values."""
+def _matches(store: Any, relation: Any, held: Any, entry: Any, frame: Frame) -> bool:
+    """Whether an entry held, read, is one a spec gives: the objects it links, and its properties' values."""
     for item in entry["mutations"]:
         (kind, body), = item.items()
         name = body["name"]
         if kind == "as_property":
-            prop = held._relation.entry.properties[name]
-            if _plain(store, held._properties, name, prop) != _given(body["mutations"][0]):
+            if _plain(store, getattr(held, name), relation.entry.properties[name]) != _given(body["mutations"][0]):
                 return False
             continue
-        linked = held._links.get(name)
+        linked = _linked(getattr(held, name))
         given = body["mutations"][0]["set"]
         if "def" in given:
             definition = given["def"]
             schema = store.registered(definition["schema"])
-            if linked is None or linked.as_schema() is not schema or not _holds(
+            if _reader(store, linked).as_schema() is not schema or not _holds(
                     store, linked, schema, definition["mutations"], frame, None):
                 return False
         elif linked is not _resolve(store, given["ref"], frame):
@@ -651,31 +695,27 @@ def _write_spec(store: Any, pattern: Any, frame: Frame) -> None:
 def _write(store: Any, target: Any, schema: Any, members: list[Any], frame: Frame) -> None:
     """Writes what a spec gives of an object where it does not hold: a property's value, and an entry, its links
     resolved and the objects it defines made."""
-    name_of = store.name_of(schema)
     for member in members:
         (kind, body), = member.items()
         name = body["name"]
         if kind == "as_property":
             prop = schema.properties[name]
             verb = body["mutations"][0]
-            if _plain(store, target._values, name, prop) == _given(verb):
+            if _plain(store, getattr(_reader(store, target), name), prop) == _given(verb):
                 continue
-            builder = store.builder(name_of, target)
-            if "set" in verb:
-                Plain._set(builder, name, Plain._decode(prop.schema, verb["set"]["value"], (), store))
-            else:
-                getattr(builder, name).as_value(lambda value: value.clear())
+            builder = _writer(store, schema, target)
+            Plain._set(builder, name, Plain._decode(prop.schema, verb["set"]["value"], (), store) if "set" in verb else None)
             builder.update()
             continue
         adjacency = schema.adjacencies[name]
         for entry in body["mutations"][0]["insert"]["entries"]:
-            if any(_matches(store, held, entry, frame)
-                   for held in Proxies._linking(adjacency.relation, adjacency.me, target, store)):
+            if any(_matches(store, adjacency.relation, held, entry, frame)
+                   for held in getattr(_reader(store, target), name)):
                 continue
-            _insert(store, target, name_of, name, adjacency, entry, frame)
+            _insert(store, target, schema, name, adjacency, entry, frame)
 
 
-def _insert(store: Any, target: Any, name_of: str, name: str, adjacency: Any, entry: Any, frame: Frame) -> None:
+def _insert(store: Any, target: Any, schema: Any, name: str, adjacency: Any, entry: Any, frame: Frame) -> None:
     """Adds an entry a spec gives to an object's adjacency, replacing the one it holds where it holds one at most."""
     links: dict[str, Any] = {}
     values: dict[str, Any] = {}
@@ -688,9 +728,9 @@ def _insert(store: Any, target: Any, name_of: str, name: str, adjacency: Any, en
         given = body["mutations"][0]["set"]
         if "def" in given:
             definition = given["def"]
-            schema = store.registered(definition["schema"])
-            made = store.builder(definition["schema"]).create()
-            _write(store, made, schema, definition["mutations"], frame)
+            defined = store.registered(definition["schema"])
+            made = _writer(store, defined).create()
+            _write(store, made, defined, definition["mutations"], frame)
             links[body["name"]] = made
         else:
             links[body["name"]] = _resolve(store, given["ref"], frame)
@@ -702,7 +742,7 @@ def _insert(store: Any, target: Any, name_of: str, name: str, adjacency: Any, en
             Plain._set(added, prop, value)
         return added
 
-    builder = store.builder(name_of, target)
+    builder = _writer(store, schema, target)
     member = getattr(builder, name)
     if Proxies._single(adjacency.relation, adjacency.me):  # one entry at most: the one held is replaced
         member(lambda held: held.remove(lambda old: old))

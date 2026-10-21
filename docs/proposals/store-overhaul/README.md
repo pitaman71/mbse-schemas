@@ -305,10 +305,18 @@ so that main stays current and no branch waits on another.
        with, joined, to its `then`.
 
      Settled while building it, for the user's review: a symbol of a schema object, which 86's `install(txn)` needs,
-     is refused for now ("binds a schema object: transactions bind data objects until schemas are written by
-     transactions"), and becomes a stage of its own before 4e-2; a map finds only what the store reaches from its
+     was refused at first, and became a stage of its own before 4e-2 ("yes, proceed"); a map finds only what the store reaches from its
      singletons, so a counted object linked from none (a term, a note no one links) is found only by the upsert that
      made it; an upsert that finds several objects binds each, as a map does.
+
+     The fourth, as built: schema objects in transactions (86). A symbol may be of a meta-schema
+     (`store.Schemas.OfObject`, `OfRelation`, ...); it ranges over the named schema objects of that kind the store
+     holds, the framework's left out. The executor reads every object through its visitor, a schema object's builder,
+     read-only, which sees what the transaction open has made of it (96), and data's proxy; it writes a schema object
+     through its meta-schema's builder, whose update of one that existed waits for commit. An upsert finds a schema
+     object by the name its spec gives, as it finds an owned object by its owning entry: a module's install, run again,
+     finds its schemas and extends them where the spec gives more. A symbol's schema is given as the store's
+     (`store.Schemas.OfObject`), not yet `txn.Schemas` (78).
    - **4f, the wire** (45, 51, 55, 56): a store's snapshot is made of transactions; a journal holds transactions as
      submitted, replayed by executing them; a Reachable document is one transaction, its counted objects numbered within
      it, owned objects and singletons referred to by path. The corpora are regenerated, the JSON byte-identical between

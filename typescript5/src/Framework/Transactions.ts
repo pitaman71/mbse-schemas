@@ -23,10 +23,14 @@
  * it does not, writing its spec where it does not hold; an update writes its spec; a reduce drops symbols; a partition
  * runs its branches and joins what they end with. It gives the frames its chain ends with, each the objects its symbols
  * bind, by symbol.
+ *
+ * A symbol of a meta-schema (`store.Schemas.OfObject`, ...) binds schema objects: a module's `install(txn)` upserts its
+ * schemas, each found by its name, so that a transaction defines and extends schemas (Decided, 86).
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import * as Builders from "./Builders.js";
 import { LookupError, ValueError } from "./Errors.js";
 import * as Paths from "./Paths.js";
 import * as Plain from "./Plain.js";
@@ -514,19 +518,46 @@ function unbound(names: Iterable<string>, bound: Set<string>, kind: string): voi
   }
 }
 
-/** Refuses a symbol a transaction cannot bind yet: one that binds no reference object of one schema, or a schema object. */
+/** Refuses a symbol a transaction cannot bind: one of a kind union, or of no reference object schema. */
 function symbols(store: any, pattern: any): void {
   for (const [name, symbol] of pattern.symbols) {
     const schema = symbol.schema;
     if (!(schema instanceof S.OfObject.Data) || !schema.ref) {
-      throw new ValueError(`symbol ${repr(name)} binds no reference object of one schema: transactions bind data objects `
-        + "of an object schema");
-    }
-    if (store._meta_builder(store.name_of(schema)) !== null) {
-      throw new ValueError(`symbol ${repr(name)} binds a schema object: transactions bind data objects until schemas are `
-        + "written by transactions");
+      throw new ValueError(`symbol ${repr(name)} binds no reference object of one schema: transactions bind objects of an `
+        + "object schema");
     }
   }
+}
+
+/** Whether `schema` is a meta-schema: its objects are schema objects (`Schemas.OfObject`, ...), written by their builders
+ * (Decided, 86). */
+function meta(store: any, schema: any): boolean {
+  return store._meta_builder(store.name_of(schema)) !== null;
+}
+
+/** A visitor of an object, to read: a schema object's builder, read-only, which sees what the transaction open has made
+ * of it, or data's proxy. */
+function reader(store: any, target: any): any {
+  const kind = store._meta_builder_class(target);
+  return kind === null ? target : new kind(target, false, store);
+}
+
+/** A builder of an object of `schema`, new or `target`: a schema object's by its meta-schema, data's by its schema. */
+function writer(store: any, schema: any, target: unknown = null): any {
+  const name = store.name_of(schema);
+  return meta(store, schema) ? store._meta_builder(name, target) : store.builder(name, target);
+}
+
+/** The object an entry links, as read: a schema object's entry gives a link, read through its builder. */
+function linked(value: unknown): any {
+  return Builders._linked_data(value) ?? value;
+}
+
+/** The objects a symbol of `schema` ranges over: a meta-schema's, the named schema objects of its kind the store holds,
+ * the framework's left out; data's, those the store reaches from its singletons. */
+function extent(store: any, schema: any): any[] {
+  if (!meta(store, schema)) return [...store.extent(store.name_of(schema))];
+  return [...store._objects].filter((held) => !store.framework(held) && reader(store, held).as_schema() === schema);
 }
 
 /** The frames a term, and those after it, make of `frames`: those its chain ends with. */
@@ -547,7 +578,7 @@ function run(store: any, term: any, frames: Frame[]): Frame[] {
     const unique = new Map<string, Frame>();
     for (const frame of frames) {
       const kept: Frame = new Map([...frame].filter(([name]) => !dropped.includes(name)));
-      const identity = JSON.stringify([...kept].map(([name, target]) => [name, Proxies._key_of(target)]));
+      const identity = JSON.stringify([...kept].map(([name, target]) => [name, Proxies._key_of(reader(store, target))]));
       if (!unique.has(identity)) unique.set(identity, kept);
     }
     frames = [...unique.values()];
@@ -582,25 +613,24 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
         continue;
       }
       const index = JSON.stringify([key, name, sortedStrings([...frame.keys()])
-        .map((bound) => [bound, Proxies._key_of(frame.get(bound))])]);
-      const held = upsert && Proxies._counted_schema(schema) ? store._upserted.get(index) : undefined;
+        .map((bound) => [bound, Proxies._key_of(reader(store, frame.get(bound)))])]);
+      const counted = Proxies._counted_schema(schema) && !meta(store, schema);
+      const held = upsert && counted ? store._upserted.get(index) : undefined;
       const created = held?.deref();
       if (created !== undefined) {
         grown.push(new Map([...partial, [name, created]]));
         continue;
       }
       const own = members.get(name) ?? [];
-      const owning = own.filter((member) => member.has("as_adjacency")
-        && schema.adjacencies.get(member.get("as_adjacency").get("name")).owner);
-      const finding = owning.length > 0 ? owning : own;
-      const found = store.extent(store.name_of(schema)).filter((target: unknown) =>
-        holds(store, target, schema, finding, partial, partial));
+      const identifying = own.filter((member) => identifies(store, schema, member));
+      const finding = identifying.length > 0 ? identifying : own;
+      const found = extent(store, schema).filter((target: unknown) => holds(store, target, schema, finding, partial, partial));
       if (found.length > 0 || !upsert) {
         for (const target of found) grown.push(new Map([...partial, [name, target]]));
         continue;
       }
-      const made = store.builder(store.name_of(schema)).create();
-      if (Proxies._counted_schema(schema)) store._upserted.set(index, new WeakRef(made));
+      const made = writer(store, schema).create();
+      if (counted) store._upserted.set(index, new WeakRef(made));
       grown.push(new Map([...partial, [name, made]]));
     }
     frames = grown;
@@ -611,6 +641,14 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
   }
   return frames.filter((bound) => [...members].every(([name, items]) =>
     holds(store, bound.get(name), pattern.symbols.get(name).schema, items, bound, null)));
+}
+
+/** Whether a spec's member gives its object's identity, by which an upsert finds it: a schema object's name (86), an
+ * owned object's owning entry (60). */
+function identifies(store: any, schema: any, member: Map<string, any>): boolean {
+  const [kind, body] = only(member);
+  if (kind === "as_property") return body.get("name") === "name" && meta(store, schema);
+  return schema.adjacencies.get(body.get("name")).owner;
 }
 
 /** A pattern's spec, by symbol: the members of each, its items in order. */
@@ -634,19 +672,18 @@ function only(item: Map<string, any>): [string, any] {
  * Finding the object of a symbol (`partial`, the frame as bound so far), an entry linking a symbol not yet bound is left
  * out. */
 function holds(store: any, target: any, schema: any, members: Members, frame: Frame, partial: Frame | null): boolean {
-  const values = Proxies._innerOf(target)._values;
+  const visitor = reader(store, target);
   for (const member of members) {
     const [kind, body] = only(member);
+    const name = body.get("name");
     if (kind === "as_property") {
-      const name = body.get("name");
-      if (!agree(plainOf(store, values, name, schema.properties.get(name)), given(body.get("mutations")[0]))) return false;
+      if (!agree(plainOf(store, visitor[name], schema.properties.get(name)), given(body.get("mutations")[0]))) return false;
       continue;
     }
-    const adjacency = schema.adjacencies.get(body.get("name"));
+    const relation = schema.adjacencies.get(name).relation;
     for (const entry of body.get("mutations")[0].get("insert").get("entries")) {
       if (partial !== null && symbolRefs(entry).some((ref) => !partial.has(ref.get("symbol")))) continue;
-      if (!Proxies._linking(adjacency.relation, adjacency.me, target, store).some((held: any) =>
-        matches(store, held, entry, frame))) return false;
+      if (![...visitor[name]].some((held: any) => matches(store, relation, held, entry, frame))) return false;
     }
   }
   return true;
@@ -674,9 +711,9 @@ function symbolRefs(entry: Map<string, any>): Map<string, any>[] {
   return found;
 }
 
-/** A property's value as a spec gives it: `[present, plain]`. */
-function plainOf(store: any, values: Map<string, unknown>, name: string, prop: any): [boolean, unknown] {
-  return Plain._value(Proxies._makeProperty(values, name, prop, store, null, false), prop.schema, Plain._names(store));
+/** A property's value, read, as a spec gives it: `[present, plain]`. */
+function plainOf(store: any, read: any, prop: any): [boolean, unknown] {
+  return Plain._value(read, prop.schema, Plain._names(store));
 }
 
 /** A spec's property verb as `[present, plain]`. */
@@ -688,25 +725,23 @@ function agree([present, plain]: [boolean, unknown], [wanted, value]: [boolean, 
   return present === wanted && (!present || Plain._symbol(plain) === Plain._symbol(value));
 }
 
-/** Whether an entry held is one a spec gives: the objects it links, and its properties' values. */
-function matches(store: any, held: any, entry: Map<string, any>, frame: Frame): boolean {
-  const state = Proxies._innerOf(held);
+/** Whether an entry held, read, is one a spec gives: the objects it links, and its properties' values. */
+function matches(store: any, relation: any, held: any, entry: Map<string, any>, frame: Frame): boolean {
   for (const item of entry.get("mutations")) {
     const [kind, body] = only(item);
     const name = body.get("name");
     if (kind === "as_property") {
-      const prop = state._relation.entry.properties.get(name);
-      if (!agree(plainOf(store, state._properties, name, prop), given(body.get("mutations")[0]))) return false;
+      if (!agree(plainOf(store, held[name], relation.entry.properties.get(name)), given(body.get("mutations")[0]))) return false;
       continue;
     }
-    const linked = state._links.get(name);
-    const target = body.get("mutations")[0].get("set");
-    if (target.has("def")) {
-      const definition = target.get("def");
+    const target = linked(held[name]);
+    const wanted = body.get("mutations")[0].get("set");
+    if (wanted.has("def")) {
+      const definition = wanted.get("def");
       const schema = store.registered(definition.get("schema"));
-      if (linked === undefined || linked.as_schema() !== schema
-        || !holds(store, linked, schema, definition.get("mutations"), frame, null)) return false;
-    } else if (linked !== resolve(store, target.get("ref"), frame)) {
+      if (reader(store, target).as_schema() !== schema
+        || !holds(store, target, schema, definition.get("mutations"), frame, null)) return false;
+    } else if (target !== resolve(store, wanted.get("ref"), frame)) {
       return false;
     }
   }
@@ -729,30 +764,28 @@ function writeSpec(store: any, pattern: any, frame: Frame): void {
 /** Writes what a spec gives of an object where it does not hold: a property's value, and an entry, its links resolved and
  * the objects it defines made. */
 function write(store: any, target: any, schema: any, members: Members, frame: Frame): void {
-  const nameOf = store.name_of(schema);
   for (const member of members) {
     const [kind, body] = only(member);
     const name = body.get("name");
     if (kind === "as_property") {
       const prop = schema.properties.get(name);
       const verb = body.get("mutations")[0];
-      if (agree(plainOf(store, Proxies._innerOf(target)._values, name, prop), given(verb))) continue;
-      const builder = store.builder(nameOf, target);
-      if (verb.has("set")) Plain._set(builder, name, Plain._decode(prop.schema, verb.get("set").get("value"), [], store));
-      else builder[name].as_value((value: any) => value.clear());
+      if (agree(plainOf(store, reader(store, target)[name], prop), given(verb))) continue;
+      const builder = writer(store, schema, target);
+      Plain._set(builder, name, verb.has("set") ? Plain._decode(prop.schema, verb.get("set").get("value"), [], store) : null);
       builder.update();
       continue;
     }
     const adjacency = schema.adjacencies.get(name);
     for (const entry of body.get("mutations")[0].get("insert").get("entries")) {
-      if (Proxies._linking(adjacency.relation, adjacency.me, target, store).some((held: any) => matches(store, held, entry, frame))) continue;
-      insert(store, target, nameOf, name, adjacency, entry, frame);
+      if ([...reader(store, target)[name]].some((held: any) => matches(store, adjacency.relation, held, entry, frame))) continue;
+      insert(store, target, schema, name, adjacency, entry, frame);
     }
   }
 }
 
 /** Adds an entry a spec gives to an object's adjacency, replacing the one it holds where it holds one at most. */
-function insert(store: any, target: any, nameOf: string, name: string, adjacency: any, entry: Map<string, any>,
+function insert(store: any, target: any, schema: any, name: string, adjacency: any, entry: Map<string, any>,
   frame: Frame): void {
   const links = new Map<string, unknown>();
   const values = new Map<string, unknown>();
@@ -766,8 +799,9 @@ function insert(store: any, target: any, nameOf: string, name: string, adjacency
     const target = body.get("mutations")[0].get("set");
     if (target.has("def")) {
       const definition = target.get("def");
-      const made = store.builder(definition.get("schema")).create();
-      write(store, made, store.registered(definition.get("schema")), definition.get("mutations"), frame);
+      const defined = store.registered(definition.get("schema"));
+      const made = writer(store, defined).create();
+      write(store, made, defined, definition.get("mutations"), frame);
       links.set(body.get("name"), made);
     } else {
       links.set(body.get("name"), resolve(store, target.get("ref"), frame));
@@ -778,7 +812,7 @@ function insert(store: any, target: any, nameOf: string, name: string, adjacency
     for (const [prop, value] of values) Plain._set(added, prop, value);
     return added;
   };
-  const builder = store.builder(nameOf, target);
+  const builder = writer(store, schema, target);
   const member = builder[name];
   if (Proxies._single(adjacency.relation, adjacency.me)) member((held: any) => held.remove((old: any) => old)); // one at most: replaced
   member((held: any) => held.insert(fill));

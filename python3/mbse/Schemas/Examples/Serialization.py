@@ -10,72 +10,57 @@ from mbse.Schemas.Framework.Errors import DecodeError
 from mbse.Schemas.Examples._support import entries, members, raises, schema_names
 
 
-store = Builders.Store()
-Text, Int = store.Schemas.OfStr.as_schema(), store.Schemas.OfInt.as_schema()  # the store's own
-
 # --- Schemas ---
 
-with store.transaction():  # every write to a store is made within a transaction, all or nothing
-    Sample = store.Schemas.OfObject(lambda o: (
-        o
-        .name('Sample')
-        .ref(True)
-        .properties([
-            lambda t: t.name('label').schema([Text]),
-            lambda t: t.name('payload').schema([store.Schemas.OfBytes]),
-            lambda t: t.name('count').schema([Int]),
-            lambda t: t.name('ratio').schema([store.Schemas.OfFloat]),
-            lambda t: t.name('flag').schema([store.Schemas.OfBool]),
-        ])
-    ))
 
-    # Registered names are strings and need not be identifiers: a dotted name is a path from the store.
-    Currency = store.Schemas.OfObject(lambda o: (
-        o
-        .name('iso4217.Currency')
-        .ref(True)
-        .properties([
-            lambda t: t.name('code').schema([Text]),  # ISO 4217 alpha, e.g. 'JPY'
-            lambda t: t.name('numeric').schema([Text]),  # ISO 4217 numeric, e.g. '392'; keeps zeros
-            lambda t: t.name('minor_units').schema([Int]),  # 0 for JPY, 2 for EUR, 3 for BHD
-        ])
-    ))
-    Product = store.Schemas.OfObject(lambda o: o.name('Product').ref(True).properties([lambda t: t.name('sku').schema([Text])]))
-    Money = store.Schemas.OfObject(lambda o: (
-        o
-        .name('Money')
-        .ref(True)
-        .properties([lambda t: t.name('amount').schema([Int])])  # in minor units
-    ))
+def install(txn):
+    """The price list's schemas, defined in the store a transaction writes (`store.transaction(install)`), each found by
+    its name, else made."""
+    S = txn.Schemas  # the store's own schemas, by name
+    return txn.uid('examples.serialization/1').mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
+        .symbols({
+            'Sample': S.OfObject, 'Currency': S.OfObject, 'Product': S.OfObject, 'Money': S.OfObject,
+            'Prices': S.OfRelation, 'Denomination': S.OfRelation,
+        })
+        .spec([
+            lambda _: _.Sample.name('Sample').ref(True).properties({
+                'label': S.OfStr,
+                'payload': S.OfBytes,
+                'count': S.OfInt,
+                'ratio': S.OfFloat,
+                'flag': S.OfBool,
+            }),
+            # Registered names are strings and need not be identifiers: a dotted name is a path from the store.
+            lambda _: _.Currency.name('iso4217.Currency').ref(True).properties({
+                'code': S.OfStr,  # ISO 4217 alpha, e.g. 'JPY'
+                'numeric': S.OfStr,  # ISO 4217 numeric, e.g. '392'; keeps zeros
+                'minor_units': S.OfInt,  # 0 for JPY, 2 for EUR, 3 for BHD
+            }).adjacencies({'amounts': lambda a: a.relation([_.Denomination]).me('currency')}),
+            lambda _: _.Product.name('Product').ref(True).properties({'sku': S.OfStr}).adjacencies({
+                'prices': lambda a: a.relation([_.Prices]).me('product')}),
+            lambda _: _.Money.name('Money').ref(True).properties({
+                'amount': S.OfInt,  # in minor units
+            }).adjacencies({
+                'products': lambda a: a.relation([_.Prices]).me('price'),
+                'currency': lambda a: a.relation([_.Denomination]).me('money'),
+            }),
+            # product -> [currency] -> money
+            lambda _: _.Prices.name('Prices').links([
+                lambda t: t.name('product'),
+                lambda t: t.name('price'),
+            ]).properties({'currency': S.OfStr}).uniques('price'),
+            # Which currency a money amount is in.
+            lambda _: _.Denomination.name('Denomination').links([
+                lambda t: t.name('money'),
+                lambda t: t.name('currency'),
+            ]).uniques('currency'),
+        ])]))])
 
-    # product -> [currency] -> money
-    Prices = store.Schemas.OfRelation(lambda r: (
-        r
-        .name('Prices')
-        .links([
-            lambda t: t.name('product'),
-            lambda t: t.name('price'),
-        ])
-        .properties([lambda t: t.name('currency').schema([Text])])
-        .uniques('price')
-    ))
-    # Which currency a money amount is in.
-    Denomination = store.Schemas.OfRelation(lambda r: (
-        r
-        .name('Denomination')
-        .links([
-            lambda t: t.name('money'),
-            lambda t: t.name('currency'),
-        ])
-        .uniques('currency')
-    ))
 
-    store.Schemas.OfObject(Product, lambda o: o.adjacencies([lambda t: t.name('prices').relation([Prices]).me('product')]))
-    store.Schemas.OfObject(Money, lambda o: o.adjacencies([
-        lambda t: t.name('products').relation([Prices]).me('price'),
-        lambda t: t.name('currency').relation([Denomination]).me('money'),
-    ]))
-    store.Schemas.OfObject(Currency, lambda o: o.adjacencies([lambda t: t.name('amounts').relation([Denomination]).me('currency')]))
+store = Builders.Store()
+store.transaction(install)  # every write to a store is made within a transaction, all or nothing
+Sample, Currency, Product, Money, Prices, Denomination = (store.registered(name) for name in (
+    'Sample', 'iso4217.Currency', 'Product', 'Money', 'Prices', 'Denomination'))
 
 for schema in [Sample, Currency, Product, Money, Prices, Denomination]:
     assert schema.validate() == [], (schema.name, schema.validate())
@@ -233,8 +218,18 @@ with raises(AttributeError):
     widget.sku = 'W-2'  # instances are read-only
 
 # A schema named 'schema' is shadowed by the store's schema() method, but still reachable by name.
+
+
+def shadowed(txn):
+    """A schema named 'schema'."""
+    S = txn.Schemas
+    return txn.uid('examples.serialization.shadowed/1').mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
+        .symbols({'Shadowed': S.OfObject})
+        .spec([lambda _: _.Shadowed.name('schema').ref(True).properties({'label': S.OfStr})])]))])
+
+
+store.transaction(shadowed)
 with store.transaction():
-    Shadowed = store.Schemas.OfObject(lambda o: o.name('schema').ref(True).properties([lambda t: t.name('label').schema([Text])]))
-    assert store.schema('schema') is Shadowed and store.builder('schema').create().as_schema().name == 'schema'
+    assert store.schema('schema') is store.registered('schema') and store.builder('schema').create().as_schema().name == 'schema'
 
 print('Serialization: all checks passed')

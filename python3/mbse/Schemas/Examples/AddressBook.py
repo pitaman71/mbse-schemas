@@ -2,116 +2,68 @@
 #
 # Lines marked PROPOSED use syntax that FRAMEWORK.md does not define yet.
 
-from mbse.Schemas.Framework import Builders, Schemas, Plain, JSON
+from mbse.Schemas.Framework import Builders, Plain, JSON
 
-
-# Schemas and objects are built in a store, `store.<schema name>(...)`; a named schema registers itself as it is built.
-store = Builders.Store()
-Text = store.Schemas.OfStr.as_schema()  # the store's own basic scalar
 
 # --- Schemas ---
 
-with store.transaction():  # every write to a store is made within a transaction, all or nothing
-    IntlAddress = store.Schemas.OfObject(lambda o: (
-        o
-        .name('IntlAddress')
-        .ref(True)
-        .properties([
-            lambda t: t.name('street1').schema([Text]),
-            lambda t: t.name('street2').schema([Text]),
-            lambda t: t.name('street3').schema([Text]),
-            lambda t: t.name('dependent_locality').schema([Text]),  # neighborhood, district
-            lambda t: t.name('locality').schema([Text]),  # city, town, post town
-            lambda t: t.name('administrative_area').schema([Text]),  # state, province, prefecture
-            lambda t: t.name('postal_code').schema([Text]),
-            lambda t: t.name('sorting_code').schema([Text]),  # e.g. French CEDEX
-            lambda t: t.name('country_code').schema([Text]),  # ISO 3166-1 alpha-2
-        ])
-    ))
 
-    Contact = store.Schemas.OfObject(lambda o: (
-        o
-        .name('Contact')
-        .ref(True)
-        .properties([
-            lambda t: t.name('given_name').schema([Text]),
-            lambda t: t.name('family_name').schema([Text]),
-            lambda t: t.name('birth_date').schema([Text]),  # ISO 8601 calendar date, YYYY-MM-DD
-            lambda t: t.name('preferred_language').schema([Text]),  # BCP 47 tag, e.g. 'fr-CA'
-        ])
-    ))
+def install(txn):
+    """The address book's schemas, defined in the store a transaction writes (`store.transaction(install)`), each found
+    by its name, else made. Collections are relations: links are untyped, and each object declares its adjacencies."""
+    S = txn.Schemas  # the store's own schemas, by name
+    return txn.uid('examples.address_book/1').mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
+        .symbols({
+            'IntlAddress': S.OfObject, 'Contact': S.OfObject, 'PhoneNumber': S.OfObject, 'EmailAddress': S.OfObject,
+            'ContactAddresses': S.OfRelation, 'ContactPhones': S.OfRelation, 'ContactEmails': S.OfRelation,
+        })
+        .spec([
+            lambda _: _.IntlAddress.name('IntlAddress').ref(True).properties({
+                'street1': S.OfStr,
+                'street2': S.OfStr,
+                'street3': S.OfStr,
+                'dependent_locality': S.OfStr,  # neighborhood, district
+                'locality': S.OfStr,  # city, town, post town
+                'administrative_area': S.OfStr,  # state, province, prefecture
+                'postal_code': S.OfStr,
+                'sorting_code': S.OfStr,  # e.g. French CEDEX
+                'country_code': S.OfStr,  # ISO 3166-1 alpha-2
+            }).adjacencies({'contacts': lambda a: a.relation([_.ContactAddresses]).me('address')}),
+            lambda _: _.Contact.name('Contact').ref(True).properties({
+                'given_name': S.OfStr,
+                'family_name': S.OfStr,
+                'birth_date': S.OfStr,  # ISO 8601 calendar date, YYYY-MM-DD
+                'preferred_language': S.OfStr,  # BCP 47 tag, e.g. 'fr-CA'
+            }).adjacencies({
+                'addresses': lambda a: a.relation([_.ContactAddresses]).me('contact'),
+                'phones': lambda a: a.relation([_.ContactPhones]).me('contact'),
+                'emails': lambda a: a.relation([_.ContactEmails]).me('contact'),
+            }),
+            lambda _: _.PhoneNumber.name('PhoneNumber').ref(True).properties({
+                'number': S.OfStr,  # ITU-T E.164, e.g. '+14155550100'
+            }).adjacencies({'contacts': lambda a: a.relation([_.ContactPhones]).me('phone')}),
+            lambda _: _.EmailAddress.name('EmailAddress').ref(True).properties({
+                'address': S.OfStr,  # RFC 5322 addr-spec
+            }).adjacencies({'contacts': lambda a: a.relation([_.ContactEmails]).me('email')}),
+            lambda _: _.ContactAddresses.name('ContactAddresses').links([
+                lambda t: t.name('contact'),
+                lambda t: t.name('address'),
+            ]).properties({'label': S.OfStr}),  # e.g. 'home', 'work'
+            lambda _: _.ContactPhones.name('ContactPhones').links([
+                lambda t: t.name('contact'),
+                lambda t: t.name('phone'),
+            ]).properties({'label': S.OfStr}),  # e.g. 'mobile', 'work'
+            lambda _: _.ContactEmails.name('ContactEmails').links([
+                lambda t: t.name('contact'),
+                lambda t: t.name('email'),
+            ]).properties({'label': S.OfStr}),  # e.g. 'personal', 'work'
+        ])]))])
 
-    PhoneNumber = store.Schemas.OfObject(lambda o: (
-        o
-        .name('PhoneNumber')
-        .ref(True)
-        .properties([
-            lambda t: t.name('number').schema([Text]),  # ITU-T E.164, e.g. '+14155550100'
-        ])
-    ))
 
-    EmailAddress = store.Schemas.OfObject(lambda o: (
-        o
-        .name('EmailAddress')
-        .ref(True)
-        .properties([
-            lambda t: t.name('address').schema([Text]),  # RFC 5322 addr-spec
-        ])
-    ))
-
-    # Collections are relations. Links are untyped; each object declares its adjacencies below.
-
-    ContactAddresses = store.Schemas.OfRelation(lambda r: (
-        r
-        .name('ContactAddresses')
-        .links([
-            lambda t: t.name('contact'),
-            lambda t: t.name('address'),
-        ])
-        .properties([
-            lambda t: t.name('label').schema([Text]),  # e.g. 'home', 'work'
-        ])
-    ))
-
-    ContactPhones = store.Schemas.OfRelation(lambda r: (
-        r
-        .name('ContactPhones')
-        .links([
-            lambda t: t.name('contact'),
-            lambda t: t.name('phone'),
-        ])
-        .properties([
-            lambda t: t.name('label').schema([Text]),  # e.g. 'mobile', 'work'
-        ])
-    ))
-
-    ContactEmails = store.Schemas.OfRelation(lambda r: (
-        r
-        .name('ContactEmails')
-        .links([
-            lambda t: t.name('contact'),
-            lambda t: t.name('email'),
-        ])
-        .properties([
-            lambda t: t.name('label').schema([Text]),  # e.g. 'personal', 'work'
-        ])
-    ))
-
-    # A schema and a callback: the schema, updated in place.
-    store.Schemas.OfObject(Contact, lambda o: o.adjacencies([
-        lambda t: t.name('addresses').relation([ContactAddresses]).me('contact'),
-        lambda t: t.name('phones').relation([ContactPhones]).me('contact'),
-        lambda t: t.name('emails').relation([ContactEmails]).me('contact'),
-    ]))
-    store.Schemas.OfObject(IntlAddress, lambda o: o.adjacencies([
-        lambda t: t.name('contacts').relation([ContactAddresses]).me('address'),
-    ]))
-    store.Schemas.OfObject(PhoneNumber, lambda o: o.adjacencies([
-        lambda t: t.name('contacts').relation([ContactPhones]).me('phone'),
-    ]))
-    store.Schemas.OfObject(EmailAddress, lambda o: o.adjacencies([
-        lambda t: t.name('contacts').relation([ContactEmails]).me('email'),
-    ]))
+# Schemas and objects are built in a store, `store.<schema name>(...)`; a module's install defines its schemas there.
+store = Builders.Store()
+store.transaction(install)  # every write to a store is made within a transaction, all or nothing
+IntlAddress = store.registered('IntlAddress')
 
 # --- Building forms ---
 

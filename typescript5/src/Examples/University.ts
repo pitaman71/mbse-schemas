@@ -4,71 +4,61 @@
 // values, an ambiguous link that refuses inline creation, the builder not validating scalar types, and round trips.
 
 import { ValueError } from "@mbse/schemas/Framework/Errors";
-import { Builders, Plain, Proxies, Reachable, Schemas, Validators } from "@mbse/schemas/Framework";
+import { Builders, Plain, Proxies, Reachable, Validators } from "@mbse/schemas/Framework";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
 import { assert, entries, equal, raises } from "./_support.js";
 
 
-const store: any = new Builders.Store();
-const Text = store.Schemas.OfStr.as_schema(); // the store's own basic scalar
-
-function text(name: string) {
-  return (t: any) => t.name(name).schema([Text]);
-}
-
 // --- Schemas ---
 
-const { Student, Staff, Course, Term, Room, Enrollment, Booking } = store.transaction(() => { // every write to a store is made within a transaction, all or nothing
-  const Student = store.Schemas.OfObject((o: any) => o.name("Student").ref(true).properties([text("name"), text("student_id")]));
-  const Staff = store.Schemas.OfObject((o: any) => o.name("Staff").ref(true).properties([text("name"), text("staff_id")]));
-  const Course = store.Schemas.OfObject((o: any) => o.name("Course").ref(true).properties([text("code"), text("title")]));
-  const Term = store.Schemas.OfObject((o: any) => (
-    o
-      .name("Term")
-      .ref(true)
-      .properties([text("code"), text("starts"), text("ends")]) // ISO 8601 dates, e.g. '2026-09-01'
-  ));
-  const Room = store.Schemas.OfObject((o: any) => o.name("Room").ref(true).properties([text("building"), text("number")]));
-
-  // Three links: each entry is one student taking one course in one term.
-  const Enrollment = store.Schemas.OfRelation((r: any) => (
-    r
-      .name("Enrollment")
-      .links([
+/** The university's schemas, defined in the store a transaction writes (`store.transaction(install)`), each found by
+ * its name, else made. */
+function install(txn: any): any {
+  const S = txn.Schemas; // the store's own schemas, by name
+  return txn.uid("examples.university/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({
+      Student: S.OfObject, Staff: S.OfObject, Course: S.OfObject, Term: S.OfObject, Room: S.OfObject,
+      Enrollment: S.OfRelation, Booking: S.OfRelation,
+    })
+    .spec([
+      (_: any) => _.Student.name("Student").ref(true).properties({ name: S.OfStr, student_id: S.OfStr }).adjacencies({
+        enrollments: (a: any) => a.relation([_.Enrollment]).me("student"),
+        bookings: (a: any) => a.relation([_.Booking]).me("booker"),
+      }),
+      (_: any) => _.Staff.name("Staff").ref(true).properties({ name: S.OfStr, staff_id: S.OfStr }).adjacencies({
+        bookings: (a: any) => a.relation([_.Booking]).me("booker") }),
+      (_: any) => _.Course.name("Course").ref(true).properties({ code: S.OfStr, title: S.OfStr }).adjacencies({
+        enrollments: (a: any) => a.relation([_.Enrollment]).me("course") }),
+      (_: any) => _.Term.name("Term").ref(true).properties({
+        code: S.OfStr,
+        starts: S.OfStr, // ISO 8601 dates, e.g. '2026-09-01'
+        ends: S.OfStr,
+      }).adjacencies({ enrollments: (a: any) => a.relation([_.Enrollment]).me("term") }),
+      (_: any) => _.Room.name("Room").ref(true).properties({ building: S.OfStr, number: S.OfStr }).adjacencies({
+        bookings: (a: any) => a.relation([_.Booking]).me("room") }),
+     // Three links: each entry is one student taking one course in one term.
+      (_: any) => _.Enrollment.name("Enrollment").links([
         (t: any) => t.name("student"),
         (t: any) => t.name("course"),
         (t: any) => t.name("term"),
-      ])
-      .properties([
-        (t: any) => t.name("credits").schema([store.Schemas.OfInt]),
-        (t: any) => t.name("score").schema([store.Schemas.OfFloat]),
-        (t: any) => t.name("audit").schema([store.Schemas.OfBool]),
-      ])
-      .uniques(["score", "audit", "credits"]) // (student, course, term) determine the rest
-  ));
-
-  // Both Student and Staff can book rooms, so the 'booker' link is filled by more than one schema.
-  const Booking = store.Schemas.OfRelation((r: any) => (
-    r
-      .name("Booking")
-      .links([
+      ]).properties({
+        credits: S.OfInt,
+        score: S.OfFloat,
+        audit: S.OfBool,
+      }).uniques(["score", "audit", "credits"]), // (student, course, term) determine the rest
+     // Both Student and Staff can book rooms, so the 'booker' link is filled by more than one schema.
+      (_: any) => _.Booking.name("Booking").links([
         (t: any) => t.name("booker"),
         (t: any) => t.name("room"),
-      ])
-      .properties([text("starts")]) // ISO 8601 date-time, e.g. '2026-09-14T09:00:00Z'
-  ));
+      ]).properties({ starts: S.OfStr }), // ISO 8601 date-time, e.g. '2026-09-14T09:00:00Z'
+    ])]))]);
+}
 
-  store.Schemas.OfObject(Student, (o: any) => o.adjacencies([
-    (t: any) => t.name("enrollments").relation([Enrollment]).me("student"),
-    (t: any) => t.name("bookings").relation([Booking]).me("booker"),
-  ]));
-  store.Schemas.OfObject(Staff, (o: any) => o.adjacencies([(t: any) => t.name("bookings").relation([Booking]).me("booker")]));
-  store.Schemas.OfObject(Course, (o: any) => o.adjacencies([(t: any) => t.name("enrollments").relation([Enrollment]).me("course")]));
-  store.Schemas.OfObject(Term, (o: any) => o.adjacencies([(t: any) => t.name("enrollments").relation([Enrollment]).me("term")]));
-  store.Schemas.OfObject(Room, (o: any) => o.adjacencies([(t: any) => t.name("bookings").relation([Booking]).me("room")]));
-  return { Student, Staff, Course, Term, Room, Enrollment, Booking };
-});
+const store: any = new Builders.Store();
+store.transaction(install); // every write to a store is made within a transaction, all or nothing
+const [Student, Staff, Course, Term, Room, Enrollment, Booking] = ["Student", "Staff", "Course", "Term", "Room", "Enrollment",
+  "Booking"].map((name) => store.registered(name));
 
 for (const schema of [Student, Staff, Course, Term, Room, Enrollment, Booking]) {
   assert(schema.validate().length === 0, `${schema.name}: ${schema.validate()}`);

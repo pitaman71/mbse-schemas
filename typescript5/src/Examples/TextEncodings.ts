@@ -6,53 +6,42 @@
 import * as Y from "yaml";
 
 import { DecodeError, ValueError } from "@mbse/schemas/Framework/Errors";
-import { Builders, JSON, Plain, Proxies, Schemas, Validators, YAML } from "@mbse/schemas/Framework";
+import { Builders, JSON, Plain, Proxies, Validators, YAML } from "@mbse/schemas/Framework";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { assert, equal, raises } from "./_support.js";
 
 
-const store: any = new Builders.Store();
-const Text = store.Schemas.OfStr.as_schema(); // the store's own basic scalar
-
 // --- Schemas ---
 
-const { Reading, Station } = store.transaction(() => { // every write to a store is made within a transaction, all or nothing
-  const Reading = store.Schemas.OfObject((o: any) => (
-    o
-      .name("Reading")
-      .ref(true)
-      .properties([
-        (t: any) => t.name("observed").schema([Text]), // ISO 8601, e.g. '2026-09-28T12:00:00Z'
-        (t: any) => t.name("value").schema([store.Schemas.OfFloat]),
-        (t: any) => t.name("quality").schema([store.Schemas.OfInt]),
-        (t: any) => t.name("valid").schema([store.Schemas.OfBool]),
-        (t: any) => t.name("raw").schema([store.Schemas.OfBytes]),
-        (t: any) => t.name("note").schema([Text]),
-      ])
-  ));
-  const Station = store.Schemas.OfObject((o: any) => (
-    o
-      .name("Station")
-      .ref(true)
-      .properties([
-        (t: any) => t.name("wmo_id").schema([Text]), // e.g. '03772'; leading zeros matter
-        (t: any) => t.name("name").schema([Text]),
-      ])
-  ));
-  const Readings = store.Schemas.OfRelation((r: any) => (
-    r
-      .name("Readings")
-      .links([
+/** The weather schemas, defined in the store a transaction writes (`store.transaction(install)`): readings and the
+ * stations they come from, each found by its name, else made. */
+function install(txn: any): any {
+  const S = txn.Schemas; // the store's own schemas, by name
+  return txn.uid("examples.text_encodings/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({ Reading: S.OfObject, Station: S.OfObject, Readings: S.OfRelation })
+    .spec([
+      (_: any) => _.Reading.name("Reading").ref(true).properties({
+        observed: S.OfStr, // ISO 8601, e.g. '2026-09-28T12:00:00Z'
+        value: S.OfFloat,
+        quality: S.OfInt,
+        valid: S.OfBool,
+        raw: S.OfBytes,
+        note: S.OfStr,
+      }).adjacencies({ station: (a: any) => a.relation([_.Readings]).me("reading") }),
+      (_: any) => _.Station.name("Station").ref(true).properties({
+        wmo_id: S.OfStr, // e.g. '03772'; leading zeros matter
+        name: S.OfStr,
+      }).adjacencies({ readings: (a: any) => a.relation([_.Readings]).me("station") }),
+      (_: any) => _.Readings.name("Readings").links([
         (t: any) => t.name("station"),
         (t: any) => t.name("reading"),
-      ])
-      .properties([(t: any) => t.name("sensor").schema([Text])])
-      .uniques(["station", "sensor"]) // each reading comes from one sensor of one station
-  ));
-  store.Schemas.OfObject(Station, (o: any) => o.adjacencies([(t: any) => t.name("readings").relation([Readings]).me("station")]));
-  store.Schemas.OfObject(Reading, (o: any) => o.adjacencies([(t: any) => t.name("station").relation([Readings]).me("reading")]));
-  return { Reading, Station };
-});
+      ]).properties({ sensor: S.OfStr }).uniques(["station", "sensor"]), // each reading from one sensor of one station
+    ])]))]);
+}
+
+const store: any = new Builders.Store();
+store.transaction(install); // every write to a store is made within a transaction, all or nothing
+const [Reading, Station] = [store.registered("Reading"), store.registered("Station")];
 
 const validate = Validators.Validate(store);
 const from_json = JSON.FromJSON(store);

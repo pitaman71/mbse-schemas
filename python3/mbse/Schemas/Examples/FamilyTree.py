@@ -3,54 +3,47 @@
 # Covers self-relations, several relations between the same pair of objects, multiple owners, cycles, a self-loop,
 # duplicate elision, entries that differ only by a property, entry removal, clone() copying entries, and round trips.
 
-from mbse.Schemas.Framework import Builders, Schemas, Plain, Reachable, Validators
+from mbse.Schemas.Framework import Builders, Plain, Reachable, Validators
 from mbse.Schemas.Examples._support import entries, raises
 
 
-store = Builders.Store()
-Text = store.Schemas.OfStr.as_schema()  # the store's own basic scalar
-
 # --- Schemas ---
 
-with store.transaction():  # every write to a store is made within a transaction, all or nothing
-    Person = store.Schemas.OfObject(lambda o: (
-        o
-        .name('Person')
-        .ref(True)
-        .properties([
-            lambda t: t.name('given_name').schema([Text]),
-            lambda t: t.name('family_name').schema([Text]),
-            lambda t: t.name('birth_date').schema([Text]),  # ISO 8601 calendar date
-        ])
-    ))
 
-    # Both links of these relations are filled by Person objects.
-    Parentage = store.Schemas.OfRelation(lambda r: (
-        r
-        .name('Parentage')
-        .links([
-            lambda t: t.name('parent'),
-            lambda t: t.name('child'),
-        ])
-        .properties([lambda t: t.name('kind').schema([Text])])  # 'biological', 'adoptive'
-        .uniques([[]])  # a set of entries, with no other constraint: an entry equal to one held is that one
-    ))
+def install(txn):
+    """The family tree's schemas, defined in the store a transaction writes (`store.transaction(install)`): Person, and
+    the relations between persons, Parentage and Mentorship, each found by its name, else made."""
+    S = txn.Schemas  # the store's own schemas, by name
+    return txn.uid('examples.family_tree/1').mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
+        .symbols({'Person': S.OfObject, 'Parentage': S.OfRelation, 'Mentorship': S.OfRelation})
+        .spec([
+            lambda _: _.Person.name('Person').ref(True).properties({
+                'given_name': S.OfStr,
+                'family_name': S.OfStr,
+                'birth_date': S.OfStr,  # ISO 8601 calendar date
+            }).adjacencies({
+                'children': lambda a: a.relation([_.Parentage]).me('parent'),
+                'parents': lambda a: a.relation([_.Parentage]).me('child'),
+                'mentees': lambda a: a.relation([_.Mentorship]).me('mentor'),
+                'mentors': lambda a: a.relation([_.Mentorship]).me('mentee'),
+            }),
+            # Both links of these relations are filled by Person objects.
+            lambda _: _.Parentage.name('Parentage').links([
+                lambda t: t.name('parent'),
+                lambda t: t.name('child'),
+            ]).properties({
+                'kind': S.OfStr,  # 'biological', 'adoptive'
+            }).uniques([[]]),  # a set of entries, with no other constraint: an entry equal to one held is that one
+            lambda _: _.Mentorship.name('Mentorship').links([
+                lambda t: t.name('mentor'),
+                lambda t: t.name('mentee'),
+            ]),
+        ])]))])
 
-    Mentorship = store.Schemas.OfRelation(lambda r: (
-        r
-        .name('Mentorship')
-        .links([
-            lambda t: t.name('mentor'),
-            lambda t: t.name('mentee'),
-        ])
-    ))
 
-    store.Schemas.OfObject(Person, lambda o: o.adjacencies([
-        lambda t: t.name('children').relation([Parentage]).me('parent'),
-        lambda t: t.name('parents').relation([Parentage]).me('child'),
-        lambda t: t.name('mentees').relation([Mentorship]).me('mentor'),
-        lambda t: t.name('mentors').relation([Mentorship]).me('mentee'),
-    ]))
+store = Builders.Store()
+store.transaction(install)  # every write to a store is made within a transaction, all or nothing
+Person, Parentage, Mentorship = (store.registered(name) for name in ('Person', 'Parentage', 'Mentorship'))
 assert Person.validate() == [] and Parentage.validate() == [] and Mentorship.validate() == []
 
 

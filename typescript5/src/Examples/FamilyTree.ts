@@ -4,58 +4,48 @@
 // duplicate elision, entries that differ only by a property, entry removal, clone() copying entries, and round trips.
 
 import { ValueError } from "@mbse/schemas/Framework/Errors";
-import { Builders, Plain, Proxies, Reachable, Schemas, Validators } from "@mbse/schemas/Framework";
+import { Builders, Plain, Proxies, Reachable, Validators } from "@mbse/schemas/Framework";
 import type { Instance } from "@mbse/schemas/Framework/Proxies";
 import { sortedStrings } from "@mbse/schemas/Framework/Repr";
 import { assert, entries, equal, raises } from "./_support.js";
 
 
-const store: any = new Builders.Store();
-const Text = store.Schemas.OfStr.as_schema(); // the store's own basic scalar
-
 // --- Schemas ---
 
-const { Person, Parentage, Mentorship } = store.transaction(() => { // every write to a store is made within a transaction, all or nothing
-  const Person = store.Schemas.OfObject((o: any) => (
-    o
-      .name("Person")
-      .ref(true)
-      .properties([
-        (t: any) => t.name("given_name").schema([Text]),
-        (t: any) => t.name("family_name").schema([Text]),
-        (t: any) => t.name("birth_date").schema([Text]), // ISO 8601 calendar date
-      ])
-  ));
-
-  // Both links of these relations are filled by Person objects.
-  const Parentage = store.Schemas.OfRelation((r: any) => (
-    r
-      .name("Parentage")
-      .links([
+/** The family tree's schemas, defined in the store a transaction writes (`store.transaction(install)`): Person, and the
+ * relations between persons, Parentage and Mentorship, each found by its name, else made. */
+function install(txn: any): any {
+  const S = txn.Schemas; // the store's own schemas, by name
+  return txn.uid("examples.family_tree/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({ Person: S.OfObject, Parentage: S.OfRelation, Mentorship: S.OfRelation })
+    .spec([
+      (_: any) => _.Person.name("Person").ref(true).properties({
+        given_name: S.OfStr,
+        family_name: S.OfStr,
+        birth_date: S.OfStr, // ISO 8601 calendar date
+      }).adjacencies({
+        children: (a: any) => a.relation([_.Parentage]).me("parent"),
+        parents: (a: any) => a.relation([_.Parentage]).me("child"),
+        mentees: (a: any) => a.relation([_.Mentorship]).me("mentor"),
+        mentors: (a: any) => a.relation([_.Mentorship]).me("mentee"),
+      }),
+      // Both links of these relations are filled by Person objects.
+      (_: any) => _.Parentage.name("Parentage").links([
         (t: any) => t.name("parent"),
         (t: any) => t.name("child"),
-      ])
-      .properties([(t: any) => t.name("kind").schema([Text])]) // 'biological', 'adoptive'
-      .uniques([[]]) // a set of entries, with no other constraint: an entry equal to one held is that one
-  ));
-
-  const Mentorship = store.Schemas.OfRelation((r: any) => (
-    r
-      .name("Mentorship")
-      .links([
+      ]).properties({
+        kind: S.OfStr, // 'biological', 'adoptive'
+      }).uniques([[]]), // a set of entries, with no other constraint: an entry equal to one held is that one
+      (_: any) => _.Mentorship.name("Mentorship").links([
         (t: any) => t.name("mentor"),
         (t: any) => t.name("mentee"),
-      ])
-  ));
+      ]),
+    ])]))]);
+}
 
-  store.Schemas.OfObject(Person, (o: any) => o.adjacencies([
-    (t: any) => t.name("children").relation([Parentage]).me("parent"),
-    (t: any) => t.name("parents").relation([Parentage]).me("child"),
-    (t: any) => t.name("mentees").relation([Mentorship]).me("mentor"),
-    (t: any) => t.name("mentors").relation([Mentorship]).me("mentee"),
-  ]));
-  return { Person, Parentage, Mentorship };
-});
+const store: any = new Builders.Store();
+store.transaction(install); // every write to a store is made within a transaction, all or nothing
+const [Person, Parentage, Mentorship] = ["Person", "Parentage", "Mentorship"].map((name) => store.registered(name));
 assert(Person.validate().length === 0 && Parentage.validate().length === 0 && Mentorship.validate().length === 0);
 
 function kinds(obj: Instance, adjacency: string): string[] {

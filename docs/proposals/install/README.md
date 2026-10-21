@@ -134,4 +134,7 @@ As the user decided (2026-10-21), on the questions above:
   - a spec takes a schema object's builder's shorthands (`uniques("a")`), and writes a pattern's own spec over the
     symbols it declares, which name schemas the store holds: a pattern over schemas an install defines is installed
     after it (the corpus's `patterns`, after `address_book`). INS-03 covers both.
+  - the examples: AddressBook, FamilyTree, Serialization, TextEncodings and University define their schemas in a
+    module-scope `install`, their schema helpers (University's `text`) gone; SchemaBuilders, whose subject is the
+    builders, keeps them (Decided, 6).
 

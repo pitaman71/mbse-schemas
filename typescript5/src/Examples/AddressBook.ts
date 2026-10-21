@@ -2,120 +2,69 @@
 //
 // Lines marked PROPOSED use syntax that FRAMEWORK.md does not define yet.
 
-import { Builders, JSON, Plain, Proxies, Schemas } from "@mbse/schemas/Framework";
+import { Builders, JSON, Plain, Proxies } from "@mbse/schemas/Framework";
 import { ValueError } from "@mbse/schemas/Framework/Errors";
 import { assert, equal, raises } from "./_support.js";
 
 
-// Schemas and objects are built in a store, `store.<schema name>(...)`; a named schema registers itself as it is built.
-const store: any = new Builders.Store();
-const Text = store.Schemas.OfStr.as_schema(); // the store's own basic scalar
-
 // --- Schemas ---
 
-const { IntlAddress } = store.transaction(() => { // every write to a store is made within a transaction, all or nothing
-  const IntlAddress = store.Schemas.OfObject((o: any) => (
-    o
-      .name("IntlAddress")
-      .ref(true)
-      .properties([
-        (t: any) => t.name("street1").schema([Text]),
-        (t: any) => t.name("street2").schema([Text]),
-        (t: any) => t.name("street3").schema([Text]),
-        (t: any) => t.name("dependent_locality").schema([Text]), // neighborhood, district
-        (t: any) => t.name("locality").schema([Text]), // city, town, post town
-        (t: any) => t.name("administrative_area").schema([Text]), // state, province, prefecture
-        (t: any) => t.name("postal_code").schema([Text]),
-        (t: any) => t.name("sorting_code").schema([Text]), // e.g. French CEDEX
-        (t: any) => t.name("country_code").schema([Text]), // ISO 3166-1 alpha-2
-      ])
-  ));
-
-  const Contact = store.Schemas.OfObject((o: any) => (
-    o
-      .name("Contact")
-      .ref(true)
-      .properties([
-        (t: any) => t.name("given_name").schema([Text]),
-        (t: any) => t.name("family_name").schema([Text]),
-        (t: any) => t.name("birth_date").schema([Text]), // ISO 8601 calendar date, YYYY-MM-DD
-        (t: any) => t.name("preferred_language").schema([Text]), // BCP 47 tag, e.g. 'fr-CA'
-      ])
-  ));
-
-  const PhoneNumber = store.Schemas.OfObject((o: any) => (
-    o
-      .name("PhoneNumber")
-      .ref(true)
-      .properties([
-        (t: any) => t.name("number").schema([Text]), // ITU-T E.164, e.g. '+14155550100'
-      ])
-  ));
-
-  const EmailAddress = store.Schemas.OfObject((o: any) => (
-    o
-      .name("EmailAddress")
-      .ref(true)
-      .properties([
-        (t: any) => t.name("address").schema([Text]), // RFC 5322 addr-spec
-      ])
-  ));
-
-  // Collections are relations. Links are untyped; each object declares its adjacencies below.
-
-  const ContactAddresses = store.Schemas.OfRelation((r: any) => (
-    r
-      .name("ContactAddresses")
-      .links([
+/** The address book's schemas, defined in the store a transaction writes (`store.transaction(install)`), each found by
+ * its name, else made. Collections are relations: links are untyped, and each object declares its adjacencies. */
+function install(txn: any): any {
+  const S = txn.Schemas; // the store's own schemas, by name
+  return txn.uid("examples.address_book/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({
+      IntlAddress: S.OfObject, Contact: S.OfObject, PhoneNumber: S.OfObject, EmailAddress: S.OfObject,
+      ContactAddresses: S.OfRelation, ContactPhones: S.OfRelation, ContactEmails: S.OfRelation,
+    })
+    .spec([
+      (_: any) => _.IntlAddress.name("IntlAddress").ref(true).properties({
+        street1: S.OfStr,
+        street2: S.OfStr,
+        street3: S.OfStr,
+        dependent_locality: S.OfStr, // neighborhood, district
+        locality: S.OfStr, // city, town, post town
+        administrative_area: S.OfStr, // state, province, prefecture
+        postal_code: S.OfStr,
+        sorting_code: S.OfStr, // e.g. French CEDEX
+        country_code: S.OfStr, // ISO 3166-1 alpha-2
+      }).adjacencies({ contacts: (a: any) => a.relation([_.ContactAddresses]).me("address") }),
+      (_: any) => _.Contact.name("Contact").ref(true).properties({
+        given_name: S.OfStr,
+        family_name: S.OfStr,
+        birth_date: S.OfStr, // ISO 8601 calendar date, YYYY-MM-DD
+        preferred_language: S.OfStr, // BCP 47 tag, e.g. 'fr-CA'
+      }).adjacencies({
+        addresses: (a: any) => a.relation([_.ContactAddresses]).me("contact"),
+        phones: (a: any) => a.relation([_.ContactPhones]).me("contact"),
+        emails: (a: any) => a.relation([_.ContactEmails]).me("contact"),
+      }),
+      (_: any) => _.PhoneNumber.name("PhoneNumber").ref(true).properties({
+        number: S.OfStr, // ITU-T E.164, e.g. '+14155550100'
+      }).adjacencies({ contacts: (a: any) => a.relation([_.ContactPhones]).me("phone") }),
+      (_: any) => _.EmailAddress.name("EmailAddress").ref(true).properties({
+        address: S.OfStr, // RFC 5322 addr-spec
+      }).adjacencies({ contacts: (a: any) => a.relation([_.ContactEmails]).me("email") }),
+      (_: any) => _.ContactAddresses.name("ContactAddresses").links([
         (t: any) => t.name("contact"),
         (t: any) => t.name("address"),
-      ])
-      .properties([
-        (t: any) => t.name("label").schema([Text]), // e.g. 'home', 'work'
-      ])
-  ));
-
-  const ContactPhones = store.Schemas.OfRelation((r: any) => (
-    r
-      .name("ContactPhones")
-      .links([
+      ]).properties({ label: S.OfStr }), // e.g. 'home', 'work'
+      (_: any) => _.ContactPhones.name("ContactPhones").links([
         (t: any) => t.name("contact"),
         (t: any) => t.name("phone"),
-      ])
-      .properties([
-        (t: any) => t.name("label").schema([Text]), // e.g. 'mobile', 'work'
-      ])
-  ));
-
-  const ContactEmails = store.Schemas.OfRelation((r: any) => (
-    r
-      .name("ContactEmails")
-      .links([
+      ]).properties({ label: S.OfStr }), // e.g. 'mobile', 'work'
+      (_: any) => _.ContactEmails.name("ContactEmails").links([
         (t: any) => t.name("contact"),
         (t: any) => t.name("email"),
-      ])
-      .properties([
-        (t: any) => t.name("label").schema([Text]), // e.g. 'personal', 'work'
-      ])
-  ));
+      ]).properties({ label: S.OfStr }), // e.g. 'personal', 'work'
+    ])]))]);
+}
 
-  // A schema and a callback: the schema, updated in place.
-  store.Schemas.OfObject(Contact, (o: any) => o.adjacencies([
-    (t: any) => t.name("addresses").relation([ContactAddresses]).me("contact"),
-    (t: any) => t.name("phones").relation([ContactPhones]).me("contact"),
-    (t: any) => t.name("emails").relation([ContactEmails]).me("contact"),
-  ]));
-  store.Schemas.OfObject(IntlAddress, (o: any) => o.adjacencies([
-    (t: any) => t.name("contacts").relation([ContactAddresses]).me("address"),
-  ]));
-  store.Schemas.OfObject(PhoneNumber, (o: any) => o.adjacencies([
-    (t: any) => t.name("contacts").relation([ContactPhones]).me("phone"),
-  ]));
-  store.Schemas.OfObject(EmailAddress, (o: any) => o.adjacencies([
-    (t: any) => t.name("contacts").relation([ContactEmails]).me("email"),
-  ]));
-  return { IntlAddress };
-});
+// Schemas and objects are built in a store, `store.<schema name>(...)`; a module's install defines its schemas there.
+const store: any = new Builders.Store();
+store.transaction(install); // every write to a store is made within a transaction, all or nothing
+const IntlAddress = store.registered("IntlAddress");
 
 // --- Building forms ---
 

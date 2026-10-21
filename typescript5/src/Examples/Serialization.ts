@@ -10,75 +10,56 @@ import { sortedStrings } from "@mbse/schemas/Framework/Repr";
 import { assert, entries, equal, map, members, raises, schema_names } from "./_support.js";
 
 
-const store: any = new Builders.Store();
-const Text = store.Schemas.OfStr.as_schema(); // the store's own basic scalar
-const Int = store.Schemas.OfInt.as_schema(); // the store's own basic scalar
-
 // --- Schemas ---
 
-const { Sample, Currency, Product, Money, Prices, Denomination } = store.transaction(() => { // every write to a store is made within a transaction, all or nothing
-  const Sample = store.Schemas.OfObject((o: any) => (
-    o
-      .name("Sample")
-      .ref(true)
-      .properties([
-        (t: any) => t.name("label").schema([Text]),
-        (t: any) => t.name("payload").schema([store.Schemas.OfBytes]),
-        (t: any) => t.name("count").schema([Int]),
-        (t: any) => t.name("ratio").schema([store.Schemas.OfFloat]),
-        (t: any) => t.name("flag").schema([store.Schemas.OfBool]),
-      ])
-  ));
-
-  // Registered names are strings and need not be identifiers: a dotted name is a path from the store.
-  const Currency = store.Schemas.OfObject((o: any) => (
-    o
-      .name("iso4217.Currency")
-      .ref(true)
-      .properties([
-        (t: any) => t.name("code").schema([Text]), // ISO 4217 alpha, e.g. 'JPY'
-        (t: any) => t.name("numeric").schema([Text]), // ISO 4217 numeric, e.g. '392'; keeps zeros
-        (t: any) => t.name("minor_units").schema([Int]), // 0 for JPY, 2 for EUR, 3 for BHD
-      ])
-  ));
-  const Product = store.Schemas.OfObject((o: any) => o.name("Product").ref(true).properties([(t: any) => t.name("sku").schema([Text])]));
-  const Money = store.Schemas.OfObject((o: any) => (
-    o
-      .name("Money")
-      .ref(true)
-      .properties([(t: any) => t.name("amount").schema([Int])]) // in minor units
-  ));
-
-  // product -> [currency] -> money
-  const Prices = store.Schemas.OfRelation((r: any) => (
-    r
-      .name("Prices")
-      .links([
+/** The price list's schemas, defined in the store a transaction writes (`store.transaction(install)`), each found by
+ * its name, else made. */
+function install(txn: any): any {
+  const S = txn.Schemas; // the store's own schemas, by name
+  return txn.uid("examples.serialization/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({
+      Sample: S.OfObject, Currency: S.OfObject, Product: S.OfObject, Money: S.OfObject,
+      Prices: S.OfRelation, Denomination: S.OfRelation,
+    })
+    .spec([
+      (_: any) => _.Sample.name("Sample").ref(true).properties({
+        label: S.OfStr,
+        payload: S.OfBytes,
+        count: S.OfInt,
+        ratio: S.OfFloat,
+        flag: S.OfBool,
+      }),
+     // Registered names are strings and need not be identifiers: a dotted name is a path from the store.
+      (_: any) => _.Currency.name("iso4217.Currency").ref(true).properties({
+        code: S.OfStr, // ISO 4217 alpha, e.g. 'JPY'
+        numeric: S.OfStr, // ISO 4217 numeric, e.g. '392'; keeps zeros
+        minor_units: S.OfInt, // 0 for JPY, 2 for EUR, 3 for BHD
+      }).adjacencies({ amounts: (a: any) => a.relation([_.Denomination]).me("currency") }),
+      (_: any) => _.Product.name("Product").ref(true).properties({ sku: S.OfStr }).adjacencies({
+        prices: (a: any) => a.relation([_.Prices]).me("product") }),
+      (_: any) => _.Money.name("Money").ref(true).properties({
+        amount: S.OfInt, // in minor units
+      }).adjacencies({
+        products: (a: any) => a.relation([_.Prices]).me("price"),
+        currency: (a: any) => a.relation([_.Denomination]).me("money"),
+      }),
+     // product -> [currency] -> money
+      (_: any) => _.Prices.name("Prices").links([
         (t: any) => t.name("product"),
         (t: any) => t.name("price"),
-      ])
-      .properties([(t: any) => t.name("currency").schema([Text])])
-      .uniques("price")
-  ));
-  // Which currency a money amount is in.
-  const Denomination = store.Schemas.OfRelation((r: any) => (
-    r
-      .name("Denomination")
-      .links([
+      ]).properties({ currency: S.OfStr }).uniques("price"),
+     // Which currency a money amount is in.
+      (_: any) => _.Denomination.name("Denomination").links([
         (t: any) => t.name("money"),
         (t: any) => t.name("currency"),
-      ])
-      .uniques("currency")
-  ));
+      ]).uniques("currency"),
+    ])]))]);
+}
 
-  store.Schemas.OfObject(Product, (o: any) => o.adjacencies([(t: any) => t.name("prices").relation([Prices]).me("product")]));
-  store.Schemas.OfObject(Money, (o: any) => o.adjacencies([
-    (t: any) => t.name("products").relation([Prices]).me("price"),
-    (t: any) => t.name("currency").relation([Denomination]).me("money"),
-  ]));
-  store.Schemas.OfObject(Currency, (o: any) => o.adjacencies([(t: any) => t.name("amounts").relation([Denomination]).me("currency")]));
-  return { Sample, Currency, Product, Money, Prices, Denomination };
-});
+const store: any = new Builders.Store();
+store.transaction(install); // every write to a store is made within a transaction, all or nothing
+const [Sample, Currency, Product, Money, Prices, Denomination] = ["Sample", "iso4217.Currency", "Product", "Money", "Prices",
+  "Denomination"].map((name) => store.registered(name));
 
 for (const schema of [Sample, Currency, Product, Money, Prices, Denomination]) {
   assert(schema.validate().length === 0, `${schema.name}: ${schema.validate()}`);
@@ -241,9 +222,17 @@ raises(AttributeError, () => {
 });
 
 // A schema named 'schema' is shadowed by the store's schema() method, but still reachable by name.
+/** A schema named 'schema'. */
+function shadowed(txn: any): any {
+  const S = txn.Schemas;
+  return txn.uid("examples.serialization.shadowed/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({ Shadowed: S.OfObject })
+    .spec([(_: any) => _.Shadowed.name("schema").ref(true).properties({ label: S.OfStr })])]))]);
+}
+
+store.transaction(shadowed);
 store.transaction(() => {
-  const Shadowed = store.Schemas.OfObject((o: any) => o.name("schema").ref(true).properties([(t: any) => t.name("label").schema([Text])]));
-  assert(store.schema("schema") === Shadowed && store.builder("schema").create().as_schema().name === "schema");
+  assert(store.schema("schema") === store.registered("schema") && store.builder("schema").create().as_schema().name === "schema");
 });
 
 console.log("Serialization: all checks passed");

@@ -5,68 +5,60 @@
 
 import math
 
-from mbse.Schemas.Framework import Builders, Schemas, Plain, Reachable, Validators
+from mbse.Schemas.Framework import Builders, Plain, Reachable, Validators
 from mbse.Schemas.Examples._support import entries, raises
-
-
-store = Builders.Store()
-Text = store.Schemas.OfStr.as_schema()  # the store's own basic scalar
-
-
-def text(name):
-    return lambda t: t.name(name).schema([Text])
 
 
 # --- Schemas ---
 
-with store.transaction():  # every write to a store is made within a transaction, all or nothing
-    Student = store.Schemas.OfObject(lambda o: o.name('Student').ref(True).properties([text('name'), text('student_id')]))
-    Staff = store.Schemas.OfObject(lambda o: o.name('Staff').ref(True).properties([text('name'), text('staff_id')]))
-    Course = store.Schemas.OfObject(lambda o: o.name('Course').ref(True).properties([text('code'), text('title')]))
-    Term = store.Schemas.OfObject(lambda o: (
-        o
-        .name('Term')
-        .ref(True)
-        .properties([text('code'), text('starts'), text('ends')])  # ISO 8601 dates, e.g. '2026-09-01'
-    ))
-    Room = store.Schemas.OfObject(lambda o: o.name('Room').ref(True).properties([text('building'), text('number')]))
 
-    # Three links: each entry is one student taking one course in one term.
-    Enrollment = store.Schemas.OfRelation(lambda r: (
-        r
-        .name('Enrollment')
-        .links([
-            lambda t: t.name('student'),
-            lambda t: t.name('course'),
-            lambda t: t.name('term'),
-        ])
-        .properties([
-            lambda t: t.name('credits').schema([store.Schemas.OfInt]),
-            lambda t: t.name('score').schema([store.Schemas.OfFloat]),
-            lambda t: t.name('audit').schema([store.Schemas.OfBool]),
-        ])
-        .uniques(['score', 'audit', 'credits'])  # (student, course, term) determine the rest
-    ))
+def install(txn):
+    """The university's schemas, defined in the store a transaction writes (`store.transaction(install)`), each found by
+    its name, else made."""
+    S = txn.Schemas  # the store's own schemas, by name
+    return txn.uid('examples.university/1').mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
+        .symbols({
+            'Student': S.OfObject, 'Staff': S.OfObject, 'Course': S.OfObject, 'Term': S.OfObject, 'Room': S.OfObject,
+            'Enrollment': S.OfRelation, 'Booking': S.OfRelation,
+        })
+        .spec([
+            lambda _: _.Student.name('Student').ref(True).properties({'name': S.OfStr, 'student_id': S.OfStr}).adjacencies({
+                'enrollments': lambda a: a.relation([_.Enrollment]).me('student'),
+                'bookings': lambda a: a.relation([_.Booking]).me('booker'),
+            }),
+            lambda _: _.Staff.name('Staff').ref(True).properties({'name': S.OfStr, 'staff_id': S.OfStr}).adjacencies({
+                'bookings': lambda a: a.relation([_.Booking]).me('booker')}),
+            lambda _: _.Course.name('Course').ref(True).properties({'code': S.OfStr, 'title': S.OfStr}).adjacencies({
+                'enrollments': lambda a: a.relation([_.Enrollment]).me('course')}),
+            lambda _: _.Term.name('Term').ref(True).properties({
+                'code': S.OfStr,
+                'starts': S.OfStr,  # ISO 8601 dates, e.g. '2026-09-01'
+                'ends': S.OfStr,
+            }).adjacencies({'enrollments': lambda a: a.relation([_.Enrollment]).me('term')}),
+            lambda _: _.Room.name('Room').ref(True).properties({'building': S.OfStr, 'number': S.OfStr}).adjacencies({
+                'bookings': lambda a: a.relation([_.Booking]).me('room')}),
+            # Three links: each entry is one student taking one course in one term.
+            lambda _: _.Enrollment.name('Enrollment').links([
+                lambda t: t.name('student'),
+                lambda t: t.name('course'),
+                lambda t: t.name('term'),
+            ]).properties({
+                'credits': S.OfInt,
+                'score': S.OfFloat,
+                'audit': S.OfBool,
+            }).uniques(['score', 'audit', 'credits']),  # (student, course, term) determine the rest
+            # Both Student and Staff can book rooms, so the 'booker' link is filled by more than one schema.
+            lambda _: _.Booking.name('Booking').links([
+                lambda t: t.name('booker'),
+                lambda t: t.name('room'),
+            ]).properties({'starts': S.OfStr}),  # ISO 8601 date-time, e.g. '2026-09-14T09:00:00Z'
+        ])]))])
 
-    # Both Student and Staff can book rooms, so the 'booker' link is filled by more than one schema.
-    Booking = store.Schemas.OfRelation(lambda r: (
-        r
-        .name('Booking')
-        .links([
-            lambda t: t.name('booker'),
-            lambda t: t.name('room'),
-        ])
-        .properties([text('starts')])  # ISO 8601 date-time, e.g. '2026-09-14T09:00:00Z'
-    ))
 
-    store.Schemas.OfObject(Student, lambda o: o.adjacencies([
-        lambda t: t.name('enrollments').relation([Enrollment]).me('student'),
-        lambda t: t.name('bookings').relation([Booking]).me('booker'),
-    ]))
-    store.Schemas.OfObject(Staff, lambda o: o.adjacencies([lambda t: t.name('bookings').relation([Booking]).me('booker')]))
-    store.Schemas.OfObject(Course, lambda o: o.adjacencies([lambda t: t.name('enrollments').relation([Enrollment]).me('course')]))
-    store.Schemas.OfObject(Term, lambda o: o.adjacencies([lambda t: t.name('enrollments').relation([Enrollment]).me('term')]))
-    store.Schemas.OfObject(Room, lambda o: o.adjacencies([lambda t: t.name('bookings').relation([Booking]).me('room')]))
+store = Builders.Store()
+store.transaction(install)  # every write to a store is made within a transaction, all or nothing
+Student, Staff, Course, Term, Room, Enrollment, Booking = (
+    store.registered(name) for name in ('Student', 'Staff', 'Course', 'Term', 'Room', 'Enrollment', 'Booking'))
 
 for schema in [Student, Staff, Course, Term, Room, Enrollment, Booking]:
     assert schema.validate() == [], (schema.name, schema.validate())

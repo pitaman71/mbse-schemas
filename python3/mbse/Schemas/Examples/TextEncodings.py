@@ -8,51 +8,43 @@ import math
 
 import yaml
 
-from mbse.Schemas.Framework import JSON, YAML, Builders, Plain, Schemas, Validators
+from mbse.Schemas.Framework import JSON, YAML, Builders, Plain, Validators
 from mbse.Schemas.Framework.Errors import DecodeError
 from mbse.Schemas.Examples._support import raises
 
 
-store = Builders.Store()
-Text = store.Schemas.OfStr.as_schema()  # the store's own basic scalar
-
 # --- Schemas ---
 
-with store.transaction():  # every write to a store is made within a transaction, all or nothing
-    Reading = store.Schemas.OfObject(lambda o: (
-        o
-        .name('Reading')
-        .ref(True)
-        .properties([
-            lambda t: t.name('observed').schema([Text]),  # ISO 8601, e.g. '2026-09-28T12:00:00Z'
-            lambda t: t.name('value').schema([store.Schemas.OfFloat]),
-            lambda t: t.name('quality').schema([store.Schemas.OfInt]),
-            lambda t: t.name('valid').schema([store.Schemas.OfBool]),
-            lambda t: t.name('raw').schema([store.Schemas.OfBytes]),
-            lambda t: t.name('note').schema([Text]),
-        ])
-    ))
-    Station = store.Schemas.OfObject(lambda o: (
-        o
-        .name('Station')
-        .ref(True)
-        .properties([
-            lambda t: t.name('wmo_id').schema([Text]),  # e.g. '03772'; leading zeros matter
-            lambda t: t.name('name').schema([Text]),
-        ])
-    ))
-    Readings = store.Schemas.OfRelation(lambda r: (
-        r
-        .name('Readings')
-        .links([
-            lambda t: t.name('station'),
-            lambda t: t.name('reading'),
-        ])
-        .properties([lambda t: t.name('sensor').schema([Text])])
-        .uniques(['station', 'sensor'])  # each reading comes from one sensor of one station
-    ))
-    store.Schemas.OfObject(Station, lambda o: o.adjacencies([lambda t: t.name('readings').relation([Readings]).me('station')]))
-    store.Schemas.OfObject(Reading, lambda o: o.adjacencies([lambda t: t.name('station').relation([Readings]).me('reading')]))
+
+def install(txn):
+    """The weather schemas, defined in the store a transaction writes (`store.transaction(install)`): readings and the
+    stations they come from, each found by its name, else made."""
+    S = txn.Schemas  # the store's own schemas, by name
+    return txn.uid('examples.text_encodings/1').mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
+        .symbols({'Reading': S.OfObject, 'Station': S.OfObject, 'Readings': S.OfRelation})
+        .spec([
+            lambda _: _.Reading.name('Reading').ref(True).properties({
+                'observed': S.OfStr,  # ISO 8601, e.g. '2026-09-28T12:00:00Z'
+                'value': S.OfFloat,
+                'quality': S.OfInt,
+                'valid': S.OfBool,
+                'raw': S.OfBytes,
+                'note': S.OfStr,
+            }).adjacencies({'station': lambda a: a.relation([_.Readings]).me('reading')}),
+            lambda _: _.Station.name('Station').ref(True).properties({
+                'wmo_id': S.OfStr,  # e.g. '03772'; leading zeros matter
+                'name': S.OfStr,
+            }).adjacencies({'readings': lambda a: a.relation([_.Readings]).me('station')}),
+            lambda _: _.Readings.name('Readings').links([
+                lambda t: t.name('station'),
+                lambda t: t.name('reading'),
+            ]).properties({'sensor': S.OfStr}).uniques(['station', 'sensor']),  # each reading from one sensor of one station
+        ])]))])
+
+
+store = Builders.Store()
+store.transaction(install)  # every write to a store is made within a transaction, all or nothing
+Reading, Station = store.registered('Reading'), store.registered('Station')
 
 validate = Validators.Validate(store)
 from_json = JSON.FromJSON(store)

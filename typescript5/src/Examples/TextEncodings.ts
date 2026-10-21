@@ -16,40 +16,43 @@ const Text = store.Schemas.OfStr.as_schema(); // the store's own basic scalar
 
 // --- Schemas ---
 
-const Reading = store.Schemas.OfObject((o: any) => (
-  o
-    .name("Reading")
-    .ref(true)
-    .properties([
-      (t: any) => t.name("observed").schema([Text]), // ISO 8601, e.g. '2026-09-28T12:00:00Z'
-      (t: any) => t.name("value").schema([store.Schemas.OfFloat]),
-      (t: any) => t.name("quality").schema([store.Schemas.OfInt]),
-      (t: any) => t.name("valid").schema([store.Schemas.OfBool]),
-      (t: any) => t.name("raw").schema([store.Schemas.OfBytes]),
-      (t: any) => t.name("note").schema([Text]),
-    ])
-));
-const Station = store.Schemas.OfObject((o: any) => (
-  o
-    .name("Station")
-    .ref(true)
-    .properties([
-      (t: any) => t.name("wmo_id").schema([Text]), // e.g. '03772'; leading zeros matter
-      (t: any) => t.name("name").schema([Text]),
-    ])
-));
-const Readings = store.Schemas.OfRelation((r: any) => (
-  r
-    .name("Readings")
-    .links([
-      (t: any) => t.name("station"),
-      (t: any) => t.name("reading"),
-    ])
-    .properties([(t: any) => t.name("sensor").schema([Text])])
-    .uniques(["station", "sensor"]) // each reading comes from one sensor of one station
-));
-store.Schemas.OfObject(Station, (o: any) => o.adjacencies([(t: any) => t.name("readings").relation([Readings]).me("station")]));
-store.Schemas.OfObject(Reading, (o: any) => o.adjacencies([(t: any) => t.name("station").relation([Readings]).me("reading")]));
+const { Reading, Station } = store.transaction(() => { // every write to a store is made within a transaction, all or nothing
+  const Reading = store.Schemas.OfObject((o: any) => (
+    o
+      .name("Reading")
+      .ref(true)
+      .properties([
+        (t: any) => t.name("observed").schema([Text]), // ISO 8601, e.g. '2026-09-28T12:00:00Z'
+        (t: any) => t.name("value").schema([store.Schemas.OfFloat]),
+        (t: any) => t.name("quality").schema([store.Schemas.OfInt]),
+        (t: any) => t.name("valid").schema([store.Schemas.OfBool]),
+        (t: any) => t.name("raw").schema([store.Schemas.OfBytes]),
+        (t: any) => t.name("note").schema([Text]),
+      ])
+  ));
+  const Station = store.Schemas.OfObject((o: any) => (
+    o
+      .name("Station")
+      .ref(true)
+      .properties([
+        (t: any) => t.name("wmo_id").schema([Text]), // e.g. '03772'; leading zeros matter
+        (t: any) => t.name("name").schema([Text]),
+      ])
+  ));
+  const Readings = store.Schemas.OfRelation((r: any) => (
+    r
+      .name("Readings")
+      .links([
+        (t: any) => t.name("station"),
+        (t: any) => t.name("reading"),
+      ])
+      .properties([(t: any) => t.name("sensor").schema([Text])])
+      .uniques(["station", "sensor"]) // each reading comes from one sensor of one station
+  ));
+  store.Schemas.OfObject(Station, (o: any) => o.adjacencies([(t: any) => t.name("readings").relation([Readings]).me("station")]));
+  store.Schemas.OfObject(Reading, (o: any) => o.adjacencies([(t: any) => t.name("station").relation([Readings]).me("reading")]));
+  return { Reading, Station };
+});
 
 const validate = Validators.Validate(store);
 const from_json = JSON.FromJSON(store);
@@ -59,33 +62,38 @@ const yaml11 = (text: string) => Y.parse(text, { version: "1.1", intAsBigInt: tr
 
 // --- Floats at their edges, through every encoding ---
 
-for (const value of [0.0, -0.0, 1e308, 5e-324, 0.1, Infinity, -Infinity, NaN]) {
-  const reading = store.Reading((r: any) => r.value(value));
-  for (const back of [
-    Plain.FromPlain(store)(Reading, Plain.ToPlain(store)(Reading, reading)),
-    from_json(Reading, JSON.ToJSON(store)(Reading, reading)),
-    from_yaml(Reading, YAML.ToYAML(store)(Reading, reading)),
-  ] as Instance[]) {
-    if (Number.isNaN(value)) assert(Number.isNaN(back.value.get()));
-    else assert(Object.is(back.value.get(), value));
+store.transaction(() => { // each reading written, and read back, within one transaction: a decoder joins it
+  for (const value of [0.0, -0.0, 1e308, 5e-324, 0.1, Infinity, -Infinity, NaN]) {
+    const reading = store.Reading((r: any) => r.value(value));
+    for (const back of [
+      Plain.FromPlain(store)(Reading, Plain.ToPlain(store)(Reading, reading)),
+      from_json(Reading, JSON.ToJSON(store)(Reading, reading)),
+      from_yaml(Reading, YAML.ToYAML(store)(Reading, reading)),
+    ] as Instance[]) {
+      if (Number.isNaN(value)) assert(Number.isNaN(back.value.get()));
+      else assert(Object.is(back.value.get(), value));
+    }
   }
-}
+});
 
 // Non-finite floats have a plain form, so JSON output stays strict (no NaN / Infinity literals).
-let text = JSON.ToJSON(store)(Reading, store.Reading((r: any) => r.value(NaN)));
+let text = JSON.ToJSON(store)(Reading, store.transaction(() => store.Reading((r: any) => r.value(NaN))));
 assert(text.includes('"NaN"') && globalThis.JSON.parse(text));
 
 // --- Every scalar type at once, and the three encodings agree ---
 
-const sample = store.Reading((r: any) => (
-  r
-    .observed("2026-09-28T12:00:00Z")
-    .value(-0.0)
-    .quality(2n ** 70n) // ints are unbounded; other languages may need a wider type
-    .valid(false)
-    .raw(new Uint8Array([0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff]))
-    .note('日本語 🚀 \x00 "quoted" \\ back\nsecond line')
-));
+const { sample } = store.transaction(() => {
+  const sample = store.Reading((r: any) => (
+    r
+      .observed("2026-09-28T12:00:00Z")
+      .value(-0.0)
+      .quality(2n ** 70n) // ints are unbounded; other languages may need a wider type
+      .valid(false)
+      .raw(new Uint8Array([0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff]))
+      .note('日本語 🚀 \x00 "quoted" \\ back\nsecond line')
+  ));
+  return { sample };
+});
 const plain = Plain.ToPlain(store)(Reading, sample);
 assert(equal(JSON.loads(JSON.ToJSON(store)(Reading, sample)), plain));
 assert(equal(YAML.loads(YAML.ToYAML(store)(Reading, sample)), plain));
@@ -102,16 +110,18 @@ for (const back of [from_json(Reading, JSON.ToJSON(store)(Reading, sample)), fro
 const tricky = ["yes", "No", "on", "OFF", "true", "null", "~", "", "010", "0o17", "0x1F", "1e3", "1_000", "1:30",
   "2026-09-01", ".inf", ".nan", "NaN", "Infinity", "-0.0", " lead", "trail ", "a: b", "- dash", "#hash",
   "x #y", '"dq"', "'sq'", "@at", "`tick", "%pct", "!bang", "&amp", "*star", "|", ">", "{}", "[]", "<<"];
-for (const note of tricky) {
-  const reading = store.Reading((r: any) => r.note(note));
-  text = YAML.ToYAML(store)(Reading, reading);
-  assert((from_yaml(Reading, text) as Instance).note.get() === note, note);
-  // The output is also read correctly by a stock YAML 1.1 loader.
-  assert(equal(yaml11(text), Plain.ToPlain(store)(Reading, reading)), note);
-}
+store.transaction(() => {
+  for (const note of tricky) {
+    const reading = store.Reading((r: any) => r.note(note));
+    text = YAML.ToYAML(store)(Reading, reading);
+    assert((from_yaml(Reading, text) as Instance).note.get() === note, note);
+    // The output is also read correctly by a stock YAML 1.1 loader.
+    assert(equal(yaml11(text), Plain.ToPlain(store)(Reading, reading)), note);
+  }
+});
 
 // WMO identifiers keep their leading zeros in both encodings.
-const paris = store.Station((s: any) => s.wmo_id("07149").name("Paris-Orly"));
+const paris = store.transaction(() => store.Station((s: any) => s.wmo_id("07149").name("Paris-Orly")));
 assert((from_json(Station, JSON.ToJSON(store)(Station, paris)) as Instance).wmo_id.get() === "07149");
 assert((from_yaml(Station, YAML.ToYAML(store)(Station, paris)) as Instance).wmo_id.get() === "07149");
 
@@ -139,7 +149,7 @@ raises(DecodeError, () => from_yaml(Reading, "root: {n: 0}\nobjects:\n  - n: 0\n
 
 // --- Malformed text is rejected ---
 
-const a = JSON.dumps((Plain.ToPlain(store)(Reading, store.Reading((r: any) => r)) as any).get("root")); // a reading's number, as JSON
+const a = JSON.dumps((Plain.ToPlain(store)(Reading, store.transaction(() => store.Reading((r: any) => r))) as any).get("root")); // a reading's number, as JSON
 for (const bad of [`{"root": ${a}, "objects": [{"n": 0, "schema": "Reading", "properties": {"value": NaN}}]}`, // not JSON
   `{"root": ${a}, "root": ${a}, "objects": []}`, // duplicate key
   `{"root": ${a}, "objects": `, // truncated
@@ -157,13 +167,16 @@ for (const bad of ["root: {n: 0}\nroot: {n: 1}\nobjects: []", // duplicate key
 
 // --- A graph through each encoding ---
 
-const lyon = store.Station((s: any) => (
-  s
-    .wmo_id("07480")
-    .name("Lyon-Saint-Exupéry")
-    .readings((a: any) => a.insert((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(11.5).valid(true)).sensor("temp")))
-    .readings((a: any) => a.insert((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(71.0).valid(true)).sensor("rh")))
-));
+const { lyon } = store.transaction(() => {
+  const lyon = store.Station((s: any) => (
+    s
+      .wmo_id("07480")
+      .name("Lyon-Saint-Exupéry")
+      .readings((a: any) => a.insert((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(11.5).valid(true)).sensor("temp")))
+      .readings((a: any) => a.insert((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(71.0).valid(true)).sensor("rh")))
+  ));
+  return { lyon };
+});
 const graph = Plain.ToPlain(store).Reachable(Station, lyon);
 for (const [encoded, decoder] of [[JSON.ToJSON(store).Reachable(Station, lyon), JSON.FromJSON],
   [YAML.ToYAML(store).Reachable(Station, lyon), YAML.FromYAML]] as const) {

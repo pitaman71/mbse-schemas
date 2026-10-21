@@ -18,40 +18,41 @@ Text = store.Schemas.OfStr.as_schema()  # the store's own basic scalar
 
 # --- Schemas ---
 
-Reading = store.Schemas.OfObject(lambda o: (
-    o
-    .name('Reading')
-    .ref(True)
-    .properties([
-        lambda t: t.name('observed').schema([Text]),  # ISO 8601, e.g. '2026-09-28T12:00:00Z'
-        lambda t: t.name('value').schema([store.Schemas.OfFloat]),
-        lambda t: t.name('quality').schema([store.Schemas.OfInt]),
-        lambda t: t.name('valid').schema([store.Schemas.OfBool]),
-        lambda t: t.name('raw').schema([store.Schemas.OfBytes]),
-        lambda t: t.name('note').schema([Text]),
-    ])
-))
-Station = store.Schemas.OfObject(lambda o: (
-    o
-    .name('Station')
-    .ref(True)
-    .properties([
-        lambda t: t.name('wmo_id').schema([Text]),  # e.g. '03772'; leading zeros matter
-        lambda t: t.name('name').schema([Text]),
-    ])
-))
-Readings = store.Schemas.OfRelation(lambda r: (
-    r
-    .name('Readings')
-    .links([
-        lambda t: t.name('station'),
-        lambda t: t.name('reading'),
-    ])
-    .properties([lambda t: t.name('sensor').schema([Text])])
-    .uniques(['station', 'sensor'])  # each reading comes from one sensor of one station
-))
-store.Schemas.OfObject(Station, lambda o: o.adjacencies([lambda t: t.name('readings').relation([Readings]).me('station')]))
-store.Schemas.OfObject(Reading, lambda o: o.adjacencies([lambda t: t.name('station').relation([Readings]).me('reading')]))
+with store.transaction():  # every write to a store is made within a transaction, all or nothing
+    Reading = store.Schemas.OfObject(lambda o: (
+        o
+        .name('Reading')
+        .ref(True)
+        .properties([
+            lambda t: t.name('observed').schema([Text]),  # ISO 8601, e.g. '2026-09-28T12:00:00Z'
+            lambda t: t.name('value').schema([store.Schemas.OfFloat]),
+            lambda t: t.name('quality').schema([store.Schemas.OfInt]),
+            lambda t: t.name('valid').schema([store.Schemas.OfBool]),
+            lambda t: t.name('raw').schema([store.Schemas.OfBytes]),
+            lambda t: t.name('note').schema([Text]),
+        ])
+    ))
+    Station = store.Schemas.OfObject(lambda o: (
+        o
+        .name('Station')
+        .ref(True)
+        .properties([
+            lambda t: t.name('wmo_id').schema([Text]),  # e.g. '03772'; leading zeros matter
+            lambda t: t.name('name').schema([Text]),
+        ])
+    ))
+    Readings = store.Schemas.OfRelation(lambda r: (
+        r
+        .name('Readings')
+        .links([
+            lambda t: t.name('station'),
+            lambda t: t.name('reading'),
+        ])
+        .properties([lambda t: t.name('sensor').schema([Text])])
+        .uniques(['station', 'sensor'])  # each reading comes from one sensor of one station
+    ))
+    store.Schemas.OfObject(Station, lambda o: o.adjacencies([lambda t: t.name('readings').relation([Readings]).me('station')]))
+    store.Schemas.OfObject(Reading, lambda o: o.adjacencies([lambda t: t.name('station').relation([Readings]).me('reading')]))
 
 validate = Validators.Validate(store)
 from_json = JSON.FromJSON(store)
@@ -59,33 +60,36 @@ from_yaml = YAML.FromYAML(store)
 
 # --- Floats at their edges, through every encoding ---
 
-for value in [0.0, -0.0, 1e308, 5e-324, 0.1, math.inf, -math.inf, math.nan]:
-    reading = store.Reading(lambda r: r.value(value))
-    for back in (
-        Plain.FromPlain(store)(Reading, Plain.ToPlain(store)(Reading, reading)),
-        from_json(Reading, JSON.ToJSON(store)(Reading, reading)),
-        from_yaml(Reading, YAML.ToYAML(store)(Reading, reading)),
-    ):
-        if math.isnan(value):
-            assert math.isnan(back.value.get())
-        else:
-            assert back.value.get() == value and math.copysign(1, back.value.get()) == math.copysign(1, value)
+with store.transaction():  # each reading written, and read back, within one transaction: a decoder joins it
+    for value in [0.0, -0.0, 1e308, 5e-324, 0.1, math.inf, -math.inf, math.nan]:
+        reading = store.Reading(lambda r: r.value(value))
+        for back in (
+            Plain.FromPlain(store)(Reading, Plain.ToPlain(store)(Reading, reading)),
+            from_json(Reading, JSON.ToJSON(store)(Reading, reading)),
+            from_yaml(Reading, YAML.ToYAML(store)(Reading, reading)),
+        ):
+            if math.isnan(value):
+                assert math.isnan(back.value.get())
+            else:
+                assert back.value.get() == value and math.copysign(1, back.value.get()) == math.copysign(1, value)
 
 # Non-finite floats have a plain form, so JSON output stays strict (no NaN / Infinity literals).
-text = JSON.ToJSON(store)(Reading, store.Reading(lambda r: r.value(math.nan)))
+with store.transaction():
+    text = JSON.ToJSON(store)(Reading, store.Reading(lambda r: r.value(math.nan)))
 assert '"NaN"' in text and json.loads(text, parse_constant=lambda c: 1 / 0)
 
 # --- Every scalar type at once, and the three encodings agree ---
 
-sample = store.Reading(lambda r: (
-    r
-    .observed('2026-09-28T12:00:00Z')
-    .value(-0.0)
-    .quality(2**70)  # unbounded in Python; other languages may need a wider type
-    .valid(False)
-    .raw(b'\x00\xff' * 4)
-    .note('日本語 🚀 \x00 "quoted" \\ back\nsecond line')
-))
+with store.transaction():
+    sample = store.Reading(lambda r: (
+        r
+        .observed('2026-09-28T12:00:00Z')
+        .value(-0.0)
+        .quality(2**70)  # unbounded in Python; other languages may need a wider type
+        .valid(False)
+        .raw(b'\x00\xff' * 4)
+        .note('日本語 🚀 \x00 "quoted" \\ back\nsecond line')
+    ))
 plain = Plain.ToPlain(store)(Reading, sample)
 assert JSON.loads(JSON.ToJSON(store)(Reading, sample)) == plain
 assert YAML.loads(YAML.ToYAML(store)(Reading, sample)) == plain
@@ -101,15 +105,17 @@ for back in (from_json(Reading, JSON.ToJSON(store)(Reading, sample)), from_yaml(
 tricky = ['yes', 'No', 'on', 'OFF', 'true', 'null', '~', '', '010', '0o17', '0x1F', '1e3', '1_000', '1:30',
           '2026-09-01', '.inf', '.nan', 'NaN', 'Infinity', '-0.0', ' lead', 'trail ', 'a: b', '- dash', '#hash',
           'x #y', '"dq"', "'sq'", '@at', '`tick', '%pct', '!bang', '&amp', '*star', '|', '>', '{}', '[]', '<<']
-for note in tricky:
-    reading = store.Reading(lambda r: r.note(note))
-    text = YAML.ToYAML(store)(Reading, reading)
-    assert from_yaml(Reading, text).note.get() == note, note
-    # The output is also read correctly by a stock YAML 1.1 loader.
-    assert yaml.safe_load(text) == Plain.ToPlain(store)(Reading, reading), note
+with store.transaction():
+    for note in tricky:
+        reading = store.Reading(lambda r: r.note(note))
+        text = YAML.ToYAML(store)(Reading, reading)
+        assert from_yaml(Reading, text).note.get() == note, note
+        # The output is also read correctly by a stock YAML 1.1 loader.
+        assert yaml.safe_load(text) == Plain.ToPlain(store)(Reading, reading), note
 
 # WMO identifiers keep their leading zeros in both encodings.
-paris = store.Station(lambda s: s.wmo_id('07149').name('Paris-Orly'))
+with store.transaction():
+    paris = store.Station(lambda s: s.wmo_id('07149').name('Paris-Orly'))
 assert from_json(Station, JSON.ToJSON(store)(Station, paris)).wmo_id.get() == '07149'
 assert from_yaml(Station, YAML.ToYAML(store)(Station, paris)).wmo_id.get() == '07149'
 
@@ -138,7 +144,8 @@ with raises(DecodeError):
 
 # --- Malformed text is rejected ---
 
-a = json.dumps(Plain.ToPlain(store)(Reading, store.Reading(lambda r: r))['root'])  # a reading's number, as JSON
+with store.transaction():
+    a = json.dumps(Plain.ToPlain(store)(Reading, store.Reading(lambda r: r))['root'])  # a reading's number, as JSON
 for bad in [f'{{"root": {a}, "objects": [{{"n": 0, "schema": "Reading", "properties": {{"value": NaN}}}}]}}',  # not JSON
             f'{{"root": {a}, "root": {a}, "objects": []}}',  # duplicate key
             f'{{"root": {a}, "objects": ',  # truncated
@@ -156,13 +163,14 @@ for bad in ["root: {n: 0}\nroot: {n: 1}\nobjects: []",  # duplicate key
 
 # --- A graph through each encoding ---
 
-lyon = store.Station(lambda s: (
-    s
-    .wmo_id('07480')
-    .name('Lyon-Saint-Exupéry')
-    .readings(lambda a: a.insert(lambda x: x.reading(lambda r: r.observed('2026-09-28T06:00:00Z').value(11.5).valid(True)).sensor('temp')))
-    .readings(lambda a: a.insert(lambda x: x.reading(lambda r: r.observed('2026-09-28T06:00:00Z').value(71.0).valid(True)).sensor('rh')))
-))
+with store.transaction():
+    lyon = store.Station(lambda s: (
+        s
+        .wmo_id('07480')
+        .name('Lyon-Saint-Exupéry')
+        .readings(lambda a: a.insert(lambda x: x.reading(lambda r: r.observed('2026-09-28T06:00:00Z').value(11.5).valid(True)).sensor('temp')))
+        .readings(lambda a: a.insert(lambda x: x.reading(lambda r: r.observed('2026-09-28T06:00:00Z').value(71.0).valid(True)).sensor('rh')))
+    ))
 graph = Plain.ToPlain(store).Reachable(Station, lyon)
 for text, decoder in [(JSON.ToJSON(store).Reachable(Station, lyon), JSON.FromJSON),
                       (YAML.ToYAML(store).Reachable(Station, lyon), YAML.FromYAML)]:

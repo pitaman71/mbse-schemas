@@ -15,66 +15,67 @@ Text, Int = store.Schemas.OfStr.as_schema(), store.Schemas.OfInt.as_schema()  # 
 
 # --- Schemas ---
 
-Sample = store.Schemas.OfObject(lambda o: (
-    o
-    .name('Sample')
-    .ref(True)
-    .properties([
-        lambda t: t.name('label').schema([Text]),
-        lambda t: t.name('payload').schema([store.Schemas.OfBytes]),
-        lambda t: t.name('count').schema([Int]),
-        lambda t: t.name('ratio').schema([store.Schemas.OfFloat]),
-        lambda t: t.name('flag').schema([store.Schemas.OfBool]),
-    ])
-))
+with store.transaction():  # every write to a store is made within a transaction, all or nothing
+    Sample = store.Schemas.OfObject(lambda o: (
+        o
+        .name('Sample')
+        .ref(True)
+        .properties([
+            lambda t: t.name('label').schema([Text]),
+            lambda t: t.name('payload').schema([store.Schemas.OfBytes]),
+            lambda t: t.name('count').schema([Int]),
+            lambda t: t.name('ratio').schema([store.Schemas.OfFloat]),
+            lambda t: t.name('flag').schema([store.Schemas.OfBool]),
+        ])
+    ))
 
-# Registered names are strings and need not be identifiers: a dotted name is a path from the store.
-Currency = store.Schemas.OfObject(lambda o: (
-    o
-    .name('iso4217.Currency')
-    .ref(True)
-    .properties([
-        lambda t: t.name('code').schema([Text]),  # ISO 4217 alpha, e.g. 'JPY'
-        lambda t: t.name('numeric').schema([Text]),  # ISO 4217 numeric, e.g. '392'; keeps zeros
-        lambda t: t.name('minor_units').schema([Int]),  # 0 for JPY, 2 for EUR, 3 for BHD
-    ])
-))
-Product = store.Schemas.OfObject(lambda o: o.name('Product').ref(True).properties([lambda t: t.name('sku').schema([Text])]))
-Money = store.Schemas.OfObject(lambda o: (
-    o
-    .name('Money')
-    .ref(True)
-    .properties([lambda t: t.name('amount').schema([Int])])  # in minor units
-))
+    # Registered names are strings and need not be identifiers: a dotted name is a path from the store.
+    Currency = store.Schemas.OfObject(lambda o: (
+        o
+        .name('iso4217.Currency')
+        .ref(True)
+        .properties([
+            lambda t: t.name('code').schema([Text]),  # ISO 4217 alpha, e.g. 'JPY'
+            lambda t: t.name('numeric').schema([Text]),  # ISO 4217 numeric, e.g. '392'; keeps zeros
+            lambda t: t.name('minor_units').schema([Int]),  # 0 for JPY, 2 for EUR, 3 for BHD
+        ])
+    ))
+    Product = store.Schemas.OfObject(lambda o: o.name('Product').ref(True).properties([lambda t: t.name('sku').schema([Text])]))
+    Money = store.Schemas.OfObject(lambda o: (
+        o
+        .name('Money')
+        .ref(True)
+        .properties([lambda t: t.name('amount').schema([Int])])  # in minor units
+    ))
 
-# product -> [currency] -> money
-Prices = store.Schemas.OfRelation(lambda r: (
-    r
-    .name('Prices')
-    .links([
-        lambda t: t.name('product'),
-        lambda t: t.name('price'),
-    ])
-    .properties([lambda t: t.name('currency').schema([Text])])
-    .uniques('price')
-))
-# Which currency a money amount is in.
-Denomination = store.Schemas.OfRelation(lambda r: (
-    r
-    .name('Denomination')
-    .links([
-        lambda t: t.name('money'),
-        lambda t: t.name('currency'),
-    ])
-    .uniques('currency')
-))
+    # product -> [currency] -> money
+    Prices = store.Schemas.OfRelation(lambda r: (
+        r
+        .name('Prices')
+        .links([
+            lambda t: t.name('product'),
+            lambda t: t.name('price'),
+        ])
+        .properties([lambda t: t.name('currency').schema([Text])])
+        .uniques('price')
+    ))
+    # Which currency a money amount is in.
+    Denomination = store.Schemas.OfRelation(lambda r: (
+        r
+        .name('Denomination')
+        .links([
+            lambda t: t.name('money'),
+            lambda t: t.name('currency'),
+        ])
+        .uniques('currency')
+    ))
 
-store.Schemas.OfObject(Product, lambda o: o.adjacencies([lambda t: t.name('prices').relation([Prices]).me('product')]))
-store.Schemas.OfObject(Money, lambda o: o.adjacencies([
-    lambda t: t.name('products').relation([Prices]).me('price'),
-    lambda t: t.name('currency').relation([Denomination]).me('money'),
-]))
-store.Schemas.OfObject(Currency, lambda o: o.adjacencies([lambda t: t.name('amounts').relation([Denomination]).me('currency')]))
+    store.Schemas.OfObject(Product, lambda o: o.adjacencies([lambda t: t.name('prices').relation([Prices]).me('product')]))
+    store.Schemas.OfObject(Money, lambda o: o.adjacencies([
+        lambda t: t.name('products').relation([Prices]).me('price'),
+        lambda t: t.name('currency').relation([Denomination]).me('money'),
+    ]))
+    store.Schemas.OfObject(Currency, lambda o: o.adjacencies([lambda t: t.name('amounts').relation([Denomination]).me('currency')]))
 
 for schema in [Sample, Currency, Product, Money, Prices, Denomination]:
     assert schema.validate() == [], (schema.name, schema.validate())
@@ -82,13 +83,14 @@ for schema in [Sample, Currency, Product, Money, Prices, Denomination]:
 
 # --- Scalar values at their edges ---
 
-edge = store.Sample(lambda s: (
-    s
-    .label('日本語 🚀 \u0000 "quoted" \\ back')  # non-ASCII, emoji, NUL, quotes, backslash
-    .payload(b'\x00\xff\x10' * 3)
-    .count(2**100)  # Python ints are unbounded
-    .ratio(-0.0)
-    .flag(False)  # a present False is not an absent property
+with store.transaction():
+    edge = store.Sample(lambda s: (
+        s
+        .label('日本語 🚀 \u0000 "quoted" \\ back')  # non-ASCII, emoji, NUL, quotes, backslash
+        .payload(b'\x00\xff\x10' * 3)
+        .count(2**100)  # Python ints are unbounded
+        .ratio(-0.0)
+        .flag(False)  # a present False is not an absent property
 ))
 plain = Plain.ToPlain(store)(Sample, edge)
 fields = plain['objects'][0]['properties']  # the root, listed first
@@ -102,13 +104,15 @@ assert float(restored.ratio) == 0.0 and math.copysign(1, float(restored.ratio)) 
 assert restored.flag.get() is False
 
 # Empty values are present values.
-empty = store.Sample(lambda s: s.label('').payload(b'').count(0).ratio(0.0))
+with store.transaction():
+    empty = store.Sample(lambda s: s.label('').payload(b'').count(0).ratio(0.0))
 back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty))
 assert (back.label.get(), back.payload.get(), back.count.get(), back.ratio.get()) == ('', b'', 0, 0.0)
 assert back.flag.get() is None  # never set, so absent
 
 # An object with nothing set serializes to empty properties, listed with its number and its schema's name.
-blank = store.Sample(lambda s: s)
+with store.transaction():
+    blank = store.Sample(lambda s: s)
 assert Plain.ToPlain(store)(Sample, blank) == {'root': {'n': 0}, 'objects': [{'n': 0, 'schema': 'Sample', 'properties': {}}]}
 
 # Per-kind entry points.
@@ -129,8 +133,9 @@ with raises(DecodeError):
     from_plain(store.Schemas.OfBytes.as_schema(), 'not base64!')
 
 # The builder does not validate; the serializer does.
-sloppy = store.Sample(lambda s: s.count('3'))
-assert sloppy.count.get() == '3'
+with store.transaction():
+    sloppy = store.Sample(lambda s: s.count('3'))
+    assert sloppy.count.get() == '3'
 with raises(TypeError):
     Plain.ToPlain(store)(Sample, sloppy)
 
@@ -142,14 +147,15 @@ assert validate(store.Schemas.OfInt.as_schema(), True) == ['expected int, got bo
 
 # --- A map: product -> [currency] -> money ---
 
-jpy = store.iso4217.Currency(lambda c: c.code('JPY').numeric('392').minor_units(0))
-eur = store.iso4217.Currency(lambda c: c.code('EUR').numeric('978').minor_units(2))
-widget = store.Product(lambda p: (
-    p
-    .sku('W-1')
-    .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(1500).currency(lambda a: a.insert(lambda d: d.currency(jpy)))).currency('JPY')))
-    .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(1299).currency(lambda a: a.insert(lambda d: d.currency(eur)))).currency('EUR')))
-))
+with store.transaction():  # the data: written within a transaction, all or nothing
+    jpy = store.iso4217.Currency(lambda c: c.code('JPY').numeric('392').minor_units(0))
+    eur = store.iso4217.Currency(lambda c: c.code('EUR').numeric('978').minor_units(2))
+    widget = store.Product(lambda p: (
+        p
+        .sku('W-1')
+        .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(1500).currency(lambda a: a.insert(lambda d: d.currency(jpy)))).currency('JPY')))
+        .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(1299).currency(lambda a: a.insert(lambda d: d.currency(eur)))).currency('EUR')))
+    ))
 by_currency = {e['currency']: int(e['price'].amount) for e in entries(Product, widget, 'prices')}
 assert by_currency == {'JPY': 1500, 'EUR': 1299}
 
@@ -162,12 +168,13 @@ assert {e['currency']: int(e['price'].amount) for e in entries(Product, again, '
 assert validate.Reachable(Product, widget) == []
 
 # uniques('price') on Prices: (product, currency) determine the price. A second JPY price breaks it.
-gadget = store.Product(lambda p: (
-    p
-    .sku('G-1')
-    .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(900)).currency('JPY')))
-    .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(950)).currency('JPY')))
-))
+with store.transaction():
+    gadget = store.Product(lambda p: (
+        p
+        .sku('G-1')
+        .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(900)).currency('JPY')))
+        .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(950)).currency('JPY')))
+    ))
 assert validate(Product, gadget) == ['unique(price) violated: entries agreeing on [\'currency\', \'product\'] differ on [\'price\']']
 
 # The root must be an instance of the schema given.
@@ -217,23 +224,25 @@ with raises(TypeError):
 
 # --- Store corner cases ---
 
-with raises(ValueError):
-    store.Schemas.OfObject(lambda o: o.name('Sample'))  # a named schema's identity is its name, which Sample holds
-with raises(AttributeError):
-    store.Unregistered(lambda u: u)
-with raises(TypeError):
-    store.Product()  # a callback, an object and a callback, or an object
-with raises(TypeError):
-    store.Prices(lambda p: p)  # no relation builder is exposed
-with raises(TypeError):
-    store.Product(jpy)  # the source instance must have the builder's schema
-with raises(TypeError):
-    store.Product(lambda p: p.colour('red'))  # not a property or adjacency: it reads as empty, and refuses a write
+with store.transaction():  # each refused before it writes
+    with raises(ValueError):
+        store.Schemas.OfObject(lambda o: o.name('Sample'))  # a named schema's identity is its name, which Sample holds
+    with raises(AttributeError):
+        store.Unregistered(lambda u: u)
+    with raises(TypeError):
+        store.Product()  # a callback, an object and a callback, or an object
+    with raises(TypeError):
+        store.Prices(lambda p: p)  # no relation builder is exposed
+    with raises(TypeError):
+        store.Product(jpy)  # the source instance must have the builder's schema
+    with raises(TypeError):
+        store.Product(lambda p: p.colour('red'))  # not a property or adjacency: it reads as empty, and refuses a write
 with raises(AttributeError):
     widget.sku = 'W-2'  # instances are read-only
 
 # A schema named 'schema' is shadowed by the store's schema() method, but still reachable by name.
-Shadowed = store.Schemas.OfObject(lambda o: o.name('schema').ref(True).properties([lambda t: t.name('label').schema([Text])]))
-assert store.schema('schema') is Shadowed and store.builder('schema').create().as_schema().name == 'schema'
+with store.transaction():
+    Shadowed = store.Schemas.OfObject(lambda o: o.name('schema').ref(True).properties([lambda t: t.name('label').schema([Text])]))
+    assert store.schema('schema') is Shadowed and store.builder('schema').create().as_schema().name == 'schema'
 
 print('Serialization: all checks passed')

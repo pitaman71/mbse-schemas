@@ -317,6 +317,19 @@ so that main stays current and no branch waits on another.
      object by the name its spec gives, as it finds an owned object by its owning entry: a module's install, run again,
      finds its schemas and extends them where the spec gives more. A symbol's schema is given as the store's
      (`store.Schemas.OfObject`), not yet `txn.Schemas` (78).
+   - **4e-2, every write within a transaction** (44, 98), as built so far:
+     - a transaction's imperative scope (98): `with store.transaction():` in Python, `store.transaction(() => ...)`
+       given a function of no arguments in TypeScript, which gives back what the function returns; builders write
+       within it as anywhere, in the overlay, all or nothing; one within another is refused;
+     - a write outside a transaction of its store is refused ("a store is written only within a transaction
+       (store.transaction)"), checked where a reference object's values or an entry table is first written, and where
+       a schema object is held; exempt are building a transaction's expression, `store.Mutations.*` (94), making the
+       store, and a transaction's commit;
+     - the library's own writes join the transaction open, else open one of their own: the decoders (90), whose writes
+       are now all within it;
+     - the refusal is behind a switch, `MBSE_STRICT=1` (`Proxies._STRICT`, `Proxies._strict`), off while the callers
+       move suite by suite, and removed with the last of them; the corpus builders and the examples write within
+       transactions, and the tutorials follow, one case study at a time, in both languages.
    - **4f, the wire** (45, 51, 55, 56): a store's snapshot is made of transactions; a journal holds transactions as
      submitted, replayed by executing them; a Reachable document is one transaction, its counted objects numbered within
      it, owned objects and singletons referred to by path. The corpora are regenerated, the JSON byte-identical between

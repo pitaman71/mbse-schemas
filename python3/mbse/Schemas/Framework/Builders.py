@@ -21,6 +21,7 @@ finalized by `create()` (no data given), `clone()` (new data) or `update()` (wri
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import itertools
 import weakref
@@ -1604,7 +1605,8 @@ class Store(Proxies._Store):
         self._extending: set[int] | None = None  # the schema objects held when an extension began, while it runs
         self._modules: dict[str, _ModuleData] = {}  # by path; the root module's is ""
         self._placed: dict[int, tuple[_ModuleData, str]] = {}  # each schema's module, and its name there
-        self._root = ModuleBuilder(None, True, self).create()
+        with self._expression():  # made with the store
+            self._root = ModuleBuilder(None, True, self).create()
 
     def held(self, path: Any) -> Any:
         """The schema object whose path is `path`, a `Paths.OfRoot` value (`Paths.of`) or its plain form; None where the
@@ -1760,6 +1762,7 @@ class Store(Proxies._Store):
         builder of one writes only its store's entries."""
         if self.framework(data):
             return data
+        self._written()
         if isinstance(data, S.OfScalar.Data):
             raise TypeError("a store builds no scalar schema: its scalars are the basic scalars it was made holding, "
                             "store.Schemas.OfBool, OfInt, OfFloat, OfStr and OfBytes")
@@ -1781,15 +1784,23 @@ class Store(Proxies._Store):
             self._place(data)
         return data
 
-    def transaction(self, spec: Any) -> list[dict[str, Any]]:
+    def transaction(self, spec: Any = None) -> Any:
         """Executes a transaction (docs/OBJECT_IDENTITY.md, Decided, 85 to 97): a `Mutations.OfTransaction`, or a
         callback building one, its root term given through `mutations`. Every write it makes is held apart until it
         ends, and dropped where it raises. Gives the frames its chain of terms ends with, each the objects its symbols
-        bind, by symbol."""
+        bind, by symbol. With no `spec`, a transaction's imperative scope (98), `with store.transaction(): ...`, within
+        which builders write as they do anywhere, all or nothing."""
         from . import Transactions
 
+        if spec is None:
+            return self._scope()
         transaction = self.Mutations.OfTransaction(spec) if callable(spec) else spec
         return Transactions._execute(self, transaction)
+
+    @contextlib.contextmanager
+    def _scope(self) -> Iterator[None]:
+        with self._transacting():
+            yield
 
     def _defers(self, builder: _Builder[Any]) -> bool:
         """Whether a builder's update of a schema object waits for the commit of the transaction open: where the object
@@ -1864,11 +1875,12 @@ class Store(Proxies._Store):
             builder = self.builder(name, existing)
         else:
             raise AttributeError(f"no schema registered as {name!r}")
-        if cb is not None:
-            _visit(cb, builder)
-        if existing is None:
-            return builder.create()
-        return builder.update() if cb is not None else builder.clone()
+        with self._expression() if name.startswith("Mutations.") else contextlib.nullcontext():  # an expression (94)
+            if cb is not None:
+                _visit(cb, builder)
+            if existing is None:
+                return builder.create()
+            return builder.update() if cb is not None else builder.clone()
 
 
 def _shown(schema: Any) -> str:

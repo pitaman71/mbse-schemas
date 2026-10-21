@@ -194,6 +194,34 @@ export abstract class _Store extends Stores.Catalog implements Stores.Store {
   /** The counted objects upserts created, weakly, by upsert key, symbol and the frame that reached the upsert (63). */
   readonly _upserted = new Map<string, WeakRef<object>>();
 
+  /** How deep in building an expression, or in making the store, a write is (`_written`). */
+  _expressing = 0;
+
+  /** Refuses a write outside a transaction of this store (docs/OBJECT_IDENTITY.md, Decided, 44), but while a transaction's
+   * expression is built (94), the store is made, or a transaction commits. */
+  _written(): void {
+    if (STRICT && (OVERLAY === null || OVERLAY.store !== this) && this._expressing === 0) {
+      throw new ValueError("a store is written only within a transaction (store.transaction)");
+    }
+  }
+
+  /** The library's own writes (a decoder's, an adapter's): within the transaction of this store open, else one of their
+   * own. */
+  _joined<T>(write: () => T): T {
+    return OVERLAY !== null && OVERLAY.store === this ? write() : this._transacting(write);
+  }
+
+  /** Building a transaction's expression, the one write allowed outside a transaction (Decided, 94); making the store; and
+   * a transaction's commit. */
+  _expression<T>(write: () => T): T {
+    this._expressing += 1;
+    try {
+      return write();
+    } finally {
+      this._expressing -= 1;
+    }
+  }
+
   /** A transaction's writes (docs/OBJECT_IDENTITY.md, Decided, 89, 96): held in an overlay while it runs, written when it
    * ends, or, where it throws, dropped, the store's registries as they were before it began. */
   _transacting<T>(write: () => T): T {
@@ -210,7 +238,7 @@ export abstract class _Store extends Stores.Catalog implements Stores.Store {
     }
     OVERLAY = null;
     try {
-      this._commit_schemas(overlay);
+      this._expression(() => this._commit_schemas(overlay)); // its commit
     } catch (error) {
       this._restore(saved);
       throw error;
@@ -562,6 +590,7 @@ function table(target: unknown, relation: RelationSchema, store: any = null, wri
   } else {
     own = ownTables(target);
   }
+  if (write) store._written(); // an entry's writers resolve its store
   const tables = tablesOf(own, write);
   let found = tables.get(relation);
   if (found === undefined) {
@@ -630,7 +659,19 @@ function valuesOf(holder: { _ownValues: Values }): Values {
 }
 
 /** A holder's values to write: within a transaction, the overlay's copy, made the first time. */
+/** Whether a write outside a transaction is refused (Decided, 44): off while step 4e-2 migrates the callers, suite by
+ * suite; the switch goes when every caller writes within one. */
+let STRICT = false;
+
+export function _strict(on: boolean): void {
+  STRICT = on;
+}
+
+/** A holder's values to write: within a transaction, the overlay's copy, made the first time. A reference object's are
+ * written only within a transaction of its store (docs/OBJECT_IDENTITY.md, Decided, 44); a value object's, built
+ * standalone, are its builder's until it is placed. */
 function writableValues(holder: { _ownValues: Values }): Values {
+  if (holder instanceof _ObjectData) holder._store._written();
   if (OVERLAY === null) return holder._ownValues;
   let held = OVERLAY.values.get(holder);
   if (held === undefined) OVERLAY.values.set(holder, (held = new Map(holder._ownValues)));

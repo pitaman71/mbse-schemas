@@ -2036,7 +2036,7 @@ export class Store extends Proxies._Store {
       },
     });
     for (const schema of this._objects) HELD_BY.set(schema as object, proxy); // the store, as it is reached
-    this._root = new ModuleBuilder(null, true, proxy).create();
+    this._root = this._expression(() => new ModuleBuilder(null, true, proxy).create()); // made with the store
     return proxy;
   }
 
@@ -2121,8 +2121,11 @@ export class Store extends Proxies._Store {
 
   /** Executes a transaction (docs/OBJECT_IDENTITY.md, Decided, 85 to 97): a `Mutations.OfTransaction`, or a callback
    * building one, its root term given through `mutations`. Every write it makes is held apart until it ends, and dropped
-   * where it throws. Gives the frames its chain of terms ends with, each the objects its symbols bind, by symbol. */
-  transaction(spec: unknown): Transactions.Frame[] {
+   * where it throws. Gives the frames its chain of terms ends with, each the objects its symbols bind, by symbol. Given a
+   * function of no arguments, a transaction's imperative scope (98), `store.transaction(() => { ... })`, within which
+   * builders write as they do anywhere, all or nothing; it gives what the function returns. */
+  transaction(spec: unknown): any {
+    if (Proxies._isFunction(spec) && spec.length === 0) return this._transacting(spec as () => unknown); // its scope (98)
     const transaction = Proxies._isFunction(spec) ? this.Mutations.OfTransaction(spec) : spec;
     return Transactions._execute(this, transaction);
   }
@@ -2281,6 +2284,7 @@ export class Store extends Proxies._Store {
    * one writes only its store's entries. */
   _hold(data: any): any {
     if (this.framework(data)) return data;
+    this._written();
     if (data instanceof S.OfScalar.Data) {
       throw new TypeError("a store builds no scalar schema: its scalars are the basic scalars it was made holding, "
         + "store.Schemas.OfBool, OfInt, OfFloat, OfStr and OfBytes");
@@ -2342,9 +2346,12 @@ export class Store extends Proxies._Store {
     if (kind !== undefined) builder = new kind(existing, true, this);
     else if (this._schemas.has(name)) builder = this.builder(name, existing);
     else throw new AttributeError(`no schema registered as ${repr(name)}`);
-    if (cb !== null) visit(cb, builder);
-    if (existing === null) return builder.create();
-    return cb !== null ? builder.update() : builder.clone();
+    const build = (): any => {
+      if (cb !== null) visit(cb, builder);
+      if (existing === null) return builder.create();
+      return cb !== null ? builder.update() : builder.clone();
+    };
+    return name.startsWith("Mutations.") ? this._expression(build) : build(); // an expression (94)
   }
 }
 

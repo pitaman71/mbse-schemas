@@ -921,7 +921,7 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
 
     created: dict[str, Any] = {}
     owned: list[tuple[str, Any]] = []  # objects placed through an owner, given their ownership entries once all exist
-    with store._transacting():  # a transaction of its own, until 4f (docs/OBJECT_IDENTITY.md, Decided, 90)
+    with store._joined():  # a transaction of its own, or the one open, until 4f (docs/OBJECT_IDENTITY.md, Decided, 90)
         pending = list(decoded)
         while pending:  # an owner before what it owns: its path is the owned's but the last step, so never a cycle
             progress = [symbol for symbol in pending
@@ -946,17 +946,12 @@ def _restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: PlainDat
             link = next(other for other in adjacency.relation.entry.links if other != adjacency.me)
             Proxies._add_entry(adjacency.relation, Proxies._Entry(
                 adjacency.relation, {link: created[where.owner], adjacency.me: target}, where.keys))
-
-    def resolve(symbol: str) -> Any:
-        """The reference object a symbol names: entries never reference value objects."""
-        return created[symbol]
-
-    for symbol, (_, adjacencies) in decoded.items():
-        object_schema = store.schema(names[symbol])
-        builder = store.builder(names[symbol], created[symbol])
-        for key, rows in adjacencies.items():
-            write(getattr(builder, key), kept(object_schema, symbol, key, rows), resolve)
-        builder.update()
+        for symbol, (_, adjacencies) in decoded.items():
+            object_schema = store.schema(names[symbol])
+            builder = store.builder(names[symbol], created[symbol])
+            for key, rows in adjacencies.items():
+                write(getattr(builder, key), kept(object_schema, symbol, key, rows), created.__getitem__)
+            builder.update()
     return created[root]
 
 
@@ -1359,7 +1354,7 @@ class _LogReader:
     def apply(self, log: PlainData) -> list[Any]:
         if not isinstance(log, list):
             raise DecodeError(f"a log is a list, got {type(log).__name__}", path="$")
-        with self._store._transacting():  # a transaction of its own, until 4f (Object identity, Decided, 90)
+        with self._store._joined():  # a transaction of its own, or the one open, until 4f (Object identity, Decided, 90)
             return self._apply(log)
 
     def _apply(self, log: list[Any]) -> list[Any]:

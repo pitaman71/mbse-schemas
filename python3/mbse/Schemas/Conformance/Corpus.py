@@ -212,119 +212,127 @@ def build():
     cases = {}
 
     s = B.Store()
-    _address_book(s)
-    home = s.Address(lambda a: a.street1("10 Downing Street").locality("London").postal_code("SW1A 2AA").country_code("GB"))
-    alice = s.Contact(lambda c: (
-        c.given_name("Alice").family_name("Liddell").birth_date("1852-05-04")
-        .addresses(lambda a: a.insert(lambda x: x.address(home).label("home")))
-        .phones(lambda a: a.insert(lambda x: x.phone(lambda p: p.number("+447700900123")).label("mobile")))
-        .phones(lambda a: a.insert(lambda x: x.phone(lambda p: p.number("+14155550100")).label("work")))))
-    bob = s.Contact(lambda c: c.given_name("Bob").addresses(lambda a: a.insert(lambda x: x.address(home).label("home"))))
-    _rooted(s, [home, alice, bob])
-    cases["address_book"] = (s, [home, alice, bob])
+    with s.transaction():  # each case's schemas and data, one transaction
+        _address_book(s)
+        home = s.Address(lambda a: a.street1("10 Downing Street").locality("London").postal_code("SW1A 2AA").country_code("GB"))
+        alice = s.Contact(lambda c: (
+            c.given_name("Alice").family_name("Liddell").birth_date("1852-05-04")
+            .addresses(lambda a: a.insert(lambda x: x.address(home).label("home")))
+            .phones(lambda a: a.insert(lambda x: x.phone(lambda p: p.number("+447700900123")).label("mobile")))
+            .phones(lambda a: a.insert(lambda x: x.phone(lambda p: p.number("+14155550100")).label("work")))))
+        bob = s.Contact(lambda c: c.given_name("Bob").addresses(lambda a: a.insert(lambda x: x.address(home).label("home"))))
+        _rooted(s, [home, alice, bob])
+        cases["address_book"] = (s, [home, alice, bob])
 
     s = B.Store()
-    _scalars(s)
-    samples = [
-        dict(label="", payload=b"", count=0, ratio=0.0, flag=False),
-        dict(label="日本語 🚀", payload=bytes(range(256)), count=2**100, ratio=-0.0, flag=True),
-        dict(label='\x00\x1f\x7f "q" \\ \n\t\r', payload=b"\x00", count=-(2**70), ratio=5e-324),
-        dict(label="non-finite", ratio=math.nan),
-        dict(label="+inf", ratio=math.inf),
-        dict(label="-inf", ratio=-math.inf),
-        dict(label="big", ratio=1e16, count=2**63),
-        dict(label="small", ratio=0.1),
-        dict(label="max", ratio=1e308),
-        dict(label="two", ratio=2.0),
-    ]
-    bag = s.Bag(lambda b: b.name("edges"))
-    items = []
-    for slot, values in enumerate(samples):
-        item = s.Sample(lambda b, values=values: [getattr(b, name)(value) for name, value in values.items()])
-        items.append(item)
-        s.Bag(bag, lambda b, item=item, slot=slot: b.items(lambda a: a.insert(lambda x: x.item(item).slot(slot))))
-    _rooted(s, [bag, *items])
-    cases["scalars"] = (s, [bag, *items])
+    with s.transaction():  # each case's schemas and data, one transaction
+        _scalars(s)
+        samples = [
+            dict(label="", payload=b"", count=0, ratio=0.0, flag=False),
+            dict(label="日本語 🚀", payload=bytes(range(256)), count=2**100, ratio=-0.0, flag=True),
+            dict(label='\x00\x1f\x7f "q" \\ \n\t\r', payload=b"\x00", count=-(2**70), ratio=5e-324),
+            dict(label="non-finite", ratio=math.nan),
+            dict(label="+inf", ratio=math.inf),
+            dict(label="-inf", ratio=-math.inf),
+            dict(label="big", ratio=1e16, count=2**63),
+            dict(label="small", ratio=0.1),
+            dict(label="max", ratio=1e308),
+            dict(label="two", ratio=2.0),
+        ]
+        bag = s.Bag(lambda b: b.name("edges"))
+        items = []
+        for slot, values in enumerate(samples):
+            item = s.Sample(lambda b, values=values: [getattr(b, name)(value) for name, value in values.items()])
+            items.append(item)
+            s.Bag(bag, lambda b, item=item, slot=slot: b.items(lambda a: a.insert(lambda x: x.item(item).slot(slot))))
+        _rooted(s, [bag, *items])
+        cases["scalars"] = (s, [bag, *items])
 
     s = B.Store()
-    _family(s)
-    ada = s.Person(lambda p: p.given_name("Ada").birth_date("1815-12-10"))
-    bob = s.Person(lambda p: p.given_name("Bob").parents(lambda a: a.insert(lambda x: x.parent(ada).kind("biological"))))
-    carol = s.Person(lambda p: p.given_name("Carol").children(lambda a: a.insert(
-        lambda x: x.child(lambda y: y.given_name("Dan").birth_date("2001-02-03")).kind("adoptive"))))
-    s.Person(ada, lambda p: p.mentees(lambda a: a.insert(lambda x: x.mentee(bob))))
-    s.Person(carol, lambda p: p.mentees(lambda a: a.insert(lambda x: x.mentee(carol))))
-    s.Person(bob, lambda p: p.mentees(lambda a: a.insert(lambda x: x.mentee(ada))))
-    _rooted(s, [ada, bob, carol])
-    cases["family"] = (s, [ada, bob, carol])
+    with s.transaction():  # each case's schemas and data, one transaction
+        _family(s)
+        ada = s.Person(lambda p: p.given_name("Ada").birth_date("1815-12-10"))
+        bob = s.Person(lambda p: p.given_name("Bob").parents(lambda a: a.insert(lambda x: x.parent(ada).kind("biological"))))
+        carol = s.Person(lambda p: p.given_name("Carol").children(lambda a: a.insert(
+            lambda x: x.child(lambda y: y.given_name("Dan").birth_date("2001-02-03")).kind("adoptive"))))
+        s.Person(ada, lambda p: p.mentees(lambda a: a.insert(lambda x: x.mentee(bob))))
+        s.Person(carol, lambda p: p.mentees(lambda a: a.insert(lambda x: x.mentee(carol))))
+        s.Person(bob, lambda p: p.mentees(lambda a: a.insert(lambda x: x.mentee(ada))))
+        _rooted(s, [ada, bob, carol])
+        cases["family"] = (s, [ada, bob, carol])
 
     s = B.Store()
-    _enrollment(s)
-    fall = s.Term(lambda t: t.code("2026-FA").starts("2026-09-01"))
-    cs101 = s.Course(lambda c: c.code("CS101"))
-    mia = s.Student(lambda st: (
-        st.name("Mia")
-        .enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).credits(4).score(3.75).audit(False)))
-        .enrollments(lambda a: a.insert(lambda x: x.course(lambda c: c.code("MA201")).term(fall).credits(3).score(-0.0)))))
-    noah = s.Student(lambda st: st.name("Noah").enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).audit(True))))
-    _rooted(s, [fall, cs101, mia, noah])
-    cases["enrollment"] = (s, [fall, cs101, mia, noah])
+    with s.transaction():  # each case's schemas and data, one transaction
+        _enrollment(s)
+        fall = s.Term(lambda t: t.code("2026-FA").starts("2026-09-01"))
+        cs101 = s.Course(lambda c: c.code("CS101"))
+        mia = s.Student(lambda st: (
+            st.name("Mia")
+            .enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).credits(4).score(3.75).audit(False)))
+            .enrollments(lambda a: a.insert(lambda x: x.course(lambda c: c.code("MA201")).term(fall).credits(3).score(-0.0)))))
+        noah = s.Student(lambda st: st.name("Noah").enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).audit(True))))
+        _rooted(s, [fall, cs101, mia, noah])
+        cases["enrollment"] = (s, [fall, cs101, mia, noah])
 
     s = B.Store()
-    _yaml_strings(s)
-    tricky = ["yes", "No", "on", "OFF", "y", "true", "null", "~", "", "010", "0o17", "0x1F", "1e3", "1_000", "1:30",
-              "2026-09-01", ".inf", ".nan", "NaN", "Infinity", "-0.0", "+1", " lead", "trail ", "a: b", "- dash",
-              "#hash", "x #y", '"dq"', "'sq'", "@at", "`tick", "%pct", "!bang", "&amp", "*star", "|", ">", "{}", "[]",
-              ",", "?", "<<", "---", "...", "a\nb", "\t", "\x00", "\x07\x7f\x9b", "﻿bom", "a\x85b", "a b",
-              "日本語 🚀", "word " * 30]
-    notebook = s.Notebook(lambda n: n.title("tricky"))
-    notes = []
-    for page, value in enumerate(tricky):
-        note = s.Note(lambda n, value=value: n.text(value))
-        notes.append(note)
-        s.Notebook(notebook, lambda n, note=note, page=page: n.notes(lambda a: a.insert(lambda x: x.note(note).page(page))))
-    _rooted(s, [notebook, *notes])
-    cases["yaml_strings"] = (s, [notebook, *notes])
+    with s.transaction():  # each case's schemas and data, one transaction
+        _yaml_strings(s)
+        tricky = ["yes", "No", "on", "OFF", "y", "true", "null", "~", "", "010", "0o17", "0x1F", "1e3", "1_000", "1:30",
+                  "2026-09-01", ".inf", ".nan", "NaN", "Infinity", "-0.0", "+1", " lead", "trail ", "a: b", "- dash",
+                  "#hash", "x #y", '"dq"', "'sq'", "@at", "`tick", "%pct", "!bang", "&amp", "*star", "|", ">", "{}", "[]",
+                  ",", "?", "<<", "---", "...", "a\nb", "\t", "\x00", "\x07\x7f\x9b", "﻿bom", "a\x85b", "a b",
+                  "日本語 🚀", "word " * 30]
+        notebook = s.Notebook(lambda n: n.title("tricky"))
+        notes = []
+        for page, value in enumerate(tricky):
+            note = s.Note(lambda n, value=value: n.text(value))
+            notes.append(note)
+            s.Notebook(notebook, lambda n, note=note, page=page: n.notes(lambda a: a.insert(lambda x: x.note(note).page(page))))
+        _rooted(s, [notebook, *notes])
+        cases["yaml_strings"] = (s, [notebook, *notes])
 
     s = B.Store()
-    _embedded(s)
-    deck = s.Deck(lambda d: d.title("contacts"))
-    cards = [
-        s.Card(lambda c: c.name("Ann").home(lambda p: p.as_object(lambda r: r.number("+1 555 0100").label("home").extensions(
-            _put([(0, "12")])))).reach(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.email(
-                lambda r: r.address("ann@example.com"))))).ident(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.number(7))))),
-        s.Card(lambda c: c.name("Bo").reach(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.phone(
-            lambda r: r.number("+44 20 7946 0000"))))).ident(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.code("B-2"))))
-            .meta(lambda p: p.as_value(lambda a: a.as_intersection(lambda i: i.stamp(lambda r: r.updated("2026-09-29")).audit(
-                lambda r: r.updated("2026-09-29").by("ann")))))),
-        s.Card(lambda c: c.name("Cy")),
-    ]
-    for card in cards:
-        s.Deck(deck, lambda d, card=card: d.cards(lambda a: a.insert(lambda x: x.card(card))))
-    _rooted(s, [deck, *cards])
-    cases["embedded"] = (s, [deck, *cards])
+    with s.transaction():  # each case's schemas and data, one transaction
+        _embedded(s)
+        deck = s.Deck(lambda d: d.title("contacts"))
+        cards = [
+            s.Card(lambda c: c.name("Ann").home(lambda p: p.as_object(lambda r: r.number("+1 555 0100").label("home").extensions(
+                _put([(0, "12")])))).reach(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.email(
+                    lambda r: r.address("ann@example.com"))))).ident(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.number(7))))),
+            s.Card(lambda c: c.name("Bo").reach(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.phone(
+                lambda r: r.number("+44 20 7946 0000"))))).ident(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.code("B-2"))))
+                .meta(lambda p: p.as_value(lambda a: a.as_intersection(lambda i: i.stamp(lambda r: r.updated("2026-09-29")).audit(
+                    lambda r: r.updated("2026-09-29").by("ann")))))),
+            s.Card(lambda c: c.name("Cy")),
+        ]
+        for card in cards:
+            s.Deck(deck, lambda d, card=card: d.cards(lambda a: a.insert(lambda x: x.card(card))))
+        _rooted(s, [deck, *cards])
+        cases["embedded"] = (s, [deck, *cards])
 
     s = B.Store()
-    _lists(s)
-    board = s.Board(lambda r: (
-        r.name("rack").tags(_put(enumerate(["", "日本語 🚀", "a"]))).blobs(_put(enumerate([b"", b"\x00\xff"])))
-        .grid(_put([(i, lambda e, row=row: e.as_container(_write(enumerate(row))))
-                    for i, row in enumerate([[1, -(2**70)], [], [0]])]))
-        .readings(_put([(0, lambda e: e.as_union(lambda u: u.value(-0.0))), (1, lambda e: e.as_union(lambda u: u.note("off"))),
-                        (2, lambda e: e.as_union(lambda u: u.value(math.inf)))]))
-        .sockets(_put([(0, lambda e: e.as_object(lambda o: o.name("in").pins(_put([(0, "1"), (1, "2")])))),
-                       (1, lambda e: e.as_object(lambda o: o.name("out")))]))
-        .banks(_put([(0, lambda e: e.as_object(lambda b: b)), (1, lambda e: e.as_object(lambda b: b.sockets(_put(
-            [(0, lambda x: x.as_object(lambda o: o.name("spare").pins(_put([(0, "9")]))))]))))]))
-        .matrix(_put([((2, 1), 0), ((1, 1), 1), ((1, 2), 0), ((2, 2), 1)]))
-        .cells(_put([(5, 6), (6, 7), (0, 0)]))
-        .attrs(_put([("gain", 1.5), ("", -0.0)]))
-        .weights(_put([(0.5, "half"), (-2.5, "neg")]))))
-    _rooted(s, [board])
-    cases["lists"] = (s, [board])
+    with s.transaction():  # each case's schemas and data, one transaction
+        _lists(s)
+        board = s.Board(lambda r: (
+            r.name("rack").tags(_put(enumerate(["", "日本語 🚀", "a"]))).blobs(_put(enumerate([b"", b"\x00\xff"])))
+            .grid(_put([(i, lambda e, row=row: e.as_container(_write(enumerate(row))))
+                        for i, row in enumerate([[1, -(2**70)], [], [0]])]))
+            .readings(_put([(0, lambda e: e.as_union(lambda u: u.value(-0.0))), (1, lambda e: e.as_union(lambda u: u.note("off"))),
+                            (2, lambda e: e.as_union(lambda u: u.value(math.inf)))]))
+            .sockets(_put([(0, lambda e: e.as_object(lambda o: o.name("in").pins(_put([(0, "1"), (1, "2")])))),
+                           (1, lambda e: e.as_object(lambda o: o.name("out")))]))
+            .banks(_put([(0, lambda e: e.as_object(lambda b: b)), (1, lambda e: e.as_object(lambda b: b.sockets(_put(
+                [(0, lambda x: x.as_object(lambda o: o.name("spare").pins(_put([(0, "9")]))))]))))]))
+            .matrix(_put([((2, 1), 0), ((1, 1), 1), ((1, 2), 0), ((2, 2), 1)]))
+            .cells(_put([(5, 6), (6, 7), (0, 0)]))
+            .attrs(_put([("gain", 1.5), ("", -0.0)]))
+            .weights(_put([(0.5, "half"), (-2.5, "neg")]))))
+        _rooted(s, [board])
+        cases["lists"] = (s, [board])
 
     s = B.Store()
-    _module(s)
-    _rooted(s, [])
-    cases["module"] = (s, [])
+    with s.transaction():  # each case's schemas and data, one transaction
+        _module(s)
+        _rooted(s, [])
+        cases["module"] = (s, [])
     return cases

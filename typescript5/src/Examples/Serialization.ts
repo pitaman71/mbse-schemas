@@ -16,66 +16,69 @@ const Int = store.Schemas.OfInt.as_schema(); // the store's own basic scalar
 
 // --- Schemas ---
 
-const Sample = store.Schemas.OfObject((o: any) => (
-  o
-    .name("Sample")
-    .ref(true)
-    .properties([
-      (t: any) => t.name("label").schema([Text]),
-      (t: any) => t.name("payload").schema([store.Schemas.OfBytes]),
-      (t: any) => t.name("count").schema([Int]),
-      (t: any) => t.name("ratio").schema([store.Schemas.OfFloat]),
-      (t: any) => t.name("flag").schema([store.Schemas.OfBool]),
-    ])
-));
+const { Sample, Currency, Product, Money, Prices, Denomination } = store.transaction(() => { // every write to a store is made within a transaction, all or nothing
+  const Sample = store.Schemas.OfObject((o: any) => (
+    o
+      .name("Sample")
+      .ref(true)
+      .properties([
+        (t: any) => t.name("label").schema([Text]),
+        (t: any) => t.name("payload").schema([store.Schemas.OfBytes]),
+        (t: any) => t.name("count").schema([Int]),
+        (t: any) => t.name("ratio").schema([store.Schemas.OfFloat]),
+        (t: any) => t.name("flag").schema([store.Schemas.OfBool]),
+      ])
+  ));
 
-// Registered names are strings and need not be identifiers: a dotted name is a path from the store.
-const Currency = store.Schemas.OfObject((o: any) => (
-  o
-    .name("iso4217.Currency")
-    .ref(true)
-    .properties([
-      (t: any) => t.name("code").schema([Text]), // ISO 4217 alpha, e.g. 'JPY'
-      (t: any) => t.name("numeric").schema([Text]), // ISO 4217 numeric, e.g. '392'; keeps zeros
-      (t: any) => t.name("minor_units").schema([Int]), // 0 for JPY, 2 for EUR, 3 for BHD
-    ])
-));
-const Product = store.Schemas.OfObject((o: any) => o.name("Product").ref(true).properties([(t: any) => t.name("sku").schema([Text])]));
-const Money = store.Schemas.OfObject((o: any) => (
-  o
-    .name("Money")
-    .ref(true)
-    .properties([(t: any) => t.name("amount").schema([Int])]) // in minor units
-));
+  // Registered names are strings and need not be identifiers: a dotted name is a path from the store.
+  const Currency = store.Schemas.OfObject((o: any) => (
+    o
+      .name("iso4217.Currency")
+      .ref(true)
+      .properties([
+        (t: any) => t.name("code").schema([Text]), // ISO 4217 alpha, e.g. 'JPY'
+        (t: any) => t.name("numeric").schema([Text]), // ISO 4217 numeric, e.g. '392'; keeps zeros
+        (t: any) => t.name("minor_units").schema([Int]), // 0 for JPY, 2 for EUR, 3 for BHD
+      ])
+  ));
+  const Product = store.Schemas.OfObject((o: any) => o.name("Product").ref(true).properties([(t: any) => t.name("sku").schema([Text])]));
+  const Money = store.Schemas.OfObject((o: any) => (
+    o
+      .name("Money")
+      .ref(true)
+      .properties([(t: any) => t.name("amount").schema([Int])]) // in minor units
+  ));
 
-// product -> [currency] -> money
-const Prices = store.Schemas.OfRelation((r: any) => (
-  r
-    .name("Prices")
-    .links([
-      (t: any) => t.name("product"),
-      (t: any) => t.name("price"),
-    ])
-    .properties([(t: any) => t.name("currency").schema([Text])])
-    .uniques("price")
-));
-// Which currency a money amount is in.
-const Denomination = store.Schemas.OfRelation((r: any) => (
-  r
-    .name("Denomination")
-    .links([
-      (t: any) => t.name("money"),
-      (t: any) => t.name("currency"),
-    ])
-    .uniques("currency")
-));
+  // product -> [currency] -> money
+  const Prices = store.Schemas.OfRelation((r: any) => (
+    r
+      .name("Prices")
+      .links([
+        (t: any) => t.name("product"),
+        (t: any) => t.name("price"),
+      ])
+      .properties([(t: any) => t.name("currency").schema([Text])])
+      .uniques("price")
+  ));
+  // Which currency a money amount is in.
+  const Denomination = store.Schemas.OfRelation((r: any) => (
+    r
+      .name("Denomination")
+      .links([
+        (t: any) => t.name("money"),
+        (t: any) => t.name("currency"),
+      ])
+      .uniques("currency")
+  ));
 
-store.Schemas.OfObject(Product, (o: any) => o.adjacencies([(t: any) => t.name("prices").relation([Prices]).me("product")]));
-store.Schemas.OfObject(Money, (o: any) => o.adjacencies([
-  (t: any) => t.name("products").relation([Prices]).me("price"),
-  (t: any) => t.name("currency").relation([Denomination]).me("money"),
-]));
-store.Schemas.OfObject(Currency, (o: any) => o.adjacencies([(t: any) => t.name("amounts").relation([Denomination]).me("currency")]));
+  store.Schemas.OfObject(Product, (o: any) => o.adjacencies([(t: any) => t.name("prices").relation([Prices]).me("product")]));
+  store.Schemas.OfObject(Money, (o: any) => o.adjacencies([
+    (t: any) => t.name("products").relation([Prices]).me("price"),
+    (t: any) => t.name("currency").relation([Denomination]).me("money"),
+  ]));
+  store.Schemas.OfObject(Currency, (o: any) => o.adjacencies([(t: any) => t.name("amounts").relation([Denomination]).me("currency")]));
+  return { Sample, Currency, Product, Money, Prices, Denomination };
+});
 
 for (const schema of [Sample, Currency, Product, Money, Prices, Denomination]) {
   assert(schema.validate().length === 0, `${schema.name}: ${schema.validate()}`);
@@ -86,14 +89,17 @@ const repeat = (b: Uint8Array, n: number) => new Uint8Array(Array.from({ length:
 
 // --- Scalar values at their edges ---
 
-const edge = store.Sample((s: any) => (
-  s
-    .label('日本語 🚀 \u0000 "quoted" \\ back') // non-ASCII, emoji, NUL, quotes, backslash
-    .payload(repeat(bytes(0x00, 0xff, 0x10), 3))
-    .count(2n ** 100n) // ints are unbounded
-    .ratio(-0.0)
-    .flag(false) // a present false is not an absent property
-));
+const { edge } = store.transaction(() => {
+  const edge = store.Sample((s: any) => (
+    s
+      .label('日本語 🚀 \u0000 "quoted" \\ back') // non-ASCII, emoji, NUL, quotes, backslash
+      .payload(repeat(bytes(0x00, 0xff, 0x10), 3))
+      .count(2n ** 100n) // ints are unbounded
+      .ratio(-0.0)
+      .flag(false) // a present false is not an absent property
+  ));
+  return { edge };
+});
 const plain = Plain.ToPlain(store)(Sample, edge) as PlainMap;
 const fields = (plain.get("objects") as PlainMap[])[0]!.get("properties") as PlainMap; // the root, listed first
 assert(fields.get("payload") === "AP8QAP8QAP8Q"); // bytes become base64 text
@@ -106,13 +112,19 @@ assert(restored.ratio.get() === 0 && Object.is(restored.ratio.get(), -0)); // th
 assert(restored.flag.get() === false);
 
 // Empty values are present values.
-const empty = store.Sample((s: any) => s.label("").payload(bytes()).count(0n).ratio(0.0));
+const { empty } = store.transaction(() => {
+  const empty = store.Sample((s: any) => s.label("").payload(bytes()).count(0n).ratio(0.0));
+  return { empty };
+});
 const back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty)) as Instance;
 assert(back.label.get() === "" && equal(back.payload.get(), bytes()) && back.count.get() === 0n && back.ratio.get() === 0);
 assert(back.flag.get() === null); // never set, so absent
 
 // An object with nothing set serializes to empty properties, listed with its number and its schema's name.
-const blank = store.Sample((s: any) => s);
+const { blank } = store.transaction(() => {
+  const blank = store.Sample((s: any) => s);
+  return { blank };
+});
 assert(equal(Plain.ToPlain(store)(Sample, blank), map({ root: { n: 0n }, objects: [{ n: 0n, schema: "Sample", properties: {} }] })));
 
 // Per-kind entry points.
@@ -133,7 +145,10 @@ raises(DecodeError, () => from_plain(bytesSchema, new TextEncoder().encode("raw"
 raises(DecodeError, () => from_plain(bytesSchema, "not base64!"));
 
 // The builder does not validate; the serializer does.
-const sloppy = store.Sample((s: any) => s.count("3"));
+const { sloppy } = store.transaction(() => {
+  const sloppy = store.Sample((s: any) => s.count("3"));
+  return { sloppy };
+});
 assert(sloppy.count.get() === "3");
 raises(TypeError, () => Plain.ToPlain(store)(Sample, sloppy));
 
@@ -145,14 +160,17 @@ assert(equal(validate(store.Schemas.OfInt.as_schema(), true), ["expected int, go
 
 // --- A map: product -> [currency] -> money ---
 
-const jpy = store.iso4217.Currency((c: any) => c.code("JPY").numeric("392").minor_units(0n));
-const eur = store.iso4217.Currency((c: any) => c.code("EUR").numeric("978").minor_units(2n));
-const widget = store.Product((p: any) => (
-  p
-    .sku("W-1")
-    .prices((a: any) => a.insert((x: any) => x.price((m: any) => m.amount(1500n).currency((a: any) => a.insert((d: any) => d.currency(jpy)))).currency("JPY")))
-    .prices((a: any) => a.insert((x: any) => x.price((m: any) => m.amount(1299n).currency((a: any) => a.insert((d: any) => d.currency(eur)))).currency("EUR")))
-));
+const { jpy, eur, widget } = store.transaction(() => { // the data: written within a transaction, all or nothing
+  const jpy = store.iso4217.Currency((c: any) => c.code("JPY").numeric("392").minor_units(0n));
+  const eur = store.iso4217.Currency((c: any) => c.code("EUR").numeric("978").minor_units(2n));
+  const widget = store.Product((p: any) => (
+    p
+      .sku("W-1")
+      .prices((a: any) => a.insert((x: any) => x.price((m: any) => m.amount(1500n).currency((a: any) => a.insert((d: any) => d.currency(jpy)))).currency("JPY")))
+      .prices((a: any) => a.insert((x: any) => x.price((m: any) => m.amount(1299n).currency((a: any) => a.insert((d: any) => d.currency(eur)))).currency("EUR")))
+  ));
+  return { jpy, eur, widget };
+});
 const byCurrency = (obj: Instance) =>
   new Map(entries(Product, obj, "prices").map((e) => [e.get("currency"), (e.get("price") as Instance).amount.get()]));
 assert(equal(byCurrency(widget), map({ JPY: 1500n, EUR: 1299n })));
@@ -168,12 +186,15 @@ assert(equal(byCurrency(again), byCurrency(widget)));
 assert(validate.Reachable(Product, widget).length === 0);
 
 // uniques('price') on Prices: (product, currency) determine the price. A second JPY price breaks it.
-const gadget = store.Product((p: any) => (
-  p
-    .sku("G-1")
-    .prices((a: any) => a.insert((x: any) => x.price((m: any) => m.amount(900n)).currency("JPY")))
-    .prices((a: any) => a.insert((x: any) => x.price((m: any) => m.amount(950n)).currency("JPY")))
-));
+const { gadget } = store.transaction(() => {
+  const gadget = store.Product((p: any) => (
+    p
+      .sku("G-1")
+      .prices((a: any) => a.insert((x: any) => x.price((m: any) => m.amount(900n)).currency("JPY")))
+      .prices((a: any) => a.insert((x: any) => x.price((m: any) => m.amount(950n)).currency("JPY")))
+  ));
+  return { gadget };
+});
 assert(equal(validate(Product, gadget), ["unique(price) violated: entries agreeing on ['currency', 'product'] differ on ['price']"]));
 
 // The root must be an instance of the schema given.
@@ -216,18 +237,22 @@ raises(TypeError, () => Plain.ToPlain(store)(Currency, widget));
 
 // --- Store corner cases ---
 
-raises(ValueError, () => store.Schemas.OfObject((o: any) => o.name("Sample"))); // a named schema's identity is its name, which Sample holds
-raises(AttributeError, () => store.Unregistered((u: any) => u));
-raises(TypeError, () => store.Product()); // a callback, an object and a callback, or an object
-raises(TypeError, () => store.Prices((p: any) => p)); // no relation builder is exposed
-raises(TypeError, () => store.Product(jpy)); // the source instance must have the builder's schema
-raises(TypeError, () => store.Product((p: any) => p.colour("red"))); // not a property or adjacency: it reads as empty, and refuses a write
+store.transaction(() => { // each refused before it writes
+  raises(ValueError, () => store.Schemas.OfObject((o: any) => o.name("Sample"))); // a named schema's identity is its name, which Sample holds
+  raises(AttributeError, () => store.Unregistered((u: any) => u));
+  raises(TypeError, () => store.Product()); // a callback, an object and a callback, or an object
+  raises(TypeError, () => store.Prices((p: any) => p)); // no relation builder is exposed
+  raises(TypeError, () => store.Product(jpy)); // the source instance must have the builder's schema
+  raises(TypeError, () => store.Product((p: any) => p.colour("red"))); // not a property or adjacency: it reads as empty, and refuses a write
+});
 raises(AttributeError, () => {
   (widget as any).sku = "W-2"; // instances are read-only
 });
 
 // A schema named 'schema' is shadowed by the store's schema() method, but still reachable by name.
-const Shadowed = store.Schemas.OfObject((o: any) => o.name("schema").ref(true).properties([(t: any) => t.name("label").schema([Text])]));
-assert(store.schema("schema") === Shadowed && store.builder("schema").create().as_schema().name === "schema");
+store.transaction(() => {
+  const Shadowed = store.Schemas.OfObject((o: any) => o.name("schema").ref(true).properties([(t: any) => t.name("label").schema([Text])]));
+  assert(store.schema("schema") === Shadowed && store.builder("schema").create().as_schema().name === "schema");
+});
 
 console.log("Serialization: all checks passed");

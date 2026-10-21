@@ -68,9 +68,9 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `28_Extensions.ipynb` | EXT | 5 | as in Python |
 | `29_Identity.ipynb` | IDN | 7 | as in Python |
 | `30_Patterns.ipynb` | PAT | 4 | as in Python; schema data compares by `.equals()` |
-| `31_Transactions.ipynb` | TXN | 10 | as in Python; a mapping is a `Map` or a record, ints `bigint`s; TXN-03 checks that the store holds a term's pattern, but not that it goes with its transaction, since a test cannot force a collection (the store holds such objects in a `WeakSet`) |
+| `31_Transactions.ipynb` | TXN | 11 | as in Python; a mapping is a `Map` or a record, ints `bigint`s; TXN-03 checks that the store holds a term's pattern, but not that it goes with its transaction, since a test cannot force a collection (the store holds such objects in a `WeakSet`) |
 
-Total: 227 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
+Total: 228 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

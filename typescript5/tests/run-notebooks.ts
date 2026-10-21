@@ -50,6 +50,9 @@ function generate(notebook: string): string {
     "(globalThis as any).__case = 'setup';",
     `process.chdir(${JSON.stringify(dirname(resolve(notebook)))});`,
   ];
+  if (process.env.MBSE_STRICT === "1") { // a write outside a transaction refused, while step 4e-2 migrates the suites
+    parts.push('import { Proxies as __Proxies } from "@mbse/schemas/Framework";', "__Proxies._strict(true);");
+  }
   for (const cell of cells) {
     const source = sourceOf(cell);
     if (cell.cell_type === "markdown") {

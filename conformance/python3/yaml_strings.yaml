@@ -1,3834 +1,2508 @@
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          target: {}
-      schema: Schemas.OfModule
-      properties: {}
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Corpus
-            next:
-              target: {}
-      schema: Schemas.OfModule
-      properties:
-        name: Corpus
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Defines
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: module
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: Corpus
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Notebook
-            next:
-              target: {}
-      schema: Schemas.OfObject
-      properties:
-        name: Notebook
-        ref: true
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Notebook
-            next:
-              entry:
-                i: adjacencies
-                o: ''
-                properties:
-                  name: notes
-                next:
-                  target: {}
-      schema: Schemas.OfAdjacency
-      properties:
-        me: notebook
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Notebook
-            next:
-              entry:
-                i: properties
-                o: ''
-                properties:
-                  name: title
-                next:
-                  target: {}
-      schema: Schemas.OfProperty
-      properties: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasSchema
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: title
-                          next:
-                            target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Schemas
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: OfStr
-                          next:
-                            target: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasProperty
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        target: {}
-      - as_link:
-          name: property
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: title
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: title
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasAdjacency
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        target: {}
-      - as_link:
-          name: adjacency
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: adjacencies
-                          o: ''
-                          properties:
-                            name: notes
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: notes
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Defines
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: module
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: Notebook
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              target: {}
-      schema: Schemas.OfObject
-      properties:
-        name: Note
-        ref: true
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: adjacencies
-                o: ''
-                properties:
-                  name: notebooks
-                next:
-                  target: {}
-      schema: Schemas.OfAdjacency
-      properties:
-        me: note
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Note
-            next:
-              entry:
-                i: properties
-                o: ''
-                properties:
-                  name: text
-                next:
-                  target: {}
-      schema: Schemas.OfProperty
-      properties: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasSchema
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: text
-                          next:
-                            target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Schemas
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: OfStr
-                          next:
-                            target: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasProperty
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        target: {}
-      - as_link:
-          name: property
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: text
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: text
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasAdjacency
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        target: {}
-      - as_link:
-          name: adjacency
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: adjacencies
-                          o: ''
-                          properties:
-                            name: notebooks
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: notebooks
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Defines
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: module
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: Note
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Pages
-            next:
-              target: {}
-      schema: Schemas.OfRelation
-      properties:
-        name: Pages
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Pages
-            next:
-              entry:
-                i: links
-                o: ''
-                properties:
-                  name: notebook
-                next:
-                  target: {}
-      schema: Schemas.OfSymbol
-      properties: {}
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Pages
-            next:
-              entry:
-                i: links
-                o: ''
-                properties:
-                  name: note
-                next:
-                  target: {}
-      schema: Schemas.OfSymbol
-      properties: {}
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Pages
-            next:
-              entry:
-                i: properties
-                o: ''
-                properties:
-                  name: page
-                next:
-                  target: {}
-      schema: Schemas.OfProperty
-      properties: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasSchema
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Pages
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: page
-                          next:
-                            target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Schemas
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: OfInt
-                          next:
-                            target: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasProperty
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Pages
-                      next:
-                        target: {}
-      - as_link:
-          name: property
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Pages
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: page
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: page
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasLink
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Pages
-                      next:
-                        target: {}
-      - as_link:
-          name: link
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Pages
-                      next:
-                        entry:
-                          i: links
-                          o: ''
-                          properties:
-                            name: notebook
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: notebook
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Pages
-                      next:
-                        target: {}
-      - as_link:
-          name: link
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Pages
-                      next:
-                        entry:
-                          i: links
-                          o: ''
-                          properties:
-                            name: note
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: note
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Relating
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: adjacency
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Note
-                      next:
-                        entry:
-                          i: adjacencies
-                          o: ''
-                          properties:
-                            name: notebooks
-                          next:
-                            target: {}
-      - as_link:
-          name: relation
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Pages
-                      next:
-                        target: {}
-    - mutations:
-      - as_link:
-          name: adjacency
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Notebook
-                      next:
-                        entry:
-                          i: adjacencies
-                          o: ''
-                          properties:
-                            name: notes
-                          next:
-                            target: {}
-      - as_link:
-          name: relation
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Pages
-                      next:
-                        target: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Defines
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: module
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Pages
-                      next:
-                        target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: Pages
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Corpus
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Holds
-                next:
-                  target: {}
-      schema: Schemas.OfRelation
-      properties:
-        name: Corpus.Holds
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Corpus
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Holds
+- mutations:
+  - upsert:
+      exists:
+      - symbols:
+          '0':
+            schema:
+            - $ref:
+                singleton: '.'
                 next:
                   entry:
-                    i: links
+                    i: schemas
                     o: ''
                     properties:
-                      name: corpus
+                      name: Schemas
                     next:
-                      target: {}
-      schema: Schemas.OfSymbol
-      properties: {}
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Corpus
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Holds
+                      entry:
+                        i: schemas
+                        o: ''
+                        properties:
+                          name: OfObject
+                        next:
+                          target: {}
+          '1':
+            schema:
+            - $ref:
+                singleton: '.'
                 next:
                   entry:
-                    i: links
+                    i: schemas
                     o: ''
                     properties:
-                      name: item
+                      name: Schemas
                     next:
-                      target: {}
-      schema: Schemas.OfSymbol
-      properties: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasLink
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Holds
-                          next:
-                            target: {}
-      - as_link:
-          name: link
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Holds
-                          next:
-                            entry:
-                              i: links
-                              o: ''
-                              properties:
-                                name: corpus
-                              next:
-                                target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: corpus
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Holds
-                          next:
-                            target: {}
-      - as_link:
-          name: link
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Holds
-                          next:
-                            entry:
-                              i: links
-                              o: ''
-                              properties:
-                                name: item
-                              next:
-                                target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: item
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Defines
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: module
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Holds
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: Holds
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Corpus
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Root
-                next:
-                  target: {}
-      schema: Schemas.OfObject
-      properties:
-        name: Corpus.Root
-        ref: true
-        singleton: corpus
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Corpus
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Root
+                      entry:
+                        i: schemas
+                        o: ''
+                        properties:
+                          name: OfObject
+                        next:
+                          target: {}
+          '2':
+            schema:
+            - $ref:
+                singleton: '.'
                 next:
                   entry:
-                    i: adjacencies
+                    i: schemas
                     o: ''
                     properties:
-                      name: holds
+                      name: Schemas
+                    next:
+                      entry:
+                        i: schemas
+                        o: ''
+                        properties:
+                          name: OfRelation
+                        next:
+                          target: {}
+          '3':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Schemas
+                    next:
+                      entry:
+                        i: schemas
+                        o: ''
+                        properties:
+                          name: OfRelation
+                        next:
+                          target: {}
+          '4':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Schemas
+                    next:
+                      entry:
+                        i: schemas
+                        o: ''
+                        properties:
+                          name: OfObject
+                        next:
+                          target: {}
+        spec:
+        - '0':
+          - as_property:
+              name: name
+              mutations:
+              - set:
+                  value: Notebook
+          - as_property:
+              name: ref
+              mutations:
+              - set:
+                  value: true
+          - as_adjacency:
+              name: adjacencies
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: adjacency
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfAdjacency
+                              mutations:
+                              - as_property:
+                                  name: me
+                                  mutations:
+                                  - set:
+                                      value: notebook
+                              - as_adjacency:
+                                  name: relation
+                                  mutations:
+                                  - insert:
+                                      entries:
+                                      - mutations:
+                                        - as_link:
+                                            name: relation
+                                            mutations:
+                                            - set:
+                                                ref:
+                                                  symbol: '2'
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: notes
+          - as_adjacency:
+              name: properties
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: property
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfProperty
+                              mutations:
+                              - as_adjacency:
+                                  name: schema
+                                  mutations:
+                                  - insert:
+                                      entries:
+                                      - mutations:
+                                        - as_link:
+                                            name: schema
+                                            mutations:
+                                            - set:
+                                                ref:
+                                                  path:
+                                                    singleton: '.'
+                                                    next:
+                                                      entry:
+                                                        i: schemas
+                                                        o: ''
+                                                        properties:
+                                                          name: Schemas
+                                                        next:
+                                                          entry:
+                                                            i: schemas
+                                                            o: ''
+                                                            properties:
+                                                              name: OfStr
+                                                            next:
+                                                              target: {}
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: title
+        - '1':
+          - as_property:
+              name: name
+              mutations:
+              - set:
+                  value: Note
+          - as_property:
+              name: ref
+              mutations:
+              - set:
+                  value: true
+          - as_adjacency:
+              name: adjacencies
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: adjacency
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfAdjacency
+                              mutations:
+                              - as_property:
+                                  name: me
+                                  mutations:
+                                  - set:
+                                      value: note
+                              - as_adjacency:
+                                  name: relation
+                                  mutations:
+                                  - insert:
+                                      entries:
+                                      - mutations:
+                                        - as_link:
+                                            name: relation
+                                            mutations:
+                                            - set:
+                                                ref:
+                                                  symbol: '2'
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: notebooks
+          - as_adjacency:
+              name: properties
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: property
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfProperty
+                              mutations:
+                              - as_adjacency:
+                                  name: schema
+                                  mutations:
+                                  - insert:
+                                      entries:
+                                      - mutations:
+                                        - as_link:
+                                            name: schema
+                                            mutations:
+                                            - set:
+                                                ref:
+                                                  path:
+                                                    singleton: '.'
+                                                    next:
+                                                      entry:
+                                                        i: schemas
+                                                        o: ''
+                                                        properties:
+                                                          name: Schemas
+                                                        next:
+                                                          entry:
+                                                            i: schemas
+                                                            o: ''
+                                                            properties:
+                                                              name: OfStr
+                                                            next:
+                                                              target: {}
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: text
+        - '2':
+          - as_property:
+              name: name
+              mutations:
+              - set:
+                  value: Pages
+          - as_adjacency:
+              name: links
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: link
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfSymbol
+                              mutations: []
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: notebook
+                  - mutations:
+                    - as_link:
+                        name: link
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfSymbol
+                              mutations: []
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: note
+          - as_adjacency:
+              name: properties
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: property
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfProperty
+                              mutations:
+                              - as_adjacency:
+                                  name: schema
+                                  mutations:
+                                  - insert:
+                                      entries:
+                                      - mutations:
+                                        - as_link:
+                                            name: schema
+                                            mutations:
+                                            - set:
+                                                ref:
+                                                  path:
+                                                    singleton: '.'
+                                                    next:
+                                                      entry:
+                                                        i: schemas
+                                                        o: ''
+                                                        properties:
+                                                          name: Schemas
+                                                        next:
+                                                          entry:
+                                                            i: schemas
+                                                            o: ''
+                                                            properties:
+                                                              name: OfInt
+                                                            next:
+                                                              target: {}
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: page
+        - '3':
+          - as_property:
+              name: name
+              mutations:
+              - set:
+                  value: Corpus.Holds
+          - as_adjacency:
+              name: links
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: link
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfSymbol
+                              mutations: []
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: corpus
+                  - mutations:
+                    - as_link:
+                        name: link
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfSymbol
+                              mutations: []
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: item
+        - '4':
+          - as_property:
+              name: name
+              mutations:
+              - set:
+                  value: Corpus.Root
+          - as_property:
+              name: ref
+              mutations:
+              - set:
+                  value: true
+          - as_property:
+              name: singleton
+              mutations:
+              - set:
+                  value: corpus
+          - as_adjacency:
+              name: adjacencies
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: adjacency
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfAdjacency
+                              mutations:
+                              - as_property:
+                                  name: me
+                                  mutations:
+                                  - set:
+                                      value: corpus
+                              - as_adjacency:
+                                  name: relation
+                                  mutations:
+                                  - insert:
+                                      entries:
+                                      - mutations:
+                                        - as_link:
+                                            name: relation
+                                            mutations:
+                                            - set:
+                                                ref:
+                                                  symbol: '3'
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: holds
+- mutations:
+  - upsert:
+      exists:
+      - symbols:
+          '0':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Corpus
+                    next:
+                      entry:
+                        i: schemas
+                        o: ''
+                        properties:
+                          name: Root
+                        next:
+                          target: {}
+          '1':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Notebook
                     next:
                       target: {}
-      schema: Schemas.OfAdjacency
-      properties:
-        me: corpus
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Relating
+          '2':
+            schema:
+            - $ref:
+                singleton: '.'
                 next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: adjacency
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Root
-                          next:
-                            entry:
-                              i: adjacencies
-                              o: ''
-                              properties:
-                                name: holds
-                              next:
-                                target: {}
-      - as_link:
-          name: relation
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Holds
-                          next:
-                            target: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasAdjacency
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '3':
+            schema:
+            - $ref:
+                singleton: '.'
                 next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Root
-                          next:
-                            target: {}
-      - as_link:
-          name: adjacency
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Root
-                          next:
-                            entry:
-                              i: adjacencies
-                              o: ''
-                              properties:
-                                name: holds
-                              next:
-                                target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: holds
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Defines
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '4':
+            schema:
+            - $ref:
+                singleton: '.'
                 next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: module
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Root
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: Root
-- exists:
-    definition:
-      path:
-        singleton: corpus
-        next:
-          target: {}
-      schema: Corpus.Root
-      properties: {}
-- exists:
-    definition:
-      'n': 0
-      schema: Notebook
-      properties:
-        title: tricky
-- exists:
-    definition:
-      'n': 1
-      schema: Note
-      properties:
-        text: 'yes'
-- exists:
-    definition:
-      'n': 2
-      schema: Note
-      properties:
-        text: 'No'
-- exists:
-    definition:
-      'n': 3
-      schema: Note
-      properties:
-        text: 'on'
-- exists:
-    definition:
-      'n': 4
-      schema: Note
-      properties:
-        text: 'OFF'
-- exists:
-    definition:
-      'n': 5
-      schema: Note
-      properties:
-        text: 'y'
-- exists:
-    definition:
-      'n': 6
-      schema: Note
-      properties:
-        text: 'true'
-- exists:
-    definition:
-      'n': 7
-      schema: Note
-      properties:
-        text: 'null'
-- exists:
-    definition:
-      'n': 8
-      schema: Note
-      properties:
-        text: '~'
-- exists:
-    definition:
-      'n': 9
-      schema: Note
-      properties:
-        text: ''
-- exists:
-    definition:
-      'n': 10
-      schema: Note
-      properties:
-        text: '010'
-- exists:
-    definition:
-      'n': 11
-      schema: Note
-      properties:
-        text: '0o17'
-- exists:
-    definition:
-      'n': 12
-      schema: Note
-      properties:
-        text: '0x1F'
-- exists:
-    definition:
-      'n': 13
-      schema: Note
-      properties:
-        text: '1e3'
-- exists:
-    definition:
-      'n': 14
-      schema: Note
-      properties:
-        text: '1_000'
-- exists:
-    definition:
-      'n': 15
-      schema: Note
-      properties:
-        text: '1:30'
-- exists:
-    definition:
-      'n': 16
-      schema: Note
-      properties:
-        text: '2026-09-01'
-- exists:
-    definition:
-      'n': 17
-      schema: Note
-      properties:
-        text: '.inf'
-- exists:
-    definition:
-      'n': 18
-      schema: Note
-      properties:
-        text: '.nan'
-- exists:
-    definition:
-      'n': 19
-      schema: Note
-      properties:
-        text: NaN
-- exists:
-    definition:
-      'n': 20
-      schema: Note
-      properties:
-        text: Infinity
-- exists:
-    definition:
-      'n': 21
-      schema: Note
-      properties:
-        text: '-0.0'
-- exists:
-    definition:
-      'n': 22
-      schema: Note
-      properties:
-        text: '+1'
-- exists:
-    definition:
-      'n': 23
-      schema: Note
-      properties:
-        text: ' lead'
-- exists:
-    definition:
-      'n': 24
-      schema: Note
-      properties:
-        text: 'trail '
-- exists:
-    definition:
-      'n': 25
-      schema: Note
-      properties:
-        text: 'a: b'
-- exists:
-    definition:
-      'n': 26
-      schema: Note
-      properties:
-        text: '- dash'
-- exists:
-    definition:
-      'n': 27
-      schema: Note
-      properties:
-        text: '#hash'
-- exists:
-    definition:
-      'n': 28
-      schema: Note
-      properties:
-        text: 'x #y'
-- exists:
-    definition:
-      'n': 29
-      schema: Note
-      properties:
-        text: '"dq"'
-- exists:
-    definition:
-      'n': 30
-      schema: Note
-      properties:
-        text: '''sq'''
-- exists:
-    definition:
-      'n': 31
-      schema: Note
-      properties:
-        text: '@at'
-- exists:
-    definition:
-      'n': 32
-      schema: Note
-      properties:
-        text: '`tick'
-- exists:
-    definition:
-      'n': 33
-      schema: Note
-      properties:
-        text: '%pct'
-- exists:
-    definition:
-      'n': 34
-      schema: Note
-      properties:
-        text: '!bang'
-- exists:
-    definition:
-      'n': 35
-      schema: Note
-      properties:
-        text: '&amp'
-- exists:
-    definition:
-      'n': 36
-      schema: Note
-      properties:
-        text: '*star'
-- exists:
-    definition:
-      'n': 37
-      schema: Note
-      properties:
-        text: '|'
-- exists:
-    definition:
-      'n': 38
-      schema: Note
-      properties:
-        text: '>'
-- exists:
-    definition:
-      'n': 39
-      schema: Note
-      properties:
-        text: '{}'
-- exists:
-    definition:
-      'n': 40
-      schema: Note
-      properties:
-        text: '[]'
-- exists:
-    definition:
-      'n': 41
-      schema: Note
-      properties:
-        text: ','
-- exists:
-    definition:
-      'n': 42
-      schema: Note
-      properties:
-        text: '?'
-- exists:
-    definition:
-      'n': 43
-      schema: Note
-      properties:
-        text: '<<'
-- exists:
-    definition:
-      'n': 44
-      schema: Note
-      properties:
-        text: '---'
-- exists:
-    definition:
-      'n': 45
-      schema: Note
-      properties:
-        text: '...'
-- exists:
-    definition:
-      'n': 46
-      schema: Note
-      properties:
-        text: 'a
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '5':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '6':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '7':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '8':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '9':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '10':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '11':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '12':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '13':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '14':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '15':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '16':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '17':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '18':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '19':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '20':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '21':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '22':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '23':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '24':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '25':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '26':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '27':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '28':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '29':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '30':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '31':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '32':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '33':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '34':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '35':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '36':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '37':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '38':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '39':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '40':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '41':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '42':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '43':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '44':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '45':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '46':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '47':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '48':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '49':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '50':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '51':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '52':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '53':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '54':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+          '55':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Note
+                    next:
+                      target: {}
+        spec:
+        - '0':
+          - as_adjacency:
+              name: holds
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '1'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '2'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '3'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '4'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '5'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '6'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '7'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '8'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '9'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '10'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '11'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '12'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '13'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '14'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '15'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '16'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '17'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '18'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '19'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '20'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '21'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '22'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '23'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '24'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '25'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '26'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '27'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '28'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '29'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '30'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '31'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '32'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '33'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '34'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '35'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '36'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '37'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '38'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '39'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '40'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '41'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '42'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '43'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '44'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '45'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '46'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '47'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '48'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '49'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '50'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '51'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '52'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '53'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '54'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '55'
+        - '1':
+          - as_property:
+              name: title
+              mutations:
+              - set:
+                  value: tricky
+          - as_adjacency:
+              name: notes
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '2'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 0
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '3'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 1
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '4'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 2
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '5'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 3
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '6'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 4
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '7'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 5
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '8'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 6
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '9'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 7
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '10'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 8
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '11'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 9
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '12'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 10
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '13'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 11
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '14'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 12
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '15'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 13
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '16'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 14
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '17'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 15
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '18'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 16
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '19'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 17
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '20'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 18
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '21'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 19
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '22'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 20
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '23'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 21
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '24'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 22
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '25'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 23
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '26'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 24
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '27'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 25
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '28'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 26
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '29'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 27
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '30'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 28
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '31'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 29
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '32'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 30
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '33'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 31
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '34'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 32
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '35'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 33
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '36'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 34
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '37'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 35
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '38'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 36
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '39'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 37
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '40'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 38
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '41'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 39
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '42'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 40
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '43'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 41
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '44'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 42
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '45'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 43
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '46'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 44
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '47'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 45
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '48'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 46
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '49'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 47
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '50'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 48
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '51'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 49
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '52'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 50
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '53'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 51
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '54'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 52
+                  - mutations:
+                    - as_link:
+                        name: note
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '55'
+                    - as_property:
+                        name: page
+                        mutations:
+                        - set:
+                            value: 53
+        - '2':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: 'yes'
+        - '3':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: 'No'
+        - '4':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: 'on'
+        - '5':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: 'OFF'
+        - '6':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: 'y'
+        - '7':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: 'true'
+        - '8':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: 'null'
+        - '9':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '~'
+        - '10':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: ''
+        - '11':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '010'
+        - '12':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '0o17'
+        - '13':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '0x1F'
+        - '14':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '1e3'
+        - '15':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '1_000'
+        - '16':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '1:30'
+        - '17':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '2026-09-01'
+        - '18':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '.inf'
+        - '19':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '.nan'
+        - '20':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: NaN
+        - '21':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: Infinity
+        - '22':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '-0.0'
+        - '23':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '+1'
+        - '24':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: ' lead'
+        - '25':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: 'trail '
+        - '26':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: 'a: b'
+        - '27':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '- dash'
+        - '28':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '#hash'
+        - '29':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: 'x #y'
+        - '30':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '"dq"'
+        - '31':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '''sq'''
+        - '32':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '@at'
+        - '33':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '`tick'
+        - '34':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '%pct'
+        - '35':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '!bang'
+        - '36':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '&amp'
+        - '37':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '*star'
+        - '38':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '|'
+        - '39':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '>'
+        - '40':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '{}'
+        - '41':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '[]'
+        - '42':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: ','
+        - '43':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '?'
+        - '44':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '<<'
+        - '45':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '---'
+        - '46':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: '...'
+        - '47':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: 'a
 
-          b'
-- exists:
-    definition:
-      'n': 47
-      schema: Note
-      properties:
-        text: "\t"
-- exists:
-    definition:
-      'n': 48
-      schema: Note
-      properties:
-        text: "\0"
-- exists:
-    definition:
-      'n': 49
-      schema: Note
-      properties:
-        text: "\a\x7F\x9B"
-- exists:
-    definition:
-      'n': 50
-      schema: Note
-      properties:
-        text: "\uFEFFbom"
-- exists:
-    definition:
-      'n': 51
-      schema: Note
-      properties:
-        text: "a\Nb"
-- exists:
-    definition:
-      'n': 52
-      schema: Note
-      properties:
-        text: a b
-- exists:
-    definition:
-      'n': 53
-      schema: Note
-      properties:
-        text: 日本語 🚀
-- exists:
-    definition:
-      'n': 54
-      schema: Note
-      properties:
-        text: 'word word word word word word word word word word word word word word
-          word word word word word word word word word word word word word word word
-          word '
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Pages
-            next:
-              target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 1
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 0
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 2
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 1
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 3
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 2
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 4
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 3
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 5
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 4
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 6
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 5
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 7
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 6
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 8
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 7
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 9
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 8
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 10
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 9
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 11
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 10
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 12
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 11
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 13
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 12
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 14
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 13
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 15
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 14
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 16
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 15
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 17
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 16
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 18
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 17
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 19
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 18
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 20
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 19
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 21
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 20
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 22
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 21
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 23
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 22
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 24
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 23
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 25
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 24
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 26
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 25
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 27
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 26
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 28
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 27
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 29
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 28
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 30
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 29
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 31
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 30
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 32
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 31
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 33
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 32
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 34
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 33
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 35
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 34
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 36
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 35
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 37
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 36
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 38
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 37
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 39
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 38
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 40
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 39
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 41
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 40
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 42
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 41
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 43
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 42
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 44
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 43
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 45
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 44
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 46
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 45
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 47
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 46
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 48
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 47
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 49
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 48
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 50
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 49
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 51
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 50
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 52
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 51
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 53
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 52
-    - mutations:
-      - as_link:
-          name: notebook
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: note
-          mutations:
-          - set:
-              ref:
-                'n': 54
-      - as_property:
-          name: page
-          mutations:
-          - set:
-              value: 53
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Corpus
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Holds
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 0
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 1
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 2
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 3
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 4
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 5
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 6
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 7
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 8
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 9
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 10
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 11
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 12
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 13
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 14
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 15
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 16
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 17
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 18
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 19
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 20
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 21
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 22
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 23
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 24
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 25
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 26
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 27
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 28
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 29
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 30
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 31
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 32
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 33
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 34
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 35
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 36
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 37
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 38
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 39
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 40
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 41
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 42
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 43
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 44
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 45
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 46
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 47
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 48
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 49
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 50
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 51
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 52
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 53
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 54
+                    b'
+        - '48':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: "\t"
+        - '49':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: "\0"
+        - '50':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: "\a\x7F\x9B"
+        - '51':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: "\uFEFFbom"
+        - '52':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: "a\Nb"
+        - '53':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: a b
+        - '54':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: 日本語 🚀
+        - '55':
+          - as_property:
+              name: text
+              mutations:
+              - set:
+                  value: 'word word word word word word word word word word word word
+                    word word word word word word word word word word word word word
+                    word word word word word '

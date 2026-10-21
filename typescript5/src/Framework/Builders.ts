@@ -2313,6 +2313,7 @@ export class Store extends Proxies.OfStore {
         if (schema === data && name !== data.name) this._schemas.delete(name); // renamed
       }
       if (data.name && this._schemas.get(data.name) !== data) this._register(data);
+      else if (data.name) this._declared(data); // a singleton declared after its schema was registered
     }
     if (data instanceof ModuleData) {
       for (const [path, module] of [...this._modules]) {
@@ -2535,12 +2536,6 @@ export function _linked(visitor: unknown): unknown {
 export function _linked_data(visitor: unknown): unknown {
   const inner = innerOf(visitor);
   return inner instanceof Link ? inner._entry._linked() : null;
-}
-
-/** Whether an adjacency member holds one entry at most, as a `unique` clause of its relation makes it. */
-export function _holds_one(member: unknown): boolean {
-  const inner = innerOf(member);
-  return inner instanceof AdjacencyMember && inner._members.one;
 }
 
 // `Schemas.OfX.Builder` is this: a schema builder is a `Visitors.OfObject` over its plain schema, its store's

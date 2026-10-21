@@ -424,7 +424,7 @@ so that main stays current and no branch waits on another.
        `Plain` writes tagged (`{"str": "Ada"}`). So a spec, like a log, is described by its schemas but not read
        through them as any value is; MUT-06 pins the difference. Reading a payload bare would need a value schema
        interpreted by another's, which no kind has. A pattern's `spec` is not yet a property of `Schemas.OfPattern`,
-       so today's snapshot leaves it out; 4f-4 writes it.
+       so today's snapshot leaves it out; 4f-4 did not change that (below).
      - **4f-2, as built**: `Plain.ToPlain(store).Transaction(tx)` writes a transaction's expression nested
        (SERIALIZATION.md, Transactions on the wire), generically from the schemas of its terms and of the schema
        objects they link; `Plain.FromPlain(store).Transaction(plain)` builds it through the store's builders, each
@@ -462,6 +462,43 @@ so that main stays current and no branch waits on another.
          owned objects is a store's snapshot (51), which 4f-4 makes of transactions.
        - The read-time messages for an entry name the adjacency (`an entry of 'out' has no link 'colour'`), which an
          unnamed relation lacks.
+     - **4f-4, as built**: `Plain.ToPlain(store).Snapshot()` writes two transactions (SERIALIZATION.md, Snapshots), each
+       one upsert: the store's schemas, each named schema object a symbol of its meta-schema, an unnamed one defined
+       where it is linked; then its data, each singleton and what the singletons reach, in the order met, a symbol.
+       Each entry is written once, from the first symbol holding it. `Plain.FromPlain(store).Snapshot(snapshot,
+       ignored)` executes them in order, each a transaction of its own or a savepoint of the one open, and gives the
+       data the last binds. The log's writer and reader, and its verbs (`Mutations.Log`, `Reference`,
+       `OfObject.Exists`, the relation verbs, `AsProperty`'s `ref`, `Def`'s `path`, `properties` and `inserts`), are
+       gone: there are 60 mutation schemas. The corpora are regenerated, the JSON byte-identical between the languages.
+       MUT, SNP, IDN-07 and EXT-05 are rewritten for them; every corpus store read back writes the same snapshot, which
+       the old writer, kept as an oracle while building, confirmed.
+
+       Settled while building it, for the user's review:
+       - The executor finds a schema object an upsert names by its registered name, the store's own included, and
+         creates one it does not find with that name, so that what links it before its spec is written links a named
+         schema (86); a module's `install`, run again, relies on the same (4i).
+       - An object owned through an anonymous adjacency (`wts.Clause`) is placed by its owner's entry that a symbol
+         bound before it gives (60), found there or created.
+       - A singleton declared on a schema after it was registered gets its instance then, as one registered with it
+         does: a snapshot's schemas transaction declares it after the name.
+       - A schema the store was made holding is a symbol only to write the entries of an extension's relations it
+         holds, and then only its name and those entries.
+       - Reading a snapshot always ignores what an extension the store lacks needs, reporting it where `ignored` is
+         given. Since an entry is written from an end that holds it, what is ignored is now a member a schema the store
+         was made holding lacks (`Schemas.OfScalar has no adjacency 'tags'`) or an entry's property such a relation
+         lacks (`an entry of 'schema' has no property 'why'`); "no object an entry links declares an adjacency through
+         which to add it" is gone.
+       - What a snapshot read gives is its data, the singletons first: CONF-04 and the portability check validate the
+         data but the corpus's root, which holds each case's objects through a relation no case's schema declares.
+       - Still not written: a pattern's `spec`, which is not a property of `Schemas.OfPattern` (4f-1).
+   - **4i, `install`** (Object identity, Decided, 86: "`store.extend` is basically replaced by this new `install`
+     convention"): every module that defines schemas does so in a module-scope `install(txn)`, its definitions and
+     extensions symbols of meta-schemas that an upsert finds by name or creates; `store.extend` goes, and every caller,
+     the framework's own modules, the tests, the tutorials and the dependents, migrates. Not to be passed over: the
+     user, on finding it unscheduled after 4f, "There is no gap. You just decided to ignore Decided 86. It doesn't have
+     to be done now, but soon. One of the last things that must be done for schemas to be stabilized." Built after 4f
+     and before 4h; how the meta-schemas themselves are installed, which a transaction's symbols are typed by, is to be
+     proposed for the user's review when it starts.
    - **4h, the last release**, and the dependents: mbse-expressions refines `OfExpression` and `OfConstraint`;
      mbse-programs' corpora become Reachable transactions; mbse-patterns, built on `OfPredicate`, is left without it.
    Releases (question 8, renumbered by the reorder, proposed for the user's review): 0.20.0 after 4c, 0.21.0 after 4d
@@ -481,8 +518,8 @@ store.mutation(lambda t: t
             .then(lambda u: u.apply(TITLE)))))        # OfUpdate: defn's title set through its property's builder
 ```
 
-Then mbse-expressions redrafts its framework model on per-store extension (`Expressions.install(store)`, through
-`store.extend`), with domains, dialects and `DefinesDomains` as the user described.
+Then mbse-expressions redrafts its framework model on per-store extension, its schemas defined by its own
+`install(txn)` (86; 4i), with domains, dialects and `DefinesDomains` as the user described.
 
 ## Step 1, as built (0.14.0)
 

@@ -1,4 +1,4 @@
-"""Writes this implementation's conformance logs, each case's store's initial snapshot: `python -m mbse.Schemas.Conformance.write [directory]`.
+"""Writes this implementation's conformance corpus, each case's store's snapshot: `python -m mbse.Schemas.Conformance.write [directory]`.
 
 The default directory is `conformance/python3` at the repository root.
 """

@@ -1,2588 +1,1138 @@
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          target: {}
-      schema: Schemas.OfModule
-      properties: {}
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Corpus
-            next:
-              target: {}
-      schema: Schemas.OfModule
-      properties:
-        name: Corpus
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Defines
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: module
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: Corpus
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Bag
-            next:
-              target: {}
-      schema: Schemas.OfObject
-      properties:
-        name: Bag
-        ref: true
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Bag
-            next:
-              entry:
-                i: adjacencies
-                o: ''
-                properties:
-                  name: items
-                next:
-                  target: {}
-      schema: Schemas.OfAdjacency
-      properties:
-        me: bag
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Bag
-            next:
-              entry:
-                i: properties
-                o: ''
-                properties:
-                  name: name
-                next:
-                  target: {}
-      schema: Schemas.OfProperty
-      properties: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasSchema
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: name
-                          next:
-                            target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Schemas
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: OfStr
-                          next:
-                            target: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasProperty
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        target: {}
-      - as_link:
-          name: property
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: name
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: name
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasAdjacency
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        target: {}
-      - as_link:
-          name: adjacency
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        entry:
-                          i: adjacencies
-                          o: ''
-                          properties:
-                            name: items
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: items
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Defines
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: module
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: Bag
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              target: {}
-      schema: Schemas.OfObject
-      properties:
-        name: Sample
-        ref: true
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              entry:
-                i: adjacencies
-                o: ''
-                properties:
-                  name: bags
-                next:
-                  target: {}
-      schema: Schemas.OfAdjacency
-      properties:
-        me: item
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              entry:
-                i: properties
-                o: ''
-                properties:
-                  name: label
-                next:
-                  target: {}
-      schema: Schemas.OfProperty
-      properties: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasSchema
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: label
-                          next:
-                            target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Schemas
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: OfStr
-                          next:
-                            target: {}
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              entry:
-                i: properties
-                o: ''
-                properties:
-                  name: payload
-                next:
-                  target: {}
-      schema: Schemas.OfProperty
-      properties: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasSchema
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: payload
-                          next:
-                            target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Schemas
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: OfBytes
-                          next:
-                            target: {}
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              entry:
-                i: properties
-                o: ''
-                properties:
-                  name: count
-                next:
-                  target: {}
-      schema: Schemas.OfProperty
-      properties: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasSchema
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: count
-                          next:
-                            target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Schemas
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: OfInt
-                          next:
-                            target: {}
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              entry:
-                i: properties
-                o: ''
-                properties:
-                  name: ratio
-                next:
-                  target: {}
-      schema: Schemas.OfProperty
-      properties: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasSchema
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: ratio
-                          next:
-                            target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Schemas
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: OfFloat
-                          next:
-                            target: {}
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Sample
-            next:
-              entry:
-                i: properties
-                o: ''
-                properties:
-                  name: flag
-                next:
-                  target: {}
-      schema: Schemas.OfProperty
-      properties: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasSchema
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: flag
-                          next:
-                            target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Schemas
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: OfBool
-                          next:
-                            target: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasProperty
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        target: {}
-      - as_link:
-          name: property
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: label
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: label
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        target: {}
-      - as_link:
-          name: property
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: payload
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: payload
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        target: {}
-      - as_link:
-          name: property
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: count
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: count
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        target: {}
-      - as_link:
-          name: property
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: ratio
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: ratio
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        target: {}
-      - as_link:
-          name: property
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: flag
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: flag
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasAdjacency
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        target: {}
-      - as_link:
-          name: adjacency
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: adjacencies
-                          o: ''
-                          properties:
-                            name: bags
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: bags
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Defines
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: module
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: Sample
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Holds
-            next:
-              target: {}
-      schema: Schemas.OfRelation
-      properties:
-        name: Holds
-        uniques:
-        - - bag
-          - slot
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Holds
-            next:
-              entry:
-                i: links
-                o: ''
-                properties:
-                  name: bag
-                next:
-                  target: {}
-      schema: Schemas.OfSymbol
-      properties: {}
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Holds
-            next:
-              entry:
-                i: links
-                o: ''
-                properties:
-                  name: item
-                next:
-                  target: {}
-      schema: Schemas.OfSymbol
-      properties: {}
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Holds
-            next:
-              entry:
-                i: properties
-                o: ''
-                properties:
-                  name: slot
-                next:
-                  target: {}
-      schema: Schemas.OfProperty
-      properties: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasSchema
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: member
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Holds
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: slot
-                          next:
-                            target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Schemas
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: OfInt
-                          next:
-                            target: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasProperty
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Holds
-                      next:
-                        target: {}
-      - as_link:
-          name: property
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Holds
-                      next:
-                        entry:
-                          i: properties
-                          o: ''
-                          properties:
-                            name: slot
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: slot
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasLink
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Holds
-                      next:
-                        target: {}
-      - as_link:
-          name: link
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Holds
-                      next:
-                        entry:
-                          i: links
-                          o: ''
-                          properties:
-                            name: bag
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: bag
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Holds
-                      next:
-                        target: {}
-      - as_link:
-          name: link
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Holds
-                      next:
-                        entry:
-                          i: links
-                          o: ''
-                          properties:
-                            name: item
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: item
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Relating
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: adjacency
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Sample
-                      next:
-                        entry:
-                          i: adjacencies
-                          o: ''
-                          properties:
-                            name: bags
-                          next:
-                            target: {}
-      - as_link:
-          name: relation
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Holds
-                      next:
-                        target: {}
-    - mutations:
-      - as_link:
-          name: adjacency
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Bag
-                      next:
-                        entry:
-                          i: adjacencies
-                          o: ''
-                          properties:
-                            name: items
-                          next:
-                            target: {}
-      - as_link:
-          name: relation
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Holds
-                      next:
-                        target: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Defines
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: module
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Holds
-                      next:
-                        target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: Holds
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Corpus
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Holds
-                next:
-                  target: {}
-      schema: Schemas.OfRelation
-      properties:
-        name: Corpus.Holds
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Corpus
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Holds
+- mutations:
+  - upsert:
+      exists:
+      - symbols:
+          '0':
+            schema:
+            - $ref:
+                singleton: '.'
                 next:
                   entry:
-                    i: links
+                    i: schemas
                     o: ''
                     properties:
-                      name: corpus
+                      name: Schemas
                     next:
-                      target: {}
-      schema: Schemas.OfSymbol
-      properties: {}
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Corpus
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Holds
+                      entry:
+                        i: schemas
+                        o: ''
+                        properties:
+                          name: OfObject
+                        next:
+                          target: {}
+          '1':
+            schema:
+            - $ref:
+                singleton: '.'
                 next:
                   entry:
-                    i: links
+                    i: schemas
                     o: ''
                     properties:
-                      name: item
+                      name: Schemas
                     next:
-                      target: {}
-      schema: Schemas.OfSymbol
-      properties: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasLink
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Holds
-                          next:
-                            target: {}
-      - as_link:
-          name: link
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Holds
-                          next:
-                            entry:
-                              i: links
-                              o: ''
-                              properties:
-                                name: corpus
-                              next:
-                                target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: corpus
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Holds
-                          next:
-                            target: {}
-      - as_link:
-          name: link
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Holds
-                          next:
-                            entry:
-                              i: links
-                              o: ''
-                              properties:
-                                name: item
-                              next:
-                                target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: item
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Defines
-                next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: module
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Holds
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: Holds
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Corpus
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Root
-                next:
-                  target: {}
-      schema: Schemas.OfObject
-      properties:
-        name: Corpus.Root
-        ref: true
-        singleton: corpus
-- exists:
-    definition:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Corpus
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Root
+                      entry:
+                        i: schemas
+                        o: ''
+                        properties:
+                          name: OfObject
+                        next:
+                          target: {}
+          '2':
+            schema:
+            - $ref:
+                singleton: '.'
                 next:
                   entry:
-                    i: adjacencies
+                    i: schemas
                     o: ''
                     properties:
-                      name: holds
+                      name: Schemas
+                    next:
+                      entry:
+                        i: schemas
+                        o: ''
+                        properties:
+                          name: OfRelation
+                        next:
+                          target: {}
+          '3':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Schemas
+                    next:
+                      entry:
+                        i: schemas
+                        o: ''
+                        properties:
+                          name: OfRelation
+                        next:
+                          target: {}
+          '4':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Schemas
+                    next:
+                      entry:
+                        i: schemas
+                        o: ''
+                        properties:
+                          name: OfObject
+                        next:
+                          target: {}
+        spec:
+        - '0':
+          - as_property:
+              name: name
+              mutations:
+              - set:
+                  value: Bag
+          - as_property:
+              name: ref
+              mutations:
+              - set:
+                  value: true
+          - as_adjacency:
+              name: adjacencies
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: adjacency
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfAdjacency
+                              mutations:
+                              - as_property:
+                                  name: me
+                                  mutations:
+                                  - set:
+                                      value: bag
+                              - as_adjacency:
+                                  name: relation
+                                  mutations:
+                                  - insert:
+                                      entries:
+                                      - mutations:
+                                        - as_link:
+                                            name: relation
+                                            mutations:
+                                            - set:
+                                                ref:
+                                                  symbol: '2'
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: items
+          - as_adjacency:
+              name: properties
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: property
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfProperty
+                              mutations:
+                              - as_adjacency:
+                                  name: schema
+                                  mutations:
+                                  - insert:
+                                      entries:
+                                      - mutations:
+                                        - as_link:
+                                            name: schema
+                                            mutations:
+                                            - set:
+                                                ref:
+                                                  path:
+                                                    singleton: '.'
+                                                    next:
+                                                      entry:
+                                                        i: schemas
+                                                        o: ''
+                                                        properties:
+                                                          name: Schemas
+                                                        next:
+                                                          entry:
+                                                            i: schemas
+                                                            o: ''
+                                                            properties:
+                                                              name: OfStr
+                                                            next:
+                                                              target: {}
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: name
+        - '1':
+          - as_property:
+              name: name
+              mutations:
+              - set:
+                  value: Sample
+          - as_property:
+              name: ref
+              mutations:
+              - set:
+                  value: true
+          - as_adjacency:
+              name: adjacencies
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: adjacency
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfAdjacency
+                              mutations:
+                              - as_property:
+                                  name: me
+                                  mutations:
+                                  - set:
+                                      value: item
+                              - as_adjacency:
+                                  name: relation
+                                  mutations:
+                                  - insert:
+                                      entries:
+                                      - mutations:
+                                        - as_link:
+                                            name: relation
+                                            mutations:
+                                            - set:
+                                                ref:
+                                                  symbol: '2'
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: bags
+          - as_adjacency:
+              name: properties
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: property
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfProperty
+                              mutations:
+                              - as_adjacency:
+                                  name: schema
+                                  mutations:
+                                  - insert:
+                                      entries:
+                                      - mutations:
+                                        - as_link:
+                                            name: schema
+                                            mutations:
+                                            - set:
+                                                ref:
+                                                  path:
+                                                    singleton: '.'
+                                                    next:
+                                                      entry:
+                                                        i: schemas
+                                                        o: ''
+                                                        properties:
+                                                          name: Schemas
+                                                        next:
+                                                          entry:
+                                                            i: schemas
+                                                            o: ''
+                                                            properties:
+                                                              name: OfStr
+                                                            next:
+                                                              target: {}
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: label
+                  - mutations:
+                    - as_link:
+                        name: property
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfProperty
+                              mutations:
+                              - as_adjacency:
+                                  name: schema
+                                  mutations:
+                                  - insert:
+                                      entries:
+                                      - mutations:
+                                        - as_link:
+                                            name: schema
+                                            mutations:
+                                            - set:
+                                                ref:
+                                                  path:
+                                                    singleton: '.'
+                                                    next:
+                                                      entry:
+                                                        i: schemas
+                                                        o: ''
+                                                        properties:
+                                                          name: Schemas
+                                                        next:
+                                                          entry:
+                                                            i: schemas
+                                                            o: ''
+                                                            properties:
+                                                              name: OfBytes
+                                                            next:
+                                                              target: {}
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: payload
+                  - mutations:
+                    - as_link:
+                        name: property
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfProperty
+                              mutations:
+                              - as_adjacency:
+                                  name: schema
+                                  mutations:
+                                  - insert:
+                                      entries:
+                                      - mutations:
+                                        - as_link:
+                                            name: schema
+                                            mutations:
+                                            - set:
+                                                ref:
+                                                  path:
+                                                    singleton: '.'
+                                                    next:
+                                                      entry:
+                                                        i: schemas
+                                                        o: ''
+                                                        properties:
+                                                          name: Schemas
+                                                        next:
+                                                          entry:
+                                                            i: schemas
+                                                            o: ''
+                                                            properties:
+                                                              name: OfInt
+                                                            next:
+                                                              target: {}
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: count
+                  - mutations:
+                    - as_link:
+                        name: property
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfProperty
+                              mutations:
+                              - as_adjacency:
+                                  name: schema
+                                  mutations:
+                                  - insert:
+                                      entries:
+                                      - mutations:
+                                        - as_link:
+                                            name: schema
+                                            mutations:
+                                            - set:
+                                                ref:
+                                                  path:
+                                                    singleton: '.'
+                                                    next:
+                                                      entry:
+                                                        i: schemas
+                                                        o: ''
+                                                        properties:
+                                                          name: Schemas
+                                                        next:
+                                                          entry:
+                                                            i: schemas
+                                                            o: ''
+                                                            properties:
+                                                              name: OfFloat
+                                                            next:
+                                                              target: {}
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: ratio
+                  - mutations:
+                    - as_link:
+                        name: property
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfProperty
+                              mutations:
+                              - as_adjacency:
+                                  name: schema
+                                  mutations:
+                                  - insert:
+                                      entries:
+                                      - mutations:
+                                        - as_link:
+                                            name: schema
+                                            mutations:
+                                            - set:
+                                                ref:
+                                                  path:
+                                                    singleton: '.'
+                                                    next:
+                                                      entry:
+                                                        i: schemas
+                                                        o: ''
+                                                        properties:
+                                                          name: Schemas
+                                                        next:
+                                                          entry:
+                                                            i: schemas
+                                                            o: ''
+                                                            properties:
+                                                              name: OfBool
+                                                            next:
+                                                              target: {}
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: flag
+        - '2':
+          - as_property:
+              name: name
+              mutations:
+              - set:
+                  value: Holds
+          - as_property:
+              name: uniques
+              mutations:
+              - set:
+                  value:
+                  - - bag
+                    - slot
+          - as_adjacency:
+              name: links
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: link
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfSymbol
+                              mutations: []
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: bag
+                  - mutations:
+                    - as_link:
+                        name: link
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfSymbol
+                              mutations: []
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: item
+          - as_adjacency:
+              name: properties
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: property
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfProperty
+                              mutations:
+                              - as_adjacency:
+                                  name: schema
+                                  mutations:
+                                  - insert:
+                                      entries:
+                                      - mutations:
+                                        - as_link:
+                                            name: schema
+                                            mutations:
+                                            - set:
+                                                ref:
+                                                  path:
+                                                    singleton: '.'
+                                                    next:
+                                                      entry:
+                                                        i: schemas
+                                                        o: ''
+                                                        properties:
+                                                          name: Schemas
+                                                        next:
+                                                          entry:
+                                                            i: schemas
+                                                            o: ''
+                                                            properties:
+                                                              name: OfInt
+                                                            next:
+                                                              target: {}
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: slot
+        - '3':
+          - as_property:
+              name: name
+              mutations:
+              - set:
+                  value: Corpus.Holds
+          - as_adjacency:
+              name: links
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: link
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfSymbol
+                              mutations: []
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: corpus
+                  - mutations:
+                    - as_link:
+                        name: link
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfSymbol
+                              mutations: []
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: item
+        - '4':
+          - as_property:
+              name: name
+              mutations:
+              - set:
+                  value: Corpus.Root
+          - as_property:
+              name: ref
+              mutations:
+              - set:
+                  value: true
+          - as_property:
+              name: singleton
+              mutations:
+              - set:
+                  value: corpus
+          - as_adjacency:
+              name: adjacencies
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: adjacency
+                        mutations:
+                        - set:
+                            def:
+                              schema: Schemas.OfAdjacency
+                              mutations:
+                              - as_property:
+                                  name: me
+                                  mutations:
+                                  - set:
+                                      value: corpus
+                              - as_adjacency:
+                                  name: relation
+                                  mutations:
+                                  - insert:
+                                      entries:
+                                      - mutations:
+                                        - as_link:
+                                            name: relation
+                                            mutations:
+                                            - set:
+                                                ref:
+                                                  symbol: '3'
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: holds
+- mutations:
+  - upsert:
+      exists:
+      - symbols:
+          '0':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Corpus
+                    next:
+                      entry:
+                        i: schemas
+                        o: ''
+                        properties:
+                          name: Root
+                        next:
+                          target: {}
+          '1':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Bag
                     next:
                       target: {}
-      schema: Schemas.OfAdjacency
-      properties:
-        me: corpus
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Relating
+          '2':
+            schema:
+            - $ref:
+                singleton: '.'
                 next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: adjacency
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Root
-                          next:
-                            entry:
-                              i: adjacencies
-                              o: ''
-                              properties:
-                                name: holds
-                              next:
-                                target: {}
-      - as_link:
-          name: relation
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Holds
-                          next:
-                            target: {}
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: HasAdjacency
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Sample
+                    next:
+                      target: {}
+          '3':
+            schema:
+            - $ref:
+                singleton: '.'
                 next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: owner
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Root
-                          next:
-                            target: {}
-      - as_link:
-          name: adjacency
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Root
-                          next:
-                            entry:
-                              i: adjacencies
-                              o: ''
-                              properties:
-                                name: holds
-                              next:
-                                target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: holds
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Schemas
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Defines
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Sample
+                    next:
+                      target: {}
+          '4':
+            schema:
+            - $ref:
+                singleton: '.'
                 next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: module
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        target: {}
-      - as_link:
-          name: schema
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: '.'
-                  next:
-                    entry:
-                      i: schemas
-                      o: ''
-                      properties:
-                        name: Corpus
-                      next:
-                        entry:
-                          i: schemas
-                          o: ''
-                          properties:
-                            name: Root
-                          next:
-                            target: {}
-      - as_property:
-          name: name
-          mutations:
-          - set:
-              value: Root
-- exists:
-    definition:
-      path:
-        singleton: corpus
-        next:
-          target: {}
-      schema: Corpus.Root
-      properties: {}
-- exists:
-    definition:
-      'n': 0
-      schema: Bag
-      properties:
-        name: edges
-- exists:
-    definition:
-      'n': 1
-      schema: Sample
-      properties:
-        label: ''
-        payload: ''
-        count: 0
-        ratio: 0.0
-        flag: false
-- exists:
-    definition:
-      'n': 2
-      schema: Sample
-      properties:
-        label: '日本語 🚀'
-        payload: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w=='
-        count: 1267650600228229401496703205376
-        ratio: -0.0
-        flag: true
-- exists:
-    definition:
-      'n': 3
-      schema: Sample
-      properties:
-        label: "\0\x1F\x7F \"q\" \\ \n\t\r"
-        payload: 'AA=='
-        count: -1180591620717411303424
-        ratio: 5.0e-324
-- exists:
-    definition:
-      'n': 4
-      schema: Sample
-      properties:
-        label: non-finite
-        ratio: NaN
-- exists:
-    definition:
-      'n': 5
-      schema: Sample
-      properties:
-        label: '+inf'
-        ratio: Infinity
-- exists:
-    definition:
-      'n': 6
-      schema: Sample
-      properties:
-        label: '-inf'
-        ratio: '-Infinity'
-- exists:
-    definition:
-      'n': 7
-      schema: Sample
-      properties:
-        label: big
-        count: 9223372036854775808
-        ratio: 1.0e+16
-- exists:
-    definition:
-      'n': 8
-      schema: Sample
-      properties:
-        label: small
-        ratio: 0.1
-- exists:
-    definition:
-      'n': 9
-      schema: Sample
-      properties:
-        label: max
-        ratio: 1.0e+308
-- exists:
-    definition:
-      'n': 10
-      schema: Sample
-      properties:
-        label: two
-        ratio: 2.0
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Holds
-            next:
-              target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 1
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 0
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 2
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 1
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 3
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 2
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 4
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 3
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 5
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 4
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 6
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 5
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 7
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 6
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 8
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 7
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 9
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 8
-    - mutations:
-      - as_link:
-          name: bag
-          mutations:
-          - set:
-              ref:
-                'n': 0
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 10
-      - as_property:
-          name: slot
-          mutations:
-          - set:
-              value: 9
-- insert:
-    relation:
-      path:
-        singleton: '.'
-        next:
-          entry:
-            i: schemas
-            o: ''
-            properties:
-              name: Corpus
-            next:
-              entry:
-                i: schemas
-                o: ''
-                properties:
-                  name: Holds
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Sample
+                    next:
+                      target: {}
+          '5':
+            schema:
+            - $ref:
+                singleton: '.'
                 next:
-                  target: {}
-    entries:
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 0
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 1
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 2
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 3
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 4
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 5
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 6
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 7
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 8
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 9
-    - mutations:
-      - as_link:
-          name: corpus
-          mutations:
-          - set:
-              ref:
-                path:
-                  singleton: corpus
-                  next:
-                    target: {}
-      - as_link:
-          name: item
-          mutations:
-          - set:
-              ref:
-                'n': 10
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Sample
+                    next:
+                      target: {}
+          '6':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Sample
+                    next:
+                      target: {}
+          '7':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Sample
+                    next:
+                      target: {}
+          '8':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Sample
+                    next:
+                      target: {}
+          '9':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Sample
+                    next:
+                      target: {}
+          '10':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Sample
+                    next:
+                      target: {}
+          '11':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Sample
+                    next:
+                      target: {}
+        spec:
+        - '0':
+          - as_adjacency:
+              name: holds
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '1'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '2'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '3'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '4'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '5'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '6'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '7'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '8'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '9'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '10'
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '11'
+        - '1':
+          - as_property:
+              name: name
+              mutations:
+              - set:
+                  value: edges
+          - as_adjacency:
+              name: items
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '2'
+                    - as_property:
+                        name: slot
+                        mutations:
+                        - set:
+                            value: 0
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '3'
+                    - as_property:
+                        name: slot
+                        mutations:
+                        - set:
+                            value: 1
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '4'
+                    - as_property:
+                        name: slot
+                        mutations:
+                        - set:
+                            value: 2
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '5'
+                    - as_property:
+                        name: slot
+                        mutations:
+                        - set:
+                            value: 3
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '6'
+                    - as_property:
+                        name: slot
+                        mutations:
+                        - set:
+                            value: 4
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '7'
+                    - as_property:
+                        name: slot
+                        mutations:
+                        - set:
+                            value: 5
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '8'
+                    - as_property:
+                        name: slot
+                        mutations:
+                        - set:
+                            value: 6
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '9'
+                    - as_property:
+                        name: slot
+                        mutations:
+                        - set:
+                            value: 7
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '10'
+                    - as_property:
+                        name: slot
+                        mutations:
+                        - set:
+                            value: 8
+                  - mutations:
+                    - as_link:
+                        name: item
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '11'
+                    - as_property:
+                        name: slot
+                        mutations:
+                        - set:
+                            value: 9
+        - '2':
+          - as_property:
+              name: label
+              mutations:
+              - set:
+                  value: ''
+          - as_property:
+              name: payload
+              mutations:
+              - set:
+                  value: ''
+          - as_property:
+              name: count
+              mutations:
+              - set:
+                  value: 0
+          - as_property:
+              name: ratio
+              mutations:
+              - set:
+                  value: 0.0
+          - as_property:
+              name: flag
+              mutations:
+              - set:
+                  value: false
+        - '3':
+          - as_property:
+              name: label
+              mutations:
+              - set:
+                  value: '日本語 🚀'
+          - as_property:
+              name: payload
+              mutations:
+              - set:
+                  value: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w=='
+          - as_property:
+              name: count
+              mutations:
+              - set:
+                  value: 1267650600228229401496703205376
+          - as_property:
+              name: ratio
+              mutations:
+              - set:
+                  value: -0.0
+          - as_property:
+              name: flag
+              mutations:
+              - set:
+                  value: true
+        - '4':
+          - as_property:
+              name: label
+              mutations:
+              - set:
+                  value: "\0\x1F\x7F \"q\" \\ \n\t\r"
+          - as_property:
+              name: payload
+              mutations:
+              - set:
+                  value: 'AA=='
+          - as_property:
+              name: count
+              mutations:
+              - set:
+                  value: -1180591620717411303424
+          - as_property:
+              name: ratio
+              mutations:
+              - set:
+                  value: 5.0e-324
+        - '5':
+          - as_property:
+              name: label
+              mutations:
+              - set:
+                  value: non-finite
+          - as_property:
+              name: ratio
+              mutations:
+              - set:
+                  value: NaN
+        - '6':
+          - as_property:
+              name: label
+              mutations:
+              - set:
+                  value: '+inf'
+          - as_property:
+              name: ratio
+              mutations:
+              - set:
+                  value: Infinity
+        - '7':
+          - as_property:
+              name: label
+              mutations:
+              - set:
+                  value: '-inf'
+          - as_property:
+              name: ratio
+              mutations:
+              - set:
+                  value: '-Infinity'
+        - '8':
+          - as_property:
+              name: label
+              mutations:
+              - set:
+                  value: big
+          - as_property:
+              name: count
+              mutations:
+              - set:
+                  value: 9223372036854775808
+          - as_property:
+              name: ratio
+              mutations:
+              - set:
+                  value: 1.0e+16
+        - '9':
+          - as_property:
+              name: label
+              mutations:
+              - set:
+                  value: small
+          - as_property:
+              name: ratio
+              mutations:
+              - set:
+                  value: 0.1
+        - '10':
+          - as_property:
+              name: label
+              mutations:
+              - set:
+                  value: max
+          - as_property:
+              name: ratio
+              mutations:
+              - set:
+                  value: 1.0e+308
+        - '11':
+          - as_property:
+              name: label
+              mutations:
+              - set:
+                  value: two
+          - as_property:
+              name: ratio
+              mutations:
+              - set:
+                  value: 2.0

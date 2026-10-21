@@ -285,6 +285,12 @@ class OfStore(Stores.Catalog):
         if global_name is not None:
             self._singletons[global_name] = _ObjectData(self, schema, schema.name)
 
+    def _declared(self, schema: Any) -> None:
+        """A registered schema declared a singleton after it was registered: its instance, created with the
+        declaration."""
+        if isinstance(schema, ObjectSchema) and schema.singleton is not None and schema.singleton not in self._singletons:
+            self._singletons[schema.singleton] = _ObjectData(self, schema, schema.name)
+
     def builder(self, name: str, instance: Any = None) -> Any:
         """A builder of an object of the schema registered as `name`; for a value object, union, intersection or
         container schema, of a standalone value, whose `create()` gives a value to assign, copied when placed."""

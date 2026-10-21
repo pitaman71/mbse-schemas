@@ -257,9 +257,9 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   holding its own plain schemas of schemas and basic scalars ([Store overhaul,
   Levels](proposals/store-overhaul/README.md#levels)). See Meta-schemas.
 
-- `Mutations` : the schemas of a mutation log, the wire format a store is written in
-  ([SERIALIZATION.md](SERIALIZATION.md)): `Plain.ToPlain(store).Snapshot()` writes a store, and
-  `Plain.FromPlain(store).Snapshot(log)` reads one.
+- `Mutations` : the schemas of the mutations a transaction applies, and of transactions themselves
+  ([SERIALIZATION.md](SERIALIZATION.md), Transactions on the wire): `Plain.ToPlain(store).Snapshot()` writes a store as
+  two transactions, and `Plain.FromPlain(store).Snapshot(snapshot)` reads one.
 
 - `Adapters` : translate between a language's own type declarations and schemas, so they are specific to each
   language. Python has `Adapters.Dataclasses`: `FromDataclass(cls)` returns the `OfObject` a dataclass describes and
@@ -394,11 +394,11 @@ A transaction is a flat sequence of mutations. Mutations may be nested; transact
   snapshot: a later one refers to the same object by the same path, and loading a path the store already holds
   updates that object through its builder (Resolved, Reference identity, on update): what the snapshot holds is
   written, and what it omits is kept. A counted object, which neither is, has no identity beyond the document that
-  writes it: the document numbers it, `{"n": k}`, in the order it meets objects from the root, which is 0, and
-  reading a document always builds its counted objects anew (55). A schema object is referred to by its path too, from
-  the root module, the singleton `"."` (Object identity, Decided, 80 and 81); one with no name of its own has none, and
-  its definition is written where the one object that links it links it (`{"set": {"def": ...}}`, its entries nested in
-  it, each leaving out the link it fills), until 4f replaces the log.
+  writes it: the document makes it a symbol, named by its number in the order it meets objects from the root, which
+  is `"0"`, and reading a document builds its counted objects anew (55, 102). A schema object is referred to by its path
+  too, from the root module, the singleton `"."` (Object identity, Decided, 80 and 81); one with no name of its own has
+  none, and is defined where the one object that links it links it (`{"set": {"def": {"schema": ..., "mutations":
+  [...]}}}`).
 - Paths name only reference objects, never values or entries.
 - A value object is written nested, as a mapping of its properties and its adjacencies, without a key. Union and intersection values are written the
   same way, keyed by branch or part name: a union value `{"phone": {"number": "1"}}` has exactly one key, and decoding
@@ -423,7 +423,8 @@ A transaction is a flat sequence of mutations. Mutations may be nested; transact
   as a savepoint: a singleton's symbol binds the singleton, an owned object's the object its owning entry names, a
   counted object's a new one (or, under a uid read again while held, the one it made), each written where the document
   does not hold, the k-th entry equal to a given one the k-th such entry held. A container is written inside its owner,
-  as its arrangement writes it (Resolved, Containers).
+  as its arrangement writes it (Resolved, Containers). A store's snapshot is two transactions, its schemas, then its
+  data (docs/OBJECT_IDENTITY.md, Decided, 101; docs/SERIALIZATION.md, Snapshots).
 - `JSON` : `JSON.ToJSON(store)(schema, value)` returns JSON text and `JSON.FromJSON(store)(schema, text)` rebuilds values;
   both mirror `Plain` (`.OfScalar`, `.OfObject`, `.Reachable`). Output is strict JSON (RFC 8259) with key order kept;
   input with NaN / Infinity literals or duplicate keys is rejected.
@@ -587,8 +588,8 @@ objects is a relation: the meta-schemas, their builders and the store are descri
 overhaul, The meta-schemas and their builders, as
 built](META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built). Every named schema is in a module, a schema
 object too, named by its dotted path (Resolved, "Schema builders align with their meta-schemas": the initial snapshot). A store, its schemas included, is
-written as a log of mutations ([SERIALIZATION.md](SERIALIZATION.md)); the old `Modules` and their inline wire form are
-removed.
+written as its snapshot, two transactions ([SERIALIZATION.md](SERIALIZATION.md), Snapshots); the old `Modules` and their
+inline wire form are removed.
 
 - **A schema may hold itself**, as a node holds a list of nodes, or a container a container of itself. Validating it
   reports each problem once, for every kind whose values hold others'. (Object identity's Decided 72, which refused a
@@ -734,8 +735,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   entries the other added. Is that the intended semantics of `update()`?
 - Cloning self-loops (F5): `clone()` copies entries with the clone in place of the source, so a self-loop's clone
   links back to the original rather than to itself. Intended?
-- Snapshots whose two ends disagree (F13) are accepted and restore the union of both ends' entries. Should
-  deserialization reject them instead of leaving it to validation?
+- *Resolved in 4f-3*: snapshots whose two ends disagree (F13) were accepted, restoring the union of both ends'
+  entries; a document or a snapshot now writes each entry once, so its ends cannot disagree.
 
 - Containers (Resolved, Containers): V5 is built with the choices listed there for the user's review (the names on
   the wire, the writer's option for several int indices, comparison and validation, `Visitors.OfIterator` as the one

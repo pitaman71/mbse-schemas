@@ -291,7 +291,7 @@ any other registered name builds data, through the proxy builder.
   under its new name.
 
 Built since: modules in the store, defining schemas and modules through `Defines`; a store written and read as a log
-of mutations ([Serialization](SERIALIZATION.md), steps 1 and 2); TypeScript; and the old builders, `Modules` and
+of mutations ([Serialization](SERIALIZATION.md), steps 1 and 2), then, from store overhaul 4f, as two transactions; TypeScript; and the old builders, `Modules` and
 `Stores.META` removed (Plan, phase 3). Not built yet: subsequent snapshots (Serialization, step 3).
 
 ## Phase 5 design: the draft's questions
@@ -326,7 +326,7 @@ with a question, for review. The schema builders answer most of them; each point
    in a store, alongside schemas and data"); modules in the store and their nesting are built too;
    `root_module()` and qualified names are not. Still open: Open questions, "Resolving qualified names".
 7. **The wire.** Answered by [Serialization](SERIALIZATION.md): a store is written as a log of mutations, schemas
-   included, through the meta-schemas; `Schemas.Module`'s old form, `Modules`, `Stores.META` and
+   included, through the meta-schemas (as transactions since store overhaul 4f); `Schemas.Module`'s old form, `Modules`, `Stores.META` and
    `Schemas.OfAny.Schema` are removed.
 8. **Building a link's target inline.** Answered for types by the later decision: a link to a type takes a schema that
    exists, never a callback that builds one (Resolved, "Schema builders align with their meta-schemas", a property's

@@ -276,7 +276,7 @@ export interface ToJSONCall {
   OfScalar(schema: Schemas.OfScalar.Data, value: Scalar, options?: DumpOptions): string;
   OfObject(schema: Schemas.OfObject.Data, value: Readers.OfObject, options?: DumpOptions): string;
   Reachable(schema: Schemas.OfObject.Data, value: Readers.OfObject, options?: DumpOptions): string;
-  /** The store as a log of mutations, its initial snapshot: `Plain.ToPlain(store).Snapshot()`, as JSON text. */
+  /** The store's snapshot, two transactions: `Plain.ToPlain(store).Snapshot()`, as JSON text. */
   Snapshot(options?: DumpOptions): string;
 }
 
@@ -298,7 +298,7 @@ export interface FromJSONCall {
   OfScalar(schema: Schemas.OfScalar.Data, text: string | Uint8Array): Scalar;
   OfObject(schema: Schemas.OfObject.Data, text: string | Uint8Array): unknown;
   Reachable(schema: Schemas.OfObject.Data, text: string | Uint8Array): unknown;
-  /** Applies a log of mutations, as JSON text, to the store: `Plain.FromPlain(store).Snapshot(log)`. */
+  /** Reads a store's snapshot, as JSON text, executing its transactions: `Plain.FromPlain(store).Snapshot(snapshot)`. */
   Snapshot(text: string | Uint8Array, ignored?: Plain.Ignored[]): unknown[];
 }
 

@@ -249,7 +249,7 @@ class ToJSON:
         return dumps(self._plain.Reachable(schema, value), indent=indent)
 
     def Snapshot(self, *, indent: int | None = None) -> str:
-        """The store as a log of mutations, its initial snapshot: `Plain.ToPlain.Snapshot`, as JSON text."""
+        """The store's snapshot, two transactions: `Plain.ToPlain.Snapshot`, as JSON text."""
         return dumps(self._plain.Snapshot(), indent=indent)
 
 
@@ -269,7 +269,7 @@ class FromJSON:
         return self._plain.OfObject(schema, loads(text))
 
     def Snapshot(self, text: str | bytes, ignored: list[dict[str, str]] | None = None) -> list[Any]:
-        """Applies a log of mutations, as JSON text, to the store: `Plain.FromPlain.Snapshot`."""
+        """Reads a store's snapshot, as JSON text, executing its transactions: `Plain.FromPlain.Snapshot`."""
         return self._plain.Snapshot(loads(text), ignored)
 
     def Reachable(self, schema: Schemas.OfObject.Data, text: str | bytes) -> Any:

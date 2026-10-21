@@ -233,7 +233,7 @@ class ToYAML:
         return dumps(self._plain.Reachable(schema, value))
 
     def Snapshot(self) -> str:
-        """The store as a log of mutations, its initial snapshot: `Plain.ToPlain.Snapshot`, as YAML text."""
+        """The store's snapshot, two transactions: `Plain.ToPlain.Snapshot`, as YAML text."""
         return dumps(self._plain.Snapshot())
 
 
@@ -253,7 +253,7 @@ class FromYAML:
         return self._plain.OfObject(schema, loads(text))
 
     def Snapshot(self, text: str | bytes, ignored: list[dict[str, str]] | None = None) -> list[Any]:
-        """Applies a log of mutations, as YAML text, to the store: `Plain.FromPlain.Snapshot`."""
+        """Reads a store's snapshot, as YAML text, executing its transactions: `Plain.FromPlain.Snapshot`."""
         return self._plain.Snapshot(loads(text), ignored)
 
     def Reachable(self, schema: Schemas.OfObject.Data, text: str | bytes) -> Any:

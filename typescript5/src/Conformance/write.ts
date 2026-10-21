@@ -1,5 +1,5 @@
 /**
- * Writes this implementation's conformance logs, each case's store's initial snapshot: `tsx src/Conformance/write.ts [directory]`.
+ * Writes this implementation's conformance corpus, each case's store's snapshot: `tsx src/Conformance/write.ts [directory]`.
  *
  * The default directory is `conformance/typescript5` at the repository root.
  */

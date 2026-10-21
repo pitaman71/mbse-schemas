@@ -150,6 +150,43 @@ export function view(document: any): PlainMap {
   return new Map<string, PlainData>([["root", new Map([["n", 0n]])], ["objects", objects]]);
 }
 
+/** What a store's snapshot gives, in its transaction `index` (0, its schemas'; 1, its data's), of the schema object it
+ * finds by its name `name`, or of the symbol `name`. */
+export function spec_of(snapshot: any, name: string, index = 0): any[] {
+  const pattern = snapshot[index].get("mutations")[0].get("upsert").get("exists")[0];
+  const found = new Map<string, any[]>();
+  for (const item of pattern.get("spec") ?? []) {
+    for (const [symbol, members] of item) found.set(symbol, [...(found.get(symbol) ?? []), ...members]);
+  }
+  if (found.has(name) || pattern.get("symbols").has(name)) return found.get(name) ?? [];
+  return [...found.values()].find((members) => given(members).get("name") === name)!;
+}
+
+/** The properties a spec's members set, by name. */
+export function given(members: any[]): Map<string, any> {
+  return new Map(members.filter((m) => m.has("as_property") && m.get("as_property").get("mutations")[0].has("set"))
+    .map((m) => [m.get("as_property").get("name"), m.get("as_property").get("mutations")[0].get("set").get("value")]));
+}
+
+/** The entries a spec's members insert into `adjacency`, each its links' `set` (a ref or a def) and its properties'
+ * values, by name. */
+export function entries_in(members: any[], adjacency: string): Map<string, any>[] {
+  const out: Map<string, any>[] = [];
+  for (const m of members) {
+    if (!m.has("as_adjacency") || m.get("as_adjacency").get("name") !== adjacency) continue;
+    for (const entry of m.get("as_adjacency").get("mutations")[0].get("insert").get("entries")) {
+      const row = new Map<string, any>();
+      for (const part of entry.get("mutations")) {
+        const [kind, body] = [...part][0];
+        const held = body.get("mutations")[0].get("set");
+        row.set(body.get("name"), kind === "as_property" ? held.get("value") : held);
+      }
+      out.push(row);
+    }
+  }
+  return out;
+}
+
 /** A document as `view` gives it; an object listing as it is. */
 export function listing(snapshot: any): any {
   return snapshot.has("mutations") ? view(snapshot) : snapshot;

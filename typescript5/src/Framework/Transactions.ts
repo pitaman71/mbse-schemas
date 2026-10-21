@@ -13,7 +13,7 @@
  * order. A property written is `{"as_property": {"name": ..., "mutations": [{"set": {"value": ...}}]}}`, its value as
  * `Plain` writes a property's; an adjacency's entries are `{"as_adjacency": {"name": ..., "mutations": [{"insert":
  * {"entries": [...]}}]}}`, each entry `{"mutations": [...]}` of its links (`as_link`) and properties (`as_property`), as
- * a log writes an entry, leaving out the object's own link. A link refers to the object another symbol binds, `{"ref":
+ * a snapshot writes an entry, leaving out the object's own link. A link refers to the object another symbol binds, `{"ref":
  * {"symbol": "ada"}}`, to an object by its path, `{"ref": {"path": ...}}` (a schema object, a singleton or an owned
  * object), or defines a new object where it is linked, `{"def": {"schema": ..., "mutations": [...]}}`.
  *
@@ -655,13 +655,21 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
       }
       const own = members.get(name) ?? [];
       const identifying = own.filter((member) => identifies(store, schema, member));
-      const finding = identifying.length > 0 ? identifying : own;
-      const found = extent(store, schema).filter((target: unknown) => holds(store, target, schema, finding, partial, partial));
+      const located = identifying.length > 0 ? null : locate(store, pattern, members, name, schema, partial);
+      let found: any[];
+      if (located !== null) { // placed by its owner's entry, which a symbol bound before it gives (60)
+        found = located[0] === null ? [] : [located[0]];
+      } else if (identifying.length > 0 && meta(store, schema)) { // a schema object by its name, the store's own included (86)
+        found = registeredAs(store, schema, identifying[0]!);
+      } else {
+        const finding = identifying.length > 0 ? identifying : own;
+        found = extent(store, schema).filter((target: unknown) => holds(store, target, schema, finding, partial, partial));
+      }
       if (found.length > 0 || !upsert) {
         for (const target of found) grown.push(new Map([...partial, [name, target]]));
         continue;
       }
-      grown.push(new Map([...partial, [name, writer(store, schema).create()]]));
+      grown.push(new Map([...partial, [name, created(store, schema, identifying)]]));
     }
     frames = grown;
   }
@@ -671,6 +679,61 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
   }
   return frames.filter((bound) => [...members].every(([name, items]) =>
     holds(store, bound.get(name), pattern.symbols.get(name).schema, items, bound, null)));
+}
+
+/** The schema object registered under the name a spec gives, where it is of the meta-schema `schema`: none otherwise. */
+function registeredAs(store: any, schema: any, member: Map<string, any>): any[] {
+  const [, body] = only(member);
+  let held: any;
+  try {
+    held = store.registered(given(body.get("mutations")[0])[1]);
+  } catch { // registered throws only LookupError
+    return [];
+  }
+  return reader(store, held).as_schema() === schema ? [held] : [];
+}
+
+/** An object an upsert makes where it finds none: a schema object made with the name it was looked up by, so that what
+ * links it before its spec is written links a named schema (86). */
+function created(store: any, schema: any, identifying: Members): any {
+  const builder = writer(store, schema);
+  for (const member of identifying) {
+    const [kind, body] = only(member);
+    if (kind === "as_property") {
+      const prop = schema.properties.get(body.get("name"));
+      Plain._set(builder, body.get("name"), Plain._decode(prop.schema, body.get("mutations")[0].get("set").get("value"), [], store));
+    }
+  }
+  return builder.create();
+}
+
+/** Where a symbol's object is owned through an adjacency it has no name for, the entry that places it in a symbol's spec
+ * bound before it (Decided, 60): `[found]`, the owner's entry agreeing with its properties linking it, or `[null]` where
+ * the owner holds none; null where no spec gives such an entry. */
+function locate(store: any, pattern: any, members: Map<string, Members>, name: string, schema: any,
+  frame: Frame): [unknown] | null {
+  const owning = [...schema.adjacencies.values(), ...schema.anonymous].filter((a: any) => a.owner);
+  for (const [other, items] of members) {
+    if (!frame.has(other) || owning.length === 0) continue;
+    for (const item of items) {
+      const [kind, body] = only(item);
+      if (kind !== "as_adjacency") continue;
+      const relation = pattern.symbols.get(other).schema.adjacencies.get(body.get("name")).relation;
+      for (const entry of body.get("mutations")[0].get("insert").get("entries") as Map<string, any>[]) {
+        const parts: Map<string, any>[] = entry.get("mutations");
+        const link = parts.find((part) => part.has("as_link")
+          && part.get("as_link").get("mutations")[0].get("set").get("ref")?.get("symbol") === name)?.get("as_link").get("name");
+        if (link === undefined || !owning.some((a: any) => a.relation === relation && a.me === link)) continue;
+        const properties = parts.filter((part) => part.has("as_property")).map((part) => part.get("as_property"));
+        for (const held of reader(store, frame.get(other))[body.get("name")]) {
+          if (properties.every((p) => agree(plainOf(store, held[p.get("name")], relation.entry.properties.get(p.get("name"))),
+            given(p.get("mutations")[0])))) return [linked(held[link])];
+        }
+        return [null];
+      }
+    }
+  }
+  return null;
 }
 
 /** Whether a spec's member gives its object's identity, by which an upsert finds it: a schema object's name (86), an

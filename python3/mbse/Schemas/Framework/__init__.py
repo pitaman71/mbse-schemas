@@ -2,8 +2,8 @@
 
 Objects, relations whose entries carry properties, unions and intersections. One schema value drives in-memory objects
 (`Proxies`), JSON and YAML (`Plain`, `JSON`, `YAML`), validation (`Validators`) and comparison (`Comparison`). Schemas
-are built in a store (`Builders.Store`), and a store is written as a log of mutations (`Mutations`); its writes are
-mutation expressions over frames (`Transactions`), held apart from it until they commit (`Proposals`).
+are built in a store (`Builders.Store`); its writes are mutation expressions over frames (`Transactions`, `Mutations`),
+held apart from it until they commit (`Proposals`), and written on the wire as transactions, a store's snapshot two.
 
 For AI agents: read `skill/SKILL.md` next to this file first. It says when to use this package, the practices that
 prevent most mistakes, and which reference to load for a task. The design is in docs/FRAMEWORK.md at

@@ -141,6 +141,41 @@ def document(listed_objects: dict, uid: str | None = None) -> dict:
     return {**({} if uid is None else {"uid": uid}), "mutations": [{"upsert": upsert}]}
 
 
+def spec_of(snapshot: list, name: str, index: int = 0) -> list:
+    """What a store's snapshot gives, in its transaction `index` (0, its schemas'; 1, its data's), of the schema object it
+    finds by its name `name`, or of the symbol `name`."""
+    pattern = snapshot[index]["mutations"][0]["upsert"]["exists"][0]
+    found: dict = {}
+    for item in pattern.get("spec", []):
+        for symbol, members in item.items():
+            found.setdefault(symbol, []).extend(members)
+    if name in found or name in pattern["symbols"]:
+        return found.get(name, [])
+    return next(members for members in found.values() if given(members).get("name") == name)
+
+
+def given(members: list) -> dict:
+    """The properties a spec's members set, by name."""
+    return {m["as_property"]["name"]: m["as_property"]["mutations"][0]["set"]["value"]
+            for m in members if "as_property" in m and "set" in m["as_property"]["mutations"][0]}
+
+
+def entries_in(members: list, adjacency: str) -> list:
+    """The entries a spec's members insert into `adjacency`, each its links' `set` (a ref or a def) and its properties'
+    values, by name."""
+    out = []
+    for m in members:
+        if "as_adjacency" in m and m["as_adjacency"]["name"] == adjacency:
+            for entry in m["as_adjacency"]["mutations"][0]["insert"]["entries"]:
+                row = {}
+                for part in entry["mutations"]:
+                    (kind, body), = part.items()
+                    held = body["mutations"][0]["set"]
+                    row[body["name"]] = held["value"] if kind == "as_property" else held
+                out.append(row)
+    return out
+
+
 def listing(snapshot: dict) -> dict:
     """A document as `view` gives it; an object listing as it is."""
     return view(snapshot) if "mutations" in snapshot else snapshot

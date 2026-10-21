@@ -12,7 +12,7 @@ A spec is recorded as a `Mutations.OfPattern`, plain data: for each symbol, the 
 order. A property written is `{"as_property": {"name": ..., "mutations": [{"set": {"value": ...}}]}}`, its value as
 `Plain` writes a property's; an adjacency's entries are `{"as_adjacency": {"name": ..., "mutations": [{"insert":
 {"entries": [...]}}]}}`, each entry `{"mutations": [...]}` of its links (`as_link`) and properties (`as_property`), as a
-log writes an entry, leaving out the object's own link. A link refers to the object another symbol binds, `{"ref":
+snapshot writes an entry, leaving out the object's own link. A link refers to the object another symbol binds, `{"ref":
 {"symbol": "ada"}}`, to an object by its path, `{"ref": {"path": ...}}` (a schema object, a singleton or an owned
 object), or defines a new object where it is linked, `{"def": {"schema": ..., "mutations": [...]}}`.
 
@@ -81,7 +81,7 @@ class _State:
         self.written: list[tuple[str, Any]] = []  # ("property", name) or ("adjacency", (name, entries)), in order
 
     def plain(self) -> list[Any]:
-        names, members = Plain._Names(self.store), []
+        names, members = Plain._Values(self.store), []
         for kind, what in self.written:
             if kind == "property":
                 prop = self.schema.properties[what]
@@ -311,7 +311,7 @@ class _Entry(Proxies._Unassignable):
             target = {"def": {"schema": self._store.name_of(held.schema), "mutations": held.plain()}} \
                 if isinstance(held, _State) else {"ref": held}
             mutations.append({"as_link": {"name": link, "mutations": [{"set": target}]}})
-        names = Plain._Names(self._store)
+        names = Plain._Values(self._store)
         for name, prop in self._relation.entry.properties.items():
             read = Proxies._Property(self._values, name, prop, self._store, None, False)
             present, plain = Plain._value(read, prop.schema, names)
@@ -594,13 +594,19 @@ def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None 
                 grown.append({**partial, name: made})
                 continue
             own = members.get(name, [])
-            finding = [member for member in own if _identifies(store, schema, member)] or own
-            found = [target for target in _extent(store, schema)
-                     if _holds(store, target, schema, finding, partial, partial)]
+            identifying = [member for member in own if _identifies(store, schema, member)]
+            located = None if identifying else _located(store, pattern, members, name, schema, partial)
+            if located is not None:  # placed by its owner's entry, which a symbol bound before it gives (60)
+                found = [] if located[0] is None else [located[0]]
+            elif identifying and _meta(store, schema):  # a schema object by its name, the store's own included (86)
+                found = _registered(store, schema, identifying[0], partial)
+            else:
+                found = [target for target in _extent(store, schema)
+                         if _holds(store, target, schema, identifying or own, partial, partial)]
             if found or not upsert:
                 grown.extend({**partial, name: target} for target in found)
                 continue
-            grown.append({**partial, name: _writer(store, schema).create()})
+            grown.append({**partial, name: _created(store, schema, identifying)})
         frames = grown
     if upsert:
         for bound in frames:
@@ -609,6 +615,56 @@ def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None 
     return [bound for bound in frames
             if all(_holds(store, bound[name], pattern.symbols[name].schema, items, bound, None)
                    for name, items in members.items())]
+
+
+def _registered(store: Any, schema: Any, member: Any, frame: Frame) -> list[Any]:
+    """The schema object registered under the name a spec gives, where it is of the meta-schema `schema`: none
+    otherwise."""
+    (_, body), = member.items()
+    try:
+        held = store.registered(_given(body["mutations"][0])[1])
+    except LookupError:
+        return []
+    return [held] if _reader(store, held).as_schema() is schema else []
+
+
+def _created(store: Any, schema: Any, identifying: list[Any]) -> Any:
+    """An object an upsert makes where it finds none: a schema object made with the name it was looked up by, so that
+    what links it before its spec is written links a named schema (86)."""
+    builder = _writer(store, schema)
+    for member in identifying:
+        (kind, body), = member.items()
+        if kind == "as_property":
+            prop = schema.properties[body["name"]]
+            Plain._set(builder, body["name"], Plain._decode(prop.schema, body["mutations"][0]["set"]["value"], (), store))
+    return builder.create()
+
+
+def _located(store: Any, pattern: Any, members: dict[str, list[Any]], name: str, schema: Any, frame: Frame) -> Any:
+    """Where a symbol's object is owned through an adjacency it has no name for, the entry that places it in a symbol's
+    spec bound before it (Decided, 60): `(found,)`, the owner's entry agreeing with its properties linking it, or
+    `(None,)` where the owner holds none; None where no spec gives such an entry."""
+    owning = [a for a in (*schema.adjacencies.values(), *schema.anonymous) if a.owner]
+    for other, items in members.items():
+        if other not in frame or not owning:
+            continue
+        for item in items:
+            (kind, body), = item.items()
+            if kind != "as_adjacency":
+                continue
+            relation = pattern.symbols[other].schema.adjacencies[body["name"]].relation
+            for entry in body["mutations"][0]["insert"]["entries"]:
+                link = next((part["as_link"]["name"] for part in entry["mutations"] if "as_link" in part
+                             and part["as_link"]["mutations"][0]["set"].get("ref", {}).get("symbol") == name), None)
+                if link is None or not any(a.relation is relation and a.me == link for a in owning):
+                    continue
+                given = [part["as_property"] for part in entry["mutations"] if "as_property" in part]
+                for held in getattr(_reader(store, frame[other]), body["name"]):
+                    if all(_plain(store, getattr(held, p["name"]), relation.entry.properties[p["name"]])
+                           == _given(p["mutations"][0]) for p in given):
+                        return (_linked(getattr(held, link)),)
+                return (None,)
+    return None
 
 
 def _identifies(store: Any, schema: Any, member: Any) -> bool:
@@ -672,7 +728,7 @@ def _symbol_refs(entry: Any) -> list[dict[str, Any]]:
 
 def _plain(store: Any, read: Any, prop: Any) -> Any:
     """A property's value, read, as a spec gives it: `(present, plain)`."""
-    return Plain._value(read, prop.schema, Plain._Names(store))
+    return Plain._value(read, prop.schema, Plain._Values(store))
 
 
 def _given(verb: Any) -> Any:

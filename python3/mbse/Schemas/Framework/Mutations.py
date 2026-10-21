@@ -1,25 +1,21 @@
-"""Mutations: the schemas of a mutation log (docs/SERIALIZATION.md, Mutations : Vocabulary).
+"""Mutations: the schemas of the mutations a transaction applies (docs/SERIALIZATION.md, Transactions on the wire).
 
-The wire format is a log of mutations, and mutations are schema-governed like everything else: each verb and noun here is
-a schema, every store holds them, and ToPlain writes a log as it writes any value.
+Mutations are schema-governed like everything else: each verb and noun here is a schema, every store holds them, and
+ToPlain writes them as it writes any value. A transaction is itself an object of the mutation expressions' schemas (the
+second half of this module, docs/OBJECT_IDENTITY.md, Decided, 93), whose patterns' specs are written in the verbs.
 
-Every mutation is a value object: a log entry has no identity and is never shared. Each family of verbs is a union whose
-branches are its verbs, named as a visitor's members are (`AsProperty` is `as_property`), so that a verb is written as
-its union's branch (`{"exists": {...}}`), and a list of verbs is a container of that union. A noun (`Ref`, `Def`,
-`Slice`) is a value object nested in a verb.
+Every mutation is a value object: it has no identity and is never shared. Each family of verbs is a union whose branches
+are its verbs, named as a visitor's members are (`AsProperty` is `as_property`), so that a verb is written as its union's
+branch (`{"set": {...}}`), and a list of verbs is a container of that union. A noun (`Ref`, `Def`, `Slice`) is a value
+object nested in a verb. `OfContainer.AsItems` applies its list in modulo order.
 
-*Reference verbs* (`OfObject`, `OfRelation`) are the top level of the log (`Log`, a list of `Reference`); *value verbs*
-are nested in them, following a path from the reference object a top-level verb names (`OfObject.AsProperty`'s `ref`).
-A verb nested under `OfAny.AsObject` names no reference object. `OfContainer.AsItems` and `OfRelation.AsEntries` apply
-their lists in modulo order.
+A pattern's spec (docs/OBJECT_IDENTITY.md, Decided, 95) is a `Mutations.OfPattern`: for each symbol, the mutations of the
+object it binds (`OfObject`: a property's, `as_property`, and an adjacency's, `as_adjacency`, whose `OfAdjacency` verbs
+insert and remove entries), a link referring to an object by its symbol or its path (`Ref`), or defining one where it is
+linked (`Def`'s `schema` and `mutations`). Value verbs are nested in them, following the property they name.
 
-Payloads (a property's value, an object's properties) are values of whatever schema the target gives: their schema here is
-a value of any schema, and ToPlain writes them untagged, interpreted by the target's schema.
-
-A pattern's spec (docs/OBJECT_IDENTITY.md, Decided, 95) is written in the same verbs: a `Mutations.OfPattern` gives, for
-each symbol, the mutations of the object it binds (`OfObject`: a property's, `as_property`, and an adjacency's,
-`as_adjacency`, whose `OfAdjacency` verbs insert and remove entries), a link referring to an object by its symbol or its
-path (`Ref`), or defining one where it is linked (`Def`'s `schema` and `mutations`).
+Payloads (a property's value) are values of whatever schema the target gives: their schema here is a value of any schema,
+and a spec records them untagged, interpreted by the target's schema.
 """
 
 from __future__ import annotations
@@ -63,12 +59,8 @@ def schemas(Text: Any, Int: Any, Path: Any, Bool: Any, Pattern: Any, Collector: 
         lambda t: t.name("path").schema([Path]),
         _text("symbol"),
     )
-    Def = _verb(  # its path, but where it is linked; its schema's name (a schema object's kind's); its properties
-        "OfObject.Def",
-        lambda t: t.name("path").schema([Path]),
-        _text("schema"),
-        lambda t: t.name("properties").schema([ContainerBuilder().index([Text]).element([Payload]).create()]),
-    )
+    Def = _verb("OfObject.Def", _text("schema"))  # an object with no path, where it is linked: its schema's name, and
+    # its own mutations (given below)
     Slice = _verb(
         "OfContainer.Slice",
         lambda t: t.name("index").schema([Payload]),  # where the section starts, by the container's index
@@ -77,7 +69,6 @@ def schemas(Text: Any, Int: Any, Path: Any, Bool: Any, Pattern: Any, Collector: 
 
     # --- The unions of verbs, whose branches are given below: each refers to the others ---
 
-    Reference = _union("Reference")  # the top level of the log: OfObject's and OfRelation's verbs
     OfProperty = _union("OfProperty")
     OfContainer = _union("OfContainer")
     OfAny = _union("OfAny")
@@ -121,52 +112,18 @@ def schemas(Text: Any, Int: Any, Path: Any, Bool: Any, Pattern: Any, Collector: 
 
     # --- Reference verbs, and what an object's or an entry's mutations are ---
 
-    Exists = _verb("OfObject.Exists", lambda t: t.name("definition").schema([Def]))  # Python cannot spell `def`
-    AsProperty = _verb(  # `ref` at the top of the log only: nested under OfAny.AsObject, the path gives the object
-        "OfObject.AsProperty",
-        lambda t: t.name("ref").schema([Ref]),
-        _text("name"),
-        _mutations(OfProperty),
-    )
+    AsProperty = _verb("OfObject.AsProperty", _text("name"), _mutations(OfProperty))
     AsObject = _verb("OfAny.AsObject", _mutations(AsProperty))
     EntryAsProperty = _verb("OfEntry.AsProperty", _text("name"), _mutations(OfProperty))
     EntryAsLink = _verb("OfEntry.AsLink", _text("name"), _mutations(OfLink))
     Entry = _verb("OfEntry", _mutations(OfEntryMember))  # an entry: its links' and its properties' mutations
-    RelationInsert = _verb(
-        "OfRelation.Insert",
-        lambda t: t.name("relation").schema([Ref]),  # the relation schema
-        lambda t: t.name("entries").schema([_list(Entry)]),
-    )
     AsAdjacency = _verb("OfObject.AsAdjacency", _text("name"), _mutations(OfAdjacency))
     AdjacencyInsert = _verb("OfAdjacency.Insert", lambda t: t.name("entries").schema([_list(Entry)]))
     AdjacencyRemove = _verb("OfAdjacency.Remove", lambda t: t.name("entries").schema([_list(Entry)]))
-    ObjectBuilder(Def).properties([  # nested in a definition, each entry leaves out the link the defined object fills
-        lambda t: t.name("inserts").schema([_list(RelationInsert)]),
-        _mutations(OfObject),  # in a spec, the defined object's own mutations
-    ]).update()
-    RelationRemove = _verb(
-        "OfRelation.Remove",
-        lambda t: t.name("relation").schema([Ref]),
-        lambda t: t.name("entries").schema([_list(Entry)]),
-    )
-    RelationClear = _verb("OfRelation.Clear", lambda t: t.name("ref").schema([Ref]), _text("adjacency"))
-    AsEntries = _verb(  # applied in modulo order
-        "OfRelation.AsEntries",
-        lambda t: t.name("ref").schema([Ref]),
-        _text("adjacency"),
-        _mutations(EntryAsProperty),
-    )
+    ObjectBuilder(Def).properties([_mutations(OfObject)]).update()
 
     # --- The unions' branches ---
 
-    UnionBuilder(Reference).branches([
-        lambda t: t.name("exists").schema([Exists]),
-        lambda t: t.name("as_property").schema([AsProperty]),
-        lambda t: t.name("insert").schema([RelationInsert]),
-        lambda t: t.name("remove").schema([RelationRemove]),
-        lambda t: t.name("clear").schema([RelationClear]),
-        lambda t: t.name("as_entries").schema([AsEntries]),
-    ]).update()
     UnionBuilder(OfProperty).branches([
         lambda t: t.name("set").schema([PropertySet]),
         lambda t: t.name("clear").schema([PropertyClear]),
@@ -211,7 +168,6 @@ def schemas(Text: Any, Int: Any, Path: Any, Bool: Any, Pattern: Any, Collector: 
     ]).update()
     # a spec (Schemas.OfPattern.spec): for each symbol, the mutations of the object it binds (Object identity, 95)
     OfPattern = ContainerBuilder().name("Mutations.OfPattern").index([Text]).element([_list(OfObject)]).create()
-    Log = ContainerBuilder().name("Mutations.Log").index([Int]).element([Reference]).create()
 
     # --- Mutation expressions: a transaction and its terms, reference objects linked by relations (93) ---
 
@@ -247,7 +203,7 @@ def schemas(Text: Any, Int: Any, Path: Any, Bool: Any, Pattern: Any, Collector: 
     Otherwise = _relation("Otherwise", "partition", "next", OfTerm)
     Requiring = _relation("Requiring", "branch", "constraint", Expression, one=False)
     Applies = _relation("Applies", "term", "pattern", Pattern)
-    Existing = _relation("Exists", "term", "pattern", Pattern)  # not `Exists`, the verb's
+    Existing = _relation("Exists", "term", "pattern", Pattern)
     UnionBuilder(OfTerm).branches([lambda t, n=n, k=k: t.name(n).schema([k]) for n, k in (
         ("map", OfMap), ("reduce", OfReduce), ("partition", OfPartition), ("update", OfUpdate), ("upsert", OfUpsert))]).update()
 

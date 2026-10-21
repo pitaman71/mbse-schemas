@@ -1779,6 +1779,8 @@ class Store(Proxies.OfStore):
                 del self._schemas[name]  # renamed
             if data.name and self._schemas.get(data.name) is not data:
                 self._register(data)
+            elif data.name:
+                self._declared(data)  # a singleton declared after its schema was registered
         if isinstance(data, _ModuleData):
             for path in [path for path, module in self._modules.items() if module is data and path != (data.name or "")]:
                 del self._modules[path]  # renamed

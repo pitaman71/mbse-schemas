@@ -39,6 +39,7 @@ A document is one transaction, one upsert (docs/OBJECT_IDENTITY.md, Decided, 51)
 | `ToPlain(store).Reachable(schema, value, uid)`, and the JSON and YAML forms | the root and the counted objects reachable from it |
 | `FromPlain(store)(schema, data)`, and the JSON and YAML forms | executes the document in the store given, within its open transaction as a savepoint, and gives the root; a document is how objects move between stores |
 | `ToPlain(store).Transaction(tx)`, `FromPlain(store).Transaction(data)` | any transaction's expression; a journal is a list of them |
+| `ToPlain(store).Snapshot()`, `FromPlain(store).Snapshot(snapshot, ignored)`, and the JSON and YAML forms | a whole store, as two transactions: its schemas, each found by its name where the store reading it holds it, then the data its singletons reach; reading gives that data, and ignores, listing them in `ignored` where given, the members an extension it lacks would need |
 
 ## Strictness
 

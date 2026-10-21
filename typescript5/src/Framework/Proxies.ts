@@ -384,6 +384,13 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
     }
   }
 
+  /** A registered schema declared a singleton after it was registered: its instance, created with the declaration. */
+  _declared(schema: any): void {
+    if (schema instanceof Schemas.OfObject.Data && schema.singleton !== null && !this._singletons.has(schema.singleton)) {
+      this._singletons.set(schema.singleton, makeObjectData(this, schema as ObjectSchema, schema.name as string));
+    }
+  }
+
   /** A builder of an object of the schema registered as `name`; for a value object, union, intersection or container
    * schema, of a standalone value, whose `create()` gives a value to assign, copied when placed. Typed loosely, as the
    * store's members are. */

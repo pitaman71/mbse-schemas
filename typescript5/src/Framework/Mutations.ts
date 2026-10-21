@@ -1,26 +1,23 @@
 /**
- * Mutations: the schemas of a mutation log (docs/SERIALIZATION.md, Mutations : Vocabulary).
+ * Mutations: the schemas of the mutations a transaction applies (docs/SERIALIZATION.md, Transactions on the wire).
  *
- * The wire format is a log of mutations, and mutations are schema-governed like everything else: each verb and noun
- * here is a schema, every store holds them, and ToPlain writes a log as it writes any value.
+ * Mutations are schema-governed like everything else: each verb and noun here is a schema, every store holds them, and
+ * ToPlain writes them as it writes any value. A transaction is itself an object of the mutation expressions' schemas
+ * (the second half of this module, docs/OBJECT_IDENTITY.md, Decided, 93), whose patterns' specs are written in the verbs.
  *
- * Every mutation is a value object: a log entry has no identity and is never shared. Each family of verbs is a union
- * whose branches are its verbs, named as a visitor's members are (`AsProperty` is `as_property`), so that a verb is
- * written as its union's branch (`{"exists": {...}}`), and a list of verbs is a container of that union. A noun (`Ref`,
- * `Def`, `Slice`) is a value object nested in a verb.
+ * Every mutation is a value object: it has no identity and is never shared. Each family of verbs is a union whose
+ * branches are its verbs, named as a visitor's members are (`AsProperty` is `as_property`), so that a verb is written as
+ * its union's branch (`{"set": {...}}`), and a list of verbs is a container of that union. A noun (`Ref`, `Def`,
+ * `Slice`) is a value object nested in a verb. `OfContainer.AsItems` applies its list in modulo order.
  *
- * *Reference verbs* (`OfObject`, `OfRelation`) are the top level of the log (`Log`, a list of `Reference`); *value
- * verbs* are nested in them, following a path from the reference object a top-level verb names (`OfObject.AsProperty`'s
- * `ref`). A verb nested under `OfAny.AsObject` names no reference object. `OfContainer.AsItems` and
- * `OfRelation.AsEntries` apply their lists in modulo order.
+ * A pattern's spec (docs/OBJECT_IDENTITY.md, Decided, 95) is a `Mutations.OfPattern`: for each symbol, the mutations of
+ * the object it binds (`OfObject`: a property's, `as_property`, and an adjacency's, `as_adjacency`, whose `OfAdjacency`
+ * verbs insert and remove entries), a link referring to an object by its symbol or its path (`Ref`), or defining one
+ * where it is linked (`Def`'s `schema` and `mutations`). Value verbs are nested in them, following the property they
+ * name.
  *
- * Payloads (a property's value, an object's properties) are values of whatever schema the target gives: their schema
- * here is a value of any schema, and ToPlain writes them untagged, interpreted by the target's schema.
- *
- * A pattern's spec (docs/OBJECT_IDENTITY.md, Decided, 95) is written in the same verbs: a `Mutations.OfPattern` gives,
- * for each symbol, the mutations of the object it binds (`OfObject`: a property's, `as_property`, and an adjacency's,
- * `as_adjacency`, whose `OfAdjacency` verbs insert and remove entries), a link referring to an object by its symbol or
- * its path (`Ref`), or defining one where it is linked (`Def`'s `schema` and `mutations`).
+ * Payloads (a property's value) are values of whatever schema the target gives: their schema here is a value of any
+ * schema, and a spec records them untagged, interpreted by the target's schema.
  *
  * The schemas are built with the builders, anew for each store, which holds its own (docs/SCHEMA_EXTENSION.md, Decided,
  * 23): a store calls `schemas`, handing it the builders and its basic scalars.
@@ -82,7 +79,7 @@ function branches(of: UnionData, members: [string, unknown][]): void {
 }
 
 /** The mutation schemas, built anew with `builders` for a store whose basic scalars they are given: by name, each
- * `Mutations.<name>`'s local name (`Log`, `Ref`, ...). */
+ * `Mutations.<name>`'s local name (`Ref`, `OfPattern`, ...). */
 export function schemas(builders: Kit): Record<string, ObjectData | UnionData | S.OfContainer.Data | S.OfRelation.Data> {
   kit = builders;
   const { AnyValueBuilder, ContainerBuilder, Int, ObjectBuilder, Path, Text } = builders;
@@ -93,19 +90,14 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
     (t) => t.name("path").schema([Path]),
     text("symbol"),
   );
-  const Def = verb( // its path, but where it is linked; its schema's name (a schema object's kind's); its properties
-    "OfObject.Def",
-    (t) => t.name("path").schema([Path]),
-    text("schema"),
-    (t) => t.name("properties").schema([new ContainerBuilder().index([Text]).element([Payload]).create()]),
-  );
+  const Def = verb("OfObject.Def", text("schema")); // an object with no path, where it is linked: its schema's name, and
+  // its own mutations (given below)
   const Slice = verb(
     "OfContainer.Slice",
     (t) => t.name("index").schema([Payload]), // where the section starts, by the container's index
     (t) => t.name("items").schema([list(Payload)]),
   );
 
-  const Reference = union("Reference");
   const OfProperty = union("OfProperty");
   const OfContainer = union("OfContainer");
   const OfAny = union("OfAny");
@@ -145,46 +137,18 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
   );
   const LinkClear = verb("OfLink.Clear");
 
-  const Exists = verb("OfObject.Exists", (t) => t.name("definition").schema([Def])); // as Python, which cannot spell `def`
-  const AsProperty = verb( // `ref` at the top of the log only: nested under OfAny.AsObject, the path gives the object
-    "OfObject.AsProperty",
-    (t) => t.name("ref").schema([Ref]),
-    text("name"),
-    mutations(OfProperty),
-  );
+  const AsProperty = verb("OfObject.AsProperty", text("name"), mutations(OfProperty));
   const AsObject = verb("OfAny.AsObject", mutations(AsProperty));
   const EntryAsProperty = verb("OfEntry.AsProperty", text("name"), mutations(OfProperty));
   const EntryAsLink = verb("OfEntry.AsLink", text("name"), mutations(OfLink));
   const Entry = verb("OfEntry", mutations(OfEntryMember)); // an entry: its links' and its properties' mutations
-  const RelationInsert = verb(
-    "OfRelation.Insert",
-    (t) => t.name("relation").schema([Ref]), // the relation schema
-    (t) => t.name("entries").schema([list(Entry)]),
-  );
   const AsAdjacency = verb("OfObject.AsAdjacency", text("name"), mutations(OfAdjacency));
   const AdjacencyInsert = verb("OfAdjacency.Insert", (t) => t.name("entries").schema([list(Entry)]));
   const AdjacencyRemove = verb("OfAdjacency.Remove", (t) => t.name("entries").schema([list(Entry)]));
-  new ObjectBuilder(Def).properties([ // nested in a definition, each entry leaves out the link the defined object fills
-    (t: any) => t.name("inserts").schema([list(RelationInsert)]),
-    mutations(OfObject), // in a spec, the defined object's own mutations
-  ]).update();
-  const RelationRemove = verb(
-    "OfRelation.Remove",
-    (t) => t.name("relation").schema([Ref]),
-    (t) => t.name("entries").schema([list(Entry)]),
-  );
-  const RelationClear = verb("OfRelation.Clear", (t) => t.name("ref").schema([Ref]), text("adjacency"));
-  const AsEntries = verb( // applied in modulo order
-    "OfRelation.AsEntries",
-    (t) => t.name("ref").schema([Ref]),
-    text("adjacency"),
-    mutations(EntryAsProperty),
-  );
+  new ObjectBuilder(Def).properties([mutations(OfObject)]).update();
 
   // --- The unions' branches ---
 
-  branches(Reference, [["exists", Exists], ["as_property", AsProperty], ["insert", RelationInsert],
-    ["remove", RelationRemove], ["clear", RelationClear], ["as_entries", AsEntries]]);
   branches(OfProperty, [["set", PropertySet], ["clear", PropertyClear], ["as_any", PropertyAsAny]]);
   branches(OfContainer, [["insert", ContainerInsert], ["remove", ContainerRemove], ["append", ContainerAppend],
     ["prepend", ContainerPrepend], ["clear", ContainerClear], ["as_items", AsItems]]);
@@ -197,7 +161,6 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
   branches(OfAdjacency, [["insert", AdjacencyInsert], ["remove", AdjacencyRemove]]);
   // a spec (Schemas.OfPattern.spec): for each symbol, the mutations of the object it binds (Object identity, 95)
   const OfPattern = new ContainerBuilder().name("Mutations.OfPattern").index([Text]).element([list(OfObject)]).create();
-  const Log = new ContainerBuilder().name("Mutations.Log").index([Int]).element([Reference]).create();
 
   // --- Mutation expressions: a transaction and its terms, reference objects linked by relations (93) ---
 
@@ -229,7 +192,7 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
   const Otherwise = relation("Otherwise", "partition", "next", OfTerm);
   const Requiring = relation("Requiring", "branch", "constraint", kit.Expression, false);
   const Applies = relation("Applies", "term", "pattern", kit.Pattern);
-  const Existing = relation("Exists", "term", "pattern", kit.Pattern); // not `Exists`, the verb's
+  const Existing = relation("Exists", "term", "pattern", kit.Pattern);
   branches(OfTerm, [["map", OfMap], ["reduce", OfReduce], ["partition", OfPartition], ["update", OfUpdate], ["upsert", OfUpsert]]);
   /** Gives `kind` its adjacencies: each a name, a relation, and the link `kind` fills. */
   const adjacencies = (kind: ObjectData, ...named: [string, S.OfRelation.Data, string][]): void => {
@@ -248,7 +211,6 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
     Ref,
     Def,
     Slice,
-    Reference,
     OfProperty,
     OfContainer,
     OfAny,
@@ -278,21 +240,15 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
     AsIntersection,
     LinkSet,
     LinkClear,
-    Exists,
     AsProperty,
     AsObject,
     EntryAsProperty,
     EntryAsLink,
     Entry,
-    RelationInsert,
     AsAdjacency,
     AdjacencyInsert,
     AdjacencyRemove,
-    RelationRemove,
-    RelationClear,
-    AsEntries,
     OfPattern,
-    Log,
     OfTerm,
     OfTransaction,
     OfMap,

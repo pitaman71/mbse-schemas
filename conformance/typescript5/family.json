@@ -1,389 +1,32 @@
 [
   {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "target": {}
-          }
-        },
-        "schema": "Schemas.OfModule",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Corpus"
-              },
-              "next": {
-                "target": {}
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfModule",
-        "properties": {
-          "name": "Corpus"
-        }
-      }
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "Defines"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
+    "mutations": [
+      {
+        "upsert": {
+          "exists": [
             {
-              "as_link": {
-                "name": "module",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "target": {}
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Corpus"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "Corpus"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Person"
-              },
-              "next": {
-                "target": {}
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfObject",
-        "properties": {
-          "name": "Person",
-          "ref": true
-        }
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Person"
-              },
-              "next": {
-                "entry": {
-                  "i": "adjacencies",
-                  "o": "",
-                  "properties": {
-                    "name": "children"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfAdjacency",
-        "properties": {
-          "me": "parent"
-        }
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Person"
-              },
-              "next": {
-                "entry": {
-                  "i": "adjacencies",
-                  "o": "",
-                  "properties": {
-                    "name": "parents"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfAdjacency",
-        "properties": {
-          "me": "child"
-        }
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Person"
-              },
-              "next": {
-                "entry": {
-                  "i": "adjacencies",
-                  "o": "",
-                  "properties": {
-                    "name": "mentees"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfAdjacency",
-        "properties": {
-          "me": "mentor"
-        }
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Person"
-              },
-              "next": {
-                "entry": {
-                  "i": "adjacencies",
-                  "o": "",
-                  "properties": {
-                    "name": "mentors"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfAdjacency",
-        "properties": {
-          "me": "mentee"
-        }
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Person"
-              },
-              "next": {
-                "entry": {
-                  "i": "properties",
-                  "o": "",
-                  "properties": {
-                    "name": "given_name"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfProperty",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "HasSchema"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "member",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "properties",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "given_name"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
+              "symbols": {
+                "0": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfObject"
+                                },
+                                "next": {
+                                  "target": {}
                                 }
                               }
                             }
@@ -391,36 +34,29 @@
                         }
                       }
                     }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Schemas"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "schemas",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "OfStr"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
+                  ]
+                },
+                "1": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfRelation"
+                                },
+                                "next": {
+                                  "target": {}
                                 }
                               }
                             }
@@ -428,104 +64,29 @@
                         }
                       }
                     }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Person"
-              },
-              "next": {
-                "entry": {
-                  "i": "properties",
-                  "o": "",
-                  "properties": {
-                    "name": "birth_date"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfProperty",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "HasSchema"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "member",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "properties",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "birth_date"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
+                  ]
+                },
+                "2": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfRelation"
+                                },
+                                "next": {
+                                  "target": {}
                                 }
                               }
                             }
@@ -533,36 +94,29 @@
                         }
                       }
                     }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Schemas"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "schemas",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "OfStr"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
+                  ]
+                },
+                "3": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfRelation"
+                                },
+                                "next": {
+                                  "target": {}
                                 }
                               }
                             }
@@ -570,100 +124,29 @@
                         }
                       }
                     }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "HasProperty"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "owner",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "property",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "properties",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "given_name"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
+                  ]
+                },
+                "4": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfObject"
+                                },
+                                "next": {
+                                  "target": {}
                                 }
                               }
                             }
@@ -671,2670 +154,1071 @@
                         }
                       }
                     }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "given_name"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "owner",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "property",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "properties",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "birth_date"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "birth_date"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "HasAdjacency"
-                  },
-                  "next": {
-                    "target": {}
-                  }
+                  ]
                 }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "owner",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "adjacency",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "adjacencies",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "children"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "children"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "owner",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "adjacency",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "adjacencies",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "parents"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "parents"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "owner",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "adjacency",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "adjacencies",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "mentees"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "mentees"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "owner",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "adjacency",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "adjacencies",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "mentors"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "mentors"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
               },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "Defines"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "module",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "target": {}
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "target": {}
-                              }
+              "spec": [
+                {
+                  "0": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Person"
                             }
                           }
-                        }
+                        ]
                       }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "Person"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Parentage"
-              },
-              "next": {
-                "target": {}
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfRelation",
-        "properties": {
-          "name": "Parentage"
-        }
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Parentage"
-              },
-              "next": {
-                "entry": {
-                  "i": "links",
-                  "o": "",
-                  "properties": {
-                    "name": "parent"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfSymbol",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Parentage"
-              },
-              "next": {
-                "entry": {
-                  "i": "links",
-                  "o": "",
-                  "properties": {
-                    "name": "child"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfSymbol",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Parentage"
-              },
-              "next": {
-                "entry": {
-                  "i": "properties",
-                  "o": "",
-                  "properties": {
-                    "name": "kind"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfProperty",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "HasSchema"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "member",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Parentage"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "properties",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "kind"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
+                    },
+                    {
+                      "as_property": {
+                        "name": "ref",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": true
                             }
                           }
-                        }
+                        ]
                       }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Schemas"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "schemas",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "OfStr"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "HasProperty"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "owner",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Parentage"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "property",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Parentage"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "properties",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "kind"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "kind"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "HasLink"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "owner",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Parentage"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "link",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Parentage"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "links",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "parent"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "parent"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "owner",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Parentage"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "link",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Parentage"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "links",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "child"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "child"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "Relating"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "adjacency",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "adjacencies",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "parents"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "relation",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Parentage"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "adjacency",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "adjacencies",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "children"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "relation",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Parentage"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "Defines"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "module",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "target": {}
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Parentage"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "Parentage"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Mentorship"
-              },
-              "next": {
-                "target": {}
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfRelation",
-        "properties": {
-          "name": "Mentorship"
-        }
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Mentorship"
-              },
-              "next": {
-                "entry": {
-                  "i": "links",
-                  "o": "",
-                  "properties": {
-                    "name": "mentor"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfSymbol",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Mentorship"
-              },
-              "next": {
-                "entry": {
-                  "i": "links",
-                  "o": "",
-                  "properties": {
-                    "name": "mentee"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfSymbol",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "HasLink"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "owner",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Mentorship"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "link",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Mentorship"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "links",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "mentor"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "mentor"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "owner",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Mentorship"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "link",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Mentorship"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "links",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "mentee"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "mentee"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "Relating"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "adjacency",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "adjacencies",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "mentors"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "relation",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Mentorship"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "adjacency",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Person"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "adjacencies",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "mentees"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "relation",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Mentorship"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "Defines"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "module",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "target": {}
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Mentorship"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "Mentorship"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Corpus"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "Holds"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfRelation",
-        "properties": {
-          "name": "Corpus.Holds"
-        }
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Corpus"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "Holds"
-                  },
-                  "next": {
-                    "entry": {
-                      "i": "links",
-                      "o": "",
-                      "properties": {
-                        "name": "corpus"
-                      },
-                      "next": {
-                        "target": {}
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfSymbol",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Corpus"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "Holds"
-                  },
-                  "next": {
-                    "entry": {
-                      "i": "links",
-                      "o": "",
-                      "properties": {
-                        "name": "item"
-                      },
-                      "next": {
-                        "target": {}
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfSymbol",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "HasLink"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "owner",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Corpus"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "schemas",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "Holds"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "link",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Corpus"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "schemas",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "Holds"
-                                  },
-                                  "next": {
-                                    "entry": {
-                                      "i": "links",
-                                      "o": "",
-                                      "properties": {
-                                        "name": "corpus"
-                                      },
-                                      "next": {
-                                        "target": {}
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "adjacencies",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "adjacency",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfAdjacency",
+                                                "mutations": [
+                                                  {
+                                                    "as_property": {
+                                                      "name": "me",
+                                                      "mutations": [
+                                                        {
+                                                          "set": {
+                                                            "value": "parent"
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  },
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "relation",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "relation",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "symbol": "1"
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "children"
+                                            }
+                                          }
+                                        ]
                                       }
                                     }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "corpus"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "owner",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Corpus"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "schemas",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "Holds"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "link",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Corpus"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "schemas",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "Holds"
-                                  },
-                                  "next": {
-                                    "entry": {
-                                      "i": "links",
-                                      "o": "",
-                                      "properties": {
-                                        "name": "item"
-                                      },
-                                      "next": {
-                                        "target": {}
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "adjacency",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfAdjacency",
+                                                "mutations": [
+                                                  {
+                                                    "as_property": {
+                                                      "name": "me",
+                                                      "mutations": [
+                                                        {
+                                                          "set": {
+                                                            "value": "child"
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  },
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "relation",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "relation",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "symbol": "1"
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "parents"
+                                            }
+                                          }
+                                        ]
                                       }
                                     }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "item"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "Defines"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "module",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Corpus"
-                              },
-                              "next": {
-                                "target": {}
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Corpus"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "schemas",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "Holds"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "Holds"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Corpus"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "Root"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfObject",
-        "properties": {
-          "name": "Corpus.Root",
-          "ref": true,
-          "singleton": "corpus"
-        }
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Corpus"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "Root"
-                  },
-                  "next": {
-                    "entry": {
-                      "i": "adjacencies",
-                      "o": "",
-                      "properties": {
-                        "name": "holds"
-                      },
-                      "next": {
-                        "target": {}
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "schema": "Schemas.OfAdjacency",
-        "properties": {
-          "me": "corpus"
-        }
-      }
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "Relating"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "adjacency",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Corpus"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "schemas",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "Root"
-                                  },
-                                  "next": {
-                                    "entry": {
-                                      "i": "adjacencies",
-                                      "o": "",
-                                      "properties": {
-                                        "name": "holds"
-                                      },
-                                      "next": {
-                                        "target": {}
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "adjacency",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfAdjacency",
+                                                "mutations": [
+                                                  {
+                                                    "as_property": {
+                                                      "name": "me",
+                                                      "mutations": [
+                                                        {
+                                                          "set": {
+                                                            "value": "mentor"
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  },
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "relation",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "relation",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "symbol": "2"
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "mentees"
+                                            }
+                                          }
+                                        ]
                                       }
                                     }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "relation",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Corpus"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "schemas",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "Holds"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "HasAdjacency"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "owner",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Corpus"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "schemas",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "Root"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "adjacency",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Corpus"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "schemas",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "Root"
-                                  },
-                                  "next": {
-                                    "entry": {
-                                      "i": "adjacencies",
-                                      "o": "",
-                                      "properties": {
-                                        "name": "holds"
-                                      },
-                                      "next": {
-                                        "target": {}
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "adjacency",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfAdjacency",
+                                                "mutations": [
+                                                  {
+                                                    "as_property": {
+                                                      "name": "me",
+                                                      "mutations": [
+                                                        {
+                                                          "set": {
+                                                            "value": "mentee"
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  },
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "relation",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "relation",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "symbol": "2"
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "mentors"
+                                            }
+                                          }
+                                        ]
                                       }
                                     }
-                                  }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "properties",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "property",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfProperty",
+                                                "mutations": [
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "schema",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "schema",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "path": {
+                                                                                "singleton": ".",
+                                                                                "next": {
+                                                                                  "entry": {
+                                                                                    "i": "schemas",
+                                                                                    "o": "",
+                                                                                    "properties": {
+                                                                                      "name": "Schemas"
+                                                                                    },
+                                                                                    "next": {
+                                                                                      "entry": {
+                                                                                        "i": "schemas",
+                                                                                        "o": "",
+                                                                                        "properties": {
+                                                                                          "name": "OfStr"
+                                                                                        },
+                                                                                        "next": {
+                                                                                          "target": {}
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "given_name"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "property",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfProperty",
+                                                "mutations": [
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "schema",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "schema",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "path": {
+                                                                                "singleton": ".",
+                                                                                "next": {
+                                                                                  "entry": {
+                                                                                    "i": "schemas",
+                                                                                    "o": "",
+                                                                                    "properties": {
+                                                                                      "name": "Schemas"
+                                                                                    },
+                                                                                    "next": {
+                                                                                      "entry": {
+                                                                                        "i": "schemas",
+                                                                                        "o": "",
+                                                                                        "properties": {
+                                                                                          "name": "OfStr"
+                                                                                        },
+                                                                                        "next": {
+                                                                                          "target": {}
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "birth_date"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "1": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Parentage"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "links",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "parent"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "child"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "properties",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "property",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfProperty",
+                                                "mutations": [
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "schema",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "schema",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "path": {
+                                                                                "singleton": ".",
+                                                                                "next": {
+                                                                                  "entry": {
+                                                                                    "i": "schemas",
+                                                                                    "o": "",
+                                                                                    "properties": {
+                                                                                      "name": "Schemas"
+                                                                                    },
+                                                                                    "next": {
+                                                                                      "entry": {
+                                                                                        "i": "schemas",
+                                                                                        "o": "",
+                                                                                        "properties": {
+                                                                                          "name": "OfStr"
+                                                                                        },
+                                                                                        "next": {
+                                                                                          "target": {}
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "kind"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "2": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Mentorship"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "links",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "mentor"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "mentee"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "3": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Corpus.Holds"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "links",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "corpus"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "item"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "4": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Corpus.Root"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_property": {
+                        "name": "ref",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": true
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_property": {
+                        "name": "singleton",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "corpus"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "adjacencies",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "adjacency",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfAdjacency",
+                                                "mutations": [
+                                                  {
+                                                    "as_property": {
+                                                      "name": "me",
+                                                      "mutations": [
+                                                        {
+                                                          "set": {
+                                                            "value": "corpus"
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  },
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "relation",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "relation",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "symbol": "3"
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "holds"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "mutations": [
+      {
+        "upsert": {
+          "exists": [
+            {
+              "symbols": {
+                "0": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Corpus"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "Root"
+                                },
+                                "next": {
+                                  "target": {}
                                 }
                               }
                             }
@@ -3342,617 +1226,437 @@
                         }
                       }
                     }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "holds"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Schemas"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "Defines"
-                  },
-                  "next": {
-                    "target": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "module",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Corpus"
-                              },
-                              "next": {
-                                "target": {}
-                              }
+                  ]
+                },
+                "1": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Person"
+                            },
+                            "next": {
+                              "target": {}
                             }
                           }
                         }
                       }
                     }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "schema",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": ".",
-                          "next": {
-                            "entry": {
-                              "i": "schemas",
-                              "o": "",
-                              "properties": {
-                                "name": "Corpus"
-                              },
-                              "next": {
-                                "entry": {
-                                  "i": "schemas",
-                                  "o": "",
-                                  "properties": {
-                                    "name": "Root"
-                                  },
-                                  "next": {
-                                    "target": {}
-                                  }
+                  ]
+                },
+                "2": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Person"
+                            },
+                            "next": {
+                              "target": {}
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "3": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Person"
+                            },
+                            "next": {
+                              "target": {}
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "4": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Person"
+                            },
+                            "next": {
+                              "target": {}
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "spec": [
+                {
+                  "0": [
+                    {
+                      "as_adjacency": {
+                        "name": "holds",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "item",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "1"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "item",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "2"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "item",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "3"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
                                 }
-                              }
+                              ]
                             }
                           }
-                        }
+                        ]
                       }
                     }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "name",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "Root"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "path": {
-          "singleton": "corpus",
-          "next": {
-            "target": {}
-          }
-        },
-        "schema": "Corpus.Root",
-        "properties": {}
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "n": 0,
-        "schema": "Person",
-        "properties": {
-          "given_name": "Ada",
-          "birth_date": "1815-12-10"
-        }
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "n": 1,
-        "schema": "Person",
-        "properties": {
-          "given_name": "Bob"
-        }
-      }
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Mentorship"
-              },
-              "next": {
-                "target": {}
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "mentor",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "n": 1
+                  ]
+                },
+                {
+                  "1": [
+                    {
+                      "as_property": {
+                        "name": "given_name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Ada"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_property": {
+                        "name": "birth_date",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "1815-12-10"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "children",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "child",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "2"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "kind",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "biological"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "mentees",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "mentee",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "2"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "mentors",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "mentor",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "2"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
                       }
                     }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "mentee",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "n": 0
+                  ]
+                },
+                {
+                  "2": [
+                    {
+                      "as_property": {
+                        "name": "given_name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Bob"
+                            }
+                          }
+                        ]
                       }
                     }
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "mentor",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "n": 0
+                  ]
+                },
+                {
+                  "3": [
+                    {
+                      "as_property": {
+                        "name": "given_name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Carol"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "children",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "child",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "4"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "kind",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "adoptive"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "mentees",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "mentee",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "3"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
                       }
                     }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "mentee",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "n": 1
+                  ]
+                },
+                {
+                  "4": [
+                    {
+                      "as_property": {
+                        "name": "given_name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Dan"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_property": {
+                        "name": "birth_date",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "2001-02-03"
+                            }
+                          }
+                        ]
                       }
                     }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Parentage"
-              },
-              "next": {
-                "target": {}
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "parent",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "n": 0
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "child",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "n": 1
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "kind",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "biological"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "n": 2,
-        "schema": "Person",
-        "properties": {
-          "given_name": "Carol"
-        }
-      }
-    }
-  },
-  {
-    "exists": {
-      "definition": {
-        "n": 3,
-        "schema": "Person",
-        "properties": {
-          "given_name": "Dan",
-          "birth_date": "2001-02-03"
-        }
-      }
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Mentorship"
-              },
-              "next": {
-                "target": {}
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "mentor",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "n": 2
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "mentee",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "n": 2
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Parentage"
-              },
-              "next": {
-                "target": {}
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "parent",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "n": 2
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "child",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "n": 3
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_property": {
-                "name": "kind",
-                "mutations": [
-                  {
-                    "set": {
-                      "value": "adoptive"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    "insert": {
-      "relation": {
-        "path": {
-          "singleton": ".",
-          "next": {
-            "entry": {
-              "i": "schemas",
-              "o": "",
-              "properties": {
-                "name": "Corpus"
-              },
-              "next": {
-                "entry": {
-                  "i": "schemas",
-                  "o": "",
-                  "properties": {
-                    "name": "Holds"
-                  },
-                  "next": {
-                    "target": {}
-                  }
+                  ]
                 }
-              }
-            }
-          }
-        }
-      },
-      "entries": [
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "corpus",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": "corpus",
-                          "next": {
-                            "target": {}
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "item",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "n": 0
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "corpus",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": "corpus",
-                          "next": {
-                            "target": {}
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "item",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "n": 1
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "mutations": [
-            {
-              "as_link": {
-                "name": "corpus",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "path": {
-                          "singleton": "corpus",
-                          "next": {
-                            "target": {}
-                          }
-                        }
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "as_link": {
-                "name": "item",
-                "mutations": [
-                  {
-                    "set": {
-                      "ref": {
-                        "n": 2
-                      }
-                    }
-                  }
-                ]
-              }
+              ]
             }
           ]
         }
-      ]
-    }
+      }
+    ]
   }
 ]

@@ -1,5 +1,5 @@
 /**
- * The text of this implementation's conformance logs, each case's store's initial snapshot. Platform-neutral: `write.ts` saves it with Node, and the
+ * The text of this implementation's conformance corpus, each case's store's snapshot. Platform-neutral: `write.ts` saves it with Node, and the
  * portability smoke test (`tests/portability/deno.ts`) compares it without Node.
  */
 

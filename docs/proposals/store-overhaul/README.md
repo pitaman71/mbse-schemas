@@ -279,6 +279,36 @@ so that main stays current and no branch waits on another.
        modules, placements, the objects it holds, named or not) are restored, and the updates applied at commit undone.
      - It refuses a transaction within one (50). The decoders (`Plain.FromPlain`, a log's reader) each write in a
        transaction of their own (90).
+
+     The third, as built: `store.transaction(spec)`, `spec` a `Mutations.OfTransaction` or a callback building one, and
+     a sequential executor (`Transactions`).
+     - Before it writes anything, it checks the expression: each term refers only to symbols a term before it binds
+       (85), the symbols after a partition being those every branch binds; and it refuses expressions (87): a pattern's
+       `requires` and variables, a map's or a reduce's `variables`, a reduce that collects (`suffixes`, `computes`), a
+       branch's `requires`, a partition both `first` and `last`.
+     - Its stream starts as one frame, empty, and each term makes the frames it passes on through `then`; it gives the
+       frames its chain ends with, each the objects its symbols bind, by symbol (a dict; a `Map` in TypeScript). It
+       runs in the overlay (stage two), so that a transaction that raises writes nothing.
+     - A map binds each symbol its frame lacks, in the order the pattern declares them, to every object of its schema
+       that the store reaches from its singletons (`store.extent`) and whose spec holds, one frame each; a singleton's
+       symbol binds the singleton (77). While a symbol is bound, the spec's entries that link a symbol not yet bound
+       are left out; the frame is then checked against the whole spec.
+     - An upsert binds the same way, and where nothing is found, creates the object. A counted object it created from
+       the same frame, for the same symbol and `key`, it finds again first, through a weak index (63); an owned object
+       is found by the spec's entries in its owning adjacency, where the spec gives one there (60). It then writes its
+       spec over each frame where it does not hold.
+     - An update writes its spec over each frame where it does not hold: a property's value set or cleared, an entry
+       added where none it holds matches, replacing the one entry an adjacency holds at most, and an object an entry
+       defines (`def`) made.
+     - A reduce drops its collector's symbols, keeping each frame left once. A partition runs every branch, none
+       requiring constraints yet, or its first or last; its `none` where it has no branch; and passes what they end
+       with, joined, to its `then`.
+
+     Settled while building it, for the user's review: a symbol of a schema object, which 86's `install(txn)` needs,
+     is refused for now ("binds a schema object: transactions bind data objects until schemas are written by
+     transactions"), and becomes a stage of its own before 4e-2; a map finds only what the store reaches from its
+     singletons, so a counted object linked from none (a term, a note no one links) is found only by the upsert that
+     made it; an upsert that finds several objects binds each, as a map does.
    - **4f, the wire** (45, 51, 55, 56): a store's snapshot is made of transactions; a journal holds transactions as
      submitted, replayed by executing them; a Reachable document is one transaction, its counted objects numbered within
      it, owned objects and singletons referred to by path. The corpora are regenerated, the JSON byte-identical between

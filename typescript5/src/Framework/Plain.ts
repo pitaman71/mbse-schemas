@@ -1918,3 +1918,5 @@ export function FromPlain(store: Stores.Store): FromPlainCall {
   return Object.assign(named(call), { OfScalar: named(OfScalar), OfObject: named(OfObject), Reachable: named(OfObject),
     Value: named(Value), Snapshot: (log: unknown, ignored?: Ignored[]): unknown[] => new LogReader(store, ignored ?? null).apply(log) });
 }
+
+export { decode as _decode, set as _set, byPath as _by_path };

@@ -36,6 +36,7 @@ from typing import Any
 import contextlib
 import itertools
 import math
+import weakref
 
 from . import Schemas, Stores
 from .Errors import ReadOnlyError
@@ -136,6 +137,8 @@ class _Store(Stores.Catalog):
         self._unowned: list[_ObjectData] = []  # objects created since, whose schemas declare an owner
         self._orphaned: list[_ObjectData] = []  # owned objects an owning entry of which was removed since
         self._keys: dict[tuple[int, int, str], int] = {}  # the last number a key's pattern gave, by relation, owner, key
+        # the counted objects upserts created, weakly, by upsert key, symbol and the frame that reached the upsert (63)
+        self._upserted: dict[tuple[Any, ...], weakref.ref[Any]] = {}
 
     @contextlib.contextmanager
     def _writing(self) -> Iterator[None]:
@@ -183,7 +186,8 @@ class _Store(Stores.Catalog):
 
     def _saved(self) -> dict[str, Any]:
         """What the store holds, besides objects, that a transaction may change: restored where it raises."""
-        return {"_schemas": dict(self._schemas), "_singletons": dict(self._singletons), "_keys": dict(self._keys)}
+        return {"_schemas": dict(self._schemas), "_singletons": dict(self._singletons), "_keys": dict(self._keys),
+                "_upserted": dict(self._upserted)}
 
     def _restore(self, saved: dict[str, Any]) -> None:
         for name, value in saved.items():
@@ -286,7 +290,11 @@ def _owner_adjacencies(schema: ObjectSchema) -> list[Schemas.OfAdjacency.Data]:
 
 def _counted(target: Any) -> bool:
     """Whether a proxy is a counted object: neither a singleton nor owned (docs/OBJECT_IDENTITY.md, Decided, 37)."""
-    schema = object.__getattribute__(target, "_schema")
+    return _counted_schema(object.__getattribute__(target, "_schema"))
+
+
+def _counted_schema(schema: ObjectSchema) -> bool:
+    """Whether an object of `schema` is counted: neither a singleton nor owned."""
     return schema.singleton is None and not _owner_adjacencies(schema)
 
 

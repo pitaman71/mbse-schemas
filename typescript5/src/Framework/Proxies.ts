@@ -191,6 +191,8 @@ export abstract class _Store extends Stores.Catalog implements Stores.Store {
   _unowned: Instance[] = []; // objects created since, whose schemas declare an owner
   _orphaned: Instance[] = []; // owned objects an owning entry of which was removed since
   readonly _keys = new Map<string, number>(); // the last number a key's pattern gave, by relation, owner and key
+  /** The counted objects upserts created, weakly, by upsert key, symbol and the frame that reached the upsert (63). */
+  readonly _upserted = new Map<string, WeakRef<object>>();
 
   /** A transaction's writes (docs/OBJECT_IDENTITY.md, Decided, 89, 96): held in an overlay while it runs, written when it
    * ends, or, where it throws, dropped, the store's registries as they were before it began. */
@@ -225,7 +227,7 @@ export abstract class _Store extends Stores.Catalog implements Stores.Store {
 
   /** What the store holds, besides objects, that a transaction may change: restored where it throws. */
   _saved(): Map<Map<unknown, unknown>, [unknown, unknown][]> {
-    return new Map<Map<unknown, unknown>, [unknown, unknown][]>([this._schemas, this._singletons, this._keys]
+    return new Map<Map<unknown, unknown>, [unknown, unknown][]>([this._schemas, this._singletons, this._keys, this._upserted]
       .map((held) => [held as Map<unknown, unknown>, [...held]]));
   }
 
@@ -382,7 +384,11 @@ function ownerAdjacencies(schema: ObjectSchema): AdjacencySchema[] {
 
 /** Whether a proxy is a counted object: neither a singleton nor owned (docs/OBJECT_IDENTITY.md, Decided, 37). */
 export function _counted(target: unknown): boolean {
-  const schema = (innerOf(target) as _ObjectData)._schema;
+  return _counted_schema((innerOf(target) as _ObjectData)._schema);
+}
+
+/** Whether an object of `schema` is counted: neither a singleton nor owned. */
+export function _counted_schema(schema: ObjectSchema): boolean {
   return schema.singleton === null && ownerAdjacencies(schema).length === 0;
 }
 
@@ -3057,7 +3063,7 @@ export function _isVisitor(value: unknown): boolean {
 export { shell as _shell, Shelled as _Shelled, Dunders as _Dunders, makeEmpty as _makeEmpty, makeProperty as _makeProperty,
   isFunction as _isFunction, visit as _visit, noun as _noun, withArticle as _withArticle, isObjectData as _isObjectData,
   makeProperties as _makeProperties, innerOf as _innerOf, storeOf as _store_of, linking as _linking,
-  addEntry as _add_entry, discard as _discard, makeEntry as _make_entry, adjacentOf as _adjacent_of };
+  addEntry as _add_entry, discard as _discard, makeEntry as _make_entry, adjacentOf as _adjacent_of, single as _single };
 
 /** Internal classes, exposed for protocol conformance tests. */
 export const _internals = { makeRecordBuilder, _ObjectData, _RecordData, _Entry, _Empty, _Scalar, _Any, _Property, _Properties, _Adjacency,

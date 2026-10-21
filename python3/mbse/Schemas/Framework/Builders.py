@@ -1781,6 +1781,16 @@ class Store(Proxies._Store):
             self._place(data)
         return data
 
+    def transaction(self, spec: Any) -> list[dict[str, Any]]:
+        """Executes a transaction (docs/OBJECT_IDENTITY.md, Decided, 85 to 97): a `Mutations.OfTransaction`, or a
+        callback building one, its root term given through `mutations`. Every write it makes is held apart until it
+        ends, and dropped where it raises. Gives the frames its chain of terms ends with, each the objects its symbols
+        bind, by symbol."""
+        from . import Transactions
+
+        transaction = self.Mutations.OfTransaction(spec) if callable(spec) else spec
+        return Transactions._execute(self, transaction)
+
     def _defers(self, builder: _Builder[Any]) -> bool:
         """Whether a builder's update of a schema object waits for the commit of the transaction open: where the object
         existed before it began (docs/OBJECT_IDENTITY.md, Decided, 96). What it would link is checked now."""

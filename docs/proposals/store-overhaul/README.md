@@ -425,6 +425,15 @@ so that main stays current and no branch waits on another.
        through them as any value is; MUT-06 pins the difference. Reading a payload bare would need a value schema
        interpreted by another's, which no kind has. A pattern's `spec` is not yet a property of `Schemas.OfPattern`,
        so today's snapshot leaves it out; 4f-4 writes it.
+     - **4f-2, as built**: `Plain.ToPlain(store).Transaction(tx)` writes a transaction's expression nested
+       (SERIALIZATION.md, Transactions on the wire), generically from the schemas of its terms and of the schema
+       objects they link; `Plain.FromPlain(store).Transaction(plain)` builds it through the store's builders, each
+       nested object defined through its link by name (`e.branch(cb)`), its kind (`e.upsert(cb)`), or, where several
+       schemas fill the link, its schema's builder (`{"Schemas.OfUnion": ...}`); a pattern's builder takes a spec as
+       recorded. Every transaction the Python suite executes was, while building it, written, read back, written again
+       the same and executed from what was read, with every case passing. The executor refuses, before it runs, a spec
+       that removes entries or clears an entry's link or property, which only one read from the wire can give; a term
+       linked from two places is refused when written. TXN-13 covers it.
    - **4h, the last release**, and the dependents: mbse-expressions refines `OfExpression` and `OfConstraint`;
      mbse-programs' corpora become Reachable transactions; mbse-patterns, built on `OfPredicate`, is left without it.
    Releases (question 8, renumbered by the reorder, proposed for the user's review): 0.20.0 after 4c, 0.21.0 after 4d

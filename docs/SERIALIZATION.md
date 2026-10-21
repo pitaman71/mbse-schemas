@@ -100,6 +100,28 @@ with its path and why, in the list given (`Plain.FromPlain(store).Snapshot(log, 
 What an extension builds is written and read like any schema, so a member another schema lacks is a malformed snapshot
 still (Store overhaul, Decided, 19).
 
+## Transactions on the wire
+
+A transaction is written as its expression (docs/OBJECT_IDENTITY.md, Decided, 56; Store overhaul, 4f), nested, since
+reading it executes it: `Plain.ToPlain(store).Transaction(tx)` writes it, `Plain.FromPlain(store).Transaction(plain)`
+builds it again through the store's builders, and `store.transaction(...)` executes it. A journal is a list of them, as
+submitted, replayed by executing each in order; a transaction's imperative scope has no expression, so none (103).
+
+```json
+{"uid": "6f1c4e2a", "mutations": [{"upsert": {"key": "k", "exists": [{
+  "symbols": {"book": {"schema": [{"$ref": <crm.Book's path>}]}, "ada": {"schema": [{"$ref": <crm.Person's path>}]}},
+  "spec": [{"ada": [{"as_property": {"name": "name", "mutations": [{"set": {"value": "Ada"}}]}}]}]}]}}]}
+```
+
+- An object is a mapping of its properties, then its named adjacencies, in its schema's order.
+- An adjacency's entries: where its relation has one other link and no properties, what each links (the peer
+  shorthand); where it has one other link and one property, a mapping of that property to what each links (a
+  pattern's symbols, by name); else each entry's links and properties.
+- What an entry links is nested where it has no path, a term linked from one place or a schema object with no name of
+  its own, and tagged with its kind where the link is a kind union (`{"upsert": ...}`), or with its schema's name where
+  several schemas fill the link (`{"Schemas.OfUnion": ...}`); anything else is `{"$ref": path}`.
+- A pattern's spec is written as recorded: for each symbol, the mutations of the object it binds (`Mutations.OfPattern`).
+
 ## Order : Subsequent Snapshots
 
 In anticipation for journal formatting, a stateful instance of ToPlain may be retainable. Subsequent snapshots can be sent as mutation logs without having to re-send modules and schemas.

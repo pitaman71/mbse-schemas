@@ -1261,7 +1261,8 @@ class PatternBuilder(_KindBuilder[S.OfPattern.Data]):
             from . import Transactions
 
             items = [specs] if _is_function(specs) else list(specs)
-            recorded = [Transactions._recorded(self._store, self._working.symbols, item) for item in items]
+            recorded = [dict(item) if isinstance(item, Mapping) else  # as recorded, read from the wire
+                        Transactions._recorded(self._store, self._working.symbols, item) for item in items]
             self._working.spec = (*self._working.spec, *recorded)
             return self
 

@@ -1814,6 +1814,170 @@ class LogReader {
   }
 }
 
+/** A transaction's expression as the wire carries it, nested (docs/OBJECT_IDENTITY.md, Decided, 56; Store overhaul,
+ * 4f): an object as a mapping of its properties and its named adjacencies' entries. An entry of a relation of one other
+ * link and no properties is written as what it links, the peer shorthand; of one other link and one property (a name),
+ * its adjacency as a mapping of that property to what it links; any other as a mapping of its other links and its
+ * properties. What it links is nested where it has no path (a term, linked from one place; a schema object with no name
+ * of its own), tagged with its kind where its link is a kind union, or with its schema's name where several schemas
+ * fill its link; else referred to by its path, `{"$ref": path}`. A pattern's spec is written as recorded. */
+class Expression {
+  private readonly names: Ref;
+  /** What it nested, each once. */
+  private readonly met = new Set<unknown>();
+
+  constructor(private readonly store: any) {
+    this.names = _names(store);
+  }
+
+  private reader(value: any): any {
+    const builder = Builders._builder_for(value) as new (...args: unknown[]) => unknown;
+    return new builder(value, false, this.store);
+  }
+
+  object(visitor: any): PlainMap {
+    const schema = visitor.as_schema();
+    const out: PlainMap = new Map();
+    for (const prop of visitor.as_properties) out.set(prop.as_schema().name, value(prop, prop.as_schema().schema, this.names)[1]);
+    for (const [name, adjacency] of schema.adjacencies as Map<string, Schemas.OfAdjacency.Data>) {
+      const entries = [...visitor[name]];
+      if (entries.length > 0) out.set(name, this.entries(entries, adjacency));
+    }
+    const original: any = Builders._linked(visitor);
+    if (original instanceof Schemas.OfPattern.Data && original.spec.length > 0) {
+      out.set("spec", (original.spec as PlainMap[]).map((item) => new Map(item)));
+    }
+    return out;
+  }
+
+  private entries(entries: any[], adjacency: Schemas.OfAdjacency.Data): PlainData {
+    const relation = adjacency.relation as Schemas.OfRelation.Data;
+    const others = [...relation.entry.links.keys()].filter((link) => link !== adjacency.me);
+    const props = [...relation.entry.properties];
+    if (others.length === 1 && props.length === 0) return entries.map((entry) => this.linked(entry, relation, others[0]!));
+    if (others.length === 1 && props.length === 1) { // keyed by a name: no relation the expressions link has another key
+      return new Map(entries.map((entry) => [entry[props[0]![0]].get(), this.linked(entry, relation, others[0]!)]));
+    }
+    return entries.map((entry) => {
+      const out: PlainMap = new Map(others.map((link) => [link, this.linked(entry, relation, link)]));
+      for (const [name, prop] of props) {
+        const [present, plain] = value(entry[name], prop.schema, this.names);
+        if (present) out.set(name, plain);
+      }
+      return out;
+    });
+  }
+
+  private linked(entry: any, relation: Schemas.OfRelation.Data, link: string): PlainData {
+    let target = entry[link];
+    if (Builders._builder_for(target) !== null) {
+      target = this.reader(target);
+    } else {
+      const linked = Builders._linked(target);
+      target = linked !== null ? this.reader(linked) : Builders._linked_data(target) ?? target;
+    }
+    if (!Proxies._is_data(target)) { // data an expression links is its terms, each nested
+      const steps = this.store._path(Builders._linked(target));
+      if (steps !== null) return new Map([[REF, schemaPath(steps)]]);
+    }
+    const held = Builders._linked(target) ?? target;
+    if (this.met.has(held)) throw new ValueError("an expression links one of its terms from two places: it is written as a tree");
+    this.met.add(held);
+    const body = this.object(target);
+    const own = target.as_schema();
+    const kinds = Proxies._linkKinds(relation, link);
+    if (kinds !== null) return new Map([[[...kinds].find(([, kind]) => Schemas.is_a(own, kind))![0], body]]);
+    return fillers(this.store, relation, link).length === 1 ? body : new Map([[this.store.name_of(own), body]]);
+  }
+}
+
+/** Builds, through `visitor`, the object an expression's nested form gives (`Expression`). */
+function built(store: any, visitor: any, schema: any, body: unknown, where: Where): any {
+  if (!(body instanceof Map)) {
+    throw new DecodeError(`expected an object of ${schema.name}, a mapping of its members`, { path: path(...where) });
+  }
+  for (const [name, plain] of body as PlainMap) {
+    const at = [...where, name];
+    if (schema.properties.has(name)) set(visitor, name, decode(schema.properties.get(name).schema, plain, at, store));
+    else if (schema.adjacencies.has(name)) visitor[name](given(store, schema.adjacencies.get(name), plain, at));
+    else if (name === "spec" && schema === store.registered("Schemas.OfPattern")) visitor.spec(plain); // as recorded
+    else throw new DecodeError(`${repr(name)} is not a member of ${schema.name}`, { path: path(...at) });
+  }
+  return visitor;
+}
+
+/** An adjacency's entries in an expression's nested form, as its builder takes them: what each links, the peer
+ * shorthand; a mapping by the entry's one property; or each entry's links and properties. */
+function given(store: any, adjacency: Schemas.OfAdjacency.Data, plain: unknown, where: Where): unknown {
+  const relation = adjacency.relation as Schemas.OfRelation.Data;
+  const others = [...relation.entry.links.keys()].filter((link) => link !== adjacency.me);
+  const props = [...relation.entry.properties];
+  if (others.length === 1 && props.length === 0) {
+    if (!Array.isArray(plain)) throw new DecodeError("expected a list of what the entries link", { path: path(...where) });
+    return plain.map((item, i) => itemOf(store, relation, others[0]!, item, [...where, i]));
+  }
+  if (others.length === 1 && props.length === 1) {
+    if (!(plain instanceof Map)) {
+      throw new DecodeError(`expected a mapping of each entry's ${props[0]![0]} to what it links`, { path: path(...where) });
+    }
+    return new Map([...(plain as PlainMap)].map(([key, item]) => [key, itemOf(store, relation, others[0]!, item, [...where, key])]));
+  }
+  if (!Array.isArray(plain)) throw new DecodeError("expected a list of entries", { path: path(...where) });
+  return plain.map((item, i) => {
+    const at = [...where, i];
+    if (!(item instanceof Map)) throw new DecodeError("expected an entry, a mapping of its links and properties", { path: path(...at) });
+    return (e: any) => {
+      for (const [name, value] of item as PlainMap) {
+        if (others.includes(name)) e[name](itemOf(store, relation, name, value, [...at, name]));
+        else if (relation.entry.properties.has(name)) {
+          set(e, name, decode(relation.entry.properties.get(name)!.schema as Schemas.OfAny.Data, value, [...at, name], store));
+        } else {
+          throw new DecodeError(`${repr(name)} is not a link or property of the entry`, { path: path(...at, name) });
+        }
+      }
+      return e;
+    };
+  });
+}
+
+/** The names of the schemas of what `link` may link: the reference object schema it declares, else each object schema
+ * that declares an adjacency to `relation` through it. */
+function fillers(store: any, relation: Schemas.OfRelation.Data, link: string): string[] {
+  const declared = relation.entry.links.get(link)!.schema;
+  if (declared instanceof Schemas.OfObject.Data && declared.ref) return [store.name_of(declared)];
+  return store._filling(relation, link);
+}
+
+/** What an entry links, in an expression's nested form: the object a path names, or a callback defining one where it is
+ * linked, through its kind where the link is a kind union; where several schemas fill the link, the schema object its
+ * tag names, built. */
+function itemOf(store: any, relation: Schemas.OfRelation.Data, link: string, plain: unknown, where: Where): unknown {
+  if (plain instanceof Map && plain.size === 1 && plain.has(REF)) {
+    const found = byPath(store, plain.get(REF), [...where, REF]);
+    if (found === null) throw new DecodeError("no object at this path", { path: path(...where, REF) });
+    return found;
+  }
+  const kinds = Proxies._linkKinds(relation, link);
+  if (kinds === null) {
+    const names = fillers(store, relation, link);
+    if (names.length === 1) {
+      const linked = store.registered(names[0]);
+      return (e: any) => e[link]((x: any) => built(store, x, linked, plain, where));
+    }
+    if (!(plain instanceof Map) || plain.size !== 1 || !names.includes([...plain.keys()][0])) {
+      throw new DecodeError(`expected an object of one of ${names.join(", ")}, as {schema: object}`, { path: path(...where) });
+    }
+    const [name, body] = [...(plain as PlainMap)][0]!;
+    // several schemas fill the link: schema objects', which it links built
+    return built(store, store._meta_builder(name), store.registered(name), body, [...where, name]).create();
+  }
+  if (!(plain instanceof Map) || plain.size !== 1 || !kinds.has([...plain.keys()][0])) {
+    throw new DecodeError(`expected one of the kinds ${[...kinds.keys()].join(", ")}, as {kind: object}`, { path: path(...where) });
+  }
+  const [kind, body] = [...(plain as PlainMap)][0]!;
+  return (e: any) => e[kind]((x: any) => built(store, x, kinds.get(kind), body, [...where, kind]));
+}
+
 // --- Entry points ---
 
 function toPlainOfScalar(schema: Schemas.OfScalar.Data, value: Scalar): PlainData {
@@ -1834,6 +1998,8 @@ export interface ToPlainCall {
   /** The store as a log of mutations, its initial snapshot (docs/SERIALIZATION.md): modules, then schemas, then the
    * other named singletons, then the remaining reference objects. */
   Snapshot(): PlainData[];
+  /** A transaction's expression, as the wire carries it (`Expression`): a journal is a list of them. */
+  Transaction(transaction: unknown): PlainMap;
 }
 
 /** Serializes values to plain data, naming the schemas of objects in `store`: `ToPlain(store)(schema, value)`
@@ -1863,6 +2029,7 @@ export function ToPlain(store: Visitors.OfStore, options: { flat?: boolean } = {
     Reachable: named((schema: Schemas.OfObject.Data, value: Readers.OfObject): PlainMap =>
       new Snapshot(store, flat).run(schema, value, Reachable.of(value))),
     Snapshot: (): PlainData[] => new LogWriter(store).run(),
+    Transaction: (transaction: unknown): PlainMap => new Expression(store).object(transaction),
     Value: named(Value),
   });
 }
@@ -1879,6 +2046,9 @@ export interface FromPlainCall {
    * in order, which the caller holds (a store holds its data objects weakly). */
   /** A sub-clause whose meaning needs an extension the store lacks is ignored, and added to `ignored`, where given. */
   Snapshot(log: unknown, ignored?: Ignored[]): unknown[];
+  /** A transaction's expression, read from the form `ToPlain(store).Transaction` writes and built through the store's
+   * builders, as a program builds one; `store.transaction(...)` executes it. */
+  Transaction(plain: unknown): unknown;
 }
 
 /** Deserializes plain data, building objects in `store`: `FromPlain(store)(schema, plain)` dispatches on the schema's
@@ -1914,7 +2084,11 @@ export function FromPlain(store: Visitors.OfStore): FromPlainCall {
   };
   const named = Proxies._derefFirst; // a path names its schema
   return Object.assign(named(call), { OfScalar: named(OfScalar), OfObject: named(OfObject), Reachable: named(OfObject),
-    Value: named(Value), Snapshot: (log: unknown, ignored?: Ignored[]): unknown[] => new LogReader(store, ignored ?? null).apply(log) });
+    Value: named(Value), Snapshot: (log: unknown, ignored?: Ignored[]): unknown[] => new LogReader(store, ignored ?? null).apply(log),
+    Transaction: (plain: unknown): unknown => {
+      const schema = store.registered("Mutations.OfTransaction");
+      return (store as any).Mutations.OfTransaction((t: any) => built(store, t, schema, plain, []));
+    } });
 }
 
 export { decode as _decode, set as _set, byPath as _by_path };

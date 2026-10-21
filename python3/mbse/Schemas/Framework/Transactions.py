@@ -413,6 +413,29 @@ def _a(kind: str) -> str:
     return f"an {kind}" if kind[0] in "aeiou" else f"a {kind}"
 
 
+def _inserts(spec: Any) -> None:
+    """Refuses a spec whose adjacency removes entries (`Mutations.OfAdjacency.Remove`), or whose entry clears a link or a
+    property, which a spec read from the wire may give: a spec says what holds of a frame, and the executor inserts the
+    entries it gives."""
+    for item in spec:
+        for members in item.values():
+            for member in members:
+                (kind, body), = member.items()
+                if kind != "as_adjacency":
+                    continue
+                for verb in body["mutations"]:
+                    if "insert" not in verb:
+                        raise ValueError("a spec's adjacency inserts entries; removing them is not supported")
+                    for entry in verb["insert"]["entries"]:
+                        for member in entry["mutations"]:
+                            given = next(iter(member.values()))["mutations"][0]
+                            if "set" not in given:
+                                raise ValueError("a spec's entry sets its links and properties; clearing them is not "
+                                                 "supported")
+                            if "def" in given["set"]:
+                                _inserts([{"": given["set"]["def"]["mutations"]}])
+
+
 def _check(store: Any, term: Any, bound: set[str]) -> set[str]:
     """Checks a term and those after it, given the symbols bound before it: that each refers only to symbols a term
     before it binds (85), and binds no variable and evaluates no expression (87). Gives the symbols bound after the
@@ -427,13 +450,16 @@ def _check(store: Any, term: Any, bound: set[str]) -> set[str]:
     if kind == "map":
         pattern = _pattern(term, "symbols", kind)
         _symbols(store, pattern)
+        _inserts(pattern.spec)
         bound = bound | set(pattern.symbols)
     elif kind == "upsert":
         pattern = _pattern(term, "exists", kind)
         _symbols(store, pattern)
+        _inserts(pattern.spec)
         bound = bound | set(pattern.symbols)
     elif kind == "update":
         pattern = _pattern(term, "apply", kind)
+        _inserts(pattern.spec)
         _unbound(pattern.symbols, bound, kind)
     elif kind == "reduce":
         entries = list(term.symbols)

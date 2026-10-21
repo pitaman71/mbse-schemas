@@ -1594,6 +1594,167 @@ class _LogReader:
 # --- Entry points ---
 
 
+class _Expression:
+    """A transaction's expression as the wire carries it, nested (docs/OBJECT_IDENTITY.md, Decided, 56; Store overhaul,
+    4f): an object as a mapping of its properties and its named adjacencies' entries. An entry of a relation of one
+    other link and no properties is written as what it links, the peer shorthand; of one other link and one property
+    (a name), its adjacency as a mapping of that property to what it links; any other as a mapping of its other links
+    and its properties. What it links is nested where it has no path (a term, linked from one place; a schema object
+    with no name of its own), tagged with its kind where its link is a kind union, or with its schema's name where
+    several schemas fill its link; else referred to by its path, `{"$ref": path}`. A pattern's spec is written as
+    recorded."""
+
+    def __init__(self, store: Any) -> None:
+        from . import Builders
+
+        self._store, self._B, self._names = store, Builders, _Names(store)
+        self._met: list[Any] = []  # what it nested, each once
+
+    def _reader(self, value: Any) -> Any:
+        builder = self._B._builder_for(value)
+        return builder(value, False, self._store) if builder is not None else value
+
+    def object(self, visitor: Any) -> dict[str, PlainData]:
+        schema = visitor.as_schema()
+        out: dict[str, PlainData] = {prop.as_schema().name: _value(prop, prop.as_schema().schema, self._names)[1]
+                                     for prop in visitor.as_properties}
+        for name, adjacency in schema.adjacencies.items():
+            entries = list(getattr(visitor, name))
+            if entries:
+                out[name] = self._entries(entries, adjacency)
+        original = getattr(visitor, "_original", None)
+        if isinstance(original, Schemas.OfPattern.Data) and original.spec:
+            out["spec"] = [dict(item) for item in original.spec]
+        return out
+
+    def _entries(self, entries: list[Any], adjacency: Any) -> PlainData:
+        relation, me = adjacency.relation, adjacency.me
+        others = [link for link in relation.entry.links if link != me]
+        props = list(relation.entry.properties.items())
+        if len(others) == 1 and not props:
+            return [self._linked(entry, relation, others[0]) for entry in entries]
+        if len(others) == 1 and len(props) == 1:  # keyed by a name: no relation the expressions link has another key
+            return {getattr(entry, props[0][0]).get(): self._linked(entry, relation, others[0]) for entry in entries}
+        written = []
+        for entry in entries:
+            out: dict[str, PlainData] = {link: self._linked(entry, relation, link) for link in others}
+            for name, prop in props:
+                present, plain = _value(getattr(entry, name), prop.schema, self._names)
+                if present:
+                    out[name] = plain
+            written.append(out)
+        return written
+
+    def _linked(self, entry: Any, relation: Any, link: str) -> PlainData:
+        target = getattr(entry, link)
+        if self._B._builder_for(target) is not None:
+            target = self._reader(target)
+        elif isinstance(target, self._B._Link):
+            target = target._target()
+        if not isinstance(target, Proxies._ObjectData):  # data an expression links is its terms, each nested
+            steps = self._store._path(target._original)
+            if steps is not None:
+                return {REF: _schema_path(steps)}
+        held = getattr(target, "_original", target)
+        if any(met is held for met in self._met):
+            raise ValueError("an expression links one of its terms from two places: it is written as a tree")
+        self._met.append(held)
+        body, own = self.object(target), target.as_schema()
+        kinds = Proxies._link_kinds(relation, link)
+        if kinds is not None:
+            return {next(name for name, kind in kinds.items() if Schemas.is_a(own, kind)): body}
+        return body if len(_fillers(self._store, relation, link)) == 1 else {self._store.name_of(own): body}
+
+
+def _built(store: Any, visitor: Any, schema: Any, body: PlainData, where: tuple) -> Any:
+    """Builds, through `visitor`, the object an expression's nested form gives (`_Expression`)."""
+    if not isinstance(body, dict):
+        raise DecodeError(f"expected an object of {schema.name}, a mapping of its members", path=path(*where))
+    for name, value in body.items():
+        at = (*where, name)
+        if name in schema.properties:
+            _set(visitor, name, _decode(schema.properties[name].schema, value, at, store))
+        elif name in schema.adjacencies:
+            getattr(visitor, name)(_given(store, schema.adjacencies[name], value, at))
+        elif name == "spec" and schema is store.registered("Schemas.OfPattern"):
+            visitor.spec(value)  # as recorded
+        else:
+            raise DecodeError(f"{name!r} is not a member of {schema.name}", path=path(*at))
+    return visitor
+
+
+def _given(store: Any, adjacency: Any, plain: PlainData, where: tuple) -> Any:
+    """An adjacency's entries in an expression's nested form, as its builder takes them: what each links, the peer
+    shorthand; a mapping by the entry's one property; or each entry's links and properties."""
+    relation, me = adjacency.relation, adjacency.me
+    others = [link for link in relation.entry.links if link != me]
+    props = list(relation.entry.properties.items())
+    if len(others) == 1 and not props:
+        if not isinstance(plain, list):
+            raise DecodeError("expected a list of what the entries link", path=path(*where))
+        return [_item(store, relation, others[0], item, (*where, i)) for i, item in enumerate(plain)]
+    if len(others) == 1 and len(props) == 1:
+        if not isinstance(plain, dict):
+            raise DecodeError(f"expected a mapping of each entry's {props[0][0]} to what it links", path=path(*where))
+        return {key: _item(store, relation, others[0], item, (*where, key)) for key, item in plain.items()}
+    if not isinstance(plain, list):
+        raise DecodeError("expected a list of entries", path=path(*where))
+
+    def entry(item: PlainData, at: tuple) -> Any:
+        if not isinstance(item, dict):
+            raise DecodeError("expected an entry, a mapping of its links and properties", path=path(*at))
+
+        def build(e: Any) -> Any:
+            for name, value in item.items():
+                if name in others:
+                    getattr(e, name)(_item(store, relation, name, value, (*at, name)))
+                elif name in relation.entry.properties:
+                    _set(e, name, _decode(relation.entry.properties[name].schema, value, (*at, name), store))
+                else:
+                    raise DecodeError(f"{name!r} is not a link or property of the entry", path=path(*at, name))
+            return e
+
+        return build
+
+    return [entry(item, (*where, i)) for i, item in enumerate(plain)]
+
+
+def _fillers(store: Any, relation: Any, link: str) -> list[str]:
+    """The names of the schemas of what `link` may link: the reference object schema it declares, else each object schema
+    that declares an adjacency to `relation` through it."""
+    declared = relation.entry.links[link].schema
+    if isinstance(declared, Schemas.OfObject.Data) and declared.ref:
+        return [store.name_of(declared)]
+    return store._filling(relation, link)
+
+
+def _item(store: Any, relation: Any, link: str, plain: PlainData, where: tuple) -> Any:
+    """What an entry links, in an expression's nested form: the object a path names, or a callback defining one where it
+    is linked, through its kind where the link is a kind union; where several schemas fill the link, the schema object
+    its tag names, built."""
+    if isinstance(plain, dict) and len(plain) == 1 and REF in plain:
+        found = _by_path(store, plain[REF], (*where, REF))
+        if found is None:
+            raise DecodeError("no object at this path", path=path(*where, REF))
+        return found
+    kinds = Proxies._link_kinds(relation, link)
+    if kinds is None:
+        names = _fillers(store, relation, link)
+        if len(names) == 1:
+            linked = store.registered(names[0])
+            return lambda e: getattr(e, link)(lambda x: _built(store, x, linked, plain, where))
+        if not isinstance(plain, dict) or len(plain) != 1 or next(iter(plain)) not in names:
+            raise DecodeError(f"expected an object of one of {', '.join(names)}, as {{schema: object}}",
+                              path=path(*where))
+        ((name, body),) = plain.items()
+        builder = store._meta_builder(name)  # several schemas fill the link: schema objects', which it links built
+        return _built(store, builder, store.registered(name), body, (*where, name)).create()
+    if not isinstance(plain, dict) or len(plain) != 1 or next(iter(plain)) not in kinds:
+        raise DecodeError(f"expected one of the kinds {', '.join(kinds)}, as {{kind: object}}", path=path(*where))
+    ((kind, body),) = plain.items()
+    return lambda e: getattr(e, kind)(lambda x: _built(store, x, kinds[kind], body, (*where, kind)))
+
+
 class ToPlain:
     """Serializes values to plain data, naming the schemas of objects in `store`: `ToPlain(store)(schema, value)`
     dispatches on the schema's kind. `flat=True` writes a dense container of several int indices flat, with its
@@ -1631,6 +1792,10 @@ class ToPlain:
         """The store as a log of mutations, its initial snapshot (docs/SERIALIZATION.md): modules, then schemas, then the
         other named singletons, then the remaining reference objects."""
         return _LogWriter(self._store).run()
+
+    def Transaction(self, transaction: Any) -> PlainData:
+        """A transaction's expression, as the wire carries it (`_Expression`): a journal is a list of them."""
+        return _Expression(self._store).object(transaction)
 
     def Value(self, schema: Schemas.OfAny.Data, value: Any) -> PlainData:
         """A standalone value as plain data, written as a property holding it writes it: a value object, union value,
@@ -1683,6 +1848,12 @@ class FromPlain:
         makes, in order, which the caller holds (a store holds its data objects weakly). A sub-clause whose meaning needs
         an extension the store lacks is ignored, and added to `ignored`, where given: its path and why."""
         return _LogReader(self._store, ignored).apply(log)
+
+    def Transaction(self, plain: PlainData) -> Any:
+        """A transaction's expression, read from the form `ToPlain(store).Transaction` writes and built through the
+        store's builders, as a program builds one; `store.transaction(...)` executes it."""
+        schema = self._store.registered("Mutations.OfTransaction")
+        return self._store.Mutations.OfTransaction(lambda t: _built(self._store, t, schema, plain, ()))
 
     def Value(self, schema: Schemas.OfAny.Data, plain: PlainData) -> Any:
         """A standalone value, read from the plain form `ToPlain(store).Value` writes and built through the store's

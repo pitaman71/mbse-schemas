@@ -474,6 +474,32 @@ function a(kind: string): string {
 
 /** Checks a term and those after it, given the symbols bound before it: that each refers only to symbols a term before
  * it binds (85), and binds no variable and evaluates no expression (87). Gives the symbols bound after the chain. */
+/** Refuses a spec whose adjacency removes entries (`Mutations.OfAdjacency.Remove`), or whose entry clears a link or a
+ * property, which a spec read from the wire may give: a spec says what holds of a frame, and the executor inserts the
+ * entries it gives. */
+function inserts(spec: Map<string, any[]>[]): void {
+  for (const item of spec) {
+    for (const members of item.values()) {
+      for (const member of members) {
+        const [kind, body] = only(member);
+        if (kind !== "as_adjacency") continue;
+        for (const verb of body.get("mutations")) {
+          if (!verb.has("insert")) throw new ValueError("a spec's adjacency inserts entries; removing them is not supported");
+          for (const entry of verb.get("insert").get("entries")) {
+            for (const member of entry.get("mutations")) {
+              const given = [...member.values()][0].get("mutations")[0];
+              if (!given.has("set")) {
+                throw new ValueError("a spec's entry sets its links and properties; clearing them is not supported");
+              }
+              if (given.get("set").has("def")) inserts([new Map([["", given.get("set").get("def").get("mutations")]])]);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 function check(store: any, term: any, bound: Set<string>): Set<string> {
   const kind = kindOf(store, term);
   if (kind === "branch") {
@@ -486,9 +512,12 @@ function check(store: any, term: any, bound: Set<string>): Set<string> {
   if (kind === "map" || kind === "upsert") {
     const pattern = patternOf(term, kind === "map" ? "symbols" : "exists", kind);
     symbols(store, pattern);
+    inserts(pattern.spec);
     bound = new Set([...bound, ...pattern.symbols.keys()]);
   } else if (kind === "update") {
-    unbound(patternOf(term, "apply", kind).symbols.keys(), bound, kind);
+    const pattern = patternOf(term, "apply", kind);
+    inserts(pattern.spec);
+    unbound(pattern.symbols.keys(), bound, kind);
   } else if (kind === "reduce") {
     const entries = [...term.symbols];
     if (entries.length !== 1) throw new ValueError(`a reduce takes one collector in 'symbols', not ${entries.length}`);

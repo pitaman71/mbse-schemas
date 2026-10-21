@@ -1517,7 +1517,8 @@ export class PatternBuilder extends KindBuilder {
     this._check();
     if (this._store === null) throw new TypeError("a spec is written in a store, whose schemas its symbols name");
     const items = isFunction(specs) ? [specs] : [...(specs as Iterable<unknown>)];
-    const recorded = items.map((item) => Transactions._recorded(this._store, this._working.symbols, item));
+    const recorded = items.map((item) => item instanceof Map ? new Map(item) // as recorded, read from the wire
+      : Transactions._recorded(this._store, this._working.symbols, item));
     this._working.spec = [...this._working.spec, ...recorded];
     return this._proxy;
   }

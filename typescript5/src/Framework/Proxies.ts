@@ -3083,7 +3083,8 @@ export function _isVisitor(value: unknown): boolean {
 export { shell as _shell, Shelled as _Shelled, Dunders as _Dunders, makeEmpty as _makeEmpty, makeProperty as _makeProperty,
   isFunction as _isFunction, visit as _visit, noun as _noun, withArticle as _withArticle, isObjectData as _isObjectData,
   makeProperties as _makeProperties, innerOf as _innerOf, storeOf as _store_of, linking as _linking,
-  addEntry as _add_entry, discard as _discard, makeEntry as _make_entry, tablesOf as _entries_of, single as _single };
+  addEntry as _add_entry, discard as _discard, makeEntry as _make_entry, tablesOf as _entries_of, single as _single,
+  built as _built };
 
 /** Internal classes, exposed for protocol conformance tests. */
 export const _internals = { makeRecordBuilder, _ObjectData, _RecordData, _Entry, _Empty, _Scalar, _Any, _Property, _Properties, _Adjacency,

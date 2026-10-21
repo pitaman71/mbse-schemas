@@ -48,9 +48,23 @@ const m = (entries: [string, unknown][]): PlainMap => new Map(entries);
 /** The mutations a spec's callback records over a frame of `symbols`, by symbol (a `Mutations.OfPattern`). */
 export function _recorded(store: any, symbols: Map<string, any>, spec: unknown): PlainMap {
   const frame = new SpecFrame(store, symbols);
-  Proxies._visit(spec, shell(frame));
+  store._recording += 1;
+  try {
+    Proxies._visit(spec, shell(frame));
+  } finally {
+    store._recording -= 1;
+  }
   return new Map([...frame._states].filter(([, state]) => state.written.length > 0)
     .map(([name, state]) => [name, state.plain()]));
+}
+
+/** A schema object a spec defines where it is linked, `store.Schemas.OfContainer(cb)` within one: its members as `spec`
+ * writes them, recorded; linked, it is written as a definition (`Mutations.OfObject.Def`). */
+export function _definition(store: any, schema: unknown, spec: unknown): any {
+  const recorder = makeRecorder(new State(store, schema));
+  innerOf(recorder)._state.loose = true;
+  Proxies._visit(spec, recorder);
+  return recorder;
 }
 
 /** The frame a spec is written over: its members are the pattern's symbols, each the recording visitor of the object it
@@ -87,6 +101,8 @@ class State {
   readonly values = new Map<string, unknown>();
   /** ["property", name] or ["adjacency", [name, entries]], in order. */
   readonly written: [string, unknown][] = [];
+  /** Defined by `_definition`, and not linked yet. */
+  loose = false;
 
   constructor(readonly store: any, readonly schema: any, readonly symbol: string | null = null) {}
 
@@ -96,7 +112,8 @@ class State {
     for (const [kind, what] of this.written) {
       if (kind === "property") {
         const prop = this.schema.properties.get(what);
-        const read = Proxies._makeProperty(this.values, what as string, prop, this.store, null, false);
+        const values = new Map([[what as string, Proxies._built(this.values.get(what as string) ?? null)]]); // as a builder's
+        const read = Proxies._makeProperty(values, what as string, prop, this.store, null, false);
         const [present, plain] = Plain._value(read, prop.schema, names);
         const verb = present ? m([["set", m([["value", plain]])]]) : m([["clear", new Map()]]);
         members.push(m([["as_property", m([["name", what], ["mutations", [verb]]])]]));
@@ -246,6 +263,7 @@ class RecordedAdjacency extends Shelled {
         if (Proxies._isFunction(item)) {
           entry._other = this._other();
           Proxies._visit(item, shell(entry));
+          if (!entry._links.has(entry._other)) entry._defined(entry._other); // given no link, it defines what it links
         } else {
           entry._link(this._other(), item);
         }
@@ -289,8 +307,13 @@ class RecordedEntry extends Shelled {
     return Proxies._makeEmpty(`${repr(name)} is not a link or property of the relation`);
   }
 
-  /** Links what `target` gives: an object another symbol binds, one a path names, or a new one a callback defines. */
+  /** Links what `target` gives: an object another symbol binds, one a path names, or a new one a callback defines; in a
+   * list of one, as a link's builder takes it. */
   _link(link: string, target: unknown): any {
+    if (Array.isArray(target)) {
+      if (target.length !== 1) throw new TypeError(`link ${repr(link)} links one schema, got ${target.length}`);
+      target = target[0];
+    }
     if (Proxies._isFunction(target)) {
       const store = this._store;
       const kinds = Proxies._linkKinds(this._relation, link);
@@ -298,6 +321,12 @@ class RecordedEntry extends Shelled {
         throw new TypeError(`link ${repr(link)} is a kind union: define through one of its kinds, ${[...kinds.keys()].join(", ")}`);
       }
       return this._define(link, store.registered(store._filled(this._relation, link)), target);
+    }
+    const defined = innerOf(target);
+    if (defined instanceof Recorder && defined._state.loose) {
+      defined._state.loose = false; // defined where it is linked (`_definition`), once
+      this._links.set(link, defined._state);
+      return this._proxy;
     }
     this._links.set(link, reference(this._store, target));
     return this._proxy;
@@ -333,6 +362,7 @@ class RecordedEntry extends Shelled {
     if (Proxies._isFunction(value)) {
       this._other = link;
       Proxies._visit(value, shell(this));
+      if (!this._links.has(link)) this._defined(link); // given no link, it defines the object it links, as a builder's
       return;
     }
     const schema = this._store.registered(this._store._filled(this._relation, link));
@@ -361,7 +391,8 @@ class RecordedEntry extends Shelled {
     }
     const names = Plain._names(this._store);
     for (const [name, prop] of this._relation.entry.properties) {
-      const read = Proxies._makeProperty(this._values, name, prop, this._store, null, false);
+      const read = Proxies._makeProperty(new Map([[name, Proxies._built(this._values.get(name) ?? null)]]), name, prop,
+        this._store, null, false);
       const [present, plain] = Plain._value(read, (prop as any).schema, names);
       if (present) mutations.push(m([["as_property", m([["name", name], ["mutations", [m([["set", m([["value", plain]])]])]]])]]));
     }

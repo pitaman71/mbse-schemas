@@ -42,8 +42,21 @@ __all__: list[str] = []
 def _recorded(store: Any, symbols: Mapping[str, Any], spec: Any) -> dict[str, list[Any]]:
     """The mutations a spec's callback records over a frame of `symbols`, by symbol (a `Mutations.OfPattern`)."""
     frame = _Frame(store, symbols)
-    Proxies._visit(spec, frame)
+    store._recording += 1
+    try:
+        Proxies._visit(spec, frame)
+    finally:
+        store._recording -= 1
     return {name: state.plain() for name, state in frame._states.items() if state.written}
+
+
+def _definition(store: Any, schema: Any, spec: Any) -> _Recorder:
+    """A schema object a spec defines where it is linked, `store.Schemas.OfContainer(cb)` within one: its members as
+    `spec` writes them, recorded; linked, it is written as a definition (`Mutations.OfObject.Def`)."""
+    recorder = _Recorder(_State(store, schema))
+    recorder._state.loose = True
+    Proxies._visit(spec, recorder)
+    return recorder
 
 
 class _Frame(Proxies._Unassignable):
@@ -77,6 +90,7 @@ class _State:
 
     def __init__(self, store: Any, schema: Any, symbol: str | None = None):
         self.store, self.schema, self.symbol = store, schema, symbol
+        self.loose = False  # defined by `_definition`, and not linked yet
         self.values: dict[str, Any] = {}
         self.written: list[tuple[str, Any]] = []  # ("property", name) or ("adjacency", (name, entries)), in order
 
@@ -85,7 +99,8 @@ class _State:
         for kind, what in self.written:
             if kind == "property":
                 prop = self.schema.properties[what]
-                read = Proxies._Property(self.values, what, prop, self.store, None, False)
+                values = {what: Proxies._built(self.values.get(what))}  # a value's builder, finished as a builder's is
+                read = Proxies._Property(values, what, prop, self.store, None, False)
                 present, plain = Plain._value(read, prop.schema, names)
                 verb = {"set": {"value": plain}} if present else {"clear": {}}
                 members.append({"as_property": {"name": what, "mutations": [verb]}})
@@ -209,6 +224,8 @@ class _RecordedAdjacency(Proxies._Unassignable):
                 if Proxies._is_function(item):
                     entry._other = self._other()
                     Proxies._visit(item, entry)
+                    if entry._other not in entry._links:  # given no link, it defines the object it links, as a builder's
+                        entry._defined(entry._other)
                 else:
                     entry._link(self._other(), item)
                 entries.append(entry)
@@ -251,7 +268,11 @@ class _Entry(Proxies._Unassignable):
 
     def _link(self, link: str, target: Any) -> _Entry:
         """Links what `target` gives: an object another symbol binds, one a path names, or a new one a callback
-        defines."""
+        defines; in a list of one, as a link's builder takes it."""
+        if isinstance(target, (list, tuple)):
+            if len(target) != 1:
+                raise TypeError(f"link {link!r} links one schema, got {len(target)}")
+            (target,) = target
         if Proxies._is_function(target):
             store = self._store
             kinds = Proxies._link_kinds(self._relation, link)
@@ -259,6 +280,10 @@ class _Entry(Proxies._Unassignable):
                 raise TypeError(f"link {link!r} is a kind union: define through one of its kinds, {', '.join(kinds)}")
             schema = store.registered(store._filled(self._relation, link))
             return self._define(link, schema, target)
+        if isinstance(target, _Recorder) and target._state.loose:
+            target._state.loose = False  # defined where it is linked (`_definition`), once
+            self._links[link] = target._state
+            return self
         self._links[link] = _reference(self._store, target)
         return self
 
@@ -288,6 +313,8 @@ class _Entry(Proxies._Unassignable):
         if Proxies._is_function(value):
             self._other = link
             Proxies._visit(value, self)
+            if link not in self._links:  # given no link, it defines the object it links, as a builder's
+                self._defined(link)
             return
         schema = self._store.registered(self._store._filled(self._relation, link))
         takers = [("link", link)] if Proxies._links(self._store, self._relation, link, value) else []
@@ -313,7 +340,7 @@ class _Entry(Proxies._Unassignable):
             mutations.append({"as_link": {"name": link, "mutations": [{"set": target}]}})
         names = Plain._Values(self._store)
         for name, prop in self._relation.entry.properties.items():
-            read = Proxies._Property(self._values, name, prop, self._store, None, False)
+            read = Proxies._Property({name: Proxies._built(self._values.get(name))}, name, prop, self._store, None, False)
             present, plain = Plain._value(read, prop.schema, names)
             if present:
                 mutations.append({"as_property": {"name": name, "mutations": [{"set": {"value": plain}}]}})

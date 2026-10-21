@@ -115,27 +115,59 @@ def install(txn: Any) -> Any:
                 "items": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfPattern]))}),
 
             # --- The unions' branches, each a verb named as a visitor's member is ---
-            lambda _: _.OfProperty.name("Mutations.OfProperty").branches({
-                "set": _.PropertySet, "clear": _.PropertyClear, "as_any": _.PropertyAsAny}),
-            lambda _: _.OfContainer.name("Mutations.OfContainer").branches({
-                "insert": _.ContainerInsert, "remove": _.ContainerRemove, "append": _.ContainerAppend,
-                "prepend": _.ContainerPrepend, "clear": _.ContainerClear, "as_items": _.AsItems}),
-            lambda _: _.OfAny.name("Mutations.OfAny").branches({
-                "set": _.AnySet, "clear": _.AnyClear, "as_scalar": _.AsScalar, "as_container": _.AsContainer,
-                "as_object": _.AsObject, "as_union": _.AsUnion, "as_intersection": _.AsIntersection}),
-            lambda _: _.OfScalar.name("Mutations.OfScalar").branches({"set": _.ScalarSet, "clear": _.ScalarClear}),
-            lambda _: _.OfLink.name("Mutations.OfLink").branches({"set": _.LinkSet, "clear": _.LinkClear}),
-            lambda _: _.OfEntryMember.name("Mutations.OfEntry.Member").branches({
-                "as_property": _.EntryAsProperty, "as_link": _.EntryAsLink}),
-            lambda _: _.OfObject.name("Mutations.OfObject").branches({
-                "as_property": _.AsProperty, "as_adjacency": _.AsAdjacency, "spec": _.Spec}),
-            lambda _: _.OfAdjacency.name("Mutations.OfAdjacency").branches({
-                "insert": _.AdjacencyInsert, "remove": _.AdjacencyRemove, "clear": _.AdjacencyClear}),
+            lambda _: _.OfProperty.name("Mutations.OfProperty").branches([
+                lambda t: t.name("set").schema([_.PropertySet]),
+                lambda t: t.name("clear").schema([_.PropertyClear]),
+                lambda t: t.name("as_any").schema([_.PropertyAsAny]),
+            ]),
+            lambda _: _.OfContainer.name("Mutations.OfContainer").branches([
+                lambda t: t.name("insert").schema([_.ContainerInsert]),
+                lambda t: t.name("remove").schema([_.ContainerRemove]),
+                lambda t: t.name("append").schema([_.ContainerAppend]),
+                lambda t: t.name("prepend").schema([_.ContainerPrepend]),
+                lambda t: t.name("clear").schema([_.ContainerClear]),
+                lambda t: t.name("as_items").schema([_.AsItems]),
+            ]),
+            lambda _: _.OfAny.name("Mutations.OfAny").branches([
+                lambda t: t.name("set").schema([_.AnySet]),
+                lambda t: t.name("clear").schema([_.AnyClear]),
+                lambda t: t.name("as_scalar").schema([_.AsScalar]),
+                lambda t: t.name("as_container").schema([_.AsContainer]),
+                lambda t: t.name("as_object").schema([_.AsObject]),
+                lambda t: t.name("as_union").schema([_.AsUnion]),
+                lambda t: t.name("as_intersection").schema([_.AsIntersection]),
+            ]),
+            lambda _: _.OfScalar.name("Mutations.OfScalar").branches([
+                lambda t: t.name("set").schema([_.ScalarSet]),
+                lambda t: t.name("clear").schema([_.ScalarClear]),
+            ]),
+            lambda _: _.OfLink.name("Mutations.OfLink").branches([
+                lambda t: t.name("set").schema([_.LinkSet]),
+                lambda t: t.name("clear").schema([_.LinkClear]),
+            ]),
+            lambda _: _.OfEntryMember.name("Mutations.OfEntry.Member").branches([
+                lambda t: t.name("as_property").schema([_.EntryAsProperty]),
+                lambda t: t.name("as_link").schema([_.EntryAsLink]),
+            ]),
+            lambda _: _.OfObject.name("Mutations.OfObject").branches([
+                lambda t: t.name("as_property").schema([_.AsProperty]),
+                lambda t: t.name("as_adjacency").schema([_.AsAdjacency]),
+                lambda t: t.name("spec").schema([_.Spec]),
+            ]),
+            lambda _: _.OfAdjacency.name("Mutations.OfAdjacency").branches([
+                lambda t: t.name("insert").schema([_.AdjacencyInsert]),
+                lambda t: t.name("remove").schema([_.AdjacencyRemove]),
+                lambda t: t.name("clear").schema([_.AdjacencyClear]),
+            ]),
 
             # --- Mutation expressions: a transaction and its terms, reference objects linked by relations (93) ---
-            lambda _: _.OfTerm.name("Mutations.OfTerm").branches({  # a kind union (97)
-                "map": _.OfMap, "reduce": _.OfReduce, "partition": _.OfPartition, "update": _.OfUpdate,
-                "upsert": _.OfUpsert}),
+            lambda _: _.OfTerm.name("Mutations.OfTerm").branches([
+                lambda t: t.name("map").schema([_.OfMap]),
+                lambda t: t.name("reduce").schema([_.OfReduce]),
+                lambda t: t.name("partition").schema([_.OfPartition]),
+                lambda t: t.name("update").schema([_.OfUpdate]),
+                lambda t: t.name("upsert").schema([_.OfUpsert]),
+            ]),
             lambda _: _.HasRoot.name("Mutations.HasRoot").links([
                 lambda t: t.name("transaction"), lambda t: t.name("term").schema([_.OfTerm])]).uniques([["term"]]),
             lambda _: _.Then.name("Mutations.Then").links([

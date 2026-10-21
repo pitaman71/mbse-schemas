@@ -1997,6 +1997,8 @@ export class Store extends Proxies.OfStore {
   readonly _added = new Map<unknown, Table>();
   /** How many schema objects were held when an extension began, while it runs: those are its to check. */
   _extending: number | null = null;
+  /** Specs being recorded: within one, `store.Schemas.OfX(cb)` defines where it is linked. */
+  _recording = 0;
   /** When each schema object was first held, in order: those held when an extension began are its to extend only. */
   readonly _heldAt = new WeakMap<object, number>();
   _held = 0;
@@ -2128,7 +2130,8 @@ export class Store extends Proxies.OfStore {
    * builders write as they do anywhere, all or nothing; it gives what the function returns. */
   transaction(spec: unknown): any {
     if (Proxies._isFunction(spec) && spec.length === 0) return this._transacting(spec as () => unknown); // its scope (98)
-    const transaction = Proxies._isFunction(spec) ? this.Mutations.OfTransaction(spec) : spec;
+    const transaction = Proxies._isFunction(spec) // a callback building one, given the store's schemas by name besides (78)
+      ? this.Mutations.OfTransaction((t: any) => (spec as (txn: unknown) => unknown)(makeTransaction(this, t))) : spec;
     return Transactions._execute(this, transaction);
   }
 
@@ -2387,7 +2390,11 @@ function makeInstances(store: Store, name: string): any {
 
 function makePath(store: Store, name: string): any {
   const asSchema = (): unknown => store.registered(name);
-  const path = new Proxy((...args: unknown[]) => store._build(name, args), {
+  const call = (...args: unknown[]): unknown => store._recording > 0 && args.length === 1 && Proxies._isFunction(args[0])
+    && store._meta_builder(name) !== null
+    ? Transactions._definition(store, store.registered(name), args[0]) // within a spec: defined where it is linked
+    : store._build(name, args);
+  const path = new Proxy(call, {
     get: (_target, part) => {
       if (part === REPR) return () => `<${name}>`;
       if (part === "as_schema") return asSchema;
@@ -2398,6 +2405,20 @@ function makePath(store: Store, name: string): any {
   });
   Proxies._named(path, asSchema);
   return path;
+}
+
+/** What a callback building a transaction is given (`store.transaction(install)`): the transaction's builder, whose
+ * members are its own, and the store's schemas by name, `txn.Schemas.OfObject` (docs/OBJECT_IDENTITY.md, Decided, 78). */
+function makeTransaction(store: Store, builder: any): any {
+  return new Proxy({}, {
+    get: (_target, part) => {
+      if (part === REPR) return () => "<transaction>";
+      if (typeof part === "symbol" || Proxies._probes.has(part)) return undefined;
+      if (part.startsWith("_")) throw new AttributeError(part);
+      const schema = builder.as_schema();
+      return schema.properties.has(part) || schema.adjacencies.has(part) ? builder[part] : makePath(store, part);
+    },
+  });
 }
 
 // --- The namespaces, as `Schemas` gives them ---

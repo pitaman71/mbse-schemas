@@ -1604,6 +1604,7 @@ class Store(Proxies.OfStore):
         self._framework: set[int] = set(self._objects)
         self._added: dict[type, dict[str, Any]] = {}  # the members its extensions added to builders, by builder class
         self._extending: set[int] | None = None  # the schema objects held when an extension began, while it runs
+        self._recording = 0  # specs being recorded: within one, `store.Schemas.OfX(cb)` defines where it is linked
         self._modules: dict[str, _ModuleData] = {}  # by path; the root module's is ""
         self._placed: dict[int, tuple[_ModuleData, str]] = {}  # each schema's module, and its name there
         with self._expression():  # made with the store
@@ -1799,7 +1800,10 @@ class Store(Proxies.OfStore):
 
         if spec is None:
             return self._scope()
-        transaction = self.Mutations.OfTransaction(spec) if callable(spec) else spec
+        if _is_function(spec):  # a callback building one, given the store's schemas by name besides (78)
+            transaction = self.Mutations.OfTransaction(lambda t: spec(_Transaction(self, t)))
+        else:
+            transaction = self.Mutations.OfTransaction(spec) if callable(spec) else spec
         return Transactions._execute(self, transaction)
 
     @contextlib.contextmanager
@@ -1999,7 +2003,12 @@ class _Path(_Unassignable, Proxies._Named):
         return _Path(self._store, f"{self._name}.{part}")
 
     def __call__(self, *args: Any) -> Any:
-        return self._store._build(self._name, args)
+        store = self._store
+        if store._recording and len(args) == 1 and _is_function(args[0]) and store._meta_builder(self._name) is not None:
+            from . import Transactions  # within a spec: a schema object defined where it is linked, made by nothing else
+
+            return Transactions._definition(store, self.as_schema(), args[0])
+        return store._build(self._name, args)
 
     def as_schema(self) -> Any:
         """The schema it names: `store.Schemas.OfInt.as_schema()` is the store's `Schemas.OfInt`."""
@@ -2010,6 +2019,26 @@ class _Path(_Unassignable, Proxies._Named):
 
     def __repr__(self) -> str:
         return f"<{self._name}>"
+
+
+class _Transaction(_Unassignable):
+    """What a callback building a transaction is given (`store.transaction(install)`): the transaction's builder, whose
+    members are its own, and the store's schemas by name, `txn.Schemas.OfObject` (docs/OBJECT_IDENTITY.md, Decided,
+    78)."""
+
+    def __init__(self, store: Store, builder: Any):
+        self._store, self._builder = store, builder
+
+    def __getattr__(self, name: str) -> Any:
+        if name.startswith("_"):
+            raise AttributeError(name)
+        schema = self._builder.as_schema()
+        if name in schema.properties or name in schema.adjacencies:
+            return getattr(self._builder, name)
+        return _Path(self._store, name)
+
+    def __repr__(self) -> str:
+        return "<transaction>"
 
 
 # --- The namespaces, as `Schemas` gives them ---

@@ -82,6 +82,14 @@ As the user decided (2026-10-21), on the questions above:
 - **4i-1, defining schemas by transaction**: the executor and the spec recorders cover every kind and member the drafts
   use (a relation's links, a union's branches, a container's index and element, a definition where it is linked by
   `txn.Schemas.OfX(cb)`), and a symbol's schema is given as `txn.Schemas.OfX` (78); tests in both languages.
+  As built: `store.transaction(install)` hands the install a transaction whose names, but its own members, are the
+  store's schemas (`txn.Schemas`, `txn.Paths`); while a spec is recorded, `txn.Schemas.OfX(cb)` records a definition
+  that one link may link, made with that link and found holding where an equal one is linked; an entry given in a list
+  or mapping whose callback gives no link defines the object it links, as a builder's does; a link takes a list of one,
+  as a link's builder does; a recorded property's value is finished as a builder finishes it (a container's builder
+  built), which the recorder lost before. Probing found these; with them, `Schemas.install` as drafted runs in a store
+  and writes nothing, and the Mutations draft's union branches are given as lists, which the builders take, not as
+  mappings (a branch's relation has two properties). INS-01 to INS-03 cover them.
 - **4i-2, the framework installs itself**: `Schemas.install`, `Paths.install` and `Mutations.install` replace
   `Builders._plain()`, `Paths.schemas` and `Mutations.schemas`, read by the bootstrap when a store is made; a test
   reads each again as a transaction in a store and finds it writes nothing.

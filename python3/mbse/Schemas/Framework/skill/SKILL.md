@@ -56,6 +56,12 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
    links (`.schema([Text])`). In TypeScript the store, `new Builders.Store()`, is declared `any`, and callbacks given to
    it are annotated: `store.Schemas.OfObject((o: any) => ...)`. Serializers and validators take the store
    (`JSON.ToJSON(store)`, `Validators.Validate(store)`). Stores are isolated; objects move between them as snapshots.
+9. **Every write is made within a transaction.** `with store.transaction(): ...` (TypeScript:
+   `store.transaction(() => ...)`, which gives back what the function returns) makes what is written within it take
+   effect when it ends, all of it, or, where it raises, none of it; a write outside one is refused. A schema that
+   existed before a transaction changes when it ends. A transaction can also be an expression,
+   `store.transaction(lambda t: t.mutations([...]))`, whose terms find objects by a pattern's spec, or create them
+   (`upsert`), so that run again it changes nothing.
 
 ## Load the reference for your task
 

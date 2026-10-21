@@ -12,74 +12,76 @@ from mbse.Schemas.Framework import JSON, Builders, Schemas as S, Validators
 store = Builders.Store()  # schemas and data are built in a store
 Int, Text = store.Schemas.OfInt, store.Schemas.OfStr  # its basic scalars, its own, named by its paths
 
-# A value with no identity: a value object.
-Signal = store.Schemas.OfObject(lambda o: o.properties([
-    lambda t: t.name("width").schema([Int]),
-    lambda t: t.name("unit").schema([Text]),
-]))
+with store.transaction():  # every write to a store is made within a transaction
+    # A value with no identity: a value object.
+    Signal = store.Schemas.OfObject(lambda o: o.properties([
+        lambda t: t.name("width").schema([Int]),
+        lambda t: t.name("unit").schema([Text]),
+    ]))
 
-# Things with identity: reference object schemas, each registered under its name as it is built.
-Component = store.Schemas.OfObject(lambda o: (
-    o
-    .name("Component")
-    .ref(True)
-    .properties([lambda t: t.name("name").schema([Text])])
-))
-Port = store.Schemas.OfObject(lambda o: (
-    o
-    .name("Port")
-    .ref(True)
-    .properties([
-        lambda t: t.name("name").schema([Text]),
-        lambda t: t.name("signal").schema([Signal]),
-    ])
-))
+    # Things with identity: reference object schemas, each registered under its name as it is built.
+    Component = store.Schemas.OfObject(lambda o: (
+        o
+        .name("Component")
+        .ref(True)
+        .properties([lambda t: t.name("name").schema([Text])])
+    ))
+    Port = store.Schemas.OfObject(lambda o: (
+        o
+        .name("Port")
+        .ref(True)
+        .properties([
+            lambda t: t.name("name").schema([Text]),
+            lambda t: t.name("signal").schema([Signal]),
+        ])
+    ))
 
-# Every collection of reference objects is a relation. uniques("owner"): entries that agree on the port agree on the
-# owner. Within a schema, links and properties are named by string.
-Ownership = store.Schemas.OfRelation(lambda r: (
-    r
-    .name("Ownership")
-    .links([
-        lambda t: t.name("owner"),
-        lambda t: t.name("port"),
-    ])
-    .uniques("owner")
-))
-Wire = store.Schemas.OfRelation(lambda r: (
-    r
-    .name("Wire")
-    .links([
-        lambda t: t.name("source"),
-        lambda t: t.name("target"),
-    ])
-    .properties([lambda t: t.name("label").schema([Text])])
-))
+    # Every collection of reference objects is a relation. uniques("owner"): entries that agree on the port agree on the
+    # owner. Within a schema, links and properties are named by string.
+    Ownership = store.Schemas.OfRelation(lambda r: (
+        r
+        .name("Ownership")
+        .links([
+            lambda t: t.name("owner"),
+            lambda t: t.name("port"),
+        ])
+        .uniques("owner")
+    ))
+    Wire = store.Schemas.OfRelation(lambda r: (
+        r
+        .name("Wire")
+        .links([
+            lambda t: t.name("source"),
+            lambda t: t.name("target"),
+        ])
+        .properties([lambda t: t.name("label").schema([Text])])
+    ))
 
-# Each object sees a relation through one of its links (an adjacency); an object and a callback update its schema.
-store.Schemas.OfObject(Component, lambda o: o.adjacencies([
-    lambda t: t.name("ports").relation([Ownership]).me("owner"),
-]))
-store.Schemas.OfObject(Port, lambda o: o.adjacencies([
-    lambda t: t.name("owner").relation([Ownership]).me("port"),
-    lambda t: t.name("fanout").relation([Wire]).me("source"),
-    lambda t: t.name("fanin").relation([Wire]).me("target"),
-]))
-# An object may fill a link its schema declares with no name (an anonymous adjacency): no member, but still checked.
-# A refinement has the members of the schema it refines, and its own; its objects are that schema's objects too.
-Board = store.Schemas.OfObject(lambda o: (
-    o
-    .name("Board")
-    .refines([Component])
-    .properties([lambda t: t.name("revision").schema([Int])])
-))
+    # Each object sees a relation through one of its links (an adjacency); an object and a callback update its schema.
+    store.Schemas.OfObject(Component, lambda o: o.adjacencies([
+        lambda t: t.name("ports").relation([Ownership]).me("owner"),
+    ]))
+    store.Schemas.OfObject(Port, lambda o: o.adjacencies([
+        lambda t: t.name("owner").relation([Ownership]).me("port"),
+        lambda t: t.name("fanout").relation([Wire]).me("source"),
+        lambda t: t.name("fanin").relation([Wire]).me("target"),
+    ]))
+    # An object may fill a link its schema declares with no name (an anonymous adjacency): no member, but still checked.
+    # A refinement has the members of the schema it refines, and its own; its objects are that schema's objects too.
+    Board = store.Schemas.OfObject(lambda o: (
+        o
+        .name("Board")
+        .refines([Component])
+        .properties([lambda t: t.name("revision").schema([Int])])
+    ))
 
-# Data is built the same way: a callback creates, an object and a callback update, an object alone clones. Builders
-# and data instances implement the visitor protocol: members named after the schema's names.
-irq = store.Port(lambda p: p.name("irq").signal(lambda v: v.as_object(lambda s: s.width(1).unit("bit"))))
-pic_in = store.Port(lambda p: p.name("pic_in"))  # counted: nothing owns it, so a document that writes it numbers it
-cpu = store.Component(lambda c: c.name("cpu").ports(lambda a: a.insert(lambda e: e.port(irq))))
-store.Port(irq, lambda p: p.fanout(lambda a: a.insert(lambda e: e.target(pic_in).label("interrupt"))))
+with store.transaction():  # every write within a transaction: all of it, or none
+    # Data is built the same way: a callback creates, an object and a callback update, an object alone clones. Builders
+    # and data instances implement the visitor protocol: members named after the schema's names.
+    irq = store.Port(lambda p: p.name("irq").signal(lambda v: v.as_object(lambda s: s.width(1).unit("bit"))))
+    pic_in = store.Port(lambda p: p.name("pic_in"))  # counted: nothing owns it, so a document that writes it numbers it
+    cpu = store.Component(lambda c: c.name("cpu").ports(lambda a: a.insert(lambda e: e.port(irq))))
+    store.Port(irq, lambda p: p.fanout(lambda a: a.insert(lambda e: e.target(pic_in).label("interrupt"))))
 assert str(irq.name) == "irq" and [e.target for e in irq.fanout] == [pic_in]
 widths = []
 irq.signal.as_object(lambda s: widths.append(int(s.width)) or s)  # a value object, through as_object
@@ -97,6 +99,9 @@ assert Validators.Validate(store).Reachable(Component, copy) == []
 # with a callback (a Spec taking the builder), it creates; with an object and a callback, it updates the object; with
 # an object alone, it clones it. It returns the object. A named schema is registered under its name as it is built.
 store = Builders.Store()                                    # holds its own plain schemas of schemas; shares nothing
+with store.transaction(): ...                              # every write within one, all or nothing; outside one, refused
+store.transaction(lambda t: t.mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p.symbols({"P": Person})
+    .spec([lambda _: _.P.name("Ada")])]))]))                # a transaction's expression: find by spec, else create
 store.Schemas.OfInt                                         # its basic scalars, by path: OfBool, OfInt, OfFloat, OfStr, OfBytes
 store.Schemas.OfInt.as_schema()                             # the schema a path names, where an object is wanted
 # The five are the only scalar schemas: a store builds no other. A finer scalar (a date, an int32) is a domain,

@@ -509,10 +509,10 @@ so that main stays current and no branch waits on another.
        pointed to a `TODO.md` that does not exist: 4l, after 4k;
      - evaluating expressions, a pattern's `requires` and variables, a branch's `requires`, a collecting reduce, which
        the executor refuses (87): 4h, in mbse-expressions, as 87 says;
-     - a journal: as built, a list of transactions on the wire, replayed by executing each, with no call of its own;
-       to be decided whether that is the journal, or one is built;
-     - subsequent snapshots (SERIALIZATION.md, step 3; META_SCHEMAS.md, "not built yet"): to be decided whether in
-       step 4 or after it.
+     - a journal, settled: a list of transactions on the wire, replayed by executing each, with no call of its own, is
+       the journal, built as designed (the user: "journal as a transaction list: yes that is built as designed");
+     - subsequent snapshots (SERIALIZATION.md, step 3; META_SCHEMAS.md, "not built yet"): after step 4, as the user
+       decided ("after 4").
    - **4i, `install`** (Object identity, Decided, 86: "`store.extend` is basically replaced by this new `install`
      convention"): every module that defines schemas does so in a module-scope `install(txn)`, its definitions and
      extensions symbols of meta-schemas that an upsert finds by name or creates; `store.extend` goes, and every caller,

@@ -1375,3 +1375,279 @@ export function _defined(schema: unknown): boolean {
   return isAnyData(schema) || schema instanceof RelationData || schema instanceof PatternData
     || schema instanceof ExpressionData || schema instanceof CollectorData;
 }
+
+// --- Level 2: what every store is made holding ---
+
+/** The plain schemas of schemas and the basic scalars, defined in the store a transaction writes:
+ * `store.transaction(Schemas.install)`. A store is made by it, read by the bootstrap (README.md, The bootstrap); run
+ * again in a store, it finds each by its name and writes nothing. */
+export function install(txn: any): any {
+  const S = txn.Schemas; // the meta-schemas, which this defines: each a symbol of its own kind (78)
+  return txn.uid("mbse.Schemas/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({
+      OfBool: S.OfScalar, OfInt: S.OfScalar, OfFloat: S.OfScalar, OfStr: S.OfScalar, OfBytes: S.OfScalar,
+      OfScalar: S.OfObject, OfObject: S.OfObject, OfUnion: S.OfObject, OfIntersection: S.OfObject,
+      OfContainer: S.OfObject, OfAny: S.OfObject, OfRelation: S.OfObject, OfPattern: S.OfObject,
+      OfExpression: S.OfObject, OfCollector: S.OfObject, OfModule: S.OfObject,
+      OfProperty: S.OfObject, OfParameter: S.OfObject, OfSymbol: S.OfObject, OfVariable: S.OfObject,
+      OfAdjacency: S.OfObject,
+      HasSchema: S.OfRelation, Refines: S.OfRelation, Indexing: S.OfRelation, Containing: S.OfRelation,
+      AnyOf: S.OfRelation, Relating: S.OfRelation, HasParameter: S.OfRelation, HasProperty: S.OfRelation,
+      HasAdjacency: S.OfRelation, HasBranch: S.OfRelation, HasPart: S.OfRelation, HasSymbol: S.OfRelation,
+      HasVariable: S.OfRelation, Requiring: S.OfRelation, Matching: S.OfRelation, Resulting: S.OfRelation,
+      Computing: S.OfRelation, HasLink: S.OfRelation, Defines: S.OfRelation,
+    })
+    .spec([
+     // --- The basic scalars, the only scalar schemas, each mapping to its host type by its name ---
+      (_: any) => _.OfBool.name("Schemas.OfBool"),
+      (_: any) => _.OfInt.name("Schemas.OfInt"),
+      (_: any) => _.OfFloat.name("Schemas.OfFloat"),
+      (_: any) => _.OfStr.name("Schemas.OfStr"),
+      (_: any) => _.OfBytes.name("Schemas.OfBytes"),
+
+     // --- The relations between schema objects ---
+     // A member belongs to one owner, which names it by the entry's `name` (keyed): the member determines its
+     // owner and its name, and the owner and the name the member. A branch or a part is named by its entry, which
+     // links a schema that may be linked again. A schema object has one schema, refined schema, index, element or
+     // relation at most; `OfAny`'s schemas and a pattern's constraints are lists.
+      (_: any) => _.HasSchema.name("Schemas.HasSchema").links([
+        (t: any) => t.name("member"), (t: any) => t.name("schema")]).uniques([["schema"]]),
+      (_: any) => _.Refines.name("Schemas.Refines").links([
+        (t: any) => t.name("refinement"), (t: any) => t.name("refined")]).uniques([["refined"]]),
+      (_: any) => _.Indexing.name("Schemas.Indexing").links([
+        (t: any) => t.name("container"), (t: any) => t.name("index")]).uniques([["index"]]),
+      (_: any) => _.Containing.name("Schemas.Containing").links([
+        (t: any) => t.name("container"), (t: any) => t.name("element")]).uniques([["element"]]),
+      (_: any) => _.AnyOf.name("Schemas.AnyOf").links([(t: any) => t.name("any"), (t: any) => t.name("schema")]),
+      (_: any) => _.Relating.name("Schemas.Relating").links([
+        (t: any) => t.name("adjacency"), (t: any) => t.name("relation")]).uniques([["relation"]]),
+      (_: any) => _.HasParameter.name("Schemas.HasParameter").links([
+        (t: any) => t.name("owner"), (t: any) => t.name("parameter")]).properties({name: _.OfStr}).uniques([
+        ["owner", "name"], ["parameter"]]),
+      (_: any) => _.HasProperty.name("Schemas.HasProperty").links([
+        (t: any) => t.name("owner"), (t: any) => t.name("property")]).properties({name: _.OfStr}).uniques([
+        ["owner", "name"], ["property"]]),
+      (_: any) => _.HasAdjacency.name("Schemas.HasAdjacency").links([
+        (t: any) => t.name("owner"), (t: any) => t.name("adjacency")]).properties({name: _.OfStr}).uniques([
+        ["owner", "name"], ["adjacency"]]),
+      (_: any) => _.HasBranch.name("Schemas.HasBranch").links([
+        (t: any) => t.name("owner"), (t: any) => t.name("schema")]).properties({
+        name: _.OfStr, description: _.OfStr}).uniques([["owner", "name"]]),
+      (_: any) => _.HasPart.name("Schemas.HasPart").links([
+        (t: any) => t.name("owner"), (t: any) => t.name("schema")]).properties({
+        name: _.OfStr, description: _.OfStr}).uniques([["owner", "name"]]),
+      (_: any) => _.HasSymbol.name("Schemas.HasSymbol").links([
+        (t: any) => t.name("owner"), (t: any) => t.name("symbol")]).properties({name: _.OfStr}).uniques([
+        ["owner", "name"], ["symbol"]]),
+      (_: any) => _.HasVariable.name("Schemas.HasVariable").links([
+        (t: any) => t.name("owner"), (t: any) => t.name("variable")]).properties({name: _.OfStr}).uniques([
+        ["owner", "name"], ["variable"]]),
+      (_: any) => _.Requiring.name("Schemas.Requiring").links([
+        (t: any) => t.name("pattern"), (t: any) => t.name("constraint")]),
+      (_: any) => _.Matching.name("Schemas.Matching").links([
+        (t: any) => t.name("expression"), (t: any) => t.name("pattern")]).uniques([["pattern"]]),
+      (_: any) => _.Resulting.name("Schemas.Resulting").links([
+        (t: any) => t.name("expression"), (t: any) => t.name("schema")]).uniques([["schema"]]),
+      (_: any) => _.Computing.name("Schemas.Computing").links([
+        (t: any) => t.name("collector"), (t: any) => t.name("expression")]).uniques([["expression"]]),
+      (_: any) => _.HasLink.name("Schemas.HasLink").links([
+        (t: any) => t.name("owner"), (t: any) => t.name("link")]).properties({name: _.OfStr}).uniques([
+        ["owner", "name"], ["link"]]),
+      (_: any) => _.Defines.name("Schemas.Defines").links([
+        (t: any) => t.name("module"), (t: any) => t.name("schema")]).properties({name: _.OfStr}).uniques([
+        ["module", "name"], ["schema"]]),
+
+     // --- The kinds of schema: each a reference object, its properties, then each relation it is at an end of
+     // (Store overhaul, Decided, 10): named where it is the first, anonymous where it is the second ---
+      (_: any) => _.OfScalar.name("Schemas.OfScalar").ref(true).properties({
+        name: _.OfStr, description: _.OfStr,
+      }).adjacencies({
+        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
+      }).adjacencies([
+        (a: any) => a.relation([_.HasSchema]).me("schema"),
+        (a: any) => a.relation([_.Refines]).me("refined"),
+        (a: any) => a.relation([_.Indexing]).me("index"),
+        (a: any) => a.relation([_.Containing]).me("element"),
+        (a: any) => a.relation([_.AnyOf]).me("schema"),
+        (a: any) => a.relation([_.HasBranch]).me("schema"),
+        (a: any) => a.relation([_.HasPart]).me("schema"),
+        (a: any) => a.relation([_.Resulting]).me("schema"),
+        (a: any) => a.relation([_.Defines]).me("schema").owner(true),
+      ]),
+      (_: any) => _.OfObject.name("Schemas.OfObject").ref(true).properties({
+        name: _.OfStr, description: _.OfStr, ref: _.OfBool, singleton: _.OfStr,
+      }).adjacencies({
+        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
+        adjacencies: (a: any) => a.relation([_.HasAdjacency]).me("owner"),
+        properties: (a: any) => a.relation([_.HasProperty]).me("owner"),
+        refines: (a: any) => a.relation([_.Refines]).me("refinement"),
+      }).adjacencies([
+        (a: any) => a.relation([_.HasSchema]).me("schema"),
+        (a: any) => a.relation([_.Refines]).me("refined"),
+        (a: any) => a.relation([_.Indexing]).me("index"),
+        (a: any) => a.relation([_.Containing]).me("element"),
+        (a: any) => a.relation([_.AnyOf]).me("schema"),
+        (a: any) => a.relation([_.HasBranch]).me("schema"),
+        (a: any) => a.relation([_.HasPart]).me("schema"),
+        (a: any) => a.relation([_.Resulting]).me("schema"),
+        (a: any) => a.relation([_.Defines]).me("schema").owner(true),
+      ]),
+      (_: any) => _.OfUnion.name("Schemas.OfUnion").ref(true).properties({
+        name: _.OfStr, description: _.OfStr, flat: _.OfBool,
+      }).adjacencies({
+        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
+        branches: (a: any) => a.relation([_.HasBranch]).me("owner"),
+      }).adjacencies([
+        (a: any) => a.relation([_.HasSchema]).me("schema"),
+        (a: any) => a.relation([_.Refines]).me("refined"),
+        (a: any) => a.relation([_.Indexing]).me("index"),
+        (a: any) => a.relation([_.Containing]).me("element"),
+        (a: any) => a.relation([_.AnyOf]).me("schema"),
+        (a: any) => a.relation([_.HasBranch]).me("schema"),
+        (a: any) => a.relation([_.HasPart]).me("schema"),
+        (a: any) => a.relation([_.Resulting]).me("schema"),
+        (a: any) => a.relation([_.Defines]).me("schema").owner(true),
+      ]),
+      (_: any) => _.OfIntersection.name("Schemas.OfIntersection").ref(true).properties({
+        name: _.OfStr, description: _.OfStr, flat: _.OfBool,
+      }).adjacencies({
+        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
+        parts: (a: any) => a.relation([_.HasPart]).me("owner"),
+      }).adjacencies([
+        (a: any) => a.relation([_.HasSchema]).me("schema"),
+        (a: any) => a.relation([_.Refines]).me("refined"),
+        (a: any) => a.relation([_.Indexing]).me("index"),
+        (a: any) => a.relation([_.Containing]).me("element"),
+        (a: any) => a.relation([_.AnyOf]).me("schema"),
+        (a: any) => a.relation([_.HasBranch]).me("schema"),
+        (a: any) => a.relation([_.HasPart]).me("schema"),
+        (a: any) => a.relation([_.Resulting]).me("schema"),
+        (a: any) => a.relation([_.Defines]).me("schema").owner(true),
+      ]),
+      (_: any) => _.OfContainer.name("Schemas.OfContainer").ref(true).properties({
+        name: _.OfStr, description: _.OfStr, layout: _.OfStr,
+      }).adjacencies({
+        index: (a: any) => a.relation([_.Indexing]).me("container"),
+        element: (a: any) => a.relation([_.Containing]).me("container"),
+        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
+        refines: (a: any) => a.relation([_.Refines]).me("refinement"),
+      }).adjacencies([
+        (a: any) => a.relation([_.HasSchema]).me("schema"),
+        (a: any) => a.relation([_.Refines]).me("refined"),
+        (a: any) => a.relation([_.Indexing]).me("index"),
+        (a: any) => a.relation([_.Containing]).me("element"),
+        (a: any) => a.relation([_.AnyOf]).me("schema"),
+        (a: any) => a.relation([_.HasBranch]).me("schema"),
+        (a: any) => a.relation([_.HasPart]).me("schema"),
+        (a: any) => a.relation([_.Resulting]).me("schema"),
+        (a: any) => a.relation([_.Defines]).me("schema").owner(true),
+      ]),
+      (_: any) => _.OfAny.name("Schemas.OfAny").ref(true).properties({
+        name: _.OfStr, description: _.OfStr,
+      }).adjacencies({
+        schemas: (a: any) => a.relation([_.AnyOf]).me("any"),
+        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
+      }).adjacencies([
+        (a: any) => a.relation([_.HasSchema]).me("schema"),
+        (a: any) => a.relation([_.Refines]).me("refined"),
+        (a: any) => a.relation([_.Indexing]).me("index"),
+        (a: any) => a.relation([_.Containing]).me("element"),
+        (a: any) => a.relation([_.AnyOf]).me("schema"),
+        (a: any) => a.relation([_.HasBranch]).me("schema"),
+        (a: any) => a.relation([_.HasPart]).me("schema"),
+        (a: any) => a.relation([_.Resulting]).me("schema"),
+        (a: any) => a.relation([_.Defines]).me("schema").owner(true),
+      ]),
+      (_: any) => _.OfRelation.name("Schemas.OfRelation").ref(true).properties({
+        name: _.OfStr, description: _.OfStr,
+        uniques: S.OfContainer((c: any) => c.index([_.OfInt]).element([
+          S.OfContainer((d: any) => d.index([_.OfInt]).element([_.OfStr]))])), // lists of names
+      }).adjacencies({
+        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
+        links: (a: any) => a.relation([_.HasLink]).me("owner"),
+        properties: (a: any) => a.relation([_.HasProperty]).me("owner"),
+      }).adjacencies([
+        (a: any) => a.relation([_.Relating]).me("relation"),
+        (a: any) => a.relation([_.Defines]).me("schema").owner(true),
+      ]),
+      (_: any) => _.OfPattern.name("Schemas.OfPattern").ref(true).properties({
+        name: _.OfStr, description: _.OfStr,
+      }).adjacencies({
+        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
+        symbols: (a: any) => a.relation([_.HasSymbol]).me("owner"),
+        variables: (a: any) => a.relation([_.HasVariable]).me("owner"),
+        requires: (a: any) => a.relation([_.Requiring]).me("pattern"),
+      }).adjacencies([
+        (a: any) => a.relation([_.Matching]).me("pattern"),
+        (a: any) => a.relation([_.Defines]).me("schema").owner(true),
+      ]),
+      (_: any) => _.OfExpression.name("Schemas.OfExpression").ref(true).properties({
+        name: _.OfStr, description: _.OfStr,
+      }).adjacencies({
+        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
+        pattern: (a: any) => a.relation([_.Matching]).me("expression"),
+        result: (a: any) => a.relation([_.Resulting]).me("expression"),
+      }).adjacencies([
+        (a: any) => a.relation([_.Requiring]).me("constraint"),
+        (a: any) => a.relation([_.Computing]).me("expression"),
+        (a: any) => a.relation([_.Defines]).me("schema").owner(true),
+      ]),
+      (_: any) => _.OfCollector.name("Schemas.OfCollector").ref(true).properties({
+        name: _.OfStr, description: _.OfStr,
+        symbols: S.OfContainer((c: any) => c.index([_.OfInt]).element([_.OfStr])),
+        variables: S.OfContainer((c: any) => c.index([_.OfInt]).element([_.OfStr])),
+        commutative: _.OfBool, associative: _.OfBool,
+        suffixes: S.OfContainer((c: any) => c.index([_.OfStr]).element([_.OfStr])),
+      }).adjacencies({
+        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
+        pattern: (a: any) => a.relation([_.Matching]).me("expression"),
+        computes: (a: any) => a.relation([_.Computing]).me("collector"),
+      }).adjacencies([
+        (a: any) => a.relation([_.Defines]).me("schema").owner(true),
+      ]),
+      (_: any) => _.OfModule.name("Schemas.OfModule").ref(true).properties({ // its identity is its path
+        name: _.OfStr, description: _.OfStr,
+      }).adjacencies({
+        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
+        schemas: (a: any) => a.relation([_.Defines]).me("module"),
+      }).adjacencies([
+        (a: any) => a.relation([_.Defines]).me("schema").owner(true),
+      ]),
+
+     // --- The kinds of member: each named by its owner's entry ---
+      (_: any) => _.OfProperty.name("Schemas.OfProperty").ref(true).properties({
+        description: _.OfStr, pattern: _.OfStr,
+      }).adjacencies({
+        schema: (a: any) => a.relation([_.HasSchema]).me("member"),
+      }).adjacencies([
+        (a: any) => a.relation([_.HasProperty]).me("property").owner(true),
+      ]),
+      (_: any) => _.OfParameter.name("Schemas.OfParameter").ref(true).properties({ // a symbol for a schema
+        description: _.OfStr,
+      }).adjacencies([
+        (a: any) => a.relation([_.HasParameter]).me("parameter").owner(true),
+      ]),
+      (_: any) => _.OfSymbol.name("Schemas.OfSymbol").ref(true).properties({
+        description: _.OfStr,
+      }).adjacencies({
+        schema: (a: any) => a.relation([_.HasSchema]).me("member"),
+      }).adjacencies([
+        (a: any) => a.relation([_.HasSymbol]).me("symbol").owner(true),
+        (a: any) => a.relation([_.HasLink]).me("link").owner(true),
+      ]),
+      (_: any) => _.OfVariable.name("Schemas.OfVariable").ref(true).properties({
+        description: _.OfStr,
+      }).adjacencies({
+        schema: (a: any) => a.relation([_.HasSchema]).me("member"),
+      }).adjacencies([
+        (a: any) => a.relation([_.HasVariable]).me("variable").owner(true),
+      ]),
+      (_: any) => _.OfAdjacency.name("Schemas.OfAdjacency").ref(true).properties({
+        description: _.OfStr, me: _.OfStr, owner: _.OfBool,
+      }).adjacencies({
+        relation: (a: any) => a.relation([_.Relating]).me("adjacency"),
+      }).adjacencies([
+        (a: any) => a.relation([_.HasAdjacency]).me("adjacency").owner(true),
+      ]),
+    ])]))]);
+}

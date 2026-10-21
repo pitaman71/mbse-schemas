@@ -14,36 +14,36 @@ none.
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from typing import Any
 
 from . import Proxies
-from .Builders import AnyValueBuilder, ContainerBuilder, ObjectBuilder, UnionBuilder, _builder_for, _named
+from .Builders import _builder_for, _named
 
-__all__ = ["schemas", "of", "same"]
+__all__ = ["install", "of", "same"]
 
 
-def schemas(Text: Any, Int: Any, Bool: Any) -> SimpleNamespace:
-    """The path schemas, built anew for a store whose basic scalars `Text`, `Int` and `Bool` they use: each store holds
-    its own. A key's value is one of those three, written bare."""
-    Next = UnionBuilder().name("Paths.Next").create()  # its branches follow: they refer to it
-    OfTarget = ObjectBuilder().name("Paths.OfTarget").create()
-    keys = ContainerBuilder().index([Text]).element([AnyValueBuilder().schemas([Bool, Int, Text]).create()]).create()
-    OfEntry = ObjectBuilder().name("Paths.OfEntry").properties([
-        lambda t: t.name("i").schema([Text]),
-        lambda t: t.name("o").schema([Text]),
-        lambda t: t.name("properties").schema([keys]),
-        lambda t: t.name("next").schema([Next]),
-    ]).create()
-    OfRoot = ObjectBuilder().name("Paths.OfRoot").properties([
-        lambda t: t.name("singleton").schema([Text]),
-        lambda t: t.name("next").schema([Next]),
-    ]).create()
-    UnionBuilder(Next).branches([
-        lambda t: t.name("entry").schema([OfEntry]),
-        lambda t: t.name("target").schema([OfTarget]),
-    ]).update()
-    return SimpleNamespace(OfRoot=OfRoot, OfEntry=OfEntry, OfTarget=OfTarget, Next=Next)
+def install(txn: Any) -> Any:
+    """The path schemas, defined in the store a transaction writes: `store.transaction(Paths.install)`. A store is made
+    by it, after `Schemas.install`, read by the bootstrap (`Builders`); run again in a store, it finds each by its name
+    and writes nothing. A key's value is a basic scalar's, written bare."""
+    S = txn.Schemas  # the store's meta-schemas and basic scalars (78)
+    return txn.uid("mbse.Schemas.Paths/1").mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
+        .symbols({"Next": S.OfUnion, "OfTarget": S.OfObject, "OfEntry": S.OfObject, "OfRoot": S.OfObject})
+        .spec([
+            lambda _: _.Next.name("Paths.Next").branches([
+                lambda t: t.name("entry").schema([_.OfEntry]),
+                lambda t: t.name("target").schema([_.OfTarget]),
+            ]),
+            lambda _: _.OfTarget.name("Paths.OfTarget"),
+            lambda _: _.OfEntry.name("Paths.OfEntry").properties({
+                "i": S.OfStr,  # the adjacency to it from the object before
+                "o": S.OfStr,  # the adjacency to it from the object after, the one marked owner()
+                "properties": S.OfContainer(lambda c: c.index([S.OfStr]).element([  # the entry's keys
+                    S.OfAny(lambda a: a.schemas([S.OfBool, S.OfInt, S.OfStr]))])),
+                "next": _.Next,
+            }),
+            lambda _: _.OfRoot.name("Paths.OfRoot").properties({"singleton": S.OfStr, "next": _.Next}),
+        ])]))])
 
 
 def _owned_by(obj: Any) -> tuple[Any, Any, Any]:

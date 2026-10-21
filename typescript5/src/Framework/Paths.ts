@@ -6,7 +6,7 @@
  * next element, `Paths.OfEntry` one ownership entry transited (`i`, the adjacency to it from the object before; `o`,
  * the adjacency to it from the object after, the one marked `owner()`; `properties`, the entry's keys), and
  * `Paths.OfTarget` ends it. `next` is a union of the two, its branches `entry` and `target`. Every store holds these
- * schemas, its own; a store calls `schemas`, handing it the builders and its basic scalars, as it does `Mutations`'.
+ * schemas, its own, as `install` defines them (docs/OBJECT_IDENTITY.md, Decided, 86).
  *
  * An identity is computed on demand (Decided, 32): `of(obj)` reads an object's path off its ownership entries. A schema
  * object's path starts from the root module, the singleton `"."`, and goes through each module, then the schema, by
@@ -22,39 +22,28 @@ import { repr } from "./Repr.js";
 import type * as S from "./Schemas.js";
 import type * as Visitors from "./Visitors.js";
 
-/** What `schemas` builds with: the builders, and the store's basic scalars `Text`, `Int` and `Bool`. */
-interface Kit {
-  AnyValueBuilder: typeof Builders.AnyValueBuilder;
-  ContainerBuilder: typeof Builders.ContainerBuilder;
-  ObjectBuilder: typeof Builders.ObjectBuilder;
-  UnionBuilder: typeof Builders.UnionBuilder;
-  Text: S.OfScalar.Data;
-  Int: S.OfScalar.Data;
-  Bool: S.OfScalar.Data;
-}
-
-/** The path schemas, built anew for a store: each store holds its own. A key's value is a bool, an int or text, written
- * bare. */
-export function schemas(kit: Kit): Record<string, S.OfObject.Data | S.OfUnion.Data> {
-  const { AnyValueBuilder, ContainerBuilder, ObjectBuilder, UnionBuilder, Text, Int, Bool } = kit;
-  const Next = new UnionBuilder().name("Paths.Next").create(); // its branches follow: they refer to it
-  const OfTarget = new ObjectBuilder().name("Paths.OfTarget").create();
-  const keys = new ContainerBuilder().index([Text]).element([new AnyValueBuilder().schemas([Bool, Int, Text]).create()]).create();
-  const OfEntry = new ObjectBuilder().name("Paths.OfEntry").properties([
-    (t: any) => t.name("i").schema([Text]),
-    (t: any) => t.name("o").schema([Text]),
-    (t: any) => t.name("properties").schema([keys]),
-    (t: any) => t.name("next").schema([Next]),
-  ]).create();
-  const OfRoot = new ObjectBuilder().name("Paths.OfRoot").properties([
-    (t: any) => t.name("singleton").schema([Text]),
-    (t: any) => t.name("next").schema([Next]),
-  ]).create();
-  new UnionBuilder(Next).branches([
-    (t: any) => t.name("entry").schema([OfEntry]),
-    (t: any) => t.name("target").schema([OfTarget]),
-  ]).update();
-  return { OfRoot, OfEntry, OfTarget, Next };
+/** The path schemas, defined in the store a transaction writes: `store.transaction(Paths.install)`. A store is made by
+ * it, after `Schemas.install`, read by the bootstrap (`Builders`); run again in a store, it finds each by its name and
+ * writes nothing. A key's value is a basic scalar's, written bare. */
+export function install(txn: any): any {
+  const S = txn.Schemas; // the store's meta-schemas and basic scalars (78)
+  return txn.uid("mbse.Schemas.Paths/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({Next: S.OfUnion, OfTarget: S.OfObject, OfEntry: S.OfObject, OfRoot: S.OfObject})
+    .spec([
+      (_: any) => _.Next.name("Paths.Next").branches([
+        (t: any) => t.name("entry").schema([_.OfEntry]),
+        (t: any) => t.name("target").schema([_.OfTarget]),
+      ]),
+      (_: any) => _.OfTarget.name("Paths.OfTarget"),
+      (_: any) => _.OfEntry.name("Paths.OfEntry").properties({
+        i: S.OfStr, // the adjacency to it from the object before
+        o: S.OfStr, // the adjacency to it from the object after, the one marked owner()
+        properties: S.OfContainer((c: any) => c.index([S.OfStr]).element([ // the entry's keys
+          S.OfAny((a: any) => a.schemas([S.OfBool, S.OfInt, S.OfStr]))])),
+        next: _.Next,
+      }),
+      (_: any) => _.OfRoot.name("Paths.OfRoot").properties({singleton: S.OfStr, next: _.Next}),
+    ])]))]);
 }
 
 /** The entry that owns a proxy, through the adjacency of its schema marked `owner()`: the adjacency, the entry's state

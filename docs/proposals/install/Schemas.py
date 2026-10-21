@@ -163,9 +163,9 @@ def install(txn: Any) -> Any:
             lambda _: _.OfContainer.name("Schemas.OfContainer").ref(True).properties({
                 "name": _.OfStr, "description": _.OfStr, "layout": _.OfStr,
             }).adjacencies({
-                "parameters": lambda a: a.relation([_.HasParameter]).me("owner"),
                 "index": lambda a: a.relation([_.Indexing]).me("container"),
                 "element": lambda a: a.relation([_.Containing]).me("container"),
+                "parameters": lambda a: a.relation([_.HasParameter]).me("owner"),
                 "refines": lambda a: a.relation([_.Refines]).me("refinement"),
             }).adjacencies([
                 lambda a: a.relation([_.HasSchema]).me("schema"),
@@ -181,8 +181,8 @@ def install(txn: Any) -> Any:
             lambda _: _.OfAny.name("Schemas.OfAny").ref(True).properties({
                 "name": _.OfStr, "description": _.OfStr,
             }).adjacencies({
-                "parameters": lambda a: a.relation([_.HasParameter]).me("owner"),
                 "schemas": lambda a: a.relation([_.AnyOf]).me("any"),
+                "parameters": lambda a: a.relation([_.HasParameter]).me("owner"),
             }).adjacencies([
                 lambda a: a.relation([_.HasSchema]).me("schema"),
                 lambda a: a.relation([_.Refines]).me("refined"),

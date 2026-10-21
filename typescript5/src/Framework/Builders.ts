@@ -546,7 +546,7 @@ class AdjacencyMember extends Shelled {
 
   as_schema(): any {
     const meta = this._builder.as_schema();
-    return meta === null ? null : meta.adjacencies.get(this._members.name);
+    return meta === null ? null : meta.adjacencies.get(this._members.name) ?? null; // none, in a bootstrap before it is made
   }
 
   [Symbol.iterator](): Iterator<any> {
@@ -653,11 +653,15 @@ class AdjacencyMember extends Shelled {
   /** A mapping, as the peer shorthand: each item an entry, its key the value of the relation's one property, its value
    * given to the entry (FRAMEWORK.md, Resolved, Mappings for keyed adjacencies). */
   _keyed(items: [unknown, unknown][]): unknown[] {
-    const relation = this.as_schema().relation;
-    if (relation.entry.links.size !== 2 || relation.entry.properties.size !== 1) {
-      throw new TypeError(`${repr(this._members.name)} takes a mapping only where its relation has two links and one property`);
+    const schema = this.as_schema();
+    let key = "name"; // a bootstrap's, before its plain schema is made: keyed by `name`
+    if (schema !== null || !this._members.keyed) {
+      const relation = schema.relation;
+      if (relation.entry.links.size !== 2 || relation.entry.properties.size !== 1) {
+        throw new TypeError(`${repr(this._members.name)} takes a mapping only where its relation has two links and one property`);
+      }
+      key = [...relation.entry.properties.keys()][0] as string;
     }
-    const key = [...relation.entry.properties.keys()][0] as string;
     const members = this._members;
     const builderClass: any = members.build !== null ? members._builderClass() : null;
     const plain: any = this._builder._store !== null ? this._builder._store._meta : TEMPLATE;
@@ -1718,143 +1722,6 @@ export interface Plain {
   Computing: RelationData;
 }
 
-/** Builds a store's plain schemas of schemas and its basic scalars, anew. */
-function plainSchemas(): Plain {
-  const meta = {} as Plain;
-  // The basic scalars, the only scalar schemas, each mapping to its host type by its name (FRAMEWORK.md, Resolved:
-  // "Schemas.OfBool, Schemas.OfInt, ... no need to invent an alternate convention"; docs/proposals/store-overhaul,
-  // Decided, 8 and 22).
-  meta.OfBool = new ScalarBuilder().name("Schemas.OfBool").create();
-  meta.OfInt = new ScalarBuilder().name("Schemas.OfInt").create();
-  meta.OfFloat = new ScalarBuilder().name("Schemas.OfFloat").create();
-  meta.OfStr = new ScalarBuilder().name("Schemas.OfStr").create();
-  meta.OfBytes = new ScalarBuilder().name("Schemas.OfBytes").create();
-  const [Text, Bool, Int] = [meta.OfStr, meta.OfBool, meta.OfInt];
-
-  /** A plain schema of schemas: a reference object schema, `Schemas.<name>`, with `properties` of their schemas, by
-   * name. */
-  function metaObject(name: string, properties: [string, unknown][]): ObjectData {
-    return new ObjectBuilder()
-      .name(`Schemas.${name}`)
-      .ref(true)
-      .properties(properties.map(([n, s]) => (t: any) => t.name(n).schema([s])))
-      .create();
-  }
-
-  const named: [string, unknown][] = [["name", Text], ["description", Text]]; // every kind of schema's: no base declares it
-  meta.OfScalar = metaObject("OfScalar", named);
-  meta.OfObject = metaObject("OfObject", [...named, ["ref", Bool], ["singleton", Text]]);
-  meta.OfUnion = metaObject("OfUnion", [...named, ["flat", Bool]]);
-  meta.OfIntersection = metaObject("OfIntersection", [...named, ["flat", Bool]]);
-  meta.OfContainer = metaObject("OfContainer", [...named, ["layout", Text]]);
-  meta.OfAny = metaObject("OfAny", named);
-  meta.OfRelation = metaObject("OfRelation", [...named, ["uniques", new ContainerBuilder().index([Int]).element([
-    new ContainerBuilder().index([Int]).element([Text]).create()]).create()]]);
-  meta.OfPattern = metaObject("OfPattern", named);
-  meta.OfExpression = metaObject("OfExpression", named);
-  const names = new ContainerBuilder().index([Int]).element([Text]).create();
-  meta.OfCollector = metaObject("OfCollector", [...named, ["symbols", names], ["variables", names], ["commutative", Bool],
-    ["associative", Bool], ["suffixes", new ContainerBuilder().index([Text]).element([Text]).create()]]);
-  meta.OfModule = metaObject("OfModule", named); // its identity is its path; it defines schemas and modules
-  meta.OfProperty = metaObject("OfProperty", [["description", Text], ["pattern", Text]]);
-  meta.OfParameter = metaObject("OfParameter", [["description", Text]]); // a name, by its entry: a symbol for a schema
-  meta.OfSymbol = metaObject("OfSymbol", [["description", Text]]);
-  meta.OfVariable = metaObject("OfVariable", [["description", Text]]);
-  meta.OfAdjacency = metaObject("OfAdjacency", [["description", Text], ["me", Text], ["owner", Bool]]);
-  const valued = [meta.OfScalar, meta.OfObject, meta.OfUnion, meta.OfIntersection, meta.OfContainer, meta.OfAny]; // of values
-  const schemas = [...valued, meta.OfRelation, meta.OfPattern, meta.OfExpression, meta.OfCollector, meta.OfModule]; // a module's
-  const members = [meta.OfProperty, meta.OfSymbol, meta.OfVariable]; // each with a schema
-
-  /** A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
-   * `RELATIONS`): a keyed relation's entries have `name`; the member determines its owner and its name
-   * (`unique(owner, name)`), and the owner and the name determine the member (`unique(member)`). A named relation's
-   * entries have `name` and `description`, and link a schema that may be linked again: the owner and the name determine
-   * the entry. */
-  function metaRelation(name: string, links: [string, string], how: string): RelationData {
-    const [first, second] = links;
-    const builder = new RelationBuilder().name(`Schemas.${name}`).links(links.map((n) => (t: any) => t.name(n)));
-    if (how === "keyed" || how === "named") builder.properties([(t: any) => t.name("name").schema([Text])]);
-    if (how === "named") builder.properties([(t: any) => t.name("description").schema([Text])]);
-    const determined = new Map<string, string[][] | null>([["one", [[second]]], ["owned", [[first]]],
-      ["keyed", [[first, "name"], [second]]], ["named", [[first, "name"]]], ["list", null]]).get(how);
-    return builder.uniques(determined).create();
-  }
-
-  /** An adjacency to `relation` filling `link`: named by the entry that links it to its object schema, or anonymous;
-   * `owner` where it points back to its object's owner (docs/OBJECT_IDENTITY.md, Decided, 14). */
-  function metaAdjacency(relation: RelationData, link: string, owner = false): S.OfAdjacency.Data {
-    const builder = new AdjacencyBuilder().relation([relation]).me(link);
-    return (owner ? builder.owner(true) : builder).create();
-  }
-
-  /** Each relation between schema objects: (relation, (link, the kinds at that end, adjacency named there), (link, the
-   * kinds at that end), "one": the first determines the second; "owned": the second determines the first; "keyed":
-   * owned, and named within its owner by the entry's `name`; "named": the entry's `name` and `description` are a member
-   * of the first, which links its schema, the second; "list": neither). An adjacency named "" is declared below,
-   * on the kinds that have it. Each kind declares the adjacencies of every relation it is at an end of (Store overhaul,
-   * Decided, 10). A member belongs to one owner (`Has*`: the member determines its owner); a schema object has at most
-   * one schema, refined schema, index, element or relation (the first determines the second); `OfAny`'s schemas are a
-   * list. */
-  const RELATIONS: [keyof Plain, [string, ObjectData[], string], [string, ObjectData[]], string][] = [
-    ["HasSchema", ["member", members, "schema"], ["schema", valued], "one"],
-    ["Refines", ["refinement", [], ""], ["refined", valued], "one"],
-    ["Indexing", ["container", [meta.OfContainer], "index"], ["index", valued], "one"],
-    ["Containing", ["container", [meta.OfContainer], "element"], ["element", valued], "one"],
-    ["AnyOf", ["any", [meta.OfAny], "schemas"], ["schema", valued], "list"],
-    ["Relating", ["adjacency", [meta.OfAdjacency], "relation"], ["relation", [meta.OfRelation]], "one"],
-    ["HasParameter", ["owner", schemas, "parameters"], ["parameter", [meta.OfParameter]], "keyed"],
-    ["HasProperty", ["owner", [], ""], ["property", [meta.OfProperty]], "keyed"],
-    ["HasAdjacency", ["owner", [meta.OfObject], "adjacencies"], ["adjacency", [meta.OfAdjacency]], "keyed"],
-    ["HasBranch", ["owner", [meta.OfUnion], "branches"], ["schema", valued], "named"],
-    ["HasPart", ["owner", [meta.OfIntersection], "parts"], ["schema", valued], "named"],
-    ["HasSymbol", ["owner", [meta.OfPattern], "symbols"], ["symbol", [meta.OfSymbol]], "keyed"],
-    ["HasVariable", ["owner", [meta.OfPattern], "variables"], ["variable", [meta.OfVariable]], "keyed"],
-    ["Requiring", ["pattern", [meta.OfPattern], "requires"], ["constraint", [meta.OfExpression]], "list"],
-    ["Matching", ["expression", [meta.OfExpression, meta.OfCollector], "pattern"], ["pattern", [meta.OfPattern]], "one"],
-    ["Resulting", ["expression", [meta.OfExpression], "result"], ["schema", valued], "one"],
-    ["Computing", ["collector", [meta.OfCollector], "computes"], ["expression", [meta.OfExpression]], "one"],
-    ["HasLink", ["owner", [meta.OfRelation], "links"], ["link", [meta.OfSymbol]], "keyed"],
-    ["Defines", ["module", [meta.OfModule], "schemas"], ["schema", schemas], "keyed"],
-  ];
-
-  /** The adjacencies each meta-schema declares: named ones by name, and anonymous ones. */
-  const NAMED = new Map<ObjectData, [Map<string, S.OfAdjacency.Data>, S.OfAdjacency.Data[]]>();
-
-  function declare(schema: ObjectData, adjacency: S.OfAdjacency.Data, name: string | null): void {
-    if (!NAMED.has(schema)) NAMED.set(schema, [new Map(), []]);
-    const [named, anonymous] = NAMED.get(schema) as [Map<string, S.OfAdjacency.Data>, S.OfAdjacency.Data[]];
-    if (name === null) anonymous.push(adjacency);
-    else named.set(name, adjacency);
-  }
-
-  for (const [name, [a, aKinds, namedAt], [b, bKinds], how] of RELATIONS) {
-    const relation = metaRelation(name, [a, b], how);
-    (meta as unknown as Record<string, unknown>)[name] = relation;
-    for (const kind of namedAt !== "" ? aKinds : []) declare(kind, metaAdjacency(relation, a), namedAt);
-    // a keyed relation's member is owned by its owner, through the entry that names it
-    for (const kind of bKinds) declare(kind, metaAdjacency(relation, b, how === "keyed"), null);
-  }
-  for (const owner of [meta.OfObject, meta.OfRelation]) { // each has its own `properties`; any schema may be the owner
-    declare(owner, metaAdjacency(meta.HasProperty, "owner"), "properties");
-  }
-  for (const refining of [meta.OfObject, meta.OfContainer]) { // only these refine
-    declare(refining, metaAdjacency(meta.Refines, "refinement"), "refines");
-  }
-  for (const [schema, [named, anonymous]] of NAMED) {
-    (
-      new ObjectBuilder(schema)
-        .adjacencies([...named].map(([n, a]) => (t: any) => t.name(n).adjacency(a)))
-        .adjacencies(anonymous)
-        .update()
-    );
-  }
-  return meta;
-}
-
-/** The plain schemas a builder outside any store reads its own from (`as_schema`), which no store holds. */
-let TEMPLATE: Plain | null = null;
-TEMPLATE = plainSchemas();
-
 // --- A store: where schema objects and data are built ---
 
 /** The schema objects a store builds as `store.Schemas.OfX(...)`, each through its builder. */
@@ -1866,6 +1733,131 @@ export const _META_BUILDERS = new Map<string, BuilderClass>([
   ["OfPattern", PatternBuilder], ["OfExpression", ExpressionBuilder], ["OfConstraint", ConstraintBuilder],
   ["OfCollector", CollectorBuilder],
 ]);
+
+// --- The bootstrap: a store's own schemas, as the framework's installs define them ---
+
+/** In a bootstrap, `txn.Schemas.OfObject` and its kin: the kind of schema object a symbol is (`kindName`), the schema
+ * object a name names once it is made, and, called with a callback, a schema object of that kind built through its
+ * builder, as a spec defines one where it is linked. */
+function bootKind(made: Map<string, unknown>, name: string): any {
+  const kind = (spec: unknown): unknown => {
+    const builder = new (_META_BUILDERS.get(name) as any)();
+    Proxies._visit(spec, builder);
+    return builder.create();
+  };
+  Proxies._named(kind, () => made.get(`Schemas.${name}`));
+  return Object.assign(kind, { kindName: name });
+}
+
+/** In a bootstrap, a symbol of an install's pattern: the schema object it makes, written through a builder of it, one
+ * for each spec item (`begin`), which the item's calls go to (`face`), and the object itself wherever one is
+ * expected. */
+class BootSymbol {
+  builder: any = null;
+  readonly face: any;
+
+  constructor(readonly data: any, readonly builderClass: any) {
+    this.face = new Proxy({}, { get: (_target, part) => this.builder[part] });
+    Proxies._named(this.face, () => this.data);
+  }
+
+  begin(): void {
+    this.builder = new this.builderClass(this.data);
+  }
+}
+
+/** In a bootstrap, the frame one spec item is written over: each symbol it touches begins a builder of its object, which
+ * the bootstrap updates after the item. */
+function bootFrame(symbols: Map<string, BootSymbol>, touched: Map<string, BootSymbol>): any {
+  return new Proxy({}, {
+    get: (_target, name) => {
+      const symbol = symbols.get(name as string) as BootSymbol;
+      if (!touched.has(name as string)) {
+        symbol.begin();
+        touched.set(name as string, symbol);
+      }
+      return symbol.face;
+    },
+  });
+}
+
+/** In a bootstrap, a module's schemas: `txn.Schemas.OfObject`, a kind (`bootKind`); another module's, `txn.Paths.OfRoot`,
+ * each by its name, once made. */
+function bootModule(made: Map<string, unknown>, module: string): any {
+  return new Proxy({}, {
+    get: (_target, name) => module === "Schemas" ? bootKind(made, name as string) : made.get(`${module}.${String(name)}`),
+  });
+}
+
+/** Reads an install (`Schemas.install`, `Paths.install`, `Mutations.install`) when a store is made, which holds nothing
+ * yet to run it as a transaction (docs/proposals/install, The bootstrap): its terms are read as they are built, its one
+ * upsert making each symbol's schema object through its kind's builder, then writing each spec item through those
+ * builders. `made` holds what the installs read before made, by name, which `txn.Schemas.OfStr` and its kin name. */
+class Bootstrap {
+  readonly held = new Map<string, BootSymbol>();
+  readonly face: any;
+
+  constructor(readonly made: Map<string, unknown>) {
+    const own = new Set(["uid", "mutations", "upsert", "exists", "symbols", "spec"]);
+    this.face = new Proxy(this, {
+      get: (target, part) => own.has(part as string) ? (target as any)[part].bind(target) : bootModule(made, part as string),
+    });
+  }
+
+  uid(_uid: string): any {
+    return this.face;
+  }
+
+  mutations(terms: ((t: any) => unknown)[]): any {
+    for (const term of terms) term(this.face);
+    return this.face;
+  }
+
+  upsert(term: (t: any) => unknown): any {
+    term(this.face);
+    return this.face;
+  }
+
+  exists(patterns: ((t: any) => unknown)[]): any {
+    for (const pattern of patterns) pattern(this.face);
+    return this.face;
+  }
+
+  symbols(symbols: Record<string, any>): any {
+    for (const [name, kind] of Object.entries(symbols)) {
+      const builder: any = _META_BUILDERS.get(kind.kindName);
+      this.held.set(name, new BootSymbol(new builder().create(), builder));
+    }
+    if (TEMPLATE === null) TEMPLATE = this.namespace() as Plain; // the template itself being made: what its builders read
+    return this.face;
+  }
+
+  spec(items: ((frame: any) => unknown)[]): any {
+    for (const item of items) {
+      const touched = new Map<string, BootSymbol>();
+      item(bootFrame(this.held, touched));
+      for (const symbol of touched.values()) symbol.builder.update();
+    }
+    for (const symbol of this.held.values()) this.made.set(symbol.data.name, symbol.data);
+    return this.face;
+  }
+
+  /** The schema objects the install made, by symbol. */
+  namespace(): Record<string, any> {
+    return Object.fromEntries([...this.held].map(([name, symbol]) => [name, symbol.data]));
+  }
+}
+
+/** The schema objects an install defines, made by reading it (`Bootstrap`), by symbol. */
+function bootstrap(install: (txn: any) => unknown, made: Map<string, unknown>): Record<string, any> {
+  const boot = new Bootstrap(made);
+  install(boot.face);
+  return boot.namespace();
+}
+
+/** The plain schemas a builder outside any store reads its own from (`as_schema`), which no store holds. */
+let TEMPLATE: Plain | null = null;
+TEMPLATE = bootstrap(S.install, new Map()) as Plain;
 
 /** A schema object in a message: its name, else its kind. */
 function shown(schema: any): string {
@@ -2010,13 +2002,10 @@ export class Store extends Proxies.OfStore {
 
   constructor() {
     super();
-    this._meta = plainSchemas(); // its plain schemas of schemas and basic scalars, its own
-    const paths = Paths.schemas({ AnyValueBuilder, ContainerBuilder, ObjectBuilder, UnionBuilder, Text: this._meta.OfStr,
-      Int: this._meta.OfInt, Bool: this._meta.OfBool });
-    const mutations = Mutations.schemas({ AdjacencyBuilder, AnyValueBuilder, ContainerBuilder, ObjectBuilder, RelationBuilder,
-      UnionBuilder, Text: this._meta.OfStr, Int: this._meta.OfInt, Path: paths.OfRoot as S.OfObject.Data,
-      Bool: this._meta.OfBool, Pattern: this._meta.OfPattern, Collector: this._meta.OfCollector,
-      Expression: this._meta.OfExpression });
+    const made = new Map<string, unknown>(); // its own, as the framework's installs define them, read by the bootstrap
+    this._meta = bootstrap(S.install, made) as Plain; // its plain schemas of schemas and basic scalars
+    const paths = bootstrap(Paths.install, made);
+    const mutations = bootstrap(Mutations.install, made);
     const framework = [...Object.values(this._meta), ...Object.values(mutations), ...Object.values(paths)] as (ObjectData | RelationData)[];
     for (const schema of framework) this._register(schema);
     const reached: unknown[] = [...framework];

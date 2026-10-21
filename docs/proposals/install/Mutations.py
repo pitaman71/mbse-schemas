@@ -183,11 +183,11 @@ def install(txn: Any) -> Any:
                 lambda t: t.name("term"), lambda t: t.name("collector").schema([S.OfCollector])]).uniques([
                 ["collector"]]),
             lambda _: _.Branching.name("Mutations.Branching").links([
-                lambda t: t.name("partition"), lambda t: t.name("branch").schema([_.OfBranch])]),
+                lambda t: t.name("partition"), lambda t: t.name("branch").schema([_.OfBranch])]).uniques([]),  # a set
             lambda _: _.Otherwise.name("Mutations.Otherwise").links([
                 lambda t: t.name("partition"), lambda t: t.name("next").schema([_.OfTerm])]).uniques([["next"]]),
             lambda _: _.Requiring.name("Mutations.Requiring").links([
-                lambda t: t.name("branch"), lambda t: t.name("constraint").schema([S.OfExpression])]),
+                lambda t: t.name("branch"), lambda t: t.name("constraint").schema([S.OfExpression])]).uniques([]),  # a set
             lambda _: _.Applies.name("Mutations.Applies").links([
                 lambda t: t.name("term"), lambda t: t.name("pattern").schema([S.OfPattern])]).uniques([["pattern"]]),
             lambda _: _.Exists.name("Mutations.Exists").links([

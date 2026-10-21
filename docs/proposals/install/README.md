@@ -93,6 +93,17 @@ As the user decided (2026-10-21), on the questions above:
 - **4i-2, the framework installs itself**: `Schemas.install`, `Paths.install` and `Mutations.install` replace
   `Builders._plain()`, `Paths.schemas` and `Mutations.schemas`, read by the bootstrap when a store is made; a test
   reads each again as a transaction in a store and finds it writes nothing.
+  As built: the drafts beside this file are the modules' `install` now, and are kept as the proposal reviewed; where the
+  modules differ, the modules hold. The bootstrap (`Builders._Bootstrap`, TypeScript's `Bootstrap`) reads each install
+  as it is built: its upsert makes each symbol's schema object through its kind's builder, then calls each spec item on
+  builders of the symbols it touches, updating them after it; `txn.Schemas.OfX` is a kind, which, called, builds one
+  where it is linked, and names what is made; `txn.Paths.OfRoot` names what an earlier install made. Before the template
+  exists, a keyed adjacency given a mapping is keyed by `name`, which every keyed relation's entries are. The framework's
+  schemas are those `_plain()`, `Paths.schemas` and `Mutations.schemas` made, compared one by one, but for
+  `Mutations.Payload`, named (63 mutation schemas), and `Mutations.Branching` and `Requiring`, whose relations keep their
+  empty unique clause (`uniques([])`, entries a set), as before. Making a store takes about 23 ms in Python (15 ms
+  before), 26 ms in TypeScript. INS-04 runs each framework install as a transaction in a made store, which writes
+  nothing.
 - **4i-3, extensions as installs**: `store.extend` goes; the extension check applies to what any transaction writes to
   a schema the store was made holding; EXT rewritten.
 - **4i-4, everything else migrates**: the corpus, the examples, the README, the skill, the tutorials and every test

@@ -5,8 +5,9 @@ them while call sites migrate (docs/META_SCHEMAS.md, Plan); `Schemas.OfX.Data` i
 Every schema object is a reference object: a kind of schema, and each of its members (a property, an adjacency, a
 parameter, a symbol, a branch or a part). A property of a schema object holds a value (a name, a flag); every
 reference from one schema object to another is a relation: a schema to its members (`Schemas.HasProperty`, ...), a
-member to its schema (`Schemas.HasSchema`), a refinement to what it refines (`Schemas.Refines`), and so on (`_plain`,
-below): each store builds its own (docs/proposals/store-overhaul, Levels).
+member to its schema (`Schemas.HasSchema`), a refinement to what it refines (`Schemas.Refines`), and so on
+(`Schemas.install`): each store makes its own, reading the framework's installs when it is made (the bootstrap, below;
+docs/proposals/store-overhaul, Levels).
 
 Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over its plain schema (`Schemas.OfX`), as VISITOR_PATTERN.md
 gives it: a member for each property (`osv.<propName>`, a `Visitors.OfProperty`) and for each adjacency
@@ -25,6 +26,7 @@ import contextlib
 import dataclasses
 import itertools
 import weakref
+from types import SimpleNamespace
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar
@@ -525,10 +527,16 @@ class _AdjacencyMember(_Unassignable):
     def _keyed(self, mapping: Mapping[Any, Any]) -> list[Any]:
         """A mapping, as the peer shorthand: each item an entry, its key the value of the relation's one property, its
         value given to the entry (FRAMEWORK.md, Resolved, Mappings for keyed adjacencies)."""
-        relation = self.as_schema().relation
-        if len(relation.entry.links) != 2 or len(relation.entry.properties) != 1:
-            raise TypeError(f"{self._members.name!r} takes a mapping only where its relation has two links and one property")
-        key, members = next(iter(relation.entry.properties)), self._members
+        schema = self.as_schema()
+        if schema is None and self._members.keyed:  # a bootstrap's, before its plain schema is made: keyed by `name`
+            key = "name"
+        else:
+            relation = schema.relation
+            if len(relation.entry.links) != 2 or len(relation.entry.properties) != 1:
+                raise TypeError(f"{self._members.name!r} takes a mapping only where its relation has two links and one "
+                                "property")
+            key = next(iter(relation.entry.properties))
+        members = self._members
         builder_class = members.build() if members.build is not None else None
         plain = self._builder._store._meta if self._builder._store is not None else _TEMPLATE
         object_meta = getattr(plain, builder_class._meta) if builder_class is not None else None
@@ -1403,148 +1411,130 @@ _VALUES = (_PropertyMember, _Value, _ScalarVisitor, _Mapping, _AdjacencyMember, 
 """The classes whose instances are values, not the callable form of a Spec, though some are callable."""
 
 
-# --- The meta-schemas: schema objects, each a reference object, and the relations between them ---
+# --- The bootstrap: a store's own schemas, as the framework's installs define them ---
 
 
-class _Plain:
-    """A store's plain schemas of schemas (level 2) and its basic scalars, each its own (docs/proposals/store-overhaul,
-    Levels): `OfObject` is `Schemas.OfObject`, `OfInt` is `Schemas.OfInt`, `HasSchema` the relation `Schemas.HasSchema`."""
+class _BootKind(Proxies._Named):
+    """In a bootstrap, `txn.Schemas.OfObject` and its kin: the kind of schema object a symbol is, the schema object a
+    name names once it is made, and, called with a callback, a schema object of that kind built through its builder, as
+    a spec defines one where it is linked."""
+
+    def __init__(self, made: dict[str, Any], name: str):
+        self._made, self._name = made, name
+
+    def _resolve(self) -> Any:
+        return self._made[f"Schemas.{self._name}"]
+
+    def __call__(self, spec: Any) -> Any:
+        builder = _META_BUILDERS[self._name]()()
+        _visit(spec, builder)
+        return builder.create()
 
 
-def _plain() -> _Plain:
-    """Builds a store's plain schemas of schemas and its basic scalars, anew."""
-    meta = _Plain()
-    # The basic scalars, the only scalar schemas, each mapping to its host type by its name (FRAMEWORK.md, Resolved:
-    # "Schemas.OfBool, Schemas.OfInt, ... no need to invent an alternate convention"; docs/proposals/store-overhaul,
-    # Decided, 8 and 22).
-    meta.OfBool = ScalarBuilder().name("Schemas.OfBool").create()
-    meta.OfInt = ScalarBuilder().name("Schemas.OfInt").create()
-    meta.OfFloat = ScalarBuilder().name("Schemas.OfFloat").create()
-    meta.OfStr = ScalarBuilder().name("Schemas.OfStr").create()
-    meta.OfBytes = ScalarBuilder().name("Schemas.OfBytes").create()
-    Text, Bool, Int = meta.OfStr, meta.OfBool, meta.OfInt
+class _BootSymbol(Proxies._Named):
+    """In a bootstrap, a symbol of an install's pattern: the schema object it makes, written through a builder of it, one
+    for each spec item (`_begin`), which the item's calls go to, and the object itself wherever one is expected."""
 
-    def _object(name: str, properties: dict[str, Any]) -> S.OfObject.Data:
-        """A plain schema of schemas: a reference object schema, `Schemas.<name>`, with `properties` of their schemas, by
-        name."""
-        return (
-            ObjectBuilder()
-            .name(f"Schemas.{name}")
-            .ref(True)
-            .properties([lambda t, n=n, s=s: t.name(n).schema([s]) for n, s in properties.items()])
-            .create()
-        )
+    def __init__(self, data: Any, builder: type):
+        self._data, self._builder_class = data, builder
+        self._builder: Any = None
 
-    named = {"name": Text, "description": Text}  # what every kind of schema has: no base declares it for them
-    meta.OfScalar = _object("OfScalar", named)
-    meta.OfObject = _object("OfObject", {**named, "ref": Bool, "singleton": Text})
-    meta.OfUnion = _object("OfUnion", {**named, "flat": Bool})
-    meta.OfIntersection = _object("OfIntersection", {**named, "flat": Bool})
-    meta.OfContainer = _object("OfContainer", {**named, "layout": Text})
-    meta.OfAny = _object("OfAny", named)
-    meta.OfRelation = _object("OfRelation", {**named, "uniques": ContainerBuilder().index([Int]).element([
-        ContainerBuilder().index([Int]).element([Text]).create()]).create()})
-    meta.OfPattern = _object("OfPattern", named)
-    meta.OfExpression = _object("OfExpression", named)
-    names = ContainerBuilder().index([Int]).element([Text]).create()
-    meta.OfCollector = _object("OfCollector", {**named, "symbols": names, "variables": names, "commutative": Bool,
-                                               "associative": Bool,
-                                               "suffixes": ContainerBuilder().index([Text]).element([Text]).create()})
-    meta.OfModule = _object("OfModule", named)  # its identity is its path; it defines schemas and modules
-    meta.OfProperty = _object("OfProperty", {"description": Text, "pattern": Text})
-    meta.OfParameter = _object("OfParameter", {"description": Text})  # a name, by its entry: a symbol for a schema
-    meta.OfSymbol = _object("OfSymbol", {"description": Text})
-    meta.OfVariable = _object("OfVariable", {"description": Text})
-    meta.OfAdjacency = _object("OfAdjacency", {"description": Text, "me": Text, "owner": Bool})
-    valued = (meta.OfScalar, meta.OfObject, meta.OfUnion, meta.OfIntersection, meta.OfContainer, meta.OfAny)  # of values
-    schemas = (*valued, meta.OfRelation, meta.OfPattern, meta.OfExpression, meta.OfCollector, meta.OfModule)  # a module's
-    members = (meta.OfProperty, meta.OfSymbol, meta.OfVariable)  # each with a schema
+    def _resolve(self) -> Any:
+        return self._data
 
-    def _relation(name: str, links: tuple[str, str], how: str) -> S.OfRelation.Data:
-        """A meta-schema relation, `Schemas.<name>`, with `links`, its first and second, constrained as `how` says (see
-        `relations`): a keyed relation's entries have `name`; the member determines its owner and its name
-        (`unique(owner, name)`), and the owner and the name determine the member (`unique(member)`). A named
-        relation's entries have `name` and `description`, and link a schema that may be linked again: the owner and the
-        name determine the entry."""
-        first, second = links
-        builder = RelationBuilder().name(f"Schemas.{name}").links([lambda t, n=n: t.name(n) for n in links])
-        if how in ("keyed", "named"):
-            builder.properties([lambda t: t.name("name").schema([Text])])
-        if how == "named":
-            builder.properties([lambda t: t.name("description").schema([Text])])
-        determined = {"one": [[second]], "owned": [[first]], "keyed": [[first, "name"], [second]],
-                      "named": [[first, "name"]], "list": None}[how]
-        return builder.uniques(determined).create()
+    def _begin(self) -> None:
+        self._builder = self._builder_class(self._data)
 
-    def _adjacency(relation: S.OfRelation.Data, link: str, owner: bool = False) -> S.OfAdjacency.Data:
-        """An adjacency to `relation` filling `link`: named by the entry that links it to its object schema, or anonymous;
-        `owner` where it points back to its object's owner (docs/OBJECT_IDENTITY.md, Decided, 14)."""
-        builder = AdjacencyBuilder().relation([relation]).me(link)
-        return (builder.owner(True) if owner else builder).create()
-
-    relations: list[tuple[str, tuple[str, tuple[Any, ...], str | None], tuple[str, tuple[Any, ...]], str]] = [
-        # (relation, (link, the kinds at that end, adjacency named there), (link, the kinds at that end), "one": the
-        # first determines the second; "owned": the second determines the first; "keyed": owned, and named within its
-        # owner by the entry's `name`; "named": the entry's `name` and `description` are a member of the first, which
-        # links its schema, the second; "list": neither). An adjacency named "" is declared below, on the kinds that have
-        # it. Each kind declares the adjacencies of every relation it is at an end of (Store overhaul, Decided, 10).
-        ("HasSchema", ("member", members, "schema"), ("schema", valued), "one"),
-        ("Refines", ("refinement", (), ""), ("refined", valued), "one"),
-        ("Indexing", ("container", (meta.OfContainer,), "index"), ("index", valued), "one"),
-        ("Containing", ("container", (meta.OfContainer,), "element"), ("element", valued), "one"),
-        ("AnyOf", ("any", (meta.OfAny,), "schemas"), ("schema", valued), "list"),
-        ("Relating", ("adjacency", (meta.OfAdjacency,), "relation"), ("relation", (meta.OfRelation,)), "one"),
-        ("HasParameter", ("owner", schemas, "parameters"), ("parameter", (meta.OfParameter,)), "keyed"),
-        ("HasProperty", ("owner", (), ""), ("property", (meta.OfProperty,)), "keyed"),
-        ("HasAdjacency", ("owner", (meta.OfObject,), "adjacencies"), ("adjacency", (meta.OfAdjacency,)), "keyed"),
-        ("HasBranch", ("owner", (meta.OfUnion,), "branches"), ("schema", valued), "named"),
-        ("HasPart", ("owner", (meta.OfIntersection,), "parts"), ("schema", valued), "named"),
-        ("HasSymbol", ("owner", (meta.OfPattern,), "symbols"), ("symbol", (meta.OfSymbol,)), "keyed"),
-        ("HasVariable", ("owner", (meta.OfPattern,), "variables"), ("variable", (meta.OfVariable,)), "keyed"),
-        ("Requiring", ("pattern", (meta.OfPattern,), "requires"), ("constraint", (meta.OfExpression,)), "list"),
-        ("Matching", ("expression", (meta.OfExpression, meta.OfCollector), "pattern"), ("pattern", (meta.OfPattern,)),
-         "one"),
-        ("Resulting", ("expression", (meta.OfExpression,), "result"), ("schema", valued), "one"),
-        ("Computing", ("collector", (meta.OfCollector,), "computes"), ("expression", (meta.OfExpression,)), "one"),
-        ("HasLink", ("owner", (meta.OfRelation,), "links"), ("link", (meta.OfSymbol,)), "keyed"),
-        ("Defines", ("module", (meta.OfModule,), "schemas"), ("schema", schemas), "keyed"),
-    ]
-    """Each relation between schema objects. A member belongs to one owner (`Has*`: the member determines its owner); a
-    schema object has at most one schema, refined schema, index, element or relation (the first determines the second);
-    `OfAny`'s schemas are a list."""
-
-    declared: dict[int, tuple[S.OfObject.Data, dict[str, S.OfAdjacency.Data], list[S.OfAdjacency.Data]]] = {}
-
-    def _declare(schema: S.OfObject.Data, adjacency: S.OfAdjacency.Data, name: str | None = None) -> None:
-        named, anonymous = declared.setdefault(id(schema), (schema, {}, []))[1:]
-        if name is None:
-            anonymous.append(adjacency)
-        else:
-            named[name] = adjacency
-
-    for name, (a, a_kinds, named_at), (b, b_kinds), how in relations:
-        setattr(meta, name, _relation(name, (a, b), how))
-        for kind in a_kinds if named_at != "" else ():
-            _declare(kind, _adjacency(getattr(meta, name), a), named_at)
-        for kind in b_kinds:  # a keyed relation's member is owned by its owner, through the entry that names it
-            _declare(kind, _adjacency(getattr(meta, name), b, owner=how == "keyed"))
-    for owner in (meta.OfObject, meta.OfRelation):  # each has its own `properties`; any schema may be the owner
-        _declare(owner, _adjacency(meta.HasProperty, "owner"), "properties")
-    for refining in (meta.OfObject, meta.OfContainer):  # only these refine
-        _declare(refining, _adjacency(meta.Refines, "refinement"), "refines")
-    for schema, by_name, unnamed in declared.values():
-        (
-            ObjectBuilder(schema)
-            .adjacencies([lambda t, n=n, a=a: t.name(n).adjacency(a) for n, a in by_name.items()])
-            .adjacencies(unnamed)
-            .update()
-        )
-    return meta
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._builder, name)
 
 
-_TEMPLATE: _Plain | None = None
-"""The plain schemas a builder outside any store reads its own from (`as_schema`), which no store holds."""
-_TEMPLATE = _plain()
+class _BootFrame:
+    """In a bootstrap, the frame one spec item is written over: each symbol it touches begins a builder of its object
+    (`_BootSymbol`), which the bootstrap updates after the item."""
+
+    def __init__(self, symbols: dict[str, _BootSymbol]):
+        self._symbols: dict[str, _BootSymbol] = symbols
+        self._touched: dict[str, _BootSymbol] = {}
+
+    def __getattr__(self, name: str) -> _BootSymbol:
+        symbol = self._symbols[name]
+        if name not in self._touched:
+            symbol._begin()
+            self._touched[name] = symbol
+        return symbol
+
+
+class _BootModule:
+    """In a bootstrap, another module's schemas, `txn.Paths.OfRoot`: each by its name, once made."""
+
+    def __init__(self, made: dict[str, Any], module: str):
+        self._made, self._module = made, module
+
+    def __getattr__(self, name: str) -> Any:
+        return _BootKind(self._made, name) if self._module == "Schemas" else self._made[f"{self._module}.{name}"]
+
+
+class _Bootstrap:
+    """Reads an install (`Schemas.install`, `Paths.install`, `Mutations.install`) when a store is made, which holds
+    nothing yet to run it as a transaction (docs/proposals/install, The bootstrap): its terms are read as they are
+    built, its one upsert making each symbol's schema object through its kind's builder, then writing each spec item
+    through those builders. `made` holds what the installs read before made, by name, which `txn.Schemas.OfStr` and its
+    kin name."""
+
+    def __init__(self, made: dict[str, Any]):
+        self._made = made
+        self._symbols: dict[str, _BootSymbol] = {}
+
+    def __getattr__(self, module: str) -> Any:
+        return _BootModule(self._made, module)
+
+    def uid(self, uid: str) -> _Bootstrap:
+        return self
+
+    def mutations(self, terms: list[Any]) -> _Bootstrap:
+        for term in terms:
+            term(self)
+        return self
+
+    def upsert(self, term: Any) -> _Bootstrap:
+        term(self)
+        return self
+
+    def exists(self, patterns: list[Any]) -> _Bootstrap:
+        for pattern in patterns:
+            pattern(self)
+        return self
+
+    def symbols(self, symbols: dict[str, Any]) -> _Bootstrap:
+        global _TEMPLATE
+        for name, kind in symbols.items():
+            builder = _META_BUILDERS[kind._name]()
+            self._symbols[name] = _BootSymbol(builder().create(), builder)
+        if _TEMPLATE is None:  # the template itself being made: what its builders read their plain schemas from
+            _TEMPLATE = self.namespace()
+        return self
+
+    def spec(self, items: list[Any]) -> _Bootstrap:
+        for item in items:
+            frame = _BootFrame(self._symbols)
+            item(frame)
+            for symbol in frame._touched.values():
+                symbol._builder.update()
+        for symbol in self._symbols.values():
+            self._made[symbol._data.name] = symbol._data
+        return self
+
+    def namespace(self) -> SimpleNamespace:
+        """The schema objects the install made, by symbol."""
+        return SimpleNamespace(**{name: symbol._data for name, symbol in self._symbols.items()})
+
+
+def _bootstrap(install: Any, made: dict[str, Any]) -> SimpleNamespace:
+    """The schema objects an install defines, made by reading it (`_Bootstrap`), by symbol."""
+    boot = _Bootstrap(made)
+    install(boot)
+    return boot.namespace()
 
 
 # --- A store: where schema objects and data are built ---
@@ -1560,6 +1550,10 @@ _META_BUILDERS: dict[str, Callable[[], type]] = {
     "OfConstraint": lambda: ConstraintBuilder, "OfCollector": lambda: CollectorBuilder,
 }
 """The schema objects a store builds as `store.Schemas.OfX(...)`, each through its builder."""
+
+_TEMPLATE: SimpleNamespace | None = None
+"""The plain schemas a builder outside any store reads its own from (`as_schema`), which no store holds."""
+_TEMPLATE = _bootstrap(S.install, {})
 
 
 class Store(Proxies.OfStore):
@@ -1585,10 +1579,10 @@ class Store(Proxies.OfStore):
         self._unnamed: weakref.WeakValueDictionary[int, Any] = weakref.WeakValueDictionary()
         from . import Mutations, Paths
 
-        self._meta = _plain()  # its plain schemas of schemas and basic scalars, its own
-        self._paths = Paths.schemas(self._meta.OfStr, self._meta.OfInt, self._meta.OfBool)
-        self._mutations = Mutations.schemas(self._meta.OfStr, self._meta.OfInt, self._paths.OfRoot, self._meta.OfBool,
-                                            self._meta.OfPattern, self._meta.OfCollector, self._meta.OfExpression)
+        made: dict[str, Any] = {}  # its own, as the framework's installs define them, read by the bootstrap
+        self._meta = _bootstrap(S.install, made)  # its plain schemas of schemas and basic scalars
+        self._paths = _bootstrap(Paths.install, made)
+        self._mutations = _bootstrap(Mutations.install, made)
         framework = (*vars(self._meta).values(), *vars(self._mutations).values(), *vars(self._paths).values())
         for schema in framework:
             self._register(schema)

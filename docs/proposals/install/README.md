@@ -60,3 +60,17 @@ Considered and not proposed:
    notebooks and tutorials keep building schemas within `store.transaction()` where a case is about building them, and
    use an install where a case needs a fixture of schemas. Or does every notebook move to installs too?
 3. **A definition where it is linked**: `S.OfContainer(lambda c: ...)` inside a spec, as drafted?
+
+## Decided
+
+As the user decided (2026-10-21), on the questions above:
+
+1. The bootstrap: "yes", one definition read by two interpreters, the builders when a store is made and the executor
+   after.
+2. What migrates: "everything": every schema definition, in the framework, the corpus, the examples, the README, the
+   skill, the tutorials and every test notebook, is written in a module-scope `install(txn)`.
+3. Size: Schemas.py more than doubles written out (113 lines to 260, its adjacencies 103 of them): "Worth it. We can
+   further optimize later."
+
+Still open: question 3, a definition where it is linked, which the user asked to see an example of.
+

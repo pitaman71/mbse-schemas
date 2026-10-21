@@ -382,8 +382,8 @@ Over the wire, object content carries no schema. Association of an object with a
 from the expected root schema, which is why deserializers such as `Plain.FromPlain(store)(schema, ...)` take it as an
 argument, and continuing through property schemas and the branch written with each union value. Links are untyped, so
 each object a document holds is a symbol naming its schema, by the schema's path, beside what its spec gives of it, and
-a reference to it is its symbol, `{"ref": {"symbol": "0"}}`, or, to an object the document does not hold, its path,
-`{"ref": {"path": ...}}` (docs/OBJECT_IDENTITY.md, Decided, 51 and 55).
+a reference to it is its symbol, or, to an object the document does not hold, its path (`Mutations.OfObject.Ref`;
+docs/OBJECT_IDENTITY.md, Decided, 51 and 55).
 Consequently, a reference object written in a document must have a schema the store holds.
 
 A transaction is a flat sequence of mutations. Mutations may be nested; transactions are not.
@@ -397,8 +397,7 @@ A transaction is a flat sequence of mutations. Mutations may be nested; transact
   writes it: the document makes it a symbol, named by its number in the order it meets objects from the root, which
   is `"0"`, and reading a document builds its counted objects anew (55, 102). A schema object is referred to by its path
   too, from the root module, the singleton `"."` (Object identity, Decided, 80 and 81); one with no name of its own has
-  none, and is defined where the one object that links it links it (`{"set": {"def": {"schema": ..., "mutations":
-  [...]}}}`).
+  none, and is defined where the one object that links it links it (`Mutations.OfObject.Def`).
 - Paths name only reference objects, never values or entries.
 - A value object is written nested, as a mapping of its properties and its adjacencies, without a key. Union and intersection values are written the
   same way, keyed by branch or part name: a union value `{"phone": {"number": "1"}}` has exactly one key, and decoding

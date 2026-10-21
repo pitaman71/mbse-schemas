@@ -60,15 +60,8 @@ copy = JSON.FromJSON(other).Reachable(other.Contact, text)  # read by executing 
 assert JSON.ToJSON(other).Reachable(other.Contact, copy) == text and Validators.Validate(other).Reachable(other.Contact, copy) == []
 ```
 
-```text
-{"mutations": [{"upsert": {"exists": [{
-  "symbols": {"0": {"schema": [{"$ref": <Contact's path>}]}, "1": {"schema": [{"$ref": <Address's path>}]}},
-  "spec": [{"0": [{"as_property": {"name": "name", "mutations": [{"set": {"value": "Alice"}}]}},
-                  {"as_adjacency": {"name": "addresses", "mutations": [{"insert": {"entries": [{"mutations": [
-                    {"as_link": {"name": "address", "mutations": [{"set": {"ref": {"symbol": "1"}}}]}},
-                    {"as_property": {"name": "label", "mutations": [{"set": {"value": "home"}}]}}]}]}}]}}]},
-           {"1": [{"as_property": {"name": "street", "mutations": [{"set": {"value": "10 Downing Street"}}]}}]}]}]}}]}
-```
+The document holds Alice and her address, each once, as one transaction: reading it finds or makes them and writes
+what it gives of each, so that executing it is how a document is read.
 
 ## Why another schema language?
 

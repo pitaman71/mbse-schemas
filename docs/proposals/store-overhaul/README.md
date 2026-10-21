@@ -231,10 +231,10 @@ so that main stays current and no branch waits on another.
        and the skill version as `crm.v2.Contact` (Object identity, Decided, 83);
      - `validate()` refused a value schema that holds itself (72), which made the framework's own `Paths` and
        `Mutations` invalid; 72 was then removed (82), and a value schema may hold itself again;
-     - a log refers to a schema object by its path and defines it by its path and its kind (`{"path": ..., "schema":
-       "Schemas.OfObject", "properties": ...}`); a member's `exists` places it in its owner at once, as an owned data
-       object's does. One with no name of its own is defined where it is linked, `{"set": {"def": {"schema", "properties",
-       "inserts"}}}`, its own entries nested in it, each leaving out the link it fills. Read again, a log makes nothing: a
+     - a log refers to a schema object by its path and defines it by its path, its kind and its properties
+       (`Mutations.OfObject.Def`, as it was then); a member's `exists` places it in its owner at once, as an owned data
+       object's does. One with no name of its own is defined where it is linked, by the link's
+       `Mutations.OfObject.Def` (its kind, its properties and its own entries), its own entries nested in it, each leaving out the link it fills. Read again, a log makes nothing: a
        nested definition is made where the object it is written with is new, or held no such entry before. The
        corpora grow about threefold, every reference to a schema object now a path, until 4f replaces the log;
      - tests, examples and the corpus name the schemas they share, and SNP-02, BLD-03 and BLD-10 test paths in
@@ -261,7 +261,7 @@ so that main stays current and no branch waits on another.
      - a store holds a schema object with no name of its own weakly, and what links one weakly too (94);
      - `PatternBuilder.spec([...])`: each callback given the frame, its symbols recording visitors (`Transactions`),
        its record, a `Mutations.OfPattern` as plain data, kept in the pattern's `spec`; a link refers to a symbol, a
-       path, or an object it defines (`{"def": ...}`). It is not written in a log until 4f.
+       path, or an object it defines (`Mutations.OfObject.Def`). It is not written in a log until 4f.
 
      Settled while building it, for the user's review: `map`'s and `reduce`'s `as_symbols` and `as_variables` (91) are
      `symbols` and `variables`, since a schema member may not start with `as_` (the visitor protocol's); a spec is
@@ -373,14 +373,14 @@ so that main stays current and no branch waits on another.
        `none`), a relation of one other link written as that link's object, the peer shorthand the builders take; each
        pattern where its term links it, its symbols' schemas by path and its spec as recorded (Transactions):
 
-       ```json
-       {"uid": "6f1c4e2a-…", "mutations": [{"upsert": {"exists": [{
-         "symbols": {"book": {"path": <crm.Book's path>}, "ada": {"path": <crm.Person's path>}},
-         "spec": [{"book": [{"as_adjacency": {"name": "contacts", "mutations": [{"insert": {"entries": [{"mutations": [
-                     {"as_link": {"name": "contact", "mutations": [{"set": {"ref": {"symbol": "ada"}}}]}},
-                     {"as_property": {"name": "key", "mutations": [{"set": {"value": "ada"}}]}}]}]}}]}}]},
-                  {"ada": [{"as_property": {"name": "name", "mutations": [{"set": {"value": "Ada"}}]}}]}]}]}}]}
+       ```python
+       store.transaction(lambda t: t.uid("6f1c4e2a-…").mutations([lambda m: m.upsert(lambda u: u.exists([lambda p: p
+           .symbols({"book": Book, "ada": Person})
+           .spec([lambda _: _.book.contacts({"ada": _.ada}), lambda _: _.ada.name("Ada")])]))]))
        ```
+
+       (The example was first approved in its wire form; it is shown here as the builders write it, as the user asked:
+       "Never use wire format in examples".)
 
        `ToPlain(store).Transaction(tx)` writes one, `FromPlain(store).Transaction(plain)` builds its expression, which
        `store.transaction(...)` executes. A journal is a list of them, replayed by executing each in order.
@@ -391,7 +391,7 @@ so that main stays current and no branch waits on another.
        `clear` and `as_entries`, `Mutations.Log` and `Mutations.Reference`): what they wrote, a spec writes.
      - **A store's snapshot is two transactions** (101): the first upserts its modules and schemas, each a symbol of
        its meta-schema, found by name (86), a schema object with no name of its own defined where it is linked
-       (`{"def": ...}`); the second its data, each object a singleton reaches a symbol: a singleton's binds the
+       (`Mutations.OfObject.Def`); the second its data, each object a singleton reaches a symbol: a singleton's binds the
        singleton, an owned object's is placed by its owner's entry (60), a counted object's created. Schemas come first
        so that a schema the store held before is extended when the first commits (96), before data uses it.
        `FromPlain(store).Snapshot(transactions, ignored)` executes them in order, each a transaction of its own, or a
@@ -400,7 +400,7 @@ so that main stays current and no branch waits on another.
        from the root, the root first; owned objects and singletons it links are refs by path, not written, and reading
        aborts where one is missing. `ToPlain(...).OfObject` is the same with the root alone. Reading gives the root.
      - **A document's symbols are its numbering** (55): the objects it writes are symbols named by their number in the
-       order it meets them, `"0"` the root, `{"ref": {"symbol": "3"}}` a reference to one.
+       order it meets them, the root `0`, and a reference to one is its symbol (`Mutations.OfObject.Ref`).
      - **A counted object an upsert names is found only by what made it** (102): by the frame, key and symbol it was
        created for (61, 63), never by its spec, which 4e still does; a document's upsert is keyed by its uid, so reading
        one gives new counted objects (55), and replaying the same transaction while they are held finds them again.
@@ -495,7 +495,7 @@ so that main stays current and no branch waits on another.
      snapshot, a document and a transaction's expression (by now only the last, as recorded), so that a snapshot
      carries every pattern whole. It is not a property of `Schemas.OfPattern` (4f-1), which is to be settled when it
      starts. Required by the user: "plan must include writing pattern specs". Built before 0.22.0, completing 4f.
-     As built: a verb of its own, `Mutations.OfObject.Spec` (`{"spec": {"items": [...]}}`), the third branch of an
+     As built: a verb of its own, `Mutations.OfObject.Spec`, the third branch of an
      object's mutations, holding a list of `Mutations.OfPattern` as recorded, payloads bare; 61 mutation schemas. A
      store's snapshot gives it after a pattern's members, where the pattern is a symbol or defined where it is linked; a
      transaction's expression writes a pattern's spec as before, nested. The executor writes it where the pattern holds

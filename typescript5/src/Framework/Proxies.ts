@@ -196,11 +196,19 @@ export abstract class _Store extends Stores.Catalog implements Stores.Store {
 
   /** How deep in building an expression, or in making the store, a write is (`_written`). */
   _expressing = 0;
+  /** The overlay of the transaction open on it, if any. */
+  _overlay: _Overlay | null = null;
+
+  /** The store's transaction ended: its overlay no longer read. */
+  _closed(overlay: _Overlay): void {
+    this._overlay = null;
+    OPEN.splice(OPEN.indexOf(overlay), 1);
+  }
 
   /** Refuses a write outside a transaction of this store (docs/OBJECT_IDENTITY.md, Decided, 44), but while a transaction's
    * expression is built (94), the store is made, or a transaction commits. */
   _written(): void {
-    if ((OVERLAY === null || OVERLAY.store !== this) && this._expressing === 0) {
+    if (this._overlay === null && this._expressing === 0) {
       throw new ValueError("a store is written only within a transaction (store.transaction)");
     }
   }
@@ -208,7 +216,7 @@ export abstract class _Store extends Stores.Catalog implements Stores.Store {
   /** The library's own writes (a decoder's, an adapter's): within the transaction of this store open, else one of their
    * own. */
   _joined<T>(write: () => T): T {
-    return OVERLAY !== null && OVERLAY.store === this ? write() : this._transacting(write);
+    return this._overlay !== null ? write() : this._transacting(write);
   }
 
   /** Building a transaction's expression, the one write allowed outside a transaction (Decided, 94); making the store; and
@@ -223,20 +231,22 @@ export abstract class _Store extends Stores.Catalog implements Stores.Store {
   }
 
   /** A transaction's writes (docs/OBJECT_IDENTITY.md, Decided, 89, 96): held in an overlay while it runs, written when it
-   * ends, or, where it throws, dropped, the store's registries as they were before it began. */
+   * ends, or, where it throws, dropped, the store's registries as they were before it began. One is open on a store at a
+   * time; each store's is its own (Decided, 99). */
   _transacting<T>(write: () => T): T {
-    if (OVERLAY !== null) throw new ValueError("a transaction is open: transactions do not nest");
+    if (this._overlay !== null) throw new ValueError("a transaction is open: transactions do not nest");
     const saved = this._saved();
-    const overlay = OVERLAY = new _Overlay(this);
+    const overlay = this._overlay = new _Overlay(this);
+    OPEN.push(overlay);
     let written: T;
     try {
       written = this._writing(write); // ownership is settled within it
     } catch (error) {
-      OVERLAY = null;
+      this._closed(overlay);
       this._restore(saved);
       throw error;
     }
-    OVERLAY = null;
+    this._closed(overlay);
     try {
       this._expression(() => this._commit_schemas(overlay)); // its commit
     } catch (error) {
@@ -591,7 +601,7 @@ function table(target: unknown, relation: RelationSchema, store: any = null, wri
     own = ownTables(target);
   }
   if (write) store._written(); // an entry's writers resolve its store
-  const tables = tablesOf(own, write);
+  const tables = tablesOf(own, write ? store : null);
   let found = tables.get(relation);
   if (found === undefined) {
     found = new Map();
@@ -611,7 +621,7 @@ function ownTables(target: unknown): Tables {
 
 /** The entries that link `target`, by relation, then by key, as the transaction open sees them. */
 function adjacentOf(target: unknown): Tables {
-  return tablesOf(ownTables(target), false);
+  return tablesOf(ownTables(target));
 }
 
 /** A transaction's writes, held apart from the store's objects until it commits (docs/OBJECT_IDENTITY.md, Decided, 89,
@@ -646,38 +656,42 @@ export class _Overlay {
   }
 }
 
-/** The overlay of the transaction open, if any. */
-let OVERLAY: _Overlay | null = null;
+/** The overlays of the transactions open, one per store at most (docs/OBJECT_IDENTITY.md, Decided, 99). */
+const OPEN: _Overlay[] = [];
 
-export function _overlay(): _Overlay | null {
-  return OVERLAY;
-}
-
-/** A data object's or a value object's property values, as the transaction open sees them. */
+/** A data object's or a value object's property values, as the transaction open on its store sees them. */
 function valuesOf(holder: { _ownValues: Values }): Values {
-  return OVERLAY?.values.get(holder) ?? holder._ownValues;
+  for (const overlay of OPEN) {
+    const held = overlay.values.get(holder);
+    if (held !== undefined) return held;
+  }
+  return holder._ownValues;
 }
 
-/** A holder's values to write: within a transaction, the overlay's copy, made the first time. */
 /** A holder's values to write: within a transaction, the overlay's copy, made the first time. A reference object's are
  * written only within a transaction of its store (docs/OBJECT_IDENTITY.md, Decided, 44); a value object's, built
  * standalone, are its builder's until it is placed. */
 function writableValues(holder: { _ownValues: Values }): Values {
+  const store = holder instanceof _ObjectData ? holder._store : storeOf((holder as _RecordData)._owner);
   if (holder instanceof _ObjectData) holder._store._written();
-  if (OVERLAY === null) return holder._ownValues;
-  let held = OVERLAY.values.get(holder);
-  if (held === undefined) OVERLAY.values.set(holder, (held = new Map(holder._ownValues)));
+  const overlay = store === null ? null : store._overlay;
+  if (overlay === null) return holder._ownValues;
+  let held = overlay.values.get(holder);
+  if (held === undefined) overlay.values.set(holder, (held = new Map(holder._ownValues)));
   return held;
 }
 
-/** Entry tables as the transaction open sees them; to write, within a transaction, the overlay's copy, made the first
- * time. */
-function tablesOf(own: Tables, write: boolean): Tables {
-  const held = OVERLAY?.tables.get(own);
-  if (held !== undefined) return held;
-  if (OVERLAY === null || !write) return own;
+/** Entry tables as the transaction open on their store sees them; to write, within a transaction of `store`, the
+ * overlay's copy, made the first time. */
+function tablesOf(own: Tables, store: any = null): Tables {
+  for (const overlay of OPEN) {
+    const held = overlay.tables.get(own);
+    if (held !== undefined) return held;
+  }
+  const overlay: _Overlay | null = store === null ? null : store._overlay;
+  if (overlay === null) return own;
   const copied: Tables = new Map([...own].map(([relation, entries]) => [relation, new Map(entries)]));
-  OVERLAY.tables.set(own, copied);
+  overlay.tables.set(own, copied);
   return copied;
 }
 

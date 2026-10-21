@@ -81,14 +81,13 @@ class _Overlay:
             own.update(tables)
 
 
-_OVERLAY: _Overlay | None = None
-"""The overlay of the transaction open, if any."""
+_OPEN: list[_Overlay] = []
+"""The overlays of the transactions open, one per store at most (docs/OBJECT_IDENTITY.md, Decided, 99)."""
 
 
 def _values_of(holder: Any) -> dict[str, Any]:
-    """A data object's or a value object's property values, as the transaction open sees them."""
-    overlay = _OVERLAY
-    if overlay is not None:
+    """A data object's or a value object's property values, as the transaction open on its store sees them."""
+    for overlay in _OPEN:
         held = overlay.values.get(id(holder))
         if held is not None:
             return held[1]
@@ -99,9 +98,10 @@ def _writable_values(holder: Any) -> dict[str, Any]:
     """A holder's values to write: within a transaction, the overlay's copy, made the first time. A reference object's
     are written only within a transaction of its store (docs/OBJECT_IDENTITY.md, Decided, 44); a value object's, built
     standalone, are its builder's until it is placed."""
-    overlay = _OVERLAY
+    store = _store_of(holder)
     if isinstance(holder, _ObjectData):
-        object.__getattribute__(holder, "_store")._written()
+        store._written()
+    overlay = None if store is None else store._overlay
     if overlay is None:
         return object.__getattribute__(holder, "_own_values")
     held = overlay.values.get(id(holder))
@@ -112,14 +112,15 @@ def _writable_values(holder: Any) -> dict[str, Any]:
 
 def _tables(holder: Any, attribute: str, write: bool, store: Any = None) -> dict[Hashable, dict[Hashable, Any]]:
     """The entry tables `holder` keeps in `attribute` (an object's `_adjacent`, a store's `_framework_entries`), as the
-    transaction open sees them; to write, within a transaction of `store`, the overlay's copy, made the first time."""
-    overlay = _OVERLAY
+    transaction open on its store sees them; to write, within a transaction of `store`, the overlay's copy, made the first
+    time."""
     if write:
         store._written()
-    if overlay is not None:
-        held = overlay.tables.get((id(holder), attribute))
+    for open_ in _OPEN:
+        held = open_.tables.get((id(holder), attribute))
         if held is not None:
             return held[1]
+    overlay = store._overlay if write else None
     try:
         own = object.__getattribute__(holder, attribute)
     except AttributeError:
@@ -144,6 +145,7 @@ class _Store(Stores.Catalog):
         self._orphaned: list[_ObjectData] = []  # owned objects an owning entry of which was removed since
         self._keys: dict[tuple[int, int, str], int] = {}  # the last number a key's pattern gave, by relation, owner, key
         self._expressing = 0  # how deep in building an expression, or in making the store, a write is (`_written`)
+        self._overlay: _Overlay | None = None  # the overlay of the transaction open on it, if any
         # the counted objects upserts created, weakly, by upsert key, symbol and the frame that reached the upsert (63)
         self._upserted: dict[tuple[Any, ...], weakref.ref[Any]] = {}
 
@@ -164,20 +166,17 @@ class _Store(Stores.Catalog):
             self._settle_owners()
             self._delete_orphans()
 
-    @contextlib.contextmanager
     def _written(self) -> None:
         """Refuses a write outside a transaction of this store (docs/OBJECT_IDENTITY.md, Decided, 44), but while a
         transaction's expression is built (94), the store is made, or a transaction commits."""
-        overlay = _OVERLAY
-        if (overlay is None or overlay.store is not self) and not self._expressing:
+        if self._overlay is None and not self._expressing:
             raise ValueError("a store is written only within a transaction (store.transaction)")
 
     @contextlib.contextmanager
     def _joined(self) -> Iterator[None]:
         """The library's own writes (a decoder's, an adapter's): within the transaction of this store open, else one of
         their own."""
-        overlay = _OVERLAY
-        if overlay is not None and overlay.store is self:
+        if self._overlay is not None:
             yield
             return
         with self._transacting():
@@ -196,20 +195,21 @@ class _Store(Stores.Catalog):
     @contextlib.contextmanager
     def _transacting(self) -> Iterator[_Overlay]:
         """A transaction's writes (docs/OBJECT_IDENTITY.md, Decided, 89, 96): held in an overlay while it runs, written
-        when it ends, or, where it raises, dropped, the store's registries as they were before it began."""
-        global _OVERLAY
-        if _OVERLAY is not None:
+        when it ends, or, where it raises, dropped, the store's registries as they were before it began. One is open on a
+        store at a time; each store's is its own (Decided, 99)."""
+        if self._overlay is not None:
             raise ValueError("a transaction is open: transactions do not nest")
         saved = self._saved()
-        overlay = _OVERLAY = _Overlay(self)
+        overlay = self._overlay = _Overlay(self)
+        _OPEN.append(overlay)
         try:
             with self._writing():  # ownership is settled within it
                 yield overlay
         except BaseException:
-            _OVERLAY = None
+            self._closed(overlay)
             self._restore(saved)
             raise
-        _OVERLAY = None
+        self._closed(overlay)
         try:
             with self._expression():  # its commit
                 self._commit_schemas(overlay)
@@ -217,6 +217,11 @@ class _Store(Stores.Catalog):
             self._restore(saved)
             raise
         overlay.commit()
+
+    def _closed(self, overlay: _Overlay) -> None:
+        """The store's transaction ended: its overlay no longer read."""
+        self._overlay = None
+        _OPEN.remove(overlay)
 
     def _commit_schemas(self, overlay: _Overlay) -> None:
         """Applies the updates of schema objects that waited for commit: none, in a store of proxies alone."""

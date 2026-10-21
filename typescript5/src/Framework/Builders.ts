@@ -2133,8 +2133,8 @@ export class Store extends Proxies._Store {
   /** Whether a builder's update of a schema object waits for the commit of the transaction open: where the object existed
    * before it began (docs/OBJECT_IDENTITY.md, Decided, 96). What it would link is checked now. */
   _defers(builder: Builder): boolean {
-    const overlay = Proxies._overlay();
-    if (overlay === null || overlay.store !== this || !this._existed(builder._original, overlay)) return false;
+    const overlay = this._overlay;
+    if (overlay === null || !this._existed(builder._original, overlay)) return false;
     this._link(builder._original, builder._working);
     overlay.deferred.set(builder._original, builder); // its last: each began from what the one before made
     return true;
@@ -2147,8 +2147,8 @@ export class Store extends Proxies._Store {
 
   /** A schema object as the transaction open has made it: the working copy of its last deferred update, else itself. */
   _pending(original: unknown): unknown {
-    const overlay = Proxies._overlay();
-    const builder = overlay !== null && overlay.store === this ? overlay.deferred.get(original as object) : undefined;
+    const overlay = this._overlay;
+    const builder = overlay === null ? undefined : overlay.deferred.get(original as object);
     return builder === undefined ? original : builder._working;
   }
 

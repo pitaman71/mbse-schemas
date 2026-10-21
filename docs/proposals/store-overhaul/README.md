@@ -337,8 +337,9 @@ so that main stays current and no branch waits on another.
        While the callers moved, the refusal was behind a switch, removed with the last of them.
 
      Settled while building it, for the user's review: a decoder within a transaction joins it, so that a refused
-     decode there leaves what it wrote before the refusal to the transaction, which the caller may let raise; one
-     transaction is open at a time, of any store, so a program writes another store's objects after it ends.
+     decode there leaves what it wrote before the refusal to the transaction, which the caller may let raise. One
+     transaction was first open at a time across every store; each store has its own now (Decided, 99), its overlay
+     kept on the store.
    - **4f, the wire** (45, 51, 55, 56): a store's snapshot is made of transactions; a journal holds transactions as
      submitted, replayed by executing them; a Reachable document is one transaction, its counted objects numbered within
      it, owned objects and singletons referred to by path. The corpora are regenerated, the JSON byte-identical between

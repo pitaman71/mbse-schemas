@@ -1807,8 +1807,8 @@ class Store(Proxies._Store):
     def _defers(self, builder: _Builder[Any]) -> bool:
         """Whether a builder's update of a schema object waits for the commit of the transaction open: where the object
         existed before it began (docs/OBJECT_IDENTITY.md, Decided, 96). What it would link is checked now."""
-        overlay = Proxies._OVERLAY
-        if overlay is None or overlay.store is not self or id(builder._original) not in overlay.existing:
+        overlay = self._overlay
+        if overlay is None or id(builder._original) not in overlay.existing:
             return False
         self._link(builder._original, builder._working)
         overlay.deferred[id(builder._original)] = builder  # its last: each began from what the one before made
@@ -1817,8 +1817,8 @@ class Store(Proxies._Store):
     def _pending(self, original: Any) -> Any:
         """A schema object as the transaction open has made it: the working copy of its last deferred update, else
         itself."""
-        overlay = Proxies._OVERLAY
-        builder = overlay.deferred.get(id(original)) if overlay is not None and overlay.store is self else None
+        overlay = self._overlay
+        builder = overlay.deferred.get(id(original)) if overlay is not None else None
         return original if builder is None else builder._working
 
     def _saved(self) -> dict[str, Any]:

@@ -638,6 +638,14 @@ writes outside one are refused (44), choosing "Imperative scope too (Recommended
     transactions only, every builder test rewritten as a transaction or moved to builders outside any store, and
     against a private scope for tests alone.
 
+As the user decided (2026-10-21), asked "why a barrier?" of one transaction open at a time across every store, and
+agreeing ("yes") that it had no reason beyond the implementation:
+
+99. Each store has its own transaction: one may be open on a store at a time (50), and a transaction on one store does
+    not stop another's. Each store's overlay is its own, read through by the objects of that store, and each commits
+    or aborts on its own; a write to a store with no transaction open is refused still (44), whatever another store has
+    open.
+
 ## Open questions
 
 None at present.

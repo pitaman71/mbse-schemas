@@ -333,9 +333,10 @@ slices.
   objects. A store's basic scalars are its own, linked by its paths (`store.Schemas.OfInt`, and so on); another
   scalar, a form or any other schema object is built in the store that links it. No schema object is shared across
   stores ([Schema extension, Decided, 23](SCHEMA_EXTENSION.md#decided)).
-- **Schemas are extended, not redefined.** `store.extend` adds members to the schemas a store holds, its plain
-  schemas of schemas included; anything else about an existing schema is refused, and a schema the store was made
-  holding changes no other way ([Schema extension](SCHEMA_EXTENSION.md)).
+- **Schemas are extended, not redefined.** A module's install adds members to the schemas a store holds, its plain
+  schemas of schemas included ([Installing schemas](proposals/install/README.md)). A schema the store was made holding
+  only gains members, in any transaction, and changes no other way; a store's own schemas change freely ([Installing
+  schemas, Decided, 5](proposals/install/README.md#decided); [Schema extension](SCHEMA_EXTENSION.md)).
 - **A proxy knows its store.** `Proxies.store_of(value)` gives the store a proxy belongs to, and a placed value
   object's is its owner's.
 - **Everything that looks schemas up takes a store**: `Plain.ToPlain(store)` and `Plain.FromPlain(store)`, the JSON and
@@ -810,7 +811,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - a store refuses to build a scalar schema, and `validate()` reports scalar data that names no basic scalar;
   - an extension may add adjacencies to `Schemas.OfScalar`, whose entries a store's own scalars hold, written in a
     snapshot from either end (EXT-05); a property an extension adds to it can hold no value, since the store's own
-    scalars change only through `store.extend`, which only adds members.
+    scalars only gain members.
 - **A union's branches and an intersection's parts are relation entries** (0.18.0; [Store overhaul, Decided,
   4](proposals/store-overhaul/README.md#decided-here)), as the user decided, "`Meta.Member` -> relation meta-schemas":
   an entry of `Schemas.HasBranch` or `Schemas.HasPart` links the owner and the member's type, and carries its `name`
@@ -832,7 +833,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     `ByteWidth`);
   - the abstract bases `Schemas.Schema`, `Type` and `Typed` go: each kind declares its own `name`, `description`,
     `parameters` and the adjacencies of every relation it is at an end of (Store overhaul, Decided, 10);
-  - a property of an extended schema (`store.extend`) holds a container where its type is one (BLD-06), as a term's
+  - a property an extension adds to a schema holds a container where its type is one (BLD-06), as a term's
     `attributes` did.
 - **Schema builders align with their meta-schemas** (2026-10-14), as the user decided. FRAMEWORK.md requires "To make
   schemas fully serializable, `Schemas.OfX.Builder` must implement `Visitors.OfX`", which the schema builders do not:

@@ -3,6 +3,10 @@
 
 # Schema extension
 
+*As built since store overhaul 4i: `store.extend` is replaced by each module's `install(txn)`, and a schema the store
+was made holding only gains members, in any transaction ([Installing schemas](proposals/install/README.md); Object
+identity, Decided, 86). What follows is the design as it was decided, `store.extend` included.*
+
 1. Schema extension
 
 - Store already has a module lookup function but Visitors it returns must be read-only. 

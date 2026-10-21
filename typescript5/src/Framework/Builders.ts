@@ -1044,7 +1044,7 @@ function hidden(data: any, name: "_extended" | "_pending"): Map<string, any> {
   return found;
 }
 
-/** A property `store.extend` declares on a plain schema, held on each schema object apart from its fields: a scalar,
+/** A property an extension declares on a plain schema, held on each schema object apart from its fields: a scalar,
  * or a container where its schema is one. */
 function extensionProperty(prop: S.OfProperty.Data): Prop {
   const name = prop.name;
@@ -1880,8 +1880,8 @@ function extensionProblems(builder: any): string[] {
       if (!alike(member.get(original), member.get(working))) problems.push(`changes ${repr(name)}`);
       continue;
     }
-    // an extension's entries, a framework schema's, are its builder's store's (other members' items take no store)
-    const added = addedTo(member.items(original, builder._store), member.items(working));
+    if (member.extension !== null) continue; // an extension's relation: its entries are its store's own, as data's are
+    const added = addedTo(member.items(original), member.items(working));
     if (added === null) {
       problems.push(`removes or replaces what ${repr(name)} holds`);
     } else if (added.length > 0 && !member.extensible) {
@@ -1890,35 +1890,7 @@ function extensionProblems(builder: any): string[] {
       problems.push(...clashes(original, added.map((referent) => member.name_of(working, referent))));
     }
   }
-  if (original instanceof S.OfObject.Data) { // a member it inherits, given again, is its own: a redeclaration
-    const [properties, adjacencies] = S.inherited(original);
-    for (const name of properties) {
-      if (working.properties.has(name) && working.properties.get(name) !== original.properties.get(name)) {
-        problems.push(`adds ${repr(name)}, which it inherits`);
-      }
-    }
-    for (const name of adjacencies) {
-      if (working.adjacencies.has(name) && working.adjacencies.get(name) !== original.adjacencies.get(name)) {
-        problems.push(`adds ${repr(name)}, which it inherits`);
-      }
-    }
-  }
-  return problems;
-}
-
-/** Whether a builder's update would change the schema object it was given, apart from the entries of the relations an
- * extension added, which are its store's (a framework schema's are not the shared object's). */
-function changes(builder: any): boolean {
-  const original = builder._original;
-  const working = builder._working;
-  for (const member of (builder._table() as Table).values()) {
-    if (member instanceof Prop) {
-      if (!alike(member.get(original), member.get(working))) return true;
-    } else if (member.extension === null && addedTo(member.items(original), member.items(working))?.length !== 0) {
-      return true;
-    }
-  }
-  return false;
+  return problems; // a framework schema refines none, so inherits nothing an addition could redeclare
 }
 
 /** What `after` holds besides what `before` does, which it holds in the same order, wherever the additions stand (an
@@ -1933,20 +1905,17 @@ function addedTo(before: readonly unknown[], after: readonly unknown[]): unknown
   return next < before.length ? null : added;
 }
 
-/** The names an extension adds to an object schema that it has already, as a property or an adjacency, its own or
- * inherited, or that a schema refining it declares. */
+/** The names an extension adds to an object schema that it has already, as a property or an adjacency, or that a
+ * schema refining it declares. */
 function clashes(schema: S.OfObject.Data, names: (string | null)[]): string[] {
   const problems: string[] = [];
   const refinements = [...S._refinements(schema)];
   for (const refinement of refinements) {
     for (const found of S._refinements(refinement)) if (!refinements.includes(found)) refinements.push(found);
   }
-  const [properties, adjacencies] = S.inherited(schema);
   for (const name of names) {
     if (!name) continue;
-    if (schema.properties.has(name) || schema.adjacencies.has(name)) {
-      problems.push(`adds ${repr(name)}, which it ${properties.has(name) || adjacencies.has(name) ? "inherits" : "has"}`);
-    }
+    if (schema.properties.has(name) || schema.adjacencies.has(name)) problems.push(`adds ${repr(name)}, which it has`);
     for (const refinement of refinements) {
       const [own, ownAdjacencies] = S.inherited(refinement);
       if ((refinement.properties.has(name) && !own.has(name)) || (refinement.adjacencies.has(name) && !ownAdjacencies.has(name))) {
@@ -1987,8 +1956,6 @@ export class Store extends Proxies.OfStore {
   readonly _framework: Set<unknown>;
   /** The members its extensions added to builders, by builder class. */
   readonly _added = new Map<unknown, Table>();
-  /** How many schema objects were held when an extension began, while it runs: those are its to check. */
-  _extending: number | null = null;
   /** Specs being recorded: within one, `store.Schemas.OfX(cb)` defines where it is linked. */
   _recording = 0;
   /** When each schema object was first held, in order: those held when an extension began are its to extend only. */
@@ -2223,36 +2190,28 @@ export class Store extends Proxies.OfStore {
     return this._framework.has(schema);
   }
 
-  /** Builds and changes schemas through `cb`, given the store: a schema the store held before may only gain members (an
-   * object schema's properties and adjacencies, a relation's properties, a union's branches), each under a name it
-   * neither has nor inherits, nor a refinement of it declares; anything else about it stays as it was. What `cb` builds
-   * is the store's own. It is a transaction of its own (docs/OBJECT_IDENTITY.md, Decided, 44), committed before the
-   * extension ends, so that what it changes in the schemas the store held is checked as an extension's when it is
-   * written; refused, it writes nothing. */
-  extend(cb: unknown): this {
-    this._extending = this._held;
+  /** A transaction (`Proxies.OfStore._transacting`), after which each schema builder has the members it added to its
+   * plain schema (`extendBuilders`): a module's install extends a store's own schemas (docs/proposals/install,
+   * Decided, 5). */
+  override _transacting<T>(write: () => T): T {
     const before = new Map<unknown, [Set<string>, Set<string>]>();
     for (const meta of Object.values(this._meta)) {
       if (meta instanceof S.OfObject.Data) before.set(meta, [new Set(meta.properties.keys()), new Set(meta.adjacencies.keys())]);
     }
     try {
-      this._transacting(() => visit(cb, this));
+      return super._transacting(write);
     } finally {
-      this._extending = null;
       extendBuilders(this, before);
     }
-    return this;
   }
 
-  /** Refuses a builder's update of a schema the store was made holding outside an extension, and one that is not an
-   * extension of a schema the store held when an extension began. */
+  /** Refuses a builder's update of a schema the store was made holding that does more than add members to it, each under
+   * a name it neither has, nor a refinement of it declares (docs/SCHEMA_EXTENSION.md, Decided, 1): any transaction may
+   * extend one (docs/proposals/install, Decided, 5). The entries of an extension's relations, which are its store's own,
+   * change freely. */
   _permit(builder: any): void {
     const original = builder._original;
-    if (this.framework(original) && this._extending === null && changes(builder)) {
-      throw new TypeError(`${shown(original)} is one of the schemas the store was made holding: extend it with `
-        + "store.extend");
-    }
-    if (this._extending !== null && (this._heldAt.get(original) as number) < this._extending) { // one never held: false
+    if (this.framework(original)) {
       const problems = extensionProblems(builder);
       if (problems.length > 0) throw new TypeError(`an extension only adds members to ${shown(original)}: it ${problems.join("; ")}`);
     }

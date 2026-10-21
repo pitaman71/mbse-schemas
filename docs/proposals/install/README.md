@@ -77,6 +77,12 @@ As the user decided (2026-10-21), on the questions above:
    records a definition, which the executor makes where it writes the link, and finds holding where an equal one is
    linked there.
 
+5. Which writes the extension check applies to, with `store.extend` gone: "Framework schemas, always". Any transaction,
+   an install's, a snapshot read's or an imperative scope's, may only add members to a schema the store was made holding,
+   each under a name it neither has nor a refinement of it declares; a store's own schemas change freely everywhere.
+   Chosen over the check `store.extend` made, on every schema the store held before an install began, which would have
+   kept one module's schemas from another's install but stopped a snapshot read from changing an existing schema.
+
 ## Stages
 
 - **4i-1, defining schemas by transaction**: the executor and the spec recorders cover every kind and member the drafts
@@ -106,6 +112,13 @@ As the user decided (2026-10-21), on the questions above:
   nothing.
 - **4i-3, extensions as installs**: `store.extend` goes; the extension check applies to what any transaction writes to
   a schema the store was made holding; EXT rewritten.
+  As built (Decided, 5): `store.extend` and its bookkeeping go; a store's `_permit` checks every update of a framework
+  schema, in any transaction, and lets the entries of an extension's relations change freely, as the store's own; the
+  store's transaction gives each schema builder the members a transaction added to its plain schema when it ends, as
+  `extend` did. The check's "which it inherits" goes with what it checked: a framework schema refines none, and none can
+  come to, since `refines` only changes where the check allows. EXT is rewritten, every extension an `install(txn)`:
+  EXT-02 checks framework schemas (a refinement of a refinement declaring a name, the store's own refining
+  `Schemas.OfObject`), and EXT-03 extends one in an imperative scope.
 - **4i-4, everything else migrates**: the corpus, the examples, the README, the skill, the tutorials and every test
   notebook define their schemas in a module-scope `install(txn)`, in batches, each with both gates at 100%; then the
   dependents, mbse-expressions and mbse-programs.

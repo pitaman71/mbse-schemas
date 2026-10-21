@@ -1011,7 +1011,7 @@ def _schema(field: str = "schema") -> _Members:
 
 
 def _extension_property(prop: S.OfProperty.Data) -> _Prop:
-    """A property `store.extend` declares on a plain schema, held on each schema object apart from its fields: a
+    """A property an extension declares on a plain schema, held on each schema object apart from its fields: a
     scalar, or a container where its schema is one."""
     name = prop.name
     member = _Prop(get=lambda data: data.__dict__.get("_extended", {}).get(name),
@@ -1597,7 +1597,6 @@ class Store(Proxies.OfStore):
                     reached.append(referent)
         self._framework: set[int] = set(self._objects)
         self._added: dict[type, dict[str, Any]] = {}  # the members its extensions added to builders, by builder class
-        self._extending: set[int] | None = None  # the schema objects held when an extension began, while it runs
         self._recording = 0  # specs being recorded: within one, `store.Schemas.OfX(cb)` defines where it is linked
         self._modules: dict[str, _ModuleData] = {}  # by path; the root module's is ""
         self._placed: dict[int, tuple[_ModuleData, str]] = {}  # each schema's module, and its name there
@@ -1693,33 +1692,26 @@ class Store(Proxies.OfStore):
         schema. It changes only through `extend`, which adds members to it."""
         return id(schema) in self._framework
 
-    def extend(self, cb: Any) -> Store:
-        """Builds and changes schemas through `cb`, given the store: a schema the store held before may only gain members
-        (an object schema's properties and adjacencies, a relation's properties, a union's branches), each under a name
-        it neither has nor inherits, nor a refinement of it declares; anything else about it stays as it was. What `cb`
-        builds is the store's own. It is a transaction of its own (docs/OBJECT_IDENTITY.md, Decided, 44), committed
-        before the extension ends, so that what it changes in the schemas the store held is checked as an extension's when
-        it is written; refused, it writes nothing."""
-        held = {*self._objects, *self._unnamed.keys()}
+    @contextlib.contextmanager
+    def _transacting(self) -> Iterator[Any]:
+        """A transaction (`Proxies.OfStore._transacting`), after which each schema builder has the members it added to
+        its plain schema (`_extend_builders`): a module's install extends a store's own schemas (docs/proposals/install,
+        Decided, 5)."""
         before = {id(meta): (set(meta.properties), set(meta.adjacencies)) for meta in vars(self._meta).values()
                   if isinstance(meta, S.OfObject.Data)}
-        self._extending = held
         try:
-            with self._transacting():
-                _visit(cb, self)
+            with super()._transacting() as proposals:
+                yield proposals
         finally:
-            self._extending = None
             _extend_builders(self, before)
-        return self
 
     def _permit(self, builder: _Builder[Any]) -> None:
-        """Refuses a builder's update of a schema the store was made holding outside an extension, and one that is not
-        an extension of a schema the store held when an extension began."""
+        """Refuses a builder's update of a schema the store was made holding that does more than add members to it,
+        each under a name it neither has nor inherits, nor a refinement of it declares (docs/SCHEMA_EXTENSION.md,
+        Decided, 1): any transaction may extend one (docs/proposals/install, Decided, 5). The entries of an extension's
+        relations, which are its store's own, change freely."""
         original = builder._original
-        if self.framework(original) and self._extending is None and _changes(builder):
-            raise TypeError(f"{_shown(original)} is one of the schemas the store was made holding: extend it with "
-                            "store.extend")
-        if self._extending is not None and id(original) in self._extending:
+        if self.framework(original):
             problems = _extension_problems(builder)
             if problems:
                 raise TypeError(f"an extension only adds members to {_shown(original)}: it {'; '.join(problems)}")
@@ -1899,35 +1891,16 @@ def _extension_problems(builder: _Builder[Any]) -> list[str]:
             if member.get(original) != member.get(working):
                 problems.append(f"changes {name!r}")
             continue
-        extension = member.extension is not None  # whose entries, a framework schema's, are its builder's store's
-        before = member.items(original, builder._store) if extension else member.items(original)
-        added = _added(before, member.items(working))
+        if member.extension is not None:  # an extension's relation: its entries are its store's own, as data's are
+            continue
+        added = _added(member.items(original), member.items(working))
         if added is None:
             problems.append(f"removes or replaces what {name!r} holds")
         elif added and not member.extensible:
             problems.append(f"adds to {name!r}, which an extension cannot")
         elif added and member.keyed and isinstance(original, S.OfObject.Data):
             problems += _clashes(original, [member.name_of(working, referent) for referent in added])
-    if isinstance(original, S.OfObject.Data):  # a member it inherits, given again, is its own: a redeclaration
-        properties, adjacencies, _ = S.inherited(original)
-        problems += [f"adds {name!r}, which it inherits" for name in properties
-                     if name in working.properties and working.properties[name] is not original.properties.get(name)]
-        problems += [f"adds {name!r}, which it inherits" for name in adjacencies
-                     if name in working.adjacencies and working.adjacencies[name] is not original.adjacencies.get(name)]
-    return problems
-
-
-def _changes(builder: _Builder[Any]) -> bool:
-    """Whether a builder's update would change the schema object it was given, apart from the entries of the relations
-    an extension added, which are its store's (a framework schema's are not the shared object's)."""
-    original, working = builder._original, builder._working
-    for member in builder._members_.values():
-        if isinstance(member, _Prop):
-            if member.get(original) != member.get(working):
-                return True
-        elif member.extension is None and _added(member.items(original), member.items(working)) != []:
-            return True
-    return False
+    return problems  # a framework schema refines none, so inherits nothing an addition could redeclare
 
 
 def _added(before: list[Any], after: list[Any]) -> list[Any] | None:
@@ -1944,16 +1917,15 @@ def _added(before: list[Any], after: list[Any]) -> list[Any] | None:
 
 
 def _clashes(schema: S.OfObject.Data, names: list[Any]) -> list[str]:
-    """The names an extension adds to an object schema that it has already, as a property or an adjacency, its own or
-    inherited, or that a schema refining it declares."""
+    """The names an extension adds to an object schema that it has already, as a property or an adjacency, or that a
+    schema refining it declares."""
     problems = []
     refinements = list(schema.__dict__.get("_refinements", []))
     for refinement in refinements:
         refinements += [r for r in refinement.__dict__.get("_refinements", []) if all(r is not h for h in refinements)]
-    inherited = S.inherited(schema)
     for name in (name for name in names if name):
         if name in schema.properties or name in schema.adjacencies:
-            problems.append(f"adds {name!r}, which it {'inherits' if name in inherited[0] | inherited[1] else 'has'}")
+            problems.append(f"adds {name!r}, which it has")
         for refinement in refinements:
             own = S.inherited(refinement)
             if (name in refinement.properties and name not in own[0]) or (name in refinement.adjacencies and name not in own[1]):

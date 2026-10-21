@@ -117,10 +117,12 @@ class State {
         const [present, plain] = Plain._value(read, prop.schema, names);
         const verb = present ? m([["set", m([["value", plain]])]]) : m([["clear", new Map()]]);
         members.push(m([["as_property", m([["name", what], ["mutations", [verb]]])]]));
-      } else {
+      } else if (kind === "adjacency") {
         const [name, entries] = what as [string, RecordedEntry[]];
         members.push(m([["as_adjacency", m([["name", name], ["mutations", [
           m([["insert", m([["entries", entries.map((entry) => entry.plain())]])]])]]])]]));
+      } else { // a pattern's own spec, as recorded (`RecordedSpec`)
+        members.push(m([["spec", m([["items", what]])]]));
       }
     }
     return members;
@@ -147,6 +149,7 @@ class Recorder extends Shelled {
 
   override _member(name: string): unknown {
     const state = this._state;
+    if (name === "spec" && state.schema === state.store.registered("Schemas.OfPattern")) return makeRecordedSpec(this);
     if (state.schema.properties.has(name)) return makeRecordedProperty(this, name);
     if (state.schema.adjacencies.has(name)) return makeRecordedAdjacency(this, name);
     return Proxies._makeEmpty(`${repr(name)} is not a property or adjacency of ${Proxies._withArticle(Proxies._noun(state.schema))}`);
@@ -190,6 +193,38 @@ class RecordedProperty extends Shelled {
   override _member(name: string): unknown {
     return this._visitor()[name];
   }
+}
+
+/** A pattern's spec, written in a spec (`Mutations.OfObject.Spec`): each callback recorded over the symbols the pattern
+ * declares before it in the spec, as a pattern's builder records its own (`PatternBuilder.spec`). */
+function makeRecordedSpec(recorder: Recorder): any {
+  return (specs: unknown): unknown => {
+    const state = recorder._state;
+    const symbols = declared(state);
+    const items = Proxies._isFunction(specs) ? [specs] : [...(specs as Iterable<unknown>)];
+    state.written.push(["spec", items.map((item) => _recorded(state.store, symbols, item))]);
+    return recorder._proxy;
+  };
+}
+
+/** The symbols a recorded pattern declares, by name, each with the schema its entry links: one the store holds, since a
+ * spec is recorded before its transaction runs. */
+function declared(state: State): Map<string, any> {
+  const symbols = new Map<string, any>();
+  for (const [kind, what] of state.written) {
+    if (kind !== "adjacency" || (what as [string, unknown])[0] !== "symbols") continue;
+    for (const entry of (what as [string, RecordedEntry[]])[1]) {
+      const held = entry._links.get("symbol") as State;
+      const typed = held.written.filter(([k, w]) => k === "adjacency" && (w as [string, unknown])[0] === "schema");
+      const ref: any = typed.length > 0 ? ((typed[0]![1] as [string, RecordedEntry[]])[1][0]!)._links.get("schema") : new Map();
+      if (!(ref instanceof Map) || !ref.has("path")) {
+        throw new ValueError(`symbol ${repr(entry._values.get("name"))} of a pattern whose spec a spec records names no `
+          + "schema the store holds: name it by its path, an earlier install's");
+      }
+      symbols.set(entry._values.get("name") as string, { schema: Plain._by_path(state.store, ref.get("path"), []) });
+    }
+  }
+  return symbols;
 }
 
 /** What a schema object's builder makes of a value given whole to its property `name` (`Prop.shorthand`), so that a spec

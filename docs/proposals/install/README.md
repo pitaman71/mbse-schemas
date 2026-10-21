@@ -127,4 +127,11 @@ As the user decided (2026-10-21), on the questions above:
 - **4i-4, everything else migrates**: the corpus, the examples, the README, the skill, the tutorials and every test
   notebook define their schemas in a module-scope `install(txn)`, in batches, each with both gates at 100%; then the
   dependents, mbse-expressions and mbse-programs.
+  As built so far:
+  - the conformance corpus: each case's schemas a module-scope install written out (`rooted`, `address_book`, ...,
+    `patterns`), its schema helpers (`_text`, `_list`, `_basics`) gone; each case runs its installs, then its data in a
+    transaction of its own. The corpora are unchanged, byte for byte, in both languages;
+  - a spec takes a schema object's builder's shorthands (`uniques("a")`), and writes a pattern's own spec over the
+    symbols it declares, which name schemas the store holds: a pattern over schemas an install defines is installed
+    after it (the corpus's `patterns`, after `address_book`). INS-03 covers both.
 

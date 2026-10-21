@@ -11,27 +11,9 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Builders as B, Schemas } from "../Framework/index.js";
+import { Builders as B } from "../Framework/index.js";
 
 export const CASES = ["address_book", "scalars", "family", "enrollment", "yaml_strings", "embedded", "lists", "module"] as const;
-
-/** The basic scalars of the store `s`, each its own: bool, int, float, str and bytes. */
-function basics(s: any): [unknown, unknown, unknown, unknown, unknown] {
-  return [s.Schemas.OfBool, s.Schemas.OfInt, s.Schemas.OfFloat, s.Schemas.OfStr, s.Schemas.OfBytes];
-}
-
-function text(s: any, name: string, scalar: unknown = null) {
-  return (t: any) => t.name(name).schema([scalar !== null ? scalar : s.Schemas.OfStr]);
-}
-
-/** A property `name` holding a container of `element` by `index`: dense by position, by default. */
-function list(store: any, name: string, element: unknown, index: unknown = null, layout: string | null = null) {
-  const container = (c: any) => {
-    c.index([index !== null ? index : store.Schemas.OfInt]).element([element]);
-    return layout !== null ? c.layout(layout) : c;
-  };
-  return (t: any) => t.name(name).schema([store.Schemas.OfContainer(container)]);
-}
 
 /** Writes a container's elements, each a scalar or, given a function, through its `Visitors.OfAny`. */
 function write(pairs: Iterable<readonly [unknown, unknown]>) {
@@ -55,156 +37,224 @@ function enumerate(values: unknown[]): [bigint, unknown][] {
   return values.map((value, i) => [BigInt(i), value]);
 }
 
-/** The case's root, a singleton holding its data: a store's snapshot holds what its singletons reach. */
-function rooted(s: any, objects: unknown[]): void {
-  const Holds = s.Schemas.OfRelation((r: any) => r.name("Corpus.Holds").links([(t: any) => t.name("corpus"), (t: any) => t.name("item")]));
-  s.Schemas.OfObject((o: any) => o.name("Corpus.Root").ref(true).singleton("corpus").adjacencies([
-    (t: any) => t.name("holds").relation([Holds]).me("corpus"),
-  ]));
-  const hold = (adjacency: any): any => {
+/** The case's root, `Corpus.Root` (`rooted`), holding its data: a store's snapshot holds what its singletons reach. */
+function hold(s: any, objects: unknown[]): void {
+  const holding = (adjacency: any): any => {
     for (const item of objects) adjacency.insert((e: any) => e.item(item));
     return adjacency;
   };
-  s.Corpus.Root(s.singleton("corpus"), (r: any) => r.holds(hold));
+  s.Corpus.Root(s.singleton("corpus"), (r: any) => r.holds(holding));
 }
 
-// --- Schemas, each group built in the store given ---
+// --- Schemas, each group a module-scope install (docs/proposals/install) ---
 
-function addressBook(s: any): [any, any, any] {
-  const Contact = s.Schemas.OfObject((o: any) => o.name("Contact").ref(true).properties([
-    text(s, "given_name"), text(s, "family_name"), text(s, "birth_date")]));
-  const Address = s.Schemas.OfObject((o: any) => o.name("Address").ref(true).properties([
-    text(s, "street1"), text(s, "locality"), text(s, "postal_code"), text(s, "country_code")]));
-  const Phone = s.Schemas.OfObject((o: any) => o.name("Phone").ref(true).properties([text(s, "number")]));
-  const ContactAddresses = s.Schemas.OfRelation((r: any) => r.name("ContactAddresses").links([
-    (t: any) => t.name("contact"), (t: any) => t.name("address")]).properties([text(s, "label")]));
-  const ContactPhones = s.Schemas.OfRelation((r: any) => r.name("ContactPhones").links([
-    (t: any) => t.name("contact"), (t: any) => t.name("phone")]).properties([text(s, "label")]));
-  s.Schemas.OfObject(Contact, (o: any) => o.adjacencies([
-    (t: any) => t.name("addresses").relation([ContactAddresses]).me("contact"),
-    (t: any) => t.name("phones").relation([ContactPhones]).me("contact")]));
-  s.Schemas.OfObject(Address, (o: any) => o.adjacencies([(t: any) => t.name("contacts").relation([ContactAddresses]).me("address")]));
-  s.Schemas.OfObject(Phone, (o: any) => o.adjacencies([(t: any) => t.name("contacts").relation([ContactPhones]).me("phone")]));
-  return [Contact, Address, ContactAddresses];
+/** Corpus.Root, the case's root, a singleton holding its data: a store's snapshot holds what its singletons reach. */
+function rooted(txn: any): any {
+  const S = txn.Schemas;
+  return txn.uid("corpus.rooted/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({Holds: S.OfRelation, Root: S.OfObject})
+    .spec([
+      (_: any) => _.Holds.name("Corpus.Holds").links([(t: any) => t.name("corpus"), (t: any) => t.name("item")]),
+      (_: any) => _.Root.name("Corpus.Root").ref(true).singleton("corpus").adjacencies({
+        holds: (a: any) => a.relation([_.Holds]).me("corpus")}),
+    ])]))]);
 }
 
-function scalars(s: any): void {
-  const [Bool, Int, Float, Str, Bytes] = basics(s);
-  const Bag = s.Schemas.OfObject((o: any) => o.name("Bag").ref(true).properties([text(s, "name")]));
-  const Sample = s.Schemas.OfObject((o: any) => o.name("Sample").ref(true).properties([
-    text(s, "label"), text(s, "payload", Bytes), text(s, "count", Int), text(s, "ratio", Float), text(s, "flag", Bool)]));
-  const Holds = s.Schemas.OfRelation((r: any) => r.name("Holds").links([(t: any) => t.name("bag"), (t: any) => t.name("item")])
-    .properties([text(s, "slot", Int)]).uniques(["bag", "slot"]));
-  s.Schemas.OfObject(Bag, (o: any) => o.adjacencies([(t: any) => t.name("items").relation([Holds]).me("bag")]));
-  s.Schemas.OfObject(Sample, (o: any) => o.adjacencies([(t: any) => t.name("bags").relation([Holds]).me("item")]));
+function addressBook(txn: any): any {
+  const S = txn.Schemas;
+  return txn.uid("corpus.address_book/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({Contact: S.OfObject, Address: S.OfObject, Phone: S.OfObject, ContactAddresses: S.OfRelation,
+      ContactPhones: S.OfRelation})
+    .spec([
+      (_: any) => _.Contact.name("Contact").ref(true).properties({
+        given_name: S.OfStr, family_name: S.OfStr, birth_date: S.OfStr,
+      }).adjacencies({
+        addresses: (a: any) => a.relation([_.ContactAddresses]).me("contact"),
+        phones: (a: any) => a.relation([_.ContactPhones]).me("contact"),
+      }),
+      (_: any) => _.Address.name("Address").ref(true).properties({
+        street1: S.OfStr, locality: S.OfStr, postal_code: S.OfStr, country_code: S.OfStr,
+      }).adjacencies({contacts: (a: any) => a.relation([_.ContactAddresses]).me("address")}),
+      (_: any) => _.Phone.name("Phone").ref(true).properties({number: S.OfStr}).adjacencies({
+        contacts: (a: any) => a.relation([_.ContactPhones]).me("phone")}),
+      (_: any) => _.ContactAddresses.name("ContactAddresses").links([
+        (t: any) => t.name("contact"), (t: any) => t.name("address")]).properties({label: S.OfStr}),
+      (_: any) => _.ContactPhones.name("ContactPhones").links([
+        (t: any) => t.name("contact"), (t: any) => t.name("phone")]).properties({label: S.OfStr}),
+    ])]))]);
 }
 
-function family(s: any): [any, any] {
-  const Person = s.Schemas.OfObject((o: any) => o.name("Person").ref(true).properties([
-    text(s, "given_name"), text(s, "birth_date")]));
-  const Parentage = s.Schemas.OfRelation((r: any) => r.name("Parentage").links([(t: any) => t.name("parent"), (t: any) => t.name("child")])
-    .properties([text(s, "kind")]));
-  const Mentorship = s.Schemas.OfRelation((r: any) => r.name("Mentorship").links([(t: any) => t.name("mentor"), (t: any) => t.name("mentee")]));
-  s.Schemas.OfObject(Person, (o: any) => o.adjacencies([
-    (t: any) => t.name("children").relation([Parentage]).me("parent"),
-    (t: any) => t.name("parents").relation([Parentage]).me("child"),
-    (t: any) => t.name("mentees").relation([Mentorship]).me("mentor"),
-    (t: any) => t.name("mentors").relation([Mentorship]).me("mentee")]));
-  return [Person, Parentage];
+function scalars(txn: any): any {
+  const S = txn.Schemas;
+  return txn.uid("corpus.scalars/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({Bag: S.OfObject, Sample: S.OfObject, Holds: S.OfRelation})
+    .spec([
+      (_: any) => _.Bag.name("Bag").ref(true).properties({name: S.OfStr}).adjacencies({
+        items: (a: any) => a.relation([_.Holds]).me("bag")}),
+      (_: any) => _.Sample.name("Sample").ref(true).properties({
+        label: S.OfStr, payload: S.OfBytes, count: S.OfInt, ratio: S.OfFloat, flag: S.OfBool,
+      }).adjacencies({bags: (a: any) => a.relation([_.Holds]).me("item")}),
+      (_: any) => _.Holds.name("Holds").links([(t: any) => t.name("bag"), (t: any) => t.name("item")]).properties({
+        slot: S.OfInt}).uniques(["bag", "slot"]),
+    ])]))]);
 }
 
-function enrollment(s: any): void {
-  const [Bool, Int, Float, Str, Bytes] = basics(s);
-  const Student = s.Schemas.OfObject((o: any) => o.name("Student").ref(true).properties([text(s, "name")]));
-  const Course = s.Schemas.OfObject((o: any) => o.name("Course").ref(true).properties([text(s, "code")]));
-  const Term = s.Schemas.OfObject((o: any) => o.name("Term").ref(true).properties([
-    text(s, "code"), text(s, "starts")]));
-  const Enrollment = s.Schemas.OfRelation((r: any) => r.name("Enrollment").links([
-    (t: any) => t.name("student"), (t: any) => t.name("course"), (t: any) => t.name("term")]).properties([
-    text(s, "credits", Int), text(s, "score", Float), text(s, "audit", Bool)]));
-  s.Schemas.OfObject(Student, (o: any) => o.adjacencies([(t: any) => t.name("enrollments").relation([Enrollment]).me("student")]));
-  s.Schemas.OfObject(Course, (o: any) => o.adjacencies([(t: any) => t.name("enrollments").relation([Enrollment]).me("course")]));
-  s.Schemas.OfObject(Term, (o: any) => o.adjacencies([(t: any) => t.name("enrollments").relation([Enrollment]).me("term")]));
+function family(txn: any): any {
+  const S = txn.Schemas;
+  return txn.uid("corpus.family/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({Person: S.OfObject, Parentage: S.OfRelation, Mentorship: S.OfRelation})
+    .spec([
+      (_: any) => _.Person.name("Person").ref(true).properties({given_name: S.OfStr, birth_date: S.OfStr}).adjacencies({
+        children: (a: any) => a.relation([_.Parentage]).me("parent"),
+        parents: (a: any) => a.relation([_.Parentage]).me("child"),
+        mentees: (a: any) => a.relation([_.Mentorship]).me("mentor"),
+        mentors: (a: any) => a.relation([_.Mentorship]).me("mentee"),
+      }),
+      (_: any) => _.Parentage.name("Parentage").links([(t: any) => t.name("parent"), (t: any) => t.name("child")]).properties({
+        kind: S.OfStr}),
+      (_: any) => _.Mentorship.name("Mentorship").links([(t: any) => t.name("mentor"), (t: any) => t.name("mentee")]),
+    ])]))]);
 }
 
-function yamlStrings(s: any): void {
-  const [Bool, Int, Float, Str, Bytes] = basics(s);
-  const Notebook = s.Schemas.OfObject((o: any) => o.name("Notebook").ref(true).properties([text(s, "title")]));
-  const Note = s.Schemas.OfObject((o: any) => o.name("Note").ref(true).properties([text(s, "text")]));
-  const Pages = s.Schemas.OfRelation((r: any) => r.name("Pages").links([(t: any) => t.name("notebook"), (t: any) => t.name("note")])
-    .properties([text(s, "page", Int)]));
-  s.Schemas.OfObject(Notebook, (o: any) => o.adjacencies([(t: any) => t.name("notes").relation([Pages]).me("notebook")]));
-  s.Schemas.OfObject(Note, (o: any) => o.adjacencies([(t: any) => t.name("notebooks").relation([Pages]).me("note")]));
+function enrollment(txn: any): any {
+  const S = txn.Schemas;
+  return txn.uid("corpus.enrollment/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({Student: S.OfObject, Course: S.OfObject, Term: S.OfObject, Enrollment: S.OfRelation})
+    .spec([
+      (_: any) => _.Student.name("Student").ref(true).properties({name: S.OfStr}).adjacencies({
+        enrollments: (a: any) => a.relation([_.Enrollment]).me("student")}),
+      (_: any) => _.Course.name("Course").ref(true).properties({code: S.OfStr}).adjacencies({
+        enrollments: (a: any) => a.relation([_.Enrollment]).me("course")}),
+      (_: any) => _.Term.name("Term").ref(true).properties({code: S.OfStr, starts: S.OfStr}).adjacencies({
+        enrollments: (a: any) => a.relation([_.Enrollment]).me("term")}),
+      (_: any) => _.Enrollment.name("Enrollment").links([
+        (t: any) => t.name("student"), (t: any) => t.name("course"), (t: any) => t.name("term"),
+      ]).properties({credits: S.OfInt, score: S.OfFloat, audit: S.OfBool}),
+    ])]))]);
 }
 
-/** Value objects (one with a container of its own), union values of objects and of scalars, and an intersection
- * value. */
-function embedded(s: any): [any, any, any] {
-  const [Bool, Int, Float, Str, Bytes] = basics(s);
-  const CardPhone = s.Schemas.OfObject((o: any) => o.name("CardPhone").properties([text(s, "number"), text(s, "label"), list(s, "extensions", Str)]));
-  const CardEmail = s.Schemas.OfObject((o: any) => o.properties([text(s, "address")]));
-  const Reach = s.Schemas.OfUnion((u: any) => u.branches([(t: any) => t.name("phone").schema([CardPhone]),
-    (t: any) => t.name("email").schema([CardEmail])]));
-  const Ident = s.Schemas.OfUnion((u: any) => u.branches([(t: any) => t.name("number").schema([Int]),
-    (t: any) => t.name("code").schema([Str])]));
-  const CardStamp = s.Schemas.OfObject((o: any) => o.properties([text(s, "updated")]));
-  const CardAudit = s.Schemas.OfObject((o: any) => o.properties([text(s, "by"), text(s, "updated")]));
-  const CardMeta = s.Schemas.OfIntersection((i: any) => i.parts([(t: any) => t.name("stamp").schema([CardStamp]),
-    (t: any) => t.name("audit").schema([CardAudit])]));
-  const Card = s.Schemas.OfObject((o: any) => o.name("Card").ref(true).properties([
-    text(s, "name"), (t: any) => t.name("home").schema([CardPhone]), (t: any) => t.name("reach").schema([Reach]),
-    (t: any) => t.name("ident").schema([Ident]), (t: any) => t.name("meta").schema([CardMeta])]));
-  const Holding = s.Schemas.OfRelation((r: any) => r.name("Holding").links([(t: any) => t.name("deck"), (t: any) => t.name("card")]));
-  const Deck = s.Schemas.OfObject((o: any) => o.name("Deck").ref(true).properties([text(s, "title")])
-    .adjacencies([(t: any) => t.name("cards").relation([Holding]).me("deck")]));
-  s.Schemas.OfObject(Card, (o: any) => o.adjacencies([(t: any) => t.name("decks").relation([Holding]).me("card")]));
-  return [Card, Deck, Holding];
+function yamlStrings(txn: any): any {
+  const S = txn.Schemas;
+  return txn.uid("corpus.yaml_strings/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({Notebook: S.OfObject, Note: S.OfObject, Pages: S.OfRelation})
+    .spec([
+      (_: any) => _.Notebook.name("Notebook").ref(true).properties({title: S.OfStr}).adjacencies({
+        notes: (a: any) => a.relation([_.Pages]).me("notebook")}),
+      (_: any) => _.Note.name("Note").ref(true).properties({text: S.OfStr}).adjacencies({
+        notebooks: (a: any) => a.relation([_.Pages]).me("note")}),
+      (_: any) => _.Pages.name("Pages").links([(t: any) => t.name("notebook"), (t: any) => t.name("note")]).properties({
+        page: S.OfInt}),
+    ])]))]);
+}
+
+/** Value objects (one with a container of its own), union values of objects and of scalars, and an intersection value. */
+function embedded(txn: any): any {
+  const S = txn.Schemas;
+  return txn.uid("corpus.embedded/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({CardPhone: S.OfObject, Card: S.OfObject, Holding: S.OfRelation, Deck: S.OfObject})
+    .spec([
+      (_: any) => _.CardPhone.name("CardPhone").properties({
+        number: S.OfStr, label: S.OfStr,
+        extensions: S.OfContainer((c: any) => c.index([S.OfInt]).element([S.OfStr])),
+      }),
+      (_: any) => _.Card.name("Card").ref(true).properties({
+        name: S.OfStr,
+        home: _.CardPhone,
+        reach: S.OfUnion((n: any) => n.branches([
+          (t: any) => t.name("phone").schema([_.CardPhone]),
+          (t: any) => t.name("email").schema([S.OfObject((o: any) => o.properties({address: S.OfStr}))]),
+        ])),
+        ident: S.OfUnion((n: any) => n.branches([
+          (t: any) => t.name("number").schema([S.OfInt]),
+          (t: any) => t.name("code").schema([S.OfStr]),
+        ])),
+        meta: S.OfIntersection((i: any) => i.parts([
+          (t: any) => t.name("stamp").schema([S.OfObject((o: any) => o.properties({updated: S.OfStr}))]),
+          (t: any) => t.name("audit").schema([S.OfObject((o: any) => o.properties({by: S.OfStr, updated: S.OfStr}))]),
+        ])),
+      }).adjacencies({decks: (a: any) => a.relation([_.Holding]).me("card")}),
+      (_: any) => _.Holding.name("Holding").links([(t: any) => t.name("deck"), (t: any) => t.name("card")]),
+      (_: any) => _.Deck.name("Deck").ref(true).properties({title: S.OfStr}).adjacencies({
+        cards: (a: any) => a.relation([_.Holding]).me("deck")}),
+    ])]))]);
 }
 
 /** Containers, dense by position: of scalars, of containers, of union values and of value objects, which hold
  * containers of their own; a tensor by a pair of ints, sparse by an int, a dict by text, and entries by a float. */
-function lists(s: any): any {
-  const [Bool, Int, Float, Str, Bytes] = basics(s);
-  const Socket = s.Schemas.OfObject((o: any) => o.name("Socket").properties([text(s, "name"), list(s, "pins", Str)]));
-  const Coord = s.Schemas.OfObject((o: any) => o.properties([text(s, "r", Int), text(s, "c", Int)]));
-  const Reading = s.Schemas.OfUnion((u: any) => u.branches([(t: any) => t.name("value").schema([Float]),
-    (t: any) => t.name("note").schema([Str])]));
-  const Row = s.Schemas.OfContainer((c: any) => c.index([Int]).element([Int]));
-  const Bank = s.Schemas.OfObject((o: any) => o.properties([list(s, "sockets", Socket)]));
-  return s.Schemas.OfObject((o: any) => o.name("Board").ref(true).properties([
-    text(s, "name"), list(s, "tags", Str), list(s, "blobs", Bytes), list(s, "grid", Row),
-    list(s, "readings", Reading), list(s, "sockets", Socket), list(s, "banks", Bank), list(s, "matrix", Int, Coord),
-    list(s, "cells", Int, Int, "sparse"), list(s, "attrs", Float, Str), list(s, "weights", Str, Float)]));
+function lists(txn: any): any {
+  const S = txn.Schemas;
+  return txn.uid("corpus.lists/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({Socket: S.OfObject, Board: S.OfObject})
+    .spec([
+      (_: any) => _.Socket.name("Socket").properties({
+        name: S.OfStr, pins: S.OfContainer((c: any) => c.index([S.OfInt]).element([S.OfStr]))}),
+      (_: any) => _.Board.name("Board").ref(true).properties({
+        name: S.OfStr,
+        tags: S.OfContainer((c: any) => c.index([S.OfInt]).element([S.OfStr])),
+        blobs: S.OfContainer((c: any) => c.index([S.OfInt]).element([S.OfBytes])),
+        grid: S.OfContainer((c: any) => c.index([S.OfInt]).element([
+          S.OfContainer((r: any) => r.index([S.OfInt]).element([S.OfInt]))])),
+        readings: S.OfContainer((c: any) => c.index([S.OfInt]).element([S.OfUnion((n: any) => n.branches([
+          (t: any) => t.name("value").schema([S.OfFloat]), (t: any) => t.name("note").schema([S.OfStr])]))])),
+        sockets: S.OfContainer((c: any) => c.index([S.OfInt]).element([_.Socket])),
+        banks: S.OfContainer((c: any) => c.index([S.OfInt]).element([S.OfObject((o: any) => o.properties({
+          sockets: S.OfContainer((k: any) => k.index([S.OfInt]).element([_.Socket]))}))])),
+        matrix: S.OfContainer((c: any) => c.index([S.OfObject((o: any) => o.properties({
+          r: S.OfInt, c: S.OfInt}))]).element([S.OfInt])),
+        cells: S.OfContainer((c: any) => c.index([S.OfInt]).element([S.OfInt]).layout("sparse")),
+        attrs: S.OfContainer((c: any) => c.index([S.OfStr]).element([S.OfFloat])),
+        weights: S.OfContainer((c: any) => c.index([S.OfFloat]).element([S.OfStr])),
+      }),
+    ])]))]);
 }
 
-/** The corpus's own schemas as data, with parametric schemas, whose parameters are names, and a pattern, with a variable
- * and a constraint, an expression and a collector. */
-function module(s: any): void {
-  const [Bool, Int, Float, Str, Bytes] = basics(s);
-  const [Contact, Address] = addressBook(s);
-  family(s);
-  embedded(s);
-  lists(s);
-  s.Schemas.OfObject((o: any) => o.name("Grid").parameters([
-    (t: any) => t.name("n").description("Its side"), (t: any) => t.name("x")]).properties([
-    (t: any) => t.name("mask").schema([Int]), list(s, "cells", Int)]));
-  s.Schemas.OfObject((o: any) => o.name("Tricky").parameters([..."abcd"].map((x) => (t: any) => t.name(x))));
-  s.Schemas.OfUnion((u: any) => u.name("Choice").flat(true).branches([
-    (t: any) => t.name("n").schema([Int]), (t: any) => t.name("s").schema([Str])]));
-  s.Schemas.OfIntersection((i: any) => i.name("Marked").flat(true).parts([
-    (t: any) => t.name("when").schema([s.Schemas.OfObject((o: any) => o.properties([text(s, "at", Int)]))]),
-    (t: any) => t.name("who").schema([s.Schemas.OfObject((o: any) => o.properties([text(s, "by")]))])]));
-  const Lives = s.Schemas.OfPattern((p: any) => p.name("Lives").description("Who lives where").symbols([
-    (t: any) => t.name("who").schema([Contact]),
-    (t: any) => t.name("where").schema([Address]).description("A home")])
-    .variables([(t: any) => t.name("since").schema([Str])])
-    .requires([(c: any) => c.description("lived there since")])
-    .parameters([(t: any) => t.name("era")])
-    .spec([(_: any) => _.who.addresses({ home: _.where }), (_: any) => _.where.locality("London")]));
-  s.Schemas.OfCollector((c: any) => c.name("Homes").pattern([Lives]).symbols(["where"]).commutative(true).associative(true)
-    .suffixes({ current: "_here", next: "_there" })
-    .computes([s.Schemas.OfExpression((e: any) => e.pattern([Lives]).result([Int]))]));
+/** The corpus's own schemas as data, beside the address book's, the family's, the embedded values' and the lists':
+ * parametric schemas, whose parameters are names, a flat union and a flat intersection. */
+function module(txn: any): any {
+  const S = txn.Schemas;
+  return txn.uid("corpus.module/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({Grid: S.OfObject, Tricky: S.OfObject, Choice: S.OfUnion, Marked: S.OfIntersection})
+    .spec([
+      (_: any) => _.Grid.name("Grid").parameters([
+        (t: any) => t.name("n").description("Its side"), (t: any) => t.name("x"),
+      ]).properties({mask: S.OfInt, cells: S.OfContainer((c: any) => c.index([S.OfInt]).element([S.OfInt]))}),
+      (_: any) => _.Tricky.name("Tricky").parameters([
+        (t: any) => t.name("a"), (t: any) => t.name("b"), (t: any) => t.name("c"), (t: any) => t.name("d")]),
+      (_: any) => _.Choice.name("Choice").flat(true).branches([
+        (t: any) => t.name("n").schema([S.OfInt]), (t: any) => t.name("s").schema([S.OfStr])]),
+      (_: any) => _.Marked.name("Marked").flat(true).parts([
+        (t: any) => t.name("when").schema([S.OfObject((o: any) => o.properties({at: S.OfInt}))]),
+        (t: any) => t.name("who").schema([S.OfObject((o: any) => o.properties({by: S.OfStr}))]),
+      ]),
+    ])]))]);
 }
+
+/** A pattern over the address book's schemas, with a variable, a constraint and a spec, and a collector of it with an
+ * expression: recorded once the schemas it names are installed. */
+function patterns(txn: any): any {
+  const S = txn.Schemas;
+  return txn.uid("corpus.patterns/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({Lives: S.OfPattern, Homes: S.OfCollector})
+    .spec([
+      (_: any) => _.Lives.name("Lives").description("Who lives where").symbols([
+        (t: any) => t.name("who").schema([txn.Contact]),
+        (t: any) => t.name("where").schema([txn.Address]).description("A home"),
+      ]).variables([
+        (t: any) => t.name("since").schema([S.OfStr]),
+      ]).requires([
+        (c: any) => c.description("lived there since").result([S.OfBool]),
+      ]).parameters([
+        (t: any) => t.name("era"),
+      ]).spec([
+        (_: any) => _.who.addresses({home: _.where}),
+        (_: any) => _.where.locality("London"),
+      ]),
+      (_: any) => _.Homes.name("Homes").pattern([_.Lives]).symbols(["where"]).commutative(true).associative(true)
+      .suffixes({current: "_here", next: "_there"})
+      .computes([S.OfExpression((e: any) => e.pattern([_.Lives]).result([S.OfInt]))]),
+    ])]))]);
+}
+
 
 // --- The cases ---
 
@@ -213,8 +263,9 @@ export function build(): Map<string, [B.Store, unknown[]]> {
   const cases = new Map<string, [B.Store, unknown[]]>();
 
   let s: any = new B.Store();
-  s.transaction(() => { // each case's schemas and data, one transaction
-    addressBook(s);
+  s.transaction(addressBook);
+  s.transaction(rooted);
+  s.transaction(() => { // the case's data, one transaction
     const home = s.Address((a: any) => a.street1("10 Downing Street").locality("London").postal_code("SW1A 2AA").country_code("GB"));
     const alice = s.Contact((c: any) => (
       c.given_name("Alice").family_name("Liddell").birth_date("1852-05-04")
@@ -222,13 +273,14 @@ export function build(): Map<string, [B.Store, unknown[]]> {
         .phones((a: any) => a.insert((x: any) => x.phone((p: any) => p.number("+447700900123")).label("mobile")))
         .phones((a: any) => a.insert((x: any) => x.phone((p: any) => p.number("+14155550100")).label("work")))));
     const bob = s.Contact((c: any) => c.given_name("Bob").addresses((a: any) => a.insert((x: any) => x.address(home).label("home"))));
-    rooted(s, [home, alice, bob]);
+    hold(s, [home, alice, bob]);
     cases.set("address_book", [s, [home, alice, bob]]);
   });
 
   s = new B.Store();
-  s.transaction(() => { // each case's schemas and data, one transaction
-    scalars(s);
+  s.transaction(scalars);
+  s.transaction(rooted);
+  s.transaction(() => { // the case's data, one transaction
     const all = new Uint8Array(Array.from({ length: 256 }, (_, i) => i));
     const samples: Record<string, unknown>[] = [
       { label: "", payload: new Uint8Array(), count: 0n, ratio: 0.0, flag: false },
@@ -249,13 +301,14 @@ export function build(): Map<string, [B.Store, unknown[]]> {
       items.push(item);
       s.Bag(bag, (b: any) => b.items((a: any) => a.insert((x: any) => x.item(item).slot(BigInt(slot)))));
     });
-    rooted(s, [bag, ...items]);
+    hold(s, [bag, ...items]);
     cases.set("scalars", [s, [bag, ...items]]);
   });
 
   s = new B.Store();
-  s.transaction(() => { // each case's schemas and data, one transaction
-    family(s);
+  s.transaction(family);
+  s.transaction(rooted);
+  s.transaction(() => { // the case's data, one transaction
     const ada = s.Person((p: any) => p.given_name("Ada").birth_date("1815-12-10"));
     const bob = s.Person((p: any) => p.given_name("Bob").parents((a: any) => a.insert((x: any) => x.parent(ada).kind("biological"))));
     const carol = s.Person((p: any) => p.given_name("Carol").children((a: any) => a.insert(
@@ -263,13 +316,14 @@ export function build(): Map<string, [B.Store, unknown[]]> {
     s.Person(ada, (p: any) => p.mentees((a: any) => a.insert((x: any) => x.mentee(bob))));
     s.Person(carol, (p: any) => p.mentees((a: any) => a.insert((x: any) => x.mentee(carol))));
     s.Person(bob, (p: any) => p.mentees((a: any) => a.insert((x: any) => x.mentee(ada))));
-    rooted(s, [ada, bob, carol]);
+    hold(s, [ada, bob, carol]);
     cases.set("family", [s, [ada, bob, carol]]);
   });
 
   s = new B.Store();
-  s.transaction(() => { // each case's schemas and data, one transaction
-    enrollment(s);
+  s.transaction(enrollment);
+  s.transaction(rooted);
+  s.transaction(() => { // the case's data, one transaction
     const fall = s.Term((t: any) => t.code("2026-FA").starts("2026-09-01"));
     const cs101 = s.Course((c: any) => c.code("CS101"));
     const mia = s.Student((st: any) => (
@@ -277,13 +331,14 @@ export function build(): Map<string, [B.Store, unknown[]]> {
         .enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).credits(4n).score(3.75).audit(false)))
         .enrollments((a: any) => a.insert((x: any) => x.course((c: any) => c.code("MA201")).term(fall).credits(3n).score(-0.0)))));
     const noah = s.Student((st: any) => st.name("Noah").enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).audit(true))));
-    rooted(s, [fall, cs101, mia, noah]);
+    hold(s, [fall, cs101, mia, noah]);
     cases.set("enrollment", [s, [fall, cs101, mia, noah]]);
   });
 
   s = new B.Store();
-  s.transaction(() => { // each case's schemas and data, one transaction
-    yamlStrings(s);
+  s.transaction(yamlStrings);
+  s.transaction(rooted);
+  s.transaction(() => { // the case's data, one transaction
     const tricky = ["yes", "No", "on", "OFF", "y", "true", "null", "~", "", "010", "0o17", "0x1F", "1e3", "1_000", "1:30",
       "2026-09-01", ".inf", ".nan", "NaN", "Infinity", "-0.0", "+1", " lead", "trail ", "a: b", "- dash",
       "#hash", "x #y", '"dq"', "'sq'", "@at", "`tick", "%pct", "!bang", "&amp", "*star", "|", ">", "{}", "[]",
@@ -296,13 +351,14 @@ export function build(): Map<string, [B.Store, unknown[]]> {
       notes.push(note);
       s.Notebook(notebook, (n: any) => n.notes((a: any) => a.insert((x: any) => x.note(note).page(BigInt(page)))));
     });
-    rooted(s, [notebook, ...notes]);
+    hold(s, [notebook, ...notes]);
     cases.set("yaml_strings", [s, [notebook, ...notes]]);
   });
 
   s = new B.Store();
-  s.transaction(() => { // each case's schemas and data, one transaction
-    embedded(s);
+  s.transaction(embedded);
+  s.transaction(rooted);
+  s.transaction(() => { // the case's data, one transaction
     const deck = s.Deck((d: any) => d.title("contacts"));
     const cards = [
       s.Card((c: any) => c.name("Ann").home((p: any) => p.as_object((r: any) => r.number("+1 555 0100").label("home").extensions(
@@ -315,13 +371,14 @@ export function build(): Map<string, [B.Store, unknown[]]> {
       s.Card((c: any) => c.name("Cy")),
     ];
     for (const card of cards) s.Deck(deck, (d: any) => d.cards((a: any) => a.insert((x: any) => x.card(card))));
-    rooted(s, [deck, ...cards]);
+    hold(s, [deck, ...cards]);
     cases.set("embedded", [s, [deck, ...cards]]);
   });
 
   s = new B.Store();
-  s.transaction(() => { // each case's schemas and data, one transaction
-    lists(s);
+  s.transaction(lists);
+  s.transaction(rooted);
+  s.transaction(() => { // the case's data, one transaction
     const board = s.Board((r: any) => (
       r.name("rack").tags(put(enumerate(["", "日本語 🚀", "a"]))).blobs(put(enumerate([new Uint8Array(), new Uint8Array([0, 255])])))
         .grid(put(enumerate([[1n, -(2n ** 70n)], [], [0n]]).map(([i, row]) => [i, (e: any) => e.as_container(write(enumerate(row as bigint[])))])))
@@ -335,15 +392,15 @@ export function build(): Map<string, [B.Store, unknown[]]> {
         .cells(put([[5n, 6n], [6n, 7n], [0n, 0n]]))
         .attrs(put([["gain", 1.5], ["", -0.0]]))
         .weights(put([[0.5, "half"], [-2.5, "neg"]]))));
-    rooted(s, [board]);
+    hold(s, [board]);
     cases.set("lists", [s, [board]]);
   });
 
   s = new B.Store();
-  s.transaction(() => { // each case's schemas and data, one transaction
-    module(s);
-    rooted(s, []);
-    cases.set("module", [s, []]);
+  for (const install of [addressBook, family, embedded, lists, module, patterns, rooted]) s.transaction(install);
+  s.transaction(() => { // the case's data, none but its root's
+    hold(s, []);
   });
+  cases.set("module", [s, []]);
   return cases;
 }

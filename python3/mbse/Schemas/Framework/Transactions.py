@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import weakref
 from collections.abc import Iterable, Mapping
+from types import SimpleNamespace
 from typing import Any
 
 from . import Plain, Proxies
@@ -104,10 +105,12 @@ class _State:
                 present, plain = Plain._value(read, prop.schema, names)
                 verb = {"set": {"value": plain}} if present else {"clear": {}}
                 members.append({"as_property": {"name": what, "mutations": [verb]}})
-            else:
+            elif kind == "adjacency":
                 name, entries = what
                 members.append({"as_adjacency": {"name": name, "mutations": [
                     {"insert": {"entries": [entry.plain() for entry in entries]}}]}})
+            else:  # a pattern's own spec, as recorded (`_RecordedSpec`)
+                members.append({"spec": {"items": what}})
         return members
 
 
@@ -130,6 +133,8 @@ class _Recorder(Proxies._Unassignable):
         if name.startswith("_"):
             raise AttributeError(name)
         state = self._state
+        if name == "spec" and state.schema is state.store.registered("Schemas.OfPattern"):
+            return _RecordedSpec(self)
         if name in state.schema.properties:
             return _RecordedProperty(self, name)
         if name in state.schema.adjacencies:
@@ -168,6 +173,38 @@ class _RecordedProperty(Proxies._Unassignable):
         if name.startswith("_"):
             raise AttributeError(name)
         return getattr(self._visitor(), name)
+
+
+class _RecordedSpec(Proxies._Unassignable):
+    """A pattern's spec, written in a spec (`Mutations.OfObject.Spec`): each callback recorded over the symbols the
+    pattern declares before it in the spec, as a pattern's builder records its own (`PatternBuilder.spec`)."""
+
+    def __init__(self, recorder: _Recorder):
+        object.__setattr__(self, "_recorder", recorder)
+
+    def __call__(self, specs: Any) -> _Recorder:
+        state = self._recorder._state
+        symbols = _declared(state)
+        items = [specs] if Proxies._is_function(specs) else list(specs)
+        state.written.append(("spec", [_recorded(state.store, symbols, item) for item in items]))
+        return self._recorder
+
+
+def _declared(state: _State) -> dict[str, Any]:
+    """The symbols a recorded pattern declares, by name, each with the schema its entry links: one the store holds,
+    since a spec is recorded before its transaction runs."""
+    symbols: dict[str, Any] = {}
+    for kind, what in state.written:
+        if kind == "adjacency" and what[0] == "symbols":
+            for entry in what[1]:
+                held = entry._links["symbol"]
+                typed = [w for k, w in held.written if k == "adjacency" and w[0] == "schema"]
+                ref = typed[0][1][0]._links["schema"] if typed else {}
+                if not isinstance(ref, dict) or "path" not in ref:
+                    raise ValueError(f"symbol {entry._values['name']!r} of a pattern whose spec a spec records names no "
+                                     "schema the store holds: name it by its path, an earlier install's")
+                symbols[entry._values["name"]] = SimpleNamespace(schema=Plain._by_path(state.store, ref["path"], ()))
+    return symbols
 
 
 def _shorthand(state: _State, name: str) -> Any:

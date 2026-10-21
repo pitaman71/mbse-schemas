@@ -628,6 +628,16 @@ As the user decided (2026-10-20), on how 4e-1 builds them:
     `Schemas.OfPattern.spec` holds the recorded `Mutations.OfPattern` values, its builder member giving each callback the
     frame visitor (95).
 
+As the user decided (2026-10-21), asked how code that calls builders and proxies directly gets inside a transaction once
+writes outside one are refused (44), choosing "Imperative scope too (Recommended)":
+
+98. A transaction has an imperative scope beside its expression: "Add a public scope beside the declarative form: Python
+    `with store.transaction():`, TypeScript `store.transaction(() => { ... })` given a no-argument function. Builder
+    calls work inside it as today, in the overlay. Fixtures and tutorials move to declarative upserts with mappings (92)
+    where that reads naturally; builder tests keep testing builders inside the scope." Offered against declarative
+    transactions only, every builder test rewritten as a transaction or moved to builders outside any store, and
+    against a private scope for tests alone.
+
 ## Open questions
 
 None at present.

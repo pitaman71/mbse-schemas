@@ -860,7 +860,7 @@ def _by_path(store: Any, path_plain: PlainData, where: tuple) -> Any:
     if owner is None:
         return None
     _, o, keys = steps[-1]
-    for table in Proxies._tables(owner, "_adjacent", False).values():
+    for table in Proxies._entries_of(owner).values():
         for entry in table.values():
             for link, target in entry._links.items():
                 if target is owner or not isinstance(target, Proxies._ObjectData):

@@ -56,81 +56,54 @@ _SERIALS = itertools.count(1)  # proxies' serial numbers, in the order made
 # --- Stores ---
 
 
-class _Overlay:
-    """A transaction's writes, held apart from the store's objects until it commits (docs/OBJECT_IDENTITY.md, Decided,
-    89, 96): a data object's property values and entry tables, and a value object's values, each copied when first
-    written and read in its place while the transaction is open; the updates of schema objects that existed before it
-    began, applied when it commits. One is open at a time: transactions do not nest (50)."""
-
-    def __init__(self, store: Any) -> None:
-        self.store = store
-        self.values: dict[int, tuple[Any, dict[str, Any]]] = {}  # each holder's values, by its id
-        self.tables: dict[tuple[int, str], tuple[Any, dict[Hashable, dict[Hashable, Any]]]] = {}  # entry tables, by holder
-        self.deferred: dict[int, Any] = {}  # each schema object's last builder, whose update waits for commit
-        self.existing: set[int] = store._existing()  # the schema objects held when it began, by id (`Builders.Store`)
-
-    def commit(self) -> None:
-        """Writes what the transaction wrote into the objects it wrote."""
-        for holder, values in self.values.values():
-            own = object.__getattribute__(holder, "_own_values")
-            own.clear()
-            own.update(values)
-        for (_, attribute), (holder, tables) in self.tables.items():
-            own = object.__getattribute__(holder, attribute)
-            own.clear()
-            own.update(tables)
-
-
-_OPEN: list[_Overlay] = []
-"""The overlays of the transactions open, one per store at most (docs/OBJECT_IDENTITY.md, Decided, 99)."""
+def _store_for(holder: Any) -> Any:
+    """The store an object's data is held by: a data object's, a value object's owner's; None for a value object not yet
+    placed. A schema object's entries are read and written through the store given."""
+    while isinstance(holder, _RecordData):
+        holder = object.__getattribute__(holder, "_owner")
+    return object.__getattribute__(holder, "_store") if isinstance(holder, _ObjectData) else None
 
 
 def _values_of(holder: Any) -> dict[str, Any]:
-    """A data object's or a value object's property values, as the transaction open on its store sees them."""
-    for overlay in _OPEN:
-        held = overlay.values.get(id(holder))
-        if held is not None:
-            return held[1]
-    return object.__getattribute__(holder, "_own_values")
+    """A data object's or a value object's property values, read through its store (docs/OBJECT_IDENTITY.md, Decided,
+    100); a value object's not yet placed, its own."""
+    store = _store_for(holder)
+    return object.__getattribute__(holder, "_own_values") if store is None else store.values(holder)
 
 
 def _writable_values(holder: Any) -> dict[str, Any]:
-    """A holder's values to write: within a transaction, the overlay's copy, made the first time. A reference object's
-    are written only within a transaction of its store (docs/OBJECT_IDENTITY.md, Decided, 44); a value object's, built
-    standalone, are its builder's until it is placed."""
-    store = _store_of(holder)
-    if isinstance(holder, _ObjectData):
-        store._written()
-    overlay = None if store is None else store._overlay
-    if overlay is None:
+    """A data object's or a value object's property values, to write through its store, which refuses a write outside a
+    transaction (Decided, 44); a value object's not yet placed, its builder's own."""
+    store = _store_for(holder)
+    return object.__getattribute__(holder, "_own_values") if store is None else store.values(holder, True)
+
+
+def _entries_of(target: Any, store: Any = None, write: bool = False) -> dict[Hashable, dict[Hashable, Any]]:
+    """The entry tables of an object, by relation, through its store (or `store`, an entry's)."""
+    return (store if store is not None else _store_for(target)).entries(target, write)
+
+
+class _Committed:
+    """What a store holds as committed: its objects' own values and entry tables, which only its transactions' commits
+    write (docs/OBJECT_IDENTITY.md, Decided, 100); the base of a transaction's proposals."""
+
+    def __init__(self, store: OfStore) -> None:
+        self.store = store
+
+    def values(self, holder: Any, write: bool = False) -> dict[str, Any]:
         return object.__getattribute__(holder, "_own_values")
-    held = overlay.values.get(id(holder))
-    if held is None:
-        held = overlay.values[id(holder)] = (holder, dict(object.__getattribute__(holder, "_own_values")))
-    return held[1]
 
-
-def _tables(holder: Any, attribute: str, write: bool, store: Any = None) -> dict[Hashable, dict[Hashable, Any]]:
-    """The entry tables `holder` keeps in `attribute` (an object's `_adjacent`, a store's `_framework_entries`), as the
-    transaction open on its store sees them; to write, within a transaction of `store`, the overlay's copy, made the first
-    time."""
-    if write:
-        store._written()
-    for open_ in _OPEN:
-        held = open_.tables.get((id(holder), attribute))
-        if held is not None:
-            return held[1]
-    overlay = store._overlay if write else None
-    try:
-        own = object.__getattribute__(holder, attribute)
-    except AttributeError:
-        own = {}
-        object.__setattr__(holder, attribute, own)
-    if overlay is None or not write:
-        return own
-    copied = {key: dict(table) for key, table in own.items()}
-    overlay.tables[(id(holder), attribute)] = (holder, copied)
-    return copied
+    def entries(self, holder: Any, write: bool = False) -> dict[Hashable, dict[Hashable, Any]]:
+        """An object's own entry tables; a schema the store was made holding is never written: the store keeps the
+        entries that link it."""
+        if self.store.framework(holder):
+            return self.store._framework_entries.setdefault(id(holder), {})
+        try:
+            return object.__getattribute__(holder, "_adjacent")
+        except AttributeError:
+            own: dict[Hashable, dict[Hashable, Any]] = {}
+            object.__setattr__(holder, "_adjacent", own)
+            return own
 
 
 class OfStore(Stores.Catalog):
@@ -145,9 +118,30 @@ class OfStore(Stores.Catalog):
         self._orphaned: list[_ObjectData] = []  # owned objects an owning entry of which was removed since
         self._keys: dict[tuple[int, int, str], int] = {}  # the last number a key's pattern gave, by relation, owner, key
         self._expressing = 0  # how deep in building an expression, or in making the store, a write is (`_written`)
-        self._overlay: _Overlay | None = None  # the overlay of the transaction open on it, if any
+        self._proposals: Any = None  # the proposals of the transaction open on it, and its savepoints', if any
+        self._framework_entries: dict[int, dict[Hashable, dict[Hashable, Any]]] = {}  # entries linking its own schemas
+        self._committed = _Committed(self)  # what it holds as committed
         # the counted objects upserts created, weakly, by upsert key, symbol and the frame that reached the upsert (63)
         self._upserted: dict[tuple[Any, ...], weakref.ref[Any]] = {}
+
+    def values(self, holder: Any, write: bool = False) -> dict[str, Any]:
+        """A data object's or a value object's property values (`Visitors.OfStore`): within a transaction, as its
+        proposals have them; outside one, the store's own, which a write is refused (docs/OBJECT_IDENTITY.md, Decided,
+        44, 100)."""
+        if self._proposals is not None:
+            return self._proposals.values(holder, write)
+        if write:
+            self._written()
+        return self._committed.values(holder)
+
+    def entries(self, holder: Any, write: bool = False) -> dict[Hashable, dict[Hashable, Any]]:
+        """The entry tables of an object, by relation (`Visitors.OfStore`): within a transaction, as its proposals have
+        them; outside one, the store's own, which a write is refused."""
+        if self._proposals is not None:
+            return self._proposals.entries(holder, write)
+        if write:
+            self._written()
+        return self._committed.entries(holder)
 
     @contextlib.contextmanager
     def _writing(self) -> Iterator[None]:
@@ -169,17 +163,18 @@ class OfStore(Stores.Catalog):
     def _written(self) -> None:
         """Refuses a write outside a transaction of this store (docs/OBJECT_IDENTITY.md, Decided, 44), but while a
         transaction's expression is built (94), the store is made, or a transaction commits."""
-        if self._overlay is None and not self._expressing:
+        if self._proposals is None and not self._expressing:
             raise ValueError("a store is written only within a transaction (store.transaction)")
 
     @contextlib.contextmanager
     def _joined(self) -> Iterator[None]:
         """The library's own writes (a decoder's, an adapter's): within the transaction of this store open, else one of
         their own."""
-        if self._overlay is not None:
-            yield
+        if self._proposals is None:
+            with self._transacting():
+                yield
             return
-        with self._transacting():
+        with self._proposing():  # a savepoint: its writes all or nothing within the transaction
             yield
 
     @contextlib.contextmanager
@@ -193,37 +188,34 @@ class OfStore(Stores.Catalog):
             self._expressing -= 1
 
     @contextlib.contextmanager
-    def _transacting(self) -> Iterator[_Overlay]:
-        """A transaction's writes (docs/OBJECT_IDENTITY.md, Decided, 89, 96): held in an overlay while it runs, written
-        when it ends, or, where it raises, dropped, the store's registries as they were before it began. One is open on a
-        store at a time; each store's is its own (Decided, 99)."""
-        if self._overlay is not None:
+    def _transacting(self) -> Iterator[Any]:
+        """A transaction's writes (docs/OBJECT_IDENTITY.md, Decided, 89, 96, 99, 100): its proposals, read through while
+        it runs, written into the store when it ends, or, where it raises, dropped, the store's registries as they were
+        before it began. One is open on a store at a time; each store's is its own."""
+        if self._proposals is not None:
             raise ValueError("a transaction is open: transactions do not nest")
-        saved = self._saved()
-        overlay = self._overlay = _Overlay(self)
-        _OPEN.append(overlay)
-        try:
-            with self._writing():  # ownership is settled within it
-                yield overlay
-        except BaseException:
-            self._closed(overlay)
-            self._restore(saved)
-            raise
-        self._closed(overlay)
-        try:
-            with self._expression():  # its commit
-                self._commit_schemas(overlay)
-        except BaseException:
-            self._restore(saved)
-            raise
-        overlay.commit()
+        with self._proposing() as proposals:
+            yield proposals
 
-    def _closed(self, overlay: _Overlay) -> None:
-        """The store's transaction ended: its overlay no longer read."""
-        self._overlay = None
-        _OPEN.remove(overlay)
+    @contextlib.contextmanager
+    def _proposing(self) -> Iterator[Any]:
+        """Proposals over what the store holds, or over the transaction open's (a savepoint): committed when the block
+        ends, dropped where it raises."""
+        from . import Proposals
 
-    def _commit_schemas(self, overlay: _Overlay) -> None:
+        below = self._proposals
+        proposals = self._proposals = Proposals.OfStore(self._committed if below is None else below, self)
+        try:
+            with self._writing():  # ownership is settled within the outermost
+                yield proposals
+        except BaseException:
+            self._proposals = below
+            proposals.abort()
+            raise
+        self._proposals = below
+        proposals.commit()
+
+    def _commit_schemas(self, proposals: Any) -> None:
         """Applies the updates of schema objects that waited for commit: none, in a store of proxies alone."""
 
     def _saved(self) -> dict[str, Any]:
@@ -269,7 +261,7 @@ class OfStore(Stores.Catalog):
             if id(target) in deleted or _owner_entries(target):
                 continue
             deleted.add(id(target))
-            for relation_id, table in list(_tables(target, "_adjacent", False).items()):
+            for relation_id, table in list(_entries_of(target, self).items()):
                 _discard(relation_id, list(table.values()))
 
     def _next_key(self, relation: RelationSchema, owner: Any, name: str, link: str, owned: str) -> str:
@@ -451,17 +443,12 @@ def _table(target: Any, relation_id: int, store: Any = None, write: bool = False
     """The entries of one relation that link `target`, by key: they live on the objects they link, a schema object too,
     which an extension's relation links (docs/SCHEMA_EXTENSION.md) and which is given its index when first linked. A
     framework schema, which every store holds, is never written: `store` keeps the entries that link it."""
-    framework = getattr(store, "framework", None)
-    if framework is not None and framework(target):
-        holder, attribute, key = store, "_framework_entries", (id(target), relation_id)
-    else:
-        holder, attribute, key = target, "_adjacent", relation_id
-    tables = _tables(holder, attribute, write, store)
-    table = tables.get(key)
+    tables = _entries_of(target, store, write)
+    table = tables.get(relation_id)
     if table is None:
         table = {}
         if write:
-            tables[key] = table
+            tables[relation_id] = table
     return table
 
 

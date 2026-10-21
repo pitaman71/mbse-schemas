@@ -337,14 +337,31 @@ so that main stays current and no branch waits on another.
        While the callers moved, the refusal was behind a switch, removed with the last of them.
 
      Settled while building it, for the user's review: a decoder within a transaction joins it, so that a refused
-     decode there leaves what it wrote before the refusal to the transaction, which the caller may let raise. One
-     transaction was first open at a time across every store; each store has its own now (Decided, 99), its overlay
-     kept on the store.
+     decode there leaves what it wrote before the refusal to the transaction, which the caller may let raise (4e-3
+     makes the join a savepoint, which drops it). One transaction was first open at a time across every store; each
+     store has its own now (Decided, 99), its overlay kept on the store.
    - **4e-3, `Visitors.OfStore` and `Proposals`** (Object identity, Decided, 100): `Stores.Store` renamed
      `Visitors.OfStore` and `Proxies._Store` `Proxies.OfStore`; every data access through the protocol; the overlay
      refactored into `Proposals`, which implements it over a store or over another `Proposals` (a savepoint), the
      decoders writing within a savepoint of the transaction open. Tech debt, retained: schema objects are read field by
-     field, outside the protocol.
+     field, outside the protocol. As built:
+     - `Visitors.OfStore` adds `values(holder, write)` and `entries(holder, write)` to the catalog's methods: an object's
+       property values, and its entry tables by relation and then by key, as the store has them; `write` asks for them
+       to write, which only a transaction may. `Proxies.OfStore` gives them through the proposals open on it, else
+       through what it holds as committed (`_committed`: each object's own values and tables, and the entries linking
+       the schemas it was made holding, which it keeps itself); every read and write of an object's data, a proxy's,
+       an entry's, a decoder's, the executor's, goes through them. `Stores.Combined`, deprecated, refuses both: an
+       object's data is its own store's;
+     - `Proposals.OfStore`, a module of its own in both languages, holds a transaction's writes over a base, what the
+       store holds as committed or other proposals: a holder's values and tables are copied from the base when first
+       written, and read through to it until then; the catalog's methods are the store's. Committed, a transaction's
+       applies the schema updates that waited (96) and writes into the store; a savepoint's writes into its
+       transaction's proposals, its waiting updates added to theirs. Aborted, the store's registries are restored to
+       where the proposals began, and the ownership left to settle truncated there;
+     - `_joined` (the decoders', the adapters') opens a transaction where none is open, else a savepoint, so that a
+       refused decode within a transaction leaves it as it was. The decoders check what they are given before writing,
+       so the savepoint is what keeps it so as they change;
+     - TXN-12 covers the proposals and savepoints, STO-06 the combined stores' refusals; no corpus changed.
    - **4f, the wire** (45, 51, 55, 56): a store's snapshot is made of transactions; a journal holds transactions as
      submitted, replayed by executing them; a Reachable document is one transaction, its counted objects numbered within
      it, owned objects and singletons referred to by path. The corpora are regenerated, the JSON byte-identical between

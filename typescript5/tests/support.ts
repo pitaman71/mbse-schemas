@@ -226,7 +226,10 @@ export const PROTOCOLS: Record<string, Record<string, number>> = {
 
 /** Parameter counts of the store protocol's methods, from Python's `Visitors.OfStore`. */
 export const STORE_PROTOCOLS: Record<string, Record<string, number>> = {
-  Store: { schema: 1, registered: 1, name_of: 1, names: 0, builder: 2, member: 2, singleton: 1, extent: 1 },
+  OfStore: {
+    schema: 1, registered: 1, name_of: 1, names: 0, builder: 2, framework: 1, member: 2, singleton: 1, extent: 1, values: 2,
+    entries: 2,
+  },
 };
 
 function methodsOf(protocol: string): Record<string, number> {

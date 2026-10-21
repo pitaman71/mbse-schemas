@@ -220,6 +220,14 @@ class Combined:
                     found.append(value)
         return tuple(found)
 
+    def values(self, holder: Any, write: bool = False) -> dict[str, Any]:
+        """Refused: stores combined hold no data of their own."""
+        raise TypeError("stores combined hold no data of their own: read it through the store holding the object")
+
+    def entries(self, holder: Any, write: bool = False) -> dict[Any, dict[Any, Any]]:
+        """Refused: stores combined hold no data of their own."""
+        raise TypeError("stores combined hold no data of their own: read it through the store holding the object")
+
 
 def _roots(store: Any) -> dict[str, Readers.OfObject]:
     """A store's singletons, by global name: a catalog's or a combined store's, or none."""

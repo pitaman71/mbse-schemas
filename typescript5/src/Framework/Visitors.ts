@@ -234,4 +234,10 @@ export interface OfStore {
   /** The store's reference objects of the schema `name`: those reachable from its singletons, in first-reference
    * order. */
   extent(name: string): readonly Readers.OfObject[];
+  /** A data object's or a value object's property values, as the store has them: within a transaction, its
+   * proposals'; to write (`write`), which only a transaction may. */
+  values(holder: object, write?: boolean): Map<string, unknown>;
+  /** The entry tables of an object, by relation and then by key, as the store has them: within a transaction, its
+   * proposals'; to write (`write`), which only a transaction may. */
+  entries(holder: object, write?: boolean): Map<unknown, Map<string, unknown>>;
 }

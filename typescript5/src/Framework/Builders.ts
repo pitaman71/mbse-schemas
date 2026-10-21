@@ -30,6 +30,7 @@ import { AttributeError, KeyError, LookupError, ReadOnlyError, ValueError } from
 import * as Mutations from "./Mutations.js";
 import * as Paths from "./Paths.js";
 import * as PlainModule from "./Plain.js";
+import type * as Proposals from "./Proposals.js";
 import * as Transactions from "./Transactions.js";
 import * as Proxies from "./Proxies.js";
 import { _Dunders as Dunders, _innerOf as innerOf, _makeEmpty as makeEmpty, _makeProperties as makeProperties,
@@ -2133,22 +2134,22 @@ export class Store extends Proxies.OfStore {
   /** Whether a builder's update of a schema object waits for the commit of the transaction open: where the object existed
    * before it began (docs/OBJECT_IDENTITY.md, Decided, 96). What it would link is checked now. */
   _defers(builder: Builder): boolean {
-    const overlay = this._overlay;
-    if (overlay === null || !this._existed(builder._original, overlay)) return false;
+    const proposals = this._proposals;
+    if (proposals === null || !this._existed(builder._original, proposals)) return false;
     this._link(builder._original, builder._working);
-    overlay.deferred.set(builder._original, builder); // its last: each began from what the one before made
+    proposals.deferred.set(builder._original, builder); // its last: each began from what the one before made
     return true;
   }
 
-  /** Whether the store held the schema object `data` when the transaction `overlay` began. */
-  _existed(data: unknown, overlay: Proxies._Overlay): boolean {
-    return this.holds(data) && (this._heldAt.get(data as object) as number) < overlay.existing;
+  /** Whether the store held the schema object `data` when the transaction of `proposals` began. */
+  _existed(data: unknown, proposals: Proposals.OfStore): boolean {
+    return this.holds(data) && (this._heldAt.get(data as object) as number) < proposals.existing;
   }
 
   /** A schema object as the transaction open has made it: the working copy of its last deferred update, else itself. */
   _pending(original: unknown): unknown {
-    const overlay = this._overlay;
-    const builder = overlay === null ? undefined : overlay.deferred.get(original as object);
+    const proposals = this._proposals;
+    const builder = proposals === null ? undefined : proposals.deferred_of(original as object);
     return builder === undefined ? original : builder._working;
   }
 
@@ -2157,36 +2158,41 @@ export class Store extends Proxies.OfStore {
     return this._held;
   }
 
-  /** The changes a transaction made to which objects have no name of their own: undone where it throws. */
+  /** The changes a transaction made to which objects have no name of their own, while one is open: undone, back to
+   * where its proposals began, where they are dropped. */
   _unnamedLog: [object, boolean][] | null = null;
 
   override _saved(): Map<Map<unknown, unknown>, [unknown, unknown][]> {
     const saved = super._saved();
     for (const held of [this._modules, this._placed]) saved.set(held as Map<unknown, unknown>, [...held]);
     saved.set(this._objects as unknown as Map<unknown, unknown>, [...this._objects].map((data) => [data, data]));
-    this._unnamedLog = [];
+    this._unnamedLog ??= [];
+    saved.set(this._unnamedLog as unknown as Map<unknown, unknown>, [[this._unnamedLog.length, null]]); // where they began
     return saved;
   }
 
   override _restore(saved: Map<Map<unknown, unknown>, [unknown, unknown][]>): void {
     const objects = saved.get(this._objects as unknown as Map<unknown, unknown>) as [unknown, unknown][];
     saved.delete(this._objects as unknown as Map<unknown, unknown>);
+    const [[began]] = saved.get(this._unnamedLog as unknown as Map<unknown, unknown>) as [[number, unknown]];
+    saved.delete(this._unnamedLog as unknown as Map<unknown, unknown>);
     super._restore(saved);
     this._objects.clear();
     for (const [data] of objects) this._objects.add(data);
-    for (const [data, unnamed] of (this._unnamedLog as [object, boolean][]).reverse()) {
+    const log = this._unnamedLog as [object, boolean][];
+    for (const [data, unnamed] of log.splice(began as number).reverse()) {
       if (unnamed) this._unnamed.add(data);
       else this._unnamed.delete(data);
     }
-    this._unnamedLog = null;
+    if (this._proposals === null) this._unnamedLog = null; // the transaction's own: it ended
   }
 
   /** Applies the updates of schema objects that waited for the transaction's commit, in order; where one is refused,
    * those applied before it are undone. */
-  override _commit_schemas(overlay: Proxies._Overlay): void {
+  override _commit_schemas(proposals: Proposals.OfStore): void {
     const applied: [any, [string, unknown][]][] = [];
     try {
-      for (const builder of overlay.deferred.values()) {
+      for (const builder of proposals.deferred.values()) {
         const original = builder._original;
         applied.push([original, Object.keys(original).map((name) => [name, original[name]])]);
         builder.update();

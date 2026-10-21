@@ -42,6 +42,7 @@
 import { toHex } from "./Bytes.js";
 import { AttributeError, KeyError, LookupError, ReadOnlyError, ValueError } from "./Errors.js";
 import { compareStrings, REPR, repr, sortedStrings, Tuple, TYPE_NAME, typeName } from "./Repr.js";
+import * as Proposals from "./Proposals.js";
 import * as Schemas from "./Schemas.js";
 import * as Stores from "./Stores.js";
 import type * as Visitors from "./Visitors.js";
@@ -196,19 +197,33 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
 
   /** How deep in building an expression, or in making the store, a write is (`_written`). */
   _expressing = 0;
-  /** The overlay of the transaction open on it, if any. */
-  _overlay: _Overlay | null = null;
+  /** The proposals of the transaction open on it, and its savepoints', if any. */
+  _proposals: Proposals.OfStore | null = null;
+  /** The entries linking the schemas it was made holding, by schema. */
+  readonly _frameworkEntries = new Map<unknown, Tables>();
+  /** What it holds as committed. */
+  readonly _committed: Proposals.Base = new _Committed(this);
 
-  /** The store's transaction ended: its overlay no longer read. */
-  _closed(overlay: _Overlay): void {
-    this._overlay = null;
-    OPEN.splice(OPEN.indexOf(overlay), 1);
+  /** A data object's or a value object's property values (`Visitors.OfStore`): within a transaction, as its proposals
+   * have them; outside one, the store's own, which a write is refused (docs/OBJECT_IDENTITY.md, Decided, 44, 100). */
+  values(holder: object, write?: boolean): Values {
+    if (this._proposals !== null) return this._proposals.values(holder, write);
+    if (write) this._written();
+    return this._committed.values(holder);
+  }
+
+  /** The entry tables of an object, by relation (`Visitors.OfStore`): within a transaction, as its proposals have them;
+   * outside one, the store's own, which a write is refused. */
+  entries(holder: object, write?: boolean): Tables {
+    if (this._proposals !== null) return this._proposals.entries(holder, write) as Tables;
+    if (write) this._written();
+    return this._committed.entries(holder) as Tables;
   }
 
   /** Refuses a write outside a transaction of this store (docs/OBJECT_IDENTITY.md, Decided, 44), but while a transaction's
    * expression is built (94), the store is made, or a transaction commits. */
   _written(): void {
-    if (this._overlay === null && this._expressing === 0) {
+    if (this._proposals === null && this._expressing === 0) {
       throw new ValueError("a store is written only within a transaction (store.transaction)");
     }
   }
@@ -216,7 +231,7 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
   /** The library's own writes (a decoder's, an adapter's): within the transaction of this store open, else one of their
    * own. */
   _joined<T>(write: () => T): T {
-    return this._overlay !== null ? write() : this._transacting(write);
+    return this._proposals === null ? this._transacting(write) : this._proposing(write); // within one, a savepoint
   }
 
   /** Building a transaction's expression, the one write allowed outside a transaction (Decided, 94); making the store; and
@@ -230,35 +245,34 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
     }
   }
 
-  /** A transaction's writes (docs/OBJECT_IDENTITY.md, Decided, 89, 96): held in an overlay while it runs, written when it
-   * ends, or, where it throws, dropped, the store's registries as they were before it began. One is open on a store at a
-   * time; each store's is its own (Decided, 99). */
+  /** A transaction's writes (docs/OBJECT_IDENTITY.md, Decided, 89, 96, 99, 100): its proposals, read through while it
+   * runs, written into the store when it ends, or, where it throws, dropped, the store's registries as they were before
+   * it began. One is open on a store at a time; each store's is its own. */
   _transacting<T>(write: () => T): T {
-    if (this._overlay !== null) throw new ValueError("a transaction is open: transactions do not nest");
-    const saved = this._saved();
-    const overlay = this._overlay = new _Overlay(this);
-    OPEN.push(overlay);
+    if (this._proposals !== null) throw new ValueError("a transaction is open: transactions do not nest");
+    return this._proposing(write);
+  }
+
+  /** Proposals over what the store holds, or over the transaction open's (a savepoint): committed when `write` returns,
+   * dropped where it throws. */
+  _proposing<T>(write: () => T): T {
+    const below = this._proposals;
+    const proposals = this._proposals = new Proposals.OfStore(below ?? this._committed, this);
     let written: T;
     try {
-      written = this._writing(write); // ownership is settled within it
+      written = this._writing(write); // ownership is settled within the outermost
     } catch (error) {
-      this._closed(overlay);
-      this._restore(saved);
+      this._proposals = below;
+      proposals.abort();
       throw error;
     }
-    this._closed(overlay);
-    try {
-      this._expression(() => this._commit_schemas(overlay)); // its commit
-    } catch (error) {
-      this._restore(saved);
-      throw error;
-    }
-    overlay.commit();
+    this._proposals = below;
+    proposals.commit();
     return written;
   }
 
   /** Applies the updates of schema objects that waited for the transaction's commit. */
-  abstract _commit_schemas(overlay: _Overlay): void;
+  abstract _commit_schemas(proposals: Proposals.OfStore): void;
 
   /** The schema objects held when a transaction begins: those its updates of wait for its commit. */
   abstract _existing(): number;
@@ -339,7 +353,7 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
       const target = this._orphaned.pop();
       if (deleted.has(target) || ownerEntries(target).length > 0) continue;
       deleted.add(target);
-      for (const [relation, held] of [...adjacentOf(target)]) discard(relation, [...held.values()]);
+      for (const [relation, held] of [...tablesOf(target, this)]) discard(relation, [...held.values()]);
     }
   }
 
@@ -584,24 +598,12 @@ function identityOf(target: unknown): number {
   return found;
 }
 
-/** The entries linking each framework schema, by store (by its schema objects, the same for the store and its proxy). */
-const FRAMEWORK_ENTRIES = new WeakMap<object, Map<unknown, Map<RelationSchema, Map<string, any>>>>();
-
 /** The entries of one relation that link `target`, by key: they live on the objects they link, a schema object too,
- * which an extension's relation links and which is given its index, hidden from its fields, when first linked. A
- * framework schema, which every store holds, is never written: `store` keeps the entries that link it. */
+ * which an extension's relation links (docs/SCHEMA_EXTENSION.md) and which is given its index, hidden from its fields,
+ * when first linked. A framework schema, which every store holds, is never written: `store` keeps the entries that link
+ * it. */
 function table(target: unknown, relation: RelationSchema, store: any = null, write = false): Map<string, any> {
-  let own: Tables;
-  if (typeof store?.framework === "function" && store.framework(target)) {
-    let byTarget = FRAMEWORK_ENTRIES.get(store._objects);
-    if (byTarget === undefined) FRAMEWORK_ENTRIES.set(store._objects, (byTarget = new Map()));
-    own = byTarget.get(target) as Tables;
-    if (own === undefined) byTarget.set(target, (own = new Map()));
-  } else {
-    own = ownTables(target);
-  }
-  if (write) store._written(); // an entry's writers resolve its store
-  const tables = tablesOf(own, write ? store : null);
+  const tables = tablesOf(target, store, write);
   let found = tables.get(relation);
   if (found === undefined) {
     found = new Map();
@@ -612,87 +614,52 @@ function table(target: unknown, relation: RelationSchema, store: any = null, wri
 
 type Tables = Map<RelationSchema, Map<string, any>>;
 
-/** The entries that link `target`, by relation, then by key, as the store holds them: made when first asked for. */
-function ownTables(target: unknown): Tables {
-  const state = innerOf(target) ?? target;
-  if (state._adjacent === undefined) Object.defineProperty(state, "_adjacent", { value: new Map(), enumerable: false });
-  return state._adjacent;
+/** The store an object's data is held by: a data object's, a value object's owner's; null for a value object not yet
+ * placed. A schema object's entries are read and written through the store given. */
+function storeFor(holder: unknown): OfStore | null {
+  return holder instanceof _ObjectData ? holder._store : storeOf((holder as _RecordData)._owner);
 }
 
-/** The entries that link `target`, by relation, then by key, as the transaction open sees them. */
-function adjacentOf(target: unknown): Tables {
-  return tablesOf(ownTables(target));
-}
-
-/** A transaction's writes, held apart from the store's objects until it commits (docs/OBJECT_IDENTITY.md, Decided, 89,
- * 96): a data object's property values and entry tables, and a value object's values, each copied when first written
- * and read in its place while the transaction is open; the updates of schema objects that existed before it began,
- * applied when it commits. One is open at a time: transactions do not nest (50). */
-export class _Overlay {
-  /** Each holder's values, by its state. */
-  readonly values = new Map<object, Values>();
-  /** Each holder's entry tables, by the tables the store holds. */
-  readonly tables = new Map<Tables, Tables>();
-  /** Each schema object's last builder, whose update waits for commit. */
-  readonly deferred = new Map<object, any>();
-  /** How many schema objects the store held when it began: those its updates of wait for its commit. */
-  readonly existing: number;
-
-  constructor(readonly store: any) {
-    this.existing = store._existing();
-  }
-
-  /** Writes what the transaction wrote into the objects it wrote. */
-  commit(): void {
-    for (const [holder, values] of this.values) {
-      const own = (holder as { _ownValues: Values })._ownValues;
-      own.clear();
-      for (const [name, value] of values) own.set(name, value);
-    }
-    for (const [own, tables] of this.tables) {
-      own.clear();
-      for (const [relation, held] of tables) own.set(relation, held);
-    }
-  }
-}
-
-/** The overlays of the transactions open, one per store at most (docs/OBJECT_IDENTITY.md, Decided, 99). */
-const OPEN: _Overlay[] = [];
-
-/** A data object's or a value object's property values, as the transaction open on its store sees them. */
+/** A data object's or a value object's property values, read through its store (docs/OBJECT_IDENTITY.md, Decided,
+ * 100); a value object's not yet placed, its own. */
 function valuesOf(holder: { _ownValues: Values }): Values {
-  for (const overlay of OPEN) {
-    const held = overlay.values.get(holder);
-    if (held !== undefined) return held;
-  }
-  return holder._ownValues;
+  const store = storeFor(holder);
+  return store === null ? holder._ownValues : store.values(holder);
 }
 
-/** A holder's values to write: within a transaction, the overlay's copy, made the first time. A reference object's are
- * written only within a transaction of its store (docs/OBJECT_IDENTITY.md, Decided, 44); a value object's, built
- * standalone, are its builder's until it is placed. */
+/** A data object's or a value object's property values, to write through its store, which refuses a write outside a
+ * transaction (Decided, 44); a value object's not yet placed, its builder's own. */
 function writableValues(holder: { _ownValues: Values }): Values {
-  const store = holder instanceof _ObjectData ? holder._store : storeOf((holder as _RecordData)._owner);
-  if (holder instanceof _ObjectData) holder._store._written();
-  const overlay = store === null ? null : store._overlay;
-  if (overlay === null) return holder._ownValues;
-  let held = overlay.values.get(holder);
-  if (held === undefined) overlay.values.set(holder, (held = new Map(holder._ownValues)));
-  return held;
+  const store = storeFor(holder);
+  return store === null ? holder._ownValues : store.values(holder, true);
 }
 
-/** Entry tables as the transaction open on their store sees them; to write, within a transaction of `store`, the
- * overlay's copy, made the first time. */
-function tablesOf(own: Tables, store: any = null): Tables {
-  for (const overlay of OPEN) {
-    const held = overlay.tables.get(own);
-    if (held !== undefined) return held;
+/** The entry tables of an object, by relation, through its store (or `store`, an entry's). */
+function tablesOf(target: unknown, store: any = null, write = false): Tables {
+  const holder = innerOf(target) ?? target;
+  return (store ?? storeFor(holder)).entries(holder, write);
+}
+
+/** What a store holds as committed: its objects' own values and entry tables, which only its transactions' commits
+ * write (docs/OBJECT_IDENTITY.md, Decided, 100); the base of a transaction's proposals. */
+class _Committed {
+  constructor(readonly store: OfStore) {}
+
+  values(holder: any): Values {
+    return holder._ownValues;
   }
-  const overlay: _Overlay | null = store === null ? null : store._overlay;
-  if (overlay === null) return own;
-  const copied: Tables = new Map([...own].map(([relation, entries]) => [relation, new Map(entries)]));
-  overlay.tables.set(own, copied);
-  return copied;
+
+  /** An object's own entry tables; a schema the store was made holding is never written: the store keeps the entries
+   * that link it. */
+  entries(holder: any): Tables {
+    if (this.store.framework(holder)) {
+      let own = this.store._frameworkEntries.get(holder);
+      if (own === undefined) this.store._frameworkEntries.set(holder, (own = new Map()));
+      return own;
+    }
+    if (holder._adjacent === undefined) Object.defineProperty(holder, "_adjacent", { value: new Map(), enumerable: false });
+    return holder._adjacent;
+  }
 }
 
 /** The store an entry belongs to: the one given, else that of a proxy it links. */
@@ -3110,7 +3077,7 @@ export function _isVisitor(value: unknown): boolean {
 export { shell as _shell, Shelled as _Shelled, Dunders as _Dunders, makeEmpty as _makeEmpty, makeProperty as _makeProperty,
   isFunction as _isFunction, visit as _visit, noun as _noun, withArticle as _withArticle, isObjectData as _isObjectData,
   makeProperties as _makeProperties, innerOf as _innerOf, storeOf as _store_of, linking as _linking,
-  addEntry as _add_entry, discard as _discard, makeEntry as _make_entry, adjacentOf as _adjacent_of, single as _single };
+  addEntry as _add_entry, discard as _discard, makeEntry as _make_entry, tablesOf as _entries_of, single as _single };
 
 /** Internal classes, exposed for protocol conformance tests. */
 export const _internals = { makeRecordBuilder, _ObjectData, _RecordData, _Entry, _Empty, _Scalar, _Any, _Property, _Properties, _Adjacency,

@@ -28,7 +28,7 @@ value, and a writable one is unhashable.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping
 from typing import TYPE_CHECKING, Any, Generic, Protocol, Self, TypeVar
 
 from .Specs import Callback
@@ -317,4 +317,14 @@ class OfStore(Protocol):
     def extent(self, name: str) -> Iterable[Readers.OfObject]:
         """The store's reference objects of the schema `name`, or of a schema refining it: those reachable from its
         singletons, in first-reference order."""
+        ...
+
+    def values(self, holder: Any, write: bool = False) -> dict[str, Any]:
+        """A data object's or a value object's property values, as the store has them: within a transaction, its
+        proposals'; to write (`write`), which only a transaction may."""
+        ...
+
+    def entries(self, holder: Any, write: bool = False) -> dict[Hashable, dict[Hashable, Any]]:
+        """The entry tables of an object, by relation and then by key, as the store has them: within a transaction,
+        its proposals'; to write (`write`), which only a transaction may."""
         ...

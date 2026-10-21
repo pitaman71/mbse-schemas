@@ -1807,18 +1807,18 @@ class Store(Proxies.OfStore):
     def _defers(self, builder: _Builder[Any]) -> bool:
         """Whether a builder's update of a schema object waits for the commit of the transaction open: where the object
         existed before it began (docs/OBJECT_IDENTITY.md, Decided, 96). What it would link is checked now."""
-        overlay = self._overlay
-        if overlay is None or id(builder._original) not in overlay.existing:
+        proposals = self._proposals
+        if proposals is None or id(builder._original) not in proposals.existing:
             return False
         self._link(builder._original, builder._working)
-        overlay.deferred[id(builder._original)] = builder  # its last: each began from what the one before made
+        proposals.deferred[id(builder._original)] = builder  # its last: each began from what the one before made
         return True
 
     def _pending(self, original: Any) -> Any:
         """A schema object as the transaction open has made it: the working copy of its last deferred update, else
         itself."""
-        overlay = self._overlay
-        builder = overlay.deferred.get(id(original)) if overlay is not None else None
+        proposals = self._proposals
+        builder = proposals.deferred_of(original) if proposals is not None else None
         return original if builder is None else builder._working
 
     def _saved(self) -> dict[str, Any]:
@@ -1831,12 +1831,12 @@ class Store(Proxies.OfStore):
         """The schema objects it holds, by id: those a transaction's updates of wait for its commit."""
         return {*self._objects, *self._unnamed.keys()}
 
-    def _commit_schemas(self, overlay: Proxies._Overlay) -> None:
+    def _commit_schemas(self, proposals: Any) -> None:
         """Applies the updates of schema objects that waited for the transaction's commit, in order; where one is
         refused, those applied before it are undone."""
         applied: list[tuple[Any, dict[str, Any]]] = []
         try:
-            for builder in overlay.deferred.values():
+            for builder in proposals.deferred.values():
                 original = builder._original
                 applied.append((original, {f.name: getattr(original, f.name) for f in dataclasses.fields(original)}))
                 builder.update()

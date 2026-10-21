@@ -372,7 +372,7 @@ Frame = dict[str, Any]
 def _execute(store: Any, transaction: Any) -> list[Frame]:
     """Executes a transaction's expression over the store, sequentially (docs/OBJECT_IDENTITY.md, Decided, 85 to 89): its
     stream starts as one frame, empty, which its root term transforms and passes on through `then`. Its writes are held
-    in an overlay and written when it ends, or dropped where it raises. Gives the frames its chain ends with."""
+    in its proposals and written when it ends, or dropped where it raises. Gives the frames its chain ends with."""
     root = _next(transaction, "mutations")
     if root is not None:
         _check(store, root, set())

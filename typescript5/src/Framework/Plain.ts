@@ -972,7 +972,7 @@ function byPath(store: any, plain: unknown, where: Where): unknown {
   const owner = byPath(store, pathFrom(singleton, steps.slice(0, -1)), where);
   if (owner === null) return null;
   const [, o, keys] = steps[steps.length - 1]!;
-  for (const table of Proxies._adjacent_of(owner).values()) {
+  for (const table of Proxies._entries_of(owner).values()) {
     for (const entry of table.values()) {
       const state = Proxies._innerOf(entry);
       for (const [link, target] of state._links) {

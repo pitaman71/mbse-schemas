@@ -237,6 +237,15 @@ export class Combined implements Visitors.OfStore {
     }
     return found;
   }
+  /** Refused: stores combined hold no data of their own. */
+  values(_holder: object, _write?: boolean): Map<string, unknown> {
+    throw new TypeError("stores combined hold no data of their own: read it through the store holding the object");
+  }
+
+  /** Refused: stores combined hold no data of their own. */
+  entries(_holder: object, _write?: boolean): Map<unknown, Map<string, unknown>> {
+    throw new TypeError("stores combined hold no data of their own: read it through the store holding the object");
+  }
 }
 
 /** A store's singletons, by global name: a catalog's or a combined store's, or none. */

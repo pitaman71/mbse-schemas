@@ -433,7 +433,7 @@ type Members = Map<string, any>[];
 
 /** Executes a transaction's expression over the store, sequentially (docs/OBJECT_IDENTITY.md, Decided, 85 to 89): its
  * stream starts as one frame, empty, which its root term transforms and passes on through `then`. Its writes are held
- * in an overlay and written when it ends, or dropped where it throws. Gives the frames its chain ends with. */
+ * in its proposals and written when it ends, or dropped where it throws. Gives the frames its chain ends with. */
 export function _execute(store: any, transaction: any): Frame[] {
   const root = next(transaction, "mutations");
   if (root !== null) check(store, root, new Set());

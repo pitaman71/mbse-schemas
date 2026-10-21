@@ -543,7 +543,9 @@ so that main stays current and no branch waits on another.
      user, on finding it unscheduled after 4f, "There is no gap. You just decided to ignore Decided 86. It doesn't have
      to be done now, but soon. One of the last things that must be done for schemas to be stabilized." Built after 4f
      and before 4h; how the meta-schemas themselves are installed, which a transaction's symbols are typed by, is to be
-     proposed for the user's review when it starts.
+     proposed for the user's review when it starts. Proposed and decided in [Installing schemas](../install/README.md)
+     (the framework's own modules drafted there, a bootstrap reading them, "everything" migrating), built in four
+     stages, 4i-1 to 4i-4, listed there.
    - **4h, the last release**, and the dependents: mbse-expressions refines `OfExpression` and `OfConstraint`;
      mbse-programs' corpora become Reachable transactions; mbse-patterns, built on `OfPredicate`, is left without it.
    Releases (question 8, renumbered by the reorder, proposed for the user's review): 0.20.0 after 4c, 0.21.0 after 4d

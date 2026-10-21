@@ -72,5 +72,22 @@ As the user decided (2026-10-21), on the questions above:
 3. Size: Schemas.py more than doubles written out (113 lines to 260, its adjacencies 103 of them): "Worth it. We can
    further optimize later."
 
-Still open: question 3, a definition where it is linked, which the user asked to see an example of.
+4. A schema with no name of its own, defined in a spec where it is linked: `S.OfContainer(lambda c: ...)`, "as
+   drafted", over a link-scoped form (`t.schema(lambda k: k.OfContainer(...))`). Inside a spec it creates nothing: it
+   records a definition, which the executor makes where it writes the link, and finds holding where an equal one is
+   linked there.
+
+## Stages
+
+- **4i-1, defining schemas by transaction**: the executor and the spec recorders cover every kind and member the drafts
+  use (a relation's links, a union's branches, a container's index and element, a definition where it is linked by
+  `txn.Schemas.OfX(cb)`), and a symbol's schema is given as `txn.Schemas.OfX` (78); tests in both languages.
+- **4i-2, the framework installs itself**: `Schemas.install`, `Paths.install` and `Mutations.install` replace
+  `Builders._plain()`, `Paths.schemas` and `Mutations.schemas`, read by the bootstrap when a store is made; a test
+  reads each again as a transaction in a store and finds it writes nothing.
+- **4i-3, extensions as installs**: `store.extend` goes; the extension check applies to what any transaction writes to
+  a schema the store was made holding; EXT rewritten.
+- **4i-4, everything else migrates**: the corpus, the examples, the README, the skill, the tutorials and every test
+  notebook define their schemas in a module-scope `install(txn)`, in batches, each with both gates at 100%; then the
+  dependents, mbse-expressions and mbse-programs.
 
